@@ -2,25 +2,36 @@ name: Publish Docker image
 
 on:
   push:
-    tags:
-      - 'v*.*.*'   # kjører bare når du lager en GitHub release med tag (eks. v1.0.0)
+    branches:
+      - main
+  release:
+    types: [published]
 
 jobs:
   docker:
     runs-on: ubuntu-latest
+
     steps:
+      # Hent repo
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # Logg inn i Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_GEMGEMINAY }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Sett opp Docker Buildx (for moderne build)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Bygg og push image
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
-          context: .
           push: true
-          tags: gemgeminay/quantum_trader:latest
+          tags: |
+            gemgeminay/quantum_trader:latest
+            gemgeminay/quantum_trader:${{ github.ref_name }}
