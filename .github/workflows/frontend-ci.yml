@@ -24,13 +24,13 @@ jobs:
         working-directory: ./frontend
         run: npm ci
 
-      - name: Optional lint (ESLint)
+      - name: Lint (ESLint) - run if available
         working-directory: ./frontend
-        # Run lint if available, but don't fail the entire job on lint issues.
+        # Run lint only if a 'lint' script exists. This step is strict and will fail the job on lint errors.
         run: |
           if npm run | Out-String -Stream | Select-String -Pattern "lint"; then
-            echo "Running lint (will not fail the job)"
-            npm run lint || echo "Lint failed but continuing"
+            echo "Running lint (job will fail if lint errors are found)"
+            npm run lint
           else
             echo "No lint script defined, skipping ESLint"
           fi
