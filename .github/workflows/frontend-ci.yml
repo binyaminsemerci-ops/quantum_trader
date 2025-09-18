@@ -1,0 +1,52 @@
+name: Frontend CI
+
+on:
+  push:
+    paths:
+      - 'frontend/**'
+  pull_request:
+    paths:
+      - 'frontend/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install frontend deps
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Optional lint (ESLint)
+        working-directory: ./frontend
+        # Run lint if available, but don't fail the entire job on lint issues.
+        run: |
+          if npm run | Out-String -Stream | Select-String -Pattern "lint"; then
+            echo "Running lint (will not fail the job)"
+            npm run lint || echo "Lint failed but continuing"
+          else
+            echo "No lint script defined, skipping ESLint"
+          fi
+
+      - name: Typecheck
+        working-directory: ./frontend
+        run: |
+          npm run type-check || npx tsc --noEmit
+
+      - name: Build (production)
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: Upload dist artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
