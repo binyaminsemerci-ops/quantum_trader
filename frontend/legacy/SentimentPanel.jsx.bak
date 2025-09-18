@@ -1,0 +1,57 @@
+// backup of original SentimentPanel.jsx
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { Doughnut } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+ChartJS.register(ArcElement, Tooltip, Legend);
+
+const SentimentPanel = ({ symbol = 'BTC' }) => {
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSummary = async () => {
+      setLoading(true);
+      try {
+        const res = await axios.get(`http://localhost:8000/news/sentiment/summary?symbol=${symbol}`);
+        setSummary(res.data);
+      } catch (err) {
+        console.error('Failed to fetch sentiment summary', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSummary();
+  }, [symbol]);
+
+  if (loading) return <div>Loading sentiment...</div>;
+  if (!summary) return <div>No sentiment data</div>;
+
+  const positive = summary.positive_count ?? 0;
+  const negative = summary.negative_count ?? 0;
+  const neutral = summary.neutral_count ?? 0;
+
+  const data = {
+    labels: ['Positive', 'Negative', 'Neutral'],
+    datasets: [
+      {
+        data: [positive, negative, neutral],
+        backgroundColor: ['#28a745', '#dc3545', '#6c757d']
+      }
+    ]
+  };
+
+  return (
+    <div className="sentiment-panel">
+      <h4>Market Sentiment ({symbol})</h4>
+      <Doughnut data={data} />
+      <div className="sentiment-stats">
+        <div>Positive: {positive}</div>
+        <div>Negative: {negative}</div>
+        <div>Neutral: {neutral}</div>
+      </div>
+    </div>
+  );
+};
+
+export default SentimentPanel;
