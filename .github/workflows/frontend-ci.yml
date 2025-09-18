@@ -44,8 +44,14 @@ jobs:
         working-directory: ./frontend
         run: npm run build
 
+      - name: List dist contents (debug)
+        working-directory: ./frontend
+        run: |
+          echo "=== dist listing ==="
+          ls -la dist || echo "dist directory missing"
+
       - name: Upload dist artifact
-        if: success()
+        # Always attempt to upload dist so debugging artifacts are available
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
