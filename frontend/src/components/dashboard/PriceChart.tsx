@@ -39,19 +39,24 @@ const PriceChart: React.FC<PriceChartProps> = ({ symbol = 'BTCUSDT', interval = 
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get<OHLCV[] | null>(`http://localhost:8000/ohlcv/${symbol}/${interval}`);
-        const signalsResponse = await axios.get<Signal[] | null>(`http://localhost:8000/signals?symbol=${symbol}&limit=100`);
+        const encodedSymbol = encodeURIComponent(String(symbol ?? ''));
+        const encodedInterval = encodeURIComponent(String(interval ?? '1h'));
+        const response = await axios.get<OHLCV[] | null>(`http://localhost:8000/ohlcv/${encodedSymbol}/${encodedInterval}`);
+        const signalsResponse = await axios.get<Signal[] | null>(`http://localhost:8000/signals?symbol=${encodedSymbol}&limit=100`);
 
         const data: OHLCV[] = Array.isArray(response?.data) ? response!.data as OHLCV[] : [];
         const signalsData: Signal[] = Array.isArray(signalsResponse?.data) ? signalsResponse!.data as Signal[] : [];
 
         const labels: string[] = data.map((item: OHLCV) => (item && item.timestamp ? moment(item.timestamp).format('YYYY-MM-DD HH:mm') : ''));
 
-        const prices: number[] = data.map((item: OHLCV) => {
-          const raw = (item && (item.close ?? item.c ?? item.price)) ?? NaN;
-          const n = Number(raw);
-          return Number.isFinite(n) ? n : NaN;
+        const pricesRaw: Array<number | null> = data.map((item: OHLCV) => {
+          const raw = (item && (item.close ?? item.c ?? item.price ?? item.close)) ?? null;
+          const n = raw === null ? NaN : Number(raw);
+          return Number.isFinite(n) ? n : null;
         });
+
+        // Chart.js expects numeric or null values; avoid passing NaN which breaks rendering
+        const prices: number[] = pricesRaw.map((v) => (v === null ? NaN : v)) as number[];
 
         const computedChartData: ChartData<'line'> = {
           labels,
@@ -86,14 +91,23 @@ const PriceChart: React.FC<PriceChartProps> = ({ symbol = 'BTCUSDT', interval = 
     };
   }, [symbol, interval]);
 
-  const chartOptions: ChartOptions<'line'> = {
+    // calculate safe time unit
+    const timeUnit = (() => {
+      try {
+        return interval && typeof interval === 'string' && interval.includes('d') ? 'day' : 'hour';
+      } catch {
+        return 'hour';
+      }
+    })();
+
+    const chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     scales: {
       x: {
         type: 'time' as const,
         time: {
-          unit: interval.includes('d') ? 'day' : 'hour',
+          unit: timeUnit,
           tooltipFormat: 'YYYY-MM-DD HH:mm',
           displayFormats: {
             hour: 'MMM D, HH:mm',
