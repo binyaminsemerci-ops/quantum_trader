@@ -12,7 +12,7 @@ export default function SignalsList(): JSX.Element {
   const fetchSignals = async () => {
     setLoading(true);
     try {
-      const res = await axios.get<Signal[]>('/signals');
+  const res = await axios.get<Signal[]>('/signals');
       const data = res?.data ?? [];
       setSignals(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -28,7 +28,7 @@ export default function SignalsList(): JSX.Element {
   const doPost = async (path: string, key?: string) => {
     if (key) setRunning(prev => ({ ...prev, [key]: true }));
     try {
-      await axios.post<void>(path);
+  await axios.post<void>(path);
       await fetchSignals();
     } catch (e) {
       console.error('post error', e);
