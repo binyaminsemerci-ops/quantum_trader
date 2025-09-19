@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
-import { vi, expect } from 'vitest';
+import { vi, expect, describe, it, beforeEach } from 'vitest';
 import * as matchers from '@testing-library/jest-dom/matchers';
 
 expect.extend(matchers);
