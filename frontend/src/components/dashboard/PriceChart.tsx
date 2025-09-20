@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api } from '../../utils/api';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -35,21 +35,24 @@ const PriceChart: React.FC<PriceChartProps> = ({ symbol = 'BTCUSDT', interval = 
   useEffect(() => {
     let mounted = true;
 
+
     const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
         const encodedSymbol = encodeURIComponent(String(symbol ?? ''));
         const encodedInterval = encodeURIComponent(String(interval ?? '1h'));
-        const response = await axios.get<OHLCV[] | null>(`http://localhost:8000/ohlcv/${encodedSymbol}/${encodedInterval}`);
-        const signalsResponse = await axios.get<Signal[] | null>(`http://localhost:8000/signals?symbol=${encodedSymbol}&limit=100`);
+        // Use typed api helpers
+        const resp = await api.getChart();
+        const data: OHLCV[] = Array.isArray(resp?.data) ? resp.data as OHLCV[] : [];
+        // Filter for symbol/interval if needed (api.getChart returns all)
+        const filtered = data.filter(d => (!symbol || d.symbol === symbol) && (!interval || d.interval === interval));
+        const signalsResp = await api.get<Signal[]>(`/signals?symbol=${encodedSymbol}&limit=100`);
+        const signalsData: Signal[] = Array.isArray(signalsResp?.data) ? signalsResp.data as Signal[] : [];
 
-        const data: OHLCV[] = Array.isArray(response?.data) ? response!.data as OHLCV[] : [];
-        const signalsData: Signal[] = Array.isArray(signalsResponse?.data) ? signalsResponse!.data as Signal[] : [];
+        const labels: string[] = filtered.map((item: OHLCV) => (item && item.timestamp ? moment(item.timestamp).format('YYYY-MM-DD HH:mm') : ''));
 
-        const labels: string[] = data.map((item: OHLCV) => (item && item.timestamp ? moment(item.timestamp).format('YYYY-MM-DD HH:mm') : ''));
-
-        const pricesRaw: Array<number | null> = data.map((item: OHLCV) => {
+        const pricesRaw: Array<number | null> = filtered.map((item: OHLCV) => {
           const raw = (item && (item.close ?? item.c ?? item.price ?? item.close)) ?? null;
           const n = raw === null ? NaN : Number(raw);
           return Number.isFinite(n) ? n : null;
