@@ -1,47 +1,59 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import moment from 'moment';
 import { Table, Badge, Button, Spinner } from 'react-bootstrap';
-
-type Trade = {
-  trade_id: number | string;
-  symbol: string;
-  side: 'BUY' | 'SELL' | string;
-  quantity?: number;
-  price?: number | null;
-  timestamp?: string;
-};
+import type { Trade as SharedTrade } from '../../types';
+import { api } from '../../utils/api';
 
 const TradeHistory: React.FC = () => {
-  const [trades, setTrades] = useState<Trade[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [trades, setTrades] = useState<SharedTrade[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteInProgress, setDeleteInProgress] = useState<number | string | null>(null);
 
-  useEffect(() => {
-    fetchTrades();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+  // fetchTrades is hoisted so UI elements (Refresh) can call it.
   const fetchTrades = async (): Promise<void> => {
     setLoading(true);
+    let mounted = true;
     try {
-      const response = await axios.get<Trade[]>('/trades');
-      const data = response.data ?? [];
+      const resp = await api.getTrades();
+      const data = resp?.data ?? [];
+      if (!mounted) return;
       setTrades(Array.isArray(data) ? data : []);
-      setLoading(false);
     } catch (err) {
       console.error('Error fetching trades:', err);
       setError('Failed to load trade history. Please try again later.');
-      setLoading(false);
+    } finally {
+      if (mounted) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let mounted = true;
+    // call the shared fetch function, but guard mounted so async sets are safe
+    (async () => {
+      try {
+        const resp = await api.getTrades();
+        const data = resp?.data ?? [];
+        if (!mounted) return;
+        setTrades(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Error fetching trades:', err);
+        if (mounted) setError('Failed to load trade history. Please try again later.');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const handleDelete = async (tradeId: number | string): Promise<void> => {
     if (!window.confirm(`Delete trade ${tradeId}?`)) return;
     setDeleteInProgress(tradeId);
     try {
-      await axios.delete<void>(`/trade/${tradeId}`);
+      const resp = await api.delete<void>(`/trade/${tradeId}`);
+      if (resp?.error) {
+        throw new Error(resp.error);
+      }
       setTrades(prev => prev.filter(t => String(t.trade_id) !== String(tradeId)));
     } catch (err) {
       console.error('Error deleting trade:', err);
@@ -90,7 +102,7 @@ const TradeHistory: React.FC = () => {
                     variant="outline-danger" 
                     size="sm"
                     disabled={deleteInProgress !== null && String(deleteInProgress) === String(trade.trade_id)}
-                    onClick={() => handleDelete(trade.trade_id)}
+                    onClick={() => { if (trade.trade_id != null) handleDelete(trade.trade_id); }}
                   >
                     {deleteInProgress !== null && String(deleteInProgress) === String(trade.trade_id) ? (
                       <><Spinner size="sm" animation="border" /> Deleting...</>
