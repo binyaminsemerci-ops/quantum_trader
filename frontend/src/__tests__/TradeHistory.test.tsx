@@ -2,11 +2,7 @@
 
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
-import { expect, describe, it, beforeEach } from 'vitest';
-import { vi } from 'vitest';
-import * as matchers from '@testing-library/jest-dom/matchers';
-
-expect.extend(matchers);
+import { expect, describe, it, beforeEach, vi } from 'vitest';
 import TradeHistory from '../components/dashboard/TradeHistory';
 import * as apiModule from '../utils/api';
 
