@@ -10,7 +10,7 @@ type WatchlistProps = {
 
 export default function Watchlist({ entries }: WatchlistProps = {}): JSX.Element | null {
   const { watchlist } = useDashboardData();
-  const list = (entries ?? watchlist ?? []) as WatchEntry[];
+  const list = Array.isArray(entries) ? entries : Array.isArray(watchlist) ? watchlist : [];
 
   if (!list || !Array.isArray(list) || list.length === 0) {
     return (

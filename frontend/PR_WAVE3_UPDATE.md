@@ -13,3 +13,6 @@ Validation performed:
 Notes for reviewers:
 - Changes are conservative and additive — small runtime-safe guard additions.
 - If CI shows issues with any tests, revert the specific file and I will iterate.
+
+Artifacts:
+- Headless dev screenshot: `artifacts/dev_screenshot_5173.png`
