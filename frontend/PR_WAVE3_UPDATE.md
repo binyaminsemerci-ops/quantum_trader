@@ -18,5 +18,6 @@ Notes for reviewers:
 
 Artifacts:
 - Headless dev screenshot: `artifacts/dev_screenshot_5173.png`
-- Fresh headless dev screenshot (will add if capture succeeds): `artifacts/dev_screenshot_5174.png`
+  - Fresh headless dev screenshot: `artifacts/dev_screenshot_5174.png`
+  - New headless dev screenshot (IPv4 fix): `artifacts/dev_screenshot_5175.png`
 - Fresh headless dev screenshot (new): `artifacts/dev_screenshot_5174.png`
