@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run frontend typecheck before commit (non-blocking for now — exit non-zero will fail commit)
+echo "Running frontend typecheck..."
+npm run typecheck --prefix frontend || {
+  echo "Typecheck failed. Commit aborted." >&2
+  exit 1
+}

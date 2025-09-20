@@ -1,0 +1,33 @@
+import React from 'react';
+import type { TradeSummary } from '../types';
+
+export type TradeListProps = {
+  trades?: TradeSummary[] | null;
+};
+
+const TradeList: React.FC<TradeListProps> = ({ trades }) => {
+  return (
+    <div style={{ marginTop: '2rem' }}>
+      <h2>Trades</h2>
+      <ul>
+        {(Array.isArray(trades) && trades.length > 0) ? (
+          trades.map((t) => {
+            const id = (t && (t.id ?? 'unknown')) as string | number;
+            const href = `/trades/${encodeURIComponent(String(id))}`;
+            const symbol = t?.symbol ?? '-';
+            const side = t?.side ?? '-';
+            return (
+              <li key={String(id)}>
+                <a href={href}>{symbol} {side}</a>
+              </li>
+            );
+          })
+        ) : (
+          <li className="text-muted">No trades available</li>
+        )}
+      </ul>
+    </div>
+  );
+}
+
+export default TradeList;
