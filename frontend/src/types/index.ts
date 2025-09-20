@@ -33,7 +33,20 @@ export type Trade = {
   [key: string]: unknown;
 };
 
-export type ApiResponse<T = any> = {
+export type TradeSummary = {
+  id: string | number;
+  symbol?: string | null;
+  side?: string | null;
+};
+
+export type StatSummary = {
+  profit: number;
+  winRate: number;
+  sharpe: number;
+  maxDrawdown: number;
+};
+
+export type ApiResponse<T = unknown> = {
   data?: T;
   error?: string | null;
 };

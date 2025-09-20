@@ -1,5 +1,6 @@
 import React from "react";
-import { useDashboardData, StatSummary } from "../hooks/useDashboardData";
+import { useDashboardData } from "../hooks/useDashboardData";
+import type { StatSummary } from "../types";
 
 export default function RiskCards(): JSX.Element | null {
   const { stats } = useDashboardData();
