@@ -1,12 +1,17 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 
-type SidebarProps = {
-  initial?: string;
+export type SidebarProps = {
+  initial?: string | null;
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ initial = "dashboard" }) => {
-  const [active, setActive] = useState<string>(initial);
+  const [active, setActive] = useState<string>(String(initial ?? 'dashboard'));
+
+  const safeSetActive = (key: string) => {
+    if (!key || typeof key !== 'string') return;
+    setActive(key);
+  };
 
   return (
     <div className="w-64 h-screen bg-gray-900 text-white p-4 flex flex-col">
@@ -18,7 +23,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initial = "dashboard" }) => {
               active === "dashboard" ? "bg-gray-700" : ""
             }`}
           >
-            <Link to="/dashboard" onClick={() => setActive("dashboard")}>
+            <Link to="/dashboard" onClick={() => safeSetActive("dashboard")}>
               Dashboard
             </Link>
           </li>
@@ -27,7 +32,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initial = "dashboard" }) => {
               active === "settings" ? "bg-gray-700" : ""
             }`}
           >
-            <Link to="/settings" onClick={() => setActive("settings")}>
+            <Link to="/settings" onClick={() => safeSetActive("settings")}>
               Settings
             </Link>
           </li>

@@ -1,6 +1,6 @@
 import React from "react";
 
-type HeaderProps = {
+export type HeaderProps = {
   title?: React.ReactNode;
   subtitle?: React.ReactNode;
 };
