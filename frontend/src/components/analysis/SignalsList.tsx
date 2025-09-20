@@ -62,7 +62,7 @@ export default function SignalsList(): JSX.Element {
             <tr key={String(s.id ?? s._id ?? idx)}>
               <td>{s.symbol ?? s.sym ?? '-'}</td>
               <td><Badge bg="secondary">{s.signal ?? s.signal_type ?? '-'}</Badge></td>
-              <td>{(typeof s.confidence === 'number' ? `${Math.round(s.confidence * 100)}%` : (typeof s.confidence_score === 'number' ? `${Math.round(s.confidence_score * 100)}%` : '-'))}</td>
+              <td>{(typeof s.confidence === 'number' ? `${Math.round(s.confidence * 100)}%` : (typeof (s as any).confidence_score === 'number' ? `${Math.round(((s as any).confidence_score ?? 0) * 100)}%` : '-'))}</td>
               <td>{s.timestamp ? moment(s.timestamp).format('YYYY-MM-DD HH:mm:ss') : '-'}</td>
               <td>
                 <Button size="sm" className="me-2" onClick={() => doPost(`/predict/${encodeURIComponent(String(s.symbol ?? s.sym ?? ''))}`, String(s.symbol ?? s.sym ?? ''))} disabled={!!running[String(s.symbol ?? s.sym ?? '')]}>
