@@ -1,14 +1,16 @@
 // Lightweight typings to help the migration
 import axios from 'axios';
+import type { Trade, StatSummary, OHLCV, ApiResponse as ApiResponseType } from '../types';
 
-export type ApiResponse<T = unknown> = { data?: T; error?: string | null };
+export type ApiResponse<T = unknown> = ApiResponseType<T>;
 
-export const trainModel = (symbol: string) => {
-  return axios.post(`/api/ai/train/${symbol}`);
+// axios-based AI endpoints (keep original runtime behavior; typed loosely)
+export const trainModel = (symbol: string): Promise<any> => {
+  return axios.post(`/api/ai/train/${symbol}`) as Promise<any>;
 };
 
-export const getPrediction = (symbol: string) => {
-  return axios.post(`/api/ai/predict/${symbol}`);
+export const getPrediction = (symbol: string): Promise<any> => {
+  return axios.post(`/api/ai/predict/${symbol}`) as Promise<any>;
 };
 const API_BASE = "/api"; // proxes til FastAPI
 
@@ -32,8 +34,9 @@ async function request<T = unknown>(endpoint: string, options: RequestInit = {})
 
 export const api = {
   // Spot
-  getSpotBalance: () => request('/binance/spot/balance'),
-  getSpotPrice: (symbol: string) => request(`/binance/spot/price/${symbol}`),
+  // these are loosely-typed because balance payloads can vary; consumers should narrow
+  getSpotBalance: (): Promise<ApiResponse<Record<string, unknown>>> => request('/binance/spot/balance'),
+  getSpotPrice: (symbol: string): Promise<ApiResponse<Record<string, unknown>>> => request(`/binance/spot/price/${symbol}`),
   placeSpotOrder: (symbol: string, side: string, quantity: number) =>
     request('/binance/spot/order', {
       method: 'POST',
@@ -41,8 +44,8 @@ export const api = {
     }),
 
   // Futures
-  getFuturesBalance: () => request('/binance/futures/balance'),
-  getFuturesPrice: (symbol: string) => request(`/binance/futures/price/${symbol}`),
+  getFuturesBalance: (): Promise<ApiResponse<Record<string, unknown>>> => request('/binance/futures/balance'),
+  getFuturesPrice: (symbol: string): Promise<ApiResponse<Record<string, unknown>>> => request(`/binance/futures/price/${symbol}`),
   placeFuturesOrder: (symbol: string, side: string, quantity: number) =>
     request('/binance/futures/order', {
       method: 'POST',
@@ -54,9 +57,10 @@ export const api = {
     request(`/binance/futures/order/${encodeURIComponent(String(symbol))}/${encodeURIComponent(String(orderId))}`, { method: 'DELETE' }),
 
   // Andre API-er
-  getStats: () => request('/stats'),
-  getTrades: () => request('/trades'),
-  getChart: () => request('/chart'),
+  // Domain-typed helpers (conservative): map to existing types in frontend/src/types
+  getStats: (): Promise<ApiResponse<StatSummary>> => request<StatSummary>('/stats'),
+  getTrades: (): Promise<ApiResponse<Trade[]>> => request<Trade[]>('/trades'),
+  getChart: (): Promise<ApiResponse<OHLCV[]>> => request<OHLCV[]>('/chart'),
   getSettings: () => request('/settings'),
   saveSettings: (settings: unknown) =>
     request('/settings', { method: 'POST', body: JSON.stringify(settings) }),
