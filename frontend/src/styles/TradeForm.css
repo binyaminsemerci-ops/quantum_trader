@@ -1,0 +1,76 @@
+.trade-form {
+  padding: 20px;
+  background-color: #1e222d;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+.trade-form h2 {
+  margin-bottom: 15px;
+  color: #e0e0e0;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  color: #e0e0e0;
+}
+
+.form-group input[type="number"],
+.form-group select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #2c313c;
+  border-radius: 4px;
+  background-color: #2a2f3a;
+  color: #e0e0e0;
+}
+
+.radio-group {
+  display: flex;
+  gap: 20px;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.radio-label input {
+  cursor: pointer;
+}
+
+.trade-form button {
+  width: 100%;
+  padding: 12px;
+  background-color: #3861fb;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.trade-form button:hover {
+  background-color: #2d4ec9;
+}
+
+.trade-form button:disabled {
+  background-color: #2c313c;
+  cursor: not-allowed;
+}
+
+.error {
+  color: #f44336;
+  padding: 10px;
+  margin-bottom: 15px;
+  background-color: rgba(244, 67, 54, 0.1);
+  border-radius: 4px;
+}

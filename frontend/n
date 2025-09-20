@@ -1,0 +1,6 @@
+Failed to capture screenshot Error: net::ERR_CONNECTION_REFUSED at http://localhost:5174/
+    at navigate (file:///C:/quantum_trader/frontend/node_modules/puppeteer-core/lib/esm/puppeteer/cdp/Frame.js:180:27)
+    at async Deferred.race (file:///C:/quantum_trader/frontend/node_modules/puppeteer-core/lib/esm/puppeteer/util/Deferred.js:33:20)
+    at async CdpFrame.goto (file:///C:/quantum_trader/frontend/node_modules/puppeteer-core/lib/esm/puppeteer/cdp/Frame.js:146:25)
+    at async CdpPage.goto (file:///C:/quantum_trader/frontend/node_modules/puppeteer-core/lib/esm/puppeteer/api/Page.js:570:20)
+    at async file:///C:/quantum_trader/frontend/scripts/screenshot.js:12:5

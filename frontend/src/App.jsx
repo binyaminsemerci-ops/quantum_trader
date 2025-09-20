@@ -1,6 +1,2 @@
-import React from "react";
-import Dashboard from "./components/Dashboard";
-
-export default function App() {
-  return <Dashboard />;
-}
+// Re-export canonical implementation
+export { default } from './App.tsx';
