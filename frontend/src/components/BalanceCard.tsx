@@ -12,13 +12,20 @@ export default function BalanceCard(): JSX.Element {
   useEffect(() => {
     async function fetchBalances() {
       try {
-        const spotData = await api.getSpotBalance();
-        const futuresData = await api.getFuturesBalance();
-        // api wrappers return { data: payload }
-  const spotPayload = spotData && typeof spotData === 'object' && 'data' in (spotData as any) ? (spotData as any).data : null;
-  const futuresPayload = futuresData && typeof futuresData === 'object' && 'data' in (futuresData as any) ? (futuresData as any).data : null;
-  setSpot(spotPayload ?? null);
-  setFutures(futuresPayload ?? null);
+        const spotResp = await api.getSpotBalance();
+        const futuresResp = await api.getFuturesBalance();
+        // api.getSpotBalance() returns ApiResponse<Record<string, unknown>>
+        const spotPayload = spotResp?.data ?? null;
+        const futuresPayload = futuresResp?.data ?? null;
+        // We expect spot/futures to contain free/balance and asset fields, but be defensive
+        setSpot((spotPayload && typeof spotPayload === 'object') ? {
+          free: (spotPayload as any).free ?? (spotPayload as any).balance ?? null,
+          asset: (spotPayload as any).asset ?? null,
+        } : null);
+        setFutures((futuresPayload && typeof futuresPayload === 'object') ? {
+          balance: (futuresPayload as any).balance ?? (futuresPayload as any).free ?? null,
+          asset: (futuresPayload as any).asset ?? null,
+        } : null);
       } catch (err: unknown) {
         console.error("❌ Feil ved henting av balanse:", err);
       } finally {

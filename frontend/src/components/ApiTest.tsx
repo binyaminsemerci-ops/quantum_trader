@@ -10,6 +10,7 @@ export default function ApiTest(): JSX.Element {
     setLoading(true);
     setResult(null);
     try {
+      // use the compatibility get<T>() which returns ApiResponse<T>
       const res = await api.get<unknown>(endpoint);
       setResult(res);
     } catch (err: unknown) {
