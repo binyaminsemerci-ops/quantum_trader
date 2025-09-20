@@ -2,14 +2,15 @@ import React, { useEffect, useState } from "react";
 import type { Trade as SharedTrade } from '../types';
 
 export type TradeTableProps = {
-  initialTrades?: SharedTrade[];
+  initialTrades?: SharedTrade[] | null;
 };
 
-const TradesTable: React.FC<TradeTableProps> = ({ initialTrades = [] }): JSX.Element => {
-  const [trades, setTrades] = useState<SharedTrade[]>(initialTrades);
+const TradesTable: React.FC<TradeTableProps> = ({ initialTrades = null }): JSX.Element => {
+  const [trades, setTrades] = useState<SharedTrade[]>(Array.isArray(initialTrades) ? initialTrades : []);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    let mounted = true;
     async function fetchTrades() {
       try {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/trades`);
@@ -17,14 +18,19 @@ const TradesTable: React.FC<TradeTableProps> = ({ initialTrades = [] }): JSX.Ele
           throw new Error(`Failed to fetch trades: ${response.status}`);
         }
         const data = await response.json();
+        if (!mounted) return;
         setTrades(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error(error);
+        if (mounted) setTrades([]);
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     }
     fetchTrades();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   if (loading) {
@@ -47,12 +53,12 @@ const TradesTable: React.FC<TradeTableProps> = ({ initialTrades = [] }): JSX.Ele
         </thead>
         <tbody>
           {trades.map((trade) => {
-            const id = trade?.id ?? '';
-            const pair = (trade?.symbol ?? (trade?.pair as string) ?? '-') as string;
-            const side = String(trade?.side ?? '-').toUpperCase();
-            const qty = trade?.quantity ?? trade?.amount ?? '-';
-            const price = trade?.price ?? '-';
-            const ts = trade?.timestamp ? new Date(String(trade.timestamp)).toLocaleString() : '-';
+            const id = trade && (trade.id ?? '') as string | number;
+            const pair = (trade && (trade.symbol ?? (trade.pair as string)) as string) ?? '-';
+            const side = trade && trade.side ? String(trade.side).toUpperCase() : '-';
+            const qty = trade ? (trade.quantity ?? trade.amount ?? '-') : '-';
+            const price = trade ? (trade.price ?? '-') : '-';
+            const ts = trade && trade.timestamp ? new Date(String((trade as any).timestamp)).toLocaleString() : '-';
 
             return (
               <tr key={String(id)} className="border-t">

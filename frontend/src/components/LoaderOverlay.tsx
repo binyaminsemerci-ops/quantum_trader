@@ -1,12 +1,12 @@
 import React from "react";
 
-type LoaderOverlayProps = {
+export type LoaderOverlayProps = {
   message?: React.ReactNode;
   show?: boolean;
 };
 
 /** Fullscreen loading overlay */
-const LoaderOverlay: React.FC<LoaderOverlayProps> = ({ message = "Loading...", show = true }) => {
+const LoaderOverlay: React.FC<LoaderOverlayProps> = ({ message = "Loading...", show = true }): JSX.Element | null => {
   if (!show) return null;
   return (
     <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
