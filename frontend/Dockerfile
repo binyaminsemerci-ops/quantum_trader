@@ -1,31 +1,20 @@
-# --- Bygg steg ---
-FROM node:18-slim AS build
-
+# Build stage
+FROM node:20-alpine as build
 WORKDIR /app
-
-# Kopier kun package.json først for bedre cache
 COPY package*.json ./
-
 RUN npm install
-
-# Kopier resten av prosjektet (inkl. src/components)
+# Install TailwindCSS and its dependencies
+RUN npm install -D tailwindcss postcss autoprefixer
 COPY . .
-
-# Bygg React/Vite frontend
 RUN npm run build
+# Ensure early-fix is injected into the built index.html so it runs before the app bundle
+# Note: early-fix.js is included in the built dist/index.html. No sed injection needed.
 
-# --- Produksjons steg ---
-FROM nginx:alpine
-
-# Fjern default nginx-html
-RUN rm -rf /usr/share/nginx/html/*
-
-# Kopier bygget app fra build-steg
-COPY --from=build /app/dist /usr/share/nginx/html
-
-# Valgfri: Egendefinert nginx-konfig hvis du har en nginx.conf
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
-
+# Production stage
+FROM nginx:1.23-alpine
+WORKDIR /usr/share/nginx/html
+RUN rm -rf ./*
+COPY --from=build /app/dist .
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
-
 CMD ["nginx", "-g", "daemon off;"]

@@ -6,27 +6,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 // placeholder backup
 
-export default function App() { return null }
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Tabs, Tab, Button, Alert } from 'react-bootstrap';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import './App.css';
-
-// Import components
-import PriceChart from './components/dashboard/PriceChart';
-import SentimentPanel from './components/dashboard/SentimentPanel';
-import TradeHistory from './components/dashboard/TradeHistory';
-import TradeForm from './components/trading/TradeForm';
-import SignalsList from './components/analysis/SignalsList';
-
-function App() {
-  const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
-  const [selectedInterval, setSelectedInterval] = useState('1h');
-  const [systemStatus, setSystemStatus] = useState({ 
-    backend: false, 
-    checking: false,
-    lastChecked: null
-  });
+// Legacy backup — neutralized to avoid accidental inclusion in TypeScript compilation
+export {}
 
   const checkBackendStatus = async () => {
     setSystemStatus(prev => ({ ...prev, checking: true }));

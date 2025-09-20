@@ -1,0 +1,29 @@
+[
+  {
+    "type": "request",
+    "url": "http://localhost:3000/"
+  },
+  {
+    "type": "response",
+    "url": "http://localhost:3000/",
+    "status": 200
+  },
+  {
+    "type": "request",
+    "url": "http://localhost:3000/assets/index-D7JO6YFC.js"
+  },
+  {
+    "type": "request",
+    "url": "http://localhost:3000/assets/index-CxnqmwFE.css"
+  },
+  {
+    "type": "response",
+    "url": "http://localhost:3000/assets/index-CxnqmwFE.css",
+    "status": 200
+  },
+  {
+    "type": "response",
+    "url": "http://localhost:3000/assets/index-D7JO6YFC.js",
+    "status": 200
+  }
+]
