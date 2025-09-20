@@ -47,8 +47,8 @@ const PriceChart: React.FC<PriceChartProps> = ({ symbol = 'BTCUSDT', interval = 
         const data: OHLCV[] = Array.isArray(resp?.data) ? resp.data as OHLCV[] : [];
         // Filter for symbol/interval if needed (api.getChart returns all)
         const filtered = data.filter(d => (!symbol || d.symbol === symbol) && (!interval || d.interval === interval));
-        const signalsResp = await api.get<Signal[]>(`/signals?symbol=${encodedSymbol}&limit=100`);
-        const signalsData: Signal[] = Array.isArray(signalsResp?.data) ? signalsResp.data as Signal[] : [];
+  const signalsResp = await api.get<Signal[]>(`/signals?symbol=${encodedSymbol}&limit=100`);
+  const signalsData: Signal[] = Array.isArray(signalsResp?.data) ? signalsResp.data as Signal[] : [];
 
         const labels: string[] = filtered.map((item: OHLCV) => (item && item.timestamp ? moment(item.timestamp).format('YYYY-MM-DD HH:mm') : ''));
 
@@ -78,9 +78,10 @@ const PriceChart: React.FC<PriceChartProps> = ({ symbol = 'BTCUSDT', interval = 
         setChartData(computedChartData);
         setSignals(Array.isArray(signalsData) ? signalsData : []);
         setLoading(false);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!mounted) return;
-        console.error('Error fetching price data:', err?.message ?? err);
+        const message = (err as any)?.message ?? String(err);
+        console.error('Error fetching price data:', message);
         setError('Failed to load price data. Please try again later.');
         setLoading(false);
       }
@@ -140,17 +141,18 @@ const PriceChart: React.FC<PriceChartProps> = ({ symbol = 'BTCUSDT', interval = 
           <h4>Recent Signals</h4>
           <ul>
             {(signals || []).slice(0, 5).map((signal: Signal, idx: number) => {
-              const rawSig = signal && (signal.signal ?? signal.signal_type ?? (signal as any).signalType ?? (signal as any).type);
+              const rawSig = signal && (signal.signal ?? signal.signal_type ?? (signal as unknown as Record<string, unknown>).signalType ?? (signal as unknown as Record<string, unknown>).type);
               const sig = rawSig ? String(rawSig) : '';
               const cls = `signal-item ${sig ? sig.toLowerCase() : 'unknown'}`.trim();
 
-              const rawConf = signal && ((signal as any).confidence ?? (signal as any).confidence_score ?? (signal as any).confidencePercent ?? null);
+              const maybeRaw = signal as unknown as Record<string, unknown>;
+              const rawConf = signal && (maybeRaw.confidence ?? maybeRaw.confidence_score ?? maybeRaw.confidencePercent ?? null);
               const confNumber = typeof rawConf === 'number' && Number.isFinite(rawConf) ? rawConf : null;
 
               const confDisplay = confNumber === null ? '—' : `${Math.round(confNumber * 100)}%`;
 
               const when = signal && signal.timestamp ? moment(signal.timestamp).format('YYYY-MM-DD HH:mm') : 'N/A';
-              const keyId = signal?.id ?? (signal as any)?._id ?? `${symbol}-sig-${idx}`;
+              const keyId = signal?.id ?? (signal as unknown as Record<string, unknown>)?._id ?? `${symbol}-sig-${idx}`;
 
               return (
                 <li key={String(keyId)} className={cls}>

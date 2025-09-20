@@ -11,14 +11,14 @@ const OHLCVChart: React.FC = () => {
     (async () => {
       try {
         const res = await api.getChart();
-        const src: OHLCV[] = (res?.data && Array.isArray(res.data)) ? res.data as OHLCV[] : [];
+        const src = (res?.data && Array.isArray(res.data)) ? (res.data as OHLCV[]) : [];
         if (!mounted) return;
         const parsed = src.map((d) => ({
-    time: new Date(Number(d.timestamp ?? Date.now())).toLocaleTimeString(),
+          time: new Date(Number(d.timestamp ?? Date.now())).toLocaleTimeString(),
           close: Number(d.close ?? 0),
         }));
         setData(parsed);
-      } catch (e) {
+      } catch (e: unknown) {
         console.error('Failed to load OHLCV chart', e);
         if (mounted) setData([]);
       }
