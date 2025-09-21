@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { api } from '../utils/api';
+import type { ApiResponse } from '../utils/api';
 
 export default function ApiTest(): JSX.Element {
   const [result, setResult] = useState<string | null>(null);
 
   async function onPing() {
     try {
-      const res = await api.get('/health');
-      setResult(JSON.stringify(res as any));
+  const res: ApiResponse<Record<string, unknown>> = await api.get('/health');
+  if (res.error) setResult(`Error: ${res.error}`);
+  else setResult(JSON.stringify(res.data ?? {}));
     } catch (e) {
       setResult('Error');
     }
