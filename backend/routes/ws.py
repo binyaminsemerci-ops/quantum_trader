@@ -3,7 +3,8 @@ from backend.database import get_db
 from backend.utils.pnl import calculate_pnl, calculate_pnl_per_symbol
 from backend.utils.risk import calculate_risk
 from backend.utils.analytics import calculate_analytics
-import json, asyncio
+import json
+import asyncio
 
 router = APIRouter()
 

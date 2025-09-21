@@ -1,1 +1,1 @@
-# index.js - placeholder for real code
+export { default } from './index.tsx';

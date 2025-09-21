@@ -1,7 +1,9 @@
+from typing import Any, cast
+import os
+from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base
-from datetime import datetime
-import os
+
 
 # Sørg for at database-mappa finnes
 DB_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -10,19 +12,20 @@ os.makedirs(DB_DIR, exist_ok=True)
 DATABASE_URL = f"sqlite:///{os.path.join(DB_DIR, 'trades.db')}"
 
 # Opprett engine
-engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False}
-)
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
 # Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Base ORM
-Base = declarative_base()
+# Use typing.cast to tell MyPy to treat the declarative base as Any for
+# type-checking purposes. This avoids redeclaration issues while preserving
+# runtime behavior of SQLAlchemy's declarative_base().
+Base = cast(Any, declarative_base())
 
 
 # Tabeller / modeller
-class TradeLog(Base):
+class TradeLog(Base):  # type: ignore[valid-type,misc]
     __tablename__ = "trade_logs"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -35,7 +38,7 @@ class TradeLog(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
 
 
-class Settings(Base):
+class Settings(Base):  # type: ignore[valid-type,misc]
     __tablename__ = "settings"
 
     id = Column(Integer, primary_key=True, index=True)
