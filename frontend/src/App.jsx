@@ -1,6 +1,2 @@
-import React from "react";
-import Dashboard from "./components/Dashboard";
-
-export default function App() {
-  return <Dashboard />;
-}
+// Auto-generated re-export stub
+export { default } from './App.tsx';
