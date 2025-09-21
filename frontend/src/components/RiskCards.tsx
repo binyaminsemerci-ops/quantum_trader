@@ -2,7 +2,7 @@ import { useDashboardData } from '../hooks/useDashboardData';
 
 export default function RiskCards(): JSX.Element | null {
   const { data } = useDashboardData();
-  const risk: any = data.stats?.risk;
+  const risk = data?.stats?.risk;
   if (!risk) return null;
 
   return (

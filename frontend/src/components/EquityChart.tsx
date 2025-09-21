@@ -2,9 +2,11 @@
 import { useMemo } from 'react';
 import { useDashboardData } from '../hooks/useDashboardData';
 
+type ChartPoint = { timestamp?: string; equity?: number };
+
 export default function EquityChart(): JSX.Element {
   const { data } = useDashboardData();
-  const chart: any[] = data.chart || [];
+  const chart: ChartPoint[] = data?.chart || [];
 
   const summary = useMemo(() => {
     if (!chart || chart.length === 0) return { points: 0, first: null, last: null };
