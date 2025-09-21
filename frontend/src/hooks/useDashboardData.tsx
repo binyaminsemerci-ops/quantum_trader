@@ -1,7 +1,32 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+import type { Trade, OHLCV, StatSummary } from '../types';
 
-type DashboardData = any;
-type ToastShape = { message?: string; type?: string } | null;
+type LogItem = {
+  timestamp?: string;
+  symbol?: string;
+  side?: string;
+  qty?: number;
+  price?: number;
+  status?: string;
+};
+
+type ChartPoint = { timestamp?: string; equity?: number };
+
+type Stats = StatSummary & {
+  analytics?: { win_rate?: number; sharpe_ratio?: number; trades_count?: number };
+  risk?: { max_trade_exposure?: number; daily_loss_limit?: number; exposure_per_symbol?: Record<string, number> };
+  pnl_per_symbol?: Record<string, number>;
+};
+
+type DashboardData = {
+  stats?: Stats | null;
+  trades?: Trade[];
+  logs?: LogItem[];
+  chart?: ChartPoint[];
+  candles?: OHLCV[];
+} | null;
+export type ToastShape = { message?: string; type?: string } | null;
 
 type DashboardContextType = {
   data: DashboardData;
@@ -10,13 +35,13 @@ type DashboardContextType = {
   setPaused: (v: boolean) => void;
   fallback: boolean;
   lastUpdated: string | null;
-  toast?: ToastShape;
-  setToast?: (t: ToastShape) => void;
+  toast: ToastShape;
+  setToast: (t: ToastShape) => void;
 };
 
 const DashboardContext = createContext<DashboardContextType | null>(null);
 
-export function DashboardProvider({ children }: { children: React.ReactNode }) {
+export function DashboardProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<DashboardData>({ stats: null, trades: [], logs: [], chart: [] });
   const [connected, setConnected] = useState<boolean>(false);
   const [paused, setPaused] = useState<boolean>(false);
@@ -33,12 +58,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         fetch('http://127.0.0.1:8000/api/chart'),
       ]);
 
-      const stats = await statsRes.json();
-      const trades = await tradesRes.json();
-      const logs = await logsRes.json();
-      const chart = await chartRes.json();
+  const stats = await statsRes.json();
+  const trades = await tradesRes.json();
+  const logs = await logsRes.json();
+  const chart = await chartRes.json();
 
-      setData({ stats, trades: trades.trades || [], logs: logs.logs || [], chart: chart || [] });
+  setData({ stats, trades: trades.trades || [], logs: logs.logs || [], chart: chart || [] });
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (err) {
       console.error('Fallback fetch error:', err);

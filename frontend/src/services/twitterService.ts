@@ -1,6 +1,6 @@
 const X_API_KEY = import.meta.env.VITE_X_API_KEY as string | undefined;
 
-type TwitterSentiment = { symbol: string; score?: number; details?: any } | { error: string };
+type TwitterSentiment = { symbol: string; score?: number; details?: Record<string, unknown> } | { error: string };
 
 export async function fetchTwitterSentiment(symbol?: string): Promise<TwitterSentiment | null> {
   try {
@@ -11,7 +11,11 @@ export async function fetchTwitterSentiment(symbol?: string): Promise<TwitterSen
     return data;
   } catch (error: unknown) {
     console.error('Error fetching Twitter sentiment:', error);
-    const message = (error as any)?.message ?? String(error);
+    let message = String(error);
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+      const maybe = (error as { message?: unknown }).message;
+      if (typeof maybe === 'string') message = maybe;
+    }
     return { error: message };
   }
 }

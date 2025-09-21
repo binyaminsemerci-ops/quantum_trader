@@ -1,5 +1,7 @@
 import axios from 'axios';
-import type { Trade, StatSummary, OHLCV, ApiResponse as ApiResponseType } from '../types';
+import type { Trade, StatSummary, OHLCV, ApiResponse as ApiResponseType, SpotBalance, FuturesBalance } from '../types';
+
+export type Price = { symbol?: string; price?: number };
 
 export type ApiResponse<T = unknown> = ApiResponseType<T> | { error?: string; data?: T };
 
@@ -26,14 +28,14 @@ async function request<T = unknown>(endpoint: string, options: RequestInit = {})
 
 export const api = {
   // Spot
-  getSpotBalance: (): Promise<ApiResponse<Record<string, unknown>>> => request('/binance/spot/balance'),
-  getSpotPrice: (symbol: string): Promise<ApiResponse<Record<string, unknown>>> => request(`/binance/spot/price/${symbol}`),
+  getSpotBalance: (): Promise<ApiResponse<SpotBalance>> => request('/binance/spot/balance'),
+  getSpotPrice: (symbol: string): Promise<ApiResponse<Price>> => request(`/binance/spot/price/${symbol}`),
   placeSpotOrder: (symbol: string, side: string, quantity: number) =>
     request('/binance/spot/order', { method: 'POST', body: JSON.stringify({ symbol, side, quantity }) }),
 
   // Futures
-  getFuturesBalance: (): Promise<ApiResponse<Record<string, unknown>>> => request('/binance/futures/balance'),
-  getFuturesPrice: (symbol: string): Promise<ApiResponse<Record<string, unknown>>> => request(`/binance/futures/price/${symbol}`),
+  getFuturesBalance: (): Promise<ApiResponse<FuturesBalance>> => request('/binance/futures/balance'),
+  getFuturesPrice: (symbol: string): Promise<ApiResponse<Price>> => request(`/binance/futures/price/${symbol}`),
   placeFuturesOrder: (symbol: string, side: string, quantity: number) =>
     request('/binance/futures/order', { method: 'POST', body: JSON.stringify({ symbol, side, quantity }) }),
   getOpenFuturesOrders: (symbol?: string) => request(`/binance/futures/orders${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`),
@@ -50,11 +52,19 @@ export const api = {
 
   // compatibility wrappers
   get: <T = unknown>(endpoint: string): Promise<ApiResponse<T>> => request<T>(endpoint),
-  post: <T = unknown>(endpoint: string, body: unknown = null, opts: Record<string, any> = {}): Promise<ApiResponse<T>> => {
+  post: <T = unknown>(endpoint: string, body: unknown = null, opts: Record<string, unknown> = {}): Promise<ApiResponse<T>> => {
     let url = endpoint;
-    if (opts && opts.params) {
-      const qs = new URLSearchParams(opts.params).toString();
-      url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}${qs}`;
+    if (opts && (opts as Record<string, unknown>).params) {
+      const params = (opts as Record<string, unknown>).params;
+      if (params && typeof params === 'object') {
+        const flat: Record<string, string> = {};
+        for (const k of Object.keys(params)) {
+          const v = (params as Record<string, unknown>)[k];
+          flat[k] = v == null ? '' : String(v);
+        }
+        const qs = new URLSearchParams(flat).toString();
+        url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}${qs}`;
+      }
     }
     return request<T>(url, body ? { method: 'POST', body: JSON.stringify(body) } : { method: 'POST' });
   },
