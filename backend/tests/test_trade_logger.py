@@ -1,4 +1,3 @@
-import pytest
 from backend.utils.trade_logger import log_trade
 from backend.database import get_db, TradeLog
 
