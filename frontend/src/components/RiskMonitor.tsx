@@ -7,6 +7,10 @@ export default function RiskMonitor(): JSX.Element {
   const [stopLoss, setStopLoss] = useState<number | ''>('');
   const [positionSize, setPositionSize] = useState<number | null>(null);
 
+  // sample derived values shown in the panel
+  const equity = 10250;
+  const openTrades = 3;
+
   const calculateRisk = () => {
     if (entryPrice === '' || stopLoss === '' || entryPrice === undefined || stopLoss === undefined) return;
 
@@ -26,6 +30,24 @@ export default function RiskMonitor(): JSX.Element {
     <div className="p-6 bg-white shadow rounded-lg">
       <h2 className="text-lg font-semibold text-gray-700 mb-4">Risk Monitor</h2>
       <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-4 mb-2">
+          <div className="p-3 bg-gray-50 rounded">
+            <div className="text-xs text-gray-500">Balance</div>
+            <div className="text-lg font-semibold">${balance.toLocaleString()}</div>
+          </div>
+          <div className="p-3 bg-gray-50 rounded">
+            <div className="text-xs text-gray-500">Equity</div>
+            <div className="text-lg font-semibold">${equity.toLocaleString()}</div>
+          </div>
+          <div className="p-3 bg-gray-50 rounded">
+            <div className="text-xs text-gray-500">Risk %</div>
+            <div className="text-lg font-semibold">{riskPercent}%</div>
+          </div>
+          <div className="p-3 bg-gray-50 rounded">
+            <div className="text-xs text-gray-500">Open Trades</div>
+            <div className="text-lg font-semibold">{openTrades}</div>
+          </div>
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-600">Balance ($)</label>
           <input
@@ -75,6 +97,46 @@ export default function RiskMonitor(): JSX.Element {
             </p>
           </div>
         )}
+        {/* Trade history sample table */}
+        <div className="mt-6">
+          <h3 className="text-sm font-medium text-gray-600 mb-2">Trade History</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm text-left">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">Pair</th>
+                  <th className="px-3 py-2">Side</th>
+                  <th className="px-3 py-2">Amount</th>
+                  <th className="px-3 py-2">Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="px-3 py-2">2025-09-01</td>
+                  <td className="px-3 py-2">BTC/USDT</td>
+                  <td className="px-3 py-2">BUY</td>
+                  <td className="px-3 py-2">0.5</td>
+                  <td className="px-3 py-2">25,000</td>
+                </tr>
+                <tr className="bg-white">
+                  <td className="px-3 py-2">2025-09-02</td>
+                  <td className="px-3 py-2">ETH/USDT</td>
+                  <td className="px-3 py-2">SELL</td>
+                  <td className="px-3 py-2">2</td>
+                  <td className="px-3 py-2">1,600</td>
+                </tr>
+                <tr>
+                  <td className="px-3 py-2">2025-09-03</td>
+                  <td className="px-3 py-2">BNB/USDT</td>
+                  <td className="px-3 py-2">BUY</td>
+                  <td className="px-3 py-2">5</td>
+                  <td className="px-3 py-2">280</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   );
