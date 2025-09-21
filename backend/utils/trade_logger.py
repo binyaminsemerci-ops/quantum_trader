@@ -1,8 +1,9 @@
 from backend.database import get_db, TradeLog
 from datetime import datetime
+from typing import Optional
 
 
-def log_trade(trade: dict, status: str, reason: str = None):
+def log_trade(trade: dict, status: str, reason: Optional[str] = None):
     """
     Logger en trade til databasen.
     trade = {"symbol": "BTCUSDT", "side": "BUY", "qty": 0.05, "price": 25000}

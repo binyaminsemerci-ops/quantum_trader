@@ -1,4 +1,3 @@
-import pytest
 from backend.utils.risk import RiskManager
 
 def test_valid_order():
