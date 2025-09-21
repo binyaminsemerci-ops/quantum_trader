@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 
-export default function useDarkMode(): [boolean, (v: boolean) => void] {
+export default function useDarkMode(): [boolean, Dispatch<SetStateAction<boolean>>] {
   const [enabled, setEnabled] = useState<boolean>(false);
 
   useEffect(() => {
