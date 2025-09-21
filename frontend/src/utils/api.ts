@@ -1,6 +1,8 @@
 import axios from 'axios';
 import type { Trade, StatSummary, OHLCV, ApiResponse as ApiResponseType, SpotBalance, FuturesBalance } from '../types';
 
+export type Price = { symbol?: string; price?: number };
+
 export type ApiResponse<T = unknown> = ApiResponseType<T> | { error?: string; data?: T };
 
 const API_BASE = '/api';
@@ -27,13 +29,13 @@ async function request<T = unknown>(endpoint: string, options: RequestInit = {})
 export const api = {
   // Spot
   getSpotBalance: (): Promise<ApiResponse<SpotBalance>> => request('/binance/spot/balance'),
-  getSpotPrice: (symbol: string): Promise<ApiResponse<Record<string, unknown>>> => request(`/binance/spot/price/${symbol}`),
+  getSpotPrice: (symbol: string): Promise<ApiResponse<Price>> => request(`/binance/spot/price/${symbol}`),
   placeSpotOrder: (symbol: string, side: string, quantity: number) =>
     request('/binance/spot/order', { method: 'POST', body: JSON.stringify({ symbol, side, quantity }) }),
 
   // Futures
   getFuturesBalance: (): Promise<ApiResponse<FuturesBalance>> => request('/binance/futures/balance'),
-  getFuturesPrice: (symbol: string): Promise<ApiResponse<Record<string, unknown>>> => request(`/binance/futures/price/${symbol}`),
+  getFuturesPrice: (symbol: string): Promise<ApiResponse<Price>> => request(`/binance/futures/price/${symbol}`),
   placeFuturesOrder: (symbol: string, side: string, quantity: number) =>
     request('/binance/futures/order', { method: 'POST', body: JSON.stringify({ symbol, side, quantity }) }),
   getOpenFuturesOrders: (symbol?: string) => request(`/binance/futures/orders${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`),
