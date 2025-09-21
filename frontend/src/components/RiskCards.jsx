@@ -1,1 +1,1 @@
-// export { default } from './RiskCards.tsx'; // RiskCards.jsx (migrated to TSX)
+export { default } from './RiskCards.tsx';

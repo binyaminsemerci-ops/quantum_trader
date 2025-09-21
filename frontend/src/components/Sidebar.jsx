@@ -1,1 +1,1 @@
-// export { default } from './Sidebar.tsx'; // Sidebar.jsx (migrated to TSX)
+export { default } from './Sidebar.tsx';
