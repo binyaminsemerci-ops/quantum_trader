@@ -5,6 +5,10 @@ import type { Trade as ApiTrade, OHLCV } from '../types';
 
 type ChartViewProps = { title?: string };
 
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return typeof x === 'object' && x !== null;
+}
+
 type TradeRow = { date: string; pair: string; side: 'BUY' | 'SELL'; amount: number; price: number };
 
 export default function ChartView({ title }: ChartViewProps): JSX.Element {
@@ -44,14 +48,17 @@ export default function ChartView({ title }: ChartViewProps): JSX.Element {
         const tradesResp = await api.getTrades();
         // api.getTrades returns ApiResponse<Trade[]>
         if (mounted && tradesResp && 'data' in tradesResp && Array.isArray(tradesResp.data)) {
-          // Map backend trade shape to local TradeRow
-          const mapped: TradeRow[] = tradesResp.data.map((t: ApiTrade) => ({
-            date: (t as any)?.timestamp ?? (t as any)?.date ?? String((t as any)?.id ?? ''),
-            pair: (t as any)?.symbol ?? 'UNKNOWN',
-            side: ((t as any)?.side ?? 'BUY').toString().toUpperCase() === 'SELL' ? 'SELL' : 'BUY',
-            amount: Number((t as any)?.qty ?? (t as any)?.amount ?? 0) || 0,
-            price: Number((t as any)?.price ?? 0) || 0,
-          }));
+          // Map backend trade shape to local TradeRow with safe narrowing
+          const extract = (x: unknown) => (isRecord(x) ? x as Record<string, unknown> : {} as Record<string, unknown>);
+          const mapped: TradeRow[] = tradesResp.data.map((t: ApiTrade) => {
+            const r = extract(t as unknown);
+            const date = (r['timestamp'] ?? r['date'] ?? String(r['id'] ?? '')) as string;
+            const pair = (r['symbol'] ?? 'UNKNOWN') as string;
+            const side = ((r['side'] ?? 'BUY') as string).toString().toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
+            const amount = Number(r['qty'] ?? r['amount'] ?? 0) || 0;
+            const price = Number(r['price'] ?? 0) || 0;
+            return { date, pair, side, amount, price } as TradeRow;
+          });
           setTrades(mapped);
         }
       } catch (e) {
@@ -69,7 +76,8 @@ export default function ChartView({ title }: ChartViewProps): JSX.Element {
               : (raw as OHLCV[])
                   .map((p) => {
                     if (typeof p === 'number') return p;
-                    return Number((p && (p as any).close) ?? NaN);
+                    const obj = isRecord(p) ? (p as Record<string, unknown>) : undefined;
+                    return Number((obj && (obj['close'] as number)) ?? NaN);
                   })
                   .filter(Number.isFinite);
 

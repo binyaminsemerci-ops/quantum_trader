@@ -23,8 +23,9 @@ export default function Settings(): JSX.Element {
       } else {
         setMsg('❌ Failed to save API keys');
       }
-    } catch (err: any) {
-      setMsg('⚠️ Error: ' + (err?.message ?? String(err)));
+    } catch (err: unknown) {
+      const message = (err && typeof err === 'object' && 'message' in err) ? String((err as any).message) : String(err);
+      setMsg('⚠️ Error: ' + (message ?? 'Unknown error'));
     }
   };
 

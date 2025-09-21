@@ -10,12 +10,20 @@ async function safeJson(res: Response): Promise<unknown> {
   }
 }
 
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return typeof x === 'object' && x !== null;
+}
+
 export async function fetchTrades(): Promise<ApiResponse<Trade[]>> {
   const res = await fetch(`${API_BASE}/trades`);
   if (!res.ok) return { error: `HTTP ${res.status}` };
   const payload = await safeJson(res);
-  const data = Array.isArray(payload) ? (payload as Trade[]) : ((payload as any)?.trades ?? payload);
-  return { data: data as Trade[] };
+  let data: unknown = payload;
+  if (Array.isArray(payload)) data = payload;
+  else if (isRecord(payload) && Array.isArray((payload as Record<string, unknown>)['trades'])) {
+    data = (payload as Record<string, unknown>)['trades'];
+  }
+  return { data: (Array.isArray(data) ? (data as Trade[]) : []) };
 }
 
 export async function fetchStats(): Promise<ApiResponse<StatSummary>> {
@@ -29,8 +37,11 @@ export async function fetchChart(): Promise<ApiResponse<OHLCV[]>> {
   const res = await fetch(`${API_BASE}/chart`);
   if (!res.ok) return { error: `HTTP ${res.status}` };
   const payload = await safeJson(res);
-  const data = (payload as any)?.data ?? payload;
-  return { data: data as OHLCV[] };
+  let data: unknown = payload;
+  if (isRecord(payload) && Array.isArray((payload as Record<string, unknown>)['data'])) {
+    data = (payload as Record<string, unknown>)['data'];
+  }
+  return { data: (Array.isArray(data) ? (data as OHLCV[]) : []) };
 }
 
 export async function fetchSettings(): Promise<ApiResponse<Record<string, unknown>>> {
