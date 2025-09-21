@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../utils/api';
-
-type SpotBalance = { free?: number; asset?: string } | any;
-type FuturesBalance = { balance?: number; asset?: string } | any;
+import type { ApiResponse } from '../utils/api';
+import type { SpotBalance, FuturesBalance } from '../types';
 
 export default function BalanceCard(): JSX.Element {
   const [spot, setSpot] = useState<SpotBalance | null>(null);
@@ -12,10 +11,11 @@ export default function BalanceCard(): JSX.Element {
   useEffect(() => {
     async function fetchBalances() {
       try {
-        const spotData = await api.getSpotBalance();
-        const futuresData = await api.getFuturesBalance();
-        setSpot((spotData as any)?.data ?? (spotData as any) ?? null);
-        setFutures((futuresData as any)?.data ?? (futuresData as any) ?? null);
+  const spotResp: ApiResponse<SpotBalance> = await api.getSpotBalance();
+  const futuresResp: ApiResponse<FuturesBalance> = await api.getFuturesBalance();
+
+  setSpot(spotResp.data ?? null);
+  setFutures(futuresResp.data ?? null);
       } catch (err) {
         console.error('❌ Error fetching balances:', err);
       } finally {

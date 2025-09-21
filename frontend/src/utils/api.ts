@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Trade, StatSummary, OHLCV, ApiResponse as ApiResponseType } from '../types';
+import type { Trade, StatSummary, OHLCV, ApiResponse as ApiResponseType, SpotBalance, FuturesBalance } from '../types';
 
 export type ApiResponse<T = unknown> = ApiResponseType<T> | { error?: string; data?: T };
 
@@ -26,13 +26,13 @@ async function request<T = unknown>(endpoint: string, options: RequestInit = {})
 
 export const api = {
   // Spot
-  getSpotBalance: (): Promise<ApiResponse<Record<string, unknown>>> => request('/binance/spot/balance'),
+  getSpotBalance: (): Promise<ApiResponse<SpotBalance>> => request('/binance/spot/balance'),
   getSpotPrice: (symbol: string): Promise<ApiResponse<Record<string, unknown>>> => request(`/binance/spot/price/${symbol}`),
   placeSpotOrder: (symbol: string, side: string, quantity: number) =>
     request('/binance/spot/order', { method: 'POST', body: JSON.stringify({ symbol, side, quantity }) }),
 
   // Futures
-  getFuturesBalance: (): Promise<ApiResponse<Record<string, unknown>>> => request('/binance/futures/balance'),
+  getFuturesBalance: (): Promise<ApiResponse<FuturesBalance>> => request('/binance/futures/balance'),
   getFuturesPrice: (symbol: string): Promise<ApiResponse<Record<string, unknown>>> => request(`/binance/futures/price/${symbol}`),
   placeFuturesOrder: (symbol: string, side: string, quantity: number) =>
     request('/binance/futures/order', { method: 'POST', body: JSON.stringify({ symbol, side, quantity }) }),

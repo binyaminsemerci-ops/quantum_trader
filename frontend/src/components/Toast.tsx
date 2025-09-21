@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 type ToastProps = {
   message?: string | JSX.Element;
+  // allow arbitrary strings to be passed through from existing code
   type?: 'info' | 'success' | 'error' | string;
   duration?: number;
   onClose?: () => void;
