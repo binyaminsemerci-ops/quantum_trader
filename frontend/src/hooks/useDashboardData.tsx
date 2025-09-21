@@ -98,18 +98,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
       ws.onmessage = (event: MessageEvent) => {
         try {
-          const payload = JSON.parse(event.data);
+          const { safeParse, extractToastFromPayload } = require('../utils/ws');
+          const payload = safeParse(event.data);
           if (payload && typeof payload === 'object') {
             setData(payload);
             setLastUpdated(new Date().toLocaleTimeString());
-
-            if ((payload as any).logs && (payload as any).logs.length > 0) {
-              const latest = (payload as any).logs[0];
-              setToast({
-                message: `Trade ${String(latest.status).toUpperCase()}: ${latest.symbol} ${latest.side} ${latest.qty}@${latest.price}`,
-                type: latest.status === 'accepted' ? 'success' : 'error',
-              });
-            }
+            const t = extractToastFromPayload(payload);
+            if (t) setToast(t);
           }
         } catch (err) {
           console.error('WS payload parse error', err);
