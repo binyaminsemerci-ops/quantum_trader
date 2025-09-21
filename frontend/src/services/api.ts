@@ -1,3 +1,4 @@
+// Thin typed implementations for services used by components.
 const API_BASE = process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:8000';
 
 type PricePoint = { timestamp: string; open: number; high: number; low: number; close: number; volume?: number };
