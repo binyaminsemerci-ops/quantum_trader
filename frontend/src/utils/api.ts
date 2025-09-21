@@ -23,6 +23,16 @@ export function ensureArray<T>(x: unknown): T[] {
   return Array.isArray(x) ? (x as T[]) : [];
 }
 
+/**
+ * Extract an array from a payload which may be the array itself or an object wrapper
+ * e.g. payload = [{...}] or payload = { trades: [{...}] }
+ */
+export function extractWrapperArray<T = unknown>(payload: unknown, key: string): T[] {
+  if (Array.isArray(payload)) return payload as T[];
+  if (isRecord(payload) && Array.isArray(payload[key])) return payload[key] as T[];
+  return [];
+}
+
 async function request<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   const res = await fetch(`${API_BASE}${endpoint}`, {
     headers: { 'Content-Type': 'application/json' },
