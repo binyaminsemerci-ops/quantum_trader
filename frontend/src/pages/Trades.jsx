@@ -1,1 +1,1 @@
-// export { default } from './Trades.tsx'; // Trades.jsx (migrated to TSX)
+export { default } from './Trades.tsx';

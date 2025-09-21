@@ -1,1 +1,1 @@
-// export { default } from './Settings.tsx'; // Settings.jsx (migrated to TSX)
+export { default } from './Settings.tsx';
