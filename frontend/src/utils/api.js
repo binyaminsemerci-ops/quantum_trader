@@ -10,7 +10,20 @@ async function request(endpoint, options = {}) {
     const error = await res.text();
     throw new Error(`API error ${res.status}: ${error}`);
   }
-  return res.json();
+  try {
+    return await res.json();
+  } catch {
+    return undefined;
+  }
+}
+
+// Named export for compatibility with TypeScript helpers that import { safeJson }
+export async function safeJson(res) {
+  try {
+    return await res.json();
+  } catch {
+    return undefined;
+  }
 }
 
 export const api = {
