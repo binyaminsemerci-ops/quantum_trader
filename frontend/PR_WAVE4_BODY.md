@@ -1,69 +1,50 @@
-PR Title: chore(frontend): migrate small wave to TypeScript (Toast, StatsCard, BalanceCard, pages)
+PR Title: chore(frontend): migrate .jsx → .tsx (wave 4)
 
 Summary
 
-This PR continues the incremental migration of the frontend from .jsx to TypeScript (.tsx). It's focused on a small, safe wave with the following goals:
+This PR finishes the conservative frontend migration from `.jsx` → `.tsx` for a large set of components and pages. Work was split into many small, reviewable commits and validated after each batch.
 
-- Add typed components and hooks while preserving runtime behavior and keeping PRs reviewable.
-- Keep original .jsx sources as backups (.jsx.bak) and replace them with tiny re-export stubs so imports keep working during migration.
-- Run local typechecks and smoke tests before pushing to origin.
+What changed
 
-What changed (high-level)
+- Archived original `.jsx` sources under `frontend/backups/jsx-bak/` (full original files preserved).
+- Converted many components/pages to TypeScript and flipped re-export stubs to active re-exports so the app uses the migrated `.tsx` files.
+- Key converted items: Chart, CandlesChart, EquityChart, ChartView, TradeTable, RiskMonitor, BalanceCard, Header, Sidebar, Backtest, Dashboard, Trades, Settings and several supporting components.
+- Typed helpers: `frontend/src/utils/api.ts` (typed request helpers), `frontend/src/utils/position.ts` with unit tests.
 
-- Added/updated typed components and hooks:
-  - `frontend/src/components/Toast.tsx` (typed)
-  - `frontend/src/components/StatsCard.tsx` (typed)
-  - `frontend/src/components/BalanceCard.tsx` (typed)
-  - `frontend/src/components/ApiTest.tsx` (typed)
-  - `frontend/src/hooks/useAutoRefresh.ts` (typed)
-- Pages:
-  - `frontend/src/pages/Backtest.tsx` (new)
-  - `frontend/src/pages/Settings.tsx` (new)
-  - Original `.jsx` files for these pages are preserved as `.jsx.bak` and replaced with re-export stubs where applicable.
-- Updated `frontend/src/components/RiskMonitor.tsx` to use sample data and a small trade history UI.
-- Kept other converted components and charts from previous waves (Chart, ChartView) in TSX.
- - Added `frontend/src/utils/position.ts` with a small position-size calculator and unit tests.
- - ChartView now fetches trades and chart data from the backend when available; falls back to sample data.
+Validation performed
 
-Notes & Trade-offs
+- Type check: `npm run typecheck` (tsc --noEmit) — no errors in this workspace run.
+- Unit tests: `npm run test:frontend` (Vitest) — tests passed in this workspace run (2 test files, 4 tests).
+- Dev server smoke test: Vite dev server started and routes `/`, `/trades`, `/settings`, `/backtest` returned the SPA shell (HTTP 200 + root HTML).
 
-- Temporary, small use of `any` around some third-party libs (eg. Recharts) to keep waves small and unblock CI — will tighten in follow-ups.
-- Backups: All original `.jsx` files are preserved as `.jsx.bak` so rollback is trivial.
-- This PR intentionally keeps changes small and conservative to ease review.
+Why this approach
 
-How to test locally
+- Preserve rollback: backups keep the original code for quick review/rollback.
+- Small, safe commits: each batch was verified so the repo stayed green during the migration.
 
-- Install deps and run the dev server:
+How to review / run locally
 
-  npm install
-  npm run dev
+1. Checkout the branch: `git fetch && git checkout feat/frontend/migrate-wave4`
+2. Install dependencies and run dev server:
 
-- Run typecheck and tests (already run locally in this wave):
+   npm ci
+   npm run dev -- --port 3001
 
-  npm run typecheck
-  npm test
+3. Run typecheck and tests:
 
-Files of note (partial)
+   npm run typecheck
+   npm run test:frontend
 
-- frontend/src/components/{Toast,StatsCard,BalanceCard,ApiTest}.tsx
-- frontend/src/hooks/useAutoRefresh.ts
-- frontend/src/pages/{Backtest,Settings}.tsx
-- frontend/src/components/RiskMonitor.tsx
+Follow-ups (suggested)
 
-CI
+- Remove `frontend/backups/jsx-bak/` in a follow-up PR once this migration has been reviewed and QA'ed.
+- Tighten remaining `any` types and add small integration smoke tests (headless browser) for the SPA shell.
 
-- Please run the existing frontend CI workflow (tsc + vitest). If any failing type errors appear, I can iterate in small follow-ups.
+Notes
 
-Next steps
-
-- Tighten API types (replace remaining any casts) — I'll start by deriving `ApiResponse<T>` and `Balance` types from the backend and update `BalanceCard` and `ApiTest`.
- - Added a Vitest unit test for the position-size util (frontend/src/utils/position.test.ts). Please run `npm run test:frontend` to execute tests.
-- Continue converting small components/hooks in waves, preserving backups and re-export stubs.
-
-Reviewer notes
-
-- This is intentionally conservative: expect minimal runtime behavior changes. Focus review on TypeScript correctness and ensuring no unintended runtime regressions.
+- The migration intentionally kept some files as commented re-export stubs during the earlier steps; most are now active re-exports and the app runs on the migrated TSX files.
+- If you prefer I can open a draft PR for you (web UI) or provide the exact `gh pr create` command to run locally.
 
 ---
 
-Generated by migration bot for wave 4.
+Generated by assistant — wave 4 migration.
