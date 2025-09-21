@@ -1,14 +1,5 @@
 import { useState } from 'react';
-import * as Recharts from 'recharts';
-// Recharts typings are sometimes incompatible with the project's JSX types.
-// Cast the components to `any` for a conservative migration.
-const LineChart: any = (Recharts as any).LineChart;
-const Line: any = (Recharts as any).Line;
-const XAxis: any = (Recharts as any).XAxis;
-const YAxis: any = (Recharts as any).YAxis;
-const Tooltip: any = (Recharts as any).Tooltip;
-const CartesianGrid: any = (Recharts as any).CartesianGrid;
-const ResponsiveContainer: any = (Recharts as any).ResponsiveContainer;
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
 
 type BacktestResult = {
   symbol?: string;

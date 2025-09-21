@@ -1,15 +1,5 @@
 import { useEffect, useState } from 'react';
-import * as Recharts from 'recharts';
-
-// Conservative typing: cast Recharts components to `any` to avoid third-party
-// typing conflicts during an incremental migration. We can tighten these later.
-const ResponsiveContainer: any = Recharts.ResponsiveContainer as any;
-const LineChart: any = Recharts.LineChart as any;
-const Line: any = Recharts.Line as any;
-const XAxis: any = Recharts.XAxis as any;
-const YAxis: any = Recharts.YAxis as any;
-const CartesianGrid: any = Recharts.CartesianGrid as any;
-const Tooltip: any = Recharts.Tooltip as any;
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
 type DataPoint = { timestamp: string | number; equity: number };
 
