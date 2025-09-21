@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import type { OHLCV } from '../types';
 
 type Props = { symbol?: string; limit?: number };
 
 export default function CandlesChart({ symbol = 'BTCUSDT', limit = 50 }: Props): JSX.Element {
   const [loading, setLoading] = useState(true);
-  const [candles, setCandles] = useState<any[]>([]);
+  const [candles, setCandles] = useState<OHLCV[]>([]);
 
   useEffect(() => {
     let canceled = false;

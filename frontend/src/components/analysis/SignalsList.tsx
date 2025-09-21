@@ -21,9 +21,9 @@ const SignalsList: React.FC = () => {
 
   async function fetchSignals(): Promise<void> {
     setLoading(true);
-    try {
-      const res = await axios.get('/signals');
-      setSignals((res.data as any) ?? []);
+      try {
+        const res = await axios.get('/signals');
+        setSignals((res.data as unknown as any[]) ?? []);
     } catch (err: any) {
       console.error('Error fetching signals', err);
       setError('Failed to load trading signals');
