@@ -26,6 +26,13 @@ export async function safeJson(res) {
   }
 }
 
+// Runtime helper to extract an array from either a raw array payload or an object wrapper
+export function extractWrapperArray(payload, key) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === 'object' && Array.isArray(payload[key])) return payload[key];
+  return [];
+}
+
 export const api = {
   // Spot
   getSpotBalance: () => request("/binance/spot/balance"),
