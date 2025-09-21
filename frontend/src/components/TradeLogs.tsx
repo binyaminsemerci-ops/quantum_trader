@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useDashboardData } from '../hooks/useDashboardData';
 
+type LogItem = { timestamp?: string; symbol?: string; side?: string; qty?: number; price?: number; status?: string };
+
 export default function TradeLogs(): JSX.Element {
   const { data } = useDashboardData();
-  const logs: any[] = data.logs || [];
+  const logs: LogItem[] = data?.logs || [];
   const [filter, setFilter] = useState('all');
 
   const filtered = filter === 'all' ? logs : logs.filter((l) => l.status === filter);

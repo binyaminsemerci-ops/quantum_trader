@@ -1,7 +1,40 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
-type DashboardData = any;
+type Trade = {
+  id?: string | number;
+  symbol?: string;
+  side?: string;
+  qty?: number;
+  price?: number;
+  status?: string;
+  timestamp?: string;
+};
+
+type LogItem = {
+  timestamp?: string;
+  symbol?: string;
+  side?: string;
+  qty?: number;
+  price?: number;
+  status?: string;
+};
+
+type ChartPoint = { timestamp?: string; equity?: number };
+
+type Stats = {
+  analytics?: { win_rate?: number; sharpe_ratio?: number; trades_count?: number };
+  risk?: { max_trade_exposure?: number; daily_loss_limit?: number; exposure_per_symbol?: Record<string, number> };
+  pnl_per_symbol?: Record<string, number>;
+};
+
+type DashboardData = {
+  stats?: Stats | null;
+  trades?: Trade[];
+  logs?: LogItem[];
+  chart?: ChartPoint[];
+  candles?: any[];
+} | null;
 export type ToastShape = { message?: string; type?: string } | null;
 
 type DashboardContextType = {

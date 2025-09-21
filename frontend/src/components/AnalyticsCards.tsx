@@ -3,7 +3,7 @@ import { useDashboardData } from '../hooks/useDashboardData';
 
 export default function AnalyticsCards(): JSX.Element | null {
   const { data } = useDashboardData();
-  const analytics = (data as any).stats?.analytics;
+  const analytics = data?.stats?.analytics;
   if (!analytics) return null;
 
   return (

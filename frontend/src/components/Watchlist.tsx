@@ -2,7 +2,7 @@ import { useDashboardData } from '../hooks/useDashboardData';
 
 export default function Watchlist(): JSX.Element {
   const { data } = useDashboardData();
-  const symbols = data.stats?.pnl_per_symbol || {};
+  const symbols = data?.stats?.pnl_per_symbol || {};
 
   return (
     <div className="bg-white dark:bg-gray-800 p-4 shadow rounded-lg mt-4">

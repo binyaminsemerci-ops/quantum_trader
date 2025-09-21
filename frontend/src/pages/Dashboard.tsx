@@ -46,7 +46,7 @@ export default function Dashboard(): JSX.Element {
       <EquityChart />
       <CandlesChart symbol="BTCUSDT" limit={50} />
       <Watchlist />
-  <TradeTable trades={data.trades} />
+  <TradeTable trades={data?.trades} />
       <TradeLogs />
     </div>
   );
