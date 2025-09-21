@@ -1,1 +1,1 @@
-// export { default } from './RiskMonitor.tsx'; // RiskMonitor.jsx (migrated to TSX)
+export { default } from './RiskMonitor.tsx';
