@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 type DashboardData = any;
-type ToastShape = { message?: string; type?: string } | null;
+export type ToastShape = { message?: string; type?: string } | null;
 
 type DashboardContextType = {
   data: DashboardData;
@@ -10,8 +10,8 @@ type DashboardContextType = {
   setPaused: (v: boolean) => void;
   fallback: boolean;
   lastUpdated: string | null;
-  toast?: ToastShape;
-  setToast?: (t: ToastShape) => void;
+  toast: ToastShape;
+  setToast: (t: ToastShape) => void;
 };
 
 const DashboardContext = createContext<DashboardContextType | null>(null);
