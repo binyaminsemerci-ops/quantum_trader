@@ -1,0 +1,21 @@
+{
+  "status": 200,
+  "title": "Quantum Trader Dashboard",
+  "bodyChildCount": 1,
+  "rootExists": true,
+  "rootChildCount": 1,
+  "rootInnerHTMLSnippet": "<div class=\"p-6 space-y-6\"><div class=\"grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6\"><div class=\"p-4 bg-white shadow rounded-lg text-center\"><h3 class=\"text-lg font-semibold text-gray-700\">Bal",
+  "bodyDisplay": "block",
+  "bodyVisibility": "visible",
+  "rootDisplay": "block",
+  "rootVisibility": "visible",
+  "globals": {
+    "React": "undefined",
+    "ReactDOM": "undefined",
+    "REACT_DEVTOOLS": false,
+    "f": "undefined",
+    "sentimentData": "undefined",
+    "chartData": "undefined",
+    "signalData": "undefined"
+  }
+}

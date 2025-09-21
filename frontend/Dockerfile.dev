@@ -1,0 +1,12 @@
+# Dev mode
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+# Start Vite dev server (binder til 0.0.0.0 for Docker)
+CMD ["npm", "run", "dev", "--", "--host"]
