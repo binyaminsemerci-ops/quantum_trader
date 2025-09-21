@@ -7,7 +7,7 @@ class RiskManager:
         self.max_position = max_position
         self.max_loss_pct = max_loss_pct
 
-    def validate_order(self, balance: float, qty: float, price: float, stop_loss: float) -> (bool, str):
+    def validate_order(self, balance: float, qty: float, price: float, stop_loss: float) -> tuple[bool, str]:
         """
         Validerer en ordre basert på risikoregler.
         :param balance: Kontoens balanse
@@ -32,3 +32,17 @@ class RiskManager:
             return False, "Risk exceeds maximum allowed per trade"
 
         return True, "Order is valid"
+
+
+def calculate_risk() -> dict:
+    """Compatibility shim used by routes/ws.py. Returns a simple risk summary.
+
+    This keeps the existing API expected by the routes while allowing
+    the RiskManager to remain a focused class for unit tests.
+    """
+    # Example placeholder implementation; keep minimal and typed.
+    manager = RiskManager()
+    return {
+        "max_position": manager.max_position,
+        "max_loss_pct": manager.max_loss_pct,
+    }
