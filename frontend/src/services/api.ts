@@ -1,4 +1,6 @@
 // Thin typed implementations for services used by components.
+import { safeJson } from '../utils/api';
+
 const API_BASE = process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:8000';
 
 type PricePoint = { timestamp: string; open: number; high: number; low: number; close: number; volume?: number };
@@ -24,15 +26,15 @@ type Sentiment = {
 export async function fetchPriceData(symbol: string, interval: string): Promise<PricePoint[]> {
   const res = await fetch(`${API_BASE}/prices/${encodeURIComponent(symbol)}?interval=${encodeURIComponent(interval)}`);
   if (!res.ok) throw new Error(`Failed to fetch price data: ${await res.text()}`);
-  const data = await res.json();
-  return data ?? [];
+  const data = await safeJson(res);
+  return Array.isArray(data) ? (data as PricePoint[]) : [];
 }
 
 export async function fetchTradingSignals(symbol?: string): Promise<Signal[]> {
   const url = symbol ? `${API_BASE}/signals?symbol=${encodeURIComponent(symbol)}` : `${API_BASE}/signals`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch trading signals: ${await res.text()}`);
-  const data = await res.json();
+  const data = await safeJson(res);
   return Array.isArray(data) ? (data as Signal[]) : [];
 }
 
@@ -40,7 +42,7 @@ export async function fetchSentimentData(symbol?: string): Promise<Sentiment | n
   const url = symbol ? `${API_BASE}/sentiment?symbol=${encodeURIComponent(symbol)}` : `${API_BASE}/sentiment`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch sentiment data: ${await res.text()}`);
-  const data = await res.json();
+  const data = await safeJson(res);
   return data && typeof data === 'object' ? (data as Sentiment) : null;
 }
 
