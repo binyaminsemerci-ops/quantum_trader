@@ -21,15 +21,15 @@ const SignalsList: React.FC = () => {
 
   async function fetchSignals(): Promise<void> {
     setLoading(true);
-      try {
-        const res = await axios.get<Signal[]>('/signals');
-        setSignals(res.data ?? []);
-      } catch (err: unknown) {
-        console.error('Error fetching signals', err);
-        setError('Failed to load trading signals');
-      } finally {
-        setLoading(false);
-      }
+    try {
+      const res = await axios.get<Signal[]>('/signals');
+      setSignals(res.data ?? []);
+    } catch (err: unknown) {
+      console.error('Error fetching signals', err);
+      setError('Failed to load trading signals');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function executeSignal(symbol?: string) {
@@ -38,7 +38,7 @@ const SignalsList: React.FC = () => {
     try {
       await axios.post(`/trade/signal/${symbol}`);
       await fetchSignals();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error executing signal', err);
       alert('Failed to execute signal');
     } finally {
@@ -51,7 +51,7 @@ const SignalsList: React.FC = () => {
     try {
       await axios.get(`/predict/${symbol}`);
       await fetchSignals();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error generating signal', err);
       alert('Failed to generate signal');
     } finally {
@@ -94,7 +94,7 @@ const SignalsList: React.FC = () => {
               <tr key={String(s.id)}>
                 <td>{s.symbol}</td>
                 <td>{s.signal}</td>
-                <td>{s.confidence != null ? `${Math.round((s.confidence as number) * 100)}%` : '—'}</td>
+                <td>{typeof s.confidence === 'number' ? `${Math.round(s.confidence * 100)}%` : '—'}</td>
                 <td>{s.timestamp ? moment(s.timestamp).format('DD.MM.YYYY, HH:mm:ss') : '-'}</td>
                 <td>{s.executed ? 'Yes' : 'No'}</td>
                 <td>

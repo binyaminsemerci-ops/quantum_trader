@@ -1,4 +1,10 @@
-type Trade = { date?: string; pair?: string; side?: string; amount?: number | string; price?: number | string };
+type Trade = { date?: string; pair?: string; side?: 'BUY' | 'SELL' | string; amount?: number | string; price?: number | string };
+
+function fmtVal(v?: number | string) {
+  if (v == null || v === '') return '—';
+  if (typeof v === 'number') return v.toLocaleString();
+  return v;
+}
 
 export default function TradeTable({ trades }: { trades?: Trade[] }): JSX.Element {
   if (!trades || trades.length === 0) {
@@ -30,8 +36,8 @@ export default function TradeTable({ trades }: { trades?: Trade[] }): JSX.Elemen
               <td className={`py-2 px-4 border font-semibold ${trade.side === 'BUY' ? 'text-green-600' : 'text-red-600'}`}>
                 {trade.side}
               </td>
-              <td className="py-2 px-4 border">{String(trade.amount)}</td>
-              <td className="py-2 px-4 border">{String(trade.price)}</td>
+              <td className="py-2 px-4 border">{fmtVal(trade.amount)}</td>
+              <td className="py-2 px-4 border">{fmtVal(trade.price)}</td>
             </tr>
           ))}
         </tbody>

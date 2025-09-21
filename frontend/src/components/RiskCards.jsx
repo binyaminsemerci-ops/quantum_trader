@@ -1,2 +1,1 @@
-// Auto-generated re-export stub
-export { default } from './RiskCards.tsx';
+// export { default } from './RiskCards.tsx'; // RiskCards.jsx (migrated to TSX)

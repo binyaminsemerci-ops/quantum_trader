@@ -52,11 +52,19 @@ export const api = {
 
   // compatibility wrappers
   get: <T = unknown>(endpoint: string): Promise<ApiResponse<T>> => request<T>(endpoint),
-  post: <T = unknown>(endpoint: string, body: unknown = null, opts: Record<string, any> = {}): Promise<ApiResponse<T>> => {
+  post: <T = unknown>(endpoint: string, body: unknown = null, opts: Record<string, unknown> = {}): Promise<ApiResponse<T>> => {
     let url = endpoint;
-    if (opts && opts.params) {
-      const qs = new URLSearchParams(opts.params).toString();
-      url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}${qs}`;
+    if (opts && (opts as Record<string, unknown>).params) {
+      const params = (opts as Record<string, unknown>).params;
+      if (params && typeof params === 'object') {
+        const flat: Record<string, string> = {};
+        for (const k of Object.keys(params)) {
+          const v = (params as Record<string, unknown>)[k];
+          flat[k] = v == null ? '' : String(v);
+        }
+        const qs = new URLSearchParams(flat).toString();
+        url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}${qs}`;
+      }
     }
     return request<T>(url, body ? { method: 'POST', body: JSON.stringify(body) } : { method: 'POST' });
   },

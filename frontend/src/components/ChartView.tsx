@@ -1,16 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import api from '../utils/api';
+import { calcPositionSize } from '../utils/position';
+import type { Trade as ApiTrade, OHLCV } from '../types';
 
-type ChartViewProps = {
-  title?: string;
-};
+type ChartViewProps = { title?: string };
 
-type TradeRow = {
-  date: string;
-  pair: string;
-  side: "BUY" | "SELL";
-  amount: number;
-  price: number;
-};
+type TradeRow = { date: string; pair: string; side: 'BUY' | 'SELL'; amount: number; price: number };
 
 export default function ChartView({ title }: ChartViewProps): JSX.Element {
   // Sample data from the user
@@ -23,11 +18,13 @@ export default function ChartView({ title }: ChartViewProps): JSX.Element {
   const [entryPrice, setEntryPrice] = useState<string>("");
   const [stopLoss, setStopLoss] = useState<string>("");
 
-  const trades: TradeRow[] = [
+  const [trades, setTrades] = useState<TradeRow[]>([
     { date: "2025-09-01", pair: "BTC/USDT", side: "BUY", amount: 0.5, price: 25000 },
     { date: "2025-09-02", pair: "ETH/USDT", side: "SELL", amount: 2, price: 1600 },
     { date: "2025-09-03", pair: "BNB/USDT", side: "BUY", amount: 5, price: 280 },
-  ];
+  ]);
+
+  const [chartPoints, setChartPoints] = useState<number[]>([9800, 9900, 9950, 10050, 10000, 10150, 10250]);
 
   // Format helpers: space-separated thousands for balances, comma-separated for prices
   const fmtSpace = (v: number) => new Intl.NumberFormat('fr-FR').format(v);
@@ -35,22 +32,56 @@ export default function ChartView({ title }: ChartViewProps): JSX.Element {
 
   const [positionSize, setPositionSize] = useState<string | null>(null);
 
-  const parseNumberInput = (raw: string) => {
-    // Accept comma as decimal separator (e.g. "1,5") and thin spaces
-    if (!raw) return NaN;
-    const cleaned = raw.replace(/\s/g, '').replace(',', '.');
-    return Number(cleaned);
+  const calculatePositionSize = () => {
+    const size = calcPositionSize(balance, riskPct, entryPrice, stopLoss);
+    return size == null ? '—' : size.toFixed(6);
   };
 
-  const calculatePositionSize = () => {
-    const e = parseNumberInput(entryPrice);
-    const s = parseNumberInput(stopLoss);
-    if (!isFinite(e) || !isFinite(s) || e === s) return '—';
-    const riskPerTrade = (riskPct / 100) * balance;
-    const riskPerUnit = Math.abs(e - s);
-    const size = riskPerTrade / riskPerUnit;
-    return size <= 0 || !isFinite(size) ? '—' : size.toFixed(6);
-  };
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const tradesResp = await api.getTrades();
+        // api.getTrades returns ApiResponse<Trade[]>
+        if (mounted && tradesResp && 'data' in tradesResp && Array.isArray(tradesResp.data)) {
+          // Map backend trade shape to local TradeRow
+          const mapped: TradeRow[] = tradesResp.data.map((t: ApiTrade) => ({
+            date: (t as any)?.timestamp ?? (t as any)?.date ?? String((t as any)?.id ?? ''),
+            pair: (t as any)?.symbol ?? 'UNKNOWN',
+            side: ((t as any)?.side ?? 'BUY').toString().toUpperCase() === 'SELL' ? 'SELL' : 'BUY',
+            amount: Number((t as any)?.qty ?? (t as any)?.amount ?? 0) || 0,
+            price: Number((t as any)?.price ?? 0) || 0,
+          }));
+          setTrades(mapped);
+        }
+      } catch (e) {
+        // ignore: keep sample trades
+      }
+
+      try {
+        const chartResp = await api.getChart();
+        if (mounted && chartResp && 'data' in chartResp && Array.isArray(chartResp.data)) {
+          // chartResp.data may be OHLCV[] or number[]
+          const raw = chartResp.data as unknown as OHLCV[] | number[];
+          if (raw.length > 0) {
+            const points: number[] = (raw as number[]).every((v) => typeof v === 'number')
+              ? (raw as number[])
+              : (raw as OHLCV[])
+                  .map((p) => {
+                    if (typeof p === 'number') return p;
+                    return Number((p && (p as any).close) ?? NaN);
+                  })
+                  .filter(Number.isFinite);
+
+            if (points.length) setChartPoints(points);
+          }
+        }
+      } catch (e) {
+        // ignore: keep sample chart
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   return (
     <section className="p-4 bg-slate-800 rounded text-white">
@@ -76,7 +107,7 @@ export default function ChartView({ title }: ChartViewProps): JSX.Element {
         <div className="text-sm text-slate-300 mb-2">Performance Chart</div>
         <div className="h-40 bg-slate-600 rounded text-slate-300 p-2">
           {/* Small interactive Line chart using react-chartjs-2 */}
-          <ChartPlaceholder />
+          <ChartPlaceholder points={chartPoints} />
         </div>
       </div>
 
@@ -160,14 +191,15 @@ import { Line } from 'react-chartjs-2';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
-function ChartPlaceholder(): JSX.Element {
-  const labels = ['2025-08-28','2025-08-29','2025-08-30','2025-08-31','2025-09-01','2025-09-02','2025-09-03'];
+function ChartPlaceholder({ points }: { points?: number[] }): JSX.Element {
+  const labels = points && points.length ? points.map((_, i) => String(i)) : ['2025-08-28','2025-08-29','2025-08-30','2025-08-31','2025-09-01','2025-09-02','2025-09-03'];
+  const dataset = points && points.length ? points : [9800, 9900, 9950, 10050, 10000, 10150, 10250];
   const data = {
     labels,
     datasets: [
       {
         label: 'Equity',
-        data: [9800, 9900, 9950, 10050, 10000, 10150, 10250],
+        data: dataset,
         borderColor: 'rgba(99,102,241,1)',
         backgroundColor: 'rgba(99,102,241,0.3)',
         tension: 0.2,

@@ -1,2 +1,1 @@
-// Auto-generated re-export stub
-export { default } from './Sidebar.tsx';
+// export { default } from './Sidebar.tsx'; // Sidebar.jsx (migrated to TSX)
