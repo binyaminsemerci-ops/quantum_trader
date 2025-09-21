@@ -1,1 +1,1 @@
-// export { default } from './Header.tsx'; // Header.jsx (migrated to TSX)
+export { default } from './Header.tsx';
