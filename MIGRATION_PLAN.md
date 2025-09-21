@@ -29,3 +29,12 @@ Rollback
 Notes
 - Work in small PRs (1–10 files) to make reviews straightforward.
 - Keep `allowJs` disabled in tsconfig until the repo is fully migrated to avoid mixing JS into the typegraph.
+
+Completed waves
+----------------
+- Wave 1 (safe utilities):
+   - `frontend/src/utils/api.ts` (replaced `frontend/src/utils/api.js`)
+   - `frontend/src/services/api.ts` (replaced `frontend/src/services/api.js`)
+   - `frontend/src/services/twitterService.ts` (replaced `frontend/src/services/twitterService.js`)
+
+These were migrated conservatively and validated locally with `tsc --noEmit` and Vitest.
