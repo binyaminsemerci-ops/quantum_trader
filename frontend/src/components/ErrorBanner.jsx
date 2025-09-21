@@ -1,1 +1,1 @@
-// export { default } from './ErrorBanner.tsx'; // ErrorBanner.jsx (migrated to TSX)
+export { default } from './ErrorBanner.tsx';
