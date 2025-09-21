@@ -22,14 +22,14 @@ const SignalsList: React.FC = () => {
   async function fetchSignals(): Promise<void> {
     setLoading(true);
       try {
-        const res = await axios.get('/signals');
-        setSignals((res.data as unknown as any[]) ?? []);
-    } catch (err: any) {
-      console.error('Error fetching signals', err);
-      setError('Failed to load trading signals');
-    } finally {
-      setLoading(false);
-    }
+        const res = await axios.get<Signal[]>('/signals');
+        setSignals(res.data ?? []);
+      } catch (err: unknown) {
+        console.error('Error fetching signals', err);
+        setError('Failed to load trading signals');
+      } finally {
+        setLoading(false);
+      }
   }
 
   async function executeSignal(symbol?: string) {
