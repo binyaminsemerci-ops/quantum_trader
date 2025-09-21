@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 
 type DashboardData = any;
 export type ToastShape = { message?: string; type?: string } | null;
@@ -16,7 +17,7 @@ type DashboardContextType = {
 
 const DashboardContext = createContext<DashboardContextType | null>(null);
 
-export function DashboardProvider({ children }: { children: React.ReactNode }) {
+export function DashboardProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<DashboardData>({ stats: null, trades: [], logs: [], chart: [] });
   const [connected, setConnected] = useState<boolean>(false);
   const [paused, setPaused] = useState<boolean>(false);
