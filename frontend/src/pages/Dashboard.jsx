@@ -1,2 +1,1 @@
-// Auto-generated re-export stub
-export { default } from './Dashboard.tsx';
+// export { default } from './Dashboard.tsx'; // Dashboard.jsx (migrated to TSX)

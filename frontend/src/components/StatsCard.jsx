@@ -1,2 +1,1 @@
-// Auto-generated re-export stub
-export { default } from './StatsCard.tsx';
+// export { default } from './StatsCard.tsx'; // StatsCard.jsx (migrated to TSX)

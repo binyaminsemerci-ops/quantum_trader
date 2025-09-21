@@ -1,2 +1,1 @@
-// Auto-generated re-export stub
-export { default } from './ErrorBanner.tsx';
+// export { default } from './ErrorBanner.tsx'; // ErrorBanner.jsx (migrated to TSX)

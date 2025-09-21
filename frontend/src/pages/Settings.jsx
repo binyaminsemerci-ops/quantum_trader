@@ -1,2 +1,1 @@
-// Auto-generated re-export stub
-export { default } from './Settings.tsx';
+// export { default } from './Settings.tsx'; // Settings.jsx (migrated to TSX)

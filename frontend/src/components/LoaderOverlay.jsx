@@ -1,2 +1,1 @@
-// Auto-generated re-export stub
-export { default } from './LoaderOverlay.tsx';
+// export { default } from './LoaderOverlay.tsx'; // LoaderOverlay.jsx (migrated to TSX)

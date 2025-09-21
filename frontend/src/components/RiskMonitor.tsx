@@ -3,8 +3,8 @@ import { useState } from 'react';
 export default function RiskMonitor(): JSX.Element {
   const [balance, setBalance] = useState<number>(10000);
   const [riskPercent, setRiskPercent] = useState<number>(1.0);
-  const [entryPrice, setEntryPrice] = useState<number | ''>('');
-  const [stopLoss, setStopLoss] = useState<number | ''>('');
+  const [entryPrice, setEntryPrice] = useState<string>('');
+  const [stopLoss, setStopLoss] = useState<string>('');
   const [positionSize, setPositionSize] = useState<number | null>(null);
 
   // sample derived values shown in the panel
@@ -12,18 +12,18 @@ export default function RiskMonitor(): JSX.Element {
   const openTrades = 3;
 
   const calculateRisk = () => {
-    if (entryPrice === '' || stopLoss === '' || entryPrice === undefined || stopLoss === undefined) return;
+  if (entryPrice === '' || stopLoss === '') return;
 
-    const riskAmount = balance * (riskPercent / 100);
-    const perUnitLoss = Number(entryPrice) - Number(stopLoss);
+  const riskAmount = balance * (riskPercent / 100);
+  const perUnitLoss = Number.parseFloat(entryPrice) - Number.parseFloat(stopLoss);
 
-    if (perUnitLoss <= 0) {
+    if (!Number.isFinite(perUnitLoss) || perUnitLoss <= 0) {
       setPositionSize(0);
       return;
     }
 
     const size = Math.floor(riskAmount / perUnitLoss);
-    setPositionSize(size);
+    setPositionSize(Number.isFinite(size) ? size : 0);
   };
 
   return (
@@ -71,8 +71,8 @@ export default function RiskMonitor(): JSX.Element {
           <input
             type="number"
             className="w-full border rounded p-2"
-            value={entryPrice as any}
-            onChange={(e) => setEntryPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
+            value={entryPrice === '' ? '' : String(entryPrice)}
+            onChange={(e) => setEntryPrice(e.target.value)}
           />
         </div>
         <div>
@@ -80,8 +80,8 @@ export default function RiskMonitor(): JSX.Element {
           <input
             type="number"
             className="w-full border rounded p-2"
-            value={stopLoss as any}
-            onChange={(e) => setStopLoss(e.target.value === '' ? '' : parseFloat(e.target.value))}
+            value={stopLoss === '' ? '' : String(stopLoss)}
+            onChange={(e) => setStopLoss(e.target.value)}
           />
         </div>
         <button

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import api from '../utils/api';
 import type { OHLCV } from '../types';
 
 type Props = { symbol?: string; limit?: number };
@@ -9,18 +10,19 @@ export default function CandlesChart({ symbol = 'BTCUSDT', limit = 50 }: Props):
 
   useEffect(() => {
     let canceled = false;
-    async function fetchCandles() {
+    (async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/candles?symbol=${symbol}&limit=${limit}`);
-        const data = await res.json();
-        if (!canceled) setCandles(data.candles || []);
+        // backend exposes /api/candles which may return { candles: OHLCV[] }
+        const resp = await api.get(`/candles?symbol=${encodeURIComponent(symbol)}&limit=${encodeURIComponent(String(limit))}`);
+        if (!canceled && resp && 'data' in resp && Array.isArray(resp.data)) {
+          setCandles(resp.data as OHLCV[]);
+        }
       } catch (err) {
         console.error('Failed to fetch candles', err);
       } finally {
         if (!canceled) setLoading(false);
       }
-    }
-    fetchCandles();
+    })();
     return () => { canceled = true; };
   }, [symbol, limit]);
 

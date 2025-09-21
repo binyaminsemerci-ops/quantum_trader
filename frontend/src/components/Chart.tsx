@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import api from '../utils/api';
 
 type DataPoint = { timestamp: string | number; equity: number };
 
@@ -10,9 +11,26 @@ export default function Chart(): JSX.Element {
   useEffect(() => {
     async function fetchEquity() {
       try {
-        const res = await fetch('/chart');
-        const data = await res.json();
-        setEquity((data ?? []) as DataPoint[]);
+        const resp = await api.getChart();
+        if (resp && 'data' in resp && Array.isArray(resp.data)) {
+          const raw = resp.data as unknown[];
+          const points: DataPoint[] = raw.map((item, idx) => {
+            if (typeof item === 'number') return { timestamp: idx, equity: item };
+            if (Array.isArray(item)) {
+              // [ts, open, high, low, close, volume] style
+              const maybeClose = Number(item[4]);
+              return { timestamp: item[0] ?? idx, equity: Number.isFinite(maybeClose) ? maybeClose : 0 };
+            }
+            // object form
+            const o = item as Record<string, unknown>;
+            const equityVal = Number(o.equity ?? o.close ?? o.value ?? NaN);
+            const timestamp = o.timestamp ?? o.date ?? idx;
+            return { timestamp, equity: Number.isFinite(equityVal) ? equityVal : 0 };
+          });
+          setEquity(points);
+        } else {
+          setEquity([]);
+        }
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('Error fetching equity:', err);

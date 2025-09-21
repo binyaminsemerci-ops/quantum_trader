@@ -1,2 +1,1 @@
-// Auto-generated re-export stub
-export { default } from './Header.tsx';
+// export { default } from './Header.tsx'; // Header.jsx (migrated to TSX)

@@ -1,2 +1,1 @@
-// Auto-generated re-export stub
-export { default } from './EquityChart.tsx';
+// export { default } from './EquityChart.tsx'; // EquityChart.jsx (migrated to TSX)

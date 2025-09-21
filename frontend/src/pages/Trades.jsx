@@ -1,2 +1,1 @@
-// Auto-generated re-export stub
-export { default } from './Trades.tsx';
+// export { default } from './Trades.tsx'; // Trades.jsx (migrated to TSX)

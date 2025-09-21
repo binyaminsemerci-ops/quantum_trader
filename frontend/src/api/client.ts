@@ -1,28 +1,46 @@
-import type { Trade, StatSummary, OHLCV } from '../types';
+import type { Trade, StatSummary, OHLCV, ApiResponse } from '../types';
 
 const API_BASE = 'http://localhost:8000';
 
-export async function fetchTrades(): Promise<Trade[]> {
+async function safeJson(res: Response): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    return undefined;
+  }
+}
+
+export async function fetchTrades(): Promise<ApiResponse<Trade[]>> {
   const res = await fetch(`${API_BASE}/trades`);
-  return (await res.json()) as Trade[];
+  if (!res.ok) return { error: `HTTP ${res.status}` };
+  const payload = await safeJson(res);
+  const data = Array.isArray(payload) ? (payload as Trade[]) : ((payload as any)?.trades ?? payload);
+  return { data: data as Trade[] };
 }
 
-export async function fetchStats(): Promise<StatSummary> {
+export async function fetchStats(): Promise<ApiResponse<StatSummary>> {
   const res = await fetch(`${API_BASE}/stats`);
-  return (await res.json()) as StatSummary;
+  if (!res.ok) return { error: `HTTP ${res.status}` };
+  const payload = await safeJson(res);
+  return { data: (payload as StatSummary) };
 }
 
-export async function fetchChart(): Promise<OHLCV[]> {
+export async function fetchChart(): Promise<ApiResponse<OHLCV[]>> {
   const res = await fetch(`${API_BASE}/chart`);
-  return (await res.json()) as OHLCV[];
+  if (!res.ok) return { error: `HTTP ${res.status}` };
+  const payload = await safeJson(res);
+  const data = (payload as any)?.data ?? payload;
+  return { data: data as OHLCV[] };
 }
 
-export async function fetchSettings(): Promise<Record<string, unknown>> {
+export async function fetchSettings(): Promise<ApiResponse<Record<string, unknown>>> {
   const res = await fetch(`${API_BASE}/settings`);
-  return (await res.json()) as Record<string, unknown>;
+  if (!res.ok) return { error: `HTTP ${res.status}` };
+  return { data: (await safeJson(res)) as Record<string, unknown> };
 }
 
-export async function fetchBinance(): Promise<Record<string, unknown>> {
+export async function fetchBinance(): Promise<ApiResponse<Record<string, unknown>>> {
   const res = await fetch(`${API_BASE}/binance`);
-  return (await res.json()) as Record<string, unknown>;
+  if (!res.ok) return { error: `HTTP ${res.status}` };
+  return { data: (await safeJson(res)) as Record<string, unknown> };
 }

@@ -1,1 +1,1 @@
-export { } from './index.tsx';
+// export { default } from './index.tsx'; // index.jsx (migrated to TSX)

@@ -1,2 +1,1 @@
-// Auto-generated re-export stub
-export { default } from './Backtest.tsx';
+// export { default } from './Backtest.tsx'; // Backtest.jsx (migrated to TSX)
