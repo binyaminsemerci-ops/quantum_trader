@@ -1,15 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-
-type Trade = {
-  id?: string | number;
-  symbol?: string;
-  side?: string;
-  qty?: number;
-  price?: number;
-  status?: string;
-  timestamp?: string;
-};
+import type { Trade, OHLCV, StatSummary } from '../types';
 
 type LogItem = {
   timestamp?: string;
@@ -22,7 +13,7 @@ type LogItem = {
 
 type ChartPoint = { timestamp?: string; equity?: number };
 
-type Stats = {
+type Stats = StatSummary & {
   analytics?: { win_rate?: number; sharpe_ratio?: number; trades_count?: number };
   risk?: { max_trade_exposure?: number; daily_loss_limit?: number; exposure_per_symbol?: Record<string, number> };
   pnl_per_symbol?: Record<string, number>;
@@ -33,7 +24,7 @@ type DashboardData = {
   trades?: Trade[];
   logs?: LogItem[];
   chart?: ChartPoint[];
-  candles?: any[];
+  candles?: OHLCV[];
 } | null;
 export type ToastShape = { message?: string; type?: string } | null;
 
@@ -67,12 +58,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         fetch('http://127.0.0.1:8000/api/chart'),
       ]);
 
-      const stats = await statsRes.json();
-      const trades = await tradesRes.json();
-      const logs = await logsRes.json();
-      const chart = await chartRes.json();
+  const stats = await statsRes.json();
+  const trades = await tradesRes.json();
+  const logs = await logsRes.json();
+  const chart = await chartRes.json();
 
-      setData({ stats, trades: trades.trades || [], logs: logs.logs || [], chart: chart || [] });
+  setData({ stats, trades: trades.trades || [], logs: logs.logs || [], chart: chart || [] });
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (err) {
       console.error('Fallback fetch error:', err);
