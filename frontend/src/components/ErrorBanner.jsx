@@ -1,10 +1,2 @@
-// frontend/src/components/ErrorBanner.jsx
-export default function ErrorBanner({ show, message }) {
-  if (!show) return null;
-
-  return (
-    <div className="bg-red-600 text-white text-center py-2">
-      ⚠️ {message}
-    </div>
-  );
-}
+// Auto-generated re-export stub
+export { default } from './ErrorBanner.tsx';
