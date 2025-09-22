@@ -3,6 +3,7 @@ from backend.database import get_db
 
 router = APIRouter()
 
+
 @router.get("/candles")
 def get_candles(
     symbol: str = Query(..., description="Trading symbol f.eks. BTCUSDT"),
