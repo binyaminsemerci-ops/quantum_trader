@@ -25,4 +25,4 @@ class BinanceClient:
         if self.mock:
             return {"symbol": symbol, "price": 100.0}
         avg_price = self.client.get_avg_price(symbol=symbol)
-        return {"symbol": symbol, "price": float(avg_price["price"]) }
+        return {"symbol": symbol, "price": float(avg_price["price"])}
