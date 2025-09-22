@@ -7,6 +7,32 @@ export type ApiResponse<T = unknown> = ApiResponseType<T> | { error?: string; da
 
 const API_BASE = '/api';
 
+export function isRecord(x: unknown): x is Record<string, unknown> {
+  return typeof x === 'object' && x !== null;
+}
+
+export async function safeJson(res: Response): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    return undefined;
+  }
+}
+
+export function ensureArray<T>(x: unknown): T[] {
+  return Array.isArray(x) ? (x as T[]) : [];
+}
+
+/**
+ * Extract an array from a payload which may be the array itself or an object wrapper
+ * e.g. payload = [{...}] or payload = { trades: [{...}] }
+ */
+export function extractWrapperArray<T = unknown>(payload: unknown, key: string): T[] {
+  if (Array.isArray(payload)) return payload as T[];
+  if (isRecord(payload) && Array.isArray(payload[key])) return payload[key] as T[];
+  return [];
+}
+
 async function request<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   const res = await fetch(`${API_BASE}${endpoint}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -18,12 +44,9 @@ async function request<T = unknown>(endpoint: string, options: RequestInit = {})
     return { error: `API error ${res.status}: ${error}` } as ApiResponse<T>;
   }
 
-  try {
-    const payload = await res.json();
-    return { data: payload } as ApiResponse<T>;
-  } catch (e) {
-    return { data: undefined } as ApiResponse<T>;
-  }
+  const payload = await safeJson(res);
+  // If caller expects an array-like result, return empty array instead of raw undefined
+  return { data: payload as T } as ApiResponse<T>;
 }
 
 export const api = {
