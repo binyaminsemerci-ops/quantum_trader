@@ -12,3 +12,8 @@ python-dotenv
 cryptography
 requests
 aiohttp
+
+# Pin SQLAlchemy-Utils here so CI installs a known version and we can track
+# remediation in issue #14 (Security: Remediate PyUp advisory 42194).
+# We will update or remove this pin in a follow-up PR after review.
+SQLAlchemy-Utils==0.42.0
