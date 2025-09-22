@@ -38,13 +38,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-          # Install developer/test requirements so pytest-asyncio and test helpers
-          # are available in CI. backend/requirements-dev.txt is tracked in the repo.
-          if [ -f backend/requirements-dev.txt ]; then
-            pip install -r backend/requirements-dev.txt
-          else
-            pip install ruff mypy black pytest coverage bandit safety pytest-asyncio
-          fi
+          # Install linters/test tools explicitly; avoid installing the full
+          # backend/requirements-dev.txt so dev-only deps (e.g. SQLAlchemy-Utils)
+          # are not installed in CI runtime. This keeps the runtime surface
+          # minimal and ensures advisories are surfaced and tracked.
+          pip install ruff mypy black pytest coverage bandit safety pytest-asyncio httpx anyio
 
       # --- Linting ---
       - name: Run Ruff
@@ -65,6 +63,11 @@ jobs:
 
       - name: Run Safety
         run: safety check
+
+      - name: Check for dev-only packages in runtime (FAILS if any found)
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        run: |
+          python backend/scripts/check_dev_deps_in_runtime.py
 
       # --- Tests ---
       - name: Run Pytest with Coverage
