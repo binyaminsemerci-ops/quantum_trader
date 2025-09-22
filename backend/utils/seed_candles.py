@@ -17,9 +17,9 @@ def seed_candles(symbol="BTCUSDT", days=30):
         # use of the stdlib random module (B311). Silence that using nosec
         # as this code is intentionally non-crypto and used only for seeding.
         high_price = open_price * (1 + random.uniform(0.01, 0.03))  # nosec B311
-        low_price = open_price * (1 - random.uniform(0.01, 0.03))   # nosec B311
-        close_price = random.uniform(low_price, high_price)         # nosec B311
-        volume = random.uniform(100, 500)                           # nosec B311
+        low_price = open_price * (1 - random.uniform(0.01, 0.03))  # nosec B311
+        close_price = random.uniform(low_price, high_price)  # nosec B311
+        volume = random.uniform(100, 500)  # nosec B311
 
         cursor.execute(
             """
