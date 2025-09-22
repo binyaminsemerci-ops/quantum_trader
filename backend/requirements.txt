@@ -13,7 +13,8 @@ cryptography
 requests
 aiohttp
 
-# Pin SQLAlchemy-Utils here so CI installs a known version and we can track
-# remediation in issue #14 (Security: Remediate PyUp advisory 42194).
-# We will update or remove this pin in a follow-up PR after review.
-SQLAlchemy-Utils==0.42.0
+# NOTE: SQLAlchemy-Utils was previously pinned here for investigation of PyUp
+# advisory 42194. A scan of the codebase showed no direct usage of
+# SQLAlchemy-Utils APIs (EncryptedType etc.), so we remove the pin and allow
+# the project to avoid installing it unless explicitly required by developers.
+# If dev tooling needs it, add it to backend/requirements-dev.txt instead.
