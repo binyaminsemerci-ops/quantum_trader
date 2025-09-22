@@ -12,3 +12,9 @@ python-dotenv
 cryptography
 requests
 aiohttp
+
+# NOTE: SQLAlchemy-Utils was previously pinned here for investigation of PyUp
+# advisory 42194. A scan of the codebase showed no direct usage of
+# SQLAlchemy-Utils APIs (EncryptedType etc.), so we remove the pin and allow
+# the project to avoid installing it unless explicitly required by developers.
+# If dev tooling needs it, add it to backend/requirements-dev.txt instead.

@@ -38,13 +38,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-          # Install developer/test requirements so pytest-asyncio and test helpers
-          # are available in CI. backend/requirements-dev.txt is tracked in the repo.
-          if [ -f backend/requirements-dev.txt ]; then
-            pip install -r backend/requirements-dev.txt
-          else
-            pip install ruff mypy black pytest coverage bandit safety sqlalchemy-utils pytest-asyncio
-          fi
+          # Install linters/test tools explicitly; avoid installing the full
+          # backend/requirements-dev.txt so dev-only deps (e.g. SQLAlchemy-Utils)
+          # are not installed in CI runtime. This keeps the runtime surface
+          # minimal and ensures advisories are surfaced and tracked.
+          pip install ruff mypy black pytest coverage bandit safety pytest-asyncio httpx anyio
 
       # --- Linting ---
       - name: Run Ruff
@@ -64,9 +62,22 @@ jobs:
         run: bandit -r backend --exclude backend/tests
 
       - name: Run Safety
-        # Ignore PyUp vulnerability 42194 (sqlalchemy-utils EncryptedType IV isn't random)
-        # This dependency is used for developer tooling only; track remediation in a follow-up.
-        run: safety check --ignore 42194
+        run: safety check
+
+      - name: Check for dev-only packages in runtime (FAILS if any found)
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        run: |
+          set -o pipefail
+          python backend/scripts/check_dev_deps_in_runtime.py || (
+            if [ -f backend/dev_in_runtime.txt ]; then
+              pkgs=$(cat backend/dev_in_runtime.txt)
+              echo "::error file=backend/dev_in_runtime.txt::Dev-only packages installed in runtime: $pkgs"
+              echo "See backend/README.md for remediation: https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/backend/README.md"
+            else
+              echo "Dev-deps check failed with non-zero exit code"
+            fi
+            exit 1
+          )
 
       # --- Tests ---
       - name: Run Pytest with Coverage
@@ -79,3 +90,59 @@ jobs:
         run: |
           coverage run -m pytest backend/tests
           coverage report -m
+
+  annotate-dev-deps:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install runtime requirements
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+      - name: Run dev-deps check (annotate only)
+        id: devcheck
+        run: |
+          python backend/scripts/check_dev_deps_in_runtime.py || true
+          if [ -f backend/dev_in_runtime.txt ]; then
+            echo "FOUND=$(cat backend/dev_in_runtime.txt)" >> $GITHUB_OUTPUT
+          else
+            echo "FOUND=" >> $GITHUB_OUTPUT
+          fi
+      - name: Create Check Run annotation if offending packages found
+        if: steps.devcheck.outputs.FOUND != ''
+        uses: actions/github-script@v7
+        env:
+          FOUND: ${{ steps.devcheck.outputs.FOUND }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const found = process.env.FOUND || ''
+            if (!found) return
+            const head_sha = context.payload.pull_request && context.payload.pull_request.head && context.payload.pull_request.head.sha
+            const pkgs = found.split(',').map(s => s.trim()).filter(Boolean)
+            const annotations = pkgs.slice(0,50).map(pkg => ({
+              path: 'backend/dev_in_runtime.txt',
+              start_line: 1,
+              end_line: 1,
+              annotation_level: 'warning',
+              message: `Dev-only package installed in runtime: ${pkg}`
+            }))
+            await github.rest.checks.create({
+              ...context.repo,
+              name: 'dev-deps-check',
+              head_sha: head_sha || process.env.GITHUB_SHA,
+              status: 'completed',
+              conclusion: 'neutral',
+              output: {
+                title: 'Dev-only packages detected in runtime',
+                summary: `Dev-only packages detected: ${found}\n\nPR: https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${context.issue.number || ''}\nRemediation: https://github.com/${context.repo.owner}/${context.repo.repo}/pull/15`,
+                annotations,
+                details_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/backend/README.md`
+              }
+            })
