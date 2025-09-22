@@ -35,6 +35,7 @@ jobs:
           python-version: "3.12"
 
       - name: Diagnostic - pip list (before install)
+        shell: bash
         run: |
           python -m pip --version
           python -m pip list --format=freeze | sort > pip-list-before.txt || true
@@ -52,6 +53,7 @@ jobs:
           pip install ruff mypy black pytest coverage bandit safety pytest-asyncio httpx anyio
 
       - name: Diagnostic - pip list (after install)
+        shell: bash
         run: |
           python -m pip list --format=freeze | sort > pip-list-after.txt || true
           echo "Wrote pip-list-after.txt"
@@ -88,6 +90,7 @@ jobs:
       - name: Check for dev-only packages in runtime (FAILS if any found)
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         id: enforce
+        shell: bash
         run: |
           set -o pipefail
           python backend/scripts/check_dev_deps_in_runtime.py || true

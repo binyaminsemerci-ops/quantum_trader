@@ -22,6 +22,7 @@ jobs:
           python-version: ${{ matrix.python }}
 
       - name: Diagnostic - pip list (before install)
+        shell: bash
         run: |
           python -m pip --version
           python -m pip list --format=freeze | sort > pip-list-before.txt || true
@@ -34,6 +35,7 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Diagnostic - pip list (after install)
+        shell: bash
         run: |
           python -m pip list --format=freeze | sort > pip-list-after.txt || true
           echo "Wrote pip-list-after.txt"
@@ -49,6 +51,7 @@ jobs:
 
       - name: Run dev-deps check
         id: devcheck
+        shell: bash
         run: |
           python backend/scripts/check_dev_deps_in_runtime.py || true
           if [ -f backend/dev_in_runtime.txt ]; then
