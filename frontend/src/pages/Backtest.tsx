@@ -19,8 +19,9 @@ export default function Backtest(): JSX.Element {
     setLoading(true);
     try {
       const res = await fetch(`/api/backtest?symbol=${encodeURIComponent(symbol)}&days=30`);
-      const data = await res.json();
-      setResult(data as BacktestResult);
+      const { safeJson } = await import('../utils/api');
+      const dataRaw = await safeJson(res);
+      setResult((dataRaw && typeof dataRaw === 'object') ? (dataRaw as BacktestResult) : null);
     } catch (err) {
       console.error('Backtest failed', err);
     } finally {

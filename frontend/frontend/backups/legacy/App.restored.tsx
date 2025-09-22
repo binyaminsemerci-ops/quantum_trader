@@ -26,19 +26,24 @@ function App() {
     setSystemStatus(prev => ({ ...prev, checking: true }));
     try {
       const response = await fetch('http://localhost:8000');
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        data = undefined;
+      }
       setSystemStatus({
         backend: true,
         checking: false,
         lastChecked: new Date(),
-        message: data.message
+        message: data?.message
       });
     } catch (error) {
       setSystemStatus({
         backend: false,
         checking: false,
         lastChecked: new Date(),
-        error: error.message
+        error: error?.message ?? String(error)
       });
     }
   };

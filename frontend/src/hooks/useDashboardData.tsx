@@ -57,13 +57,18 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         fetch('http://127.0.0.1:8000/api/trade_logs?limit=50'),
         fetch('http://127.0.0.1:8000/api/chart'),
       ]);
+  const { safeJson } = await import('../utils/api');
+  const statsRaw = await safeJson(statsRes);
+  const tradesRaw = await safeJson(tradesRes);
+  const logsRaw = await safeJson(logsRes);
+  const chartRaw = await safeJson(chartRes);
 
-  const stats = await statsRes.json();
-  const trades = await tradesRes.json();
-  const logs = await logsRes.json();
-  const chart = await chartRes.json();
+  const statsVal = (statsRaw && typeof statsRaw === 'object') ? (statsRaw as Stats) : null;
+  const tradesVal = Array.isArray(tradesRaw) ? (tradesRaw as Trade[]) : (tradesRaw && typeof tradesRaw === 'object' && Array.isArray((tradesRaw as any).trades) ? (tradesRaw as any).trades : []);
+  const logsVal = Array.isArray(logsRaw) ? (logsRaw as LogItem[]) : (logsRaw && typeof logsRaw === 'object' && Array.isArray((logsRaw as any).logs) ? (logsRaw as any).logs : []);
+  const chartVal = Array.isArray(chartRaw) ? (chartRaw as ChartPoint[]) : [];
 
-  setData({ stats, trades: trades.trades || [], logs: logs.logs || [], chart: chart || [] });
+  setData({ stats: statsVal, trades: tradesVal, logs: logsVal, chart: chartVal });
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (err) {
       console.error('Fallback fetch error:', err);
@@ -93,16 +98,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
       ws.onmessage = (event: MessageEvent) => {
         try {
-          const payload = JSON.parse(event.data);
-          setData(payload);
-          setLastUpdated(new Date().toLocaleTimeString());
-
-          if (payload.logs && payload.logs.length > 0) {
-            const latest = payload.logs[0];
-            setToast({
-              message: `Trade ${String(latest.status).toUpperCase()}: ${latest.symbol} ${latest.side} ${latest.qty}@${latest.price}`,
-              type: latest.status === 'accepted' ? 'success' : 'error',
-            });
+          const { safeParse, extractToastFromPayload } = require('../utils/ws');
+          const payload = safeParse(event.data);
+          if (payload && typeof payload === 'object') {
+            setData(payload);
+            setLastUpdated(new Date().toLocaleTimeString());
+            const t = extractToastFromPayload(payload);
+            if (t) setToast(t);
           }
         } catch (err) {
           console.error('WS payload parse error', err);
