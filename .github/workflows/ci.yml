@@ -141,7 +141,8 @@ jobs:
               conclusion: 'neutral',
               output: {
                 title: 'Dev-only packages detected in runtime',
-                summary: `Dev-only packages detected: ${found}`,
-                annotations
+                summary: `Dev-only packages detected: ${found}\n\nPR: https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${context.issue.number || ''}\nRemediation: https://github.com/${context.repo.owner}/${context.repo.repo}/pull/15`,
+                annotations,
+                details_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/backend/README.md`
               }
             })
