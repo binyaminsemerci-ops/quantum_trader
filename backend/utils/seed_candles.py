@@ -2,6 +2,7 @@ import datetime
 import random
 from backend.database import get_db
 
+
 def seed_candles(symbol="BTCUSDT", days=30):
     db = get_db()
     cursor = db.cursor()
@@ -17,10 +18,13 @@ def seed_candles(symbol="BTCUSDT", days=30):
         close_price = random.uniform(low_price, high_price)
         volume = random.uniform(100, 500)
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO candles (symbol, timestamp, open, high, low, close, volume)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (symbol, date, open_price, high_price, low_price, close_price, volume))
+        """,
+            (symbol, date, open_price, high_price, low_price, close_price, volume),
+        )
 
         price = close_price
 
