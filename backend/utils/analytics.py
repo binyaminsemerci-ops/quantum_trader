@@ -1,6 +1,7 @@
 from backend.database import get_db
 import math
 
+
 def calculate_analytics():
     db = get_db()
     cursor = db.cursor()
@@ -21,7 +22,9 @@ def calculate_analytics():
 
     win_rate = (wins / max(1, (wins + losses))) * 100
     avg_return = sum(returns) / max(1, len(returns))
-    std_dev = math.sqrt(sum((r - avg_return) ** 2 for r in returns) / max(1, len(returns)))
+    std_dev = math.sqrt(
+        sum((r - avg_return) ** 2 for r in returns) / max(1, len(returns))
+    )
     sharpe = avg_return / std_dev if std_dev else 0
 
     return {

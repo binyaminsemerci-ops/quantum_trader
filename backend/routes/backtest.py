@@ -4,18 +4,22 @@ from backend.database import get_db
 
 router = APIRouter()
 
+
 @router.get("/backtest")
 def run_backtest(symbol: str = "BTCUSDT", days: int = 30):
     db = get_db()
     cursor = db.cursor()
 
     # 1️⃣ Forsøk på trades
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT timestamp, side, qty, price
         FROM trades
         WHERE symbol = ?
         ORDER BY timestamp ASC
-    """, (symbol,))
+    """,
+        (symbol,),
+    )
     trades = cursor.fetchall()
 
     if trades:
@@ -41,13 +45,16 @@ def run_backtest(symbol: str = "BTCUSDT", days: int = 30):
         }
 
     # 2️⃣ Hvis ingen trades → bruk candles
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT timestamp, open, close
         FROM candles
         WHERE symbol = ?
         ORDER BY timestamp ASC
         LIMIT ?
-    """, (symbol, days))
+    """,
+        (symbol, days),
+    )
     candles = cursor.fetchall()
 
     if not candles:

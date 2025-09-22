@@ -1,5 +1,6 @@
 from backend.database import get_db
 
+
 def calculate_pnl():
     db = get_db()
     cursor = db.cursor()
@@ -12,6 +13,7 @@ def calculate_pnl():
         elif side.upper() == "SELL":
             pnl += qty * price
     return round(pnl, 2)
+
 
 def calculate_pnl_per_symbol():
     db = get_db()

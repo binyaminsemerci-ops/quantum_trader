@@ -3,9 +3,11 @@ from backend.routes import trades, stats, chart, settings, binance
 
 app = FastAPI()
 
+
 @app.get("/")
 async def root():
     return {"message": "Quantum Trader API is running"}
+
 
 # inkluder routere uten trailing slash-problemer
 app.include_router(trades.router, prefix="/trades")
