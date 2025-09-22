@@ -114,17 +114,34 @@ jobs:
           else
             echo "FOUND=" >> $GITHUB_OUTPUT
           fi
-      - name: Comment on PR if offending packages found
+      - name: Create Check Run annotation if offending packages found
         if: steps.devcheck.outputs.FOUND != ''
         uses: actions/github-script@v7
+        env:
+          FOUND: ${{ steps.devcheck.outputs.FOUND }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const found = process.env.FOUND || ''
-            if (found) {
-              github.rest.issues.createComment({
-                ...context.repo,
-                issue_number: context.issue.number,
-                body: `Dev-only packages detected in runtime: ${found}\n\nSee backend/README.md for remediation steps.`
-              })
-            }
+            if (!found) return
+            const head_sha = context.payload.pull_request && context.payload.pull_request.head && context.payload.pull_request.head.sha
+            const pkgs = found.split(',').map(s => s.trim()).filter(Boolean)
+            const annotations = pkgs.slice(0,50).map(pkg => ({
+              path: 'backend/dev_in_runtime.txt',
+              start_line: 1,
+              end_line: 1,
+              annotation_level: 'warning',
+              message: `Dev-only package installed in runtime: ${pkg}`
+            }))
+            await github.rest.checks.create({
+              ...context.repo,
+              name: 'dev-deps-check',
+              head_sha: head_sha || process.env.GITHUB_SHA,
+              status: 'completed',
+              conclusion: 'neutral',
+              output: {
+                title: 'Dev-only packages detected in runtime',
+                summary: `Dev-only packages detected: ${found}`,
+                annotations
+              }
+            })
