@@ -43,7 +43,7 @@ jobs:
           if [ -f backend/requirements-dev.txt ]; then
             pip install -r backend/requirements-dev.txt
           else
-            pip install ruff mypy black pytest coverage bandit safety sqlalchemy-utils pytest-asyncio
+            pip install ruff mypy black pytest coverage bandit safety pytest-asyncio
           fi
 
       # --- Linting ---
