@@ -8,6 +8,7 @@ import asyncio
 
 router = APIRouter()
 
+
 @router.websocket("/ws/dashboard")
 async def dashboard_ws(websocket: WebSocket):
     await websocket.accept()
@@ -23,14 +24,27 @@ async def dashboard_ws(websocket: WebSocket):
             cursor.execute("SELECT COUNT(DISTINCT symbol) FROM trades")
             active_symbols = cursor.fetchone()[0]
 
-            cursor.execute("SELECT timestamp, symbol, side, qty, price FROM trades ORDER BY id DESC LIMIT 20")
-            trades = [dict(zip([d[0] for d in cursor.description], row)) for row in cursor.fetchall()]
+            cursor.execute(
+                "SELECT timestamp, symbol, side, qty, price FROM trades ORDER BY id DESC LIMIT 20"
+            )
+            trades = [
+                dict(zip([d[0] for d in cursor.description], row))
+                for row in cursor.fetchall()
+            ]
 
-            cursor.execute("SELECT timestamp, symbol, side, qty, price, status, reason FROM trade_logs ORDER BY id DESC LIMIT 50")
-            logs = [dict(zip([d[0] for d in cursor.description], row)) for row in cursor.fetchall()]
+            cursor.execute(
+                "SELECT timestamp, symbol, side, qty, price, status, reason FROM trade_logs ORDER BY id DESC LIMIT 50"
+            )
+            logs = [
+                dict(zip([d[0] for d in cursor.description], row))
+                for row in cursor.fetchall()
+            ]
 
             cursor.execute("SELECT date, equity FROM equity_curve ORDER BY date ASC")
-            chart = [dict(zip([d[0] for d in cursor.description], row)) for row in cursor.fetchall()]
+            chart = [
+                dict(zip([d[0] for d in cursor.description], row))
+                for row in cursor.fetchall()
+            ]
 
             payload = {
                 "stats": {
