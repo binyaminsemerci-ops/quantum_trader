@@ -40,11 +40,11 @@ jobs:
           pip install -r backend/requirements.txt
           # Install developer/test requirements so pytest-asyncio and test helpers
           # are available in CI. backend/requirements-dev.txt is tracked in the repo.
-          if (Test-Path backend/requirements-dev.txt) {
+          if [ -f backend/requirements-dev.txt ]; then
             pip install -r backend/requirements-dev.txt
-          } else {
+          else
             pip install ruff mypy black pytest coverage bandit safety sqlalchemy-utils pytest-asyncio
-          }
+          fi
 
       # --- Linting ---
       - name: Run Ruff
