@@ -52,7 +52,10 @@ jobs:
 
       # --- Security ---
       - name: Run Bandit
-        run: bandit -r backend
+        # Tests frequently use plain `assert` statements; exclude test files from Bandit
+        # scanning to avoid low-severity B101 findings failing CI. We still scan
+        # application code under backend/ for security issues.
+        run: bandit -r backend --exclude backend/tests
 
       - name: Run Safety
         run: safety check
