@@ -75,7 +75,13 @@ jobs:
           # so the shared runtime environment remains free of test-only packages
           # when we check for dev-only packages installed in runtime.
             python -m pip install --upgrade pip
-            python -m venv .venv_linters
+            # Create the venv that will host linters/security tools.
+            # Use --system-site-packages so the venv can see the runtime
+            # packages we installed earlier in the job. This lets mypy (and
+            # other tools) import application packages without installing
+            # runtime deps into the venv and avoids false "import-not-found"
+            # errors.
+            python -m venv .venv_linters --system-site-packages
             # Use the venv's pip to install tools (this keeps their deps out of
             # the runner's global site-packages).
             .venv_linters/bin/pip install --upgrade pip
@@ -102,14 +108,14 @@ jobs:
 
       # --- Linting ---
       - name: Run Ruff
-        run: .venv_linters/bin/ruff check backend
+        run: ruff check backend
 
       - name: Run Mypy
         # Avoid type-checking test files here (they import test-only packages like pytest
         # which we intentionally install only after the dev-deps enforcement step).
         # Exclude the tests directory from this mypy run so CI doesn't fail on missing
         # test-only imports.
-        run: .venv_linters/bin/mypy backend --exclude 'backend/tests/.*'
+        run: mypy backend --exclude 'backend/tests/.*'
 
       - name: Run Black
         run: black --check backend
@@ -119,11 +125,11 @@ jobs:
         # Tests frequently use plain `assert` statements; exclude test files from Bandit
         # scanning to avoid low-severity B101 findings failing CI. We still scan
         # application code under backend/ for security issues.
-        run: .venv_linters/bin/bandit -r backend --exclude backend/tests
+        run: bandit -r backend --exclude backend/tests
 
       - name: Run Safety
         # run safety from the venv so its dependencies do not pollute the global env
-        run: .venv_linters/bin/safety check
+        run: safety check
 
       - name: Check for dev-only packages in runtime (FAILS if any found)
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
@@ -170,7 +176,7 @@ jobs:
         # Run mypy again after test tooling is installed so tests are type-checked
         # and missing test-only imports do not cause failures. Use the venv mypy so
         # mypy's own deps are consistent with the earlier run.
-        run: .venv_linters/bin/mypy backend
+        run: mypy backend
 
   annotate-dev-deps:
     if: github.event_name == 'pull_request'
