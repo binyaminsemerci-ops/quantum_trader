@@ -71,11 +71,17 @@ jobs:
 
       - name: Install linters and security tools
         run: |
-          # Install only linters and security scanners here so the runtime
-          # environment remains free of test-only packages when we check for
-          # dev-only packages installed in runtime.
-          python -m pip install --upgrade pip
-          pip install ruff mypy black bandit safety
+          # Install only linters and security scanners into an isolated virtualenv
+          # so the shared runtime environment remains free of test-only packages
+          # when we check for dev-only packages installed in runtime.
+            python -m pip install --upgrade pip
+            python -m venv .venv_linters
+            # Use the venv's pip to install tools (this keeps their deps out of
+            # the runner's global site-packages).
+            .venv_linters/bin/pip install --upgrade pip
+            .venv_linters/bin/pip install ruff mypy black bandit safety
+            # Put the venv on PATH so subsequent steps can invoke the tools by name.
+            echo "::add-path::${{ github.workspace }}/.venv_linters/bin"
 
       - name: Run npm ci for frontend
         working-directory: frontend
@@ -95,14 +101,14 @@ jobs:
 
       # --- Linting ---
       - name: Run Ruff
-        run: ruff check backend
+        run: .venv-lint/bin/ruff check backend
 
       - name: Run Mypy
         # Avoid type-checking test files here (they import test-only packages like pytest
         # which we intentionally install only after the dev-deps enforcement step).
         # Exclude the tests directory from this mypy run so CI doesn't fail on missing
         # test-only imports.
-        run: mypy backend --exclude 'backend/tests/.*'
+        run: .venv-lint/bin/mypy backend --exclude 'backend/tests/.*'
 
       - name: Run Black
         run: black --check backend
@@ -112,10 +118,11 @@ jobs:
         # Tests frequently use plain `assert` statements; exclude test files from Bandit
         # scanning to avoid low-severity B101 findings failing CI. We still scan
         # application code under backend/ for security issues.
-        run: bandit -r backend --exclude backend/tests
+        run: .venv-lint/bin/bandit -r backend --exclude backend/tests
 
       - name: Run Safety
-        run: safety check
+        # run safety from the venv so its dependencies do not pollute the global env
+        run: .venv-lint/bin/safety check
 
       - name: Check for dev-only packages in runtime (FAILS if any found)
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
@@ -160,8 +167,9 @@ jobs:
       - name: Run Mypy (including tests)
         if: always()
         # Run mypy again after test tooling is installed so tests are type-checked
-        # and missing test-only imports do not cause failures.
-        run: mypy backend
+        # and missing test-only imports do not cause failures. Use the venv mypy so
+        # mypy's own deps are consistent with the earlier run.
+        run: .venv-lint/bin/mypy backend
 
   annotate-dev-deps:
     if: github.event_name == 'pull_request'
