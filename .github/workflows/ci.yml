@@ -83,6 +83,12 @@ jobs:
         run: |
           npm audit --audit-level=high
 
+      - name: Run npm audit (warn on moderate)
+        working-directory: frontend
+        run: |
+          # Run audit at moderate level but do not fail the job; emit a GitHub Actions warning so maintainers see it.
+          npm audit --audit-level=moderate || echo "::warning file=frontend/package.json::npm audit found moderate vulnerabilities (see logs)"
+
       # --- Linting ---
       - name: Run Ruff
         run: ruff check backend
