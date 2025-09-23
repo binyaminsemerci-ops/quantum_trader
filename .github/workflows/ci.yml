@@ -143,7 +143,10 @@ jobs:
           # venv contains security tooling and its transitive deps like
           # httpx. Running the check with the system Python verifies the
           # actual runtime environment used by the application.
-          $pythonLocation backend/scripts/check_dev_deps_in_runtime.py || true
+          # pythonLocation is a path to the runner's Python installation root
+          # (for example /opt/hostedtoolcache/Python/3.12.11/x64). Use the
+          # interpreter executable under bin to actually run the script.
+          $pythonLocation/bin/python backend/scripts/check_dev_deps_in_runtime.py || true
           if [ -f backend/dev_in_runtime.txt ]; then
             pkgs=$(cat backend/dev_in_runtime.txt)
             IFS=',' read -ra A <<< "$pkgs"
@@ -157,6 +160,16 @@ jobs:
             echo "No dev-only packages detected"
           fi
 
+      # Install test tooling (after dev-deps check)
+      - name: Install test tooling (after dev-deps check)
+        # Install test-related packages after the dev-deps check so they do
+        # not trigger the enforcement step. Install test tooling into the
+        # runner Python environment so tests execute against the same
+        # interpreter used for runtime.
+        run: |
+          $pythonLocation/bin/python -m pip install --upgrade pip
+          $pythonLocation/bin/python -m pip install pytest pytest-asyncio coverage httpx anyio
+
       # --- Tests ---
       - name: Run Pytest with Coverage
         env:
@@ -168,16 +181,6 @@ jobs:
         run: |
           coverage run -m pytest backend/tests
           coverage report -m
-
-      - name: Install test tooling (after dev-deps check)
-        if: always()
-        run: |
-          # Install test-related packages after the dev-deps check so they do
-          # not trigger the enforcement step.
-          # Install test tooling into the runner Python environment so
-          # tests execute against the same interpreter used for runtime.
-          $pythonLocation -m pip install --upgrade pip
-          $pythonLocation -m pip install pytest pytest-asyncio coverage httpx anyio
 
       - name: Run Mypy (including tests)
         if: always()
