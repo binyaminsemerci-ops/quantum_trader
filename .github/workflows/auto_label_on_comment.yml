@@ -1,0 +1,75 @@
+name: "Auto-ruff-fix labeler"
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
+
+jobs:
+  add-label:
+    runs-on: ubuntu-latest
+    if: github.event.issue.pull_request != null || github.event.pull_request != null
+    steps:
+      - name: Check comment text
+        id: check
+        run: |
+          payload_file="${{ github.event_path }}"
+          comment_text=$(jq -r '.comment.body // .issue.body // .review.body' "$payload_file")
+          echo "comment_text<<EOF" >> $GITHUB_OUTPUT
+          echo "$comment_text" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Determine PR number
+        id: pr
+        run: |
+          if [ -n "${{ github.event.issue.number }}" ]; then
+            echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          elif [ -n "${{ github.event.pull_request.number }}" ]; then
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            echo "pr_number=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Only proceed on /auto-ruff-fix
+        if: contains( steps.check.outputs.comment_text, '/auto-ruff-fix' )
+        run: echo "Trigger detected"
+
+      - name: Verify commenter is a collaborator with write access
+        if: contains( steps.check.outputs.comment_text, '/auto-ruff-fix' )
+        id: verify
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENTER=$(jq -r '.comment.user.login // .sender.login' "$GITHUB_EVENT_PATH")
+          REPO_OWNER=${{ github.repository_owner }}
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          echo "Commenter: $COMMENTER"
+          perm=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/collaborators/${COMMENTER}/permission" )
+          level=$(echo "$perm" | jq -r .permission // empty)
+          echo "Permission: $level"
+          if [ "$level" = "admin" ] || [ "$level" = "write" ]; then
+            echo "allowed=true" >> $GITHUB_OUTPUT
+          else
+            echo "allowed=false" >> $GITHUB_OUTPUT
+            echo "User $COMMENTER is not a collaborator with write/admin permission; aborting label add." >&2
+            exit 0
+          fi
+
+      - name: Add label to PR
+        if: steps.verify.outputs.allowed == 'true' && contains( steps.check.outputs.comment_text, '/auto-ruff-fix' )
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=${{ steps.pr.outputs.pr_number }}
+          REPO=${{ github.repository }}
+          echo "Adding label auto-ruff-fix to $REPO#${PR_NUMBER}"
+          curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/labels" \
+            -d '{"labels":["auto-ruff-fix"]}'
