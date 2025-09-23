@@ -5,14 +5,25 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 
-# Sørg for at database-mappa finnes
+# Sør for at database-mappa finnes
 DB_DIR = os.path.join(os.path.dirname(__file__), "data")
 os.makedirs(DB_DIR, exist_ok=True)
 
-DATABASE_URL = f"sqlite:///{os.path.join(DB_DIR, 'trades.db')}"
+# Allow overriding the database URL for tests/CI via environment variable.
+# If QUANTUM_TRADER_DATABASE_URL is set, use that. Otherwise fall back to the
+# default file-based sqlite DB under backend/data/trades.db.
+if "QUANTUM_TRADER_DATABASE_URL" in os.environ:
+    DATABASE_URL = os.environ["QUANTUM_TRADER_DATABASE_URL"]
+else:
+    DATABASE_URL = f"sqlite:///{os.path.join(DB_DIR, 'trades.db')}"
+
+# For SQLite we need check_same_thread=False so SQLAlchemy works with FastAPI
+# and pytest's test client in the same thread; for other DBs the connect_args
+# can remain empty.
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite:///") else {}
 
 # Opprett engine
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 
 # Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

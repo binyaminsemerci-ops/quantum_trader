@@ -95,6 +95,12 @@ jobs:
         run: |
           npm ci
 
+      - name: Run frontend build (Vite)
+        working-directory: frontend
+        run: |
+          # Run the real frontend build to validate bundling and plugin transforms
+          npm run build
+
       - name: Run npm audit (fail on high/critical)
         working-directory: frontend
         run: |
@@ -129,7 +135,11 @@ jobs:
 
       - name: Run Safety
         # run safety from the venv so its dependencies do not pollute the global env
-        run: safety check
+        # Use the newer `scan` command (replaces deprecated `check`).
+        # `--full-report` produces the human-readable report; the command
+        # will still exit non-zero if vulnerabilities are found (so CI can fail).
+        run: |
+          safety scan --full-report
 
       - name: Check for dev-only packages in runtime (FAILS if any found)
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
@@ -244,3 +254,26 @@ jobs:
                 details_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/backend/README.md`
               }
             })
+
+  frontend-checks:
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        node-version: [16, 18, 20]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Install frontend deps
+        working-directory: frontend
+        run: |
+          npm ci
+      - name: Run frontend typecheck (tsc --noEmit)
+        working-directory: frontend
+        run: |
+          npm run typecheck
+      
