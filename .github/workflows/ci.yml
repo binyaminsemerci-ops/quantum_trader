@@ -34,6 +34,14 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Diagnostic - pip list (before install)
+        shell: bash
+        run: |
+          python -m pip --version
+          python -m pip list --format=freeze | sort > pip-list-before.txt || true
+          echo "Wrote pip-list-before.txt"
+          head -n 50 pip-list-before.txt || true
+
       - name: Install pip + deps
         run: |
           python -m pip install --upgrade pip
@@ -43,6 +51,21 @@ jobs:
           # are not installed in CI runtime. This keeps the runtime surface
           # minimal and ensures advisories are surfaced and tracked.
           pip install ruff mypy black pytest coverage bandit safety pytest-asyncio httpx anyio
+
+      - name: Diagnostic - pip list (after install)
+        shell: bash
+        run: |
+          python -m pip list --format=freeze | sort > pip-list-after.txt || true
+          echo "Wrote pip-list-after.txt"
+          head -n 50 pip-list-after.txt || true
+
+      - name: Upload pip-list artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-lists-ci
+          path: |
+            pip-list-before.txt
+            pip-list-after.txt
 
       # --- Linting ---
       - name: Run Ruff
@@ -66,18 +89,23 @@ jobs:
 
       - name: Check for dev-only packages in runtime (FAILS if any found)
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        id: enforce
+        shell: bash
         run: |
           set -o pipefail
-          python backend/scripts/check_dev_deps_in_runtime.py || (
-            if [ -f backend/dev_in_runtime.txt ]; then
-              pkgs=$(cat backend/dev_in_runtime.txt)
-              echo "::error file=backend/dev_in_runtime.txt::Dev-only packages installed in runtime: $pkgs"
-              echo "See backend/README.md for remediation: https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/backend/README.md"
-            else
-              echo "Dev-deps check failed with non-zero exit code"
-            fi
+          python backend/scripts/check_dev_deps_in_runtime.py || true
+          if [ -f backend/dev_in_runtime.txt ]; then
+            pkgs=$(cat backend/dev_in_runtime.txt)
+            IFS=',' read -ra A <<< "$pkgs"
+            for pkg in "${A[@]}"; do
+              pkg=$(echo "$pkg" | xargs)
+              echo "::error file=backend/dev_in_runtime.txt::Dev-only package installed in runtime: $pkg"
+            done
+            echo "See backend/README.md for remediation: https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/backend/README.md"
             exit 1
-          )
+          else
+            echo "No dev-only packages detected"
+          fi
 
       # --- Tests ---
       - name: Run Pytest with Coverage

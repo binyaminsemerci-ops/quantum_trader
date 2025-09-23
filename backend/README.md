@@ -63,3 +63,47 @@ You can also run the check locally via the Makefile target from the repo root:
 make -C backend check-dev-deps
 ```
 
+Windows / PowerShell notes
+--------------------------
+Windows developers can use PowerShell to set up and run the same tools:
+
+```powershell
+# Create and activate the venv
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# Install dev deps
+pip install -r backend/requirements-dev.txt
+
+# Run the check
+python backend/scripts/check_dev_deps_in_runtime.py
+```
+
+Repair helper
+-------------
+If the check finds dev-only packages installed at runtime, you can run the
+repair helper to uninstall them (it will prompt for confirmation):
+
+POSIX:
+```bash
+./scripts/repair-dev-deps.sh
+```
+
+PowerShell:
+```powershell
+.\scripts\repair-dev-deps.ps1
+```
+
+Both scripts support a dry-run mode to preview what would be uninstalled:
+
+POSIX:
+```bash
+./scripts/repair-dev-deps.sh --dry-run
+```
+
+PowerShell:
+```powershell
+.\scripts\repair-dev-deps.ps1 -DryRun
+```
+
+
