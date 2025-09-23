@@ -137,7 +137,13 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python backend/scripts/check_dev_deps_in_runtime.py || true
+          # Use the runner-provided Python (pythonLocation) to run the
+          # enforcement script. We intentionally do not want to run this
+          # check under the linters venv (which is on PATH) because that
+          # venv contains security tooling and its transitive deps like
+          # httpx. Running the check with the system Python verifies the
+          # actual runtime environment used by the application.
+          $pythonLocation backend/scripts/check_dev_deps_in_runtime.py || true
           if [ -f backend/dev_in_runtime.txt ]; then
             pkgs=$(cat backend/dev_in_runtime.txt)
             IFS=',' read -ra A <<< "$pkgs"
@@ -168,8 +174,10 @@ jobs:
         run: |
           # Install test-related packages after the dev-deps check so they do
           # not trigger the enforcement step.
-          python -m pip install --upgrade pip
-          pip install pytest pytest-asyncio coverage httpx anyio
+          # Install test tooling into the runner Python environment so
+          # tests execute against the same interpreter used for runtime.
+          $pythonLocation -m pip install --upgrade pip
+          $pythonLocation -m pip install pytest pytest-asyncio coverage httpx anyio
 
       - name: Run Mypy (including tests)
         if: always()
