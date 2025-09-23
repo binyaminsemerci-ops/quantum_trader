@@ -119,13 +119,12 @@ jobs:
       - name: Run Ruff auto-fix (detects fixable issues)
         id: ruff_fix
         # Attempt to auto-fix trivial issues and set an output if files changed.
-        # A later step will auto-commit only when the run has permission to push
-        # back to the repository (same-repo pushes/PRs). For forked PRs the
-        # workflow will continue to fail with an instructive message so
-        # contributors can run the fix locally and include the commit in their PR.
+        # Default behaviour is strict: if files changed and auto-commit is not
+        # explicitly allowed, fail the job and instruct the contributor to
+        # run the fix locally. Auto-commit is only attempted when the run is
+        # a push or when the pull request includes the label 'auto-ruff-fix'.
         run: |
           set -o pipefail
-          # Run ruff in-place and record whether any files were modified.
           ruff check --fix --quiet backend || true
           if [ -n "$(git status --porcelain)" ]; then
             echo "changed=true" >> $GITHUB_OUTPUT
@@ -135,20 +134,39 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Auto-commit ruff fixes (only for same-repo runs)
-        # Only attempt to commit and push when the event is a push or the
-        # pull_request originates from the same repository (not a fork).
-        if: steps.ruff_fix.outputs.changed == 'true' && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
+      - name: Determine if auto-commit allowed
+        id: auto_commit_allowed
+        run: |
+          # Default: not allowed
+          echo "allow=false" >> $GITHUB_OUTPUT
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            echo "allow=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            # Inspect event payload for labels. The event JSON is available
+            # at $GITHUB_EVENT_PATH.
+            if command -v jq >/dev/null 2>&1; then
+              labels=$(jq -r '.pull_request.labels[].name // empty' "$GITHUB_EVENT_PATH" | tr '\n' ',' || true)
+            else
+              # Extract PR labels from the event payload using a compact python -c
+              labels=$(python -c 'import json,os; e=json.load(open(os.environ["GITHUB_EVENT_PATH"])); print(",".join([l.get("name","") for l in e.get("pull_request",{}).get("labels",[])]))') || true
+            fi
+            echo "PR labels: $labels"
+            echo "$labels" | grep -q "auto-ruff-fix" && echo "allow=true" >> $GITHUB_OUTPUT || true
+          fi
+
+      - name: Auto-commit ruff fixes (only when explicitly allowed)
+        if: steps.ruff_fix.outputs.changed == 'true' && steps.auto_commit_allowed.outputs.allow == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "style: apply ruff fixes [ci skip]" || echo "No commit needed"
-          # Push back to the same ref. Use the checked-out repository's ref name.
           git push origin HEAD:${{ github.ref_name }}
 
       - name: Fail if ruff fixed files but auto-commit not allowed
-        if: steps.ruff_fix.outputs.changed == 'true' && !(github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
+        if: steps.ruff_fix.outputs.changed == 'true' && steps.auto_commit_allowed.outputs.allow != 'true'
         run: |
           echo "Ruff applied fixes to files; please run 'ruff check --fix backend' locally and commit the changes." >&2
           cat ruff-modified.txt || true
