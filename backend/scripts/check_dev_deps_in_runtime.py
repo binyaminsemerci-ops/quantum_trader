@@ -13,7 +13,7 @@ are accidentally installed into runtime environments.
 from __future__ import annotations
 
 import re
-import subprocess
+import subprocess  # nosec B404 - subprocess is used safely for controlled pip invocations
 from pathlib import Path
 import sys
 
@@ -40,12 +40,14 @@ def parse_req_line(line: str) -> str | None:
 def installed_packages() -> set[str]:
     # Use pip list --format=freeze for a reliable list in CI
     try:
+        # Calling pip in a subprocess is intended and arguments are controlled
+        # by the repository (not untrusted user input).
         res = subprocess.run(
             [sys.executable, "-m", "pip", "list", "--format=freeze"],
             capture_output=True,
             text=True,
             check=True,
-        )
+        )  # nosec B603
     except subprocess.CalledProcessError:
         return set()
     pkgs = set()
@@ -95,12 +97,15 @@ def main() -> int:
             nxt = []
             for pkg in to_process:
                 try:
+                    # We call `pip show <pkg>` for repository-controlled package
+                    # names discovered in requirements files. This is not
+                    # executing untrusted shell input.
                     res = subprocess.run(
                         [sys.executable, "-m", "pip", "show", pkg],
                         capture_output=True,
                         text=True,
                         check=True,
-                    )
+                    )  # nosec B603
                 except subprocess.CalledProcessError:
                     continue
                 for line in res.stdout.splitlines():
@@ -131,8 +136,9 @@ def main() -> int:
     if OUT.exists():
         try:
             OUT.unlink()
-        except Exception:
-            pass
+        except Exception as exc:
+            # Avoid silent failures; log the exception for CI debugging.
+            print(f"Warning: failed to remove {OUT}: {exc}")
     print("No dev-only packages detected in runtime environment")
     return 0
 
