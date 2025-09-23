@@ -98,7 +98,11 @@ jobs:
         run: ruff check backend
 
       - name: Run Mypy
-        run: mypy backend
+        # Avoid type-checking test files here (they import test-only packages like pytest
+        # which we intentionally install only after the dev-deps enforcement step).
+        # Exclude the tests directory from this mypy run so CI doesn't fail on missing
+        # test-only imports.
+        run: mypy backend --exclude 'backend/tests/.*'
 
       - name: Run Black
         run: black --check backend
@@ -152,6 +156,12 @@ jobs:
           # not trigger the enforcement step.
           python -m pip install --upgrade pip
           pip install pytest pytest-asyncio coverage httpx anyio
+
+      - name: Run Mypy (including tests)
+        if: always()
+        # Run mypy again after test tooling is installed so tests are type-checked
+        # and missing test-only imports do not cause failures.
+        run: mypy backend
 
   annotate-dev-deps:
     if: github.event_name == 'pull_request'
