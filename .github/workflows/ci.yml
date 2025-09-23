@@ -80,8 +80,9 @@ jobs:
             # the runner's global site-packages).
             .venv_linters/bin/pip install --upgrade pip
             .venv_linters/bin/pip install ruff mypy black bandit safety
-            # Put the venv on PATH so subsequent steps can invoke the tools by name.
-            echo "::add-path::${{ github.workspace }}/.venv_linters/bin"
+            # Put the venv on PATH using the supported environment file so
+            # subsequent steps can invoke the tools by name.
+            echo "${{ github.workspace }}/.venv_linters/bin" >> $GITHUB_PATH
 
       - name: Run npm ci for frontend
         working-directory: frontend
@@ -101,14 +102,14 @@ jobs:
 
       # --- Linting ---
       - name: Run Ruff
-        run: .venv-lint/bin/ruff check backend
+        run: .venv_linters/bin/ruff check backend
 
       - name: Run Mypy
         # Avoid type-checking test files here (they import test-only packages like pytest
         # which we intentionally install only after the dev-deps enforcement step).
         # Exclude the tests directory from this mypy run so CI doesn't fail on missing
         # test-only imports.
-        run: .venv-lint/bin/mypy backend --exclude 'backend/tests/.*'
+        run: .venv_linters/bin/mypy backend --exclude 'backend/tests/.*'
 
       - name: Run Black
         run: black --check backend
@@ -118,11 +119,11 @@ jobs:
         # Tests frequently use plain `assert` statements; exclude test files from Bandit
         # scanning to avoid low-severity B101 findings failing CI. We still scan
         # application code under backend/ for security issues.
-        run: .venv-lint/bin/bandit -r backend --exclude backend/tests
+        run: .venv_linters/bin/bandit -r backend --exclude backend/tests
 
       - name: Run Safety
         # run safety from the venv so its dependencies do not pollute the global env
-        run: .venv-lint/bin/safety check
+        run: .venv_linters/bin/safety check
 
       - name: Check for dev-only packages in runtime (FAILS if any found)
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
@@ -169,7 +170,7 @@ jobs:
         # Run mypy again after test tooling is installed so tests are type-checked
         # and missing test-only imports do not cause failures. Use the venv mypy so
         # mypy's own deps are consistent with the earlier run.
-        run: .venv-lint/bin/mypy backend
+        run: .venv_linters/bin/mypy backend
 
   annotate-dev-deps:
     if: github.event_name == 'pull_request'
