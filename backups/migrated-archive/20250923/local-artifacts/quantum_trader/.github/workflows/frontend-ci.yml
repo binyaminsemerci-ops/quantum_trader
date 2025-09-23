@@ -1,0 +1,68 @@
+name: Frontend CI
+
+on:
+  push:
+    paths:
+      - 'frontend/**'
+  pull_request:
+    paths:
+      - 'frontend/**'
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Optional lint (ESLint)
+        working-directory: ./frontend
+        # Run lint if available, but do not fail the workflow on lint issues.
+        run: |
+          # POSIX: check if a lint script is present in package.json and run it
+          if npm run | grep -q "lint"; then
+            echo "Running lint (will not fail the job)"
+            npm run lint || echo "Lint failed but continuing"
+          else
+            echo "No lint script defined, skipping ESLint"
+          fi
+
+      - name: Typecheck
+        working-directory: ./frontend
+        run: |
+          # Run a configured type-check script if present. If not, skip typecheck.
+          if npm run | grep -q "type-check"; then
+            npm run type-check
+          elif [ -f tsconfig.json ]; then
+            echo "tsconfig.json found but no type-check script; skipping tsc because TypeScript isn't in devDependencies. To enable, add 'typescript' to devDependencies and a 'type-check' script."
+          else
+            echo "No TypeScript configuration found; skipping typecheck"
+          fi
+
+      - name: Build (production)
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: List dist contents (debug)
+        working-directory: ./frontend
+        run: |
+          echo "=== dist listing ==="
+          ls -la dist || echo "dist directory missing"
+
+      - name: Upload dist artifact
+        # Always attempt to upload dist so debugging artifacts are available
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
