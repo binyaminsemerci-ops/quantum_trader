@@ -69,13 +69,13 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install dev tools (linters & test tooling)
+      - name: Install linters and security tools
         run: |
-          # Install linters/test tools separately so the runtime environment
-          # does not include developer-only packages when we run the
-          # "Check for dev-only packages in runtime" step.
+          # Install only linters and security scanners here so the runtime
+          # environment remains free of test-only packages when we check for
+          # dev-only packages installed in runtime.
           python -m pip install --upgrade pip
-          pip install ruff mypy black pytest coverage bandit safety pytest-asyncio httpx anyio
+          pip install ruff mypy black bandit safety
 
       - name: Run npm ci for frontend
         working-directory: frontend
@@ -144,6 +144,14 @@ jobs:
         run: |
           coverage run -m pytest backend/tests
           coverage report -m
+
+      - name: Install test tooling (after dev-deps check)
+        if: always()
+        run: |
+          # Install test-related packages after the dev-deps check so they do
+          # not trigger the enforcement step.
+          python -m pip install --upgrade pip
+          pip install pytest pytest-asyncio coverage httpx anyio
 
   annotate-dev-deps:
     if: github.event_name == 'pull_request'
