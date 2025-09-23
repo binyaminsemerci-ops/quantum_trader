@@ -11,6 +11,7 @@ This is intended to be used in CI to warn when developer-only dependencies
 are accidentally installed into runtime environments.
 """
 from __future__ import annotations
+
 import re
 import subprocess
 from pathlib import Path
@@ -39,7 +40,12 @@ def parse_req_line(line: str) -> str | None:
 def installed_packages() -> set[str]:
     # Use pip list --format=freeze for a reliable list in CI
     try:
-        res = subprocess.run([sys.executable, "-m", "pip", "list", "--format=freeze"], capture_output=True, text=True, check=True)
+        res = subprocess.run(
+            [sys.executable, "-m", "pip", "list", "--format=freeze"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
     except subprocess.CalledProcessError:
         return set()
     pkgs = set()
@@ -89,7 +95,12 @@ def main() -> int:
             nxt = []
             for pkg in to_process:
                 try:
-                    res = subprocess.run([sys.executable, "-m", "pip", "show", pkg], capture_output=True, text=True, check=True)
+                    res = subprocess.run(
+                        [sys.executable, "-m", "pip", "show", pkg],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
                 except subprocess.CalledProcessError:
                     continue
                 for line in res.stdout.splitlines():
