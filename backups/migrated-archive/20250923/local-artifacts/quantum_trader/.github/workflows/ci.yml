@@ -57,7 +57,7 @@ jobs:
         run: bandit -r backend
 
       - name: Run Safety
-        run: safety check
+        run: safety scan --full-report
 
       - name: Check for dev-only packages in runtime (FAILS if any found)
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
