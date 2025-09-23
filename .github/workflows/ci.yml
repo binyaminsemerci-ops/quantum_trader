@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -114,20 +117,42 @@ jobs:
 
       # --- Linting ---
       - name: Run Ruff auto-fix (detects fixable issues)
-        # Attempt to auto-fix trivial issues in a dry-run style. If ruff makes
-        # changes, fail the job so contributors are encouraged to run the fix
-        # locally and include the fixes in their PR. This avoids surprises
-        # where CI mutates the repo state.
+        id: ruff_fix
+        # Attempt to auto-fix trivial issues and set an output if files changed.
+        # A later step will auto-commit only when the run has permission to push
+        # back to the repository (same-repo pushes/PRs). For forked PRs the
+        # workflow will continue to fail with an instructive message so
+        # contributors can run the fix locally and include the commit in their PR.
         run: |
           set -o pipefail
-          # Run ruff in-place and check git for modified files. We use the
-          # venv-installed ruff on PATH.
+          # Run ruff in-place and record whether any files were modified.
           ruff check --fix --quiet backend || true
           if [ -n "$(git status --porcelain)" ]; then
-            echo "Ruff applied fixes to files; please run 'ruff check --fix backend' locally and commit the changes." >&2
-            git --no-pager diff --name-only || true
-            exit 1
+            echo "changed=true" >> $GITHUB_OUTPUT
+            git --no-pager diff --name-only > ruff-modified.txt || true
+            echo "Files modified by ruff:" && cat ruff-modified.txt || true
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Auto-commit ruff fixes (only for same-repo runs)
+        # Only attempt to commit and push when the event is a push or the
+        # pull_request originates from the same repository (not a fork).
+        if: steps.ruff_fix.outputs.changed == 'true' && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "style: apply ruff fixes [ci skip]" || echo "No commit needed"
+          # Push back to the same ref. Use the checked-out repository's ref name.
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Fail if ruff fixed files but auto-commit not allowed
+        if: steps.ruff_fix.outputs.changed == 'true' && !(github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
+        run: |
+          echo "Ruff applied fixes to files; please run 'ruff check --fix backend' locally and commit the changes." >&2
+          cat ruff-modified.txt || true
+          exit 1
 
       - name: Run Ruff
         run: ruff check backend
