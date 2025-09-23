@@ -42,15 +42,11 @@ jobs:
           echo "Wrote pip-list-before.txt"
           head -n 50 pip-list-before.txt || true
 
-      - name: Install pip + deps
+      - name: Install runtime pip deps
+        id: install-runtime
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-          # Install linters/test tools explicitly; avoid installing the full
-          # backend/requirements-dev.txt so dev-only deps (e.g. SQLAlchemy-Utils)
-          # are not installed in CI runtime. This keeps the runtime surface
-          # minimal and ensures advisories are surfaced and tracked.
-          pip install ruff mypy black pytest coverage bandit safety pytest-asyncio httpx anyio
 
       - name: Diagnostic - pip list (after install)
         shell: bash
@@ -72,6 +68,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
+
+      - name: Install dev tools (linters & test tooling)
+        run: |
+          # Install linters/test tools separately so the runtime environment
+          # does not include developer-only packages when we run the
+          # "Check for dev-only packages in runtime" step.
+          python -m pip install --upgrade pip
+          pip install ruff mypy black pytest coverage bandit safety pytest-asyncio httpx anyio
 
       - name: Run npm ci for frontend
         working-directory: frontend
