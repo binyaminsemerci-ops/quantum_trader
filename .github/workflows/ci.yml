@@ -67,6 +67,22 @@ jobs:
             pip-list-before.txt
             pip-list-after.txt
 
+      # --- Frontend security: run npm audit and fail on high/critical
+      - name: Install Node.js (for frontend audit)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Run npm ci for frontend
+        working-directory: frontend
+        run: |
+          npm ci
+
+      - name: Run npm audit (fail on high/critical)
+        working-directory: frontend
+        run: |
+          npm audit --audit-level=high
+
       # --- Linting ---
       - name: Run Ruff
         run: ruff check backend
