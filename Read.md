@@ -24,3 +24,4 @@ cd quantum_trader
 ```
 
 <!-- CI trigger: noop edit to retrigger workflows on 2025-09-23 -->
+<!-- CI trigger: second noop edit to retrigger workflows on 2025-09-23 -->
