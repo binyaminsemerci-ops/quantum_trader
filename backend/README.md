@@ -150,4 +150,35 @@ false positives while still ensuring final checks cover tests:
 This ordering prevents the enforcement step from being bypassed and avoids
 spurious mypy import errors while still getting full type coverage.
 
+Opting into automated Ruff fixes (auto-ruff-fix label)
+-----------------------------------------------------
+If Ruff reports fixable changes in CI, the default behavior is to fail the
+job and ask contributors to run `ruff check --fix` locally and commit the
+changes. This keeps the repository history explicit and avoids surprise
+commits from CI.
+
+If you'd like CI to automatically add the suggested Ruff fixes for you,
+add the `auto-ruff-fix` label to the pull request. The repository includes a
+small, conservative Action that will add the label for you when a maintainer
+comments `/auto-ruff-fix` on the PR (see `.github/workflows/auto_label_on_comment.yml`).
+
+Policy and security notes:
+- Only a repository collaborator with write or admin access may trigger the
+	label via the `/auto-ruff-fix` comment; the Action verifies the commenter's
+	permission using the GitHub API before adding the label.
+- Adding the label only enables auto-commit behavior for this PR; the CI
+	step that applies Ruff fixes will still only push changes when the label
+	is present and the run has the necessary permissions. By default, CI is
+	strict-fail when the label is absent.
+
+If you prefer not to use the automation, simply run locally:
+
+```pwsh
+ruff check --fix backend
+git add -A
+git commit -m "style: apply ruff --fix" 
+git push origin HEAD
+```
+
+
 
