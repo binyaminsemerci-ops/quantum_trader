@@ -113,6 +113,22 @@ jobs:
           npm audit --audit-level=moderate || echo "::warning file=frontend/package.json::npm audit found moderate vulnerabilities (see logs)"
 
       # --- Linting ---
+      - name: Run Ruff auto-fix (detects fixable issues)
+        # Attempt to auto-fix trivial issues in a dry-run style. If ruff makes
+        # changes, fail the job so contributors are encouraged to run the fix
+        # locally and include the fixes in their PR. This avoids surprises
+        # where CI mutates the repo state.
+        run: |
+          set -o pipefail
+          # Run ruff in-place and check git for modified files. We use the
+          # venv-installed ruff on PATH.
+          ruff check --fix --quiet backend || true
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Ruff applied fixes to files; please run 'ruff check --fix backend' locally and commit the changes." >&2
+            git --no-pager diff --name-only || true
+            exit 1
+          fi
+
       - name: Run Ruff
         run: ruff check backend
 
@@ -176,6 +192,14 @@ jobs:
         # not trigger the enforcement step. Install test tooling into the
         # runner Python environment so tests execute against the same
         # interpreter used for runtime.
+        #
+        # Run this step even if an earlier step failed so the subsequent
+        # "Run Mypy (including tests)" (which uses `if: always()`) has the
+        # test-related packages available. Without this the mypy run can
+        # error with "Cannot find implementation or library stub for module
+        # named 'pytest'" when linter steps fail early and prevent
+        # installation of test tooling.
+        if: always()
         run: |
           $pythonLocation/bin/python -m pip install --upgrade pip
           $pythonLocation/bin/python -m pip install pytest pytest-asyncio coverage httpx anyio

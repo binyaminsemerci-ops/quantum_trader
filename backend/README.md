@@ -131,4 +131,23 @@ Notes:
 	runtime interpreter used by the app; CI installs those into the runner
 	Python only after the enforcement check.
 
+Two-phase mypy / enforcement ordering
+-------------------------------------
+CI uses a two-phase approach for type-checking and enforcement to avoid
+false positives while still ensuring final checks cover tests:
+
+- Early mypy: run with tests excluded (so mypy doesn't fail on missing
+	test-only packages like `pytest` before those packages are installed).
+- Dev-deps enforcement: run the `check_dev_deps_in_runtime.py` script using
+	the runner Python to ensure no dev/test-only packages were accidentally
+	installed into the runtime environment.
+- Install test tooling: after enforcement succeeds (or to improve diagnostics
+	we install test tooling even on earlier failures), CI installs pytest et
+	al into the runner Python.
+- Late mypy: run again (including tests) using the linters venv mypy so
+	tests are type-checked once the test packages are present.
+
+This ordering prevents the enforcement step from being bypassed and avoids
+spurious mypy import errors while still getting full type coverage.
+
 
