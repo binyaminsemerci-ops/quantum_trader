@@ -21,3 +21,6 @@ Prosjektet inkluderer plan for Binance-integrasjon, AI-modell, trading-motor og 
 ```bash
 git clone https://github.com/<din-bruker>/quantum_trader.git
 cd quantum_trader
+```
+
+<!-- CI trigger: noop edit to retrigger workflows on 2025-09-23 -->
