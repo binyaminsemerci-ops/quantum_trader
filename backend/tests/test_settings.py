@@ -1,6 +1,3 @@
-from backend.main import app
-
-
 def test_settings_roundtrip(client):
     # POST settings and then GET to ensure values were persisted
     payload = {"api_key": "roundtrip_key", "api_secret": "roundtrip_secret"}
