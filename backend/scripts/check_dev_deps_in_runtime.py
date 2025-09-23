@@ -18,6 +18,7 @@ import sys
 
 
 REQ_DEV = Path("backend/requirements-dev.txt")
+REQ_RUNTIME = Path("backend/requirements.txt")
 OUT = Path("backend/dev_in_runtime.txt")
 
 
@@ -64,8 +65,52 @@ def main() -> int:
         if nm:
             dev_names.add(nm)
 
+    # If a package is listed in runtime requirements it's allowed to be
+    # installed in runtime; ignore those to avoid false positives. This
+    # handles shared packages used both at runtime and for developer
+    # workflows (for example `anyio` pulled in by FastAPI/starlette).
+    runtime_names: set[str] = set()
+    if REQ_RUNTIME.exists():
+        for ln in REQ_RUNTIME.read_text().splitlines():
+            nm = parse_req_line(ln)
+            if nm:
+                runtime_names.add(nm)
+
+    # Only consider packages that are dev-only (not present in runtime reqs)
+    # Expand runtime_names to include transitive dependencies so packages
+    # pulled in by runtime packages are not flagged as dev-only. We use
+    # `pip show` to read immediate requirements and recurse up to a small
+    # depth to cover common transitive cases (fastapi -> starlette -> anyio).
+    def runtime_transitive_deps(names: set[str], max_depth: int = 4) -> set[str]:
+        seen = set(names)
+        to_process = list(names)
+        depth = 0
+        while to_process and depth < max_depth:
+            nxt = []
+            for pkg in to_process:
+                try:
+                    res = subprocess.run([sys.executable, "-m", "pip", "show", pkg], capture_output=True, text=True, check=True)
+                except subprocess.CalledProcessError:
+                    continue
+                for line in res.stdout.splitlines():
+                    if line.lower().startswith("requires:"):
+                        reqs = line.split(":", 1)[1].strip()
+                        if not reqs:
+                            continue
+                        for r in reqs.split(","):
+                            rname = r.strip().split(" ", 1)[0].lower()
+                            if rname and rname not in seen:
+                                seen.add(rname)
+                                nxt.append(rname)
+            to_process = nxt
+            depth += 1
+        return seen
+
+    runtime_full = runtime_transitive_deps(runtime_names)
+    dev_only = {n for n in dev_names if n not in runtime_full}
+
     installed = installed_packages()
-    found = sorted(n for n in dev_names if n in installed)
+    found = sorted(n for n in dev_only if n in installed)
 
     if found:
         OUT.write_text(",".join(found))
