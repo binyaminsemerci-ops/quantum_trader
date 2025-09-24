@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ENABLE_ALEMBIC: 'false'
 
     services:
       postgres:
@@ -179,6 +181,16 @@ jobs:
         run: |
           $pythonLocation/bin/python -m pip install --upgrade pip
           $pythonLocation/bin/python -m pip install pytest pytest-asyncio coverage httpx anyio
+
+      # Optional: run Alembic migrations if enabled
+      - name: Install Alembic and run migrations (optional)
+        if: ${{ env.ENABLE_ALEMBIC == 'true' }}
+        run: |
+          echo "ENABLE_ALEMBIC is true — installing alembic and running migrations"
+          $pythonLocation/bin/python -m pip install --upgrade pip
+          $pythonLocation/bin/python -m pip install alembic
+          # Run alembic upgrade head using the migrations/alembic.ini file added to the repo
+          $pythonLocation/bin/python -m alembic -c migrations/alembic.ini upgrade head
 
       # --- Tests ---
       - name: Run Pytest with Coverage
