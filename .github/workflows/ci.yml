@@ -156,7 +156,7 @@ jobs:
           # pythonLocation is a path to the runner's Python installation root
           # (for example /opt/hostedtoolcache/Python/3.12.11/x64). Use the
           # interpreter executable under bin to actually run the script.
-          $pythonLocation/bin/python backend/scripts/check_dev_deps_in_runtime.py || true
+          python backend/scripts/check_dev_deps_in_runtime.py || true
           if [ -f backend/dev_in_runtime.txt ]; then
             pkgs=$(cat backend/dev_in_runtime.txt)
             IFS=',' read -ra A <<< "$pkgs"
@@ -177,8 +177,8 @@ jobs:
         # runner Python environment so tests execute against the same
         # interpreter used for runtime.
         run: |
-          $pythonLocation/bin/python -m pip install --upgrade pip
-          $pythonLocation/bin/python -m pip install pytest pytest-asyncio coverage httpx anyio
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-asyncio coverage httpx anyio
 
       # --- Tests ---
       - name: Run Pytest with Coverage
