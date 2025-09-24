@@ -1,5 +1,5 @@
-import os
 from typing import Any
+from config.config import load_config
 
 # Delay import of python-binance to runtime so this module can be imported in
 # environments where the package is not installed. We'll try to import it when
@@ -17,9 +17,12 @@ class BinanceClient:
     client: Any
     mock: bool
     def __init__(self):
-        # Use environment variables for credentials. Don't keep secrets in repo.
-        api_key = os.getenv('BINANCE_API_KEY')
-        api_secret = os.getenv('BINANCE_API_SECRET')
+        # Use centralized config loader for credentials. This allows local
+        # .env files (via python-dotenv) and CI environment secrets to be used
+        # consistently.
+        cfg = load_config()
+        api_key = cfg.binance_api_key
+        api_secret = cfg.binance_api_secret
 
         if api_key and api_secret and BinanceAPIClient is not None:
             try:

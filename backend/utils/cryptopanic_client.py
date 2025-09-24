@@ -7,12 +7,12 @@ This wrapper fetches latest posts (public) filtered by symbol tag when possible.
 If no key is configured it returns an empty list / mock items.
 """
 from typing import Optional, List, Dict, Any
-import os
+from config.config import load_config
 import requests  # type: ignore[import-untyped]
 import time
 import warnings
 
-_CACHE: dict[str, Any] = {}
+_CACHE: Dict[str, Any] = {}
 
 
 class CryptoPanicClient:
@@ -23,7 +23,8 @@ class CryptoPanicClient:
     """
 
     def __init__(self):
-        self.key = os.getenv('CRYPTOPANIC_KEY')
+        cfg = load_config()
+        self.key = cfg.cryptopanic_key
         self.base = 'https://cryptopanic.com/api/v1'
         self.mock = not bool(self.key)
 
