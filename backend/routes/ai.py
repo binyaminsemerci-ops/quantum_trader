@@ -229,11 +229,9 @@ async def scan(req: ScanRequest):
                 if len(df) >= 2:
                     last = float(df[-1]['close'])
                     prev = float(df[-2]['close'])
-                    vol = float(df[-1].get('volume', 0))
                 else:
                     last = float(df[-1]['close'])
                     prev = last
-                    vol = float(df[-1].get('volume', 0))
             else:
                 # pandas DataFrame path
                 last = float(df['close'].iloc[-1])
