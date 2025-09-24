@@ -10,8 +10,8 @@ async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
     data source.
     """
     # Return a simple synthetic structure matching what tests expect.
-    candles = []
-    price = 100.0
+    candles: list[Dict[str, Any]] = []
+    price: float = 100.0
     for i in range(limit):
         candles.append({
             "timestamp": f"t{i}",
@@ -21,7 +21,7 @@ async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
             "close": price + (i % 3 - 1) * 0.1,
             "volume": 100 + i,
         })
-        price = candles[-1]["close"]
+        price = float(candles[-1]["close"])
 
     # mimic I/O latency
     await asyncio.sleep(0)
