@@ -40,13 +40,13 @@ function TradeForm({ onTradeSubmit }) {
       });
 
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.detail?.message || 'Failed to submit trade');
       }
-      
+
       onTradeSubmit(data);
-      
+
       // Reset form for BTC/USDT
       if (formData.symbol === 'BTCUSDT') {
         setFormData({
@@ -66,7 +66,7 @@ function TradeForm({ onTradeSubmit }) {
     <div className="trade-form">
       <h2>New Trade</h2>
       {error && <div className="error">{error}</div>}
-      
+
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label htmlFor="symbol">Symbol</label>
@@ -84,7 +84,7 @@ function TradeForm({ onTradeSubmit }) {
             <option value="DOGEUSDT">DOGE/USDT</option>
           </select>
         </div>
-        
+
         <div className="form-group">
           <label>Side</label>
           <div className="radio-group">
@@ -110,7 +110,7 @@ function TradeForm({ onTradeSubmit }) {
             </label>
           </div>
         </div>
-        
+
         <div className="form-group">
           <label htmlFor="quantity">Quantity</label>
           <input
@@ -124,7 +124,7 @@ function TradeForm({ onTradeSubmit }) {
             required
           />
         </div>
-        
+
         <div className="form-group">
           <label htmlFor="price">Price (optional, leave empty for market)</label>
           <input
@@ -138,7 +138,7 @@ function TradeForm({ onTradeSubmit }) {
             placeholder="Market price"
           />
         </div>
-        
+
         <button type="submit" disabled={loading}>
           {loading ? 'Submitting...' : `${formData.side} ${formData.symbol}`}
         </button>
