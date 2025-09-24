@@ -1,4 +1,3 @@
-from backend.main import app
 
 
 def test_settings_roundtrip(client):

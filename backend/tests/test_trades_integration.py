@@ -1,4 +1,3 @@
-import pytest
 
 
 def test_create_and_read_trade(client):
