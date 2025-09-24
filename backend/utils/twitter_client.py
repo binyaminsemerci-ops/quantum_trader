@@ -9,11 +9,10 @@ configured it returns a neutral sentiment. It provides a simple `sentiment_for_s
 method that queries recent public tweets mentioning the symbol and computes a
 very small heuristic sentiment score.
 """
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 import os
 import time
 import requests
-import math
 import warnings
 
 # Small in-process cache to avoid repeated API calls during short tests

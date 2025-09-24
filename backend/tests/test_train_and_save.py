@@ -1,7 +1,5 @@
 import asyncio
 import os
-import json
-import tempfile
 
 import pytest
 
@@ -45,7 +43,6 @@ async def test_train_and_save_creates_artifacts(monkeypatch, tmp_path):
 
         # Monkeypatch the backend.routes.external_data module used by train_and_save
         dummy = DummyExternalData()
-        import backend.routes.external_data as external_data
 
         monkeypatch.setattr('backend.routes.external_data.binance_ohlcv', dummy.binance_ohlcv)
         monkeypatch.setattr('backend.routes.external_data.twitter_sentiment', dummy.twitter_sentiment)
