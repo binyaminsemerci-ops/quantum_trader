@@ -1,8 +1,0 @@
-// Archived AnalyticsCards.jsx original (backup)
-// ...original content preserved for review
-// frontend/src/components/AnalyticsCards.jsx
-import React from 'react';
-
-export default function AnalyticsCards() {
-  return <div>Analytics Cards (archived JSX)</div>;
-}

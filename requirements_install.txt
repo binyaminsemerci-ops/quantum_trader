@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+sqlalchemy
+xgboost
+pandas
+numpy
+scikit-learn
+matplotlib
+binance
+python-dotenv
+pytest
+httpx

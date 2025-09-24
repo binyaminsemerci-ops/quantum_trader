@@ -1,0 +1,2 @@
+ci-trigger: 2025-09-24T00:00:00Z
+This file is safe to remove. It exists only to trigger a real branch change for CI polling.
