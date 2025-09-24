@@ -11,7 +11,7 @@ environments.
 import os
 import asyncio
 import pickle
-from typing import List
+from typing import List, Optional
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), 'models')
 os.makedirs(MODEL_DIR, exist_ok=True)
@@ -85,7 +85,7 @@ async def _fetch_symbol_data(symbol: str, limit: int = 600):
 
 def build_dataset(all_symbol_data):
     """Given list of (symbol, candles, sentiment, news) tuples, build X,y arrays."""
-    import pandas as pd
+    import pandas as pd  # type: ignore[import-untyped]
     import numpy as np
     from ai_engine.feature_engineer import add_technical_indicators, add_sentiment_features, add_target
 
@@ -126,7 +126,7 @@ def build_dataset(all_symbol_data):
 
 def make_scaler():
     try:
-        from sklearn.preprocessing import StandardScaler
+        from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
         return StandardScaler()
     except Exception:
         return _SimpleScaler()
@@ -134,11 +134,11 @@ def make_scaler():
 
 def make_regressor():
     try:
-        from xgboost import XGBRegressor
+        from xgboost import XGBRegressor  # type: ignore[import-untyped]
         return XGBRegressor(n_estimators=50, max_depth=3, verbosity=0)
     except Exception:
         try:
-            from sklearn.dummy import DummyRegressor
+            from sklearn.dummy import DummyRegressor  # type: ignore[import-untyped]
             return DummyRegressor(strategy='mean')
         except Exception:
             return _MeanRegressor()
@@ -165,7 +165,7 @@ def save_artifacts(model, scaler, model_path, scaler_path):
         pass
 
 
-def train_and_save(symbols: List[str] = None, limit: int = 600):
+def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
     if symbols is None:
         symbols = ['BTCUSDT', 'ETHUSDT']
 

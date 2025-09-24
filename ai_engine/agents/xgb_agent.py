@@ -27,8 +27,8 @@ class XGBAgent:
         self.scaler = None
         # helper clients
         try:
-            self.twitter = TwitterClient()
-            self.cryptopanic = CryptoPanicClient()
+            self.twitter: Optional[TwitterClient] = TwitterClient()
+            self.cryptopanic: Optional[CryptoPanicClient] = CryptoPanicClient()
         except Exception:
             # If for any reason these clients fail to instantiate, keep None
             self.twitter = None
@@ -55,13 +55,13 @@ class XGBAgent:
             logger.debug('Failed to load scaler: %s', e)
             self.scaler = None
 
-    def _features_from_ohlcv(self, df) -> object:
+    def _features_from_ohlcv(self, df) -> Any:
         """Turn raw OHLCV (DataFrame or list-of-dicts) into model features (last row).
 
         Raises if pandas or the feature engineer cannot be imported.
         """
         try:
-            import pandas as _pd
+            import pandas as _pd  # type: ignore[import-untyped]
             from ai_engine.feature_engineer import add_technical_indicators as _add_technical_indicators
             from ai_engine.feature_engineer import add_sentiment_features as _add_sentiment_features
         except Exception:
@@ -87,6 +87,13 @@ class XGBAgent:
 
         feat = _add_technical_indicators(df_norm)
 
+        # mypy/pandas: some CI environments use installed pandas stubs while
+        # local static analysis may treat DataFrame-like objects as 'object'.
+        # Cast to Any here so downstream indexing/select_dtypes calls are
+        # treated as dynamic and don't raise 'object is not indexable'.
+        from typing import Any as _Any, cast as _cast
+        feat_any = _cast(_Any, feat)
+
         # sentiment/news may be provided as columns (sentiment, news_count)
         sentiment_series = None
         news_counts = None
@@ -101,6 +108,8 @@ class XGBAgent:
         if feat.shape[0] == 0:
             raise RuntimeError('No features generated')
 
+        # return last row as DataFrame-like object; callers will handle numeric
+        # selection defensively. Use Any to avoid strict pandas typing issues here.
         return feat.iloc[-1:]
 
     def predict_for_symbol(self, ohlcv) -> Dict[str, Any]:
@@ -111,9 +120,13 @@ class XGBAgent:
             logger.debug('Feature extraction failed: %s', e)
             return {'action': 'HOLD', 'score': 0.0}
 
+        # Cast to Any to satisfy static checkers that may not have pandas stubs
+        from typing import Any as _Any, cast as _cast
+        feat_any = _cast(_Any, feat)
+
         # select numeric features
         try:
-            X = feat.select_dtypes(include=[np.number]).to_numpy().astype(float)
+            X = feat_any.select_dtypes(include=[np.number]).to_numpy().astype(float)
         except Exception:
             logger.debug('Failed to select numeric features')
             return {'action': 'HOLD', 'score': 0.0}
@@ -138,9 +151,9 @@ class XGBAgent:
         # If no trained model, use simple EMA heuristic if available
         if self.model is None:
             try:
-                if 'EMA_10' in feat.columns and 'Close' in feat.columns:
-                    last = float(feat['Close'].iloc[0])
-                    ema = float(feat['EMA_10'].iloc[0])
+                if 'EMA_10' in feat_any.columns and 'Close' in feat_any.columns:
+                    last = float(feat_any['Close'].iloc[0])
+                    ema = float(feat_any['EMA_10'].iloc[0])
                     if last > ema * 1.002:
                         return {'action': 'BUY', 'score': 0.6}
                     if last < ema * 0.998:
@@ -170,7 +183,7 @@ class XGBAgent:
             logger.debug('Model prediction failed: %s', e)
             return {'action': 'HOLD', 'score': 0.0}
 
-    def scan_symbols(self, symbol_ohlcv: Dict[str, object], top_n: int = 10) -> Dict[str, Dict[str, Any]]:
+    def scan_symbols(self, symbol_ohlcv: Dict[str, Any], top_n: int = 10) -> Dict[str, Dict[str, Any]]:
         """Pick top_n symbols by recent volume and return predictions."""
         volumes = []
         for s, df in symbol_ohlcv.items():

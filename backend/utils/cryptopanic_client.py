@@ -8,11 +8,11 @@ If no key is configured it returns an empty list / mock items.
 """
 from typing import Optional, List, Dict, Any
 import os
-import requests
+import requests  # type: ignore[import-untyped]
 import time
 import warnings
 
-_CACHE = {}
+_CACHE: Dict[str, Any] = {}
 
 
 class CryptoPanicClient:
