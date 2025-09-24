@@ -1,14 +1,14 @@
 # --- Bygg steg ---
-FROM node:18-slim AS build
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
 # Kopier kun package.json først for bedre cache
 COPY package*.json ./
 
-RUN npm install
+RUN npm ci --silent
 
-# Kopier resten av prosjektet (inkl. src/components)
+# Kopier resten av prosjektet
 COPY . .
 
 # Bygg React/Vite frontend
