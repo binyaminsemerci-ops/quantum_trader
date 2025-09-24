@@ -16,8 +16,8 @@ import SignalsList from './components/analysis/SignalsList';
 function App() {
   const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
   const [selectedInterval, setSelectedInterval] = useState('1h');
-  const [systemStatus, setSystemStatus] = useState({ 
-    backend: false, 
+  const [systemStatus, setSystemStatus] = useState({
+    backend: false,
     checking: false,
     lastChecked: null
   });
@@ -67,8 +67,8 @@ function App() {
                   {systemStatus.backend ? 'Online' : 'Offline'}
                 </span>
               </div>
-              <Button 
-                variant="outline-light" 
+              <Button
+                variant="outline-light"
                 size="sm"
                 onClick={checkBackendStatus}
                 disabled={systemStatus.checking}
@@ -87,47 +87,47 @@ function App() {
               Backend API is not available. Please start the backend server.
             </Alert>
           )}
-          
+
           <Row className="mb-4">
             <Col md={8}>
               <div className="symbol-selector mb-3">
                 <h3>Market Data</h3>
                 <div className="d-flex gap-2">
                   <div className="btn-group">
-                    <Button 
+                    <Button
                       variant={selectedSymbol === 'BTCUSDT' ? 'primary' : 'outline-primary'}
                       onClick={() => setSelectedSymbol('BTCUSDT')}
                     >
                       BTC
                     </Button>
-                    <Button 
+                    <Button
                       variant={selectedSymbol === 'ETHUSDT' ? 'primary' : 'outline-primary'}
                       onClick={() => setSelectedSymbol('ETHUSDT')}
                     >
                       ETH
                     </Button>
-                    <Button 
+                    <Button
                       variant={selectedSymbol === 'XRPUSDT' ? 'primary' : 'outline-primary'}
                       onClick={() => setSelectedSymbol('XRPUSDT')}
                     >
                       XRP
                     </Button>
                   </div>
-                  
+
                   <div className="btn-group">
-                    <Button 
+                    <Button
                       variant={selectedInterval === '15m' ? 'primary' : 'outline-primary'}
                       onClick={() => setSelectedInterval('15m')}
                     >
                       15m
                     </Button>
-                    <Button 
+                    <Button
                       variant={selectedInterval === '1h' ? 'primary' : 'outline-primary'}
                       onClick={() => setSelectedInterval('1h')}
                     >
                       1h
                     </Button>
-                    <Button 
+                    <Button
                       variant={selectedInterval === '1d' ? 'primary' : 'outline-primary'}
                       onClick={() => setSelectedInterval('1d')}
                     >
@@ -136,17 +136,17 @@ function App() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="chart-wrapper">
                 <PriceChart symbol={selectedSymbol} interval={selectedInterval} />
               </div>
             </Col>
-            
+
             <Col md={4}>
               <TradeForm onTradeSubmitted={() => {}} />
             </Col>
           </Row>
-          
+
           <Row className="mb-4">
             <Col>
               <Tabs defaultActiveKey="signals" className="mb-3">
@@ -164,7 +164,7 @@ function App() {
           </Row>
         </Container>
       </main>
-      
+
       <footer className="App-footer">
         <Container fluid>
           <p>Quantum Trader © 2025 - AI-Powered Cryptocurrency Trading Platform</p>

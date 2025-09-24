@@ -4,7 +4,7 @@ param(
 
 Write-Host "Bootstrapping development environment..."
 . .\scripts\setup-dev.ps1  # Call the setup script (dot-source to run in the current session)
- 
+
 .
 \scripts\setup-dev.ps1
 
