@@ -35,3 +35,64 @@ def add_target(df: pd.DataFrame, horizon: int = 1, threshold: float = 0.002) -> 
     df.loc[df["Return"] > threshold, "Target"] = 1
     df.loc[df["Return"] < -threshold, "Target"] = -1
     return df.dropna()
+
+
+def add_sentiment_features(df: pd.DataFrame, sentiment_series=None, news_counts=None, window: int = 5) -> pd.DataFrame:
+    """Append simple sentiment-based features to a price dataframe.
+
+    - sentiment_series: pd.Series aligned by timestamp (same length) with float scores
+    - news_counts: pd.Series or list-like aligned with counts of news items per row
+    - window: rolling window (in rows) to aggregate sentiment/news counts
+    """
+    df = df.copy()
+    n = len(df)
+
+    # align sentiment
+    if sentiment_series is None:
+        df["sentiment_mean"] = 0.0
+        df["sentiment_std"] = 0.0
+    else:
+        s = None
+        try:
+            import pandas as _pd
+
+            if isinstance(sentiment_series, list):
+                s = _pd.Series(sentiment_series)
+            elif hasattr(sentiment_series, 'values'):
+                s = _pd.Series(sentiment_series.values)
+            else:
+                s = _pd.Series(sentiment_series)
+        except Exception:
+            # fallback: try to coerce to list
+            s = pd.Series(list(sentiment_series))
+
+        # pad/trim to match df length
+        if len(s) < n:
+            s = _pd.concat([_pd.Series([0.0] * (n - len(s))), s], ignore_index=True)
+        elif len(s) > n:
+            s = s.iloc[-n:].reset_index(drop=True)
+
+        df["sentiment_mean"] = s.rolling(window=window, min_periods=1).mean().values
+        df["sentiment_std"] = s.rolling(window=window, min_periods=1).std().fillna(0).values
+
+    # news count
+    if news_counts is None:
+        df["news_count"] = 0
+        df["news_count_roll"] = 0
+    else:
+        try:
+            import pandas as _pd
+
+            nc = _pd.Series(news_counts)
+        except Exception:
+            nc = pd.Series(list(news_counts))
+
+        if len(nc) < n:
+            nc = _pd.concat([_pd.Series([0] * (n - len(nc))), nc], ignore_index=True)
+        elif len(nc) > n:
+            nc = nc.iloc[-n:].reset_index(drop=True)
+
+        df["news_count"] = nc.values
+        df["news_count_roll"] = nc.rolling(window=window, min_periods=1).sum().values
+
+    return df
