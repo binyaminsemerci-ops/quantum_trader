@@ -276,4 +276,3 @@ jobs:
         working-directory: frontend
         run: |
           npm run typecheck
-
