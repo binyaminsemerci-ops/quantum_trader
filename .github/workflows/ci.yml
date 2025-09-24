@@ -74,27 +74,39 @@ jobs:
           # Install only linters and security scanners into an isolated virtualenv
           # so the shared runtime environment remains free of test-only packages
           # when we check for dev-only packages installed in runtime.
-            python -m pip install --upgrade pip
-            # Create the venv that will host linters/security tools.
-            # Use --system-site-packages so the venv can see the runtime
-            # packages we installed earlier in the job. This lets mypy (and
-            # other tools) import application packages without installing
-            # runtime deps into the venv and avoids false "import-not-found"
-            # errors.
-            python -m venv .venv_linters --system-site-packages
-            # Use the venv's pip to install tools (this keeps their deps out of
-            # the runner's global site-packages).
-            .venv_linters/bin/pip install --upgrade pip
-            .venv_linters/bin/pip install ruff mypy black bandit safety
-            # Install common third-party type stubs so mypy can analyze
-            # requests, pandas and sklearn without spurious "library stubs
-            # not installed" errors. Also install pytest into the linters
-            # venv so mypy can import test packages when we run the
-            # post-test mypy check.
-            .venv_linters/bin/pip install types-requests pandas-stubs scikit-learn-stubs types-python-dateutil pytest
-            # Put the venv on PATH using the supported environment file so
-            # subsequent steps can invoke the tools by name.
-            echo "${{ github.workspace }}/.venv_linters/bin" >> $GITHUB_PATH
+          python -m pip install --upgrade pip
+          # Create the venv that will host linters/security tools.
+          # Use --system-site-packages so the venv can see the runtime
+          # packages we installed earlier in the job. This lets mypy (and
+          # other tools) import application packages without installing
+          # runtime deps into the venv and avoids false "import-not-found"
+          # errors.
+          python -m venv .venv_linters --system-site-packages
+          # Use the venv's pip to install tools (this keeps their deps out of
+          # the runner's global site-packages).
+          .venv_linters/bin/pip install --upgrade pip
+          .venv_linters/bin/pip install ruff mypy black bandit safety
+          # Install common third-party type stubs so mypy can analyze
+          # requests, pandas and sklearn without spurious "library stubs
+          # not installed" errors. Also install pytest into the linters
+          # venv so mypy can import test packages when we run the
+          # post-test mypy check.
+          .venv_linters/bin/pip install types-requests pandas-stubs scikit-learn-stubs types-python-dateutil pytest
+          # Put the venv on PATH using the supported environment file so
+          # subsequent steps can invoke the tools by name.
+          echo "${{ github.workspace }}/.venv_linters/bin" >> $GITHUB_PATH
+          # Debug: print installed stub packages and verify import specs so
+          # we can confirm mypy will be able to find them in CI.
+          .venv_linters/bin/pip show types-requests pandas-stubs scikit-learn-stubs types-python-dateutil pytest || true
+          .venv_linters/bin/pip list --format=columns | grep -E 'types-requests|pandas-stubs|scikit-learn-stubs|types-python-dateutil|pytest' || true
+          .venv_linters/bin/python -c "import sys; print('venv python:', sys.executable); print('sys.path:'); print('\\n'.join(sys.path))"
+          .venv_linters/bin/python - <<'PY'
+          import importlib.util
+          names = ['requests','types_requests','pandas','sklearn','pytest']
+          for n in names:
+              spec = importlib.util.find_spec(n)
+              print(f"spec({n}):", spec)
+          PY
 
       - name: Run npm ci for frontend
         working-directory: frontend
