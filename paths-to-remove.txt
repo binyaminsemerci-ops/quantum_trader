@@ -1,0 +1,15 @@
+.venv/
+.venv2/
+.venv*/
+tools/handle.exe
+tools/handle64.exe
+tools/handle64a.exe
+tools/Handle.zip
+artifacts/
+artifacts_*/
+backups/
+repo-mirror/
+*.zip
+*.exe
+**/__pycache__/
+**/*.pyc
