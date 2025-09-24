@@ -238,7 +238,6 @@ async def scan(req: ScanRequest):
                 # pandas DataFrame path
                 last = float(df['close'].iloc[-1])
                 prev = float(df['close'].iloc[-2]) if len(df) >= 2 else last
-                vol = float(df['volume'].iloc[-1])
             change = (last - prev) / prev if prev != 0 else 0
             # simple thresholds
             if change > 0.002:
