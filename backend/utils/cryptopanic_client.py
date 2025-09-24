@@ -12,7 +12,7 @@ import requests  # type: ignore[import-untyped]
 import time
 import warnings
 
-_CACHE: Dict[str, Any] = {}
+_CACHE: dict[str, Any] = {}
 
 
 class CryptoPanicClient:

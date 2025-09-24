@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Mapping
 import os
 import pickle
 import logging
@@ -183,7 +183,7 @@ class XGBAgent:
             logger.debug('Model prediction failed: %s', e)
             return {'action': 'HOLD', 'score': 0.0}
 
-    def scan_symbols(self, symbol_ohlcv: Dict[str, Any], top_n: int = 10) -> Dict[str, Dict[str, Any]]:
+    def scan_symbols(self, symbol_ohlcv: Mapping[str, Any], top_n: int = 10) -> Dict[str, Dict[str, Any]]:
         """Pick top_n symbols by recent volume and return predictions."""
         volumes = []
         for s, df in symbol_ohlcv.items():
