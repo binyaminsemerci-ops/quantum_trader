@@ -114,10 +114,10 @@ class TwitterClient:
             low = txt.lower()
             for w in pos_words:
                 if w in low:
-                    score += 1
+                    score += 1.0
             for w in neg_words:
                 if w in low:
-                    score -= 1
+                    score -= 1.0
 
         # normalize to range roughly between -1.0 and 1.0
         if texts:
