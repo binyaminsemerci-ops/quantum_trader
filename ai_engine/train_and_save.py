@@ -27,7 +27,6 @@ class _SimpleScaler:
         self.scale_[self.scale_ == 0] = 1.0
 
     def transform(self, X):
-        import numpy as _np
 
         return (X - self.mean_) / self.scale_
 
@@ -152,7 +151,8 @@ def save_artifacts(model, scaler, model_path, scaler_path):
         pickle.dump(scaler, f)
     # write simple metadata JSON next to model
     try:
-        import json, datetime
+        import json
+        import datetime
         meta = {
             'model_path': model_path,
             'scaler_path': scaler_path,
