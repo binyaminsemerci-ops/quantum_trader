@@ -10,7 +10,7 @@ method that queries recent public tweets mentioning the symbol and computes a
 very small heuristic sentiment score.
 """
 from typing import Optional, Dict, Any
-import os
+from config.config import load_config
 import time
 import requests  # type: ignore[import-untyped]
 import warnings
@@ -30,7 +30,8 @@ class TwitterClient:
     """
 
     def __init__(self):
-        self.bearer = os.getenv('X_BEARER_TOKEN')
+        cfg = load_config()
+        self.bearer = cfg.x_bearer_token
         # Optionally support OAuth1 env vars in the future
         self.mock = not bool(self.bearer)
         self.base_v2 = 'https://api.twitter.com/2'
