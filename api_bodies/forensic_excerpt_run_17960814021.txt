@@ -1,0 +1,9 @@
+# Forensic excerpt: run_17960814021 (Ruff auto-fix step)
+
+Files modified by ruff:
+changed=true
+allow=false
+Ruff applied fixes to files; please run 'ruff check --fix backend' locally and commit the changes.
+(exit code 1)
+
+# No git commit or push output present in this run.

@@ -1,0 +1,15 @@
+Log started: 09/24/2025 01:49:39
+
+=== Processing: C:\quantum_trader\qt_filterrepo_tmp ===
+Not present: C:\quantum_trader\qt_filterrepo_tmp
+
+=== Processing: C:\quantum_trader\quantum_trader_filter_tmp ===
+Not present: C:\quantum_trader\quantum_trader_filter_tmp
+
+=== Processing: C:\quantum_trader\quantum_trader_filterrepo_mirror ===
+Not present: C:\quantum_trader\quantum_trader_filterrepo_mirror
+\nFinal presence check:
+C:\quantum_trader\qt_filterrepo_tmp -> False
+C:\quantum_trader\quantum_trader_filter_tmp -> False
+C:\quantum_trader\quantum_trader_filterrepo_mirror -> False
+Log ended: 09/24/2025 01:49:39
