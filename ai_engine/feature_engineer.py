@@ -8,18 +8,22 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["EMA_10"] = df["Close"].ewm(span=10, adjust=False).mean()
     df["EMA_50"] = df["Close"].ewm(span=50, adjust=False).mean()
     delta = df["Close"].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+    # cast intermediate Series to pd.Series to satisfy strict pandas stubs
+    from typing import cast
+    delta_series = cast(pd.Series, delta)
+    gain = cast(pd.Series, (delta_series.where(delta_series > 0, 0))).rolling(14).mean()
+    loss = cast(pd.Series, (-delta_series.where(delta_series < 0, 0))).rolling(14).mean()
     rs = gain / loss
     df["RSI"] = 100 - (100 / (1 + rs))
     df["BB_MID"] = df["Close"].rolling(20).mean()
     df["BB_STD"] = df["Close"].rolling(20).std()
     df["BB_UPPER"] = df["BB_MID"] + 2 * df["BB_STD"]
     df["BB_LOWER"] = df["BB_MID"] - 2 * df["BB_STD"]
-    high_low = df["High"] - df["Low"]
-    high_close = np.abs(df["High"] - df["Close"].shift())
-    low_close = np.abs(df["Low"] - df["Close"].shift())
-    tr = high_low.combine(high_close, np.maximum).combine(low_close, np.maximum)
+    high_low = cast(pd.Series, df["High"] - df["Low"])
+    high_close = cast(pd.Series, np.abs(df["High"] - df["Close"].shift()))
+    low_close = cast(pd.Series, np.abs(df["Low"] - df["Close"].shift()))
+    # combine expects Series inputs; ensure we pass Series by casting numpy arrays back when needed
+    tr = cast(pd.Series, high_low.combine(high_close, np.maximum).combine(low_close, np.maximum))
     df["ATR"] = tr.rolling(14).mean()
     ema_12 = df["Close"].ewm(span=12, adjust=False).mean()
     ema_26 = df["Close"].ewm(span=26, adjust=False).mean()
