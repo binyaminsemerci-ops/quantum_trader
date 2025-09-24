@@ -12,6 +12,8 @@ class TradeLog:
     reason: Optional[str]
     timestamp: Optional[datetime]
 
+    def __init__(self, *, symbol: str = ..., side: str = ..., qty: float = ..., price: float = ..., status: str = ..., reason: Optional[str] = ..., timestamp: Optional[datetime] = ...) -> None: ...
+
 
 class Settings:
     id: int
@@ -24,8 +26,8 @@ class TrainingTask:
     symbols: str
     limit: int
     status: str
-    created_at: Optional[Any]
-    completed_at: Optional[Any]
+    created_at: Any
+    completed_at: Any
     details: Optional[str]
 
 
