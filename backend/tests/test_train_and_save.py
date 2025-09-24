@@ -12,12 +12,13 @@ class DummyExternalData:
         candles = []
         price = 100.0
         for i in range(limit):
+            close_val = float(price + (i % 3 - 1) * 0.1)
             candles.append({
                 'timestamp': f't{i}',
-                'open': price,
-                'high': price + 1,
-                'low': price - 1,
-                'close': price + (i % 3 - 1) * 0.1,
+                'open': float(price),
+                'high': float(price + 1),
+                'low': float(price - 1),
+                'close': close_val,
                 'volume': 100 + i,
             })
             price = candles[-1]['close']

@@ -11,8 +11,9 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     # cast intermediate Series to pd.Series to satisfy strict pandas stubs
     from typing import cast
     delta_series = cast(pd.Series, delta)
-    gain = cast(pd.Series, (delta_series.where(delta_series > 0, 0))).rolling(14).mean()
-    loss = cast(pd.Series, (-delta_series.where(delta_series < 0, 0))).rolling(14).mean()
+    # ensure comparisons are done against floats so stubs accept the operation
+    gain = cast(pd.Series, (delta_series.where(delta_series > 0.0, 0.0))).rolling(14).mean()
+    loss = cast(pd.Series, (-delta_series.where(delta_series < 0.0, 0.0))).rolling(14).mean()
     rs = gain / loss
     df["RSI"] = 100 - (100 / (1 + rs))
     df["BB_MID"] = df["Close"].rolling(20).mean()
@@ -23,7 +24,10 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     high_close = cast(pd.Series, np.abs(df["High"] - df["Close"].shift()))
     low_close = cast(pd.Series, np.abs(df["Low"] - df["Close"].shift()))
     # combine expects Series inputs; ensure we pass Series by casting numpy arrays back when needed
-    tr = cast(pd.Series, high_low.combine(high_close, np.maximum).combine(low_close, np.maximum))
+    # Use explicit Series constructors when numpy operations may produce ndarray
+    high_close_s = cast(pd.Series, pd.Series(high_close))
+    low_close_s = cast(pd.Series, pd.Series(low_close))
+    tr = cast(pd.Series, high_low.combine(high_close_s, np.maximum).combine(low_close_s, np.maximum))
     df["ATR"] = tr.rolling(14).mean()
     ema_12 = df["Close"].ewm(span=12, adjust=False).mean()
     ema_26 = df["Close"].ewm(span=26, adjust=False).mean()
