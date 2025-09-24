@@ -12,7 +12,7 @@ very small heuristic sentiment score.
 from typing import Optional, Dict, Any
 import os
 import time
-import requests
+import requests  # type: ignore[import-untyped]
 import warnings
 
 # Small in-process cache to avoid repeated API calls during short tests
@@ -109,7 +109,7 @@ class TwitterClient:
         # trivial, deterministic heuristic: count positive/negative tokens
         pos_words = ['good', 'great', 'bull', 'moon', 'buy', 'bullish', 'gain', 'pump']
         neg_words = ['bad', 'sell', 'bear', 'down', 'dump', 'loss', 'crash']
-        score = 0
+        score: float = 0.0
         for txt in texts:
             low = txt.lower()
             for w in pos_words:
@@ -121,7 +121,7 @@ class TwitterClient:
 
         # normalize to range roughly between -1.0 and 1.0
         if texts:
-            denom = max(1, len(texts) * 2)
+            denom = float(max(1, len(texts) * 2))
             score = score / denom
             # clamp
             score = max(-1.0, min(1.0, score))

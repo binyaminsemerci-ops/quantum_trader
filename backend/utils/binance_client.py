@@ -13,6 +13,9 @@ except Exception:
 
 
 class BinanceClient:
+    # Explicit instance attribute annotations to help static checkers
+    client: Any
+    mock: bool
     def __init__(self):
         # Use environment variables for credentials. Don't keep secrets in repo.
         api_key = os.getenv('BINANCE_API_KEY')

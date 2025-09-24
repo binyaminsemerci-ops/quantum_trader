@@ -1,16 +1,15 @@
 from fastapi import APIRouter, HTTPException, Response, BackgroundTasks
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional, Any
 import os
 import pickle
 import json
 import numpy as np
-from typing import Optional
-
 from ai_engine.agents.xgb_agent import make_default_agent
 from ai_engine.train_and_save import train_and_save
-from backend.database import create_training_task, update_training_task, get_db
-from backend.database import TrainingTask
+from backend.database import create_training_task, update_training_task, get_db  # type: ignore[attr-defined]
+# backend.database exports ORM symbols dynamically; narrow-ignore attr-defined for now
+from backend.database import TrainingTask  # type: ignore[attr-defined]
 
 router = APIRouter()
 
@@ -25,7 +24,7 @@ class PredictResponse(BaseModel):
 
 # Simple lazy loader for the model file under ai_engine/models/
 _MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', 'ai_engine', 'models', 'xgb_model.pkl')
-_MODEL = None
+_MODEL: Optional[Any] = None
 
 
 def _load_model():
