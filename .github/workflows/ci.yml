@@ -183,14 +183,28 @@ jobs:
           $pythonLocation/bin/python -m pip install pytest pytest-asyncio coverage httpx anyio
 
       # Optional: run Alembic migrations if enabled
-      - name: Install Alembic and run migrations (optional)
-        if: ${{ env.ENABLE_ALEMBIC == 'true' }}
+      # This is implemented as two OS-specific steps so the commands work
+      # on both ubuntu (bash) and Windows runners (PowerShell).
+      - name: Install Alembic and run migrations (Linux)
+        if: ${{ env.ENABLE_ALEMBIC == 'true' && runner.os == 'Linux' }}
+        shell: bash
         run: |
-          echo "ENABLE_ALEMBIC is true — installing alembic and running migrations"
-          $pythonLocation/bin/python -m pip install --upgrade pip
-          $pythonLocation/bin/python -m pip install alembic
+          echo "ENABLE_ALEMBIC is true — installing alembic and running migrations (Linux)"
+          python -m pip install --upgrade pip
+          python -m pip install alembic
           # Run alembic upgrade head using the migrations/alembic.ini file added to the repo
-          $pythonLocation/bin/python -m alembic -c migrations/alembic.ini upgrade head
+          python -m alembic -c migrations/alembic.ini upgrade head
+
+      - name: Install Alembic and run migrations (Windows)
+        if: ${{ env.ENABLE_ALEMBIC == 'true' && runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          Write-Host "ENABLE_ALEMBIC is true — installing alembic and running migrations (Windows)"
+          # Use the runner's python executable
+          $py = "${{ env.pythonLocation }}\Scripts\python.exe"
+          & $py -m pip install --upgrade pip
+          & $py -m pip install alembic
+          & $py -m alembic -c migrations/alembic.ini upgrade head
 
       # --- Tests ---
       - name: Run Pytest with Coverage
