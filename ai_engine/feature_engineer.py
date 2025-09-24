@@ -1,4 +1,4 @@
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 import numpy as np
 
 def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:

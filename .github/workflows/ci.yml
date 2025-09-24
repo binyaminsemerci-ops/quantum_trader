@@ -139,7 +139,7 @@ jobs:
         # which we intentionally install only after the dev-deps enforcement step).
         # Exclude the tests directory from this mypy run so CI doesn't fail on missing
         # test-only imports.
-        run: mypy --install-types --non-interactive backend --exclude 'backend/tests/.*'
+        run: ./.venv_linters/bin/python -m mypy --install-types --non-interactive backend --exclude 'backend/tests/.*'
 
       - name: Run Black
         run: black --check backend
@@ -215,7 +215,7 @@ jobs:
         # Run mypy again after test tooling is installed so tests are type-checked
         # and missing test-only imports do not cause failures. Use the venv mypy so
         # mypy's own deps are consistent with the earlier run.
-        run: mypy --install-types --non-interactive backend
+        run: ./.venv_linters/bin/python -m mypy --install-types --non-interactive backend
 
   annotate-dev-deps:
     if: github.event_name == 'pull_request'
