@@ -5,12 +5,11 @@ import os
 import pickle
 import json
 import numpy as np
-from typing import Optional, Dict, Any
+from typing import Optional
 
 from ai_engine.agents.xgb_agent import make_default_agent
 from ai_engine.train_and_save import train_and_save
 from backend.database import create_training_task, update_training_task, get_db
-from sqlalchemy.orm import Session
 from backend.database import TrainingTask
 
 router = APIRouter()
