@@ -147,25 +147,28 @@ async def scan(req: ScanRequest):
     # We'll create a synthetic DataFrame per symbol when pandas is available;
     # otherwise we build plain Python lists-of-dicts and use a lightweight
     # heuristic so the endpoint remains usable in constrained environments.
-    pd: Optional[Any] = None
+    # Avoid shadowing the pandas module name with None; use pandas_mod so
+    # mypy doesn't infer a Module | None assignment which can cause errors.
+    pandas_mod: Optional[Any] = None
     try:
         import pandas as pd  # type: ignore
+        pandas_mod = pd
     except Exception:
-        # leave pd as None when pandas isn't available
+        # leave pandas_mod as None when pandas isn't available
         pass
 
     from ai_engine.agents.xgb_agent import make_default_agent
     symbol_ohlcv = {}
 
-    if pd is not None:
+    if pandas_mod is not None:
         # build pandas DataFrames (agent requires pandas for feature engineering)
         agent = make_default_agent()
         for s in req.symbols:
-            now = pd.Timestamp.utcnow()
+            now = pandas_mod.Timestamp.utcnow()
             rows = []
             price = 40000.0
             for i in range(120):
-                ts = now - pd.Timedelta(minutes=(120 - i))
+                ts = now - pandas_mod.Timedelta(minutes=(120 - i))
                 open_p = price
                 close_p = price + ((i % 5) - 2) * 10
                 high_p = max(open_p, close_p) + 5
@@ -180,7 +183,7 @@ async def scan(req: ScanRequest):
                     'volume': volume,
                 })
                 price = close_p
-            df = pd.DataFrame(rows)
+            df = pandas_mod.DataFrame(rows)
             symbol_ohlcv[s] = df
 
         # Optionally reload model artifacts before running the scan
