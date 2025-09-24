@@ -147,10 +147,12 @@ async def scan(req: ScanRequest):
     # We'll create a synthetic DataFrame per symbol when pandas is available;
     # otherwise we build plain Python lists-of-dicts and use a lightweight
     # heuristic so the endpoint remains usable in constrained environments.
+    pd: Optional[Any] = None
     try:
         import pandas as pd  # type: ignore
     except Exception:
-        pd = None
+        # leave pd as None when pandas isn't available
+        pass
 
     from ai_engine.agents.xgb_agent import make_default_agent
     symbol_ohlcv = {}
