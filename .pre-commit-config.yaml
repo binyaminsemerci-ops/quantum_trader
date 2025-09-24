@@ -7,9 +7,11 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.4.0
+    rev: v1.5.0
     hooks:
       - id: detect-secrets
         # Run the detector on staged files; maintainers should update .secrets.baseline
-        # if there are known false-positives.
-        args: []
+        # if there are known false-positives. Use the committed baseline so the
+        # detector does not flag known/allowlisted findings (for example CI
+        # values and scripted test literals).
+        args: ["--baseline", ".secrets.baseline"]
