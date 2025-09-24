@@ -88,8 +88,10 @@ jobs:
             .venv_linters/bin/pip install ruff mypy black bandit safety
             # Install common third-party type stubs so mypy can analyze
             # requests, pandas and sklearn without spurious "library stubs
-            # not installed" errors.
-            .venv_linters/bin/pip install types-requests pandas-stubs scikit-learn-stubs types-python-dateutil || true
+            # not installed" errors. Also install pytest into the linters
+            # venv so mypy can import test packages when we run the
+            # post-test mypy check.
+            .venv_linters/bin/pip install types-requests pandas-stubs scikit-learn-stubs types-python-dateutil pytest
             # Put the venv on PATH using the supported environment file so
             # subsequent steps can invoke the tools by name.
             echo "${{ github.workspace }}/.venv_linters/bin" >> $GITHUB_PATH
