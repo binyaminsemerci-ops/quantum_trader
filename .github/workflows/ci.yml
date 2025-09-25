@@ -1,0 +1,378 @@
+name: CI - Quantum Trader
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: {}
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install runtime deps (minimal)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+      - name: Run adapter unit tests
+        run: |
+          pytest -q backend/tests/test_exchanges.py
+
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: quantum
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Diagnostic - pip list (before install)
+        shell: bash
+        run: |
+          python -m pip --version
+          python -m pip list --format=freeze | sort > pip-list-before.txt || true
+          echo "Wrote pip-list-before.txt"
+          head -n 50 pip-list-before.txt || true
+
+      - name: Install runtime pip deps
+        id: install-runtime
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Diagnostic - pip list (after install)
+        shell: bash
+        run: |
+          python -m pip list --format=freeze | sort > pip-list-after.txt || true
+          echo "Wrote pip-list-after.txt"
+          head -n 50 pip-list-after.txt || true
+
+      - name: Upload pip-list artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-lists-ci
+          path: |
+            pip-list-before.txt
+            pip-list-after.txt
+
+      # --- Frontend security: run npm audit and fail on high/critical
+      - name: Install Node.js (for frontend audit)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install linters and security tools
+        run: |
+          # Install only linters and security scanners into an isolated virtualenv
+          # so the shared runtime environment remains free of test-only packages
+          # when we check for dev-only packages installed in runtime.
+          python -m pip install --upgrade pip
+          # Create the venv that will host linters/security tools.
+          # Use --system-site-packages so the venv can see the runtime
+          # packages we installed earlier in the job. This lets mypy (and
+          # other tools) import application packages without installing
+          # runtime deps into the venv and avoids false "import-not-found"
+          # errors.
+          python -m venv .venv_linters --system-site-packages
+          # Use the venv's pip to install tools (this keeps their deps out of
+          # the runner's global site-packages).
+          .venv_linters/bin/pip install --upgrade pip
+          .venv_linters/bin/pip install ruff mypy black bandit safety
+          # Install common third-party type stubs so mypy can analyze
+          # requests, pandas and sklearn without spurious "library stubs
+          # not installed" errors. Also install pytest into the linters
+          # venv so mypy can import test packages when we run the
+          # post-test mypy check.
+          .venv_linters/bin/pip install types-requests pandas-stubs scikit-learn-stubs types-python-dateutil pytest
+          # Put the venv on PATH using the supported environment file so
+          # subsequent steps can invoke the tools by name.
+          echo "${{ github.workspace }}/.venv_linters/bin" >> $GITHUB_PATH
+          # Debug: print installed stub packages and verify import specs so
+          # we can confirm mypy will be able to find them in CI.
+          .venv_linters/bin/pip show types-requests pandas-stubs scikit-learn-stubs types-python-dateutil pytest || true
+          .venv_linters/bin/pip list --format=columns | grep -E 'types-requests|pandas-stubs|scikit-learn-stubs|types-python-dateutil|pytest' || true
+          .venv_linters/bin/python -c "import sys; print('venv python:', sys.executable); print('sys.path:'); print('\\n'.join(sys.path))"
+          .venv_linters/bin/python - <<'PY'
+          import importlib.util
+          names = ['requests','types_requests','pandas','sklearn','pytest']
+          for n in names:
+              spec = importlib.util.find_spec(n)
+              print(f"spec({n}):", spec)
+          PY
+
+      - name: Run npm ci for frontend
+        working-directory: frontend
+        run: |
+          npm ci
+
+      - name: Run frontend build (Vite)
+        working-directory: frontend
+        run: |
+          # Run the real frontend build to validate bundling and plugin transforms
+          npm run build
+
+      - name: Run npm audit (fail on high/critical)
+        working-directory: frontend
+        run: |
+          npm audit --audit-level=high
+
+      - name: Run npm audit (warn on moderate)
+        working-directory: frontend
+        run: |
+          # Run audit at moderate level but do not fail the job; emit a GitHub Actions warning so maintainers see it.
+          npm audit --audit-level=moderate || echo "::warning file=frontend/package.json::npm audit found moderate vulnerabilities (see logs)"
+
+      # --- Linting ---
+      - name: Run Ruff
+        run: ruff check backend
+
+      - name: Run Mypy
+        # Avoid type-checking test files here (they import test-only packages like pytest
+        # which we intentionally install only after the dev-deps enforcement step).
+        # Exclude the tests directory from this mypy run so CI doesn't fail on missing
+        # test-only imports.
+        run: ./.venv_linters/bin/python -m mypy --install-types --non-interactive backend --exclude 'backend/tests/.*'
+
+      - name: Run Black
+        run: black --check backend
+
+      # --- Security ---
+      - name: Run Bandit
+        # Tests frequently use plain `assert` statements; exclude test files from Bandit
+        # scanning to avoid low-severity B101 findings failing CI. We still scan
+        # application code under backend/ for security issues.
+        run: bandit -r backend --exclude backend/tests
+
+      - name: Run Safety
+        # run safety from the venv so its dependencies do not pollute the global env
+        # Use the newer `scan` command (replaces deprecated `check`).
+        # `--full-report` produces the human-readable report; the command
+        # will still exit non-zero if vulnerabilities are found (so CI can fail).
+        run: |
+          safety scan --full-report
+
+      - name: Check for dev-only packages in runtime (FAILS if any found)
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        id: enforce
+        shell: bash
+        run: |
+          set -o pipefail
+          # Use the runner-provided Python (pythonLocation) to run the
+          # enforcement script. We intentionally do not want to run this
+          # check under the linters venv (which is on PATH) because that
+          # venv contains security tooling and its transitive deps like
+          # httpx. Running the check with the system Python verifies the
+          # actual runtime environment used by the application.
+          # pythonLocation is a path to the runner's Python installation root
+          # (for example /opt/hostedtoolcache/Python/3.12.11/x64). Use the
+          # interpreter executable under bin to actually run the script.
+          python backend/scripts/check_dev_deps_in_runtime.py || true
+          if [ -f backend/dev_in_runtime.txt ]; then
+            pkgs=$(cat backend/dev_in_runtime.txt)
+            IFS=',' read -ra A <<< "$pkgs"
+            for pkg in "${A[@]}"; do
+              pkg=$(echo "$pkg" | xargs)
+              echo "::error file=backend/dev_in_runtime.txt::Dev-only package installed in runtime: $pkg"
+            done
+            echo "See backend/README.md for remediation: https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/backend/README.md"
+            exit 1
+          else
+            echo "No dev-only packages detected"
+          fi
+
+      # Install test tooling (after dev-deps check)
+      - name: Install test tooling (after dev-deps check)
+        # Install test-related packages after the dev-deps check so they do
+        # not trigger the enforcement step. Install test tooling into the
+        # runner Python environment so tests execute against the same
+        # interpreter used for runtime.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-asyncio coverage httpx anyio
+
+      # --- Tests ---
+      - name: Run Pytest with Coverage
+        env:
+          ENV: test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: quantum
+          POSTGRES_HOST: localhost
+        run: |
+          coverage run -m pytest backend/tests
+          coverage report -m
+
+      - name: Run Mypy (including tests)
+        if: always()
+        # Run mypy again after test tooling is installed so tests are type-checked
+        # and missing test-only imports do not cause failures. Use the venv mypy so
+        # mypy's own deps are consistent with the earlier run.
+        run: ./.venv_linters/bin/python -m mypy --install-types --non-interactive backend
+
+  annotate-dev-deps:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install runtime requirements
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+      - name: Run dev-deps check (annotate only)
+        id: devcheck
+        run: |
+          python backend/scripts/check_dev_deps_in_runtime.py || true
+          if [ -f backend/dev_in_runtime.txt ]; then
+            echo "FOUND=$(cat backend/dev_in_runtime.txt)" >> $GITHUB_OUTPUT
+          else
+            echo "FOUND=" >> $GITHUB_OUTPUT
+          fi
+      - name: Create Check Run annotation if offending packages found
+        if: steps.devcheck.outputs.FOUND != ''
+        uses: actions/github-script@v7
+        env:
+          FOUND: ${{ steps.devcheck.outputs.FOUND }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const found = process.env.FOUND || ''
+            if (!found) return
+            const head_sha = context.payload.pull_request && context.payload.pull_request.head && context.payload.pull_request.head.sha
+            const pkgs = found.split(',').map(s => s.trim()).filter(Boolean)
+            const annotations = pkgs.slice(0,50).map(pkg => ({
+              path: 'backend/dev_in_runtime.txt',
+              start_line: 1,
+              end_line: 1,
+              annotation_level: 'warning',
+              message: `Dev-only package installed in runtime: ${pkg}`
+            }))
+            await github.rest.checks.create({
+              ...context.repo,
+              name: 'dev-deps-check',
+              head_sha: head_sha || process.env.GITHUB_SHA,
+              status: 'completed',
+              conclusion: 'neutral',
+              output: {
+                title: 'Dev-only packages detected in runtime',
+                summary: `Dev-only packages detected: ${found}\n\nPR: https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${context.issue.number || ''}\nRemediation: https://github.com/${context.repo.owner}/${context.repo.repo}/pull/15`,
+                annotations,
+                details_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/backend/README.md`
+              }
+            })
+  frontend-checks:
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        node-version: [16, 18, 20]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Install frontend deps
+        working-directory: frontend
+        run: |
+          npm ci
+      - name: Run frontend typecheck (tsc --noEmit)
+        working-directory: frontend
+        run: |
+          npm run typecheck
+
+  integration-ccxt:
+    runs-on: ubuntu-latest
+    needs: build
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install runtime requirements for integration (full)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-ccxt.txt
+
+      - name: Install test tooling
+        run: |
+          python -m pip install pytest pytest-asyncio httpx
+
+      - name: Run a small exchange adapter smoke test
+        run: |
+          python backend/scripts/adapter_smoke.py
+
+  render-diagrams:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Java (for PlantUML)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Install Graphviz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz
+
+      - name: Download PlantUML JAR
+        run: |
+          # Download the latest PlantUML standalone jar from the official GitHub releases
+          curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar
+
+      - name: Render PlantUML diagrams to SVG using plantuml.jar
+        run: |
+          set -e
+          ls -la docs || true
+          for f in docs/*.puml; do
+            echo "Rendering $f"
+            java -jar plantuml.jar -tsvg "$f"
+          done
+
+      - name: Upload diagrams
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagrams
+          path: docs/*.svg
