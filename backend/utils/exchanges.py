@@ -7,7 +7,7 @@ methods and registering them in get_exchange_client.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Dict, List, Optional, Protocol, Type
 import datetime
 from config.config import DEFAULT_EXCHANGE
 
@@ -97,7 +97,6 @@ class _BinanceAdapter:
             return {"error": str(exc)}
 
 
-from typing import Type
 
 
 _ADAPTER_REGISTRY: Dict[str, Type] = {
