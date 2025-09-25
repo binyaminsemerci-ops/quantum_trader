@@ -28,6 +28,14 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
+      - name: Install runtime requirements
+        run: |
+          python -m pip install --upgrade pip
+          # Install the application's runtime dependencies so mypy can import them
+          if [ -f backend/requirements.txt ]; then
+            python -m pip install -r backend/requirements.txt || true
+          fi
+
       - name: Install mypy, pytest and pinned stubs
         run: |
           python -m pip install \
