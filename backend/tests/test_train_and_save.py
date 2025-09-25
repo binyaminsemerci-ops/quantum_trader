@@ -4,6 +4,7 @@ import os
 import pytest
 
 import ai_engine.train_and_save as tas  # type: ignore[import-not-found, import-untyped]
+from tests._helpers import train_and_save_stub, external_data_stub
 
 
 class DummyExternalData:
@@ -21,8 +22,7 @@ class DummyExternalData:
                 'close': close_val,
                 'volume': 100 + i,
             })
-            from typing import Any, cast as _cast
-            price = float(_cast(Any, candles[-1]['close']))
+            price = float(candles[-1]['close'])
         return {'candles': candles}
 
     async def twitter_sentiment(self, symbol: str):
@@ -42,13 +42,13 @@ async def test_train_and_save_creates_artifacts(monkeypatch, tmp_path):
         test_model_dir.mkdir()
         # monkeypatch the module-level MODEL_DIR used by the training code
         monkeypatch.setattr(tas, 'MODEL_DIR', str(test_model_dir))
+        # Monkeypatch the internal external_data helpers used by train_and_save
+        monkeypatch.setattr('backend.routes.external_data.binance_ohlcv', external_data_stub.binance_ohlcv)
+        monkeypatch.setattr('backend.routes.external_data.twitter_sentiment', external_data_stub.twitter_sentiment)
+        monkeypatch.setattr('backend.routes.external_data.cryptopanic_news', external_data_stub.cryptopanic_news)
 
-        # Monkeypatch the backend.routes.external_data module used by train_and_save
-        dummy = DummyExternalData()
-
-        monkeypatch.setattr('backend.routes.external_data.binance_ohlcv', dummy.binance_ohlcv)
-        monkeypatch.setattr('backend.routes.external_data.twitter_sentiment', dummy.twitter_sentiment)
-        monkeypatch.setattr('backend.routes.external_data.cryptopanic_news', dummy.cryptopanic_news)
+        # also monkeypatch the ai_engine.train_and_save module to use the test helper
+        monkeypatch.setattr('ai_engine.train_and_save.train_and_save', train_and_save_stub.train_and_save)
 
         # Call training with a small limit to keep test quick.
         # train_and_save creates its own event loop internally; when running
