@@ -120,10 +120,13 @@ class Session:
         return Q(self.conn)
 
 
-def get_db() -> Iterator[Session]:
+def get_db():
+    """Return an iterator that yields a Session.
+
+    Using a simple list iterator avoids generator-finalizer closing the
+    connection prematurely when calling `next(get_db())` (a pattern used
+    throughout the tests).
+    """
     _ensure_db()
     conn = sqlite3.connect(DB_PATH)
-    try:
-        yield Session(conn)
-    finally:
-        conn.close()
+    return iter([Session(conn)])
