@@ -13,6 +13,7 @@ jobs:
     services:
       postgres:
         image: postgres:16
+        # pragma: allowlist secret - these are test service env names/passwords used only for CI
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
