@@ -52,3 +52,4 @@ async def test_settings_roundtrip():
         get_resp = await ac.get("/settings")
         assert get_resp.status_code == 200
         assert get_resp.json()["api_key"] == "dummy"
+
