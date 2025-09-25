@@ -1,13 +1,15 @@
 # backend/routes/backtest.py
 from fastapi import APIRouter
 from backend.database import get_db
+from config.config import DEFAULT_QUOTE
+from typing import Any
 
 router = APIRouter()
 
 
 @router.get("/backtest")
-def run_backtest(symbol: str = "BTCUSDT", days: int = 30):
-    db = get_db()
+def run_backtest(symbol: str = f"BTC{DEFAULT_QUOTE}", days: int = 30):
+    db: Any = next(get_db())
     cursor = db.cursor()
 
     # 1️⃣ Forsøk på trades

@@ -1,6 +1,7 @@
 # backend/seed_trades.py
 import sqlite3
 import os
+from backend.utils.trade_utils import select_execution_pair
 
 # Finn riktig database path
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "database", "trades.db")
@@ -13,11 +14,12 @@ def seed_trades():
     print("🗑️ Sletter eksisterende trades...")
     cur.execute("DELETE FROM trades")
 
+    # Prefer futures (USDT-margined) for test trades, spot is rare in live systems
     dummy_trades = [
-        ("BTCUSDT", "buy", 20000, 20100, 0.01, 100),
-        ("BTCUSDT", "sell", 20100, 20000, 0.01, 100),
-        ("ETHUSDT", "buy", 1500, 1550, 0.5, 250),
-        ("ETHUSDT", "sell", 1550, 1500, 0.5, 250),
+        (select_execution_pair('BTC', market='futures'), "buy", 20000, 20100, 0.01, 100),
+        (select_execution_pair('BTC', market='futures'), "sell", 20100, 20000, 0.01, 100),
+        (select_execution_pair('ETH', market='futures'), "buy", 1500, 1550, 0.5, 250),
+        (select_execution_pair('ETH', market='futures'), "sell", 1550, 1500, 0.5, 250),
     ]
 
     cur.executemany(
