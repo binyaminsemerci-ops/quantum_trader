@@ -20,6 +20,11 @@ jobs:
       - name: Install runtime deps (minimal)
         run: |
           python -m pip install --upgrade pip
+          # Ensure backend requirements are present in the branch/merge ref.
+          # No secrets are stored here; this path only points to a requirements
+          # file under version control. Add a pragma comment for detect-secrets
+          # to reduce false positives when pre-commit inspects workflow files.
+          # pragma: allowlist secret
           pip install -r backend/requirements.txt
       - name: Run adapter unit tests
         run: |
@@ -248,6 +253,7 @@ jobs:
       - name: Install runtime requirements
         run: |
           python -m pip install --upgrade pip
+          # pragma: allowlist secret
           pip install -r backend/requirements.txt
       - name: Run dev-deps check (annotate only)
         id: devcheck
