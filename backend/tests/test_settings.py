@@ -1,3 +1,10 @@
+from backend.config import settings
+
+def test_settings_loads():
+    # tests may include placeholder literals; mark them allowlisted for detect-secrets
+    # to avoid CI false positives when test fixtures include dummy credentials.
+    # pragma: allowlist secret
+    assert settings is not None
 from backend.main import app
 
 
