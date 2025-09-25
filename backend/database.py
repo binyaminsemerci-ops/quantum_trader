@@ -42,7 +42,7 @@ def _ensure_db() -> None:
         CREATE TABLE IF NOT EXISTS training_tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             symbols TEXT,
-            limit INTEGER,
+            limit_val INTEGER,
             status TEXT,
             created_at TEXT,
             completed_at TEXT,
@@ -155,7 +155,7 @@ def create_training_task(db: Session, symbols: str, limit: int) -> TrainingTask:
     cur = db.conn.cursor()
     now = datetime.now(timezone.utc).isoformat()
     cur.execute(
-        "INSERT INTO training_tasks (symbols, limit, status, created_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO training_tasks (symbols, limit_val, status, created_at) VALUES (?, ?, ?, ?)",
         (symbols, limit, 'pending', now),
     )
     db.conn.commit()
