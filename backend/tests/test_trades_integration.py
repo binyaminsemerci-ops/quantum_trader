@@ -1,6 +1,3 @@
-import pytest
-
-
 def test_create_and_read_trade(client):
     # Create a trade
     payload = {"symbol": "ETHUSDT", "side": "SELL", "qty": 0.5, "price": 1800.0}
