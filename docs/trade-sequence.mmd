@@ -1,0 +1,24 @@
+sequenceDiagram
+    participant UI as Trader UI
+    participant FE as Frontend API
+    participant API as Backend (FastAPI)
+    participant DB as Database (Postgres/SQLite)
+    participant ML as Model Service (XGBoost)
+    participant EX as Exchange (Binance)
+
+    UI->>FE: Click "Buy" / Strategy triggers signal
+    FE->>API: POST /api/trade (symbol, side, qty)
+    API->>DB: INSERT INTO trade_logs (status=pending, ...)
+    API->>ML: GET /ai/predict (symbol) [optional]
+    ML-->>API: prediction (+confidence)
+    API->>API: Decide order params (price, type)
+    API->>EX: POST /binance/order (place order)
+    EX-->>API: 200 OK (order accepted, orderId)
+    API->>DB: INSERT INTO trades (orderId, status=placed, ...)
+    Note right of API: Background process monitors fills
+    API->>EX: GET /binance/order/{orderId} (poll status)
+    EX-->>API: 200 OK (filled/cancelled)
+    API->>DB: UPDATE trades SET status=filled, filled_qty, fill_price
+    API->>DB: INSERT INTO trade_logs (status=filled, reason)
+    API-->>FE: 200 OK (trade confirmed)
+    FE-->>UI: Update UI (orderId, status)
