@@ -1,9 +1,9 @@
-from backend.main import app
 
 
 def test_settings_roundtrip(client):
     # POST settings and then GET to ensure values were persisted
-    payload = {"api_key": "roundtrip_key", "api_secret": "roundtrip_secret"}
+    # The payload uses intentional test literals; allowlist for detect-secrets.
+    payload = {"api_key": "roundtrip_key", "api_secret": "roundtrip_secret"}  # pragma: allowlist secret
     post_resp = client.post("/settings", json=payload)
     assert post_resp.status_code == 200
 
