@@ -1,0 +1,1101 @@
+build	Set up job	﻿2025-09-24T04:43:04.3079126Z Current runner version: '2.328.0'
+build	Set up job	2025-09-24T04:43:04.3101978Z ##[group]Runner Image Provisioner
+build	Set up job	2025-09-24T04:43:04.3102774Z Hosted Compute Agent
+build	Set up job	2025-09-24T04:43:04.3103363Z Version: 20250829.383
+build	Set up job	2025-09-24T04:43:04.3104383Z Commit: 27cb235aab5b0e52e153a26cd86b4742e89dac5d
+build	Set up job	2025-09-24T04:43:04.3105097Z Build Date: 2025-08-29T13:48:48Z
+build	Set up job	2025-09-24T04:43:04.3105738Z ##[endgroup]
+build	Set up job	2025-09-24T04:43:04.3106245Z ##[group]Operating System
+build	Set up job	2025-09-24T04:43:04.3106802Z Ubuntu
+build	Set up job	2025-09-24T04:43:04.3107224Z 24.04.3
+build	Set up job	2025-09-24T04:43:04.3107751Z LTS
+build	Set up job	2025-09-24T04:43:04.3108251Z ##[endgroup]
+build	Set up job	2025-09-24T04:43:04.3108727Z ##[group]Runner Image
+build	Set up job	2025-09-24T04:43:04.3109329Z Image: ubuntu-24.04
+build	Set up job	2025-09-24T04:43:04.3109796Z Version: 20250907.24.1
+build	Set up job	2025-09-24T04:43:04.3110769Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20250907.24/images/ubuntu/Ubuntu2404-Readme.md
+build	Set up job	2025-09-24T04:43:04.3112134Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20250907.24
+build	Set up job	2025-09-24T04:43:04.3113447Z ##[endgroup]
+build	Set up job	2025-09-24T04:43:04.3114598Z ##[group]GITHUB_TOKEN Permissions
+build	Set up job	2025-09-24T04:43:04.3116348Z Contents: read
+build	Set up job	2025-09-24T04:43:04.3117017Z Metadata: read
+build	Set up job	2025-09-24T04:43:04.3117546Z Packages: read
+build	Set up job	2025-09-24T04:43:04.3117982Z ##[endgroup]
+build	Set up job	2025-09-24T04:43:04.3120354Z Secret source: Actions
+build	Set up job	2025-09-24T04:43:04.3121020Z Prepare workflow directory
+build	Set up job	2025-09-24T04:43:04.3522189Z Prepare all required actions
+build	Set up job	2025-09-24T04:43:04.3559349Z Getting action download info
+build	Set up job	2025-09-24T04:43:04.6636602Z Download action repository 'actions/checkout@v4' (SHA:08eba0b27e820071cde6df949e0beb9ba4906955)
+build	Set up job	2025-09-24T04:43:04.8342643Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+build	Set up job	2025-09-24T04:43:05.0323330Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+build	Set up job	2025-09-24T04:43:05.1401547Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+build	Set up job	2025-09-24T04:43:05.3723235Z Complete job name: build
+build	Initialize containers	﻿2025-09-24T04:43:05.4358895Z ##[group]Checking docker version
+build	Initialize containers	2025-09-24T04:43:05.4372540Z ##[command]/usr/bin/docker version --format '{{.Server.APIVersion}}'
+build	Initialize containers	2025-09-24T04:43:06.4399211Z '1.48'
+build	Initialize containers	2025-09-24T04:43:06.4413713Z Docker daemon API version: '1.48'
+build	Initialize containers	2025-09-24T04:43:06.4414342Z ##[command]/usr/bin/docker version --format '{{.Client.APIVersion}}'
+build	Initialize containers	2025-09-24T04:43:06.4569158Z '1.48'
+build	Initialize containers	2025-09-24T04:43:06.4582806Z Docker client API version: '1.48'
+build	Initialize containers	2025-09-24T04:43:06.4588239Z ##[endgroup]
+build	Initialize containers	2025-09-24T04:43:06.4590814Z ##[group]Clean up resources from previous jobs
+build	Initialize containers	2025-09-24T04:43:06.4596592Z ##[command]/usr/bin/docker ps --all --quiet --no-trunc --filter "label=8fc83d"
+build	Initialize containers	2025-09-24T04:43:06.4806873Z ##[command]/usr/bin/docker network prune --force --filter "label=8fc83d"
+build	Initialize containers	2025-09-24T04:43:06.4934261Z ##[endgroup]
+build	Initialize containers	2025-09-24T04:43:06.4934609Z ##[group]Create local container network
+build	Initialize containers	2025-09-24T04:43:06.4944455Z ##[command]/usr/bin/docker network create --label 8fc83d github_network_72a0438669ee43a6bb59cb1aa14be2d0
+build	Initialize containers	2025-09-24T04:43:06.5440703Z bb32f8c601ce6d1ccc388ad76a06efbed9ea3c8ed369f73eb1b79f060ba6b96f
+build	Initialize containers	2025-09-24T04:43:06.5459220Z ##[endgroup]
+build	Initialize containers	2025-09-24T04:43:06.5482069Z ##[group]Starting postgres service container
+build	Initialize containers	2025-09-24T04:43:06.5501427Z ##[command]/usr/bin/docker pull postgres:16
+build	Initialize containers	2025-09-24T04:43:06.7684480Z 16: Pulling from library/postgres
+build	Initialize containers	2025-09-24T04:43:06.8298341Z ce1261c6d567: Pulling fs layer
+build	Initialize containers	2025-09-24T04:43:06.8300979Z 951a19831fc8: Pulling fs layer
+build	Initialize containers	2025-09-24T04:43:06.8301729Z 2f21900bfd71: Pulling fs layer
+build	Initialize containers	2025-09-24T04:43:06.8302143Z cc42246e0a23: Pulling fs layer
+build	Initialize containers	2025-09-24T04:43:06.8302765Z 7b0faefcf7ad: Pulling fs layer
+build	Initialize containers	2025-09-24T04:43:06.8303383Z 7bf3457011a0: Pulling fs layer
+build	Initialize containers	2025-09-24T04:43:06.8304132Z c874057d7395: Pulling fs layer
+build	Initialize containers	2025-09-24T04:43:06.8304448Z 7f1bdd7d8f57: Pulling fs layer
+build	Initialize containers	2025-09-24T04:43:06.8304725Z 0deb56381ce1: Pulling fs layer
+build	Initialize containers	2025-09-24T04:43:06.8304936Z fe70dd977a0a: Pulling fs layer
+build	Initialize containers	2025-09-24T04:43:06.8305137Z 6f99bf1c8b70: Pulling fs layer
+build	Initialize containers	2025-09-24T04:43:06.8305741Z 52a432e3946d: Pulling fs layer
+build	Initialize containers	2025-09-24T04:43:06.8306015Z cdae18826203: Pulling fs layer
+build	Initialize containers	2025-09-24T04:43:06.8306262Z 27bda8e4126f: Pulling fs layer
+build	Initialize containers	2025-09-24T04:43:06.8306482Z 0deb56381ce1: Waiting
+build	Initialize containers	2025-09-24T04:43:06.8306675Z cc42246e0a23: Waiting
+build	Initialize containers	2025-09-24T04:43:06.8306852Z 7b0faefcf7ad: Waiting
+build	Initialize containers	2025-09-24T04:43:06.8307036Z fe70dd977a0a: Waiting
+build	Initialize containers	2025-09-24T04:43:06.8307214Z c874057d7395: Waiting
+build	Initialize containers	2025-09-24T04:43:06.8307381Z 7f1bdd7d8f57: Waiting
+build	Initialize containers	2025-09-24T04:43:06.8307585Z 7bf3457011a0: Waiting
+build	Initialize containers	2025-09-24T04:43:06.8307752Z 6f99bf1c8b70: Waiting
+build	Initialize containers	2025-09-24T04:43:06.8307925Z cdae18826203: Waiting
+build	Initialize containers	2025-09-24T04:43:06.8308128Z 27bda8e4126f: Waiting
+build	Initialize containers	2025-09-24T04:43:06.8911448Z 951a19831fc8: Verifying Checksum
+build	Initialize containers	2025-09-24T04:43:06.8912456Z 951a19831fc8: Download complete
+build	Initialize containers	2025-09-24T04:43:06.9166399Z 2f21900bfd71: Verifying Checksum
+build	Initialize containers	2025-09-24T04:43:06.9166861Z 2f21900bfd71: Download complete
+build	Initialize containers	2025-09-24T04:43:07.0016864Z 7b0faefcf7ad: Verifying Checksum
+build	Initialize containers	2025-09-24T04:43:07.0018709Z 7b0faefcf7ad: Download complete
+build	Initialize containers	2025-09-24T04:43:07.0087798Z cc42246e0a23: Verifying Checksum
+build	Initialize containers	2025-09-24T04:43:07.0090135Z cc42246e0a23: Download complete
+build	Initialize containers	2025-09-24T04:43:07.0589692Z 7bf3457011a0: Verifying Checksum
+build	Initialize containers	2025-09-24T04:43:07.0590247Z 7bf3457011a0: Download complete
+build	Initialize containers	2025-09-24T04:43:07.0648750Z c874057d7395: Verifying Checksum
+build	Initialize containers	2025-09-24T04:43:07.0651824Z c874057d7395: Download complete
+build	Initialize containers	2025-09-24T04:43:07.0744397Z ce1261c6d567: Verifying Checksum
+build	Initialize containers	2025-09-24T04:43:07.0745927Z ce1261c6d567: Download complete
+build	Initialize containers	2025-09-24T04:43:07.1167375Z 7f1bdd7d8f57: Verifying Checksum
+build	Initialize containers	2025-09-24T04:43:07.1167933Z 7f1bdd7d8f57: Download complete
+build	Initialize containers	2025-09-24T04:43:07.1243852Z fe70dd977a0a: Verifying Checksum
+build	Initialize containers	2025-09-24T04:43:07.1244439Z fe70dd977a0a: Download complete
+build	Initialize containers	2025-09-24T04:43:07.1799072Z 52a432e3946d: Verifying Checksum
+build	Initialize containers	2025-09-24T04:43:07.1800888Z 52a432e3946d: Download complete
+build	Initialize containers	2025-09-24T04:43:07.1898388Z 6f99bf1c8b70: Verifying Checksum
+build	Initialize containers	2025-09-24T04:43:07.1901638Z 6f99bf1c8b70: Download complete
+build	Initialize containers	2025-09-24T04:43:07.2427694Z 27bda8e4126f: Verifying Checksum
+build	Initialize containers	2025-09-24T04:43:07.2428988Z 27bda8e4126f: Download complete
+build	Initialize containers	2025-09-24T04:43:07.2518965Z cdae18826203: Verifying Checksum
+build	Initialize containers	2025-09-24T04:43:07.2519401Z cdae18826203: Download complete
+build	Initialize containers	2025-09-24T04:43:07.6587771Z 0deb56381ce1: Verifying Checksum
+build	Initialize containers	2025-09-24T04:43:07.6588375Z 0deb56381ce1: Download complete
+build	Initialize containers	2025-09-24T04:43:08.1065253Z ce1261c6d567: Pull complete
+build	Initialize containers	2025-09-24T04:43:08.3798221Z 951a19831fc8: Pull complete
+build	Initialize containers	2025-09-24T04:43:08.5473387Z 2f21900bfd71: Pull complete
+build	Initialize containers	2025-09-24T04:43:08.5884221Z cc42246e0a23: Pull complete
+build	Initialize containers	2025-09-24T04:43:08.8858905Z 7b0faefcf7ad: Pull complete
+build	Initialize containers	2025-09-24T04:43:08.9698971Z 7bf3457011a0: Pull complete
+build	Initialize containers	2025-09-24T04:43:08.9839260Z c874057d7395: Pull complete
+build	Initialize containers	2025-09-24T04:43:08.9944627Z 7f1bdd7d8f57: Pull complete
+build	Initialize containers	2025-09-24T04:43:11.9418218Z 0deb56381ce1: Pull complete
+build	Initialize containers	2025-09-24T04:43:11.9571691Z fe70dd977a0a: Pull complete
+build	Initialize containers	2025-09-24T04:43:11.9704054Z 6f99bf1c8b70: Pull complete
+build	Initialize containers	2025-09-24T04:43:11.9847767Z 52a432e3946d: Pull complete
+build	Initialize containers	2025-09-24T04:43:11.9973276Z cdae18826203: Pull complete
+build	Initialize containers	2025-09-24T04:43:12.0090273Z 27bda8e4126f: Pull complete
+build	Initialize containers	2025-09-24T04:43:12.0130520Z Digest: sha256:20faf48bc8152dd4923673608ee2ecfabd140208ad94036aa7a764e388046653
+build	Initialize containers	2025-09-24T04:43:12.0145409Z Status: Downloaded newer image for postgres:16
+build	Initialize containers	2025-09-24T04:43:12.0194181Z docker.io/library/postgres:16
+build	Initialize containers	2025-09-24T04:43:12.0256800Z ##[command]/usr/bin/docker create --name 71d10e3c782340f696284e4ff1c0bc0a_postgres16_087060 --label 8fc83d --network github_network_72a0438669ee43a6bb59cb1aa14be2d0 --network-alias postgres -p 5432:5432 --health-cmd="pg_isready -U postgres" --health-interval=10s --health-timeout=5s --health-retries=5 -e "POSTGRES_USER=postgres" -e "POSTGRES_PASSWORD=postgres" -e "POSTGRES_DB=quantum" -e GITHUB_ACTIONS=true -e CI=true postgres:16
+build	Initialize containers	2025-09-24T04:43:12.0585647Z 616aad47a5800e15ae39538b4d7c11d84c4d6654711d933fcd0724b92183ac1a
+build	Initialize containers	2025-09-24T04:43:12.0608598Z ##[command]/usr/bin/docker start 616aad47a5800e15ae39538b4d7c11d84c4d6654711d933fcd0724b92183ac1a
+build	Initialize containers	2025-09-24T04:43:12.9026864Z 616aad47a5800e15ae39538b4d7c11d84c4d6654711d933fcd0724b92183ac1a
+build	Initialize containers	2025-09-24T04:43:12.9047544Z ##[command]/usr/bin/docker ps --all --filter id=616aad47a5800e15ae39538b4d7c11d84c4d6654711d933fcd0724b92183ac1a --filter status=running --no-trunc --format "{{.ID}} {{.Status}}"
+build	Initialize containers	2025-09-24T04:43:12.9175791Z 616aad47a5800e15ae39538b4d7c11d84c4d6654711d933fcd0724b92183ac1a Up Less than a second (health: starting)
+build	Initialize containers	2025-09-24T04:43:12.9196132Z ##[command]/usr/bin/docker port 616aad47a5800e15ae39538b4d7c11d84c4d6654711d933fcd0724b92183ac1a
+build	Initialize containers	2025-09-24T04:43:12.9321026Z 5432/tcp -> 0.0.0.0:5432
+build	Initialize containers	2025-09-24T04:43:12.9321612Z 5432/tcp -> [::]:5432
+build	Initialize containers	2025-09-24T04:43:12.9367826Z ##[endgroup]
+build	Initialize containers	2025-09-24T04:43:12.9377387Z ##[group]Waiting for all services to be ready
+build	Initialize containers	2025-09-24T04:43:12.9391544Z ##[command]/usr/bin/docker inspect --format="{{if .Config.Healthcheck}}{{print .State.Health.Status}}{{end}}" 616aad47a5800e15ae39538b4d7c11d84c4d6654711d933fcd0724b92183ac1a
+build	Initialize containers	2025-09-24T04:43:12.9593898Z starting
+build	Initialize containers	2025-09-24T04:43:12.9621228Z postgres service is starting, waiting 2 seconds before checking again.
+build	Initialize containers	2025-09-24T04:43:14.9614091Z ##[command]/usr/bin/docker inspect --format="{{if .Config.Healthcheck}}{{print .State.Health.Status}}{{end}}" 616aad47a5800e15ae39538b4d7c11d84c4d6654711d933fcd0724b92183ac1a
+build	Initialize containers	2025-09-24T04:43:14.9731610Z starting
+build	Initialize containers	2025-09-24T04:43:14.9745544Z postgres service is starting, waiting 3 seconds before checking again.
+build	Initialize containers	2025-09-24T04:43:18.9006304Z ##[command]/usr/bin/docker inspect --format="{{if .Config.Healthcheck}}{{print .State.Health.Status}}{{end}}" 616aad47a5800e15ae39538b4d7c11d84c4d6654711d933fcd0724b92183ac1a
+build	Initialize containers	2025-09-24T04:43:18.9122641Z starting
+build	Initialize containers	2025-09-24T04:43:18.9136020Z postgres service is starting, waiting 8 seconds before checking again.
+build	Initialize containers	2025-09-24T04:43:27.4716710Z ##[command]/usr/bin/docker inspect --format="{{if .Config.Healthcheck}}{{print .State.Health.Status}}{{end}}" 616aad47a5800e15ae39538b4d7c11d84c4d6654711d933fcd0724b92183ac1a
+build	Initialize containers	2025-09-24T04:43:27.4836899Z healthy
+build	Initialize containers	2025-09-24T04:43:27.4855247Z postgres service is healthy.
+build	Initialize containers	2025-09-24T04:43:27.4855945Z ##[endgroup]
+build	Checkout repo	﻿2025-09-24T04:43:27.5105262Z ##[group]Run actions/checkout@v4
+build	Checkout repo	2025-09-24T04:43:27.5105786Z with:
+build	Checkout repo	2025-09-24T04:43:27.5106012Z   repository: binyaminsemerci-ops/quantum_trader
+build	Checkout repo	2025-09-24T04:43:27.5106424Z   token: ***
+build	Checkout repo	2025-09-24T04:43:27.5106594Z   ssh-strict: true
+build	Checkout repo	2025-09-24T04:43:27.5106771Z   ssh-user: git
+build	Checkout repo	2025-09-24T04:43:27.5106949Z   persist-credentials: true
+build	Checkout repo	2025-09-24T04:43:27.5107163Z   clean: true
+build	Checkout repo	2025-09-24T04:43:27.5107342Z   sparse-checkout-cone-mode: true
+build	Checkout repo	2025-09-24T04:43:27.5107569Z   fetch-depth: 1
+build	Checkout repo	2025-09-24T04:43:27.5107741Z   fetch-tags: false
+build	Checkout repo	2025-09-24T04:43:27.5107913Z   show-progress: true
+build	Checkout repo	2025-09-24T04:43:27.5108093Z   lfs: false
+build	Checkout repo	2025-09-24T04:43:27.5108261Z   submodules: false
+build	Checkout repo	2025-09-24T04:43:27.5108452Z   set-safe-directory: true
+build	Checkout repo	2025-09-24T04:43:27.5108825Z ##[endgroup]
+build	Checkout repo	2025-09-24T04:43:27.6148350Z Syncing repository: binyaminsemerci-ops/quantum_trader
+build	Checkout repo	2025-09-24T04:43:27.6149593Z ##[group]Getting Git version info
+build	Checkout repo	2025-09-24T04:43:27.6149981Z Working directory is '/home/runner/work/quantum_trader/quantum_trader'
+build	Checkout repo	2025-09-24T04:43:27.6150573Z [command]/usr/bin/git version
+build	Checkout repo	2025-09-24T04:43:27.6258616Z git version 2.51.0
+build	Checkout repo	2025-09-24T04:43:27.6283491Z ##[endgroup]
+build	Checkout repo	2025-09-24T04:43:27.6297149Z Temporarily overriding HOME='/home/runner/work/_temp/c0d92e68-ea52-4686-afc1-3ecd7b33e071' before making global git config changes
+build	Checkout repo	2025-09-24T04:43:27.6298512Z Adding repository directory to the temporary git global config as a safe directory
+build	Checkout repo	2025-09-24T04:43:27.6302151Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/quantum_trader/quantum_trader
+build	Checkout repo	2025-09-24T04:43:27.6337510Z Deleting the contents of '/home/runner/work/quantum_trader/quantum_trader'
+build	Checkout repo	2025-09-24T04:43:27.6341017Z ##[group]Initializing the repository
+build	Checkout repo	2025-09-24T04:43:27.6344936Z [command]/usr/bin/git init /home/runner/work/quantum_trader/quantum_trader
+build	Checkout repo	2025-09-24T04:43:27.6458304Z hint: Using 'master' as the name for the initial branch. This default branch name
+build	Checkout repo	2025-09-24T04:43:27.6459465Z hint: is subject to change. To configure the initial branch name to use in all
+build	Checkout repo	2025-09-24T04:43:27.6460272Z hint: of your new repositories, which will suppress this warning, call:
+build	Checkout repo	2025-09-24T04:43:27.6460799Z hint:
+build	Checkout repo	2025-09-24T04:43:27.6461114Z hint: 	git config --global init.defaultBranch <name>
+build	Checkout repo	2025-09-24T04:43:27.6461474Z hint:
+build	Checkout repo	2025-09-24T04:43:27.6461815Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+build	Checkout repo	2025-09-24T04:43:27.6462408Z hint: 'development'. The just-created branch can be renamed via this command:
+build	Checkout repo	2025-09-24T04:43:27.6463073Z hint:
+build	Checkout repo	2025-09-24T04:43:27.6463485Z hint: 	git branch -m <name>
+build	Checkout repo	2025-09-24T04:43:27.6464121Z hint:
+build	Checkout repo	2025-09-24T04:43:27.6464585Z hint: Disable this message with "git config set advice.defaultBranchName false"
+build	Checkout repo	2025-09-24T04:43:27.6465570Z Initialized empty Git repository in /home/runner/work/quantum_trader/quantum_trader/.git/
+build	Checkout repo	2025-09-24T04:43:27.6476060Z [command]/usr/bin/git remote add origin https://github.com/binyaminsemerci-ops/quantum_trader
+build	Checkout repo	2025-09-24T04:43:27.6514847Z ##[endgroup]
+build	Checkout repo	2025-09-24T04:43:27.6515502Z ##[group]Disabling automatic garbage collection
+build	Checkout repo	2025-09-24T04:43:27.6519930Z [command]/usr/bin/git config --local gc.auto 0
+build	Checkout repo	2025-09-24T04:43:27.6547279Z ##[endgroup]
+build	Checkout repo	2025-09-24T04:43:27.6547861Z ##[group]Setting up auth
+build	Checkout repo	2025-09-24T04:43:27.6554748Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+build	Checkout repo	2025-09-24T04:43:27.6584148Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+build	Checkout repo	2025-09-24T04:43:27.6928384Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+build	Checkout repo	2025-09-24T04:43:27.6957987Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+build	Checkout repo	2025-09-24T04:43:27.7177325Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+build	Checkout repo	2025-09-24T04:43:27.7213712Z ##[endgroup]
+build	Checkout repo	2025-09-24T04:43:27.7214259Z ##[group]Fetching the repository
+build	Checkout repo	2025-09-24T04:43:27.7221926Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +ba0507e1167e67012c2a3f0cd649209a97f3ae1b:refs/remotes/pull/32/merge
+build	Checkout repo	2025-09-24T04:43:28.0497103Z From https://github.com/binyaminsemerci-ops/quantum_trader
+build	Checkout repo	2025-09-24T04:43:28.0497900Z  * [new ref]         ba0507e1167e67012c2a3f0cd649209a97f3ae1b -> pull/32/merge
+build	Checkout repo	2025-09-24T04:43:28.0536224Z ##[endgroup]
+build	Checkout repo	2025-09-24T04:43:28.0536971Z ##[group]Determining the checkout info
+build	Checkout repo	2025-09-24T04:43:28.0539451Z ##[endgroup]
+build	Checkout repo	2025-09-24T04:43:28.0544845Z [command]/usr/bin/git sparse-checkout disable
+build	Checkout repo	2025-09-24T04:43:28.0612823Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+build	Checkout repo	2025-09-24T04:43:28.0643115Z ##[group]Checking out the ref
+build	Checkout repo	2025-09-24T04:43:28.0647741Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/32/merge
+build	Checkout repo	2025-09-24T04:43:28.0867485Z Note: switching to 'refs/remotes/pull/32/merge'.
+build	Checkout repo	2025-09-24T04:43:28.0868295Z 
+build	Checkout repo	2025-09-24T04:43:28.0868837Z You are in 'detached HEAD' state. You can look around, make experimental
+build	Checkout repo	2025-09-24T04:43:28.0871322Z changes and commit them, and you can discard any commits you make in this
+build	Checkout repo	2025-09-24T04:43:28.0872117Z state without impacting any branches by switching back to a branch.
+build	Checkout repo	2025-09-24T04:43:28.0872605Z 
+build	Checkout repo	2025-09-24T04:43:28.0872906Z If you want to create a new branch to retain commits you create, you may
+build	Checkout repo	2025-09-24T04:43:28.0873890Z do so (now or later) by using -c with the switch command. Example:
+build	Checkout repo	2025-09-24T04:43:28.0874323Z 
+build	Checkout repo	2025-09-24T04:43:28.0874490Z   git switch -c <new-branch-name>
+build	Checkout repo	2025-09-24T04:43:28.0874782Z 
+build	Checkout repo	2025-09-24T04:43:28.0874931Z Or undo this operation with:
+build	Checkout repo	2025-09-24T04:43:28.0875517Z 
+build	Checkout repo	2025-09-24T04:43:28.0875644Z   git switch -
+build	Checkout repo	2025-09-24T04:43:28.0875851Z 
+build	Checkout repo	2025-09-24T04:43:28.0876187Z Turn off this advice by setting config variable advice.detachedHead to false
+build	Checkout repo	2025-09-24T04:43:28.0876728Z 
+build	Checkout repo	2025-09-24T04:43:28.0877315Z HEAD is now at ba0507e Merge 5be506ba1e20dd3c43e89948d1dbdac707264702 into 9da786d59a42093d6bfc03fe0521a11b020be207
+build	Checkout repo	2025-09-24T04:43:28.0879164Z ##[endgroup]
+build	Checkout repo	2025-09-24T04:43:28.0916901Z [command]/usr/bin/git log -1 --format=%H
+build	Checkout repo	2025-09-24T04:43:28.0941064Z ba0507e1167e67012c2a3f0cd649209a97f3ae1b
+build	Set up Python	﻿2025-09-24T04:43:28.1148482Z ##[group]Run actions/setup-python@v5
+build	Set up Python	2025-09-24T04:43:28.1148758Z with:
+build	Set up Python	2025-09-24T04:43:28.1148933Z   python-version: 3.12
+build	Set up Python	2025-09-24T04:43:28.1149128Z   check-latest: false
+build	Set up Python	2025-09-24T04:43:28.1149437Z   token: ***
+build	Set up Python	2025-09-24T04:43:28.1149618Z   update-environment: true
+build	Set up Python	2025-09-24T04:43:28.1149841Z   allow-prereleases: false
+build	Set up Python	2025-09-24T04:43:28.1150043Z   freethreaded: false
+build	Set up Python	2025-09-24T04:43:28.1150229Z ##[endgroup]
+build	Set up Python	2025-09-24T04:43:28.2779991Z ##[group]Installed versions
+build	Set up Python	2025-09-24T04:43:28.2902489Z Successfully set up CPython (3.12.11)
+build	Set up Python	2025-09-24T04:43:28.2903217Z ##[endgroup]
+build	Diagnostic - pip list (before install)	﻿2025-09-24T04:43:28.3011584Z ##[group]Run python -m pip --version
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:28.3011954Z [36;1mpython -m pip --version[0m
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:28.3012326Z [36;1mpython -m pip list --format=freeze | sort > pip-list-before.txt || true[0m
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:28.3012706Z [36;1mecho "Wrote pip-list-before.txt"[0m
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:28.3013009Z [36;1mhead -n 50 pip-list-before.txt || true[0m
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:28.3078856Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:28.3079189Z env:
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:28.3079435Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:28.3079928Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib/pkgconfig
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:28.3080616Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:28.3080986Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:28.3081349Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:28.3081682Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:28.3082025Z ##[endgroup]
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:28.8260659Z pip 25.2 from /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages/pip (python 3.12)
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:29.0510646Z Wrote pip-list-before.txt
+build	Diagnostic - pip list (before install)	2025-09-24T04:43:29.0530331Z pip==25.2
+build	Install runtime pip deps	﻿2025-09-24T04:43:29.0561895Z ##[group]Run python -m pip install --upgrade pip
+build	Install runtime pip deps	2025-09-24T04:43:29.0562257Z [36;1mpython -m pip install --upgrade pip[0m
+build	Install runtime pip deps	2025-09-24T04:43:29.0562548Z [36;1mpip install -r backend/requirements.txt[0m
+build	Install runtime pip deps	2025-09-24T04:43:29.0594612Z shell: /usr/bin/bash -e {0}
+build	Install runtime pip deps	2025-09-24T04:43:29.0594840Z env:
+build	Install runtime pip deps	2025-09-24T04:43:29.0595085Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Install runtime pip deps	2025-09-24T04:43:29.0595495Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib/pkgconfig
+build	Install runtime pip deps	2025-09-24T04:43:29.0595897Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Install runtime pip deps	2025-09-24T04:43:29.0596273Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Install runtime pip deps	2025-09-24T04:43:29.0596613Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Install runtime pip deps	2025-09-24T04:43:29.0596966Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib
+build	Install runtime pip deps	2025-09-24T04:43:29.0597250Z ##[endgroup]
+build	Install runtime pip deps	2025-09-24T04:43:30.0654550Z Requirement already satisfied: pip in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (25.2)
+build	Install runtime pip deps	2025-09-24T04:43:31.1700195Z Collecting fastapi (from -r backend/requirements.txt (line 1))
+build	Install runtime pip deps	2025-09-24T04:43:31.2044814Z   Downloading fastapi-0.117.1-py3-none-any.whl.metadata (28 kB)
+build	Install runtime pip deps	2025-09-24T04:43:31.2422801Z Collecting uvicorn (from -r backend/requirements.txt (line 2))
+build	Install runtime pip deps	2025-09-24T04:43:31.2463314Z   Downloading uvicorn-0.37.0-py3-none-any.whl.metadata (6.6 kB)
+build	Install runtime pip deps	2025-09-24T04:43:31.5218671Z Collecting sqlalchemy (from -r backend/requirements.txt (line 3))
+build	Install runtime pip deps	2025-09-24T04:43:31.5257127Z   Downloading sqlalchemy-2.0.43-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (9.6 kB)
+build	Install runtime pip deps	2025-09-24T04:43:31.5651344Z Collecting xgboost (from -r backend/requirements.txt (line 4))
+build	Install runtime pip deps	2025-09-24T04:43:31.5703394Z   Downloading xgboost-3.0.5-py3-none-manylinux_2_28_x86_64.whl.metadata (2.1 kB)
+build	Install runtime pip deps	2025-09-24T04:43:31.6767363Z Collecting pandas (from -r backend/requirements.txt (line 5))
+build	Install runtime pip deps	2025-09-24T04:43:31.6805455Z   Downloading pandas-2.3.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (91 kB)
+build	Install runtime pip deps	2025-09-24T04:43:31.8867232Z Collecting numpy (from -r backend/requirements.txt (line 6))
+build	Install runtime pip deps	2025-09-24T04:43:31.8909472Z   Downloading numpy-2.3.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (62 kB)
+build	Install runtime pip deps	2025-09-24T04:43:31.9810694Z Collecting scikit-learn (from -r backend/requirements.txt (line 7))
+build	Install runtime pip deps	2025-09-24T04:43:31.9849071Z   Downloading scikit_learn-1.7.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (11 kB)
+build	Install runtime pip deps	2025-09-24T04:43:32.1407866Z Collecting matplotlib (from -r backend/requirements.txt (line 8))
+build	Install runtime pip deps	2025-09-24T04:43:32.1447227Z   Downloading matplotlib-3.10.6-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (11 kB)
+build	Install runtime pip deps	2025-09-24T04:43:32.1708984Z Collecting binance (from -r backend/requirements.txt (line 9))
+build	Install runtime pip deps	2025-09-24T04:43:32.1750675Z   Downloading binance-0.3.70-py3-none-any.whl.metadata (50 kB)
+build	Install runtime pip deps	2025-09-24T04:43:32.2024660Z Collecting python-binance (from -r backend/requirements.txt (line 10))
+build	Install runtime pip deps	2025-09-24T04:43:32.2069008Z   Downloading python_binance-1.0.29-py2.py3-none-any.whl.metadata (13 kB)
+build	Install runtime pip deps	2025-09-24T04:43:32.2267672Z Collecting python-dotenv (from -r backend/requirements.txt (line 11))
+build	Install runtime pip deps	2025-09-24T04:43:32.2306921Z   Downloading python_dotenv-1.1.1-py3-none-any.whl.metadata (24 kB)
+build	Install runtime pip deps	2025-09-24T04:43:32.4103983Z Collecting cryptography (from -r backend/requirements.txt (line 12))
+build	Install runtime pip deps	2025-09-24T04:43:32.4141614Z   Downloading cryptography-46.0.1-cp311-abi3-manylinux_2_34_x86_64.whl.metadata (5.7 kB)
+build	Install runtime pip deps	2025-09-24T04:43:32.4465466Z Collecting requests (from -r backend/requirements.txt (line 13))
+build	Install runtime pip deps	2025-09-24T04:43:32.4500527Z   Downloading requests-2.32.5-py3-none-any.whl.metadata (4.9 kB)
+build	Install runtime pip deps	2025-09-24T04:43:32.9594505Z Collecting aiohttp (from -r backend/requirements.txt (line 14))
+build	Install runtime pip deps	2025-09-24T04:43:32.9632959Z   Downloading aiohttp-3.12.15-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (7.7 kB)
+build	Install runtime pip deps	2025-09-24T04:43:32.9979602Z Collecting starlette<0.49.0,>=0.40.0 (from fastapi->-r backend/requirements.txt (line 1))
+build	Install runtime pip deps	2025-09-24T04:43:33.0016944Z   Downloading starlette-0.48.0-py3-none-any.whl.metadata (6.3 kB)
+build	Install runtime pip deps	2025-09-24T04:43:33.1503856Z Collecting pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4 (from fastapi->-r backend/requirements.txt (line 1))
+build	Install runtime pip deps	2025-09-24T04:43:33.1547872Z   Downloading pydantic-2.11.9-py3-none-any.whl.metadata (68 kB)
+build	Install runtime pip deps	2025-09-24T04:43:33.1774825Z Collecting typing-extensions>=4.8.0 (from fastapi->-r backend/requirements.txt (line 1))
+build	Install runtime pip deps	2025-09-24T04:43:33.1808302Z   Downloading typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+build	Install runtime pip deps	2025-09-24T04:43:33.1928742Z Collecting annotated-types>=0.6.0 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi->-r backend/requirements.txt (line 1))
+build	Install runtime pip deps	2025-09-24T04:43:33.1961708Z   Downloading annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+build	Install runtime pip deps	2025-09-24T04:43:33.8692729Z Collecting pydantic-core==2.33.2 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi->-r backend/requirements.txt (line 1))
+build	Install runtime pip deps	2025-09-24T04:43:33.8732949Z   Downloading pydantic_core-2.33.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.8 kB)
+build	Install runtime pip deps	2025-09-24T04:43:33.8875671Z Collecting typing-inspection>=0.4.0 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi->-r backend/requirements.txt (line 1))
+build	Install runtime pip deps	2025-09-24T04:43:33.8908745Z   Downloading typing_inspection-0.4.1-py3-none-any.whl.metadata (2.6 kB)
+build	Install runtime pip deps	2025-09-24T04:43:33.9162165Z Collecting anyio<5,>=3.6.2 (from starlette<0.49.0,>=0.40.0->fastapi->-r backend/requirements.txt (line 1))
+build	Install runtime pip deps	2025-09-24T04:43:33.9198348Z   Downloading anyio-4.11.0-py3-none-any.whl.metadata (4.1 kB)
+build	Install runtime pip deps	2025-09-24T04:43:33.9403686Z Collecting idna>=2.8 (from anyio<5,>=3.6.2->starlette<0.49.0,>=0.40.0->fastapi->-r backend/requirements.txt (line 1))
+build	Install runtime pip deps	2025-09-24T04:43:33.9436308Z   Downloading idna-3.10-py3-none-any.whl.metadata (10 kB)
+build	Install runtime pip deps	2025-09-24T04:43:33.9584415Z Collecting sniffio>=1.1 (from anyio<5,>=3.6.2->starlette<0.49.0,>=0.40.0->fastapi->-r backend/requirements.txt (line 1))
+build	Install runtime pip deps	2025-09-24T04:43:33.9620724Z   Downloading sniffio-1.3.1-py3-none-any.whl.metadata (3.9 kB)
+build	Install runtime pip deps	2025-09-24T04:43:33.9860522Z Collecting click>=7.0 (from uvicorn->-r backend/requirements.txt (line 2))
+build	Install runtime pip deps	2025-09-24T04:43:33.9893147Z   Downloading click-8.3.0-py3-none-any.whl.metadata (2.6 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.0003020Z Collecting h11>=0.8 (from uvicorn->-r backend/requirements.txt (line 2))
+build	Install runtime pip deps	2025-09-24T04:43:34.0035699Z   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.1284328Z Collecting greenlet>=1 (from sqlalchemy->-r backend/requirements.txt (line 3))
+build	Install runtime pip deps	2025-09-24T04:43:34.1320496Z   Downloading greenlet-3.2.4-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (4.1 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.1476789Z Collecting nvidia-nccl-cu12 (from xgboost->-r backend/requirements.txt (line 4))
+build	Install runtime pip deps	2025-09-24T04:43:34.1510331Z   Downloading nvidia_nccl_cu12-2.28.3-py3-none-manylinux_2_18_x86_64.whl.metadata (2.0 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.2653926Z Collecting scipy (from xgboost->-r backend/requirements.txt (line 4))
+build	Install runtime pip deps	2025-09-24T04:43:34.2690806Z   Downloading scipy-1.16.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (62 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.3028297Z Collecting python-dateutil>=2.8.2 (from pandas->-r backend/requirements.txt (line 5))
+build	Install runtime pip deps	2025-09-24T04:43:34.3063043Z   Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.3451195Z Collecting pytz>=2020.1 (from pandas->-r backend/requirements.txt (line 5))
+build	Install runtime pip deps	2025-09-24T04:43:34.3487745Z   Downloading pytz-2025.2-py2.py3-none-any.whl.metadata (22 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.3658067Z Collecting tzdata>=2022.7 (from pandas->-r backend/requirements.txt (line 5))
+build	Install runtime pip deps	2025-09-24T04:43:34.3691743Z   Downloading tzdata-2025.2-py2.py3-none-any.whl.metadata (1.4 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.4021369Z Collecting joblib>=1.2.0 (from scikit-learn->-r backend/requirements.txt (line 7))
+build	Install runtime pip deps	2025-09-24T04:43:34.4055599Z   Downloading joblib-1.5.2-py3-none-any.whl.metadata (5.6 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.4262512Z Collecting threadpoolctl>=3.1.0 (from scikit-learn->-r backend/requirements.txt (line 7))
+build	Install runtime pip deps	2025-09-24T04:43:34.4296720Z   Downloading threadpoolctl-3.6.0-py3-none-any.whl.metadata (13 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.5562775Z Collecting contourpy>=1.0.1 (from matplotlib->-r backend/requirements.txt (line 8))
+build	Install runtime pip deps	2025-09-24T04:43:34.5601180Z   Downloading contourpy-1.3.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (5.5 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.5731041Z Collecting cycler>=0.10 (from matplotlib->-r backend/requirements.txt (line 8))
+build	Install runtime pip deps	2025-09-24T04:43:34.5764671Z   Downloading cycler-0.12.1-py3-none-any.whl.metadata (3.8 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.7285230Z Collecting fonttools>=4.22.0 (from matplotlib->-r backend/requirements.txt (line 8))
+build	Install runtime pip deps	2025-09-24T04:43:34.7326503Z   Downloading fonttools-4.60.0-cp312-cp312-manylinux1_x86_64.manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_5_x86_64.whl.metadata (111 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.8040885Z Collecting kiwisolver>=1.3.1 (from matplotlib->-r backend/requirements.txt (line 8))
+build	Install runtime pip deps	2025-09-24T04:43:34.8077664Z   Downloading kiwisolver-1.4.9-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (6.3 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.8346064Z Collecting packaging>=20.0 (from matplotlib->-r backend/requirements.txt (line 8))
+build	Install runtime pip deps	2025-09-24T04:43:34.8380697Z   Downloading packaging-25.0-py3-none-any.whl.metadata (3.3 kB)
+build	Install runtime pip deps	2025-09-24T04:43:34.9985454Z Collecting pillow>=8 (from matplotlib->-r backend/requirements.txt (line 8))
+build	Install runtime pip deps	2025-09-24T04:43:35.0024188Z   Downloading pillow-11.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (9.0 kB)
+build	Install runtime pip deps	2025-09-24T04:43:35.0348261Z Collecting pyparsing>=2.3.1 (from matplotlib->-r backend/requirements.txt (line 8))
+build	Install runtime pip deps	2025-09-24T04:43:35.0386034Z   Downloading pyparsing-3.2.5-py3-none-any.whl.metadata (5.0 kB)
+build	Install runtime pip deps	2025-09-24T04:43:35.0558014Z Collecting six (from python-binance->-r backend/requirements.txt (line 10))
+build	Install runtime pip deps	2025-09-24T04:43:35.0592525Z   Downloading six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+build	Install runtime pip deps	2025-09-24T04:43:35.0736289Z Collecting dateparser (from python-binance->-r backend/requirements.txt (line 10))
+build	Install runtime pip deps	2025-09-24T04:43:35.0793026Z   Downloading dateparser-1.2.2-py3-none-any.whl.metadata (29 kB)
+build	Install runtime pip deps	2025-09-24T04:43:35.1681346Z Collecting websockets (from python-binance->-r backend/requirements.txt (line 10))
+build	Install runtime pip deps	2025-09-24T04:43:35.1722419Z   Downloading websockets-15.0.1-cp312-cp312-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.8 kB)
+build	Install runtime pip deps	2025-09-24T04:43:35.2551708Z Collecting pycryptodome (from python-binance->-r backend/requirements.txt (line 10))
+build	Install runtime pip deps	2025-09-24T04:43:35.2589995Z   Downloading pycryptodome-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (3.4 kB)
+build	Install runtime pip deps	2025-09-24T04:43:35.3725476Z Collecting cffi>=2.0.0 (from cryptography->-r backend/requirements.txt (line 12))
+build	Install runtime pip deps	2025-09-24T04:43:35.3767032Z   Downloading cffi-2.0.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (2.6 kB)
+build	Install runtime pip deps	2025-09-24T04:43:35.5373952Z Collecting charset_normalizer<4,>=2 (from requests->-r backend/requirements.txt (line 13))
+build	Install runtime pip deps	2025-09-24T04:43:35.5412800Z   Downloading charset_normalizer-3.4.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (36 kB)
+build	Install runtime pip deps	2025-09-24T04:43:35.5761300Z Collecting urllib3<3,>=1.21.1 (from requests->-r backend/requirements.txt (line 13))
+build	Install runtime pip deps	2025-09-24T04:43:35.5795031Z   Downloading urllib3-2.5.0-py3-none-any.whl.metadata (6.5 kB)
+build	Install runtime pip deps	2025-09-24T04:43:35.6013021Z Collecting certifi>=2017.4.17 (from requests->-r backend/requirements.txt (line 13))
+build	Install runtime pip deps	2025-09-24T04:43:35.6047231Z   Downloading certifi-2025.8.3-py3-none-any.whl.metadata (2.4 kB)
+build	Install runtime pip deps	2025-09-24T04:43:35.6278169Z Collecting aiohappyeyeballs>=2.5.0 (from aiohttp->-r backend/requirements.txt (line 14))
+build	Install runtime pip deps	2025-09-24T04:43:35.6312909Z   Downloading aiohappyeyeballs-2.6.1-py3-none-any.whl.metadata (5.9 kB)
+build	Install runtime pip deps	2025-09-24T04:43:35.6424655Z Collecting aiosignal>=1.4.0 (from aiohttp->-r backend/requirements.txt (line 14))
+build	Install runtime pip deps	2025-09-24T04:43:35.6458439Z   Downloading aiosignal-1.4.0-py3-none-any.whl.metadata (3.7 kB)
+build	Install runtime pip deps	2025-09-24T04:43:35.6614175Z Collecting attrs>=17.3.0 (from aiohttp->-r backend/requirements.txt (line 14))
+build	Install runtime pip deps	2025-09-24T04:43:35.6648319Z   Downloading attrs-25.3.0-py3-none-any.whl.metadata (10 kB)
+build	Install runtime pip deps	2025-09-24T04:43:35.7383148Z Collecting frozenlist>=1.1.1 (from aiohttp->-r backend/requirements.txt (line 14))
+build	Install runtime pip deps	2025-09-24T04:43:35.7420431Z   Downloading frozenlist-1.7.0-cp312-cp312-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (18 kB)
+build	Install runtime pip deps	2025-09-24T04:43:35.9667377Z Collecting multidict<7.0,>=4.5 (from aiohttp->-r backend/requirements.txt (line 14))
+build	Install runtime pip deps	2025-09-24T04:43:35.9707808Z   Downloading multidict-6.6.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (5.3 kB)
+build	Install runtime pip deps	2025-09-24T04:43:36.0147528Z Collecting propcache>=0.2.0 (from aiohttp->-r backend/requirements.txt (line 14))
+build	Install runtime pip deps	2025-09-24T04:43:36.0181736Z   Downloading propcache-0.3.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (12 kB)
+build	Install runtime pip deps	2025-09-24T04:43:36.2653479Z Collecting yarl<2.0,>=1.17.0 (from aiohttp->-r backend/requirements.txt (line 14))
+build	Install runtime pip deps	2025-09-24T04:43:36.2705657Z   Downloading yarl-1.20.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (73 kB)
+build	Install runtime pip deps	2025-09-24T04:43:36.3183847Z Collecting pycparser (from cffi>=2.0.0->cryptography->-r backend/requirements.txt (line 12))
+build	Install runtime pip deps	2025-09-24T04:43:36.3224246Z   Downloading pycparser-2.23-py3-none-any.whl.metadata (993 bytes)
+build	Install runtime pip deps	2025-09-24T04:43:36.8104421Z Collecting regex>=2024.9.11 (from dateparser->python-binance->-r backend/requirements.txt (line 10))
+build	Install runtime pip deps	2025-09-24T04:43:36.8145757Z   Downloading regex-2025.9.18-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (40 kB)
+build	Install runtime pip deps	2025-09-24T04:43:36.8344399Z Collecting tzlocal>=0.2 (from dateparser->python-binance->-r backend/requirements.txt (line 10))
+build	Install runtime pip deps	2025-09-24T04:43:36.8378615Z   Downloading tzlocal-5.3.1-py3-none-any.whl.metadata (7.6 kB)
+build	Install runtime pip deps	2025-09-24T04:43:36.8575881Z Downloading fastapi-0.117.1-py3-none-any.whl (95 kB)
+build	Install runtime pip deps	2025-09-24T04:43:36.8634095Z Downloading pydantic-2.11.9-py3-none-any.whl (444 kB)
+build	Install runtime pip deps	2025-09-24T04:43:36.8715387Z Downloading pydantic_core-2.33.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.0 MB)
+build	Install runtime pip deps	2025-09-24T04:43:36.8841306Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.0/2.0 MB 176.3 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:36.8876670Z Downloading starlette-0.48.0-py3-none-any.whl (73 kB)
+build	Install runtime pip deps	2025-09-24T04:43:36.8929543Z Downloading anyio-4.11.0-py3-none-any.whl (109 kB)
+build	Install runtime pip deps	2025-09-24T04:43:36.8986415Z Downloading uvicorn-0.37.0-py3-none-any.whl (67 kB)
+build	Install runtime pip deps	2025-09-24T04:43:36.9040903Z Downloading sqlalchemy-2.0.43-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.3 MB)
+build	Install runtime pip deps	2025-09-24T04:43:36.9206751Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.3/3.3 MB 215.3 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:36.9243756Z Downloading xgboost-3.0.5-py3-none-manylinux_2_28_x86_64.whl (94.9 MB)
+build	Install runtime pip deps	2025-09-24T04:43:37.2960036Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 94.9/94.9 MB 256.4 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:37.2995840Z Downloading pandas-2.3.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (12.0 MB)
+build	Install runtime pip deps	2025-09-24T04:43:37.3501350Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.0/12.0 MB 244.9 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:37.3540773Z Downloading numpy-2.3.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (16.6 MB)
+build	Install runtime pip deps	2025-09-24T04:43:37.4304390Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.6/16.6 MB 222.1 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:37.4341899Z Downloading scikit_learn-1.7.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (9.5 MB)
+build	Install runtime pip deps	2025-09-24T04:43:37.4760466Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9.5/9.5 MB 233.6 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:37.4795680Z Downloading matplotlib-3.10.6-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (8.7 MB)
+build	Install runtime pip deps	2025-09-24T04:43:37.5215719Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 8.7/8.7 MB 214.5 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:37.5263794Z Downloading binance-0.3.70-py3-none-any.whl (854 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.5332521Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 854.6/854.6 kB 130.4 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:37.5375494Z Downloading python_binance-1.0.29-py2.py3-none-any.whl (130 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.5433745Z Downloading python_dotenv-1.1.1-py3-none-any.whl (20 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.5490736Z Downloading cryptography-46.0.1-cp311-abi3-manylinux_2_34_x86_64.whl (4.6 MB)
+build	Install runtime pip deps	2025-09-24T04:43:37.5737823Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.6/4.6 MB 208.5 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:37.5780595Z Downloading requests-2.32.5-py3-none-any.whl (64 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.5846791Z Downloading charset_normalizer-3.4.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (151 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.5910526Z Downloading idna-3.10-py3-none-any.whl (70 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.5962286Z Downloading urllib3-2.5.0-py3-none-any.whl (129 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.6019123Z Downloading aiohttp-3.12.15-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.7 MB)
+build	Install runtime pip deps	2025-09-24T04:43:37.6131767Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.7/1.7 MB 164.2 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:37.6169852Z Downloading multidict-6.6.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (256 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.6232523Z Downloading yarl-1.20.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (355 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.6299717Z Downloading aiohappyeyeballs-2.6.1-py3-none-any.whl (15 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.6353238Z Downloading aiosignal-1.4.0-py3-none-any.whl (7.5 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.6409819Z Downloading annotated_types-0.7.0-py3-none-any.whl (13 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.6459881Z Downloading attrs-25.3.0-py3-none-any.whl (63 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.6511267Z Downloading certifi-2025.8.3-py3-none-any.whl (161 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.6568121Z Downloading cffi-2.0.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (219 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.6623876Z Downloading click-8.3.0-py3-none-any.whl (107 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.6676649Z Downloading contourpy-1.3.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (362 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.6742136Z Downloading cycler-0.12.1-py3-none-any.whl (8.3 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.6797099Z Downloading fonttools-4.60.0-cp312-cp312-manylinux1_x86_64.manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_5_x86_64.whl (4.9 MB)
+build	Install runtime pip deps	2025-09-24T04:43:37.7036262Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.9/4.9 MB 215.9 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:37.7075645Z Downloading frozenlist-1.7.0-cp312-cp312-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (241 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.7136096Z Downloading greenlet-3.2.4-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (607 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.7200345Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 607.6/607.6 kB 99.4 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:37.7238396Z Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.7311329Z Downloading joblib-1.5.2-py3-none-any.whl (308 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.7377356Z Downloading kiwisolver-1.4.9-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (1.5 MB)
+build	Install runtime pip deps	2025-09-24T04:43:37.7469131Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.5/1.5 MB 173.6 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:37.7502610Z Downloading packaging-25.0-py3-none-any.whl (66 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.7559356Z Downloading pillow-11.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (6.6 MB)
+build	Install runtime pip deps	2025-09-24T04:43:37.7869107Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.6/6.6 MB 224.6 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:37.7907525Z Downloading propcache-0.3.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (224 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.7970328Z Downloading pyparsing-3.2.5-py3-none-any.whl (113 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.8027207Z Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.8088510Z Downloading pytz-2025.2-py2.py3-none-any.whl (509 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.8159555Z Downloading scipy-1.16.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (35.7 MB)
+build	Install runtime pip deps	2025-09-24T04:43:37.9588088Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 35.7/35.7 MB 252.5 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:37.9624445Z Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.9677654Z Downloading sniffio-1.3.1-py3-none-any.whl (10 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.9728501Z Downloading threadpoolctl-3.6.0-py3-none-any.whl (18 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.9785271Z Downloading typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.9839613Z Downloading typing_inspection-0.4.1-py3-none-any.whl (14 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.9890166Z Downloading tzdata-2025.2-py2.py3-none-any.whl (347 kB)
+build	Install runtime pip deps	2025-09-24T04:43:37.9953016Z Downloading dateparser-1.2.2-py3-none-any.whl (315 kB)
+build	Install runtime pip deps	2025-09-24T04:43:38.0020650Z Downloading regex-2025.9.18-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (802 kB)
+build	Install runtime pip deps	2025-09-24T04:43:38.0089703Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 802.0/802.0 kB 132.8 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:38.0122060Z Downloading tzlocal-5.3.1-py3-none-any.whl (18 kB)
+build	Install runtime pip deps	2025-09-24T04:43:38.0172564Z Downloading nvidia_nccl_cu12-2.28.3-py3-none-manylinux_2_18_x86_64.whl (295.9 MB)
+build	Install runtime pip deps	2025-09-24T04:43:39.5504929Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 295.9/295.9 MB 183.0 MB/s  0:00:01
+build	Install runtime pip deps	2025-09-24T04:43:39.5543455Z Downloading pycparser-2.23-py3-none-any.whl (118 kB)
+build	Install runtime pip deps	2025-09-24T04:43:39.5604922Z Downloading pycryptodome-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.3 MB)
+build	Install runtime pip deps	2025-09-24T04:43:39.5735859Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.3/2.3 MB 189.4 MB/s  0:00:00
+build	Install runtime pip deps	2025-09-24T04:43:39.5771494Z Downloading websockets-15.0.1-cp312-cp312-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (182 kB)
+build	Install runtime pip deps	2025-09-24T04:43:40.1895248Z Installing collected packages: pytz, websockets, urllib3, tzlocal, tzdata, typing-extensions, threadpoolctl, sniffio, six, regex, python-dotenv, pyparsing, pycryptodome, pycparser, propcache, pillow, packaging, nvidia-nccl-cu12, numpy, multidict, kiwisolver, joblib, idna, h11, greenlet, frozenlist, fonttools, cycler, click, charset_normalizer, certifi, binance, attrs, annotated-types, aiohappyeyeballs, yarl, uvicorn, typing-inspection, sqlalchemy, scipy, requests, python-dateutil, pydantic-core, contourpy, cffi, anyio, aiosignal, xgboost, starlette, scikit-learn, pydantic, pandas, matplotlib, dateparser, cryptography, aiohttp, python-binance, fastapi
+build	Install runtime pip deps	2025-09-24T04:44:04.3596250Z 
+build	Install runtime pip deps	2025-09-24T04:44:04.3655896Z Successfully installed aiohappyeyeballs-2.6.1 aiohttp-3.12.15 aiosignal-1.4.0 annotated-types-0.7.0 anyio-4.11.0 attrs-25.3.0 binance-0.3.70 certifi-2025.8.3 cffi-2.0.0 charset_normalizer-3.4.3 click-8.3.0 contourpy-1.3.3 cryptography-46.0.1 cycler-0.12.1 dateparser-1.2.2 fastapi-0.117.1 fonttools-4.60.0 frozenlist-1.7.0 greenlet-3.2.4 h11-0.16.0 idna-3.10 joblib-1.5.2 kiwisolver-1.4.9 matplotlib-3.10.6 multidict-6.6.4 numpy-2.3.3 nvidia-nccl-cu12-2.28.3 packaging-25.0 pandas-2.3.2 pillow-11.3.0 propcache-0.3.2 pycparser-2.23 pycryptodome-3.23.0 pydantic-2.11.9 pydantic-core-2.33.2 pyparsing-3.2.5 python-binance-1.0.29 python-dateutil-2.9.0.post0 python-dotenv-1.1.1 pytz-2025.2 regex-2025.9.18 requests-2.32.5 scikit-learn-1.7.2 scipy-1.16.2 six-1.17.0 sniffio-1.3.1 sqlalchemy-2.0.43 starlette-0.48.0 threadpoolctl-3.6.0 typing-extensions-4.15.0 typing-inspection-0.4.1 tzdata-2025.2 tzlocal-5.3.1 urllib3-2.5.0 uvicorn-0.37.0 websockets-15.0.1 xgboost-3.0.5 yarl-1.20.1
+build	Diagnostic - pip list (after install)	﻿2025-09-24T04:44:05.2414185Z ##[group]Run python -m pip list --format=freeze | sort > pip-list-after.txt || true
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.2414797Z [36;1mpython -m pip list --format=freeze | sort > pip-list-after.txt || true[0m
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.2415174Z [36;1mecho "Wrote pip-list-after.txt"[0m
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.2415455Z [36;1mhead -n 50 pip-list-after.txt || true[0m
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.2445843Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.2446144Z env:
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.2446378Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.2446766Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib/pkgconfig
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.2447146Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.2447495Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.2447854Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.2448190Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.2448501Z ##[endgroup]
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5023285Z Wrote pip-list-after.txt
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5033822Z SQLAlchemy==2.0.43
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5034516Z aiohappyeyeballs==2.6.1
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5034894Z aiohttp==3.12.15
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5035212Z aiosignal==1.4.0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5035524Z annotated-types==0.7.0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5035893Z anyio==4.11.0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5036163Z attrs==25.3.0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5036475Z binance==0.3.70
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5036800Z certifi==2025.8.3
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5037138Z cffi==2.0.0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5037474Z charset-normalizer==3.4.3
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5038059Z click==8.3.0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5038437Z contourpy==1.3.3
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5038795Z cryptography==46.0.1
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5039161Z cycler==0.12.1
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5039490Z dateparser==1.2.2
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5039848Z fastapi==0.117.1
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5040123Z fonttools==4.60.0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5040412Z frozenlist==1.7.0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5040707Z greenlet==3.2.4
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5040944Z h11==0.16.0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5041138Z idna==3.10
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5041339Z joblib==1.5.2
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5041557Z kiwisolver==1.4.9
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5041778Z matplotlib==3.10.6
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5042005Z multidict==6.6.4
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5042215Z numpy==2.3.3
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5042434Z nvidia-nccl-cu12==2.28.3
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5042696Z packaging==25.0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5042909Z pandas==2.3.2
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5043115Z pillow==11.3.0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5043316Z pip==25.2
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5043757Z propcache==0.3.2
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5043984Z pycparser==2.23
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5044205Z pycryptodome==3.23.0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5044438Z pydantic==2.11.9
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5044658Z pydantic_core==2.33.2
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5044893Z pyparsing==3.2.5
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5045111Z python-binance==1.0.29
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5045370Z python-dateutil==2.9.0.post0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5045641Z python-dotenv==1.1.1
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5045869Z pytz==2025.2
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5046078Z regex==2025.9.18
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5046283Z requests==2.32.5
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5046500Z scikit-learn==1.7.2
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5046721Z scipy==1.16.2
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5046921Z six==1.17.0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5047113Z sniffio==1.3.1
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5047326Z starlette==0.48.0
+build	Diagnostic - pip list (after install)	2025-09-24T04:44:05.5047555Z threadpoolctl==3.6.0
+build	Upload pip-list artifacts	﻿2025-09-24T04:44:05.5083800Z ##[group]Run actions/upload-artifact@v4
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5084121Z with:
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5084285Z   name: pip-lists-ci
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5084520Z   path: pip-list-before.txt
+build	Upload pip-list artifacts	pip-list-after.txt
+build	Upload pip-list artifacts	
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5084790Z   if-no-files-found: warn
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5084996Z   compression-level: 6
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5085177Z   overwrite: false
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5085367Z   include-hidden-files: false
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5085566Z env:
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5085780Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5086177Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib/pkgconfig
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5086559Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5086897Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5087238Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5087609Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib
+build	Upload pip-list artifacts	2025-09-24T04:44:05.5087932Z ##[endgroup]
+build	Upload pip-list artifacts	2025-09-24T04:44:05.7192052Z Multiple search paths detected. Calculating the least common ancestor of all paths
+build	Upload pip-list artifacts	2025-09-24T04:44:05.7195677Z The least common ancestor is /home/runner/work/quantum_trader/quantum_trader. This will be the root directory of the artifact
+build	Upload pip-list artifacts	2025-09-24T04:44:05.7196495Z With the provided path, there will be 2 files uploaded
+build	Upload pip-list artifacts	2025-09-24T04:44:05.7201666Z Artifact name is valid!
+build	Upload pip-list artifacts	2025-09-24T04:44:05.7203087Z Root directory input is valid!
+build	Upload pip-list artifacts	2025-09-24T04:44:05.8178851Z Beginning upload of artifact content to blob storage
+build	Upload pip-list artifacts	2025-09-24T04:44:05.8898616Z Uploaded bytes 875
+build	Upload pip-list artifacts	2025-09-24T04:44:05.9044175Z Finished uploading artifact content to blob storage!
+build	Upload pip-list artifacts	2025-09-24T04:44:05.9048103Z SHA256 digest of uploaded artifact zip is 0f55216535f2429fefc73da04cb1edc6bc24afbd507aedf5719afc96291a0ad3
+build	Upload pip-list artifacts	2025-09-24T04:44:05.9049927Z Finalizing artifact upload
+build	Upload pip-list artifacts	2025-09-24T04:44:05.9751829Z Artifact pip-lists-ci.zip successfully finalized. Artifact ID 4089932981
+build	Upload pip-list artifacts	2025-09-24T04:44:05.9753031Z Artifact pip-lists-ci has been successfully uploaded! Final size is 875 bytes. Artifact ID is 4089932981
+build	Upload pip-list artifacts	2025-09-24T04:44:05.9760150Z Artifact download URL: https://github.com/binyaminsemerci-ops/quantum_trader/actions/runs/17966551433/artifacts/4089932981
+build	Install Node.js (for frontend audit)	﻿2025-09-24T04:44:05.9876941Z ##[group]Run actions/setup-node@v4
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:05.9877193Z with:
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:05.9877364Z   node-version: 18
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:05.9877553Z   always-auth: false
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:05.9877741Z   check-latest: false
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:05.9878426Z   token: ***
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:05.9878620Z env:
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:05.9878857Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:05.9879252Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib/pkgconfig
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:05.9879663Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:05.9880017Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:05.9880355Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:05.9880701Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:05.9881022Z ##[endgroup]
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:06.1991837Z Found in cache @ /opt/hostedtoolcache/node/18.20.8/x64
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:06.1999683Z ##[group]Environment details
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:08.4169884Z node: v18.20.8
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:08.4170366Z npm: 10.8.2
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:08.4170680Z yarn: 1.22.22
+build	Install Node.js (for frontend audit)	2025-09-24T04:44:08.4171370Z ##[endgroup]
+build	Install linters and security tools	﻿2025-09-24T04:44:08.4284960Z ##[group]Run # Install only linters and security scanners into an isolated virtualenv
+build	Install linters and security tools	2025-09-24T04:44:08.4285527Z [36;1m# Install only linters and security scanners into an isolated virtualenv[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4285986Z [36;1m# so the shared runtime environment remains free of test-only packages[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4286429Z [36;1m# when we check for dev-only packages installed in runtime.[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4286773Z [36;1m  python -m pip install --upgrade pip[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4287110Z [36;1m  # Create the venv that will host linters/security tools.[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4287489Z [36;1m  # Use --system-site-packages so the venv can see the runtime[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4287889Z [36;1m  # packages we installed earlier in the job. This lets mypy (and[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4288292Z [36;1m  # other tools) import application packages without installing[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4288686Z [36;1m  # runtime deps into the venv and avoids false "import-not-found"[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4289035Z [36;1m  # errors.[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4289292Z [36;1m  python -m venv .venv_linters --system-site-packages[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4289701Z [36;1m  # Use the venv's pip to install tools (this keeps their deps out of[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4290052Z [36;1m  # the runner's global site-packages).[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4290358Z [36;1m  .venv_linters/bin/pip install --upgrade pip[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4290720Z [36;1m  .venv_linters/bin/pip install ruff mypy black bandit safety[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4291139Z [36;1m  # Install common third-party type stubs so mypy can analyze[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4291546Z [36;1m  # requests, pandas and sklearn without spurious "library stubs[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4291944Z [36;1m  # not installed" errors. Also install pytest into the linters[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4292320Z [36;1m  # venv so mypy can import test packages when we run the[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4292619Z [36;1m  # post-test mypy check.[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4293099Z [36;1m  .venv_linters/bin/pip install types-requests pandas-stubs scikit-learn-stubs types-python-dateutil pytest[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4293881Z [36;1m  # Put the venv on PATH using the supported environment file so[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4294257Z [36;1m  # subsequent steps can invoke the tools by name.[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4294896Z [36;1m  echo "/home/runner/work/quantum_trader/quantum_trader/.venv_linters/bin" >> $GITHUB_PATH[0m
+build	Install linters and security tools	2025-09-24T04:44:08.4403178Z shell: /usr/bin/bash -e {0}
+build	Install linters and security tools	2025-09-24T04:44:08.4403412Z env:
+build	Install linters and security tools	2025-09-24T04:44:08.4403852Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Install linters and security tools	2025-09-24T04:44:08.4404267Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib/pkgconfig
+build	Install linters and security tools	2025-09-24T04:44:08.4404659Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Install linters and security tools	2025-09-24T04:44:08.4405016Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Install linters and security tools	2025-09-24T04:44:08.4405361Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Install linters and security tools	2025-09-24T04:44:08.4405707Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib
+build	Install linters and security tools	2025-09-24T04:44:08.4406002Z ##[endgroup]
+build	Install linters and security tools	2025-09-24T04:44:09.2870838Z Requirement already satisfied: pip in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (25.2)
+build	Install linters and security tools	2025-09-24T04:44:12.9288572Z Requirement already satisfied: pip in ./.venv_linters/lib/python3.12/site-packages (25.0.1)
+build	Install linters and security tools	2025-09-24T04:44:12.9916503Z Collecting pip
+build	Install linters and security tools	2025-09-24T04:44:13.0340237Z   Downloading pip-25.2-py3-none-any.whl.metadata (4.7 kB)
+build	Install linters and security tools	2025-09-24T04:44:13.0426192Z Downloading pip-25.2-py3-none-any.whl (1.8 MB)
+build	Install linters and security tools	2025-09-24T04:44:13.0731406Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 102.6 MB/s eta 0:00:00
+build	Install linters and security tools	2025-09-24T04:44:13.1780585Z Installing collected packages: pip
+build	Install linters and security tools	2025-09-24T04:44:13.1781554Z   Attempting uninstall: pip
+build	Install linters and security tools	2025-09-24T04:44:13.1804686Z     Found existing installation: pip 25.0.1
+build	Install linters and security tools	2025-09-24T04:44:13.2167842Z     Uninstalling pip-25.0.1:
+build	Install linters and security tools	2025-09-24T04:44:13.2224650Z       Successfully uninstalled pip-25.0.1
+build	Install linters and security tools	2025-09-24T04:44:14.1061569Z Successfully installed pip-25.2
+build	Install linters and security tools	2025-09-24T04:44:15.0582384Z Collecting ruff
+build	Install linters and security tools	2025-09-24T04:44:15.0907163Z   Downloading ruff-0.13.1-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (25 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.1980744Z Collecting mypy
+build	Install linters and security tools	2025-09-24T04:44:15.2026309Z   Downloading mypy-1.18.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.2 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.2511111Z Collecting black
+build	Install linters and security tools	2025-09-24T04:44:15.2550834Z   Downloading black-25.9.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl.metadata (83 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.2828950Z Collecting bandit
+build	Install linters and security tools	2025-09-24T04:44:15.2864042Z   Downloading bandit-1.8.6-py3-none-any.whl.metadata (6.9 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.3149548Z Collecting safety
+build	Install linters and security tools	2025-09-24T04:44:15.3184323Z   Downloading safety-3.6.1-py3-none-any.whl.metadata (11 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.3252448Z Requirement already satisfied: typing_extensions>=4.6.0 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from mypy) (4.15.0)
+build	Install linters and security tools	2025-09-24T04:44:15.3325753Z Collecting mypy_extensions>=1.0.0 (from mypy)
+build	Install linters and security tools	2025-09-24T04:44:15.3358964Z   Downloading mypy_extensions-1.1.0-py3-none-any.whl.metadata (1.1 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.3484001Z Collecting pathspec>=0.9.0 (from mypy)
+build	Install linters and security tools	2025-09-24T04:44:15.3517644Z   Downloading pathspec-0.12.1-py3-none-any.whl.metadata (21 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.3571018Z Requirement already satisfied: click>=8.0.0 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from black) (8.3.0)
+build	Install linters and security tools	2025-09-24T04:44:15.3585221Z Requirement already satisfied: packaging>=22.0 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from black) (25.0)
+build	Install linters and security tools	2025-09-24T04:44:15.3799731Z Collecting platformdirs>=2 (from black)
+build	Install linters and security tools	2025-09-24T04:44:15.3834412Z   Downloading platformdirs-4.4.0-py3-none-any.whl.metadata (12 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.3962315Z Collecting pytokens>=0.1.10 (from black)
+build	Install linters and security tools	2025-09-24T04:44:15.3996526Z   Downloading pytokens-0.1.10-py3-none-any.whl.metadata (2.0 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.4360738Z Collecting PyYAML>=5.3.1 (from bandit)
+build	Install linters and security tools	2025-09-24T04:44:15.4399142Z   Downloading PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (2.1 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.4631658Z Collecting stevedore>=1.20.0 (from bandit)
+build	Install linters and security tools	2025-09-24T04:44:15.4681815Z   Downloading stevedore-5.5.0-py3-none-any.whl.metadata (2.2 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.5108401Z Collecting rich (from bandit)
+build	Install linters and security tools	2025-09-24T04:44:15.5146128Z   Downloading rich-14.1.0-py3-none-any.whl.metadata (18 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.5344635Z Collecting authlib>=1.2.0 (from safety)
+build	Install linters and security tools	2025-09-24T04:44:15.5379669Z   Downloading authlib-1.6.4-py2.py3-none-any.whl.metadata (9.8 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.5495161Z Collecting dparse>=0.6.4 (from safety)
+build	Install linters and security tools	2025-09-24T04:44:15.5530927Z   Downloading dparse-0.6.4-py3-none-any.whl.metadata (5.5 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.5729787Z Collecting filelock<4.0,>=3.16.1 (from safety)
+build	Install linters and security tools	2025-09-24T04:44:15.5772994Z   Downloading filelock-3.19.1-py3-none-any.whl.metadata (2.1 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.5979331Z Collecting httpx (from safety)
+build	Install linters and security tools	2025-09-24T04:44:15.6013945Z   Downloading httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.6183446Z Collecting jinja2>=3.1.0 (from safety)
+build	Install linters and security tools	2025-09-24T04:44:15.6217595Z   Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.6592018Z Collecting marshmallow>=3.15.0 (from safety)
+build	Install linters and security tools	2025-09-24T04:44:15.6626958Z   Downloading marshmallow-4.0.1-py3-none-any.whl.metadata (7.4 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.6795317Z Collecting nltk>=3.9 (from safety)
+build	Install linters and security tools	2025-09-24T04:44:15.6829593Z   Downloading nltk-3.9.1-py3-none-any.whl.metadata (2.9 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.7552176Z Collecting psutil<8.0,>=6.1.0 (from safety)
+build	Install linters and security tools	2025-09-24T04:44:15.7588008Z   Downloading psutil-7.1.0-cp36-abi3-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (23 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.8977977Z Collecting pydantic<2.10.0,>=2.6.0 (from safety)
+build	Install linters and security tools	2025-09-24T04:44:15.9014675Z   Downloading pydantic-2.9.2-py3-none-any.whl.metadata (149 kB)
+build	Install linters and security tools	2025-09-24T04:44:15.9128424Z Requirement already satisfied: requests in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from safety) (2.32.5)
+build	Install linters and security tools	2025-09-24T04:44:16.0529437Z Collecting ruamel-yaml>=0.17.21 (from safety)
+build	Install linters and security tools	2025-09-24T04:44:16.0566954Z   Downloading ruamel.yaml-0.18.15-py3-none-any.whl.metadata (25 kB)
+build	Install linters and security tools	2025-09-24T04:44:16.0707799Z Collecting safety-schemas==0.0.14 (from safety)
+build	Install linters and security tools	2025-09-24T04:44:16.0740831Z   Downloading safety_schemas-0.0.14-py3-none-any.whl.metadata (1.1 kB)
+build	Install linters and security tools	2025-09-24T04:44:16.1894429Z Collecting setuptools>=65.5.1 (from safety)
+build	Install linters and security tools	2025-09-24T04:44:16.1930455Z   Downloading setuptools-80.9.0-py3-none-any.whl.metadata (6.6 kB)
+build	Install linters and security tools	2025-09-24T04:44:16.2175356Z Collecting tenacity (from safety)
+build	Install linters and security tools	2025-09-24T04:44:16.2209404Z   Downloading tenacity-9.1.2-py3-none-any.whl.metadata (1.2 kB)
+build	Install linters and security tools	2025-09-24T04:44:16.2390774Z Collecting tomlkit (from safety)
+build	Install linters and security tools	2025-09-24T04:44:16.2428660Z   Downloading tomlkit-0.13.3-py3-none-any.whl.metadata (2.8 kB)
+build	Install linters and security tools	2025-09-24T04:44:16.2623724Z Collecting typer>=0.16.0 (from safety)
+build	Install linters and security tools	2025-09-24T04:44:16.2658229Z   Downloading typer-0.19.2-py3-none-any.whl.metadata (16 kB)
+build	Install linters and security tools	2025-09-24T04:44:16.2740732Z Requirement already satisfied: annotated-types>=0.6.0 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from pydantic<2.10.0,>=2.6.0->safety) (0.7.0)
+build	Install linters and security tools	2025-09-24T04:44:16.9175791Z Collecting pydantic-core==2.23.4 (from pydantic<2.10.0,>=2.6.0->safety)
+build	Install linters and security tools	2025-09-24T04:44:16.9212173Z   Downloading pydantic_core-2.23.4-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.6 kB)
+build	Install linters and security tools	2025-09-24T04:44:16.9285123Z Requirement already satisfied: cryptography in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from authlib>=1.2.0->safety) (46.0.1)
+build	Install linters and security tools	2025-09-24T04:44:16.9776394Z Collecting MarkupSafe>=2.0 (from jinja2>=3.1.0->safety)
+build	Install linters and security tools	2025-09-24T04:44:16.9812945Z   Downloading MarkupSafe-3.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.0 kB)
+build	Install linters and security tools	2025-09-24T04:44:16.9886166Z Requirement already satisfied: joblib in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from nltk>=3.9->safety) (1.5.2)
+build	Install linters and security tools	2025-09-24T04:44:16.9890404Z Requirement already satisfied: regex>=2021.8.3 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from nltk>=3.9->safety) (2025.9.18)
+build	Install linters and security tools	2025-09-24T04:44:17.0206907Z Collecting tqdm (from nltk>=3.9->safety)
+build	Install linters and security tools	2025-09-24T04:44:17.0240438Z   Downloading tqdm-4.67.1-py3-none-any.whl.metadata (57 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.0713354Z Collecting ruamel.yaml.clib>=0.2.7 (from ruamel-yaml>=0.17.21->safety)
+build	Install linters and security tools	2025-09-24T04:44:17.0750633Z   Downloading ruamel.yaml.clib-0.2.14-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (3.0 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.0932520Z Collecting shellingham>=1.3.0 (from typer>=0.16.0->safety)
+build	Install linters and security tools	2025-09-24T04:44:17.0965746Z   Downloading shellingham-1.5.4-py2.py3-none-any.whl.metadata (3.5 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.1254465Z Collecting markdown-it-py>=2.2.0 (from rich->bandit)
+build	Install linters and security tools	2025-09-24T04:44:17.1288653Z   Downloading markdown_it_py-4.0.0-py3-none-any.whl.metadata (7.3 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.1558400Z Collecting pygments<3.0.0,>=2.13.0 (from rich->bandit)
+build	Install linters and security tools	2025-09-24T04:44:17.1592234Z   Downloading pygments-2.19.2-py3-none-any.whl.metadata (2.5 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.1711629Z Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich->bandit)
+build	Install linters and security tools	2025-09-24T04:44:17.1746401Z   Downloading mdurl-0.1.2-py3-none-any.whl.metadata (1.6 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.1826937Z Requirement already satisfied: cffi>=2.0.0 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from cryptography->authlib>=1.2.0->safety) (2.0.0)
+build	Install linters and security tools	2025-09-24T04:44:17.1863935Z Requirement already satisfied: pycparser in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from cffi>=2.0.0->cryptography->authlib>=1.2.0->safety) (2.23)
+build	Install linters and security tools	2025-09-24T04:44:17.1879346Z Requirement already satisfied: anyio in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from httpx->safety) (4.11.0)
+build	Install linters and security tools	2025-09-24T04:44:17.1882877Z Requirement already satisfied: certifi in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from httpx->safety) (2025.8.3)
+build	Install linters and security tools	2025-09-24T04:44:17.2055521Z Collecting httpcore==1.* (from httpx->safety)
+build	Install linters and security tools	2025-09-24T04:44:17.2092085Z   Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.2147738Z Requirement already satisfied: idna in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from httpx->safety) (3.10)
+build	Install linters and security tools	2025-09-24T04:44:17.2165584Z Requirement already satisfied: h11>=0.16 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from httpcore==1.*->httpx->safety) (0.16.0)
+build	Install linters and security tools	2025-09-24T04:44:17.2190311Z Requirement already satisfied: sniffio>=1.1 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from anyio->httpx->safety) (1.3.1)
+build	Install linters and security tools	2025-09-24T04:44:17.2263303Z Requirement already satisfied: charset_normalizer<4,>=2 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from requests->safety) (3.4.3)
+build	Install linters and security tools	2025-09-24T04:44:17.2271343Z Requirement already satisfied: urllib3<3,>=1.21.1 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from requests->safety) (2.5.0)
+build	Install linters and security tools	2025-09-24T04:44:17.2398916Z Downloading ruff-0.13.1-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (13.2 MB)
+build	Install linters and security tools	2025-09-24T04:44:17.3058680Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 13.2/13.2 MB 206.3 MB/s  0:00:00
+build	Install linters and security tools	2025-09-24T04:44:17.3098311Z Downloading mypy-1.18.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (13.3 MB)
+build	Install linters and security tools	2025-09-24T04:44:17.3832890Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 13.3/13.3 MB 185.7 MB/s  0:00:00
+build	Install linters and security tools	2025-09-24T04:44:17.3881649Z Downloading black-25.9.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl (1.7 MB)
+build	Install linters and security tools	2025-09-24T04:44:17.4019609Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.7/1.7 MB 132.1 MB/s  0:00:00
+build	Install linters and security tools	2025-09-24T04:44:17.4054877Z Downloading bandit-1.8.6-py3-none-any.whl (133 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.4121497Z Downloading safety-3.6.1-py3-none-any.whl (286 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.4199845Z Downloading safety_schemas-0.0.14-py3-none-any.whl (39 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.4251593Z Downloading filelock-3.19.1-py3-none-any.whl (15 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.4304358Z Downloading psutil-7.1.0-cp36-abi3-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (291 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.4371416Z Downloading pydantic-2.9.2-py3-none-any.whl (434 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.4491797Z Downloading pydantic_core-2.23.4-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.1 MB)
+build	Install linters and security tools	2025-09-24T04:44:17.4629986Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 161.8 MB/s  0:00:00
+build	Install linters and security tools	2025-09-24T04:44:17.4669009Z Downloading authlib-1.6.4-py2.py3-none-any.whl (243 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.4762385Z Downloading dparse-0.6.4-py3-none-any.whl (11 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.4816307Z Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.4875436Z Downloading MarkupSafe-3.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (23 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.4930050Z Downloading marshmallow-4.0.1-py3-none-any.whl (48 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.4995361Z Downloading mypy_extensions-1.1.0-py3-none-any.whl (5.0 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.5046416Z Downloading nltk-3.9.1-py3-none-any.whl (1.5 MB)
+build	Install linters and security tools	2025-09-24T04:44:17.5145612Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.5/1.5 MB 166.3 MB/s  0:00:00
+build	Install linters and security tools	2025-09-24T04:44:17.5177668Z Downloading pathspec-0.12.1-py3-none-any.whl (31 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.5230148Z Downloading platformdirs-4.4.0-py3-none-any.whl (18 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.5291774Z Downloading pytokens-0.1.10-py3-none-any.whl (12 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.5349164Z Downloading PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (767 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.5420868Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 767.5/767.5 kB 104.3 MB/s  0:00:00
+build	Install linters and security tools	2025-09-24T04:44:17.5459274Z Downloading ruamel.yaml-0.18.15-py3-none-any.whl (119 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.5520590Z Downloading ruamel.yaml.clib-0.2.14-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (753 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.5582646Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 753.1/753.1 kB 122.4 MB/s  0:00:00
+build	Install linters and security tools	2025-09-24T04:44:17.5618100Z Downloading setuptools-80.9.0-py3-none-any.whl (1.2 MB)
+build	Install linters and security tools	2025-09-24T04:44:17.5701995Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 154.0 MB/s  0:00:00
+build	Install linters and security tools	2025-09-24T04:44:17.5734261Z Downloading stevedore-5.5.0-py3-none-any.whl (49 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.5784230Z Downloading typer-0.19.2-py3-none-any.whl (46 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.5844808Z Downloading rich-14.1.0-py3-none-any.whl (243 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.5906532Z Downloading pygments-2.19.2-py3-none-any.whl (1.2 MB)
+build	Install linters and security tools	2025-09-24T04:44:17.5999753Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 139.4 MB/s  0:00:00
+build	Install linters and security tools	2025-09-24T04:44:17.6035214Z Downloading markdown_it_py-4.0.0-py3-none-any.whl (87 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.6092266Z Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.6145429Z Downloading shellingham-1.5.4-py2.py3-none-any.whl (9.8 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.6196546Z Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.6286957Z Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.6360257Z Downloading tenacity-9.1.2-py3-none-any.whl (28 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.6417974Z Downloading tomlkit-0.13.3-py3-none-any.whl (38 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.6470020Z Downloading tqdm-4.67.1-py3-none-any.whl (78 kB)
+build	Install linters and security tools	2025-09-24T04:44:17.8772853Z Installing collected packages: tqdm, tomlkit, tenacity, stevedore, shellingham, setuptools, ruff, ruamel.yaml.clib, PyYAML, pytokens, pygments, pydantic-core, psutil, platformdirs, pathspec, mypy_extensions, mdurl, marshmallow, MarkupSafe, httpcore, filelock, dparse, ruamel-yaml, pydantic, nltk, mypy, markdown-it-py, jinja2, httpx, black, safety-schemas, rich, authlib, typer, bandit, safety
+build	Install linters and security tools	2025-09-24T04:44:19.7333872Z   Attempting uninstall: pydantic-core
+build	Install linters and security tools	2025-09-24T04:44:19.7372889Z     Found existing installation: pydantic_core 2.33.2
+build	Install linters and security tools	2025-09-24T04:44:19.7378448Z     Not uninstalling pydantic-core at /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages, outside environment /home/runner/work/quantum_trader/quantum_trader/.venv_linters
+build	Install linters and security tools	2025-09-24T04:44:19.7380124Z     Can't uninstall 'pydantic_core'. No files were found to uninstall.
+build	Install linters and security tools	2025-09-24T04:44:20.2196673Z   Attempting uninstall: pydantic
+build	Install linters and security tools	2025-09-24T04:44:20.2240063Z     Found existing installation: pydantic 2.11.9
+build	Install linters and security tools	2025-09-24T04:44:20.2245416Z     Not uninstalling pydantic at /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages, outside environment /home/runner/work/quantum_trader/quantum_trader/.venv_linters
+build	Install linters and security tools	2025-09-24T04:44:20.2247021Z     Can't uninstall 'pydantic'. No files were found to uninstall.
+build	Install linters and security tools	2025-09-24T04:44:23.7729855Z 
+build	Install linters and security tools	2025-09-24T04:44:23.7771445Z Successfully installed MarkupSafe-3.0.2 PyYAML-6.0.2 authlib-1.6.4 bandit-1.8.6 black-25.9.0 dparse-0.6.4 filelock-3.19.1 httpcore-1.0.9 httpx-0.28.1 jinja2-3.1.6 markdown-it-py-4.0.0 marshmallow-4.0.1 mdurl-0.1.2 mypy-1.18.2 mypy_extensions-1.1.0 nltk-3.9.1 pathspec-0.12.1 platformdirs-4.4.0 psutil-7.1.0 pydantic-2.9.2 pydantic-core-2.23.4 pygments-2.19.2 pytokens-0.1.10 rich-14.1.0 ruamel-yaml-0.18.15 ruamel.yaml.clib-0.2.14 ruff-0.13.1 safety-3.6.1 safety-schemas-0.0.14 setuptools-80.9.0 shellingham-1.5.4 stevedore-5.5.0 tenacity-9.1.2 tomlkit-0.13.3 tqdm-4.67.1 typer-0.19.2
+build	Install linters and security tools	2025-09-24T04:44:24.5174826Z Collecting types-requests
+build	Install linters and security tools	2025-09-24T04:44:24.5494464Z   Downloading types_requests-2.32.4.20250913-py3-none-any.whl.metadata (2.0 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.5845548Z Collecting pandas-stubs
+build	Install linters and security tools	2025-09-24T04:44:24.5882007Z   Downloading pandas_stubs-2.3.2.250827-py3-none-any.whl.metadata (10 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.5992791Z Collecting scikit-learn-stubs
+build	Install linters and security tools	2025-09-24T04:44:24.6041816Z   Downloading scikit_learn_stubs-0.0.3-py3-none-any.whl.metadata (1.4 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.6226518Z Collecting types-python-dateutil
+build	Install linters and security tools	2025-09-24T04:44:24.6271790Z   Downloading types_python_dateutil-2.9.0.20250822-py3-none-any.whl.metadata (1.8 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.6648474Z Collecting pytest
+build	Install linters and security tools	2025-09-24T04:44:24.6683942Z   Downloading pytest-8.4.2-py3-none-any.whl.metadata (7.7 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.6742590Z Requirement already satisfied: urllib3>=2 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from types-requests) (2.5.0)
+build	Install linters and security tools	2025-09-24T04:44:24.6751758Z Requirement already satisfied: numpy>=1.23.5 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from pandas-stubs) (2.3.3)
+build	Install linters and security tools	2025-09-24T04:44:24.6903159Z Collecting types-pytz>=2022.1.1 (from pandas-stubs)
+build	Install linters and security tools	2025-09-24T04:44:24.6937737Z   Downloading types_pytz-2025.2.0.20250809-py3-none-any.whl.metadata (1.7 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.7045875Z Collecting iniconfig>=1 (from pytest)
+build	Install linters and security tools	2025-09-24T04:44:24.7079211Z   Downloading iniconfig-2.1.0-py3-none-any.whl.metadata (2.7 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.7114209Z Requirement already satisfied: packaging>=20 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from pytest) (25.0)
+build	Install linters and security tools	2025-09-24T04:44:24.7218948Z Collecting pluggy<2,>=1.5 (from pytest)
+build	Install linters and security tools	2025-09-24T04:44:24.7263884Z   Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.7306435Z Requirement already satisfied: pygments>=2.7.2 in ./.venv_linters/lib/python3.12/site-packages (from pytest) (2.19.2)
+build	Install linters and security tools	2025-09-24T04:44:24.7455992Z Downloading types_requests-2.32.4.20250913-py3-none-any.whl (20 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.7509655Z Downloading pandas_stubs-2.3.2.250827-py3-none-any.whl (157 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.7627223Z Downloading scikit_learn_stubs-0.0.3-py3-none-any.whl (247 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.7708282Z Downloading types_python_dateutil-2.9.0.20250822-py3-none-any.whl (17 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.7762038Z Downloading pytest-8.4.2-py3-none-any.whl (365 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.7829934Z Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.7884629Z Downloading iniconfig-2.1.0-py3-none-any.whl (6.0 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.7935584Z Downloading types_pytz-2025.2.0.20250809-py3-none-any.whl (10 kB)
+build	Install linters and security tools	2025-09-24T04:44:24.9589929Z Installing collected packages: types-requests, types-pytz, types-python-dateutil, scikit-learn-stubs, pluggy, iniconfig, pytest, pandas-stubs
+build	Install linters and security tools	2025-09-24T04:44:25.3113163Z 
+build	Install linters and security tools	2025-09-24T04:44:25.3157371Z Successfully installed iniconfig-2.1.0 pandas-stubs-2.3.2.250827 pluggy-1.6.0 pytest-8.4.2 scikit-learn-stubs-0.0.3 types-python-dateutil-2.9.0.20250822 types-pytz-2025.2.0.20250809 types-requests-2.32.4.20250913
+build	Run npm ci for frontend	﻿2025-09-24T04:44:25.3711250Z ##[group]Run npm ci
+build	Run npm ci for frontend	2025-09-24T04:44:25.3711581Z [36;1mnpm ci[0m
+build	Run npm ci for frontend	2025-09-24T04:44:25.3742243Z shell: /usr/bin/bash -e {0}
+build	Run npm ci for frontend	2025-09-24T04:44:25.3742531Z env:
+build	Run npm ci for frontend	2025-09-24T04:44:25.3742851Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run npm ci for frontend	2025-09-24T04:44:25.3743305Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib/pkgconfig
+build	Run npm ci for frontend	2025-09-24T04:44:25.3743933Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run npm ci for frontend	2025-09-24T04:44:25.3744322Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run npm ci for frontend	2025-09-24T04:44:25.3744716Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run npm ci for frontend	2025-09-24T04:44:25.3745101Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib
+build	Run npm ci for frontend	2025-09-24T04:44:25.3745441Z ##[endgroup]
+build	Run npm ci for frontend	2025-09-24T04:44:29.0838313Z npm warn EBADENGINE Unsupported engine {
+build	Run npm ci for frontend	2025-09-24T04:44:29.0839252Z npm warn EBADENGINE   package: 'vite@7.1.7',
+build	Run npm ci for frontend	2025-09-24T04:44:29.0840159Z npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+build	Run npm ci for frontend	2025-09-24T04:44:29.0841161Z npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+build	Run npm ci for frontend	2025-09-24T04:44:29.0841828Z npm warn EBADENGINE }
+build	Run npm ci for frontend	2025-09-24T04:44:31.7018778Z 
+build	Run npm ci for frontend	2025-09-24T04:44:31.7019603Z added 240 packages, and audited 241 packages in 6s
+build	Run npm ci for frontend	2025-09-24T04:44:31.7020121Z 
+build	Run npm ci for frontend	2025-09-24T04:44:31.7020419Z 53 packages are looking for funding
+build	Run npm ci for frontend	2025-09-24T04:44:31.7020968Z   run `npm fund` for details
+build	Run npm ci for frontend	2025-09-24T04:44:31.7030519Z 
+build	Run npm ci for frontend	2025-09-24T04:44:31.7030840Z found 0 vulnerabilities
+build	Run frontend build (Vite)	﻿2025-09-24T04:44:31.7256714Z ##[group]Run # Run the real frontend build to validate bundling and plugin transforms
+build	Run frontend build (Vite)	2025-09-24T04:44:31.7257257Z [36;1m# Run the real frontend build to validate bundling and plugin transforms[0m
+build	Run frontend build (Vite)	2025-09-24T04:44:31.7257612Z [36;1mnpm run build[0m
+build	Run frontend build (Vite)	2025-09-24T04:44:31.7287951Z shell: /usr/bin/bash -e {0}
+build	Run frontend build (Vite)	2025-09-24T04:44:31.7288185Z env:
+build	Run frontend build (Vite)	2025-09-24T04:44:31.7288445Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run frontend build (Vite)	2025-09-24T04:44:31.7288866Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib/pkgconfig
+build	Run frontend build (Vite)	2025-09-24T04:44:31.7289253Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run frontend build (Vite)	2025-09-24T04:44:31.7289604Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run frontend build (Vite)	2025-09-24T04:44:31.7289948Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run frontend build (Vite)	2025-09-24T04:44:31.7290294Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib
+build	Run frontend build (Vite)	2025-09-24T04:44:31.7290573Z ##[endgroup]
+build	Run frontend build (Vite)	2025-09-24T04:44:31.8560263Z 
+build	Run frontend build (Vite)	2025-09-24T04:44:31.8560762Z > quantum_trader_frontend@1.0.0 build
+build	Run frontend build (Vite)	2025-09-24T04:44:31.8561216Z > vite build
+build	Run frontend build (Vite)	2025-09-24T04:44:31.8561552Z 
+build	Run frontend build (Vite)	2025-09-24T04:44:31.9012075Z [33mYou are using Node.js 18.20.8. Vite requires Node.js version 20.19+ or 22.12+. Please upgrade your Node.js version.[39m
+build	Run frontend build (Vite)	2025-09-24T04:44:32.3229896Z [36mvite v7.1.7 [32mbuilding for production...[36m[39m
+build	Run frontend build (Vite)	2025-09-24T04:44:32.3859418Z transforming...
+build	Run frontend build (Vite)	2025-09-24T04:44:33.2055654Z [32m✓[39m 93 modules transformed.
+build	Run frontend build (Vite)	2025-09-24T04:44:33.2980550Z [33m[plugin vite:reporter] 
+build	Run frontend build (Vite)	2025-09-24T04:44:33.2984123Z (!) /home/runner/work/quantum_trader/quantum_trader/frontend/src/utils/api.ts is dynamically imported by /home/runner/work/quantum_trader/quantum_trader/frontend/src/hooks/useDashboardData.tsx but also statically imported by /home/runner/work/quantum_trader/quantum_trader/frontend/src/components/CandlesChart.tsx, dynamic import will not move module into another chunk.
+build	Run frontend build (Vite)	2025-09-24T04:44:33.2986787Z [39m
+build	Run frontend build (Vite)	2025-09-24T04:44:33.2987193Z rendering chunks...
+build	Run frontend build (Vite)	2025-09-24T04:44:33.3046986Z computing gzip size...
+build	Run frontend build (Vite)	2025-09-24T04:44:33.3423415Z [2mdist/[22m[32mindex.html                 [39m[1m[2m  0.43 kB[22m[1m[22m[2m │ gzip:  0.29 kB[22m
+build	Run frontend build (Vite)	2025-09-24T04:44:33.3424972Z [2mdist/[22m[2massets/[22m[35mindex-CxnqmwFE.css  [39m[1m[2m  0.32 kB[22m[1m[22m[2m │ gzip:  0.23 kB[22m
+build	Run frontend build (Vite)	2025-09-24T04:44:33.3426252Z [2mdist/[22m[2massets/[22m[36mindex-mwTe9p9r.js   [39m[1m[2m155.25 kB[22m[1m[22m[2m │ gzip: 49.48 kB[22m
+build	Run frontend build (Vite)	2025-09-24T04:44:33.3427721Z [32m✓ built in 994ms[39m
+build	Run npm audit (fail on high/critical)	﻿2025-09-24T04:44:33.3687925Z ##[group]Run npm audit --audit-level=high
+build	Run npm audit (fail on high/critical)	2025-09-24T04:44:33.3688279Z [36;1mnpm audit --audit-level=high[0m
+build	Run npm audit (fail on high/critical)	2025-09-24T04:44:33.3719033Z shell: /usr/bin/bash -e {0}
+build	Run npm audit (fail on high/critical)	2025-09-24T04:44:33.3719272Z env:
+build	Run npm audit (fail on high/critical)	2025-09-24T04:44:33.3719518Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run npm audit (fail on high/critical)	2025-09-24T04:44:33.3719941Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib/pkgconfig
+build	Run npm audit (fail on high/critical)	2025-09-24T04:44:33.3720364Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run npm audit (fail on high/critical)	2025-09-24T04:44:33.3720708Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run npm audit (fail on high/critical)	2025-09-24T04:44:33.3721055Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run npm audit (fail on high/critical)	2025-09-24T04:44:33.3721410Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib
+build	Run npm audit (fail on high/critical)	2025-09-24T04:44:33.3721700Z ##[endgroup]
+build	Run npm audit (fail on high/critical)	2025-09-24T04:44:33.9645525Z found 0 vulnerabilities
+build	Run npm audit (warn on moderate)	﻿2025-09-24T04:44:33.9754701Z ##[group]Run # Run audit at moderate level but do not fail the job; emit a GitHub Actions warning so maintainers see it.
+build	Run npm audit (warn on moderate)	2025-09-24T04:44:33.9755454Z [36;1m# Run audit at moderate level but do not fail the job; emit a GitHub Actions warning so maintainers see it.[0m
+build	Run npm audit (warn on moderate)	2025-09-24T04:44:33.9756185Z [36;1mnpm audit --audit-level=moderate || echo "::warning file=frontend/package.json::npm audit found moderate vulnerabilities (see logs)"[0m
+build	Run npm audit (warn on moderate)	2025-09-24T04:44:33.9787141Z shell: /usr/bin/bash -e {0}
+build	Run npm audit (warn on moderate)	2025-09-24T04:44:33.9787375Z env:
+build	Run npm audit (warn on moderate)	2025-09-24T04:44:33.9787611Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run npm audit (warn on moderate)	2025-09-24T04:44:33.9788013Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib/pkgconfig
+build	Run npm audit (warn on moderate)	2025-09-24T04:44:33.9788399Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run npm audit (warn on moderate)	2025-09-24T04:44:33.9788751Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run npm audit (warn on moderate)	2025-09-24T04:44:33.9789100Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run npm audit (warn on moderate)	2025-09-24T04:44:33.9789459Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib
+build	Run npm audit (warn on moderate)	2025-09-24T04:44:33.9789771Z ##[endgroup]
+build	Run npm audit (warn on moderate)	2025-09-24T04:44:34.5849354Z found 0 vulnerabilities
+build	Run Ruff	﻿2025-09-24T04:44:34.5963223Z ##[group]Run ruff check backend
+build	Run Ruff	2025-09-24T04:44:34.5963931Z [36;1mruff check backend[0m
+build	Run Ruff	2025-09-24T04:44:34.6009898Z shell: /usr/bin/bash -e {0}
+build	Run Ruff	2025-09-24T04:44:34.6010297Z env:
+build	Run Ruff	2025-09-24T04:44:34.6010722Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run Ruff	2025-09-24T04:44:34.6011477Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib/pkgconfig
+build	Run Ruff	2025-09-24T04:44:34.6012232Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run Ruff	2025-09-24T04:44:34.6012892Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run Ruff	2025-09-24T04:44:34.6013787Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run Ruff	2025-09-24T04:44:34.6014474Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib
+build	Run Ruff	2025-09-24T04:44:34.6015014Z ##[endgroup]
+build	Run Ruff	2025-09-24T04:44:34.6388895Z All checks passed!
+build	Run Mypy	﻿2025-09-24T04:44:34.6422855Z ##[group]Run mypy --install-types --non-interactive backend --exclude 'backend/tests/.*'
+build	Run Mypy	2025-09-24T04:44:34.6423446Z [36;1mmypy --install-types --non-interactive backend --exclude 'backend/tests/.*'[0m
+build	Run Mypy	2025-09-24T04:44:34.6454276Z shell: /usr/bin/bash -e {0}
+build	Run Mypy	2025-09-24T04:44:34.6454512Z env:
+build	Run Mypy	2025-09-24T04:44:34.6454757Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run Mypy	2025-09-24T04:44:34.6455165Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib/pkgconfig
+build	Run Mypy	2025-09-24T04:44:34.6455557Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run Mypy	2025-09-24T04:44:34.6455914Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run Mypy	2025-09-24T04:44:34.6456277Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run Mypy	2025-09-24T04:44:34.6456622Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib
+build	Run Mypy	2025-09-24T04:44:34.6456916Z ##[endgroup]
+build	Run Mypy	2025-09-24T04:44:49.4753298Z Collecting scipy-stubs
+build	Run Mypy	2025-09-24T04:44:49.5081902Z   Downloading scipy_stubs-1.16.2.0-py3-none-any.whl.metadata (24 kB)
+build	Run Mypy	2025-09-24T04:44:49.5243007Z Collecting types-PySocks
+build	Run Mypy	2025-09-24T04:44:49.5290983Z   Downloading types_pysocks-1.7.1.20250828-py3-none-any.whl.metadata (1.7 kB)
+build	Run Mypy	2025-09-24T04:44:49.5398057Z Collecting types-defusedxml
+build	Run Mypy	2025-09-24T04:44:49.5443030Z   Downloading types_defusedxml-0.7.0.20250822-py3-none-any.whl.metadata (1.8 kB)
+build	Run Mypy	2025-09-24T04:44:49.5583114Z Collecting types-greenlet
+build	Run Mypy	2025-09-24T04:44:49.5632277Z   Downloading types_greenlet-3.2.0.20250915-py3-none-any.whl.metadata (1.7 kB)
+build	Run Mypy	2025-09-24T04:44:49.5889895Z Collecting types-openpyxl
+build	Run Mypy	2025-09-24T04:44:49.5936648Z   Downloading types_openpyxl-3.1.5.20250919-py3-none-any.whl.metadata (1.7 kB)
+build	Run Mypy	2025-09-24T04:44:49.6077059Z Collecting types-ujson
+build	Run Mypy	2025-09-24T04:44:49.6116034Z   Downloading types_ujson-5.10.0.20250822-py3-none-any.whl.metadata (1.9 kB)
+build	Run Mypy	2025-09-24T04:44:49.6215520Z Collecting types-xlrd
+build	Run Mypy	2025-09-24T04:44:49.6253360Z   Downloading types_xlrd-2.0.0.20250914-py3-none-any.whl.metadata (1.7 kB)
+build	Run Mypy	2025-09-24T04:44:49.6401200Z Collecting optype<0.14,>=0.13.4 (from optype[numpy]<0.14,>=0.13.4->scipy-stubs)
+build	Run Mypy	2025-09-24T04:44:49.6443869Z   Downloading optype-0.13.4-py3-none-any.whl.metadata (116 kB)
+build	Run Mypy	2025-09-24T04:44:49.6622273Z Requirement already satisfied: typing-extensions>=4.10 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from optype<0.14,>=0.13.4->optype[numpy]<0.14,>=0.13.4->scipy-stubs) (4.15.0)
+build	Run Mypy	2025-09-24T04:44:49.6636081Z Requirement already satisfied: numpy>=1.25 in /opt/hostedtoolcache/Python/3.12.11/x64/lib/python3.12/site-packages (from optype[numpy]<0.14,>=0.13.4->scipy-stubs) (2.3.3)
+build	Run Mypy	2025-09-24T04:44:49.6842794Z Collecting numpy-typing-compat<20250819,>=20250818.1.25 (from optype[numpy]<0.14,>=0.13.4->scipy-stubs)
+build	Run Mypy	2025-09-24T04:44:49.6887769Z   Downloading numpy_typing_compat-20250818.2.3-py3-none-any.whl.metadata (7.9 kB)
+build	Run Mypy	2025-09-24T04:44:49.7047077Z Downloading scipy_stubs-1.16.2.0-py3-none-any.whl (553 kB)
+build	Run Mypy	2025-09-24T04:44:49.7130855Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 553.2/553.2 kB 73.1 MB/s  0:00:00
+build	Run Mypy	2025-09-24T04:44:49.7218560Z Downloading optype-0.13.4-py3-none-any.whl (87 kB)
+build	Run Mypy	2025-09-24T04:44:49.7282766Z Downloading numpy_typing_compat-20250818.2.3-py3-none-any.whl (6.3 kB)
+build	Run Mypy	2025-09-24T04:44:49.7342227Z Downloading types_pysocks-1.7.1.20250828-py3-none-any.whl (9.6 kB)
+build	Run Mypy	2025-09-24T04:44:49.7390142Z Downloading types_defusedxml-0.7.0.20250822-py3-none-any.whl (13 kB)
+build	Run Mypy	2025-09-24T04:44:49.7444585Z Downloading types_greenlet-3.2.0.20250915-py3-none-any.whl (8.8 kB)
+build	Run Mypy	2025-09-24T04:44:49.7510533Z Downloading types_openpyxl-3.1.5.20250919-py3-none-any.whl (166 kB)
+build	Run Mypy	2025-09-24T04:44:49.7577671Z Downloading types_ujson-5.10.0.20250822-py3-none-any.whl (7.7 kB)
+build	Run Mypy	2025-09-24T04:44:49.7649831Z Downloading types_xlrd-2.0.0.20250914-py3-none-any.whl (16 kB)
+build	Run Mypy	2025-09-24T04:44:49.9449641Z Installing collected packages: types-xlrd, types-ujson, types-PySocks, types-openpyxl, types-greenlet, types-defusedxml, optype, numpy-typing-compat, scipy-stubs
+build	Run Mypy	2025-09-24T04:44:50.1453934Z 
+build	Run Mypy	2025-09-24T04:44:50.1507106Z Successfully installed numpy-typing-compat-20250818.2.3 optype-0.13.4 scipy-stubs-1.16.2.0 types-PySocks-1.7.1.20250828 types-defusedxml-0.7.0.20250822 types-greenlet-3.2.0.20250915 types-openpyxl-3.1.5.20250919 types-ujson-5.10.0.20250822 types-xlrd-2.0.0.20250914
+build	Run Mypy	2025-09-24T04:45:05.2712696Z backend/utils/binance_client.py:34: error: Cannot determine type of "mock"  [has-type]
+build	Run Mypy	2025-09-24T04:45:05.2715328Z backend/utils/twitter_client.py:125: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+build	Run Mypy	2025-09-24T04:45:05.2716747Z Installing missing stub packages:
+build	Run Mypy	2025-09-24T04:45:05.2717943Z /home/runner/work/quantum_trader/quantum_trader/.venv_linters/bin/python -m pip install scipy-stubs types-PySocks types-defusedxml types-greenlet types-openpyxl types-ujson types-xlrd
+build	Run Mypy	2025-09-24T04:45:05.2718793Z 
+build	Run Mypy	2025-09-24T04:45:05.2718812Z 
+build	Run Mypy	2025-09-24T04:45:05.2719046Z Found 22 errors in 7 files (checked 28 source files)
+build	Run Mypy	2025-09-24T04:45:05.2720046Z backend/utils/twitter_client.py:127: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+build	Run Mypy	2025-09-24T04:45:05.2721420Z backend/utils/twitter_client.py:129: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+build	Run Mypy	2025-09-24T04:45:05.2722673Z backend/utils/cryptopanic_client.py:15: error: Need type annotation for "_CACHE" (hint: "_CACHE: dict[<type>, <type>] = ...")  [var-annotated]
+build	Run Mypy	2025-09-24T04:45:05.2723782Z ai_engine/feature_engineer.py:11: error: Unsupported operand types for > ("Series[type[object]]" and "int")  [operator]
+build	Run Mypy	2025-09-24T04:45:05.2724620Z ai_engine/feature_engineer.py:12: error: Unsupported operand types for < ("Series[type[object]]" and "int")  [operator]
+build	Run Mypy	2025-09-24T04:45:05.2725604Z ai_engine/feature_engineer.py:22: error: Argument 1 to "combine" of "Series" has incompatible type "ndarray[tuple[Any, ...], dtype[Any]]"; expected "Series[Any]"  [arg-type]
+build	Run Mypy	2025-09-24T04:45:05.2726668Z ai_engine/agents/xgb_agent.py:34: error: Incompatible types in assignment (expression has type "None", variable has type "TwitterClient")  [assignment]
+build	Run Mypy	2025-09-24T04:45:05.2727720Z ai_engine/agents/xgb_agent.py:35: error: Incompatible types in assignment (expression has type "None", variable has type "CryptoPanicClient")  [assignment]
+build	Run Mypy	2025-09-24T04:45:05.2728556Z ai_engine/agents/xgb_agent.py:116: error: "object" has no attribute "select_dtypes"  [attr-defined]
+build	Run Mypy	2025-09-24T04:45:05.2729217Z ai_engine/agents/xgb_agent.py:141: error: "object" has no attribute "columns"  [attr-defined]
+build	Run Mypy	2025-09-24T04:45:05.2729842Z ai_engine/agents/xgb_agent.py:142: error: Value of type "object" is not indexable  [index]
+build	Run Mypy	2025-09-24T04:45:05.2730436Z ai_engine/agents/xgb_agent.py:143: error: Value of type "object" is not indexable  [index]
+build	Run Mypy	2025-09-24T04:45:05.2731044Z ai_engine/agents/xgb_agent.py:183: error: Value of type "object" is not indexable  [index]
+build	Run Mypy	2025-09-24T04:45:05.2731636Z ai_engine/agents/xgb_agent.py:187: error: Value of type "object" is not indexable  [index]
+build	Run Mypy	2025-09-24T04:45:05.2732494Z ai_engine/train_and_save.py:168: error: Incompatible default for argument "symbols" (default has type "None", argument has type "list[str]")  [assignment]
+build	Run Mypy	2025-09-24T04:45:05.2733676Z ai_engine/train_and_save.py:168: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+build	Run Mypy	2025-09-24T04:45:05.2734669Z ai_engine/train_and_save.py:168: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+build	Run Mypy	2025-09-24T04:45:05.2735529Z backend/routes/ai.py:12: error: Module "backend.database" has no attribute "create_training_task"  [attr-defined]
+build	Run Mypy	2025-09-24T04:45:05.2736299Z backend/routes/ai.py:12: error: Module "backend.database" has no attribute "update_training_task"  [attr-defined]
+build	Run Mypy	2025-09-24T04:45:05.2737029Z backend/routes/ai.py:13: error: Module "backend.database" has no attribute "TrainingTask"  [attr-defined]
+build	Run Mypy	2025-09-24T04:45:05.2737866Z backend/routes/ai.py:154: error: Incompatible types in assignment (expression has type "None", variable has type Module)  [assignment]
+build	Run Mypy	2025-09-24T04:45:05.2739249Z backend/routes/ai.py:193: error: Argument 1 to "scan_symbols" of "XGBAgent" has incompatible type "dict[str, DataFrame]"; expected "dict[str, object]"  [arg-type]
+build	Run Mypy	2025-09-24T04:45:05.2740193Z backend/routes/ai.py:193: note: "dict" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+build	Run Mypy	2025-09-24T04:45:05.2740951Z backend/routes/ai.py:193: note: Consider using "Mapping" instead, which is covariant in the value type
+build	Run Mypy	2025-09-24T04:45:05.3200293Z ##[error]Process completed with exit code 1.
+build	Run Mypy (including tests)	﻿2025-09-24T04:45:05.3261825Z ##[group]Run mypy --install-types --non-interactive backend
+build	Run Mypy (including tests)	2025-09-24T04:45:05.3262246Z [36;1mmypy --install-types --non-interactive backend[0m
+build	Run Mypy (including tests)	2025-09-24T04:45:05.3292607Z shell: /usr/bin/bash -e {0}
+build	Run Mypy (including tests)	2025-09-24T04:45:05.3292836Z env:
+build	Run Mypy (including tests)	2025-09-24T04:45:05.3293072Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run Mypy (including tests)	2025-09-24T04:45:05.3293683Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib/pkgconfig
+build	Run Mypy (including tests)	2025-09-24T04:45:05.3294188Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run Mypy (including tests)	2025-09-24T04:45:05.3294551Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run Mypy (including tests)	2025-09-24T04:45:05.3294898Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.11/x64
+build	Run Mypy (including tests)	2025-09-24T04:45:05.3295259Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.11/x64/lib
+build	Run Mypy (including tests)	2025-09-24T04:45:05.3295546Z ##[endgroup]
+build	Run Mypy (including tests)	2025-09-24T04:45:12.3850585Z Collecting types-Pygments
+build	Run Mypy (including tests)	2025-09-24T04:45:12.4177785Z   Downloading types_pygments-2.19.0.20250809-py3-none-any.whl.metadata (1.9 kB)
+build	Run Mypy (including tests)	2025-09-24T04:45:12.4297814Z Collecting types-pexpect
+build	Run Mypy (including tests)	2025-09-24T04:45:12.4342387Z   Downloading types_pexpect-4.9.0.20250916-py3-none-any.whl.metadata (1.7 kB)
+build	Run Mypy (including tests)	2025-09-24T04:45:12.4601135Z Collecting types-docutils (from types-Pygments)
+build	Run Mypy (including tests)	2025-09-24T04:45:12.4636230Z   Downloading types_docutils-0.22.2.20250924-py3-none-any.whl.metadata (1.7 kB)
+build	Run Mypy (including tests)	2025-09-24T04:45:12.4709006Z Downloading types_pygments-2.19.0.20250809-py3-none-any.whl (25 kB)
+build	Run Mypy (including tests)	2025-09-24T04:45:12.4789439Z Downloading types_pexpect-4.9.0.20250916-py3-none-any.whl (17 kB)
+build	Run Mypy (including tests)	2025-09-24T04:45:12.4844143Z Downloading types_docutils-0.22.2.20250924-py3-none-any.whl (91 kB)
+build	Run Mypy (including tests)	2025-09-24T04:45:12.6534784Z Installing collected packages: types-pexpect, types-docutils, types-Pygments
+build	Run Mypy (including tests)	2025-09-24T04:45:12.6910978Z 
+build	Run Mypy (including tests)	2025-09-24T04:45:12.6962335Z Successfully installed types-Pygments-2.19.0.20250809 types-docutils-0.22.2.20250924 types-pexpect-4.9.0.20250916
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6616392Z backend/utils/binance_client.py:34: error: Cannot determine type of "mock"  [has-type]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6618173Z backend/utils/twitter_client.py:125: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6620161Z backend/utils/twitter_client.py:127: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6622250Z backend/utils/twitter_client.py:129: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6624094Z backend/utils/cryptopanic_client.py:15: error: Need type annotation for "_CACHE" (hint: "_CACHE: dict[<type>, <type>] = ...")  [var-annotated]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6625059Z ai_engine/feature_engineer.py:11: error: Unsupported operand types for > ("Series[type[object]]" and "int")  [operator]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6625919Z ai_engine/feature_engineer.py:12: error: Unsupported operand types for < ("Series[type[object]]" and "int")  [operator]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6626918Z ai_engine/feature_engineer.py:22: error: Argument 1 to "combine" of "Series" has incompatible type "ndarray[tuple[Any, ...], dtype[Any]]"; expected "Series[Any]"  [arg-type]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6628004Z ai_engine/agents/xgb_agent.py:34: error: Incompatible types in assignment (expression has type "None", variable has type "TwitterClient")  [assignment]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6629295Z ai_engine/agents/xgb_agent.py:35: error: Incompatible types in assignment (expression has type "None", variable has type "CryptoPanicClient")  [assignment]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6630154Z ai_engine/agents/xgb_agent.py:116: error: "object" has no attribute "select_dtypes"  [attr-defined]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6630813Z ai_engine/agents/xgb_agent.py:141: error: "object" has no attribute "columns"  [attr-defined]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6631435Z ai_engine/agents/xgb_agent.py:142: error: Value of type "object" is not indexable  [index]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6632043Z ai_engine/agents/xgb_agent.py:143: error: Value of type "object" is not indexable  [index]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6632814Z ai_engine/agents/xgb_agent.py:183: error: Value of type "object" is not indexable  [index]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6633400Z ai_engine/agents/xgb_agent.py:187: error: Value of type "object" is not indexable  [index]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6634496Z ai_engine/train_and_save.py:168: error: Incompatible default for argument "symbols" (default has type "None", argument has type "list[str]")  [assignment]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6635519Z ai_engine/train_and_save.py:168: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6636490Z ai_engine/train_and_save.py:168: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6637491Z backend/tests/test_train_and_save.py:23: error: Incompatible types in assignment (expression has type "object", variable has type "float")  [assignment]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6638394Z backend/routes/ai.py:12: error: Module "backend.database" has no attribute "create_training_task"  [attr-defined]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6639168Z backend/routes/ai.py:12: error: Module "backend.database" has no attribute "update_training_task"  [attr-defined]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6639906Z backend/routes/ai.py:13: error: Module "backend.database" has no attribute "TrainingTask"  [attr-defined]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6640748Z backend/routes/ai.py:154: error: Incompatible types in assignment (expression has type "None", variable has type Module)  [assignment]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6641762Z backend/routes/ai.py:193: error: Argument 1 to "scan_symbols" of "XGBAgent" has incompatible type "dict[str, DataFrame]"; expected "dict[str, object]"  [arg-type]
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6642708Z backend/routes/ai.py:193: note: "dict" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6643473Z backend/routes/ai.py:193: note: Consider using "Mapping" instead, which is covariant in the value type
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6644241Z Installing missing stub packages:
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6644868Z /home/runner/work/quantum_trader/quantum_trader/.venv_linters/bin/python -m pip install types-Pygments types-pexpect
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6645300Z 
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6645308Z 
+build	Run Mypy (including tests)	2025-09-24T04:45:20.6645487Z Found 23 errors in 8 files (checked 40 source files)
+build	Run Mypy (including tests)	2025-09-24T04:45:20.7087144Z ##[error]Process completed with exit code 1.
+build	Post Checkout repo	﻿2025-09-24T04:45:20.7178172Z Post job cleanup.
+build	Post Checkout repo	2025-09-24T04:45:20.8148829Z [command]/usr/bin/git version
+build	Post Checkout repo	2025-09-24T04:45:20.8185177Z git version 2.51.0
+build	Post Checkout repo	2025-09-24T04:45:20.8234458Z Temporarily overriding HOME='/home/runner/work/_temp/aa50ccfa-2731-45d2-8fe7-dce8fdf6a75e' before making global git config changes
+build	Post Checkout repo	2025-09-24T04:45:20.8236009Z Adding repository directory to the temporary git global config as a safe directory
+build	Post Checkout repo	2025-09-24T04:45:20.8240601Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/quantum_trader/quantum_trader
+build	Post Checkout repo	2025-09-24T04:45:20.8274415Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+build	Post Checkout repo	2025-09-24T04:45:20.8306439Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+build	Post Checkout repo	2025-09-24T04:45:20.8535835Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+build	Post Checkout repo	2025-09-24T04:45:20.8556143Z http.https://github.com/.extraheader
+build	Post Checkout repo	2025-09-24T04:45:20.8569061Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+build	Post Checkout repo	2025-09-24T04:45:20.8598404Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+build	Stop containers	﻿2025-09-24T04:45:20.8906206Z Print service container logs: 71d10e3c782340f696284e4ff1c0bc0a_postgres16_087060
+build	Stop containers	2025-09-24T04:45:20.8912401Z ##[command]/usr/bin/docker logs --details 616aad47a5800e15ae39538b4d7c11d84c4d6654711d933fcd0724b92183ac1a
+build	Stop containers	2025-09-24T04:45:20.9096657Z  The files belonging to this database system will be owned by user "postgres".
+build	Stop containers	2025-09-24T04:45:20.9098697Z  initdb: warning: enabling "trust" authentication for local connections
+build	Stop containers	2025-09-24T04:45:20.9099828Z  initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+build	Stop containers	2025-09-24T04:45:20.9101302Z  2025-09-24 04:43:13.825 UTC [1] LOG:  starting PostgreSQL 16.10 (Debian 16.10-1.pgdg13+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+build	Stop containers	2025-09-24T04:45:20.9102366Z  2025-09-24 04:43:13.825 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+build	Stop containers	2025-09-24T04:45:20.9103061Z  2025-09-24 04:43:13.825 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+build	Stop containers	2025-09-24T04:45:20.9104046Z  2025-09-24 04:43:13.827 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+build	Stop containers	2025-09-24T04:45:20.9104723Z  This user must also own the server process.
+build	Stop containers	2025-09-24T04:45:20.9105133Z  
+build	Stop containers	2025-09-24T04:45:20.9105547Z  The database cluster will be initialized with locale "en_US.utf8".
+build	Stop containers	2025-09-24T04:45:20.9106236Z  The default database encoding has accordingly been set to "UTF8".
+build	Stop containers	2025-09-24T04:45:20.9106876Z  The default text search configuration will be set to "english".
+build	Stop containers	2025-09-24T04:45:20.9107362Z  
+build	Stop containers	2025-09-24T04:45:20.9107628Z  Data page checksums are disabled.
+build	Stop containers	2025-09-24T04:45:20.9107989Z  
+build	Stop containers	2025-09-24T04:45:20.9108429Z  fixing permissions on existing directory /var/lib/postgresql/data ... ok
+build	Stop containers	2025-09-24T04:45:20.9109028Z  creating subdirectories ... ok
+build	Stop containers	2025-09-24T04:45:20.9109512Z  selecting dynamic shared memory implementation ... posix
+build	Stop containers	2025-09-24T04:45:20.9110049Z  selecting default max_connections ... 100
+build	Stop containers	2025-09-24T04:45:20.9110499Z  selecting default shared_buffers ... 128MB
+build	Stop containers	2025-09-24T04:45:20.9110947Z  selecting default time zone ... Etc/UTC
+build	Stop containers	2025-09-24T04:45:20.9111380Z  creating configuration files ... ok
+build	Stop containers	2025-09-24T04:45:20.9111805Z  running bootstrap script ... ok
+build	Stop containers	2025-09-24T04:45:20.9112267Z  performing post-bootstrap initialization ... ok
+build	Stop containers	2025-09-24T04:45:20.9112743Z  syncing data to disk ... ok
+build	Stop containers	2025-09-24T04:45:20.9113084Z  
+build	Stop containers	2025-09-24T04:45:20.9113324Z  
+build	Stop containers	2025-09-24T04:45:20.9113803Z  Success. You can now start the database server using:
+build	Stop containers	2025-09-24T04:45:20.9114281Z  
+build	Stop containers	2025-09-24T04:45:20.9114625Z      pg_ctl -D /var/lib/postgresql/data -l logfile start
+build	Stop containers	2025-09-24T04:45:20.9115085Z  
+build	Stop containers	2025-09-24T04:45:20.9116178Z  waiting for server to start....2025-09-24 04:43:13.520 UTC [48] LOG:  starting PostgreSQL 16.10 (Debian 16.10-1.pgdg13+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+build	Stop containers	2025-09-24T04:45:20.9117496Z  2025-09-24 04:43:13.521 UTC [48] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+build	Stop containers	2025-09-24T04:45:20.9118056Z  2025-09-24 04:43:13.524 UTC [51] LOG:  database system was shut down at 2025-09-24 04:43:13 UTC
+build	Stop containers	2025-09-24T04:45:20.9118500Z  2025-09-24 04:43:13.528 UTC [48] LOG:  database system is ready to accept connections
+build	Stop containers	2025-09-24T04:45:20.9118818Z   done
+build	Stop containers	2025-09-24T04:45:20.9118971Z  server started
+build	Stop containers	2025-09-24T04:45:20.9119147Z  CREATE DATABASE
+build	Stop containers	2025-09-24T04:45:20.9119323Z  
+build	Stop containers	2025-09-24T04:45:20.9119467Z  
+build	Stop containers	2025-09-24T04:45:20.9119761Z  /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+build	Stop containers	2025-09-24T04:45:20.9120352Z  
+build	Stop containers	2025-09-24T04:45:20.9120670Z  waiting for server to shut down...2025-09-24 04:43:13.706 UTC [48] LOG:  received fast shutdown request
+build	Stop containers	2025-09-24T04:45:20.9121127Z  .2025-09-24 04:43:13.707 UTC [48] LOG:  aborting any active transactions
+build	Stop containers	2025-09-24T04:45:20.9121633Z  2025-09-24 04:43:13.709 UTC [48] LOG:  background worker "logical replication launcher" (PID 54) exited with exit code 1
+build	Stop containers	2025-09-24T04:45:20.9122099Z  2025-09-24 04:43:13.709 UTC [49] LOG:  shutting down
+build	Stop containers	2025-09-24T04:45:20.9122625Z  2025-09-24 04:43:13.709 UTC [49] LOG:  checkpoint starting: shutdown immediate
+build	Stop containers	2025-09-24T04:45:20.9123753Z  2025-09-24 04:43:13.726 UTC [49] LOG:  checkpoint complete: wrote 926 buffers (5.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.014 s, sync=0.002 s, total=0.018 s; sync files=301, longest=0.001 s, average=0.001 s; distance=4273 kB, estimate=4273 kB; lsn=0/191F0D8, redo lsn=0/191F0D8
+build	Stop containers	2025-09-24T04:45:20.9124710Z  2025-09-24 04:43:13.732 UTC [48] LOG:  database system is shut down
+build	Stop containers	2025-09-24T04:45:20.9124997Z   done
+build	Stop containers	2025-09-24T04:45:20.9125155Z  server stopped
+build	Stop containers	2025-09-24T04:45:20.9125324Z  
+build	Stop containers	2025-09-24T04:45:20.9125538Z  PostgreSQL init process complete; ready for start up.
+build	Stop containers	2025-09-24T04:45:20.9125810Z  
+build	Stop containers	2025-09-24T04:45:20.9126092Z  2025-09-24 04:43:13.829 UTC [64] LOG:  database system was shut down at 2025-09-24 04:43:13 UTC
+build	Stop containers	2025-09-24T04:45:20.9126533Z  2025-09-24 04:43:13.833 UTC [1] LOG:  database system is ready to accept connections
+build	Stop containers	2025-09-24T04:45:20.9131673Z Stop and remove container: 71d10e3c782340f696284e4ff1c0bc0a_postgres16_087060
+build	Stop containers	2025-09-24T04:45:20.9137108Z ##[command]/usr/bin/docker rm --force 616aad47a5800e15ae39538b4d7c11d84c4d6654711d933fcd0724b92183ac1a
+build	Stop containers	2025-09-24T04:45:21.1115359Z 616aad47a5800e15ae39538b4d7c11d84c4d6654711d933fcd0724b92183ac1a
+build	Stop containers	2025-09-24T04:45:21.1141526Z Remove container network: github_network_72a0438669ee43a6bb59cb1aa14be2d0
+build	Stop containers	2025-09-24T04:45:21.1146310Z ##[command]/usr/bin/docker network rm github_network_72a0438669ee43a6bb59cb1aa14be2d0
+build	Stop containers	2025-09-24T04:45:21.2317230Z github_network_72a0438669ee43a6bb59cb1aa14be2d0
+build	Complete job	﻿2025-09-24T04:45:21.2372903Z Cleaning up orphan processes
