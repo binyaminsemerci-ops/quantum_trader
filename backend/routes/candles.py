@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Query
 from backend.database import get_db
+from typing import Any
 
 router = APIRouter()
 
@@ -13,7 +14,7 @@ def get_candles(
     Returner OHLCV-data fra SQLite candles-tabellen.
     """
 
-    db = get_db()
+    db: Any = next(get_db())
     cursor = db.cursor()
 
     cursor.execute(
