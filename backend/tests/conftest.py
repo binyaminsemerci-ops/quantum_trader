@@ -1,7 +1,5 @@
 import os
-import tempfile
 import shutil
-import pytest
 
 from fastapi.testclient import TestClient
 
