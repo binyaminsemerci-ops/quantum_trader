@@ -4,7 +4,7 @@ This file provides a simple sqlite3-backed session generator and a
 lightweight TradeLog class so tests can import `backend.database` and
 operate against a real sqlite DB. It's intentionally small and test-friendly.
 """
-from typing import Iterator, Any, Optional
+from typing import Iterator, Any
 import sqlite3
 import os
 from dataclasses import dataclass
@@ -32,7 +32,11 @@ def _ensure_db() -> None:
         """
     )
     conn.commit()
-    # training tasks table for ai training scheduler
+    conn.close()
+
+    # ensure tasks table for TrainingTask
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS training_tasks (
@@ -46,6 +50,7 @@ def _ensure_db() -> None:
         )
         """
     )
+    conn.commit()
     conn.close()
 
 
@@ -59,17 +64,6 @@ class TradeLog:
     status: str
     reason: str | None = None
     id: int | None = None
-
-
-@dataclass
-class TrainingTask:
-    id: int | None = None
-    symbols: str = ""
-    limit: int = 0
-    status: str = ""
-    created_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    details: Optional[str] = None
 
 
 class Session:
@@ -112,10 +106,6 @@ class Session:
         class Q:
             def __init__(self, conn):
                 self.conn = conn
-                self._limit = None
-                self._offset = 0
-                self._filters = []
-                self._order = None
 
             def delete(self):
                 cur = self.conn.cursor()
@@ -146,63 +136,43 @@ class Session:
                 all_ = self.all()
                 return all_[0] if all_ else None
 
-            # SQLAlchemy-like helpers for TrainingTask queries (no-op for trade logs)
-            def order_by(self, *args, **kwargs):
-                self._order = args
-                return self
-
-            def limit(self, n: int):
-                self._limit = n
-                return self
-
-            def offset(self, n: int):
-                self._offset = n
-                return self
-
-            def filter(self, *args, **kwargs):
-                # Accept and ignore filters for compatibility
-                return self
-
-            def all_tasks(self):
-                cur = self.conn.cursor()
-                cur.execute("SELECT id, symbols, limit, status, created_at, completed_at, details FROM training_tasks ORDER BY id DESC")
-                rows = cur.fetchall()
-                out = []
-                for r in rows:
-                    out.append(
-                        TrainingTask(
-                            id=r[0],
-                            symbols=r[1],
-                            limit=r[2],
-                            status=r[3],
-                            created_at=datetime.fromisoformat(r[4]) if r[4] else None,
-                            completed_at=datetime.fromisoformat(r[5]) if r[5] else None,
-                            details=r[6],
-                        )
-                    )
-                return out
-
-            def all(self):
-                # Decide based on model type by inspecting model __name__ if possible
-                try:
-                    name = model.__name__
-                except Exception:
-                    name = ''
-                if name == 'TrainingTask':
-                    # apply limit/offset manually
-                    tasks = self.all_tasks()
-                    start = int(self._offset or 0)
-                    end = start + int(self._limit) if self._limit is not None else None
-                    return tasks[start:end]
-                else:
-                    return Q_all(self.conn)
-
         return Q(self.conn)
 
 
-def Q_all(conn: sqlite3.Connection):
-    """Fallback helper that returns an empty list for unsupported query types."""
-    return []
+# TrainingTask helpers
+@dataclass
+class TrainingTask:
+    id: int | None
+    symbols: str
+    limit: int
+    status: str
+    created_at: datetime | None = None
+    completed_at: datetime | None = None
+    details: str | None = None
+
+
+def create_training_task(db: Session, symbols: str, limit: int) -> TrainingTask:
+    cur = db.conn.cursor()
+    now = datetime.now(timezone.utc).isoformat()
+    cur.execute(
+        "INSERT INTO training_tasks (symbols, limit, status, created_at) VALUES (?, ?, ?, ?)",
+        (symbols, limit, 'pending', now),
+    )
+    db.conn.commit()
+    task_id = cur.lastrowid
+    return TrainingTask(id=task_id, symbols=symbols, limit=limit, status='pending', created_at=datetime.fromisoformat(now))
+
+
+def update_training_task(db: Session, task_id: int, status: str, details: str | None = None) -> None:
+    cur = db.conn.cursor()
+    completed_at = None
+    if status == 'completed':
+        completed_at = datetime.now(timezone.utc).isoformat()
+    cur.execute(
+        "UPDATE training_tasks SET status = ?, details = ?, completed_at = ? WHERE id = ?",
+        (status, details, completed_at, task_id),
+    )
+    db.conn.commit()
 
 
 def get_db():
