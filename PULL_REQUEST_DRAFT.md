@@ -12,3 +12,17 @@ Notes for reviewers
 Next steps
 - If CI reports issues, I will iterate on the exact mypy failures and either add targeted ignores or install any additional stub packages required.
 - Optionally, we can later replace test stubs with real implementations and remove the test helpers.
+
+Checklist & CI guidance
+- [ ] Wait for GitHub Actions on this branch (chore/mypy-fixes) to complete.
+- [ ] If mypy fails in CI, collect the mypy job logs (error messages list files and lines).
+- [ ] For each mypy failure, prefer one of:
+	- Add a minimal, local fix (Optional[Any], cast, TYPE_CHECKING import), or
+	- Add a narrow `# type: ignore[...]` on the offending line (only when necessary), or
+	- Add the missing stub package to `.github/workflows/ci-mypy.yml` if multiple errors stem from the same missing stub.
+- [ ] If tests fail, inspect pytest output and reproduce locally using the workflow's Python version.
+
+How to collect CI logs locally (if you want me to fetch them):
+1) Create a GitHub token with repo/read:packages and actions:read (or use the existing `MY_PAT`).
+2) Run the helper script included at `scripts/monitor_pr_ci.py` (see README-like instructions below).
+
