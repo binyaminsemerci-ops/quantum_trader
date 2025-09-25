@@ -5,18 +5,12 @@ Some tests (and backend.main) import submodules like
 To make that work when importing the package, re-export those modules here.
 """
 
-from . import ai, backtest, binance, candles, external_data, health, trade_logs, ws
+from . import external_data, health
 from . import trades, stats, chart, settings
 
 __all__ = [
-	"ai",
-	"backtest",
-	"binance",
-	"candles",
 	"external_data",
 	"health",
-	"trade_logs",
-	"ws",
 	"trades",
 	"stats",
 	"chart",
