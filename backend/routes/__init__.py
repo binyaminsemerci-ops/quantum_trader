@@ -6,6 +6,7 @@ To make that work when importing the package, re-export those modules here.
 """
 
 from . import ai, backtest, binance, candles, external_data, health, trade_logs, ws
+from . import trades, stats, chart, settings
 
 __all__ = [
 	"ai",
@@ -16,4 +17,8 @@ __all__ = [
 	"health",
 	"trade_logs",
 	"ws",
+	"trades",
+	"stats",
+	"chart",
+	"settings",
 ]
