@@ -3,11 +3,11 @@ import random
 from backend.database import get_db
 
 
-def seed_candles(symbol="BTCUSDT", days=30):
+def seed_candles(symbol="BTCUSDC", days=30):
     db = get_db()
     cursor = db.cursor()
 
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     price = 20000  # startpris
 
     for i in range(days):

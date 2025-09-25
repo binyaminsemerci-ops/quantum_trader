@@ -10,10 +10,10 @@ def setup_module(module):
 
 def test_trade_logs_endpoint():
     log_trade(
-        {"symbol": "BTCUSDT", "side": "BUY", "qty": 0.05, "price": 25000},
+        {"symbol": "BTCUSDC", "side": "BUY", "qty": 0.05, "price": 25000},
         status="accepted",
     )
     db = next(get_db())
     logs = db.query(TradeLog).all()
     assert len(logs) == 1
-    assert logs[0].symbol == "BTCUSDT"
+    assert logs[0].symbol == "BTCUSDC"

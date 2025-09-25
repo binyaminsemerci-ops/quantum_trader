@@ -1,7 +1,16 @@
+
 from fastapi import FastAPI
-from backend.routes import trades, stats, chart, settings, binance
+from backend.routes import trades, stats, chart, settings, binance, health
+from backend.utils.startup import log_startup_info
+
 
 app = FastAPI()
+
+
+@app.on_event("startup")
+async def _on_startup() -> None:
+    # Non-blocking startup logging; keep lightweight for CI and tests
+    await log_startup_info()
 
 
 @app.get("/")
@@ -15,3 +24,4 @@ app.include_router(stats.router, prefix="/stats")
 app.include_router(chart.router, prefix="/chart")
 app.include_router(settings.router, prefix="/settings")
 app.include_router(binance.router, prefix="/binance")
+app.include_router(health.router, prefix="")
