@@ -1,31 +1,41 @@
+from typing import Dict
 from backend.database import get_db
 
 
-def calculate_pnl():
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute("SELECT side, qty, price FROM trades")
-    trades = cursor.fetchall()
-    pnl = 0
-    for side, qty, price in trades:
-        if side.upper() == "BUY":
-            pnl -= qty * price
-        elif side.upper() == "SELL":
-            pnl += qty * price
-    return round(pnl, 2)
+def calculate_pnl() -> float:
+    """Return total PnL from trades table (simple sum of pnl column)"""
+    db = next(get_db())
+    try:
+        cursor = db.conn.cursor()
+        try:
+            cursor.execute("SELECT SUM(pnl) FROM trades")
+            row = cursor.fetchone()
+            return float(row[0]) if row and row[0] is not None else 0.0
+        except Exception:
+            return 0.0
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
 
 
-def calculate_pnl_per_symbol():
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute("SELECT symbol, side, qty, price FROM trades")
-    trades = cursor.fetchall()
-    pnl_by_symbol = {}
-    for symbol, side, qty, price in trades:
-        if symbol not in pnl_by_symbol:
-            pnl_by_symbol[symbol] = 0
-        if side.upper() == "BUY":
-            pnl_by_symbol[symbol] -= qty * price
-        elif side.upper() == "SELL":
-            pnl_by_symbol[symbol] += qty * price
-    return {sym: round(val, 2) for sym, val in pnl_by_symbol.items()}
+def calculate_pnl_per_symbol() -> Dict[str, float]:
+    """Return per-symbol PnL mapping by aggregating trades table."""
+    db = next(get_db())
+    out = {}
+    try:
+        cursor = db.conn.cursor()
+        try:
+            cursor.execute("SELECT symbol, SUM(pnl) FROM trades GROUP BY symbol")
+            rows = cursor.fetchall()
+            for r in rows:
+                out[r[0]] = float(r[1]) if r[1] is not None else 0.0
+            return out
+        except Exception:
+            return {}
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
