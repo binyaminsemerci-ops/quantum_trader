@@ -1,0 +1,40 @@
+@startuml
+title Quantum Trader - System Architecture
+
+actor User
+
+package "Frontend" {
+  [React + Vite App] as Frontend
+}
+
+package "Backend" {
+  [FastAPI API] as API
+  [Exchange Adapters] as Adapters
+  [AI Engine] as AI
+  [Worker / Scheduler] as Worker
+}
+
+package "Database" {
+  [PostgreSQL] as DB
+}
+
+package "External" {
+  [Binance / Coinbase / KuCoin] as Exchanges
+  [CryptoPanic] as CryptoPanic
+  [Twitter/X] as X
+}
+
+User --> Frontend : uses
+Frontend --> API : REST / WebSocket
+API --> Adapters : get_exchange_client()
+Adapters --> Exchanges : REST / WS via ccxt / SDK
+API --> AI : request prediction
+AI --> DB : read/write features/models
+Worker --> AI : train / backtest / schedule
+API --> DB : read/write trades/signals
+CryptoPanic --> API : news ingestion
+X --> API : tweets ingestion
+
+DB --> Frontend : API results (trades, signals, prices)
+
+@enduml

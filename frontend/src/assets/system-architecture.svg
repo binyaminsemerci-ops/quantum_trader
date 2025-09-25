@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="700" viewBox="0 0 1200 700" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .box { fill: #0f172a; stroke: #0ea5e9; stroke-width: 2; rx: 8; }
+    .box-light { fill: #0b1220; stroke: #60a5fa; stroke-width: 2; rx: 8; }
+    .title { font: 700 18px 'Segoe UI', Roboto, Helvetica, Arial; fill: #e6f6ff; }
+    .label { font: 400 13px 'Segoe UI', Roboto, Helvetica, Arial; fill: #cfeffd; }
+    .arrow { stroke: #60a5fa; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+    .cloud { fill: #06202b; stroke: #2dd4bf; stroke-width: 1.5; rx: 18; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8" fill="#60a5fa" />
+    </marker>
+  </defs>
+
+  <!-- Data sources -->
+  <rect x="40" y="40" width="260" height="120" class="cloud" />
+  <text x="60" y="68" class="title">Datakilder</text>
+  <text x="60" y="92" class="label">• Binance (OHLCV, orderbook)</text>
+  <text x="60" y="112" class="label">• CryptoPanic (nyheter)</text>
+  <text x="60" y="132" class="label">• Twitter/X (sentiment)</text>
+
+  <!-- Backend -->
+  <rect x="360" y="30" width="320" height="160" class="box" />
+  <text x="380" y="62" class="title">Backend (FastAPI)</text>
+  <text x="380" y="90" class="label">• API: /api/predict, /api/scan, /api/train</text>
+  <text x="380" y="110" class="label">• Jobber: ingest, feature-engineer, trainer</text>
+  <text x="380" y="130" class="label">• AI-serving, model loading</text>
+
+  <!-- Database -->
+  <rect x="720" y="30" width="220" height="120" class="box-light" />
+  <text x="740" y="62" class="title">Database (Postgres)</text>
+  <text x="740" y="92" class="label">• prices, features, signals</text>
+  <text x="740" y="114" class="label">• trades, metadata, tasks</text>
+
+  <!-- AI Engine -->
+  <rect x="360" y="230" width="220" height="110" class="box-light" />
+  <text x="380" y="260" class="title">AI Engine</text>
+  <text x="380" y="286" class="label">• Feature engineering</text>
+  <text x="380" y="304" class="label">• Train (XGBoost)</text>
+  <text x="380" y="322" class="label">• Save model & scaler</text>
+
+  <!-- Trading Engine -->
+  <rect x="720" y="230" width="320" height="110" class="box" />
+  <text x="740" y="260" class="title">Handelsmotor</text>
+  <text x="740" y="286" class="label">• Risiko / posisjonshåndtering</text>
+  <text x="740" y="304" class="label">• Signaler → Binance Orders</text>
+
+  <!-- Frontend -->
+  <rect x="40" y="420" width="440" height="160" class="box" />
+  <text x="60" y="452" class="title">Frontend (React + TS + Vite)</text>
+  <text x="60" y="480" class="label">• Dashboards: grafer, signaler, trade-logg</text>
+  <text x="60" y="500" class="label">• Websocket / REST for realtime</text>
+
+  <!-- External Exchanges -->
+  <rect x="720" y="420" width="360" height="120" class="cloud" />
+  <text x="740" y="452" class="title">Binance (Exchange)</text>
+  <text x="740" y="484" class="label">• REST / Testnet / Websocket</text>
+
+  <!-- Arrows: Data sources -> Backend -->
+  <path d="M300 100 L360 100" class="arrow" />
+  <path d="M680 100 L720 100" class="arrow" />
+
+  <!-- Backend -> DB -->
+  <path d="M680 85 L720 85" class="arrow" />
+
+  <!-- Backend -> AI Engine -->
+  <path d="M500 160 L500 230" class="arrow" />
+
+  <!-- AI Engine -> DB -->
+  <path d="M580 285 L720 285" class="arrow" />
+
+  <!-- Backend -> Trading Engine -->
+  <path d="M680 160 L720 260" class="arrow" />
+
+  <!-- Trading Engine -> Binance -->
+  <path d="M1040 290 L1040 420" class="arrow" />
+
+  <!-- Backend -> Frontend -->
+  <path d="M520 160 L320 420" class="arrow" />
+
+  <!-- DB -> Frontend (read) -->
+  <path d="M720 150 L720 420" class="arrow" />
+
+  <!-- Labels for arrows -->
+  <text x="340" y="86" class="label">Ingest (OHLCV, News, Tweets)</text>
+  <text x="740" y="130" class="label">Store / Query</text>
+  <text x="520" y="200" class="label">Features & Models</text>
+  <text x="900" y="350" class="label">Orders / Execution</text>
+
+  <rect x="20" y="660" width="1160" height="26" fill="#001219" rx="4" />
+  <text x="28" y="678" class="label">Quantum Trader – Systemarkitektur (Datainnsamling → Backend → AI → Handelsmotor → Frontend)</text>
+</svg>
