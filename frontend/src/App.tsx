@@ -1,6 +1,10 @@
-// The dashboard UI lives under pages/Dashboard.tsx after conversion to TSX.
-import Dashboard from './pages/Dashboard';
+import React from 'react';
 
 export default function App(): JSX.Element {
-  return <Dashboard />;
+  return (
+    <div>
+      <h1>Quantum Trader (dev)</h1>
+      <p>If you see this, the app mounted successfully.</p>
+    </div>
+  );
 }

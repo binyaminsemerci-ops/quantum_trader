@@ -1,1 +1,3 @@
-# Gjør backend til en Python-pakke
+"""Backend package marker."""
+
+__all__ = []

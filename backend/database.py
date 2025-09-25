@@ -1,70 +1,187 @@
-from typing import Any, cast
+"""Minimal database runtime shim for tests.
+
+This file provides a simple sqlite3-backed session generator and a
+lightweight TradeLog class so tests can import `backend.database` and
+operate against a real sqlite DB. It's intentionally small and test-friendly.
+"""
+from typing import Iterator, Any
+import sqlite3
 import os
-from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
-from sqlalchemy.orm import sessionmaker, declarative_base
+from dataclasses import dataclass
+from datetime import datetime, timezone
 
 
-# Sør for at database-mappa finnes
-DB_DIR = os.path.join(os.path.dirname(__file__), "data")
-os.makedirs(DB_DIR, exist_ok=True)
-
-# Allow overriding the database URL for tests/CI via environment variable.
-# If QUANTUM_TRADER_DATABASE_URL is set, use that. Otherwise fall back to the
-# default file-based sqlite DB under backend/data/trades.db.
-if "QUANTUM_TRADER_DATABASE_URL" in os.environ:
-    DATABASE_URL = os.environ["QUANTUM_TRADER_DATABASE_URL"]
-else:
-    DATABASE_URL = f"sqlite:///{os.path.join(DB_DIR, 'trades.db')}"
-
-# For SQLite we need check_same_thread=False so SQLAlchemy works with FastAPI
-# and pytest's test client in the same thread; for other DBs the connect_args
-# can remain empty.
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite:///") else {}
-
-# Opprett engine
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
-
-# Session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Base ORM
-# Use typing.cast to tell MyPy to treat the declarative base as Any for
-# type-checking purposes. This avoids redeclaration issues while preserving
-# runtime behavior of SQLAlchemy's declarative_base().
-Base = cast(Any, declarative_base())
+DB_PATH = os.path.join(os.path.dirname(__file__), "test.db")
 
 
-# Tabeller / modeller
-class TradeLog(Base):  # type: ignore[valid-type,misc]
-    __tablename__ = "trade_logs"
+def _ensure_db() -> None:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS trade_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            symbol TEXT,
+            side TEXT,
+            qty REAL,
+            price REAL,
+            status TEXT,
+            reason TEXT
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
 
-    id = Column(Integer, primary_key=True, index=True)
-    symbol = Column(String, index=True)
-    side = Column(String)
-    qty = Column(Float)
-    price = Column(Float)
-    status = Column(String)
-    reason = Column(String, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    # ensure tasks table for TrainingTask
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS training_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbols TEXT,
+            limit_val INTEGER,
+            status TEXT,
+            created_at TEXT,
+            completed_at TEXT,
+            details TEXT
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
 
 
-class Settings(Base):  # type: ignore[valid-type,misc]
-    __tablename__ = "settings"
+@dataclass
+class TradeLog:
+    timestamp: datetime | None
+    symbol: str
+    side: str
+    qty: float
+    price: float
+    status: str
+    reason: str | None = None
+    id: int | None = None
 
-    id = Column(Integer, primary_key=True, index=True)
-    api_key = Column(String)
-    api_secret = Column(String)
+
+class Session:
+    def __init__(self, conn: sqlite3.Connection):
+        self.conn = conn
+
+    def add(self, obj: Any) -> None:
+        # Expect TradeLog-like object
+        cur = self.conn.cursor()
+        cur.execute(
+            "INSERT INTO trade_logs (timestamp, symbol, side, qty, price, status, reason) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                obj.timestamp.isoformat() if obj.timestamp else None,
+                obj.symbol,
+                obj.side,
+                obj.qty,
+                obj.price,
+                obj.status,
+                obj.reason,
+            ),
+        )
+        self.conn.commit()
+        obj.id = cur.lastrowid
+
+    def commit(self) -> None:
+        self.conn.commit()
+
+    def refresh(self, obj: Any) -> None:
+        # no-op for sqlite shim
+        pass
+
+    def rollback(self) -> None:
+        self.conn.rollback()
+
+    def close(self) -> None:
+        self.conn.close()
+
+    # lightweight query helpers used by tests
+    def query(self, model: Any):
+        class Q:
+            def __init__(self, conn):
+                self.conn = conn
+
+            def delete(self):
+                cur = self.conn.cursor()
+                cur.execute("DELETE FROM trade_logs")
+                self.conn.commit()
+
+            def all(self):
+                cur = self.conn.cursor()
+                cur.execute("SELECT id, timestamp, symbol, side, qty, price, status, reason FROM trade_logs ORDER BY id ASC")
+                rows = cur.fetchall()
+                out = []
+                for r in rows:
+                    out.append(
+                        TradeLog(
+                            id=r[0],
+                            timestamp=datetime.fromisoformat(r[1]) if r[1] else None,
+                            symbol=r[2],
+                            side=r[3],
+                            qty=r[4],
+                            price=r[5],
+                            status=r[6],
+                            reason=r[7],
+                        )
+                    )
+                return out
+
+            def first(self):
+                all_ = self.all()
+                return all_[0] if all_ else None
+
+        return Q(self.conn)
 
 
-# Opprett tabellene hvis de ikke finnes
-Base.metadata.create_all(bind=engine)
+# TrainingTask helpers
+@dataclass
+class TrainingTask:
+    id: int | None
+    symbols: str
+    limit: int
+    status: str
+    created_at: datetime | None = None
+    completed_at: datetime | None = None
+    details: str | None = None
 
 
-# Dependency for å hente en DB-session
+def create_training_task(db: Session, symbols: str, limit: int) -> TrainingTask:
+    cur = db.conn.cursor()
+    now = datetime.now(timezone.utc).isoformat()
+    cur.execute(
+        "INSERT INTO training_tasks (symbols, limit_val, status, created_at) VALUES (?, ?, ?, ?)",
+        (symbols, limit, 'pending', now),
+    )
+    db.conn.commit()
+    task_id = cur.lastrowid
+    return TrainingTask(id=task_id, symbols=symbols, limit=limit, status='pending', created_at=datetime.fromisoformat(now))
+
+
+def update_training_task(db: Session, task_id: int, status: str, details: str | None = None) -> None:
+    cur = db.conn.cursor()
+    completed_at = None
+    if status == 'completed':
+        completed_at = datetime.now(timezone.utc).isoformat()
+    cur.execute(
+        "UPDATE training_tasks SET status = ?, details = ?, completed_at = ? WHERE id = ?",
+        (status, details, completed_at, task_id),
+    )
+    db.conn.commit()
+
+
 def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    """Return an iterator that yields a Session.
+
+    Using a simple list iterator avoids generator-finalizer closing the
+    connection prematurely when calling `next(get_db())` (a pattern used
+    throughout the tests).
+    """
+    _ensure_db()
+    conn = sqlite3.connect(DB_PATH)
+    return iter([Session(conn)])
