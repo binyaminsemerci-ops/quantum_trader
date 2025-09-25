@@ -37,14 +37,14 @@ def _ensure_db() -> None:
 
 @dataclass
 class TradeLog:
-    id: int | None = None
     timestamp: datetime | None
     symbol: str
     side: str
     qty: float
     price: float
     status: str
-    reason: str | None
+    reason: str | None = None
+    id: int | None = None
 
 
 class Session:
