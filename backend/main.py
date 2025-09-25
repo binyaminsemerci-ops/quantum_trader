@@ -41,7 +41,7 @@ if chart is not None:
     app.include_router(chart.router, prefix="/chart")
 if settings is not None:
     app.include_router(settings.router, prefix="/settings")
-if external_data is not None:
+if external_data is not None and hasattr(external_data, "router"):
     app.include_router(external_data.router, prefix="/external_data")
-if health is not None:
+if health is not None and hasattr(health, "router"):
     app.include_router(health.router, prefix="")
