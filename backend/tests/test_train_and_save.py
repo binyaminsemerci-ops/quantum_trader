@@ -21,7 +21,8 @@ class DummyExternalData:
                 'close': close_val,
                 'volume': 100 + i,
             })
-            price = float(candles[-1]['close'])
+        from typing import Any, cast as _cast
+        price = float(_cast(Any, candles[-1]['close']))
         return {'candles': candles}
 
     async def twitter_sentiment(self, symbol: str):

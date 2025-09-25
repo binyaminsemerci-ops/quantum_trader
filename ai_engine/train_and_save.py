@@ -1,49 +1,7 @@
 import os
-import json
+import asyncio
 import pickle
-from typing import Iterable, List
-
-# Default MODEL_DIR (tests monkeypatch this to a tmp_path)
-MODEL_DIR = os.path.join(os.path.dirname(__file__), 'models')
-
-
-def _ensure_model_dir(path: str) -> None:
-    os.makedirs(path, exist_ok=True)
-
-
-def train_and_save(symbols: Iterable[str], limit: int = 600) -> None:
-    """Minimal training harness used by tests.
-
-    This implementation is intentionally small: it creates placeholder
-    model and scaler artifacts and a metadata.json file so tests can
-    verify artifact creation without real training dependencies.
-    """
-    model_dir = MODEL_DIR
-    _ensure_model_dir(model_dir)
-
-    # Create a tiny model artifact
-    model_path = os.path.join(model_dir, 'xgb_model.pkl')
-    try:
-        with open(model_path, 'wb') as f:
-            pickle.dump({'symbols': list(symbols), 'limit': int(limit)}, f)
-    except Exception:
-        # fallback to json artifact if pickle fails for any reason
-        with open(os.path.join(model_dir, 'xgb_model.json'), 'w', encoding='utf-8') as f:
-            json.dump({'symbols': list(symbols), 'limit': int(limit)}, f)
-
-    # Create a dummy scaler
-    scaler_path = os.path.join(model_dir, 'scaler.pkl')
-    with open(scaler_path, 'wb') as f:
-        pickle.dump({'scaler': 'identity'}, f)
-
-    # metadata
-    meta = {
-        'symbols': list(symbols),
-        'limit': int(limit),
-        'version': 1,
-    }
-    with open(os.path.join(model_dir, 'metadata.json'), 'w', encoding='utf-8') as f:
-        json.dump(meta, f)
+from typing import List, Optional
 """Simple training harness for the XGBoost agent.
 
 This script fetches data from the internal `backend.routes.external_data` helpers
@@ -133,7 +91,7 @@ def build_dataset(all_symbol_data):
     """Given list of (symbol, candles, sentiment, news) tuples, build X,y arrays."""
     import pandas as pd  # type: ignore[import-untyped]
     import numpy as np
-    from ai_engine.feature_engineer import add_technical_indicators, add_sentiment_features, add_target
+    from ai_engine.feature_engineer import add_technical_indicators, add_sentiment_features, add_target  # type: ignore[import-not-found, import-untyped]
 
     X_list = []
     y_list = []
@@ -215,7 +173,7 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
     if symbols is None:
         # prefer USDC as the spot quote by default for training / dataset assembly
         try:
-            from config.config import DEFAULT_QUOTE
+            from config.config import DEFAULT_QUOTE  # type: ignore[import-not-found, import-untyped]
             symbols = [f'BTC{DEFAULT_QUOTE}', f'ETH{DEFAULT_QUOTE}']
         except Exception:
             symbols = ['BTCUSDC', 'ETHUSDC']
