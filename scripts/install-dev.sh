@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "This script bootstraps the development environment." 
+echo "This script bootstraps the development environment."
 
 # Run POSIX setup
 if [ -x "./scripts/setup-dev.sh" ]; then
