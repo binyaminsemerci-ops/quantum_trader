@@ -12,6 +12,7 @@ python-dotenv
 cryptography
 requests
 aiohttp
+httpx
 
 # NOTE: SQLAlchemy-Utils was previously pinned here for investigation of PyUp
 # advisory 42194. A scan of the codebase showed no direct usage of
