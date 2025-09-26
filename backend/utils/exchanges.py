@@ -120,9 +120,6 @@ class _BinanceAdapter:
             return {"error": str(exc)}
 
 
-
-
-
 class _CoinbaseAdapter:
     """Stub adapter for Coinbase-like APIs.
 
@@ -450,9 +447,7 @@ class _KuCoinAdapter:
             )
             return res
         except Exception as exc:
-            logging.getLogger(__name__).debug(
-                "coinbase create_order error: %s", exc
-            )
+            logging.getLogger(__name__).debug("coinbase create_order error: %s", exc)
             return {"error": str(exc)}
 
 
@@ -461,6 +456,8 @@ _ADAPTER_REGISTRY: Dict[str, Type] = {
     "coinbase": _CoinbaseAdapter,
     "kucoin": _KuCoinAdapter,
 }
+
+
 def get_exchange_client(
     name: Optional[str] = None,
     api_key: Optional[str] = None,
