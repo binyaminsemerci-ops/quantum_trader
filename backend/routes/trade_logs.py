@@ -11,7 +11,7 @@ async def get_trade_logs(limit: int = Query(50, ge=1, le=500)):
     Henter siste trade logs fra databasen.
     :param limit: Hvor mange logs som skal returneres (default 50, max 500)
     """
-    db = get_db()
+    db = next(get_db())
     cursor = db.cursor()
     cursor.execute(
         """
