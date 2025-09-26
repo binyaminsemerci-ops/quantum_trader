@@ -51,17 +51,35 @@ export default function SignalFeed() {
   return (
     <div className="p-2 border rounded">
       <h3 className="font-semibold">Signal Feed (mock)</h3>
-      <ul>
+      <ul className="space-y-2">
         {signals.map((s) => (
-          <li key={s.id} className="py-1">
-            <div className="text-sm text-slate-600">{toLocalString(s.timestamp)}</div>
-            <div className="flex items-baseline gap-3">
-              <div className="font-mono text-sm">{s.symbol}</div>
-              <div className="text-sm">{s.direction ?? "—"}</div>
-              <div className="text-sm">score: {s.score}</div>
-              {s.confidence !== undefined && <div className="text-xs text-slate-500">conf: {s.confidence}</div>}
+          <li key={s.id} className="p-2 border rounded-md hover:bg-slate-50">
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="text-sm text-slate-600">{toLocalString(s.timestamp)}</div>
+                <div className="flex items-baseline gap-3 mt-1">
+                  <div className="font-mono text-sm">{s.symbol}</div>
+                  <div>
+                    {s.direction ? (
+                      <span
+                        className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+                          s.direction === "LONG" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                        }`}
+                      >
+                        {s.direction}
+                      </span>
+                    ) : (
+                      <span className="text-sm">—</span>
+                    )}
+                  </div>
+                  <div className="text-sm">score: {s.score}</div>
+                  {s.confidence !== undefined && (
+                    <div className="text-xs text-slate-500">{Math.round(s.confidence * 100)}%</div>
+                  )}
+                </div>
+                {s.details?.note && <div className="text-xs text-slate-400 mt-1">{s.details.note}</div>}
+              </div>
             </div>
-            {s.details?.note && <div className="text-xs text-slate-400">{s.details.note}</div>}
           </li>
         ))}
       </ul>
