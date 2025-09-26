@@ -176,8 +176,8 @@ class _CoinbaseAdapter:
                             "parse balance entry failed: %s", e
                         )
                         continue
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).debug("coinbase spot_balance outer error: %s", e)
         return {"asset": "USDC", "free": 0.0}
 
     def futures_balance(self) -> Dict[str, Any]:
@@ -189,17 +189,20 @@ class _CoinbaseAdapter:
             bal = None
             try:
                 bal = self._client.fetch_balance({"type": "future"})
-            except Exception:
+            except Exception as e:
                 try:
                     bal = self._client.fetch_balance({"type": "futures"})
-                except Exception:
+                except Exception as e2:
+                    logging.getLogger(__name__).debug(
+                        "coinbase fetch_balance(type=future) failed: %s", e2
+                    )
                     bal = None
             if bal:
                 total = bal.get("total") or bal
                 if "USDT" in total:
                     return {"asset": "USDT", "balance": float(total.get("USDT", 0))}
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).debug("coinbase futures_balance outer error: %s", e)
         return {"asset": "USDT", "balance": 0.0}
 
     def fetch_recent_trades(self, symbol: str, limit: int = 5) -> List[Dict[str, Any]]:
@@ -226,7 +229,7 @@ class _CoinbaseAdapter:
                 ccxt_sym = f"{symbol[:-3]}/{symbol[-3:]}"
             trades = self._client.fetch_trades(ccxt_sym, limit=limit)
             # normalize minimal fields expected by callers
-            out = []
+            out: List[Dict[str, Any]] = []
             for t in trades[:limit]:
                 out.append(
                     {
@@ -245,7 +248,8 @@ class _CoinbaseAdapter:
                     }
                 )
             return out
-        except Exception:
+        except Exception as e:
+            logging.getLogger(__name__).debug("coinbase fetch_recent_trades error: %s", e)
             return [
                 {
                     "symbol": symbol,
@@ -290,58 +294,73 @@ class _KuCoinAdapter:
         self.api_key = api_key
         self.api_secret = api_secret
         self._client = None
-        # lazy import ccxt and instantiate kucoin client when possible
+        # Attempt to create a real ccxt client lazily. If ccxt isn't installed
+        # or credentials aren't provided, keep _client as None so tests/CI
+        # continue to use the mock-safe responses.
         try:
             import ccxt  # type: ignore
 
+            # ccxt uses the id 'coinbasepro' for the Coinbase Pro (Exchange) API.
             if api_key and api_secret:
-                ex = ccxt.kucoin(
+                ex = ccxt.coinbasepro(
                     {
                         "apiKey": api_key,
                         "secret": api_secret,
                     }
                 )
                 self._client = ex
-        except Exception:
+        except Exception as e:
+            logging.getLogger(__name__).debug("ccxt init failed: %s", e)
             self._client = None
 
     def spot_balance(self) -> Dict[str, Any]:
+        # Prefer real client if available
         if not self._client:
-            return {"asset": "USDC", "free": 200.0}
+            return {"asset": "USDC", "free": 500.0}
         try:
             bal = self._client.fetch_balance()
+            # ccxt returns balances in a dict under 'total'/'free' keyed by currency
             total = bal.get("total") or bal
-            free = bal.get("free") or {}
+            free = bal.get("free") or bal.get("free") or {}
             if "USDC" in total:
                 return {"asset": "USDC", "free": float(free.get("USDC", 0))}
+            # fallback: return first non-zero asset
             for k, v in (free or {}).items():
                 try:
                     if float(v) > 0:
                         return {"asset": k, "free": float(v)}
-                except Exception:
+                except Exception as e:
+                    logging.getLogger(__name__).debug(
+                        "parse balance entry failed: %s", e
+                    )
                     continue
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).debug("coinbase spot_balance outer error: %s", e)
         return {"asset": "USDC", "free": 0.0}
 
     def futures_balance(self) -> Dict[str, Any]:
+        # Best-effort: try futures-type balance via ccxt params; otherwise mock
         if not self._client:
             return {"asset": "USDT", "balance": 0.0}
         try:
+            # many ccxt exchanges accept a 'type' param for futures (exchange-specific)
             bal = None
             try:
                 bal = self._client.fetch_balance({"type": "future"})
-            except Exception:
+            except Exception as e:
                 try:
                     bal = self._client.fetch_balance({"type": "futures"})
-                except Exception:
+                except Exception as e2:
+                    logging.getLogger(__name__).debug(
+                        "coinbase fetch_balance(type=future) failed: %s", e2
+                    )
                     bal = None
             if bal:
                 total = bal.get("total") or bal
                 if "USDT" in total:
                     return {"asset": "USDT", "balance": float(total.get("USDT", 0))}
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).debug("coinbase futures_balance outer error: %s", e)
         return {"asset": "USDT", "balance": 0.0}
 
     def fetch_recent_trades(self, symbol: str, limit: int = 5) -> List[Dict[str, Any]]:
@@ -358,14 +377,17 @@ class _KuCoinAdapter:
                 for _ in range(limit)
             ]
         try:
+            # ccxt expects a symbol like 'ETH/USDC'
             if symbol.upper().endswith("USDC"):
                 ccxt_sym = f"{symbol[:-4]}/USDC"
             elif symbol.upper().endswith("USDT"):
                 ccxt_sym = f"{symbol[:-4]}/USDT"
             else:
+                # fallback: try to insert a slash before last 3 chars
                 ccxt_sym = f"{symbol[:-3]}/{symbol[-3:]}"
             trades = self._client.fetch_trades(ccxt_sym, limit=limit)
-            out = []
+            # normalize minimal fields expected by callers
+            out: List[Dict[str, Any]] = []
             for t in trades[:limit]:
                 out.append(
                     {
@@ -384,7 +406,10 @@ class _KuCoinAdapter:
                     }
                 )
             return out
-        except Exception:
+        except Exception as e:
+            logging.getLogger(__name__).debug(
+                "coinbase fetch_recent_trades error: %s", e
+            )
             return [
                 {
                     "symbol": symbol,
@@ -402,28 +427,21 @@ class _KuCoinAdapter:
         if not self._client:
             return {"symbol": symbol, "status": "mock", "side": side, "qty": qty}
         try:
+            # normalize symbol for ccxt
             if symbol.upper().endswith("USDC"):
                 ccxt_sym = f"{symbol[:-4]}/USDC"
             elif symbol.upper().endswith("USDT"):
                 ccxt_sym = f"{symbol[:-4]}/USDT"
             else:
                 ccxt_sym = symbol
+            # ccxt create_order(symbol, type, side, amount, params)
             res = self._client.create_order(
                 ccxt_sym, order_type.lower(), side.lower(), float(qty)
             )
             return res
         except Exception as exc:
+            logging.getLogger(__name__).debug("coinbase create_order error: %s", exc)
             return {"error": str(exc)}
-
-
-_ADAPTER_REGISTRY.update(
-    {
-        "coinbase": _CoinbaseAdapter,
-        "kucoin": _KuCoinAdapter,
-    }
-)
-
-
 def get_exchange_client(
     name: Optional[str] = None,
     api_key: Optional[str] = None,

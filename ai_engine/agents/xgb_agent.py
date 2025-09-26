@@ -31,8 +31,9 @@ class XGBAgent:
         try:
             self.twitter = TwitterClient()
             self.cryptopanic = CryptoPanicClient()
-        except Exception:
+        except Exception as e:
             # If for any reason these clients fail to instantiate, keep None
+            logger.debug('Failed to init auxiliary clients: %s', e)
             self.twitter = None
             self.cryptopanic = None
         self._load()
@@ -160,8 +161,8 @@ class XGBAgent:
                         return {'action': 'BUY', 'score': 0.6}
                     if last < ema * 0.998:
                         return {'action': 'SELL', 'score': 0.6}
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug('EMA heuristic failed: %s', e)
             return {'action': 'HOLD', 'score': 0.0}
 
         # Use model predict or predict_proba when available
@@ -264,12 +265,14 @@ class XGBAgent:
                     tw = await external_data.twitter_sentiment(symbol=s)
                     sent_score = tw.get('score', tw.get('sentiment', {}).get('score', 0.0)) if isinstance(tw, dict) else 0.0
                 except Exception:
+                    logger.debug('twitter_sentiment lookup failed for %s', s)
                     sent_score = 0.0
 
                 try:
                     news = await external_data.cryptopanic_news(symbol=s, limit=200)
                     news_items = news.get('news', []) if isinstance(news, dict) else (news or [])
                 except Exception:
+                    logger.debug('cryptopanic_news lookup failed for %s', s)
                     news_items = []
 
                 # expand sentiment/news into arrays aligned to candles
@@ -293,7 +296,7 @@ class XGBAgent:
                             row['sentiment'] = sentiment_series[idx]
                             row['news_count'] = news_series[idx]
                         except Exception:
-                            pass
+                            logger.debug('failed to attach sentiment/news to candle idx=%s for %s', idx, s)
 
                 return s, candles
 
