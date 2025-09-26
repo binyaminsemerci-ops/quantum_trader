@@ -128,6 +128,18 @@ Notes:
   runtime interpreter used by the app; CI installs those into the runner
   Python only after the enforcement check.
 
+## Environment variables
+
+For local development copy `backend/.env.example` to `backend/.env` and set
+your local values (do not commit `backend/.env`). The repo includes a
+`backend/.env.example` file with common values to get started.
+
+Note: the example now defaults to a local SQLite database so a username
+or external DB credentials are not required for standalone local runs or
+for running the test-suite. If you plan to run the application against an
+external Postgres instance, update `DB_USER`, `DB_PASS` and `DATABASE_URL`
+in your local `backend/.env` accordingly.
+
 
 - `--system-site-packages` lets tools in the linters venv import your
   runtime packages without reinstalling them, which prevents false
