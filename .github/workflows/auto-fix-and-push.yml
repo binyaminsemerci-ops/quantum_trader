@@ -9,6 +9,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # prevent the action from storing the default GITHUB_TOKEN
+          # in git so we can push with the provided PAT instead
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -37,4 +41,8 @@ jobs:
             echo "Branch name empty; using 'fix/precommit-patches-from-main'"
             BRANCH=fix/precommit-patches-from-main
           fi
-          git push "https://${{ secrets.BOT_PAT }}@github.com/${REPO}.git" HEAD:"${BRANCH}"
+          # Configure remote to use the provided PAT. Using the
+          # 'x-access-token' username is the recommended way to pass
+          # a token in a URL for non-interactive git operations.
+          git remote set-url origin https://x-access-token:${{ secrets.BOT_PAT }}@github.com/${REPO}.git
+          git push origin HEAD:"${BRANCH}"
