@@ -86,7 +86,7 @@ jobs:
           # Use the venv's pip to install tools (this keeps their deps out of
           # the runner's global site-packages).
           .venv_linters/bin/pip install --upgrade pip
-            .venv_linters/bin/pip install ruff mypy black bandit safety types-pytest pandas-stubs
+            .venv_linters/bin/pip install ruff mypy black bandit safety pandas-stubs
           # Put the venv on PATH using the supported environment file so
           # subsequent steps can invoke the tools by name.
           echo "${{ github.workspace }}/.venv_linters/bin" >> $GITHUB_PATH
