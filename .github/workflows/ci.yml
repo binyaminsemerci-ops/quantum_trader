@@ -145,12 +145,18 @@ jobs:
         run: bandit -r backend --exclude backend/tests
 
       - name: Run Safety
-        # run safety from the venv so its dependencies do not pollute the global env
-        # Use the newer `scan` command (replaces deprecated `check`).
-        # `--full-report` produces the human-readable report; the command
-        # will still exit non-zero if vulnerabilities are found (so CI can fail).
+        # Run Safety non-interactively. If SAFETY_API_KEY is configured as a
+        # repository secret, use it to authenticate; otherwise emit a warning
+        # and skip the scan to avoid interactive prompts that break CI.
         run: |
-          safety scan --full-report
+          if [ -n "${{ secrets.SAFETY_API_KEY }}" ]; then
+            echo "Logging in to Safety CLI using SAFETY_API_KEY secret"
+            safety auth login --key "${{ secrets.SAFETY_API_KEY }}"
+            safety scan --full-report
+          else
+            echo "::warning ::SAFETY_API_KEY not set; skipping Safety scan."
+            echo "To enable, add SAFETY_API_KEY as a repository secret and re-run CI."
+          fi
 
       - name: Check for dev-only packages in runtime (FAILS if any found)
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
