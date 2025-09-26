@@ -1,6 +1,3 @@
-import pytest
-
-
 def test_adapter_factory_smoke():
     """A tiny smoke test for the exchange adapter factory.
 
