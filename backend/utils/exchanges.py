@@ -189,7 +189,7 @@ class _CoinbaseAdapter:
             bal = None
             try:
                 bal = self._client.fetch_balance({"type": "future"})
-            except Exception as e:
+            except Exception:
                 try:
                     bal = self._client.fetch_balance({"type": "futures"})
                 except Exception as e2:
@@ -347,12 +347,12 @@ class _KuCoinAdapter:
             bal = None
             try:
                 bal = self._client.fetch_balance({"type": "future"})
-            except Exception as e:
+            except Exception:
                 try:
                     bal = self._client.fetch_balance({"type": "futures"})
                 except Exception as e2:
                     logging.getLogger(__name__).debug(
-                        "coinbase fetch_balance(type=future) failed: %s", e2
+                        "coinbase fetch_balance(type=futures) failed: %s", e2
                     )
                     bal = None
             if bal:
