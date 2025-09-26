@@ -1,25 +1,17 @@
-import PriceChartRecharts from './PriceChartRecharts';
-import type { OHLCV } from '../types';
-import useCandlesWS from '../hooks/useCandlesWS';
-import useCandlesPoll from '../hooks/useCandlesPoll';
+import React from "react";
 
-type Props = { symbol?: string; limit?: number };
+// Minimal chart stub — later replace with Recharts or TradingView
+type PricePoint = { time: string; open: number; high: number; low: number; close: number };
 
-export default function PriceChart({ symbol = 'BTCUSDC', limit = 100 }: Props) {
-  // Small wrapper that currently re-uses existing CandlesChart component.
-  // Later we can swap in Recharts / TradingView here for a richer candlestick view.
-  // Prefer websocket live feed; fall back to polling
-  const ws = useCandlesWS('/ws/dashboard');
-  const poll = useCandlesPoll(symbol, limit, 5000);
-
-  const data: OHLCV[] = ws.data && ws.data.length ? ws.data : poll.data;
-
-  if (!data || !data.length) return <div className="p-4 bg-white rounded shadow">No candle data</div>;
-
+export default function PriceChart({ data }: { data: PricePoint[] }) {
   return (
-    <div className="p-4 bg-white rounded shadow">
-  <h2 className="text-xl font-bold mb-2">📊 {symbol} Candles</h2>
-      <PriceChartRecharts data={data} />
+    <div className="p-2 border rounded">
+      <h3 className="font-semibold">Price chart (mock)</h3>
+      <ul>
+        {data.slice(-10).map((p) => (
+          <li key={p.time}>{p.time}: {p.close}</li>
+        ))}
+      </ul>
     </div>
   );
 }
