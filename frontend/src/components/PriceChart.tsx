@@ -1,25 +1,81 @@
-import PriceChartRecharts from './PriceChartRecharts';
-import type { OHLCV } from '../types';
-import useCandlesWS from '../hooks/useCandlesWS';
-import useCandlesPoll from '../hooks/useCandlesPoll';
+import { useEffect, useMemo, useState } from "react";
+import { fetchRecentPrices } from "../api/prices";
+import type { Candle } from "../api/prices";
 
-type Props = { symbol?: string; limit?: number };
+type PricePoint = Candle;
 
-export default function PriceChart({ symbol = 'BTCUSDC', limit = 100 }: Props) {
-  // Small wrapper that currently re-uses existing CandlesChart component.
-  // Later we can swap in Recharts / TradingView here for a richer candlestick view.
-  // Prefer websocket live feed; fall back to polling
-  const ws = useCandlesWS('/ws/dashboard');
-  const poll = useCandlesPoll(symbol, limit, 5000);
+function formatNumber(n: number) {
+  return Number.isFinite(n) ? n.toFixed(2) : "-";
+}
 
-  const data: OHLCV[] = ws.data && ws.data.length ? ws.data : poll.data;
+// A very small, dependency-free SVG price chart.
+export default function PriceChart({ data }: { data?: PricePoint[] }) {
+  const [internal, setInternal] = useState<PricePoint[] | null>(null);
 
-  if (!data || !data.length) return <div className="p-4 bg-white rounded shadow">No candle data</div>;
+  useEffect(() => {
+    if (!data) {
+      let mounted = true;
+      fetchRecentPrices().then((d) => mounted && setInternal(d)).catch(() => {});
+      return () => {
+        mounted = false;
+      };
+    }
+    return;
+  }, [data]);
+
+  const points = data ?? internal ?? [];
+
+  const latest = points[points.length - 1];
+
+  const svg = useMemo(() => {
+    if (!points.length) return null;
+    const w = 600;
+    const h = 200;
+    const padding = 20;
+    const prices = points.map((p) => p.close);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const range = max - min || 1;
+    const x = (i: number) => padding + (i / Math.max(1, points.length - 1)) * (w - padding * 2);
+    const y = (v: number) => padding + ((max - v) / range) * (h - padding * 2);
+
+    const path = points
+      .map((p, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(p.close)}`)
+      .join(" ");
+
+    const candles = points.map((p, i) => {
+      const cx = x(i);
+      const cy1 = y(p.open);
+      const cy2 = y(p.close);
+      const chigh = y(p.high);
+      const clow = y(p.low);
+      const color = p.close >= p.open ? "green" : "red";
+      return { cx, cy1, cy2, chigh, clow, color };
+    });
+
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+        <rect x={0} y={0} width={w} height={h} fill="transparent" />
+        <path d={path} fill="none" stroke="#2563eb" strokeWidth={2} strokeOpacity={0.9} />
+        {candles.map((c, i) => (
+          <g key={i}>
+            {/* wick */}
+            <line x1={c.cx} x2={c.cx} y1={c.chigh} y2={c.clow} stroke={c.color} strokeWidth={1} />
+            {/* body */}
+            <rect x={c.cx - 4} y={Math.min(c.cy1, c.cy2)} width={8} height={Math.max(1, Math.abs(c.cy2 - c.cy1))} fill={c.color} />
+          </g>
+        ))}
+      </svg>
+    );
+  }, [points]);
 
   return (
-    <div className="p-4 bg-white rounded shadow">
-  <h2 className="text-xl font-bold mb-2">📊 {symbol} Candles</h2>
-      <PriceChartRecharts data={data} />
+    <div className="p-2 border rounded">
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="font-semibold">Price chart</h3>
+        {latest && <div className="text-sm">Latest: {formatNumber(latest.close)}</div>}
+      </div>
+      <div>{svg ?? <div className="text-sm text-muted">Loading chart...</div>}</div>
     </div>
   );
 }
