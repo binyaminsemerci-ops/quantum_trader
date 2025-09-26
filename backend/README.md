@@ -130,5 +130,3 @@ Notes:
 - Do not install test-only packages (pytest, pytest-asyncio, etc.) into the
 	runtime interpreter used by the app; CI installs those into the runner
 	Python only after the enforcement check.
-
-

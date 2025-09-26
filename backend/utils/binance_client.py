@@ -48,4 +48,3 @@ class BinanceClient:
         avg_price = cast(Any, self.client).get_avg_price(symbol=symbol)
         # avg_price is expected to be a mapping with a string key "price"
         return {"symbol": symbol, "price": float(avg_price["price"])}
-
