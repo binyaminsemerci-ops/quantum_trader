@@ -476,7 +476,10 @@ def get_exchange_client(
 def get_adapter(name: Optional[str] = None, api_key: Optional[str] = None, api_secret: Optional[str] = None) -> ExchangeClient:
     """Deprecated alias for get_exchange_client kept for backwards compatibility.
 
-    Emit a DeprecationWarning so tests and callers expecting that warning type succeed.
+    Some older codepaths (or external consumers) call `get_adapter(name)` —
+    expose a thin wrapper to avoid AttributeError until callers are updated.
+
+    The function emits a DeprecationWarning to signal callers to migrate.
     """
     import warnings
 

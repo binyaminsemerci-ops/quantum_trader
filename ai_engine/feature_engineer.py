@@ -50,26 +50,28 @@ def _rsi(series: pd.Series, period: int = 14) -> pd.Series:
 
 
 def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    """Backwards-compatible alias expected by other modules.
+    """Backwards-compatible wrapper expected by other modules.
 
-    Delegates to `compute_basic_indicators` for now; keep this stable so
-    callers (including agents and training code) can rely on the name.
+    This currently delegates to `compute_basic_indicators` but exists so the
+    training code can call a stable API named `add_technical_indicators`.
+    Extend this function with additional indicators as needed.
     """
     return compute_basic_indicators(df)
 
 
 def add_sentiment_features(
     df: pd.DataFrame,
-    sentiment_series: Optional[pd.Series] = None,
-    news_counts: Optional[pd.Series] = None,
+    sentiment_series: pd.Series | None = None,
+    news_counts: pd.Series | None = None,
 ) -> pd.DataFrame:
     """Attach optional sentiment-related features to the dataframe.
 
-    This is intentionally conservative: it only adds columns when
+    The function is intentionally conservative: it only adds columns when
     corresponding series are provided and returns the augmented DataFrame.
     """
     df = df.copy()
     if sentiment_series is not None:
+        # Align by index if possible; cast to numeric to be robust
         df["sentiment"] = pd.to_numeric(sentiment_series, errors="coerce")
     if news_counts is not None:
         df["news_count"] = pd.to_numeric(news_counts, errors="coerce")

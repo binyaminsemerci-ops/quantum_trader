@@ -10,5 +10,5 @@ def test_adapter_factory_smoke():
     """
     from backend.utils import exchanges
 
-    adapter = exchanges.get_adapter("binance")
+    adapter = exchanges.get_exchange_client("binance")
     assert adapter is not None
