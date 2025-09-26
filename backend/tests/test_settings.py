@@ -10,7 +10,10 @@ def test_settings_loads():
 
 def test_settings_roundtrip(client):
     # POST settings and then GET to ensure values were persisted
-    payload = {"api_key": "roundtrip_key", "api_secret": "roundtrip_secret"}  # pragma: allowlist secret
+    payload = {
+        "api_key": "roundtrip_key",
+        "api_secret": "roundtrip_secret",
+    }  # pragma: allowlist secret
     post_resp = client.post("/settings", json=payload)
     assert post_resp.status_code == 200
 

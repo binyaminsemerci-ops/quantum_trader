@@ -13,14 +13,16 @@ async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
     candles: list[Dict[str, Any]] = []
     price: float = 100.0
     for i in range(limit):
-        candles.append({
-            "timestamp": f"t{i}",
-            "open": price,
-            "high": price + 1,
-            "low": price - 1,
-            "close": price + (i % 3 - 1) * 0.1,
-            "volume": 100 + i,
-        })
+        candles.append(
+            {
+                "timestamp": f"t{i}",
+                "open": price,
+                "high": price + 1,
+                "low": price - 1,
+                "close": price + (i % 3 - 1) * 0.1,
+                "volume": 100 + i,
+            }
+        )
         price = float(candles[-1]["close"])
 
     # mimic I/O latency
