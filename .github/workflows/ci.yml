@@ -56,6 +56,16 @@ jobs:
           echo "Wrote pip-list-after.txt"
           head -n 50 pip-list-after.txt || true
 
+      - name: Create dev venv and install dev requirements
+        # Create an isolated virtualenv for developer/test packages so we can
+        # use them in later steps (linters, mypy with test deps, etc.) without
+        # installing dev-only packages into the runner's global runtime env
+        # that the dev-deps enforcement step examines.
+        run: |
+          python -m venv .venv_dev
+          .venv_dev/bin/pip install --upgrade pip
+          .venv_dev/bin/pip install -r backend/requirements-dev.txt
+
       - name: Upload pip-list artifacts
         uses: actions/upload-artifact@v4
         with:
