@@ -331,8 +331,8 @@ async def train_endpoint(req: TrainRequest, background: BackgroundTasks):
         except Exception as e:
             try:
                 update_training_task(db2, task_id, "failed", details=str(e))
-            except Exception:
-                pass
+            except Exception as err:
+                logger.error("Failed to update training task after exception: %s", err)
 
     # schedule background training
     background.add_task(_bg_train, task.id, symbols, limit)
