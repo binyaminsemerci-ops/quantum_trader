@@ -97,4 +97,10 @@ export const api = {
 export const trainModel = (symbol: string) => axios.post(`/api/ai/train/${symbol}`);
 export const getPrediction = (symbol: string) => axios.post(`/api/ai/predict/${symbol}`);
 
+// Convenience helper used by some UI code/tests to set the default exchange
+export const setDefaultExchange = (exchange: string) => {
+  // call the settings endpoint; tests will usually mock this function so implementation can be simple
+  return api.post('/settings/defaultExchange', { exchange });
+};
+
 export default api;
