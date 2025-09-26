@@ -1,6 +1,6 @@
-// The dashboard UI lives under pages/Dashboard.tsx after conversion to TSX.
-import Dashboard from './pages/Dashboard';
+// Render the new DashboardPage (composes PriceChart + SignalFeed)
+import DashboardPage from './pages/DashboardPage';
 
 export default function App(): JSX.Element {
-  return <Dashboard />;
+  return <DashboardPage />;
 }
