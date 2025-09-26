@@ -32,6 +32,15 @@ def add_target(df: pd.DataFrame, horizon: int = 1, threshold: float = 0.002) -> 
     df = df.copy()
     df["Return"] = df["Close"].pct_change().shift(-horizon)
     df["Target"] = 0
+    # Ensure Return series is numeric so static analysis understands the
+    # comparisons against `threshold` are valid (pandas stubs can report
+    # Series[object] which doesn't support >/< with numeric literals).
+    try:
+        df["Return"] = pd.to_numeric(df["Return"], errors="coerce")
+    except Exception:
+        # If conversion fails at runtime, fall back to original object series
+        pass
+
     df.loc[df["Return"] > threshold, "Target"] = 1
     df.loc[df["Return"] < -threshold, "Target"] = -1
     return df.dropna()

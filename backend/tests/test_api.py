@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from httpx import AsyncClient, ASGITransport
 from backend.main import app
 
@@ -43,7 +43,9 @@ async def test_chart_endpoint():
 async def test_settings_roundtrip():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        payload = {"api_key": "dummy", "api_secret": "dummy"}
+        # The following values are test-only literals and are intentionally
+        # present in the test. Mark them for detect-secrets allowlisting.
+        payload = {"api_key": "dummy", "api_secret": "dummy"}  # pragma: allowlist secret
         post_resp = await ac.post("/settings", json=payload)
         assert post_resp.status_code == 200
 
