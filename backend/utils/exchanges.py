@@ -473,4 +473,21 @@ def get_exchange_client(
     return cls(api_key=api_key, api_secret=api_secret)
 
 
-__all__ = ["ExchangeClient", "get_exchange_client"]
+
+def get_adapter(name: Optional[str] = None, api_key: Optional[str] = None, api_secret: Optional[str] = None) -> ExchangeClient:
+    """Deprecated alias for get_exchange_client kept for backwards compatibility.
+
+    Some older codepaths (or external consumers) call `get_adapter(name)` —
+    expose a thin wrapper to avoid AttributeError until callers are updated.
+    """
+    import warnings
+
+    warnings.warn(
+        "get_adapter is deprecated and will be removed in a future release; use get_exchange_client instead",
+        FutureWarning,
+        stacklevel=2,
+    )
+    return get_exchange_client(name=name, api_key=api_key, api_secret=api_secret)
+
+
+__all__ = ["ExchangeClient", "get_exchange_client", "get_adapter"]

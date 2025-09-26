@@ -47,3 +47,32 @@ def _rsi(series: pd.Series, period: int = 14) -> pd.Series:
     ma_down = down.rolling(period).mean()
     rs = ma_up / ma_down
     return 100 - (100 / (1 + rs))
+
+
+def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    """Backwards-compatible wrapper expected by other modules.
+
+    This currently delegates to `compute_basic_indicators` but exists so the
+    training code can call a stable API named `add_technical_indicators`.
+    Extend this function with additional indicators as needed.
+    """
+    return compute_basic_indicators(df)
+
+
+def add_sentiment_features(
+    df: pd.DataFrame,
+    sentiment_series: pd.Series | None = None,
+    news_counts: pd.Series | None = None,
+) -> pd.DataFrame:
+    """Attach optional sentiment-related features to the dataframe.
+
+    The function is intentionally conservative: it only adds columns when
+    corresponding series are provided and returns the augmented DataFrame.
+    """
+    df = df.copy()
+    if sentiment_series is not None:
+        # Align by index if possible; cast to numeric to be robust
+        df["sentiment"] = pd.to_numeric(sentiment_series, errors="coerce")
+    if news_counts is not None:
+        df["news_count"] = pd.to_numeric(news_counts, errors="coerce")
+    return df
