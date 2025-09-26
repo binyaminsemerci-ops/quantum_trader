@@ -1,0 +1,40 @@
+name: auto-fix-and-push
+
+on:
+  workflow_dispatch:
+
+jobs:
+  auto-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps (optional)
+        run: pip install -r backend/requirements.txt || true
+
+      - name: Run auto-fix script
+        run: python scripts/auto_fix_mypy.py
+
+      - name: Commit changes
+        run: |
+          git config user.name "auto-fix-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(auto-fix): run auto-fixer" || echo "No changes to commit"
+
+      - name: Push changes back to branch
+        env:
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          if [ -z "${BRANCH}" ]; then
+            echo "Branch name empty; using 'fix/precommit-patches-from-main'"
+            BRANCH=fix/precommit-patches-from-main
+          fi
+          git push "https://${{ secrets.BOT_PAT }}@github.com/${REPO}.git" HEAD:"${BRANCH}"
