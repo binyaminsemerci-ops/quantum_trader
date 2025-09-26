@@ -15,7 +15,25 @@ export default function PriceChart({ data }: { data?: PricePoint[] }) {
   useEffect(() => {
     if (!data) {
       let mounted = true;
-      fetchRecentPrices().then((d) => mounted && setInternal(d)).catch(() => {});
+      // try fetch recent prices from backend; fallback to generated demo series
+      fetchRecentPrices()
+        .then((d) => mounted && setInternal(d))
+        .catch(() => {
+          if (!mounted) return;
+          // generate a small demo series (random walk) for visual purposes
+          const now = Date.now();
+          const seed = 100 + Math.random() * 10;
+          const demo: PricePoint[] = Array.from({ length: 40 }).map((_, i) => {
+            const t = new Date(now - (40 - i) * 60000).toISOString();
+            const open = seed + Math.sin(i / 5) * 2 + (i * 0.1);
+            const close = open + (Math.random() - 0.5) * 1.5;
+            const high = Math.max(open, close) + Math.random() * 0.8;
+            const low = Math.min(open, close) - Math.random() * 0.8;
+            const volume = Math.round(10 + Math.random() * 5);
+            return { time: t, open, high, low, close, volume };
+          });
+          setInternal(demo);
+        });
       return () => {
         mounted = false;
       };
