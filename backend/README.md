@@ -137,3 +137,44 @@ Notes:
 - Do not install test-only packages (pytest, pytest-asyncio, etc.) into the
   runtime interpreter used by the app; CI installs those into the runner
   Python only after the enforcement check.
+
+## Safety CLI (CI)
+
+The CI pipeline runs `safety scan --full-report` as part of the security
+checks. The Safety CLI requires authentication (an API key) for non-interactive
+use in CI. If you want Safety scans to run automatically on CI, follow these
+steps:
+
+1. Sign up for a (free) Safety CLI account and create an API key:
+   - Visit https://safetycli.com and follow the sign-up flow.
+   - Create an API key from the Safety dashboard and copy it.
+
+2. Store the key as a GitHub Actions repository secret named `SAFETY_API_KEY`:
+
+   - Through the GitHub web UI: Repository → Settings → Secrets and variables
+     → Actions → New repository secret. Use `SAFETY_API_KEY` as the name and
+     paste the key as the value.
+
+   - Or using the GitHub CLI (recommended for automation):
+
+     ```bash
+     # Replace YOUR_KEY_HERE with the key you obtained from Safety CLI
+     gh secret set SAFETY_API_KEY --body "YOUR_KEY_HERE"
+     ```
+
+3. Once the secret is configured, CI will run the Safety scan non-interactively
+   (the workflow authenticates using the secret and executes `safety scan`).
+
+If `SAFETY_API_KEY` is not set, CI will skip the Safety scan and emit a
+warning instead of failing with an interactive prompt. This lets CI continue
+while you provision the key.
+
+Security notes
+- Treat `SAFETY_API_KEY` like any other secret: limit access and rotate keys
+  periodically. Prefer organization secrets for cross-repo policies when
+  possible.
+- Do not store the key directly in the repo or in plaintext files.
+
+If you want, I can set the repository secret for you if you provide the API
+key (not recommended to paste secrets in chat). Alternatively, I can give you
+the exact `gh` command to run locally or on your machine.
