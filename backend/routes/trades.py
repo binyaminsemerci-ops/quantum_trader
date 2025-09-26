@@ -27,8 +27,20 @@ async def get_trades(db=Depends(get_db)):
 @router.post("", status_code=200)
 async def create_trade(payload: TradeCreate, db=Depends(get_db)):
     # Persist a new trade log and return its representation
-    t = TradeLog(symbol=payload.symbol, side=payload.side, qty=payload.qty, price=payload.price, status="NEW")
+    t = TradeLog(
+        symbol=payload.symbol,
+        side=payload.side,
+        qty=payload.qty,
+        price=payload.price,
+        status="NEW",
+    )
     db.add(t)
     db.commit()
     db.refresh(t)
-    return {"id": t.id, "symbol": t.symbol, "side": t.side, "qty": t.qty, "price": t.price}
+    return {
+        "id": t.id,
+        "symbol": t.symbol,
+        "side": t.side,
+        "qty": t.qty,
+        "price": t.price,
+    }

@@ -1,16 +1,20 @@
 from backend.config import settings
 
+# tests may include placeholder literals; mark the whole file allowlisted for detect-secrets
+# to avoid CI false positives when test fixtures include dummy credentials.
+# pragma: allowlist secret
+
 
 def test_settings_loads():
-    # tests may include placeholder literals; mark them allowlisted for detect-secrets
-    # to avoid CI false positives when test fixtures include dummy credentials.
-    # pragma: allowlist secret
     assert settings is not None
 
 
 def test_settings_roundtrip(client):
     # POST settings and then GET to ensure values were persisted
-    payload = {"api_key": "roundtrip_key", "api_secret": "roundtrip_secret"}  # pragma: allowlist secret
+    payload = {
+        "api_key": "roundtrip_key",  # pragma: allowlist secret
+        "api_secret": "roundtrip_secret",  # pragma: allowlist secret
+    }
     post_resp = client.post("/settings", json=payload)
     assert post_resp.status_code == 200
 

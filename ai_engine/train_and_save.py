@@ -12,10 +12,6 @@ The script is defensive: if xgboost or sklearn are not installed it falls back
 to a DummyRegressor and a lightweight scaler so it can run in minimal CI/dev
 environments.
 """
-import os
-import asyncio
-import pickle
-from typing import List, Optional
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), 'models')
 os.makedirs(MODEL_DIR, exist_ok=True)
@@ -166,7 +162,9 @@ def save_artifacts(model, scaler, model_path, scaler_path):
         with open(meta_path, 'w', encoding='utf-8') as mf:
             json.dump(meta, mf)
     except Exception:
-        pass
+        import logging
+
+        logging.getLogger(__name__).debug("failed to write model metadata", exc_info=True)
 
 
 def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
@@ -209,7 +207,14 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
     try:
         Xs = scaler.fit_transform(X)
     except Exception:
-        Xs = scaler.fit_transform(X)
+        try:
+            Xs = scaler.fit_transform(X)
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).debug("scaler fit_transform failed: %s", e)
+            # final fallback: attempt a simple identity-like transform
+            Xs = X
 
     reg = make_regressor()
     reg.fit(Xs, y)

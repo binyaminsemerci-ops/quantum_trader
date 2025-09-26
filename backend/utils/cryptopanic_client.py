@@ -6,6 +6,7 @@ Environment variables:
 This wrapper fetches latest posts (public) filtered by symbol tag when possible.
 If no key is configured it returns an empty list / mock items.
 """
+
 from typing import Optional, List, Dict, Any
 from config.config import load_config  # type: ignore[import-not-found, import-untyped]
 import requests  # type: ignore[import-untyped]
@@ -25,7 +26,7 @@ class CryptoPanicClient:
     def __init__(self):
         cfg = load_config()
         self.key = cfg.cryptopanic_key
-        self.base = 'https://cryptopanic.com/api/v1'
+        self.base = "https://cryptopanic.com/api/v1"
         self.mock = not bool(self.key)
 
     def _cached(self, key: str, ttl: int = 60) -> Optional[Any]:
@@ -41,7 +42,9 @@ class CryptoPanicClient:
     def _set_cache(self, key: str, val: Any) -> None:
         _CACHE[key] = (time.time(), val)
 
-    def _request_with_retries(self, url: str, params: dict, max_attempts: int = 3, timeout: int = 6) -> Optional[Any]:
+    def _request_with_retries(
+        self, url: str, params: dict, max_attempts: int = 3, timeout: int = 6
+    ) -> Optional[Any]:
         attempt = 0
         while attempt < max_attempts:
             try:
@@ -49,7 +52,7 @@ class CryptoPanicClient:
                 if r.status_code == 200:
                     return r
                 if r.status_code in (429, 500, 502, 503, 504):
-                    sleep_for = (2 ** attempt) + 0.1
+                    sleep_for = (2**attempt) + 0.1
                     time.sleep(sleep_for)
                     attempt += 1
                     continue
@@ -60,28 +63,38 @@ class CryptoPanicClient:
                 continue
         return None
 
-    def fetch_latest(self, tag: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
+    def fetch_latest(
+        self, tag: Optional[str] = None, limit: int = 20
+    ) -> List[Dict[str, Any]]:
         if self.mock:
             # return deterministic mock items
             now = int(time.time())
             items = []
             for i in range(limit):
-                items.append({'id': f'mock-{i}', 'title': f'Mock news {i} for {tag}', 'published_at': now - i * 60})
+                items.append(
+                    {
+                        "id": f"mock-{i}",
+                        "title": f"Mock news {i} for {tag}",
+                        "published_at": now - i * 60,
+                    }
+                )
             return items
 
-        cache_key = f'cp:{tag}:{limit}'
+        cache_key = f"cp:{tag}:{limit}"
         cached = self._cached(cache_key)
         if cached:
             return cached
 
-        params = {'auth_token': self.key, 'kind': 'news'}
+        params = {"auth_token": self.key, "kind": "news"}
         if tag:
             # cryptopanic's API supports 'filter' parameter for tags; keep safe
-            params['filter'] = tag
+            params["filter"] = tag
 
-        r = self._request_with_retries(f'{self.base}/posts/', params=params, max_attempts=3, timeout=8)
+        r = self._request_with_retries(
+            f"{self.base}/posts/", params=params, max_attempts=3, timeout=8
+        )
         if r is None:
-            warnings.warn('CryptoPanic request failed after retries')
+            warnings.warn("CryptoPanic request failed after retries")
             return []
 
         if r.status_code != 200:
@@ -89,7 +102,7 @@ class CryptoPanicClient:
 
         try:
             data = r.json()
-            items = data.get('results', [])[:limit]
+            items = data.get("results", [])[:limit]
             self._set_cache(cache_key, items)
             return items
         except Exception:

@@ -22,6 +22,7 @@ class BinanceClient:
     # Explicit instance attribute annotations to help static checkers
     client: Optional[Any] = None
     mock: bool = True
+
     def __init__(self):
         # Use centralized config loader for credentials. This allows local
         # .env files (via python-dotenv) and CI environment secrets to be used
