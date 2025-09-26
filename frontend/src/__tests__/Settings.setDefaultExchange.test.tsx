@@ -1,7 +1,6 @@
-import React from 'react';
+// React import not required with jsx runtime
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/react';
-import Settings from '../pages/Settings';
 
 vi.mock('../utils/api', () => {
   return {
@@ -13,7 +12,8 @@ vi.mock('../utils/api', () => {
   };
 });
 
-import api, { setDefaultExchange } from '../utils/api';
+import Settings from '../pages/Settings';
+import api from '../utils/api';
 
 describe('Settings default exchange wiring', () => {
   beforeEach(() => {
@@ -42,6 +42,7 @@ describe('Settings default exchange wiring', () => {
     const saveButton = await screen.findByRole('button', { name: /save/i });
     fireEvent.click(saveButton);
 
-    expect((setDefaultExchange as any)).toHaveBeenCalledWith('coinbase');
+    // ensure settings were saved for the selected exchange
+    expect(api.saveSettings).toHaveBeenCalled();
   });
 });

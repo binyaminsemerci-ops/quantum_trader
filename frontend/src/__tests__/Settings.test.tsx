@@ -1,7 +1,6 @@
-import React from 'react';
+// React import not required with jsx runtime
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/react';
-import Settings from '../pages/Settings';
 
 // Mock the api module
 vi.mock('../utils/api', () => {
@@ -14,6 +13,7 @@ vi.mock('../utils/api', () => {
   };
 });
 
+import Settings from '../pages/Settings';
 import api from '../utils/api';
 
 describe('Settings page', () => {

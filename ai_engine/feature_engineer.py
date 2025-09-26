@@ -44,3 +44,37 @@ def add_target(df: pd.DataFrame, horizon: int = 1, threshold: float = 0.002) -> 
     df.loc[df["Return"] > threshold, "Target"] = 1
     df.loc[df["Return"] < -threshold, "Target"] = -1
     return df.dropna()
+
+
+def add_sentiment_features(
+    df: pd.DataFrame,
+    sentiment_series: pd.Series | None = None,
+    news_counts: pd.Series | None = None,
+    window: int = 5,
+) -> pd.DataFrame:
+    """Add basic sentiment features to the feature DataFrame.
+
+    This is a conservative, small implementation intended to provide a
+    stable export for callers (e.g. agents/train code) and to be
+    type-checker friendly. It will add two optional columns when
+    sentiment or news counts are provided and otherwise return the
+    input DataFrame unchanged.
+    """
+    df = df.copy()
+    if sentiment_series is not None:
+        # align by index; coerce to numeric safely
+        try:
+            s = pd.to_numeric(sentiment_series, errors="coerce")
+            df[f"sentiment_mean_{window}"] = s.rolling(window=window, min_periods=1).mean().reindex(df.index)
+        except Exception:
+            # be permissive at runtime but keep typing simple
+            df[f"sentiment_mean_{window}"] = sentiment_series.reindex(df.index)
+
+    if news_counts is not None:
+        try:
+            n = pd.to_numeric(news_counts, errors="coerce")
+            df[f"news_count_sum_{window}"] = n.rolling(window=window, min_periods=1).sum().reindex(df.index)
+        except Exception:
+            df[f"news_count_sum_{window}"] = news_counts.reindex(df.index)
+
+    return df
