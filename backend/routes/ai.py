@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, Response, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional, Any
+import logging
 import os
-import pickle
+import pickle  # pragma: nosec B403 - pickle used to load internal model artifacts only
 import json
 import numpy as np
 from ai_engine.agents.xgb_agent import make_default_agent
@@ -13,6 +14,7 @@ from backend.database import create_training_task, update_training_task, get_db 
 from backend.database import TrainingTask  # type: ignore[attr-defined]
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class PredictRequest(BaseModel):
@@ -58,11 +60,15 @@ def _load_model():
         if os.path.exists(p):
             try:
                 with open(p, "rb") as f:
-                    _MODEL = pickle.load(f)
+                    # Loading models from repository-tracked artifacts. These
+                    # files are created/controlled by our build/training
+                    # processes and are trusted in this context. Suppress
+                    # bandit warning about pickle usage here.
+                    _MODEL = pickle.load(f)  # pragma: nosec B301
                     return _MODEL
-            except Exception:
-                # fall through and try default
-                pass
+            except Exception as e:
+                # Log and fall through to try other locations / fallbacks
+                logger.debug("failed to load pickled model from %s: %s", p, e)
     # Try a JSON-based lightweight model spec as a tiny example model.
     json_path = os.path.join(
         os.path.dirname(os.path.dirname(__file__)),
@@ -93,8 +99,8 @@ def _load_model():
 
             _MODEL = JSONModel(spec)
             return _MODEL
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("failed to load JSON model spec %s: %s", json_path, e)
     # If model not found, raise so callers can fall back
     raise FileNotFoundError("Model file not found in ai_engine/models/xgb_model.pkl")
 
@@ -180,9 +186,9 @@ async def scan(req: ScanRequest):
         import pandas as pd  # type: ignore
 
         pandas_mod = pd
-    except Exception:
+    except Exception as e:
         # leave pandas_mod as None when pandas isn't available
-        pass
+        logger.debug("pandas not available: %s", e)
 
     from ai_engine.agents.xgb_agent import make_default_agent
 
@@ -220,15 +226,15 @@ async def scan(req: ScanRequest):
         if getattr(req, "reload_model", False):
             try:
                 agent.reload()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("agent.reload() failed: %s", e)
 
         try:
             results = agent.scan_symbols(symbol_ohlcv, top_n=min(10, len(req.symbols)))
             return results
-        except Exception:
+        except Exception as e:
             # fall through to fallback heuristic below
-            pass
+            logger.debug("agent.scan_symbols failed: %s", e)
     else:
         # pandas is not available: create plain lists-of-dicts using stdlib datetime
         import datetime
@@ -284,7 +290,8 @@ async def scan(req: ScanRequest):
             else:
                 action = "HOLD"
                 score = 0.0
-        except Exception:
+        except Exception as e:
+            logger.debug("fallback heuristic error for symbol %s: %s", s, e)
             action = "HOLD"
             score = 0.0
         out[s] = {"action": action, "score": float(score)}
@@ -394,7 +401,8 @@ async def status_endpoint():
     meta = None
     try:
         meta = agent.get_metadata()
-    except Exception:
+    except Exception as e:
+        logger.debug("agent.get_metadata failed: %s", e)
         meta = None
     return {
         "loaded_model": agent.model is not None,

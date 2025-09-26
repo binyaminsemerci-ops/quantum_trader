@@ -9,6 +9,7 @@ methods and registering them in get_exchange_client.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Protocol, Type
+import logging
 import datetime
 from config.config import DEFAULT_EXCHANGE
 
@@ -43,7 +44,8 @@ class _BinanceAdapter:
 
             if api_key and api_secret:
                 self._client = Client(api_key, api_secret)  # type: ignore
-        except Exception:
+        except Exception as e:
+            logging.getLogger(__name__).debug("binance client init failed: %s", e)
             self._client = None
 
     def spot_balance(self) -> Dict[str, Any]:
@@ -57,8 +59,8 @@ class _BinanceAdapter:
             for b in acct.get("balances", []):
                 if b.get("asset") == "USDC":
                     return {"asset": "USDC", "free": float(b.get("free", 0))}
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).debug("spot_balance error: %s", e)
         return {"asset": "USDC", "free": 0.0}
 
     def futures_balance(self) -> Dict[str, Any]:
@@ -69,15 +71,16 @@ class _BinanceAdapter:
             fut = None
             try:
                 fut = self._client.futures_account_balance()
-            except Exception:
+            except Exception as e:
+                logging.getLogger(__name__).debug("futures_account_balance inner error: %s", e)
                 fut = None
             if fut:
                 # find USDT entry
                 for b in fut:
                     if b.get("asset") == "USDT":
                         return {"asset": "USDT", "balance": float(b.get("balance", 0))}
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).debug("futures_balance error: %s", e)
         return {"asset": "USDT", "balance": 0.0}
 
     def fetch_recent_trades(self, symbol: str, limit: int = 5) -> List[Dict[str, Any]]:
@@ -96,7 +99,8 @@ class _BinanceAdapter:
             ]
         try:
             return self._client.get_recent_trades(symbol=symbol, limit=limit)  # type: ignore
-        except Exception:
+        except Exception as e:
+            logging.getLogger(__name__).debug("get_recent_trades error: %s", e)
             return []
 
     def create_order(
@@ -107,6 +111,7 @@ class _BinanceAdapter:
         try:
             return self._client.create_order(symbol=symbol, side=side, type=order_type, quantity=qty)  # type: ignore
         except Exception as exc:
+            logging.getLogger(__name__).debug("create_order error: %s", exc)
             return {"error": str(exc)}
 
 
@@ -144,7 +149,8 @@ class _CoinbaseAdapter:
                     }
                 )
                 self._client = ex
-        except Exception:
+        except Exception as e:
+            logging.getLogger(__name__).debug("ccxt init failed: %s", e)
             self._client = None
 
     def spot_balance(self) -> Dict[str, Any]:
@@ -159,12 +165,13 @@ class _CoinbaseAdapter:
             if "USDC" in total:
                 return {"asset": "USDC", "free": float(free.get("USDC", 0))}
             # fallback: return first non-zero asset
-            for k, v in (free or {}).items():
-                try:
-                    if float(v) > 0:
-                        return {"asset": k, "free": float(v)}
-                except Exception:
-                    continue
+                for k, v in (free or {}).items():
+                    try:
+                        if float(v) > 0:
+                            return {"asset": k, "free": float(v)}
+                    except Exception as e:
+                        logging.getLogger(__name__).debug("parse balance entry failed: %s", e)
+                        continue
         except Exception:
             pass
         return {"asset": "USDC", "free": 0.0}
