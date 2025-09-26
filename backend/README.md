@@ -128,6 +128,12 @@ Notes:
   runtime interpreter used by the app; CI installs those into the runner
   Python only after the enforcement check.
 
+## Environment variables
+
+For local development copy `backend/.env.example` to `backend/.env` and set
+your local values (do not commit `backend/.env`). The repo includes a
+`backend/.env.example` file with common values to get started.
+
 
 - `--system-site-packages` lets tools in the linters venv import your
   runtime packages without reinstalling them, which prevents false
