@@ -67,4 +67,3 @@ export default function Chart(): JSX.Element {
     </div>
   );
 }
-

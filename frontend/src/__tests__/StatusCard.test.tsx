@@ -1,4 +1,4 @@
-import React from 'react';
+// React import not required with jsx runtime
 import { render, screen } from '@testing-library/react';
 import StatusCard from '../components/StatusCard';
 
