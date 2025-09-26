@@ -1,8 +1,7 @@
 pytest
 pytest-asyncio
-pytest
-pytest-asyncio
 httpx
+fastapi
 anyio
 coverage
 # Optional dev tooling
