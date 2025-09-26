@@ -1,7 +1,9 @@
-"""Small helpers for choosing execution markets (spot vs futures) and building pairs.
+"""Small helpers for choosing execution markets (spot vs futures) and building
+pairs.
 
-Most trades should execute on USDT-margined futures / cross-margin by default.
-Use the helpers here to centralize that decision so UI, backtests and bots are consistent.
+Most trades should execute on USDT-margined futures / cross-margin by
+default. Use the helpers here to centralize that decision so UI, backtests
+and bots are consistent.
 """
 
 from typing import Literal
