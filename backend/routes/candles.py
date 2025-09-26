@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Query
+from typing import Annotated
 from backend.database import get_db
 
 router = APIRouter()
@@ -6,9 +7,9 @@ router = APIRouter()
 
 @router.get("/candles")
 def get_candles(
-    symbol: str = Query(..., description="Trading symbol f.eks. BTCUSDT"),
-    limit: int = Query(100, description="Antall candles som skal hentes"),
-):
+    symbol: Annotated[str, Query(..., description="Trading symbol f.eks. BTCUSDT")],
+    limit: Annotated[int, Query(100, description="Antall candles som skal hentes")],
+) -> dict:
     """
     Returner OHLCV-data fra SQLite candles-tabellen.
     """
