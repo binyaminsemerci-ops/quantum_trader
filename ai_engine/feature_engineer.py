@@ -6,7 +6,7 @@ pipeline.
 """
 from __future__ import annotations
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import pandas as pd
 
@@ -47,3 +47,30 @@ def _rsi(series: pd.Series, period: int = 14) -> pd.Series:
     ma_down = down.rolling(period).mean()
     rs = ma_up / ma_down
     return 100 - (100 / (1 + rs))
+
+
+def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    """Backwards-compatible alias expected by other modules.
+
+    Delegates to `compute_basic_indicators` for now; keep this stable so
+    callers (including agents and training code) can rely on the name.
+    """
+    return compute_basic_indicators(df)
+
+
+def add_sentiment_features(
+    df: pd.DataFrame,
+    sentiment_series: Optional[pd.Series] = None,
+    news_counts: Optional[pd.Series] = None,
+) -> pd.DataFrame:
+    """Attach optional sentiment-related features to the dataframe.
+
+    This is intentionally conservative: it only adds columns when
+    corresponding series are provided and returns the augmented DataFrame.
+    """
+    df = df.copy()
+    if sentiment_series is not None:
+        df["sentiment"] = pd.to_numeric(sentiment_series, errors="coerce")
+    if news_counts is not None:
+        df["news_count"] = pd.to_numeric(news_counts, errors="coerce")
+    return df
