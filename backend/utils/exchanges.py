@@ -72,7 +72,9 @@ class _BinanceAdapter:
             try:
                 fut = self._client.futures_account_balance()
             except Exception as e:
-                logging.getLogger(__name__).debug("futures_account_balance inner error: %s", e)
+                logging.getLogger(__name__).debug(
+                    "futures_account_balance inner error: %s", e
+                )
                 fut = None
             if fut:
                 # find USDT entry
@@ -164,13 +166,15 @@ class _CoinbaseAdapter:
             free = bal.get("free") or bal.get("free") or {}
             if "USDC" in total:
                 return {"asset": "USDC", "free": float(free.get("USDC", 0))}
-            # fallback: return first non-zero asset
+                # fallback: return first non-zero asset
                 for k, v in (free or {}).items():
                     try:
                         if float(v) > 0:
                             return {"asset": k, "free": float(v)}
                     except Exception as e:
-                        logging.getLogger(__name__).debug("parse balance entry failed: %s", e)
+                        logging.getLogger(__name__).debug(
+                            "parse balance entry failed: %s", e
+                        )
                         continue
         except Exception:
             pass
