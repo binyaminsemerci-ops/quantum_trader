@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Any
 import logging
 import os
-import pickle  # pragma: nosec B403 - pickle used to load internal model artifacts only
+import pickle  # nosec B403 - pickle used to load internal model artifacts only
 import json
 import numpy as np
 from ai_engine.agents.xgb_agent import make_default_agent
@@ -64,7 +64,7 @@ def _load_model():
                     # files are created/controlled by our build/training
                     # processes and are trusted in this context. Suppress
                     # bandit warning about pickle usage here.
-                    _MODEL = pickle.load(f)  # pragma: nosec B301
+                    _MODEL = pickle.load(f)  # nosec B301
                     return _MODEL
             except Exception as e:
                 # Log and fall through to try other locations / fallbacks
