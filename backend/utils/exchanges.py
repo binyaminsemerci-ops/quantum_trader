@@ -67,7 +67,8 @@ class _BinanceAdapter:
         if not self._client:
             return {"asset": "USDT", "balance": 0.0}
         try:
-            # python-binance exposes futures account endpoints differently; attempt a pragmatic fetch
+            # python-binance exposes futures account endpoints differently; attempt
+            # a pragmatic fetch
             fut = None
             try:
                 fut = self._client.futures_account_balance()
@@ -111,16 +112,15 @@ class _BinanceAdapter:
         if not self._client:
             return {"symbol": symbol, "status": "mock", "side": side, "qty": qty}
         try:
-            return self._client.create_order(symbol=symbol, side=side, type=order_type, quantity=qty)  # type: ignore
+            return self._client.create_order(
+                symbol=symbol, side=side, type=order_type, quantity=qty
+            )  # type: ignore
         except Exception as exc:
             logging.getLogger(__name__).debug("create_order error: %s", exc)
             return {"error": str(exc)}
 
 
-_ADAPTER_REGISTRY: Dict[str, Type] = {
-    "binance": _BinanceAdapter,
-    # future adapters: 'coinbase': CoinbaseAdapter, 'kucoin': KuCoinAdapter
-}
+
 
 
 class _CoinbaseAdapter:
@@ -177,7 +177,9 @@ class _CoinbaseAdapter:
                         )
                         continue
         except Exception as e:
-            logging.getLogger(__name__).debug("coinbase spot_balance outer error: %s", e)
+            logging.getLogger(__name__).debug(
+                "coinbase spot_balance outer error: %s", e
+            )
         return {"asset": "USDC", "free": 0.0}
 
     def futures_balance(self) -> Dict[str, Any]:
@@ -202,7 +204,9 @@ class _CoinbaseAdapter:
                 if "USDT" in total:
                     return {"asset": "USDT", "balance": float(total.get("USDT", 0))}
         except Exception as e:
-            logging.getLogger(__name__).debug("coinbase futures_balance outer error: %s", e)
+            logging.getLogger(__name__).debug(
+                "coinbase futures_balance outer error: %s", e
+            )
         return {"asset": "USDT", "balance": 0.0}
 
     def fetch_recent_trades(self, symbol: str, limit: int = 5) -> List[Dict[str, Any]]:
@@ -249,7 +253,9 @@ class _CoinbaseAdapter:
                 )
             return out
         except Exception as e:
-            logging.getLogger(__name__).debug("coinbase fetch_recent_trades error: %s", e)
+            logging.getLogger(__name__).debug(
+                "coinbase fetch_recent_trades error: %s", e
+            )
             return [
                 {
                     "symbol": symbol,
@@ -335,7 +341,9 @@ class _KuCoinAdapter:
                     )
                     continue
         except Exception as e:
-            logging.getLogger(__name__).debug("coinbase spot_balance outer error: %s", e)
+            logging.getLogger(__name__).debug(
+                "coinbase spot_balance outer error: %s", e
+            )
         return {"asset": "USDC", "free": 0.0}
 
     def futures_balance(self) -> Dict[str, Any]:
@@ -360,7 +368,9 @@ class _KuCoinAdapter:
                 if "USDT" in total:
                     return {"asset": "USDT", "balance": float(total.get("USDT", 0))}
         except Exception as e:
-            logging.getLogger(__name__).debug("coinbase futures_balance outer error: %s", e)
+            logging.getLogger(__name__).debug(
+                "coinbase futures_balance outer error: %s", e
+            )
         return {"asset": "USDT", "balance": 0.0}
 
     def fetch_recent_trades(self, symbol: str, limit: int = 5) -> List[Dict[str, Any]]:
@@ -440,8 +450,17 @@ class _KuCoinAdapter:
             )
             return res
         except Exception as exc:
-            logging.getLogger(__name__).debug("coinbase create_order error: %s", exc)
+            logging.getLogger(__name__).debug(
+                "coinbase create_order error: %s", exc
+            )
             return {"error": str(exc)}
+
+
+_ADAPTER_REGISTRY: Dict[str, Type] = {
+    "binance": _BinanceAdapter,
+    "coinbase": _CoinbaseAdapter,
+    "kucoin": _KuCoinAdapter,
+}
 def get_exchange_client(
     name: Optional[str] = None,
     api_key: Optional[str] = None,
