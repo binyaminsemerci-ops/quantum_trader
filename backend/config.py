@@ -8,17 +8,20 @@ This module re-exports the minimal symbols tests and runtime code expect:
 Keeping this shim avoids touching many imports across the codebase and is
 safe to include in CI to satisfy mypy/import resolution.
 """
+
 from typing import Any
 
 try:
     # canonical config location
     from config.config import load_config, settings  # type: ignore[import-not-found]
 except Exception:  # pragma: no cover - fallback for static analysis environments
+
     def load_config() -> Any:  # type: ignore[override]
         """Fallback stub used in analysis environments where the real
         config package isn't available. Tests that need real settings should
         import from the real module or set up fixtures.
         """
+
         class _Stub:
             binance_api_key = None
             binance_api_secret = None

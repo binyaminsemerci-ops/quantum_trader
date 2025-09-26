@@ -21,8 +21,10 @@ def test_db_file(tmp_path):
     # Cleanup
     try:
         shutil.rmtree(str(tmpdir))
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).debug("failed to remove tmp test dir: %s", e)
 
 
 @pytest.fixture

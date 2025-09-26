@@ -20,7 +20,9 @@ else:
 # For SQLite we need check_same_thread=False so SQLAlchemy works with FastAPI
 # and pytest's test client in the same thread; for other DBs the connect_args
 # can remain empty.
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite:///") else {}
+connect_args = (
+    {"check_same_thread": False} if DATABASE_URL.startswith("sqlite:///") else {}
+)
 
 # Opprett engine
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
