@@ -11,3 +11,16 @@ if [ $rc -ne 0 ]; then
 fi
 
 exit 0
+#!/usr/bin/env bash
+# Simple git pre-commit hook to prevent committing when dev-only packages are
+# installed in the runtime environment.
+
+python backend/scripts/check_dev_deps_in_runtime.py
+rc=$?
+if [ $rc -ne 0 ]; then
+  echo "ERROR: dev-only packages detected in runtime environment."
+  echo "Run: pip install -r backend/requirements-dev.txt to set up a dev env."
+  exit $rc
+fi
+
+exit 0
