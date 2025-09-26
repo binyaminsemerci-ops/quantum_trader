@@ -56,6 +56,16 @@ jobs:
           echo "Wrote pip-list-after.txt"
           head -n 50 pip-list-after.txt || true
 
+      - name: Create dev venv and install dev requirements
+        # Create an isolated virtualenv for developer/test packages so we can
+        # use them in later steps (linters, mypy with test deps, etc.) without
+        # installing dev-only packages into the runner's global runtime env
+        # that the dev-deps enforcement step examines.
+        run: |
+          python -m venv .venv_dev
+          .venv_dev/bin/pip install --upgrade pip
+          .venv_dev/bin/pip install -r backend/requirements-dev.txt
+
       - name: Upload pip-list artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -68,7 +78,7 @@ jobs:
       - name: Install Node.js (for frontend audit)
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install linters and security tools
         run: |
@@ -86,7 +96,7 @@ jobs:
           # Use the venv's pip to install tools (this keeps their deps out of
           # the runner's global site-packages).
           .venv_linters/bin/pip install --upgrade pip
-            .venv_linters/bin/pip install ruff mypy black bandit safety types-pytest pandas-stubs
+          .venv_linters/bin/pip install ruff mypy black bandit safety pandas-stubs
           # Put the venv on PATH using the supported environment file so
           # subsequent steps can invoke the tools by name.
           echo "${{ github.workspace }}/.venv_linters/bin" >> $GITHUB_PATH
@@ -185,10 +195,10 @@ jobs:
       - name: Run Pytest with Coverage
         env:
           ENV: test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: quantum
-          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres  # pragma: allowlist secret
+          POSTGRES_PASSWORD: postgres  # pragma: allowlist secret
+          POSTGRES_DB: quantum  # pragma: allowlist secret
+          POSTGRES_HOST: localhost  # pragma: allowlist secret
         run: |
           coverage run -m pytest backend/tests
           coverage report -m
@@ -277,4 +287,3 @@ jobs:
         working-directory: frontend
         run: |
           npm run typecheck
-      

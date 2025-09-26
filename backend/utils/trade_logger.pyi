@@ -1,5 +1,4 @@
 from typing import Any, Optional
-from datetime import datetime
 
 def log_trade(trade: dict[str, Any], status: str, reason: Optional[str] = None) -> Any: ...
 

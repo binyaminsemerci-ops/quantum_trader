@@ -13,7 +13,8 @@ export default function useCandlesPoll(symbol = 'BTCUSDC', limit = 200, interval
 
   useEffect(() => {
     mounted.current = true;
-    let timer: NodeJS.Timeout;
+  // In browsers the timer id is a number; avoid importing NodeJS types in the frontend bundle
+  let timer: number | undefined;
 
     async function fetchOnce() {
       try {
@@ -38,11 +39,11 @@ export default function useCandlesPoll(symbol = 'BTCUSDC', limit = 200, interval
     }
 
     fetchOnce();
-    timer = setInterval(fetchOnce, intervalMs);
+  timer = window.setInterval(fetchOnce, intervalMs);
 
     return () => {
       mounted.current = false;
-      if (timer) clearInterval(timer);
+  if (timer !== undefined) clearInterval(timer);
     };
   }, [symbol, limit, intervalMs]);
 

@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import moment from 'moment';
+
+function formatTimestamp(ts?: string) {
+  if (!ts) return '-';
+  try {
+    const d = new Date(ts);
+    return d.toLocaleString();
+  } catch {
+    return ts;
+  }
+}
 
 type Signal = {
   id?: string | number;
@@ -95,7 +104,7 @@ const SignalsList: React.FC = () => {
                 <td>{s.symbol}</td>
                 <td>{s.signal}</td>
                 <td>{typeof s.confidence === 'number' ? `${Math.round(s.confidence * 100)}%` : '—'}</td>
-                <td>{s.timestamp ? moment(s.timestamp).format('DD.MM.YYYY, HH:mm:ss') : '-'}</td>
+                <td>{formatTimestamp(s.timestamp)}</td>
                 <td>{s.executed ? 'Yes' : 'No'}</td>
                 <td>
                   {!s.executed && (
