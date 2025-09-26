@@ -52,4 +52,3 @@ Checklist & CI guidance
 How to collect CI logs locally (if you want me to fetch them):
 1) Create a GitHub token with repo/read:packages and actions:read (or use the existing `MY_PAT`).
 2) Run the helper script included at `scripts/monitor_pr_ci.py` (see README-like instructions below).
-

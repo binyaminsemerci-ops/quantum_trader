@@ -185,10 +185,10 @@ jobs:
       - name: Run Pytest with Coverage
         env:
           ENV: test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: quantum
-          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres  # pragma: allowlist secret
+          POSTGRES_PASSWORD: postgres  # pragma: allowlist secret
+          POSTGRES_DB: quantum  # pragma: allowlist secret
+          POSTGRES_HOST: localhost  # pragma: allowlist secret
         run: |
           coverage run -m pytest backend/tests
           coverage report -m
@@ -277,4 +277,3 @@ jobs:
         working-directory: frontend
         run: |
           npm run typecheck
-      

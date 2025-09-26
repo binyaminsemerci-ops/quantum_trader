@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/<Gemgeminay>/quantum_trader/actions/workflows/ci.yml/badge.svg)
 
-Et fullstack trading-system med **FastAPI (backend)**, **React + Vite (frontend)** og **Docker**.  
+Et fullstack trading-system med **FastAPI (backend)**, **React + Vite (frontend)** og **Docker**.
 Prosjektet inkluderer plan for Binance-integrasjon, AI-modell, trading-motor og et dashbord for live trading.
 
 ---
