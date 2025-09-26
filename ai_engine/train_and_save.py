@@ -12,10 +12,6 @@ The script is defensive: if xgboost or sklearn are not installed it falls back
 to a DummyRegressor and a lightweight scaler so it can run in minimal CI/dev
 environments.
 """
-import os
-import asyncio
-import pickle
-from typing import List, Optional
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), 'models')
 os.makedirs(MODEL_DIR, exist_ok=True)
