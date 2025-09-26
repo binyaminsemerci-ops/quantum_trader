@@ -90,12 +90,11 @@ class XGBAgent:
 
         feat = _add_technical_indicators(df_norm)
 
-        # mypy/pandas: some CI environments use installed pandas stubs while
-        # local static analysis may treat DataFrame-like objects as 'object'.
-        # Cast to Any here so downstream indexing/select_dtypes calls are
-        # treated as dynamic and don't raise 'object is not indexable'.
-        from typing import Any as _Any, cast as _cast
-        feat_any = _cast(_Any, feat)
+    # mypy/pandas: some CI environments use installed pandas stubs while
+    # local static analysis may treat DataFrame-like objects as 'object'.
+    # We previously cast to Any to help static checkers; drop the unused
+    # local assignment here to satisfy linters. Callers that need a
+    # dynamic view can cast later when required.
 
         # sentiment/news may be provided as columns (sentiment, news_count)
         sentiment_series = None
