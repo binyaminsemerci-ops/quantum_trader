@@ -1,3 +1,17 @@
+pytest
+pytest-asyncio
+httpx
+anyio
+coverage
+fastapi
+# Developer-only dependencies
+# SQLAlchemy-Utils is added here so developers can use it for local tooling
+# (e.g. migrations or helper scripts) without installing it in CI/runtime.
+# This keeps runtime surfaces smaller and avoids installing packages that
+# triggered advisory PyUp-42194 at runtime. Pinning prevents accidental
+# drift in developer environments.
+# Relaxed pin to allow development flexibility while keeping a safe upper bound
+SQLAlchemy-Utils>=0.41,<0.43
 
 pytest
 pytest-asyncio
