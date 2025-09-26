@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 
-from typing import Dict, Any, Callable
+from typing import Dict, Any
 from types import SimpleNamespace
 
 
