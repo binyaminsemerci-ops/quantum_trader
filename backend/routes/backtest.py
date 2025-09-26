@@ -7,7 +7,7 @@ router = APIRouter()
 
 @router.get("/backtest")
 def run_backtest(symbol: str = "BTCUSDT", days: int = 30):
-    db = get_db()
+    db = next(get_db())
     cursor = db.cursor()
 
     # 1️⃣ Forsøk på trades

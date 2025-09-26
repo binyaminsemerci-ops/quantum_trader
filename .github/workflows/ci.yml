@@ -13,10 +13,11 @@ jobs:
     services:
       postgres:
         image: postgres:16
+        # pragma: allowlist secret - these are test service env names/passwords used only for CI
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: quantum
+          POSTGRES_USER: postgres  # pragma: allowlist secret
+          POSTGRES_PASSWORD: postgres  # pragma: allowlist secret
+          POSTGRES_DB: quantum  # pragma: allowlist secret
         ports:
           - 5432:5432
         options: >-
@@ -74,21 +75,21 @@ jobs:
           # Install only linters and security scanners into an isolated virtualenv
           # so the shared runtime environment remains free of test-only packages
           # when we check for dev-only packages installed in runtime.
-            python -m pip install --upgrade pip
-            # Create the venv that will host linters/security tools.
-            # Use --system-site-packages so the venv can see the runtime
-            # packages we installed earlier in the job. This lets mypy (and
-            # other tools) import application packages without installing
-            # runtime deps into the venv and avoids false "import-not-found"
-            # errors.
-            python -m venv .venv_linters --system-site-packages
-            # Use the venv's pip to install tools (this keeps their deps out of
-            # the runner's global site-packages).
-            .venv_linters/bin/pip install --upgrade pip
-            .venv_linters/bin/pip install ruff mypy black bandit safety
-            # Put the venv on PATH using the supported environment file so
-            # subsequent steps can invoke the tools by name.
-            echo "${{ github.workspace }}/.venv_linters/bin" >> $GITHUB_PATH
+          python -m pip install --upgrade pip
+          # Create the venv that will host linters/security tools.
+          # Use --system-site-packages so the venv can see the runtime
+          # packages we installed earlier in the job. This lets mypy (and
+          # other tools) import application packages without installing
+          # runtime deps into the venv and avoids false "import-not-found"
+          # errors.
+          python -m venv .venv_linters --system-site-packages
+          # Use the venv's pip to install tools (this keeps their deps out of
+          # the runner's global site-packages).
+          .venv_linters/bin/pip install --upgrade pip
+            .venv_linters/bin/pip install ruff mypy black bandit safety types-pytest pandas-stubs
+          # Put the venv on PATH using the supported environment file so
+          # subsequent steps can invoke the tools by name.
+          echo "${{ github.workspace }}/.venv_linters/bin" >> $GITHUB_PATH
 
       - name: Run npm ci for frontend
         working-directory: frontend
