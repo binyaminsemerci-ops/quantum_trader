@@ -14,7 +14,7 @@ async def dashboard_ws(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            db = get_db()
+            db = next(get_db())
             cursor = db.cursor()
 
             cursor.execute("SELECT COUNT(*) FROM trades")
