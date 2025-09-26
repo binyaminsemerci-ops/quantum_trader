@@ -4,6 +4,7 @@ pytest-asyncio
 httpx
 anyio
 coverage
+fastapi
 # Developer-only dependencies
 # SQLAlchemy-Utils is added here so developers can use it for local tooling
 # (e.g. migrations or helper scripts) without installing it in CI/runtime.
