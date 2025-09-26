@@ -78,7 +78,7 @@ jobs:
       - name: Install Node.js (for frontend audit)
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install linters and security tools
         run: |
@@ -101,10 +101,10 @@ jobs:
           # subsequent steps can invoke the tools by name.
           echo "${{ github.workspace }}/.venv_linters/bin" >> $GITHUB_PATH
 
-      - name: Run npm install for frontend
+      - name: Run npm ci for frontend
         working-directory: frontend
         run: |
-          npm install
+          npm ci
 
       - name: Run frontend build (Vite)
         working-directory: frontend
@@ -282,7 +282,7 @@ jobs:
       - name: Install frontend deps
         working-directory: frontend
         run: |
-          npm install
+          npm ci
       - name: Run frontend typecheck (tsc --noEmit)
         working-directory: frontend
         run: |
