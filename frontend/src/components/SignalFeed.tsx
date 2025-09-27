@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import SignalDetail from "./SignalDetail";
 
 export type Signal = {
   id: string;
@@ -24,6 +25,7 @@ function toLocalString(iso: string) {
 
 export default function SignalFeed() {
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [selected, setSelected] = useState<Signal | null>(null);
 
   const [pageSize, setPageSize] = useState<number>(10);
 
@@ -74,7 +76,7 @@ export default function SignalFeed() {
 
       <ul className="space-y-2">
         {signals.map((s) => (
-          <li key={s.id} className="p-2 border rounded-md hover:bg-slate-50">
+          <li key={s.id} className="p-2 border rounded-md hover:bg-slate-50 cursor-pointer" onClick={() => setSelected(s)}>
             <div className="flex justify-between items-start">
               <div>
                 <div className="text-sm text-slate-600">{toLocalString(s.timestamp)}</div>
@@ -104,6 +106,7 @@ export default function SignalFeed() {
           </li>
         ))}
       </ul>
+      <SignalDetail signal={selected} onClose={() => setSelected(null)} />
       {!signals.length && <div className="text-sm text-muted">No signals yet</div>}
     </div>
   );
