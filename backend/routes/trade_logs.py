@@ -1,12 +1,13 @@
 # backend/routes/trade_logs.py
 from fastapi import APIRouter, Query
+from typing import Annotated
 from backend.database import get_db
 
 router = APIRouter()
 
 
 @router.get("/trade_logs")
-async def get_trade_logs(limit: int = Query(50, ge=1, le=500)):
+async def get_trade_logs(limit: Annotated[int, Query(ge=1, le=500)] = 50):
     """
     Henter siste trade logs fra databasen.
     :param limit: Hvor mange logs som skal returneres (default 50, max 500)
