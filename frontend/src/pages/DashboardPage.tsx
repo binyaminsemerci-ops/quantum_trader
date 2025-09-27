@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import PriceChart from "../components/PriceChart";
 import SignalFeed from "../components/SignalFeed";
+import { fetchRecentPrices } from "../api/prices";
 import type { Candle } from "../api/prices";
 
 export default function DashboardPage() {
@@ -10,7 +11,6 @@ export default function DashboardPage() {
     let mounted = true;
     async function load() {
       try {
-        const { fetchRecentPrices } = await import("../api/prices");
         const data = await fetchRecentPrices("BTCUSDT", 50);
         if (mounted) setPrices(data);
       } catch (err) {
