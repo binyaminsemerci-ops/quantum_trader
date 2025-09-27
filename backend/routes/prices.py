@@ -6,7 +6,9 @@ router = APIRouter()
 
 
 @router.get("/recent")
-def recent_prices(symbol: str = "BTCUSDT", limit: Annotated[int, Query(50, ge=1, le=500)] = 50) -> List[Dict]:
+def recent_prices(
+    symbol: str = "BTCUSDT", limit: Annotated[int, Query(ge=1, le=500)] = 50
+) -> List[Dict]:
     """Return a deterministic demo series of candles for the requested symbol.
 
     This endpoint is intentionally simple and deterministic so the frontend can
