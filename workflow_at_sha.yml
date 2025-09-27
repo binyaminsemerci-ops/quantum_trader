@@ -49,4 +49,3 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/quantum_trader:latest
-
