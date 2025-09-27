@@ -6,3 +6,4 @@ anyio
 coverage
 # Optional dev tooling
 SQLAlchemy-Utils>=0.41,<0.43
+types-requests

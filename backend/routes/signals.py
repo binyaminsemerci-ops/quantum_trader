@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Query
 from typing import List, Dict, Literal, Annotated, Optional
 import datetime
-import random
+
+# Note: mock_signals is test/demo-only. Import it lazily inside the
+# generator function so production imports of this module don't pull
+# testing/demo code into the production import graph.
 from pydantic import BaseModel, Field
 
 router = APIRouter()
@@ -29,46 +32,34 @@ class PaginatedSignals(BaseModel):
     items: List[Signal]
 
 
-def _generate_mock_signals(
-    count: int, profile: Literal["left", "right", "mixed"]
-) -> List[Dict]:
-    symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "ADAUSDT"]
-    now = datetime.datetime.now(datetime.timezone.utc)
-    signals: List[Dict] = []
-    rnd = random.Random(42)  # deterministic demo generator (no-sec)
+def _generate_mock_signals(count: int, profile: Literal["left", "right", "mixed"]) -> List[Dict]:
+    # Delegate to testing/mock_signals.py which contains the deterministic
+    # mock generator. Import lazily so production installs that don't include
+    # test/demo helpers won't fail at module import time.
+    # Prefer the implementation under tests/ (so test helpers aren't part of
+    # the production import graph). Fall back to the legacy location for
+    # compatibility, and if neither is available return an empty list.
+    # Prefer test helpers under backend.tests, but be robust: import the
+    # module and check for the attribute rather than assuming it exists.
+    try:
+        import importlib
 
-    for i in range(count):
-        seconds_ago = (count - i) * 15
-        ts = now - datetime.timedelta(seconds=seconds_ago)
-        symbol = symbols[i % len(symbols)]
+        mod = importlib.import_module("backend.tests.utils.mock_signals")
+        if hasattr(mod, "generate_mock_signals"):
+            return getattr(mod, "generate_mock_signals")(count, profile)
+    except Exception:
+        pass
 
-        base = i / max(1, count - 1)
-        if profile == "left":
-            score = round(max(0.0, 0.05 + (1 - base) * 0.95 * rnd.random()), 3)
-        elif profile == "right":
-            score = round(min(1.0, 0.05 + base * 0.95 * rnd.random()), 3)
-        else:
-            score = round(0.3 + (rnd.random() * 0.4), 3)
+    try:
+        import importlib
 
-        side = "buy" if score >= 0.5 else "sell"
-        confidence = round(min(1.0, max(0.0, 0.2 + rnd.random() * 0.8)), 3)
+        legacy = importlib.import_module("backend.testing.mock_signals")
+        if hasattr(legacy, "generate_mock_signals"):
+            return getattr(legacy, "generate_mock_signals")(count, profile)
+    except Exception:
+        pass
 
-        signals.append(
-            {
-                "id": f"sig-{i}",
-                "timestamp": ts,
-                "symbol": symbol,
-                "side": side,
-                "score": score,
-                "confidence": confidence,
-                "details": {
-                    "source": "simulator",
-                    "note": f"mock signal #{i} ({profile})",
-                },
-            }
-        )
-
-    return signals
+    return []
 
 
 @router.get("/recent", response_model=List[Dict])
