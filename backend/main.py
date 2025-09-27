@@ -27,4 +27,3 @@ app.include_router(binance.router, prefix="/binance")
 app.include_router(signals.router, prefix="/signals")
 app.include_router(prices.router, prefix="/prices")
 app.include_router(candles.router, prefix="/candles")
-
