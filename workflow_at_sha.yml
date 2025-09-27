@@ -21,17 +21,15 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Log in to GitHub Container Registry (fallback)
-        if: secrets.DOCKERHUB_TOKEN == ''
+      - name: Log in to GitHub Container Registry (only when GHCR_PAT is set)
+        if: secrets.DOCKERHUB_TOKEN == '' && secrets.GHCR_PAT != ''
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
-          # Prefer a user-provided PAT (GHCR_PAT) when available. This is useful
-          # when organization policies prevent the GITHUB_TOKEN from pushing
-          # packages. If GHCR_PAT is not set, fall back to the default
-          # GITHUB_TOKEN (may be blocked by org policy).
+          # Use an explicit Personal Access Token (GHCR_PAT) so pushes won't
+          # fail when organization policies block GITHUB_TOKEN package writes.
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_PAT }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -46,7 +44,7 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/quantum_trader:latest
 
       - name: Build and push to GitHub Container Registry (fallback)
-        if: secrets.DOCKERHUB_TOKEN == ''
+        if: secrets.DOCKERHUB_TOKEN == '' && secrets.GHCR_PAT != ''
         uses: docker/build-push-action@v4
         with:
           context: ./backend
@@ -54,6 +52,10 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/quantum_trader:latest
 
-      # Optional: If you want to ensure a PAT is used explicitly, set the
-      # repository secret GHCR_PAT to a Personal Access Token that has
-      # "write:packages" (and "repo" if this is a private repo) scopes.
+  # Optional: If you want to ensure a PAT is used explicitly, set the
+  # repository secret GHCR_PAT to a Personal Access Token that has
+  # "write:packages" (and "repo" if this is a private repo) scopes.
+  #
+  # NOTE: The workflow will skip the GHCR build/push when GHCR_PAT is not
+  # set. This avoids failing the run with a 403 when org policies block
+  # the default GITHUB_TOKEN from writing packages.
