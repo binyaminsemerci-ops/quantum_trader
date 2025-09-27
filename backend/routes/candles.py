@@ -1,5 +1,9 @@
 from fastapi import APIRouter, Query
 from typing import Annotated
+import logging
+import sqlite3
+from sqlalchemy import exc as sa_exc
+
 from backend.database import get_db
 
 router = APIRouter()
@@ -49,9 +53,10 @@ def get_candles(
             ]
             # Return in chronological order
             return {"symbol": symbol, "candles": list(reversed(candles))}
-    except Exception:
-        # fall through to demo generator
-        pass
+    except (sqlite3.DatabaseError, sa_exc.DatabaseError, sa_exc.OperationalError) as e:
+        # Log database-specific errors but don't surface them to the API; fall
+        # back to deterministic demo data so the frontend/tests remain usable.
+        logging.exception("Database error fetching candles: %s", e)
 
     # Fallback deterministic demo candles (used in tests or when DB isn't
     # available). Mirrors the shape produced by the real query.
