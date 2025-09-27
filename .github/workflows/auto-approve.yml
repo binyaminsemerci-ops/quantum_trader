@@ -1,0 +1,48 @@
+name: Auto-approve watcher PRs
+on:
+  pull_request_target:
+    types: [opened, labeled, reopened, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-approve and optionally merge watcher PRs
+        uses: actions/github-script@v5
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) { core.info('No PR payload; exiting'); return }
+
+            const labels = (pr.labels || []).map(l => l.name);
+            if (!labels.includes('auto-approve')) { core.info('PR not labeled auto-approve; skipping'); return }
+
+            const allowedAuthors = ['quantum-trader-watcher[bot]', 'binyaminsemerci-ops[bot]', 'github-actions[bot]'];
+            if (!allowedAuthors.includes(pr.user.login)) {
+              core.info(`Author ${pr.user.login} not in allowed list; skipping`);
+              return;
+            }
+
+            // Create an approval review
+            await github.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              event: 'APPROVE',
+              body: 'Auto-approved by watcher workflow'
+            });
+            core.info(`Approved PR #${pr.number}`);
+
+            // If label auto-merge present, attempt to merge (respecting branch protection)
+            if (labels.includes('auto-merge')) {
+              try {
+                await github.pulls.merge({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, merge_method: 'merge' });
+                core.info(`Merged PR #${pr.number}`);
+              } catch (err) {
+                core.warning(`Merge failed or checks not passed: ${err.message}`);
+              }
+            }
