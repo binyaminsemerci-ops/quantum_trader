@@ -3,6 +3,7 @@ import sqlite3
 
 router = APIRouter()
 
+
 @router.get("/equity")
 def get_equity_curve():
     conn = sqlite3.connect("backend/data/trades.db")
