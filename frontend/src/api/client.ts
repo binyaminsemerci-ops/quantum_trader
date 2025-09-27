@@ -27,7 +27,7 @@ export async function fetchTrades(): Promise<ApiResponse<Trade[]>> {
 }
 
 export async function fetchStats(): Promise<ApiResponse<StatSummary>> {
-  const res = await fetch(`${API_BASE}/stats`);
+  const res = await fetch(`${API_BASE}/stats/overview`);
   if (!res.ok) return { error: `HTTP ${res.status}` };
   const payload = await safeJson(res);
   return { data: (payload as StatSummary) };
