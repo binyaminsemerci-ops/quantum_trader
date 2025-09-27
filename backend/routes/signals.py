@@ -29,7 +29,10 @@ def recent_signals(
     signals: List[Dict] = []
 
     # seed random so results are stable-ish per process start
-    rnd = random.Random(42)
+    # This RNG is used for deterministic, non-crypto demo data only.
+    # bandit B311 (use of non-cryptographic PRNG) is not a security issue
+    # for simulated/mock signals, so we silence it explicitly.
+    rnd = random.Random(42)  # nosec B311
 
     for i in range(limit):
         # spacing signals over the past (limit * 15) seconds
@@ -64,7 +67,5 @@ def recent_signals(
                 },
             }
         )
-
-    return signals
 
     return signals
