@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchRecentPrices } from "../api/prices";
 import type { Candle } from "../api/prices";
+import type { Signal } from "./SignalFeed";
 
 type PricePoint = Candle;
 
@@ -9,7 +10,7 @@ function formatNumber(n: number) {
 }
 
 // A very small, dependency-free SVG price chart.
-export default function PriceChart({ data }: { data?: PricePoint[] }) {
+export default function PriceChart({ data, signals }: { data?: PricePoint[]; signals?: Signal[] }) {
   const [internal, setInternal] = useState<PricePoint[] | null>(null);
 
   useEffect(() => {
@@ -87,13 +88,56 @@ export default function PriceChart({ data }: { data?: PricePoint[] }) {
     );
   }, [points]);
 
+  // Simple overlay: render small markers above the chart for signals
+  const overlay = useMemo(() => {
+    if (!points.length || !signals || !signals.length) return null;
+    const w = 600;
+    const padding = 20;
+    const prices = points.map((p) => p.close);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const range = max - min || 1;
+    const x = (i: number) => padding + (i / Math.max(1, points.length - 1)) * (w - padding * 2);
+    const y = (v: number) => padding + ((max - v) / range) * (200 - padding * 2);
+
+    // map signal timestamps to nearest index in points
+    const markers = signals
+      .map((s) => {
+        const sigTime = new Date(s.timestamp).getTime();
+        let bestIdx = 0;
+        let bestDiff = Infinity;
+        points.forEach((p, i) => {
+          const dt = Math.abs(new Date(p.time).getTime() - sigTime);
+          if (dt < bestDiff) {
+            bestDiff = dt;
+            bestIdx = i;
+          }
+        });
+        return { idx: bestIdx, score: s.score, side: s.direction };
+      })
+      .slice(0, 20);
+
+    return (
+      <svg width={600} height={200} viewBox={`0 0 ${600} ${200}`} className="absolute top-0 left-0 pointer-events-none">
+        {markers.map((m, i) => (
+          <g key={i} transform={`translate(${x(m.idx)}, ${y(points[m.idx].close) - 10})`}>
+            <circle r={6} fill={m.side === "LONG" ? "#10b981" : "#ef4444"} opacity={0.9} />
+            <text x={10} y={4} fontSize={10} fill="#111">{Math.round(m.score * 100)}%</text>
+          </g>
+        ))}
+      </svg>
+    );
+  }, [points, signals]);
+
   return (
     <div className="p-2 border rounded">
       <div className="flex justify-between items-center mb-2">
         <h3 className="font-semibold">Price chart</h3>
         {latest && <div className="text-sm">Latest: {formatNumber(latest.close)}</div>}
       </div>
-      <div>{svg ?? <div className="text-sm text-muted">Loading chart...</div>}</div>
+      <div className="relative">{svg ?? <div className="text-sm text-muted">Loading chart...</div>}
+        {overlay}
+      </div>
     </div>
   );
 }
