@@ -29,7 +29,9 @@ class PaginatedSignals(BaseModel):
     items: List[Signal]
 
 
-def _generate_mock_signals(count: int, profile: Literal["left", "right", "mixed"]) -> List[Dict]:
+def _generate_mock_signals(
+    count: int, profile: Literal["left", "right", "mixed"]
+) -> List[Dict]:
     symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "ADAUSDT"]
     now = datetime.datetime.now(datetime.timezone.utc)
     signals: List[Dict] = []
@@ -37,7 +39,7 @@ def _generate_mock_signals(count: int, profile: Literal["left", "right", "mixed"
 
     for i in range(count):
         seconds_ago = (count - i) * 15
-        ts = (now - datetime.timedelta(seconds=seconds_ago))
+        ts = now - datetime.timedelta(seconds=seconds_ago)
         symbol = symbols[i % len(symbols)]
 
         base = i / max(1, count - 1)
@@ -59,7 +61,10 @@ def _generate_mock_signals(count: int, profile: Literal["left", "right", "mixed"
                 "side": side,
                 "score": score,
                 "confidence": confidence,
-                "details": {"source": "simulator", "note": f"mock signal #{i} ({profile})"},
+                "details": {
+                    "source": "simulator",
+                    "note": f"mock signal #{i} ({profile})",
+                },
             }
         )
 
@@ -109,4 +114,6 @@ def list_signals(
     # response_model validation uses the Signal model.
     signal_items = [Signal(**it) for it in page_items]
 
-    return PaginatedSignals(total=total, page=page, page_size=page_size, items=signal_items)
+    return PaginatedSignals(
+        total=total, page=page, page_size=page_size, items=signal_items
+    )
