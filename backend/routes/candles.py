@@ -5,6 +5,7 @@ from backend.database import get_db
 router = APIRouter()
 
 
+@router.get("")
 @router.get("/")
 def get_candles(
     symbol: Annotated[str, Query(..., description="Trading symbol f.eks. BTCUSDT")],
