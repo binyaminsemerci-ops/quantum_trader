@@ -38,3 +38,21 @@ def test_candles_endpoint():
     if len(candles) > 0:
         c = candles[0]
         assert "timestamp" in c and "open" in c and "close" in c
+
+
+def test_trades_recent():
+    r = client.get("/trades/recent?limit=5")
+    assert r.status_code == 200
+    data = r.json()
+    assert isinstance(data, list)
+    assert len(data) == 5
+    first = data[0]
+    assert "id" in first and "symbol" in first and "side" in first
+
+
+def test_stats_overview():
+    r = client.get("/stats/overview")
+    assert r.status_code == 200
+    data = r.json()
+    assert isinstance(data, dict)
+    assert "total_trades" in data and "pnl" in data and "open_positions" in data

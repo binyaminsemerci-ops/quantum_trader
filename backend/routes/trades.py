@@ -44,3 +44,21 @@ async def create_trade(payload: TradeCreate, db=Depends(get_db)):
         "qty": t.qty,
         "price": t.price,
     }
+
+
+
+@router.get("/recent")
+async def recent_trades(limit: int = 20):
+    """Return a deterministic list of recent demo trades for frontend testing."""
+    trades = []
+    symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    for i in range(limit):
+        trades.append({
+            "id": f"t-{i}",
+            "symbol": symbols[i % len(symbols)],
+            "side": "BUY" if i % 2 == 0 else "SELL",
+            "qty": round(0.01 * (i + 1), 4),
+            "price": round(100 + i * 0.5, 2),
+            "timestamp": i,
+        })
+    return trades
