@@ -5,6 +5,17 @@ on:
     branches: [ "main" ]
 
 jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Diagnostic echo
+        run: |
+          echo 'diagnostic: workflow jobs are allowed'
+
   docker:
     runs-on: ubuntu-latest
     permissions:
