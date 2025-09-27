@@ -12,6 +12,7 @@ function formatNumber(n: number) {
 // A very small, dependency-free SVG price chart.
 export default function PriceChart({ data, signals }: { data?: PricePoint[]; signals?: Signal[] }) {
   const [internal, setInternal] = useState<PricePoint[] | null>(null);
+  const [highlightIdx, setHighlightIdx] = useState<number | null>(null);
 
   useEffect(() => {
     if (!data) {
@@ -125,9 +126,37 @@ export default function PriceChart({ data, signals }: { data?: PricePoint[]; sig
             <text x={10} y={4} fontSize={10} fill="#111">{Math.round(m.score * 100)}%</text>
           </g>
         ))}
+        {highlightIdx !== null && points[highlightIdx] && (
+          <g transform={`translate(${x(highlightIdx)}, ${y(points[highlightIdx].close) - 10})`}>
+            <circle r={12} fill="none" stroke="#f59e0b" strokeWidth={2} />
+            <circle r={6} fill="#f59e0b" opacity={0.95} />
+          </g>
+        )}
       </svg>
     );
   }, [points, signals]);
+
+  useEffect(() => {
+    function onFocus(e: any) {
+      const detail = e?.detail;
+      if (!detail || !detail.timestamp) return;
+      const sigTime = new Date(detail.timestamp).getTime();
+      let bestIdx = 0;
+      let bestDiff = Infinity;
+      points.forEach((p, i) => {
+        const dt = Math.abs(new Date(p.time).getTime() - sigTime);
+        if (dt < bestDiff) {
+          bestDiff = dt;
+          bestIdx = i;
+        }
+      });
+      setHighlightIdx(bestIdx);
+      setTimeout(() => setHighlightIdx(null), 4000);
+    }
+
+    window.addEventListener('focus-signal', onFocus as any);
+    return () => window.removeEventListener('focus-signal', onFocus as any);
+  }, [points]);
 
   return (
     <div className="p-2 border rounded">
