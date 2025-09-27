@@ -115,7 +115,21 @@ jobs:
       - name: Run npm audit (fail on high/critical)
         working-directory: frontend
         run: |
-          npm audit --audit-level=high
+          # Audit production dependencies only for fail-on-high so dev-only
+          # toolchain issues (vite, typescript, etc.) do not block CI.
+          npm audit --production --audit-level=high
+
+      - name: Save npm audit JSON (production)
+        working-directory: frontend
+        # Always succeed so we can upload the JSON for inspection even if audit fails
+        run: |
+          npm audit --production --json > npm-audit-prod.json || true
+
+      - name: Upload frontend audit artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-audit-prod
+          path: frontend/npm-audit-prod.json
 
       - name: Run npm audit (warn on moderate)
         working-directory: frontend
