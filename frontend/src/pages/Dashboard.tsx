@@ -1,5 +1,6 @@
 // page-level Dashboard integrates many components via `useDashboardData` hook
 // using automatic JSX runtime
+import { useEffect, useState } from 'react';
 import StatsCard from '../components/StatsCard';
 import RiskCards from '../components/RiskCards';
 import AnalyticsCards from '../components/AnalyticsCards';
@@ -8,6 +9,7 @@ import EquityChart from '../components/EquityChart';
 import TradeLogs from '../components/TradeLogs';
 import Watchlist from '../components/Watchlist';
 import CandlesChart from '../components/CandlesChart';
+import PriceChart from '../components/PriceChart';
 import LoaderOverlay from '../components/LoaderOverlay';
 import ErrorBanner from '../components/ErrorBanner';
 import Toast from '../components/Toast';
@@ -17,6 +19,29 @@ import { useDashboardData } from '../hooks/useDashboardData';
 export default function Dashboard(): JSX.Element {
   const { data, connected, paused, setPaused, fallback, lastUpdated, toast, setToast } = useDashboardData();
   const [darkMode, setDarkMode] = useDarkMode();
+  const [signals, setSignals] = useState<any[]>([]);
+
+  // lightweight polling for signals to pass into PriceChart overlay
+  useEffect(() => {
+    let mounted = true;
+    async function fetchSignals() {
+      try {
+        const base = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+        const res = await fetch(`${base}/signals/?page=1&page_size=20`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (mounted) setSignals(data.items || []);
+      } catch (e) {
+        // ignore
+      }
+    }
+    fetchSignals();
+    const id = setInterval(fetchSignals, 5000);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
+  }, []);
 
   return (
     <div className="p-6 space-y-6 dark:bg-gray-900 dark:text-white min-h-screen">
@@ -44,8 +69,9 @@ export default function Dashboard(): JSX.Element {
   <StatsCard />
       <RiskCards />
       <AnalyticsCards />
-      <EquityChart />
-      <CandlesChart symbol="BTCUSDT" limit={50} />
+  <EquityChart />
+  <PriceChart signals={signals} />
+  <CandlesChart symbol="BTCUSDT" limit={50} />
       <Watchlist />
   <TradeTable trades={data?.trades} />
       <TradeLogs />
