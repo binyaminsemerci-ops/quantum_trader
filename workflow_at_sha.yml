@@ -52,6 +52,13 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/quantum_trader:latest
 
+      - name: GHCR publish skipped notice
+        if: secrets.DOCKERHUB_TOKEN == '' && secrets.GHCR_PAT == ''
+        run: |
+          echo "GHCR publish skipped: repository secret GHCR_PAT is not set."
+          echo "To enable publishing to ghcr.io, add a repository secret named GHCR_PAT"
+          echo "containing a Personal Access Token with 'write:packages' (and 'repo' if private) or a fine-grained token with Packages: Write."
+
   # Optional: If you want to ensure a PAT is used explicitly, set the
   # repository secret GHCR_PAT to a Personal Access Token that has
   # "write:packages" (and "repo" if this is a private repo) scopes.
