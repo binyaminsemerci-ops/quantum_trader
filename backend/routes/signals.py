@@ -104,4 +104,9 @@ def list_signals(
             continue
         it["timestamp"] = datetime.datetime.fromisoformat(it["timestamp"])
 
-    return PaginatedSignals(total=total, page=page, page_size=page_size, items=page_items)
+    # Convert dicts to Signal instances so the PaginatedSignals items list
+    # has the expected type: List[Signal]. This satisfies mypy and ensures
+    # response_model validation uses the Signal model.
+    signal_items = [Signal(**it) for it in page_items]
+
+    return PaginatedSignals(total=total, page=page, page_size=page_size, items=signal_items)
