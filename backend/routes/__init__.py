@@ -12,12 +12,12 @@ registered predictably. This avoids import-order issues where tests may import
 from . import trades, stats, chart, settings, binance, signals, prices, candles
 
 __all__ = [
-	"trades",
-	"stats",
-	"chart",
-	"settings",
-	"binance",
-	"signals",
-	"prices",
-	"candles",
+    "trades",
+    "stats",
+    "chart",
+    "settings",
+    "binance",
+    "signals",
+    "prices",
+    "candles",
 ]
