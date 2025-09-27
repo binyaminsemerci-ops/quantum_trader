@@ -1,11 +1,14 @@
 import pandas as pd
 
+
 class RiskManager:
     def __init__(self):
         self.stop_loss = None
         self.take_profit = None
 
-    def set_stop_take(self, entry_price: float, stop_loss_pct=0.02, take_profit_pct=0.04):
+    def set_stop_take(
+        self, entry_price: float, stop_loss_pct=0.02, take_profit_pct=0.04
+    ):
         self.stop_loss = entry_price * (1 - stop_loss_pct)
         self.take_profit = entry_price * (1 + take_profit_pct)
 
