@@ -8,7 +8,22 @@ export default function SignalDetail({ signal, onClose }: { signal: any | null; 
       <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg p-4 w-11/12 max-w-md shadow-lg">
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-lg font-semibold">Signal {signal.id}</h3>
-          <button onClick={onClose} className="px-2 py-1 bg-gray-200 rounded">Close</button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                try {
+                  window.dispatchEvent(new CustomEvent('focus-signal', { detail: { id: signal.id, timestamp: signal.timestamp } }));
+                } catch (e) {
+                  // ignore in non-browser environments
+                }
+                onClose();
+              }}
+              className="px-3 py-1 bg-blue-600 text-white rounded"
+            >
+              Jump to chart
+            </button>
+            <button onClick={onClose} className="px-2 py-1 bg-gray-200 rounded">Close</button>
+          </div>
         </div>
         <dl className="grid grid-cols-2 gap-2 text-sm">
           <div>
