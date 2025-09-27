@@ -3,6 +3,7 @@
 This is used to capture any exception that occurs during import/startup in a
 more debuggable way than invoking `python -m uvicorn` from the shell.
 """
+
 import sys
 import traceback
 

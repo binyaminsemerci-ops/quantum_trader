@@ -7,13 +7,16 @@ router = APIRouter()
 
 
 def _iso_now_minus(seconds: int) -> str:
-    return (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=seconds)).isoformat()
+    return (
+        datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(seconds=seconds)
+    ).isoformat()
 
 
 @router.get("/recent")
 def recent_signals(
-    limit: Annotated[int, Query(20, ge=1, le=200)] = 20,
-    profile: Annotated[Literal["left", "right", "mixed"], Query("mixed")] = "mixed",
+    limit: Annotated[int, Query(ge=1, le=200)] = 20,
+    profile: Annotated[Literal["left", "right", "mixed"], Query()] = "mixed",
 ) -> List[Dict]:
     """Return a list of mock signals for frontend development/testing.
 
@@ -63,6 +66,5 @@ def recent_signals(
         )
 
     return signals
-
 
     return signals
