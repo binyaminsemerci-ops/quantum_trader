@@ -1,6 +1,5 @@
 from fastapi.testclient import TestClient
 from backend.main import app
-import datetime
 
 
 client = TestClient(app)
