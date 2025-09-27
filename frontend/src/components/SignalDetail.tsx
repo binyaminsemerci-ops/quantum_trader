@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function SignalDetail({ signal, onClose }: { signal: any | null; onClose: () => void }) {
   if (!signal) return null;
 
