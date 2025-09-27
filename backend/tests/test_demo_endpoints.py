@@ -40,6 +40,15 @@ def test_candles_endpoint():
         assert "timestamp" in c and "open" in c and "close" in c
 
 
+def test_candles_slash_variants():
+    # Ensure both /candles and /candles/ resolve. Some test harnesses or
+    # import-order changes can cause one form to become unregistered.
+    r1 = client.get("/candles?symbol=BTCUSDT&limit=2")
+    r2 = client.get("/candles/?symbol=BTCUSDT&limit=2")
+    assert r1.status_code == 200, f"/candles returned {r1.status_code}"
+    assert r2.status_code == 200, f"/candles/ returned {r2.status_code}"
+
+
 def test_trades_recent():
     r = client.get("/trades/recent?limit=5")
     assert r.status_code == 200
