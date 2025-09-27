@@ -4,6 +4,7 @@ This is a small scaffold to be expanded. The goal is to provide a single
 place for indicator calculations and feature assembly used by the training
 pipeline.
 """
+
 from __future__ import annotations
 
 from typing import Dict, Any

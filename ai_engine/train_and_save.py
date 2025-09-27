@@ -2,6 +2,7 @@ import os
 import asyncio
 import pickle
 from typing import List, Optional
+
 """Simple training harness for the XGBoost agent.
 
 This script fetches data from the internal `backend.routes.external_data` helpers
@@ -13,12 +14,13 @@ to a DummyRegressor and a lightweight scaler so it can run in minimal CI/dev
 environments.
 """
 
-MODEL_DIR = os.path.join(os.path.dirname(__file__), 'models')
+MODEL_DIR = os.path.join(os.path.dirname(__file__), "models")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 
 class _SimpleScaler:
     """Very small replacement for sklearn StandardScaler when not available."""
+
     def fit(self, X):
         import numpy as _np
 
@@ -37,6 +39,7 @@ class _SimpleScaler:
 
 class _MeanRegressor:
     """Simple mean predictor used when no regressor is available."""
+
     def fit(self, X, y):
         import numpy as _np
 
@@ -45,7 +48,7 @@ class _MeanRegressor:
     def predict(self, X):
         import numpy as _np
 
-        return _np.full((len(X),), getattr(self, 'mean_', 0.0))
+        return _np.full((len(X),), getattr(self, "mean_", 0.0))
 
 
 async def _fetch_symbol_data(symbol: str, limit: int = 600):
@@ -54,19 +57,19 @@ async def _fetch_symbol_data(symbol: str, limit: int = 600):
 
     # external_data.binance_ohlcv is async; call with asyncio
     resp = await external_data.binance_ohlcv(symbol=symbol, limit=limit)
-    candles = resp.get('candles', [])
+    candles = resp.get("candles", [])
 
     # sentiment: try twitter client
     tw = await external_data.twitter_sentiment(symbol=symbol)
     sent_score = 0.0
     try:
-        sent_score = float(tw.get('sentiment', {}).get('score', 0.0))
+        sent_score = float(tw.get("sentiment", {}).get("score", 0.0))
     except Exception:
         sent_score = 0.0
 
     # news: count
     news = await external_data.cryptopanic_news(symbol=symbol, limit=200)
-    news_count = len(news.get('news', []))
+    news_count = len(news.get("news", []))
 
     # Expand sentiment/news into series aligned to candles
     n = len(candles)
@@ -99,25 +102,29 @@ def build_dataset(all_symbol_data):
         df = df.rename(columns={c: c.capitalize() for c in df.columns})
         # compute technicals
         try:
-            feat = add_technical_indicators(df.rename(columns={'Close': 'Close', 'High': 'High', 'Low': 'Low'}))
+            feat = add_technical_indicators(
+                df.rename(columns={"Close": "Close", "High": "High", "Low": "Low"})
+            )
         except Exception:
             continue
 
         # add sentiment/news aligned series
-        feat = add_sentiment_features(feat, sentiment_series=sentiment, news_counts=news, window=5)
+        feat = add_sentiment_features(
+            feat, sentiment_series=sentiment, news_counts=news, window=5
+        )
 
         # add target (predict Return horizon=1)
         feat_t = add_target(feat, horizon=1, threshold=0.0)
         if feat_t.empty:
             continue
 
-        y = feat_t['Return'].values
-        X = feat_t.select_dtypes(include=[float, int]).drop(columns=['Return']).values
+        y = feat_t["Return"].values
+        X = feat_t.select_dtypes(include=[float, int]).drop(columns=["Return"]).values
         X_list.append(X)
         y_list.append(y)
 
     if not X_list:
-        raise RuntimeError('No training data assembled')
+        raise RuntimeError("No training data assembled")
 
     X_all = np.vstack(X_list)
     y_all = np.concatenate(y_list)
@@ -127,6 +134,7 @@ def build_dataset(all_symbol_data):
 def make_scaler():
     try:
         from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
+
         return StandardScaler()
     except Exception:
         return _SimpleScaler()
@@ -135,36 +143,41 @@ def make_scaler():
 def make_regressor():
     try:
         from xgboost import XGBRegressor  # type: ignore[import-untyped]
+
         return XGBRegressor(n_estimators=50, max_depth=3, verbosity=0)
     except Exception:
         try:
             from sklearn.dummy import DummyRegressor  # type: ignore[import-untyped]
-            return DummyRegressor(strategy='mean')
+
+            return DummyRegressor(strategy="mean")
         except Exception:
             return _MeanRegressor()
 
 
 def save_artifacts(model, scaler, model_path, scaler_path):
-    with open(model_path, 'wb') as f:
+    with open(model_path, "wb") as f:
         pickle.dump(model, f)
-    with open(scaler_path, 'wb') as f:
+    with open(scaler_path, "wb") as f:
         pickle.dump(scaler, f)
     # write simple metadata JSON next to model
     try:
         import json
         import datetime
+
         meta = {
-            'model_path': model_path,
-            'scaler_path': scaler_path,
-            'saved_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "model_path": model_path,
+            "scaler_path": scaler_path,
+            "saved_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
-        meta_path = os.path.join(MODEL_DIR, 'metadata.json')
-        with open(meta_path, 'w', encoding='utf-8') as mf:
+        meta_path = os.path.join(MODEL_DIR, "metadata.json")
+        with open(meta_path, "w", encoding="utf-8") as mf:
             json.dump(meta, mf)
     except Exception:
         import logging
 
-        logging.getLogger(__name__).debug("failed to write model metadata", exc_info=True)
+        logging.getLogger(__name__).debug(
+            "failed to write model metadata", exc_info=True
+        )
 
 
 def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
@@ -172,9 +185,10 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
         # prefer USDC as the spot quote by default for training / dataset assembly
         try:
             from config.config import DEFAULT_QUOTE  # type: ignore[import-not-found, import-untyped]
-            symbols = [f'BTC{DEFAULT_QUOTE}', f'ETH{DEFAULT_QUOTE}']
+
+            symbols = [f"BTC{DEFAULT_QUOTE}", f"ETH{DEFAULT_QUOTE}"]
         except Exception:
-            symbols = ['BTCUSDC', 'ETHUSDC']
+            symbols = ["BTCUSDC", "ETHUSDC"]
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -190,7 +204,7 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
     try:
         X, y = build_dataset(all_symbol_data)
     except Exception as exc:  # pragma: no cover - environment dependent
-        print('Warning: build_dataset failed, falling back to synthetic dataset:', exc)
+        print("Warning: build_dataset failed, falling back to synthetic dataset:", exc)
         # create a small synthetic dataset
         import numpy as _np
 
@@ -198,7 +212,11 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
             rng = _np.random.default_rng(12345)
             Xs = rng.normal(size=(samples, features))
             # create a target correlated with a subset of features
-            y = (Xs[:, 0] * 0.3 + Xs[:, 1] * -0.2 + rng.normal(scale=0.1, size=(samples,)))
+            y = (
+                Xs[:, 0] * 0.3
+                + Xs[:, 1] * -0.2
+                + rng.normal(scale=0.1, size=(samples,))
+            )
             return Xs, y
 
         X, y = synthetic_dataset(samples=1000, features=16)
@@ -219,13 +237,13 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
     reg = make_regressor()
     reg.fit(Xs, y)
 
-    model_path = os.path.join(MODEL_DIR, 'xgb_model.pkl')
-    scaler_path = os.path.join(MODEL_DIR, 'scaler.pkl')
+    model_path = os.path.join(MODEL_DIR, "xgb_model.pkl")
+    scaler_path = os.path.join(MODEL_DIR, "scaler.pkl")
     save_artifacts(reg, scaler, model_path, scaler_path)
-    print('Saved model ->', model_path)
-    print('Saved scaler ->', scaler_path)
+    print("Saved model ->", model_path)
+    print("Saved scaler ->", scaler_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # quick local run (will use internal route fallbacks if external APIs are not configured)
     train_and_save()
