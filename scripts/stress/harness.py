@@ -274,6 +274,7 @@ def iteration(i, seed=None):
 
     # Save per-iteration JSON
     outpath = OUTDIR / f"iter_{i:04d}.json"
+    outpath.parent.mkdir(parents=True, exist_ok=True)
     with open(outpath, "w", encoding="utf-8") as fh:
         json.dump(out, fh, indent=2)
     return out

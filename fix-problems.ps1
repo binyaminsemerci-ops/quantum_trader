@@ -1,7 +1,7 @@
 param(
     [string]$ProjectPath = "frontend",
     [string]$TypecheckScript = "typecheck",
-    [string]$FallbackTestScript = "test:frontend"
+    [string]$TestScript = "test:frontend"
 )
 
 Push-Location $ProjectPath
@@ -9,12 +9,12 @@ Push-Location $ProjectPath
 Write-Host "Installerer avhengigheter …"
 npm install
 
-Write-Host "Prøver å kjøre lint …"
+Write-Host "Kjører lint med auto-fix …"
 if (npm run lint -- --fix) {
     Write-Host "Lint OK."
 } else {
-    Write-Warning "Fant ikke lint-script. Kjør test-script i stedet."
-    npm run $FallbackTestScript -- --run
+    Write-Warning "Fant ikke lint-script. Kjører $TestScript i stedet."
+    npm run $TestScript
 }
 
 Write-Host "Kjører typecheck …"
