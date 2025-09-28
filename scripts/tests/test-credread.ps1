@@ -10,7 +10,10 @@ Note: This test does not call GitHub or network services.
 
 param(
     [string]$Target = 'QuantumTraderCIWatcher_GH',
-    [string]$Password = 'test-token-12345'
+    # The password here is test-only. If detect-secrets flags it as a false
+    # positive you can allowlist it in scan configuration. Keep entropy low for
+    # test data to avoid high-entropy detectors.
+    [string]$Password = 'dev-test-token' # pragma: allowlist secret
 )
 
 Function Log([string]$m) { Write-Host "[test-credread] $m" }
