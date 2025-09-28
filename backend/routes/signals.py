@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query
 from typing import List, Dict, Literal, Annotated, Optional
 import datetime
+import logging
 
 # Note: mock_signals is test/demo-only. Import it lazily inside the
 # generator function so production imports of this module don't pull
@@ -8,6 +9,9 @@ import datetime
 from pydantic import BaseModel, Field
 
 router = APIRouter()
+
+# module logger for Bandit-friendly error handling
+logger = logging.getLogger(__name__)
 
 
 class SignalDetails(BaseModel):
@@ -47,8 +51,10 @@ def _generate_mock_signals(count: int, profile: Literal["left", "right", "mixed"
         mod = importlib.import_module("backend.tests.utils.mock_signals")
         if hasattr(mod, "generate_mock_signals"):
             return getattr(mod, "generate_mock_signals")(count, profile)
-    except Exception:
-        pass
+    except (ImportError, AttributeError) as e:
+        # Tests/demo-only module may be absent in production installs; log
+        # at debug level so Bandit doesn't flag a silent pass.
+        logger.debug("tests.mock_signals not available: %s", e)
 
     try:
         import importlib
@@ -56,8 +62,8 @@ def _generate_mock_signals(count: int, profile: Literal["left", "right", "mixed"
         legacy = importlib.import_module("backend.testing.mock_signals")
         if hasattr(legacy, "generate_mock_signals"):
             return getattr(legacy, "generate_mock_signals")(count, profile)
-    except Exception:
-        pass
+    except (ImportError, AttributeError) as e:
+        logger.debug("legacy mock_signals not available: %s", e)
 
     return []
 
