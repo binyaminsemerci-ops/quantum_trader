@@ -28,10 +28,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.2.0
         with:
           python-version: "3.12"
 
@@ -67,7 +67,7 @@ jobs:
           .venv_dev/bin/pip install -r backend/requirements-dev.txt
 
       - name: Upload pip-list artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.4.0
         with:
           name: pip-lists-ci
           path: |
@@ -76,7 +76,7 @@ jobs:
 
       # --- Frontend security: run npm audit and fail on high/critical
       - name: Install Node.js (for frontend audit)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.1.0
         with:
           node-version: '20'
 
@@ -126,10 +126,51 @@ jobs:
           npm audit --production --json > npm-audit-prod.json || true
 
       - name: Upload frontend audit artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.4.0
         with:
           name: frontend-audit-prod
           path: frontend/npm-audit-prod.json
+          retention-days: 14
+
+      - name: Triage npm audit
+        working-directory: frontend
+        run: |
+          python $GITHUB_WORKSPACE/scripts/tools/npm_audit_triage.py \
+            --input npm-audit-prod.json \
+            --md-out $GITHUB_WORKSPACE/artifacts/npm-audit-triage.md \
+            --json-out $GITHUB_WORKSPACE/artifacts/npm-audit-summary.json || true
+
+      - name: Upload audit triage artifacts
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: frontend-audit-triage
+          path: |
+            artifacts/npm-audit-triage.md
+            artifacts/npm-audit-summary.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Create/Update audit issue (optional)
+        if: ${{ secrets.AUDIT_CREATE_ISSUES == 'true' }}
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            const mdPath = `${process.env.GITHUB_WORKSPACE}/artifacts/npm-audit-triage.md`;
+            let body = fs.existsSync(mdPath) ? fs.readFileSync(mdPath, 'utf8') : 'No triage content available.';
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'security,frontend,automation'
+            });
+            const title = 'Frontend: npm audit triage';
+            let existing = issues.find(i => i.title === title);
+            if (existing) {
+              await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body });
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body, labels: ['security','frontend','automation'] });
+            }
 
       - name: Run npm audit (warn on moderate)
         working-directory: frontend
@@ -235,9 +276,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.7
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.2.0
         with:
           python-version: '3.12'
       - name: Install runtime requirements
@@ -255,7 +296,7 @@ jobs:
           fi
       - name: Create Check Run annotation if offending packages found
         if: steps.devcheck.outputs.FOUND != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@v7.0.1
         env:
           FOUND: ${{ steps.devcheck.outputs.FOUND }}
         with:
@@ -294,9 +335,9 @@ jobs:
         node-version: [16, 18, 20]
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.7
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.1.0
         with:
           node-version: ${{ matrix.node-version }}
       - name: Install frontend deps

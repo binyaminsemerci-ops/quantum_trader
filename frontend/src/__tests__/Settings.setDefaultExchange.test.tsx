@@ -1,6 +1,7 @@
 // React import not required with jsx runtime
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, fireEvent, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { act } from 'react';
 
 vi.mock('../utils/api', () => {
   return {
@@ -31,16 +32,22 @@ describe('Settings default exchange wiring', () => {
   await screen.findByRole('button', { name: /save/i });
 
     const select = await screen.findByRole('combobox');
-    fireEvent.change(select, { target: { value: 'coinbase' } });
+    await act(async () => {
+      fireEvent.change(select, { target: { value: 'coinbase' } });
+    });
 
     // fill coinbase keys so validation passes
-  const key = await screen.findByLabelText(/Coinbase API Key/i, { selector: 'input' });
-  const secret = await screen.findByLabelText(/Coinbase API Secret/i, { selector: 'input' });
-    fireEvent.change(key, { target: { value: 'k' } });
-    fireEvent.change(secret, { target: { value: 's' } });
+    const key = await screen.findByLabelText(/Coinbase API Key/i, { selector: 'input' });
+    const secret = await screen.findByLabelText(/Coinbase API Secret/i, { selector: 'input' });
+    await act(async () => {
+      fireEvent.change(key, { target: { value: 'k' } });
+      fireEvent.change(secret, { target: { value: 's' } });
+    });
 
     const saveButton = await screen.findByRole('button', { name: /save/i });
-    fireEvent.click(saveButton);
+    await act(async () => {
+      fireEvent.click(saveButton);
+    });
 
     // ensure settings were saved for the selected exchange
     expect(api.saveSettings).toHaveBeenCalled();
