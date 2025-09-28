@@ -17,6 +17,10 @@ This guide covers local stress runs, retention, and artifact handling.
   - `STRESS_PRUNE_ALERT_THRESHOLD=100` — emit warning if retention removes more than this many iteration files in one pass
   - `STRESS_PRUNE_ALERT_WEBHOOK=https://hooks.slack.com/...` — optional webhook invoked when threshold is exceeded
   - `STRESS_REPORT_OUTDIR=relative/or/absolute/path` — override where `generate_report.py` reads/writes aggregated/report (useful for testing)
+  - `STRESS_OUTDIR=/tmp/stress` - overstyr hovedmappen for artefakter (relativ sti tolkes relativt til repo-root).
+  - `STRESS_FRONTEND_BASE_IMAGE=node:18-bullseye-slim` - overstyr Docker-bilde brukt for frontend-testene.
+  - `STRESS_FRONTEND_EXTRA_NPM_DEPS="playwright@1.39.0"` - installer ekstra npm-avhengigheter i Docker-testbildet.
+  - `STRESS_FRONTEND_IMAGE=quantum_trader_frontend_test:node18` - angi egen tag for frontend-testimage (nyttig for matriser).
 
 ## Running stress harness
 Run a single iteration and zip artifacts after:
@@ -56,6 +60,13 @@ python scripts/stress/upload_artifacts.py --provider s3 --dest s3://my-bucket/pa
 ```
 
 Pinned provider SDKs for CI are defined in `requirements-ci-upload.txt`.
+
+## Evolusjons-eksperimenter
+- Konfigurer matriser i `config/stress/experiments.json` (node-bilder, ekstra npm-avhengigheter, antall iterasjoner).
+- Forhåndsvis hvilke runs som kjøres med `python scripts/stress/experiments.py --dry-run`.
+- Kjør eksperimentene: `python scripts/stress/experiments.py` (eventuelt `--count 3` for å overstyre antall iterasjoner).
+- Resultater legges i `artifacts/stress/experiments/<navn>` og en samlet oversikt skrives til `artifacts/stress/experiments/index.json`.
+- Hvert eksperiment setter `STRESS_OUTDIR`, `STRESS_FRONTEND_BASE_IMAGE`, `STRESS_FRONTEND_IMAGE` og `STRESS_FRONTEND_EXTRA_NPM_DEPS`; du kan bruke disse miljøvariablene direkte om du vil orkestrere egne løp.
 
 ## CI notes
 - Workflow `Stress tests` builds a Docker image for frontend tests and runs one iteration with `--zip-after`.

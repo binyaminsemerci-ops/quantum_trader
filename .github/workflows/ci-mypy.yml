@@ -1,0 +1,53 @@
+name: CI - mypy & pytest
+
+on:
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  mypy-pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.7
+
+      - name: Setup Python
+        uses: actions/setup-python@v5.2.0
+        with:
+          python-version: '3.13'
+
+      - name: Cache pip
+        uses: actions/cache@v4.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install runtime requirements
+        run: |
+          python -m pip install --upgrade pip
+          # Install the application's runtime dependencies so mypy can import them
+          if [ -f backend/requirements.txt ]; then
+            python -m pip install -r backend/requirements.txt || true
+          fi
+
+      - name: Install mypy, pytest and pinned stubs
+        run: |
+          python -m pip install \
+            mypy==1.9.0 \
+            pytest==7.3.1 \
+            requests==2.31.0 \
+            types-requests==2.31.0.0 \
+            pandas-stubs==2.3.2.250827 \
+            scikit_learn_stubs==0.0.3
+
+      - name: Run mypy
+        run: python -m mypy backend ai_engine --namespace-packages
+
+      - name: Run tests
+        run: python -m pytest -q

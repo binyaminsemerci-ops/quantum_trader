@@ -1,0 +1,12 @@
+{
+  "prefer_docker": true,
+  "count": 1,
+  "node_images": [
+    "node:18-bullseye-slim",
+    "node:20-bullseye-slim"
+  ],
+  "extra_npm_deps": [
+    "",
+    "playwright@1.39.0"
+  ]
+}

@@ -36,8 +36,8 @@ Denne filen oppsummerer hva som er gjort, hva som gjenstår, og konkrete priorit
   - Docker image pinning / reproducible builds (multi-arch hvis ønsket). — FULLFØRT (frontend testimage pinnet til digest; overstyr via `NODE_IMAGE_REF`).
 
 - Lav
-  - Dashboard / enkel frontend for å vise trender (pass rate, avg duration).
-  - Evolutionary experiments (parameterized runs med forskjellige node-versjoner / deps).
+  - Dashboard / enkel frontend for å vise trender (pass rate, avg duration). - FULLFORT (backend /stress/summary + frontend StressTrendsCard)
+  - Evolutionary experiments (parameterized runs med forskjellige node-versjoner / deps). - FULLFORT (bruk `scripts/stress/experiments.py` + `config/stress/experiments.json`; harness støtter `STRESS_FRONTEND_BASE_IMAGE`/`STRESS_FRONTEND_EXTRA_NPM_DEPS` og flere output-mapper via `STRESS_OUTDIR`).
 
 ## Viktige filer og hva de gjør
 - `scripts/stress/harness.py` — sentral orchestrator. Kjører pytest, backtest og frontend (Docker).
