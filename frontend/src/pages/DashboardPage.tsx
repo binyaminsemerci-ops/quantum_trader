@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import PriceChart from "../components/PriceChart";
 import SignalFeed from "../components/SignalFeed";
+import StressTrendsCard from "../components/StressTrendsCard";
 import { fetchRecentPrices } from "../api/prices";
 import type { Candle } from "../api/prices";
 
@@ -24,9 +25,9 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="p-4 space-y-4">
+      <h2 className="text-2xl font-bold">Dashboard</h2>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="md:col-span-2">
           <PriceChart data={prices ?? undefined} />
         </div>
@@ -34,6 +35,7 @@ export default function DashboardPage() {
           <SignalFeed />
         </div>
       </div>
+      <StressTrendsCard />
     </div>
   );
 }
