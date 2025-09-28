@@ -1,0 +1,9 @@
+{
+  "runId": 18055914496,
+  "headSha": "e5941abb152cee732a8c85b9d52edc5044e64651",
+  "headBranch": "ci/fix-frontend-audit-20250927075719",
+  "workflowName": "CI - Quantum Trader",
+  "conclusion": "failure",
+  "artifact": "frontend-audit-prod",
+  "fetchedAt": "2025-09-28T01:24:58"
+}

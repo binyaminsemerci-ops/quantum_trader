@@ -36,7 +36,9 @@ class PaginatedSignals(BaseModel):
     items: List[Signal]
 
 
-def _generate_mock_signals(count: int, profile: Literal["left", "right", "mixed"]) -> List[Dict]:
+def _generate_mock_signals(
+    count: int, profile: Literal["left", "right", "mixed"]
+) -> List[Dict]:
     # Delegate to testing/mock_signals.py which contains the deterministic
     # mock generator. Import lazily so production installs that don't include
     # test/demo helpers won't fail at module import time.
