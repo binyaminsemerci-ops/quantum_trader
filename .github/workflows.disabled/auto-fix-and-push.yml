@@ -1,0 +1,50 @@
+name: auto-fix-and-push
+
+on:
+  workflow_dispatch:
+
+jobs:
+  auto-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        # Keep persist-credentials enabled so the automatically provided
+        # GITHUB_TOKEN can be used for non-interactive push operations.
+        # If you need to use a separate PAT, add it to repo secrets and
+        # update the push step accordingly.
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps (optional)
+        run: pip install -r backend/requirements.txt || true
+
+      - name: Run auto-fix script
+        run: python scripts/auto_fix_mypy.py
+
+      - name: Commit changes
+        run: |
+          git config user.name "auto-fix-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(auto-fix): run auto-fixer" || echo "No changes to commit"
+
+      - name: Push changes back to branch
+        env:
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          if [ -z "${BRANCH}" ]; then
+            echo "Branch name empty; using 'fix/precommit-patches-from-main'"
+            BRANCH=fix/precommit-patches-from-main
+          fi
+          # Use the built-in GITHUB_TOKEN for pushing changes back to the
+          # repository. This token is automatically available to the job and
+          # avoids the need for a separate PAT secret. Ensure the workflow
+          # has sufficient permissions if push fails (repo admin can set
+          # permissions in workflow or organization settings).
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${REPO}.git
+          git push origin HEAD:"${BRANCH}"

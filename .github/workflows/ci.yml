@@ -28,10 +28,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5.2.0
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -67,7 +67,7 @@ jobs:
           .venv_dev/bin/pip install -r backend/requirements-dev.txt
 
       - name: Upload pip-list artifacts
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v4
         with:
           name: pip-lists-ci
           path: |
@@ -76,7 +76,7 @@ jobs:
 
       # --- Frontend security: run npm audit and fail on high/critical
       - name: Install Node.js (for frontend audit)
-        uses: actions/setup-node@v4.1.0
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
@@ -126,7 +126,7 @@ jobs:
           npm audit --production --json > npm-audit-prod.json || true
 
       - name: Upload frontend audit artifact
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-audit-prod
           path: frontend/npm-audit-prod.json
@@ -141,7 +141,7 @@ jobs:
             --json-out $GITHUB_WORKSPACE/artifacts/npm-audit-summary.json || true
 
       - name: Upload audit triage artifacts
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-audit-triage
           path: |
@@ -152,7 +152,7 @@ jobs:
 
       - name: Create/Update audit issue (optional)
         if: ${{ secrets.AUDIT_CREATE_ISSUES == 'true' }}
-        uses: actions/github-script@v7.0.1
+        uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');

@@ -2,6 +2,8 @@
 artifacts/
 .venv*/
 /.venv*/
+/.venv/
+.venv/
 *.log
 # === Python ===
 __pycache__/
@@ -10,6 +12,15 @@ __pycache__/
 *.pyd
 *.sqlite3
 *.db
+
+# Virtualenvs and caches
+.venv/
+.venv/*
+.venv_black*/
+.venv_black*/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
 
 # === FastAPI / Backend ===
 backend/__pycache__/
@@ -26,6 +37,7 @@ frontend/node_modules/
 frontend/dist/
 frontend/node_modules/.vite/
 frontend/.vite/
+frontend/build/
 
 # === Docker ===
 *.pid
