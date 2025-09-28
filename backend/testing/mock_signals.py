@@ -6,5 +6,6 @@ production code and to make the move explicit.
 """
 
 raise ImportError(
-    "backend.testing.mock_signals has been moved to backend.tests.utils.mock_signals; import from there in tests."
+    "backend.testing.mock_signals has been moved to"
+    " backend.tests.utils.mock_signals; import from there in tests."
 )
