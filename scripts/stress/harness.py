@@ -4,37 +4,14 @@ def run_frontend_repeats(count=100, start_at=1):
     Creates per-run files: artifacts/stress/frontend_iter_0001.json
     and an aggregated file: artifacts/stress/frontend_aggregated.json
     """
-    OUTDIR = ROOT / "artifacts" / "stress"
-    OUTDIR.mkdir(parents=True, exist_ok=True)
-    IMG = "quantum_trader_frontend_test:latest"
-    FE = ROOT / "frontend"
+    outdir = resolve_outdir()
+    img_name = frontend_image_name()
+    fe_dir = ROOT / "frontend"
 
-    def build_frontend_image():
-        cmd = [
-            "docker",
-            "build",
-            "-f",
-            str(FE / "Dockerfile.test"),
-            "-t",
-            IMG,
-            str(FE),
-        ]
-        if subprocess.run(["docker", "image", "inspect", IMG], capture_output=True).returncode == 0 and os.environ.get("DOCKER_FORCE_BUILD") != "1":
-            return 0, "image exists, skipping build\n"
-        p = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
-        return p.returncode, (p.stdout or "") + "\n" + (p.stderr or "")
-
-    def run_frontend_image(timeout=1200):
-        cmd = ["docker", "run", "--rm", IMG]
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, encoding='utf-8', errors='replace')
-        return p.returncode, p.stdout, p.stderr
-
-    import time
-    import json
     agg = {"runs": [], "started_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())}
     end = start_at + count - 1
-    # ensure image is built once (caching)
-    code, out = build_frontend_image()
+
+    code, out = build_frontend_image(fe_dir=fe_dir, img_name=img_name)
     print('build->', code)
     if code != 0:
         print(out)
@@ -42,19 +19,30 @@ def run_frontend_repeats(count=100, start_at=1):
 
     for i in range(start_at, end + 1):
         print(f"Running frontend iteration {i}/{end}")
-        start = time.time()
+        start_time = time.time()
         try:
-            rc, sout, serr = run_frontend_image()
-            duration = time.time() - start
-            res = {"cmd": ["docker", "run", IMG], "returncode": rc, "stdout": sout, "stderr": serr, "duration": duration}
-        except Exception as e:
-            duration = time.time() - start
-            res = {"cmd": ["docker", "run", IMG], "error": str(e), "duration": duration}
-        out = {"iteration": i, "result": res}
-        p = OUTDIR / f"frontend_iter_{i:04d}.json"
+            rc, sout, serr = run_frontend_image(img_name=img_name)
+            duration = time.time() - start_time
+            res = {
+                "cmd": ["docker", "run", "--rm", img_name],
+                "returncode": rc,
+                "stdout": sout,
+                "stderr": serr,
+                "duration": duration,
+            }
+        except Exception as exc:
+            duration = time.time() - start_time
+            res = {
+                "cmd": ["docker", "run", "--rm", img_name],
+                "error": str(exc),
+                "duration": duration,
+            }
+        payload = {"iteration": i, "result": res}
+        p = outdir / f"frontend_iter_{i:04d}.json"
         with p.open("w", encoding="utf-8") as fh:
-            json.dump(out, fh, indent=2)
-        # summarized entry
+            json.dump(payload, fh, indent=2)
+
+        summary = None
         if isinstance(res, dict):
             if "returncode" in res:
                 summary = res.get("returncode")
@@ -62,33 +50,32 @@ def run_frontend_repeats(count=100, start_at=1):
                 summary = "error"
             elif res.get("skipped") is not None:
                 summary = "skipped"
-            else:
-                summary = None
-        else:
-            summary = None
-        # short details
         details = None
         if isinstance(res, dict):
-            if res.get("stdout"):
-                for line in res.get("stdout", "").splitlines():
-                    s = line.strip()
-                    if s:
-                        details = s[:300]
-                        break
-            if not details and res.get("stderr"):
-                for line in res.get("stderr", "").splitlines():
-                    s = line.strip()
-                    if s:
-                        details = s[:300]
-                        break
+            stdout = res.get("stdout") or ""
+            stderr = res.get("stderr") or ""
+            for line in list(stdout.splitlines()) + list(stderr.splitlines()):
+                s = line.strip()
+                if s:
+                    details = s[:300]
+                    break
             if not details and res.get("error"):
                 details = str(res.get("error"))[:300]
-        agg["runs"].append({"iteration": i, "summary": summary, "details": details, "duration": res.get("duration")})
+        agg["runs"].append(
+            {
+                "iteration": i,
+                "summary": summary,
+                "details": details,
+                "duration": res.get("duration"),
+            }
+        )
+
     agg["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
-    out = OUTDIR / "frontend_aggregated.json"
-    with out.open("w", encoding="utf-8") as fh:
+    out_path = outdir / "frontend_aggregated.json"
+    with out_path.open("w", encoding="utf-8") as fh:
         json.dump(agg, fh, indent=2)
-    print(f"Wrote {out}")
+    print(f"Wrote {out_path}")
+
 import subprocess
 import sys
 import json
@@ -100,8 +87,47 @@ import shutil
 
 
 ROOT = Path(__file__).resolve().parents[2]
-OUTDIR = ROOT / "artifacts" / "stress"
-OUTDIR.mkdir(parents=True, exist_ok=True)
+
+
+def resolve_outdir(create: bool = True) -> Path:
+    raw = os.environ.get("STRESS_OUTDIR")
+    if raw:
+        candidate = Path(raw)
+        if not candidate.is_absolute():
+            candidate = (ROOT / candidate).resolve()
+    else:
+        candidate = ROOT / "artifacts" / "stress"
+    if create:
+        candidate.mkdir(parents=True, exist_ok=True)
+    return candidate
+
+
+OUTDIR = resolve_outdir()
+
+
+def frontend_image_name() -> str:
+    return os.environ.get("STRESS_FRONTEND_IMAGE", "quantum_trader_frontend_test:latest")
+
+
+def frontend_dockerfile_path(fe_dir: Path) -> Path:
+    override = os.environ.get("STRESS_FRONTEND_DOCKERFILE")
+    if override:
+        candidate = Path(override)
+        if not candidate.is_absolute():
+            candidate = (ROOT / candidate).resolve()
+        return candidate
+    return fe_dir / "Dockerfile.test"
+
+
+def frontend_build_args() -> list[str]:
+    args: list[str] = []
+    base_image = os.environ.get("STRESS_FRONTEND_BASE_IMAGE")
+    if base_image:
+        args.extend(["--build-arg", f"BASE_IMAGE={base_image}"])
+    extra_deps = os.environ.get("STRESS_FRONTEND_EXTRA_NPM_DEPS")
+    if extra_deps:
+        args.extend(["--build-arg", f"EXTRA_NPM_DEPS={extra_deps}"])
+    return args
 
 
 def run_cmd(cmd, cwd=None, timeout=300, env=None, retries=0, retry_delay=1):
@@ -153,26 +179,30 @@ def git_commit_hash():
         return None
 
 
-def build_frontend_image(fe_dir=None, img_name="quantum_trader_frontend_test:latest"):
+def build_frontend_image(fe_dir=None, img_name=None):
     fe_dir = fe_dir or (ROOT / "frontend")
+    image = img_name or frontend_image_name()
+    dockerfile = frontend_dockerfile_path(fe_dir)
     cmd = [
         "docker",
         "build",
         "-f",
-        str(fe_dir / "Dockerfile.test"),
+        str(dockerfile),
         "-t",
-        img_name,
-        str(fe_dir),
+        image,
     ]
+    cmd.extend(frontend_build_args())
+    cmd.append(str(fe_dir))
     # If image exists and DOCKER_FORCE_BUILD not set, skip build
-    if subprocess.run(["docker", "image", "inspect", img_name], capture_output=True).returncode == 0 and os.environ.get("DOCKER_FORCE_BUILD") != "1":
+    if subprocess.run(["docker", "image", "inspect", image], capture_output=True).returncode == 0 and os.environ.get("DOCKER_FORCE_BUILD") != "1":
         return 0, "image exists, skipping build\n"
     p = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
     return p.returncode, (p.stdout or "") + "\n" + (p.stderr or "")
 
 
-def run_frontend_image(img_name="quantum_trader_frontend_test:latest", timeout=600):
-    cmd = ["docker", "run", "--rm", img_name]
+def run_frontend_image(img_name=None, timeout=600):
+    image = img_name or frontend_image_name()
+    cmd = ["docker", "run", "--rm", image]
     p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, encoding='utf-8', errors='replace')
     return p.returncode, (p.stdout or ""), (p.stderr or "")
 
@@ -216,6 +246,7 @@ def iteration(i, seed=None):
     # 3) frontend tests if node/npx present and node_modules available
     fe_dir = ROOT / "frontend"
     frontend_entry = {"name": "frontend_tests", "result": None}
+    img_name = frontend_image_name()
     # Decide whether to use Docker for frontend tests
     prefer_docker = (
         os.environ.get("STRESS_PREFER_DOCKER") == "1"
@@ -235,7 +266,7 @@ def iteration(i, seed=None):
             else:
                 rc, sout, serr = run_frontend_image()
                 frontend_entry["result"] = {
-                    "cmd": ["docker", "run", "--rm", "quantum_trader_frontend_test:latest"],
+                    "cmd": ["docker", "run", "--rm", img_name],
                     "returncode": rc,
                     "stdout": sout,
                     "stderr": serr,
@@ -281,6 +312,8 @@ def iteration(i, seed=None):
 
 
 def main(count=1, start_at=1, resume=False, max_retries: int = 0, retry_delay: int = 1):
+    global OUTDIR
+    OUTDIR = resolve_outdir()
     aggregated = {
         "runs": [],
         "git_hash": git_commit_hash(),
