@@ -4,6 +4,10 @@ param(
     [int]$Limit = 200
 )
 
+$scriptHelpers = Join-Path $PSScriptRoot '_helpers.ps1'
+if (Test-Path $scriptHelpers) { . $scriptHelpers }
+if (-not (Test-GhAvailable -RequireAuth)) { Write-Error 'gh CLI or authentication missing; aborting.'; exit 2 }
+
 $OutDir = Join-Path $PSScriptRoot '..\artifacts\ci-runs\gh-logs' | Resolve-Path -Relative
 $FullOutDir = Join-Path (Get-Location) $OutDir
 if (-not (Test-Path $FullOutDir)) { New-Item -ItemType Directory -Path $FullOutDir -Force | Out-Null }
