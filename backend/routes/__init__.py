@@ -9,7 +9,7 @@ registered predictably. This avoids import-order issues where tests may import
 # Import submodules to ensure their top-level router objects and handlers are
 # created when the package is imported. Keep the list explicit so linters
 # and tooling can see what's exported.
-from . import trades, stats, chart, settings, binance, signals, prices, candles, stress
+from . import trades, stats, chart, settings, binance, signals, prices, candles, stress, health
 
 __all__ = [
     "trades",
@@ -21,4 +21,5 @@ __all__ = [
     "prices",
     "candles",
     "stress",
+    "health",
 ]
