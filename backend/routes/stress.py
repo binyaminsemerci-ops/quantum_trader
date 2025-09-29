@@ -93,7 +93,14 @@ async def stress_summary() -> Dict[str, Any]:
     stats: Dict[str, Any] = data.get("stats") or {}
 
     duration_stats = stats.get("duration_sec") or {}
-    durations = [float(r.get("total_duration")) for r in runs if r.get("total_duration") is not None]
+    durations: List[float] = []
+    for run in runs:
+        total_duration = run.get("total_duration")
+        if total_duration is not None:
+            try:
+                durations.append(float(total_duration))
+            except (TypeError, ValueError):
+                continue
     if not duration_stats:
         if durations:
             duration_stats = {
