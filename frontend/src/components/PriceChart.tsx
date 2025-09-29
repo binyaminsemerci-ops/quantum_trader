@@ -17,12 +17,18 @@ export default function PriceChart({ data, signals }: { data?: PricePoint[]; sig
   useEffect(() => {
     if (!data) {
       let mounted = true;
-      // try fetch recent prices from backend; fallback to generated demo series
+      setLoading(true);
+      setError(null);
       fetchRecentPrices()
-        .then((d) => mounted && setInternal(d))
-        .catch(() => {
+        .then((d) => {
           if (!mounted) return;
-          // generate a small demo series (random walk) for visual purposes
+          setInternal(d);
+          setError(null);
+        })
+        .catch((err) => {
+          if (!mounted) return;
+          console.warn('price fetch failed, using demo series', err);
+          setError('Using demo price data (backend fetch failed)');
           const now = Date.now();
           const seed = 100 + Math.random() * 10;
           const demo: PricePoint[] = Array.from({ length: 40 }).map((_, i) => {
@@ -35,11 +41,15 @@ export default function PriceChart({ data, signals }: { data?: PricePoint[]; sig
             return { time: t, open, high, low, close, volume };
           });
           setInternal(demo);
+        })
+        .finally(() => {
+          if (mounted) setLoading(false);
         });
       return () => {
         mounted = false;
       };
     }
+    setLoading(false);
     return;
   }, [data]);
 
@@ -164,7 +174,17 @@ export default function PriceChart({ data, signals }: { data?: PricePoint[]; sig
         <h3 className="font-semibold">Price chart</h3>
         {latest && <div className="text-sm">Latest: {formatNumber(latest.close)}</div>}
       </div>
-      <div className="relative">{svg ?? <div className="text-sm text-muted">Loading chart...</div>}
+      {error && (
+        <div className="mb-2 text-xs text-amber-600" role="alert">
+          {error}
+        </div>
+      )}
+      <div className="relative">
+        {svg ?? (
+          <div className="text-sm text-slate-500">
+            {loading ? 'Loading chart...' : 'No price data available'}
+          </div>
+        )}
         {overlay}
       </div>
     </div>

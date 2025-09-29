@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import SignalDetail from "./SignalDetail";
 
@@ -14,7 +15,6 @@ export type Signal = {
 function toLocalString(iso: string) {
   try {
     const d = new Date(iso);
-    // Example: "23:06:20 UTC" or local tz name when available
     const time = d.toLocaleTimeString();
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
     return `${time} ${tz}`;
@@ -26,19 +26,22 @@ function toLocalString(iso: string) {
 export default function SignalFeed() {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [selected, setSelected] = useState<Signal | null>(null);
-
   const [pageSize, setPageSize] = useState<number>(10);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
-    // Poll the paginated endpoint every 5s
+
     async function fetchSignals() {
       try {
+        setLoading(true);
         const base = (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:8000";
         const res = await fetch(`${base}/signals/?page=1&page_size=${pageSize}`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          throw new Error(`signals request failed: ${res.status}`);
+        }
         const data = await res.json();
-        // data.items contains typed signals; map backend 'side' to direction
         const mapped: Signal[] = (data.items || []).map((s: any) => ({
           id: s.id,
           symbol: s.symbol,
@@ -48,9 +51,17 @@ export default function SignalFeed() {
           timestamp: s.timestamp,
           details: s.details,
         }));
-        if (mounted) setSignals(mapped);
+        if (mounted) {
+          setSignals(mapped);
+          setError(null);
+        }
       } catch (err) {
-        // swallow network errors for the stub
+        console.warn("signal fetch failed", err);
+        if (mounted) {
+          setError("Failed to refresh signals from backend");
+        }
+      } finally {
+        if (mounted) setLoading(false);
       }
     }
 
@@ -64,19 +75,40 @@ export default function SignalFeed() {
 
   return (
     <div className="p-2 border rounded">
-      <h3 className="font-semibold">Signal Feed (mock)</h3>
+      <h3 className="font-semibold">Signal Feed</h3>
       <div className="flex items-center gap-2 mb-2">
-        <label htmlFor="signal-page-size" className="text-sm">Page size:</label>
-        <select id="signal-page-size" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="text-sm p-1 border rounded">
+        <label htmlFor="signal-page-size" className="text-sm">
+          Page size:
+        </label>
+        <select
+          id="signal-page-size"
+          value={pageSize}
+          onChange={(e) => setPageSize(Number(e.target.value))}
+          className="text-sm p-1 border rounded"
+        >
           <option value={5}>5</option>
           <option value={10}>10</option>
           <option value={20}>20</option>
         </select>
       </div>
 
+      {error && (
+        <div className="mb-2 text-xs text-amber-600" role="alert">
+          {error}
+        </div>
+      )}
+
+      {loading && !signals.length && (
+        <div className="text-sm text-slate-500">Loading signals...</div>
+      )}
+
       <ul className="space-y-2">
         {signals.map((s) => (
-          <li key={s.id} className="p-2 border rounded-md hover:bg-slate-50 cursor-pointer" onClick={() => setSelected(s)}>
+          <li
+            key={s.id}
+            className="p-2 border rounded-md hover:bg-slate-50 cursor-pointer"
+            onClick={() => setSelected(s)}
+          >
             <div className="flex justify-between items-start">
               <div>
                 <div className="text-sm text-slate-600">{toLocalString(s.timestamp)}</div>
@@ -86,13 +118,15 @@ export default function SignalFeed() {
                     {s.direction ? (
                       <span
                         className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                          s.direction === "LONG" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                          s.direction === "LONG"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-rose-100 text-rose-800"
                         }`}
                       >
                         {s.direction}
                       </span>
                     ) : (
-                      <span className="text-sm">—</span>
+                      <span className="text-sm">-</span>
                     )}
                   </div>
                   <div className="text-sm">score: {s.score}</div>
@@ -107,7 +141,7 @@ export default function SignalFeed() {
         ))}
       </ul>
       <SignalDetail signal={selected} onClose={() => setSelected(null)} />
-      {!signals.length && <div className="text-sm text-muted">No signals yet</div>}
+      {!loading && !signals.length && <div className="text-sm text-slate-500">No signals yet</div>}
     </div>
   );
 }
