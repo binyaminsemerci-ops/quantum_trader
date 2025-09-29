@@ -14,6 +14,7 @@ from typing import Any, Dict, List
 import logging
 
 from config.config import load_config, DEFAULT_QUOTE
+from backend.routes.settings import SETTINGS
 
 try:  # pragma: no cover - ccxt is optional
     import ccxt  # type: ignore[import-not-found]
@@ -58,7 +59,8 @@ def _demo_candles(symbol: str, limit: int) -> List[Dict[str, Any]]:
 
 def fetch_recent_candles(symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
     cfg = load_config()
-    if getattr(cfg, 'enable_live_market_data', False) and ccxt is not None:
+    enable_live = bool(SETTINGS.get('ENABLE_LIVE_MARKET_DATA', getattr(cfg, 'enable_live_market_data', False)))
+    if enable_live and ccxt is not None:
         try:
             exchange_id = getattr(cfg, 'default_exchange', 'binance')
             exchange_class = getattr(ccxt, exchange_id)
@@ -121,7 +123,8 @@ def _demo_signals(symbol: str, limit: int, profile: str = "mixed") -> List[Dict[
 
 def fetch_recent_signals(symbol: str, limit: int = 20, profile: str = "mixed") -> List[Dict[str, Any]]:
     cfg = load_config()
-    if getattr(cfg, 'enable_live_market_data', False):
+    enable_live = bool(SETTINGS.get('ENABLE_LIVE_MARKET_DATA', getattr(cfg, 'enable_live_market_data', False)))
+    if enable_live:
         candles = fetch_recent_candles(symbol, limit + 1)
         if len(candles) > 1:
             signals: List[Dict[str, Any]] = []
