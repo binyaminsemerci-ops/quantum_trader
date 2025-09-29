@@ -5,7 +5,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 
-# Sør for at database-mappa finnes
+# SÃ¸r for at database-mappa finnes
 DB_DIR = os.path.join(os.path.dirname(__file__), "data")
 os.makedirs(DB_DIR, exist_ok=True)
 
@@ -63,7 +63,7 @@ class Settings(Base):  # type: ignore[valid-type,misc]
 Base.metadata.create_all(bind=engine)
 
 
-# Dependency for å hente en DB-session
+# Dependency for Ã¥ hente en DB-session
 def get_db():
     db = SessionLocal()
     try:

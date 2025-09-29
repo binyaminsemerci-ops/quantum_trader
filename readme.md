@@ -23,9 +23,9 @@ uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 The backend uses SQLite (created under `backend/data/`) and exposes demo endpoints such as:
 
-- `GET /prices/recent` – deterministic candle series
-- `GET /signals/?page=1&page_size=10` – mock trade signals
-- `GET /stress/summary` – aggregates produced by `scripts/stress/harness.py`
+- `GET /prices/recent` Ã¢â‚¬â€œ deterministic candle series
+- `GET /signals/?page=1&page_size=10` Ã¢â‚¬â€œ mock trade signals
+- `GET /stress/summary` Ã¢â‚¬â€œ aggregates produced by `scripts/stress/harness.py`
 
 ### Frontend (React/Vite)
 ```bash
@@ -40,6 +40,22 @@ at `http://localhost:8000` (configurable with `VITE_API_BASE_URL`).
 ```bash
 python scripts/stress/harness.py --count 1 --zip-after
 ```
+### Model training
+```bash
+python -m ai_engine.train_and_save
+```
+The command pulls demo data from the backend helpers (or live adapters when
+`ENABLE_LIVE_MARKET_DATA=1`) and writes updated artifacts under
+`ai_engine/models/`.
+
+### Optional extras
+Install additional adapters when needed:
+```bash
+pip install -r backend/requirements-optional.txt
+```
+This pulls in ccxt, PostgreSQL drivers and other heavyweight tooling only when you
+explicitly need them.
+
 Artifacts are written to `artifacts/stress/`. See `DEVELOPMENT.md` for advanced scenarios (Docker
 runs, artifact retention, experiments).
 
@@ -74,12 +90,12 @@ The legacy README mixed long-term ambitions with the current MVP. The live backl
 Docs & onboarding). Open that file to see the next actionable tasks.
 
 High level themes:
-1. **Security & secrets** – centralise env handling and scrub keys from storage/logs.
-2. **CI / dependency hygiene** – optional heavy deps, reproducible installs, clearer workflows.
-3. **Real data adapters** – wire backend routes to ccxt / real indicators, add tests.
-4. **AI + feature engineering** – document and automate model training/backtesting.
-5. **Frontend polish** – flesh out settings, real-time updates, remove legacy TSX duplicates.
-6. **Operations** – logging, metrics, health checks, deploy scripts.
+1. **Security & secrets** Ã¢â‚¬â€œ centralise env handling and scrub keys from storage/logs.
+2. **CI / dependency hygiene** Ã¢â‚¬â€œ optional heavy deps, reproducible installs, clearer workflows.
+3. **Real data adapters** Ã¢â‚¬â€œ wire backend routes to ccxt / real indicators, add tests.
+4. **AI + feature engineering** Ã¢â‚¬â€œ document and automate model training/backtesting.
+5. **Frontend polish** Ã¢â‚¬â€œ flesh out settings, real-time updates, remove legacy TSX duplicates.
+6. **Operations** Ã¢â‚¬â€œ logging, metrics, health checks, deploy scripts.
 
 ---
 
