@@ -1,0 +1,6 @@
+# Optional extras are listed here so they do not inflate default installs.
+# Install with: pip install -r backend/requirements-optional.txt
+
+ccxt==4.4.56
+psycopg2-binary==2.9.9
+sqlalchemy-utils==0.41.2
