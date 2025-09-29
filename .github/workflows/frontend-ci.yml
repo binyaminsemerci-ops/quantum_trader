@@ -13,10 +13,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.7
 
       - name: Use Node.js 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.1.0
         with:
           node-version: '20'
           cache: 'npm'
@@ -62,7 +62,7 @@ jobs:
 
       - name: Upload dist artifact
         # Always attempt to upload dist so debugging artifacts are available
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.4.0
         with:
           name: frontend-dist
           path: frontend/dist

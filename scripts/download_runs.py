@@ -22,6 +22,10 @@ for url in runs:
     dirname = f"run_{rid}_artifacts"
     outname = f"run-{rid}-logs.zip"
     print(f"Downloading logs for run {rid} ...")
+    # quick check: ensure gh is available
+    if shutil.which('gh') is None:
+        print('gh CLI not found in PATH; skipping download. Install GitHub CLI: https://cli.github.com/')
+        break
     try:
         # Last ned til en egen katalog for å holde styr på filen
         subprocess.run(

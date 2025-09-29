@@ -1,0 +1,12 @@
+{
+  "prefer_docker": false,
+  "count": 1,
+  "experiments": [
+    {
+      "name": "node20-baseline",
+      "frontend_base_image": "node:20-bullseye-slim",
+      "prefer_docker": false,
+      "extra_npm_deps": ""
+    }
+  ]
+}

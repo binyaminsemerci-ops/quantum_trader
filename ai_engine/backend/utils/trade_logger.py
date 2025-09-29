@@ -26,7 +26,8 @@ def log_trade(symbol, side, qty, price, pnl, equity, timestamp):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO trades (symbol, side, qty, price, pnl, equity, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO trades (symbol, side, qty, price, pnl, equity, "
+        "timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (symbol, side, qty, price, pnl, equity, timestamp),
     )
     conn.commit()

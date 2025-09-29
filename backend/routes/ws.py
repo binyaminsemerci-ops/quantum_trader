@@ -25,7 +25,8 @@ async def dashboard_ws(websocket: WebSocket):
             active_symbols = cursor.fetchone()[0]
 
             cursor.execute(
-                "SELECT timestamp, symbol, side, qty, price FROM trades ORDER BY id DESC LIMIT 20"
+                "SELECT timestamp, symbol, side, qty, price FROM trades "
+                "ORDER BY id DESC LIMIT 20"
             )
             trades = [
                 dict(zip([d[0] for d in cursor.description], row))
@@ -33,7 +34,8 @@ async def dashboard_ws(websocket: WebSocket):
             ]
 
             cursor.execute(
-                "SELECT timestamp, symbol, side, qty, price, status, reason FROM trade_logs ORDER BY id DESC LIMIT 50"
+                "SELECT timestamp, symbol, side, qty, price, status, reason "
+                "FROM trade_logs ORDER BY id DESC LIMIT 50"
             )
             logs = [
                 dict(zip([d[0] for d in cursor.description], row))

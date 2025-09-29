@@ -21,6 +21,10 @@ $Repo = "binyaminsemerci-ops/quantum_trader"
 $OutDir = "artifacts/ci-runs"
 if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir | Out-Null }
 $LogFile = Join-Path $OutDir "monitor.log"
+# Load helper functions
+$scriptHelpers = Join-Path $PSScriptRoot '_helpers.ps1'
+if (Test-Path $scriptHelpers) { . $scriptHelpers }
+if (-not (Test-GhAvailable -RequireAuth)) { Write-Error 'gh CLI or authentication missing; aborting watcher.'; exit 2 }
 Function Log([string]$msg) {
     $time = (Get-Date).ToString("s")
     $line = "$time`t$msg"
