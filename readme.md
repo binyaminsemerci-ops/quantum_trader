@@ -199,3 +199,15 @@ Denne TODO-listen er i prioritert rekkefølge. Hver oppgave har et forslag til f
 ---
 
 Hvis du vil at jeg skal generere Sprint-1-filene (f.eks. `PriceChart.tsx`, `SignalFeed.tsx`, `frontend/src/api/prices.ts`), si fra hvilken del jeg skal starte med — jeg kan begynne med frontend PriceChart-komponenten i TSX med Recharts, eller jeg kan starte med backend adapter-tester. 🚀
+
+## CI & Rapporter
+
+- GitHub Actions kjører `Stress tests` for endringer i `scripts/stress/**` og `frontend/**`.
+- Jobben bygger frontend test-image, kjører `harness.py` (1 iterasjon) med auto‑zip, og laster opp artefakter.
+- Hvis secrets er satt (`ARTIFACT_UPLOAD_PROVIDER`, `ARTIFACT_UPLOAD_DEST`), lastes zip også til valgt sky (S3/GCS/Azure). Versjoner er pinner via `requirements-ci-upload.txt`.
+- HTML-rapport genereres til `artifacts/stress/report.html` og publiseres som artifact `stress-report`.
+- Retensjon: GitHub‑artefakter beholdes i 14 dager. Lokalt kan du styre antall zip/iterasjoner som beholdes via `STRESS_KEEP_ZIPS` og `STRESS_KEEP_ITERS`.
+- Aggregater: `artifacts/stress/aggregated.json` inkluderer en `stats`‑seksjon (ikke‑brytende) med summering per task (`pytest`, `backtest`, `frontend_tests`) og varighetsstatistikk (`duration_sec.min/max/avg`).
+- Node frontend-testimage er pinnet til digest `node:20-bullseye-slim@sha256:1c2b56658c1ea4737e92c76057061a2a5f904bdb2db6ccd45bb97fda41496b80` (kan overstyres via secret `NODE_IMAGE_REF`).
+- Retensjonsvarsler: sett `STRESS_PRUNE_ALERT_THRESHOLD` for å få warning hvis for mange iterasjonsfiler slettes i én kjøring; `STRESS_PRUNE_ALERT_WEBHOOK` kan sende varsel (Slack/Teams) når grensen overskrides.
+- Rapporter lokalt? Sett `STRESS_REPORT_OUTDIR` for å skrive/lese rapport/aggregat i en alternativ mappe (nyttig i tester eller ved tilpasset artefakt-sti). HTML-rapporten viser nå pass-rate badges, varighetshistogram og trender per task.

@@ -488,7 +488,8 @@ def get_adapter(
     import warnings
 
     warnings.warn(
-        "get_adapter is deprecated and will be removed in a future release; use get_exchange_client instead",
+        "get_adapter is deprecated and will be removed in a future "
+        "release; use get_exchange_client instead",
         DeprecationWarning,
         stacklevel=2,
     )

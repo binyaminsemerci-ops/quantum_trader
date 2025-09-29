@@ -90,7 +90,11 @@ def build_dataset(all_symbol_data):
     """Given list of (symbol, candles, sentiment, news) tuples, build X,y arrays."""
     import pandas as pd  # type: ignore[import-untyped]
     import numpy as np
-    from ai_engine.feature_engineer import add_technical_indicators, add_sentiment_features, add_target  # type: ignore[import-not-found, import-untyped]
+    from ai_engine.feature_engineer import (
+        add_technical_indicators,
+        add_sentiment_features,
+        add_target,
+    )  # type: ignore[import-not-found, import-untyped]
 
     X_list = []
     y_list = []
@@ -245,5 +249,6 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
 
 
 if __name__ == "__main__":
-    # quick local run (will use internal route fallbacks if external APIs are not configured)
+    # quick local run (will use internal route fallbacks if external
+    # APIs are not configured)
     train_and_save()
