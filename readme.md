@@ -1,213 +1,94 @@
-# Quantum Trader – Oppsummering
+# Quantum Trader (demo snapshot)
 
-Denne filen er en samlet oppsummering av Quantum Trader-prosjektet og en prioritert "to do"-liste for å ta prosjektet fra nåværende til et profesjonelt, produksjonsklart system.
+Quantum Trader is an experiment-friendly trading bot sandbox. The repository currently ships a **demo environment**:
 
-## 1. Hva er Quantum Trader?
+- A FastAPI backend that serves deterministic sample data for prices, signals and stats.
+- A React/Vite dashboard that visualises that data (price chart, signal feed, stress trends).
+- Stress-test utilities under `scripts/stress/` for running repeatable end-to-end checks in CI.
 
-Quantum Trader er en AI-drevet kryptohandelsplattform bestående av tre hoveddeler:
-
-- Backend (FastAPI + Python) → styrer datainnsamling, AI-modell og ordreutførelse.
-- Database (PostgreSQL + Alembic) → lagrer trades, signaler, nyheter, tweets og historiske data.
-- Frontend (React + Vite + TypeScript + Tailwind) → dashboard med grafer, signaler og oversikt.
-
-Kort sagt: en tradingbot + analyseterminal i én pakke.
-
-## 2. Hva skal den brukes til?
-
-Quantum Trader har to bruksområder:
-
-1) Analyseplattform
-- Henter data fra børser (e.g. Binance).
-- Henter nyheter (CryptoPanic) og sentiment fra Twitter/X.
-- Kjører AI-modeller (f.eks. XGBoost) for BUY/SELL/HOLD-prediksjoner.
-- Viser resultater i frontend for beslutningsstøtte uten å koble til konto.
-
-2) Fullverdig Tradingbot
-- Kobles til børser via API-nøkler.
-- Når modellen sier BUY/SELL, kan botten utføre faktiske ordre.
-- Logger alt i DB (ordre, tidspunkt, pris, mengde) og viser handelshistorikk i frontend.
-
-## 3. Hvordan fungerer den teknisk? (Flyt steg for steg)
-
-1. Datainnsamling
-   - Binance API → priser og OHLCV.
-   - CryptoPanic → nyheter.
-   - Twitter/X → tweets for sentiment.
-   - Alt lagres i PostgreSQL-tabeller (prices, news, tweets).
-
-2. Feature engineering
-   - Beregn tekniske indikatorer (MA, EMA, RSI, MACD, Bollinger Bands).
-   - Beregn sentimentscore og aggreger over tid.
-   - Lag en features-tabell som brukes av AI-modellen.
-
-3. AI-modell
-   - XGBoost (eller lignende) trenes på historiske features.
-   - Output: BUY / SELL / HOLD.
-   - Signalene lagres i en signals-tabell.
-
-4. Handelsmotor
-   - Les siste modell-signal.
-   - Beslutningslogikk (risikoreglene, posisjon sizing).
-   - Utfør ordre via exchange API (først testnet, så live hvis ønsket).
-   - Logg resultat i trades-tabellen.
-
-5. Frontend dashboard
-   - Sanntid visning av prisgraf (candlesticks), AI-signaler, sentiment og trade-logg.
-
-6. Kontinuerlig loop
-   - Systemet kjører periodisk (minutt / time) og oppdaterer data, features, modeller og utfører trading ved behov.
-
-## 4. Hvorfor bygge Quantum Trader?
-
-- Automatisering – AI kan handle 24/7.
-- Datadrevet beslutning – kombinerer markedsdata + sentimentanalyse.
-- Testbarhet – backtesting og testnet først.
-- Utvidbarhet – flere børser, strategier og AI-modeller.
-
-## 5. Målbilde
-
-Quantum Trader skal kunne fungere både som:
-- Trading decision support terminal for manuelt bruk.
-- Autonom tradingbot koblet mot børs(er) som kan handle på vegne av brukeren.
+The original vision (full AI + live exchange connectivity + PostgreSQL) is documented in
+`ARCHITECTURE.md`, but the code base now focuses on demos and tooling. This README describes the
+*current* state so contributors know what is implemented and what remains work-in-progress.
 
 ---
 
-## Systemarkitektur (kort)
+## Quick start
 
-- Backend: FastAPI + SQLAlchemy + Alembic, scripts for datainnsamling og modelltrening.
-- Database: PostgreSQL, migrasjoner med Alembic.
-- Exchanges: Adapter-mønster (støtte for Binance, Coinbase, KuCoin) — ccxt brukes i adaptere, men kan holdes som en valgfri avhengighet.
-- Frontend: React + Vite + TypeScript + Tailwind. Komponenter i `.tsx`/`.ts`.
-- CI: GitHub Actions, med egen integrasjonsjobb for tunge avhengigheter (f.eks. ccxt).
-- Containerisering: Docker + docker-compose for lokal utvikling.
+### Backend (FastAPI demo APIs)
+```bash
+python -m venv .venv
+. .venv/bin/activate           # PowerShell: .venv\Scripts\Activate.ps1
+pip install -r backend/requirements.txt
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
+The backend uses SQLite (created under `backend/data/`) and exposes demo endpoints such as:
 
----
+- `GET /prices/recent` – deterministic candle series
+- `GET /signals/?page=1&page_size=10` – mock trade signals
+- `GET /stress/summary` – aggregates produced by `scripts/stress/harness.py`
 
-## Forslag til fil- og frontend-struktur (TS/TSX)
+### Frontend (React/Vite)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Vite serves the dashboard on <http://localhost:5173>. The dashboard talks to the FastAPI instance
+at `http://localhost:8000` (configurable with `VITE_API_BASE_URL`).
 
-frontend/
- ├── src/
- │   ├── components/
- │   │   ├── Header.tsx
- │   │   ├── Sidebar.tsx
- │   │   ├── Dashboard.tsx
- │   │   ├── PriceChart.tsx  (Recharts / TradingView)
- │   │   ├── TradeLog.tsx
- │   │   ├── SignalFeed.tsx
- │   │   └── SentimentFeed.tsx
- │   ├── pages/
- │   │   ├── Home.tsx
- │   │   ├── Trades.tsx
- │   │   └── Signals.tsx
- │   ├── api/
- │   │   └── client.ts
- │   ├── types/
- │   └── App.tsx
-
----
-
-## Docker-compose (lokal utvikling)
-
-Se `docker-compose.yml` i repo for et eksempel-oppsett som starter backend, frontend og en PostgreSQL database.
+### Stress harness
+```bash
+python scripts/stress/harness.py --count 1 --zip-after
+```
+Artifacts are written to `artifacts/stress/`. See `DEVELOPMENT.md` for advanced scenarios (Docker
+runs, artifact retention, experiments).
 
 ---
 
-## Flytscenario for én trade (step-by-step)
+## Project layout
 
-1. Hent sanntids OHLCV fra Binance.
-2. Feature engineering (indikatorer + sentiment).
-3. Modell predikerer BUY/SELL/HOLD.
-4. Handelsmotor vurderer risiko og posisjon-sizing.
-5. Hvis BUY/SELL → send ordre til exchange via API.
-6. Logg resultat i DB og oppdater frontend i real-time.
-7. Repeter kontinuerlig.
-
----
-
-## TODO-liste (prioritert)
-
-Denne TODO-listen er i prioritert rekkefølge. Hver oppgave har et forslag til filer/mapper å opprette eller oppdatere.
-
-1. Kritisk: Sikkerhet og hemmelighetshåndtering
-   - [ ] Centraliser secrets (bruk env + .env, ikke sjekk inn nøkler).
-     - Filer: `config/config.py`, `backend/.env.example`, `frontend/.env.example`
-   - [ ] Implementer masking av nøkler i logger og admin-UI.
-     - Filer: `backend/utils/startup.py`, `frontend/src/pages/Settings.tsx`
-
-2. Kritisk: CI & Integrasjonspolicy
-   - [ ] Hold tunge avhengigheter valgfrie (flytt ccxt til `backend/requirements-ccxt.txt`).
-   - [ ] Lag en separat GitHub Actions job for integrasjonstester (kun triggered/dispatch eller for maintainers).
-     - Fil: `.github/workflows/ci.yml`
-
-3. Høy: Backend testdekning og adapter-tester
-   - [ ] Unit-tester for exchange-adapter factory (mock ccxt).
-     - Filer: `backend/tests/test_exchanges.py`.
-   - [ ] Integrasjonstest som kjører `backend/scripts/adapter_smoke.py` mot testnet (kjøres i integrasjonsjobben).
-
-4. Høy: AI, feature engineering og treningspipeline
-   - [ ] Implementer feature-engineering scripts (lag `ai_engine/feature_engineer.py`).
-   - [ ] Treningspipeline: `ai_engine/train.py` (lagre modeller til `artifacts/models/`).
-   - [ ] Legg til automatiske backtesting-scripts.
-
-5. Høy: Frontend funksjonalitet (TypeScript / TSX)
-   - [ ] Implementer `PriceChart.tsx` med Recharts/TradingView candlesticks.
-     - Filer: `frontend/src/components/PriceChart.tsx`, `frontend/src/api/prices.ts`.
-   - [ ] Implementer `SignalFeed.tsx` (realtidssignal feed via websockets eller polling).
-     - Filer: `frontend/src/components/SignalFeed.tsx`, `frontend/src/api/signals.ts`.
-   - [ ] Implementer `SentimentFeed.tsx`.
-   - [ ] Settings-side for exchange-API nøkler og DEFAULT_EXCHANGE (`frontend/src/pages/Settings.tsx`).
-
-6. Medium: Database & migrasjoner
-   - [ ] Sjekk Alembic-migrasjoner og legg til migrations for alle tabeller (`migrations/`).
-   - [ ] Legg til DB-seed for demo data (`backend/seed_trades.py`).
-
-7. Medium: Observability & produksjonsklarhet
-   - [ ] Legg til logging/metrics (prometheus client, structured logging).
-     - Filer: `backend/utils/logging.py`, `backend/metrics.py`.
-   - [ ] Health checks og readiness probes (`/api/health`).
-
-8. Medium: Deployment
-   - [ ] Dockerfile for backend og frontend (prod builds).
-   - [ ] Kubernetes manifests / Helm chart (valgfritt for produksjon).
-   - [ ] CI/CD: automatisk build & push av docker images til registry.
-
-9. Low: UX & ekstra polering
-   - [ ] Toast/notification system i frontend for "saved keys", "order executed" osv.
-   - [ ] Kopier-til-clipboard og masked key preview (frontend Settings).
-
-10. Low: Dokumentasjon og onboarding
-    - [ ] Lag `README.md` (dette dokumentet).
-    - [ ] Lag `CONTRIBUTING.md`, `DEVELOPMENT.md` med oppsett for lokalt dev (docker-compose, env, init DB).
-    - [ ] Legg til eksempelfiler `.env.example` for backend/frontend.
+```
+backend/               FastAPI app, mock routes, SQLite models
+frontend/              React/Vite dashboard (TypeScript)
+scripts/stress/        Harness, experiments, helpers (+ pytest tests)
+ai_engine/             Demo model artefacts and helpers (not wired into CI)
+config/stress/         Matrix definitions for stress experiments
+artifacts/             Generated results (aggregated.json, reports, experiments)
+.github/workflows/     CI pipelines (mypy, frontend/dev tests, stress runs, pre-commit)
+```
 
 ---
 
-## Forslag til første konkrete leveranser (sprint 1)
-
-- Sprintmål (2 uker):
-  1. Lage `PriceChart.tsx` og koble denne mot backend-priser (mock først).
-  2. Lage `SignalFeed.tsx` og vise eksisterende signals fra API.
-  3. Sette opp CI-jobb som kjører frontend typecheck + vitest, og backend pytest (uten ccxt).
-  4. Sentralisere secrets med `config/config.py` og `.env.example`.
-
-## Hvordan jeg kan hjelpe videre
-
-- Jeg kan lage konkrete filer for sprint-1 (komponenter, API-klienter, tests) i TS/TSX.
-- Jeg kan legge til backend tests for adapterene og lage fixtures for mocked ccxt.
-- Jeg kan tegne et arkitekturdiagram (SVG eller PlantUML) som viser hele flyten fra datakilder til ordreutførelse.
+## Current capabilities
+- Demo data only: no live exchange connectivity and no real model training pipeline.
+- SQLite-backed API with minimal tables (`TradeLog`, `Settings`). Postgres/Alembic integration is a
+  future goal (see TODO).
+- Frontend renders charts, signal feed and stress trends using the demo APIs.
+- Stress harness creates aggregated statistics consumable by `/stress/summary` and the dashboard.
 
 ---
 
-Hvis du vil at jeg skal generere Sprint-1-filene (f.eks. `PriceChart.tsx`, `SignalFeed.tsx`, `frontend/src/api/prices.ts`), si fra hvilken del jeg skal starte med — jeg kan begynne med frontend PriceChart-komponenten i TSX med Recharts, eller jeg kan starte med backend adapter-tester. 🚀
+## Backlog & roadmap
+The legacy README mixed long-term ambitions with the current MVP. The live backlog now lives in
+`TODO.md`, grouped by priority (security, CI policy, backend adapters, frontend UX, observability,
+Docs & onboarding). Open that file to see the next actionable tasks.
 
-## CI & Rapporter
+High level themes:
+1. **Security & secrets** – centralise env handling and scrub keys from storage/logs.
+2. **CI / dependency hygiene** – optional heavy deps, reproducible installs, clearer workflows.
+3. **Real data adapters** – wire backend routes to ccxt / real indicators, add tests.
+4. **AI + feature engineering** – document and automate model training/backtesting.
+5. **Frontend polish** – flesh out settings, real-time updates, remove legacy TSX duplicates.
+6. **Operations** – logging, metrics, health checks, deploy scripts.
 
-- GitHub Actions kjører `Stress tests` for endringer i `scripts/stress/**` og `frontend/**`.
-- Jobben bygger frontend test-image, kjører `harness.py` (1 iterasjon) med auto‑zip, og laster opp artefakter.
-- Hvis secrets er satt (`ARTIFACT_UPLOAD_PROVIDER`, `ARTIFACT_UPLOAD_DEST`), lastes zip også til valgt sky (S3/GCS/Azure). Versjoner er pinner via `requirements-ci-upload.txt`.
-- HTML-rapport genereres til `artifacts/stress/report.html` og publiseres som artifact `stress-report`.
-- Retensjon: GitHub‑artefakter beholdes i 14 dager. Lokalt kan du styre antall zip/iterasjoner som beholdes via `STRESS_KEEP_ZIPS` og `STRESS_KEEP_ITERS`.
-- Aggregater: `artifacts/stress/aggregated.json` inkluderer en `stats`‑seksjon (ikke‑brytende) med summering per task (`pytest`, `backtest`, `frontend_tests`) og varighetsstatistikk (`duration_sec.min/max/avg`).
-- Node frontend-testimage er pinnet til digest `node:20-bullseye-slim@sha256:1c2b56658c1ea4737e92c76057061a2a5f904bdb2db6ccd45bb97fda41496b80` (kan overstyres via secret `NODE_IMAGE_REF`).
-- Retensjonsvarsler: sett `STRESS_PRUNE_ALERT_THRESHOLD` for å få warning hvis for mange iterasjonsfiler slettes i én kjøring; `STRESS_PRUNE_ALERT_WEBHOOK` kan sende varsel (Slack/Teams) når grensen overskrides.
-- Rapporter lokalt? Sett `STRESS_REPORT_OUTDIR` for å skrive/lese rapport/aggregat i en alternativ mappe (nyttig i tester eller ved tilpasset artefakt-sti). HTML-rapporten viser nå pass-rate badges, varighetshistogram og trender per task.
+---
+
+## Contributing checklist
+1. Install pre-commit and run `pre-commit run --all-files` before pushing.
+2. Activate a virtual environment; install backend dependencies from
+   `backend/requirements.txt` (runtime) and `backend/requirements-dev.txt` (tests/dev tools).
+3. For frontend changes run `npm run lint` / `npm run test` if you touch TypeScript.
+4. For stress tooling run `pytest scripts/stress/tests`.
+5. Update `TODO.md` when scope changes so the backlog stays accurate.
+
+See `CONTRIBUTING.md` and `DEVELOPMENT.md` for detailed setup instructions.

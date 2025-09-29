@@ -84,3 +84,8 @@ env:
 ```
 
 The stress workflow defaults to `node:20-bullseye-slim@sha256:1c2b56658c1ea4737e92c76057061a2a5f904bdb2db6ccd45bb97fda41496b80`; override via the `NODE_IMAGE_REF` secret if you need a different digest.
+## Backend database
+- The default demo API uses SQLite (files under `backend/data/`). No migrations are required.
+- If you want to experiment with PostgreSQL, install `psycopg2-binary` from
+  `backend/requirements-optional.txt`, set `QUANTUM_TRADER_DATABASE_URL`, and run Alembic once the
+  migration story is reintroduced.
