@@ -319,7 +319,7 @@ def main(count=1, start_at=1, resume=False, max_retries: int = 0, retry_delay: i
         "git_hash": git_commit_hash(),
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
     }
-    
+
     def _summarize_result(rr):
         """Return a simple summary value for a command result dict:
         - integer returncode if present
@@ -337,7 +337,7 @@ def main(count=1, start_at=1, resume=False, max_retries: int = 0, retry_delay: i
             if rr.get("error") is not None:
                 return "error"
         return None
-    
+
     def _summary_details(rr):
         """Return a short one-line summary message for a command result dict."""
         if not rr:
