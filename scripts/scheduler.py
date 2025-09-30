@@ -12,7 +12,6 @@ be invoked in place of `simulate_training_and_generate_signals`.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import random
