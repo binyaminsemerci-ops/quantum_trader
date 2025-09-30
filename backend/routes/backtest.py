@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, cast
 
 from fastapi import APIRouter
 from sqlalchemy import select
@@ -70,7 +70,7 @@ def _model_backtest(symbol: str, limit: int, entry_threshold: float) -> Dict[str
 def _legacy_backtest(symbol: str, days: int) -> Dict[str, Any]:
     with session_scope() as session:
         trade_rows = session.execute(
-            select(Trade).where(Trade.symbol == symbol).order_by(Trade.timestamp.asc())
+            select(Trade).where(Trade.symbol == symbol).order_by(cast(Any, Trade.timestamp).asc())
         ).scalars().all()
 
         if trade_rows:
@@ -105,7 +105,7 @@ def _legacy_backtest(symbol: str, days: int) -> Dict[str, Any]:
         candle_rows = session.execute(
             select(Candle)
             .where(Candle.symbol == symbol)
-            .order_by(Candle.timestamp.asc())
+            .order_by(cast(Any, Candle.timestamp).asc())
             .limit(days)
         ).scalars().all()
 
