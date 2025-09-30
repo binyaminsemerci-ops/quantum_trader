@@ -1,1 +1,1 @@
-alembic,pytest,pytest-asyncio
+alembic,coverage,mypy,pytest,pytest-asyncio,ruff,types-requests
