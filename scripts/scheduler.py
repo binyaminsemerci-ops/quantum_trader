@@ -10,31 +10,23 @@ produces fake signals when running in dry-run mode. Real training code can
 be invoked in place of `simulate_training_and_generate_signals`.
 """
 from __future__ import annotations
-
-import argparse
-import json
-import logging
 import os
-import random
 import sys
+import argparse
+import logging
+import random
 import time
 from datetime import datetime, timezone
-
-# Ensure repo root is on sys.path so `import backend` works when running
-# the script directly (sys.path[0] is the script's directory otherwise).
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
+import scripts.import_helper
 
 from sqlalchemy import Column, DateTime, Float, Integer, String, Text, func
 
 from config.config import DEFAULT_SYMBOLS, MAINBASE_SYMBOLS, LAYER1_SYMBOLS, LAYER2_SYMBOLS
 
-from backend.database import Base, engine, SessionLocal, create_training_task, update_training_task
+from backend.database import Base
 
-logger = logging.getLogger("scheduler")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-
+logger = logging.getLogger("scheduler")
 
 class Signal(Base):
     __tablename__ = "signals"
@@ -57,6 +49,7 @@ def ensure_signals_table():
     # testing we'll detect that case and drop the table so the corrected
     # schema (server_default=func.now()) can be created.
     from sqlalchemy import inspect
+    from backend.database import engine, Base
 
     inspector = inspect(engine)
     if inspector.has_table("signals"):
@@ -100,6 +93,8 @@ def simulate_training_and_generate_signals(limit: int = 5):
 
 def run_iteration(limit: int, dry_run: bool):
     logger.info("Creating training task and running simulated training")
+    from backend.database import SessionLocal, create_training_task, update_training_task
+
     with SessionLocal() as session:
         task = create_training_task(
             session,

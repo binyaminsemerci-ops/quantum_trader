@@ -99,7 +99,7 @@ def upload_s3(zip_path: Path, dest: str, retries: int = 0, retry_delay: float = 
                 try:
                     s3.upload_file(str(zip_path), bucket, key)
                     return 0
-                except Exception as e:
+                except Exception:
                     attempt += 1
                     if attempt > retries:
                         raise
@@ -135,7 +135,7 @@ def upload_gcs(zip_path: Path, dest: str, retries: int = 0, retry_delay: float =
                 try:
                     blob.upload_from_filename(str(zip_path))
                     return 0
-                except Exception as e:
+                except Exception:
                     attempt += 1
                     if attempt > retries:
                         raise
@@ -175,7 +175,7 @@ def upload_azure(zip_path: Path, dest: str, retries: int = 0, retry_delay: float
                     with open(zip_path, 'rb') as data:
                         blob_client.upload_blob(data, overwrite=True)
                     return 0
-                except Exception as e:
+                except Exception:
                     attempt += 1
                     if attempt > retries:
                         raise

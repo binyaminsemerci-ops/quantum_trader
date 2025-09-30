@@ -1,7 +1,7 @@
 from __future__ import with_statement
 
-import os
-import sys
+from scripts.import_helper import import_module
+
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -17,11 +17,8 @@ config = context.config
 # This line sets up loggers basically.
 if config.config_file_name:
     fileConfig(config.config_file_name)
-
-# add project path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from backend.database import Base, DATABASE_URL  # noqa: E402
+Base = import_module("backend.database", "Base")
+DATABASE_URL = import_module("backend.database", "DATABASE_URL")
 
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
