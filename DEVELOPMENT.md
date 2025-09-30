@@ -18,7 +18,7 @@ This guide covers local stress runs, retention, and artifact handling.
 
 ## Database
 - Default SQLite file lives under `backend/data/trades.db`.
-- Override `QUANTUM_TRADER_DATABASE_URL` (e.g. `postgresql+psycopg://user:pass@localhost:5432/quantum_trader`) before running Alembic to use Postgres.
+- Override `QUANTUM_TRADER_DATABASE_URL` (e.g. `postgresql+psycopg://user:pass@localhost:5432/quantum_trader`) # pragma: allowlist secret before running Alembic to use Postgres.
 - Apply migrations with `alembic upgrade head`.
 - Seed demo trades/equity with `python backend/seed_trades.py` (idempotent).
 
@@ -114,5 +114,3 @@ env:
 ```
 
 The stress workflow defaults to `node:20-bullseye-slim@sha256:1c2b56658c1ea4737e92c76057061a2a5f904bdb2db6ccd45bb97fda41496b80`; override via the `NODE_IMAGE_REF` secret if you need a different digest.
-
-
