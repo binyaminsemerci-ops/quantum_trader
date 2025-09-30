@@ -146,7 +146,6 @@ def masked_config_summary(cfg: Settings) -> Dict[str, Any]:
 
 
 DEFAULT_EXCHANGE = settings.default_exchange
-DEFAULT_QUOTE = settings.default_quote
 FUTURES_QUOTE = settings.resolved_futures_quote
 DEFAULT_SYMBOLS = settings.default_symbols
 MAINBASE_SYMBOLS = settings.mainbase_symbols
@@ -156,7 +155,6 @@ LAYER2_SYMBOLS = settings.layer2_symbols
 
 __all__ = [
     "DEFAULT_EXCHANGE",
-    "DEFAULT_QUOTE",
     "FUTURES_QUOTE",
     "DEFAULT_SYMBOLS",
     "Settings",

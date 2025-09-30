@@ -13,7 +13,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
 import logging
 
-from config.config import load_config, DEFAULT_QUOTE
+from config.config import load_config, settings
 from backend.routes.settings import SETTINGS
 from backend.utils.exchanges import resolve_exchange_name, resolve_credentials
 from ai_engine.agents.xgb_agent import make_default_agent
@@ -84,7 +84,7 @@ def fetch_recent_candles(symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
             exchange = None
             try:
                 exchange = exchange_class(params)
-                market = _normalize_symbol(symbol, getattr(cfg, 'default_quote', DEFAULT_QUOTE))
+                market = _normalize_symbol(symbol, getattr(cfg, 'default_quote', settings.default_quote))
                 timeframe = getattr(cfg, 'ccxt_timeframe', '1m')
                 ohlcv = exchange.fetch_ohlcv(market, timeframe=timeframe, limit=limit)
                 candles = []

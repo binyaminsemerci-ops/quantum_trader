@@ -1,7 +1,6 @@
 from typing import Any
 
 DEFAULT_EXCHANGE: str
-DEFAULT_QUOTE: Any
 FUTURES_QUOTE: Any
 DEFAULT_SYMBOLS: Any
 
@@ -16,7 +15,6 @@ def masked_config_summary(cfg: Any) -> Any: ...
 
 __all__ = [
     "DEFAULT_EXCHANGE",
-    "DEFAULT_QUOTE",
     "FUTURES_QUOTE",
     "DEFAULT_SYMBOLS",
     "make_pair",

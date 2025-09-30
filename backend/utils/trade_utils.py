@@ -6,7 +6,7 @@ bots are consistent.
 """
 
 from typing import Literal
-from config.config import DEFAULT_QUOTE, FUTURES_QUOTE, make_pair
+from config.config import FUTURES_QUOTE, make_pair, settings
 
 MarketType = Literal["spot", "futures"]
 
@@ -19,4 +19,4 @@ def select_execution_pair(base: str, market: MarketType = "futures") -> str:
     """
     if market == "futures":
         return make_pair(base, quote=FUTURES_QUOTE)
-    return make_pair(base, quote=DEFAULT_QUOTE)
+    return make_pair(base, quote=settings.default_quote)

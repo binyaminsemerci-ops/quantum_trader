@@ -8,11 +8,9 @@ import json
 import numpy as np
 from ai_engine.agents.xgb_agent import make_default_agent
 from ai_engine.train_and_save import train_and_save
-from config.config import DEFAULT_SYMBOLS, DEFAULT_QUOTE
+from config.config import DEFAULT_SYMBOLS, settings
 from backend.database import create_training_task, update_training_task, get_session, TrainingTask  # type: ignore[attr-defined]
-
-# backend.database exports ORM symbols dynamically; narrow-ignore attr-defined for now
-from backend.database import TrainingTask  # type: ignore[attr-defined]
+from typing import cast
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -314,10 +312,8 @@ async def reload_model_endpoint():
 async def train_endpoint(req: TrainRequest, background: BackgroundTasks):
     """Schedule a background training run. Returns 202 accepted immediately."""
     # Use USDC as the spot quote by default; futures/cross-margin can still use USDT
-    from config.config import DEFAULT_QUOTE
-
     default_symbols = list(DEFAULT_SYMBOLS)
-    symbols = req.symbols or (default_symbols if default_symbols else [f"BTC{DEFAULT_QUOTE}", f"ETH{DEFAULT_QUOTE}"])
+    symbols = req.symbols or (default_symbols if default_symbols else [f"BTC{settings.default_quote}", f"ETH{settings.default_quote}"])
     limit = req.limit or 600
     entry_threshold = req.entry_threshold if req.entry_threshold is not None else 0.001
     # create a DB task record
@@ -342,7 +338,10 @@ async def train_endpoint(req: TrainRequest, background: BackgroundTasks):
             db2.close()
 
     # schedule background training
-    background.add_task(_bg_train, task.id, symbols, limit, entry_threshold)
+    # task.id may be Optional[int] in typing stubs; ensure it's present then cast
+    if task.id is None:
+        raise HTTPException(status_code=500, detail="failed to create task id")
+    background.add_task(_bg_train, int(task.id), symbols, limit, entry_threshold)
     return {
         "status": "scheduled",
         "task_id": task.id,
@@ -358,7 +357,7 @@ async def list_tasks(limit: int = 50, offset: int = 0):
     try:
         q = (
             db.query(TrainingTask)
-            .order_by(TrainingTask.created_at.desc())
+            .order_by(cast(Any, TrainingTask.created_at).desc())
             .limit(limit)
             .offset(offset)
         )

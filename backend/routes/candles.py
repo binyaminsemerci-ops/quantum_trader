@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Query, Depends
-from typing import Annotated
+from typing import Annotated, Any, cast
 import logging
 import datetime
 
@@ -24,7 +24,7 @@ def get_candles(
             db.execute(
                 select(Candle)
                 .where(Candle.symbol == symbol)
-                .order_by(Candle.timestamp.desc())
+                .order_by(cast(Any, Candle.timestamp).desc())
                 .limit(limit)
             )
             .scalars()

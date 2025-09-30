@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from .config import (
     DEFAULT_EXCHANGE,
-    DEFAULT_QUOTE,
     FUTURES_QUOTE,
     load_config,
     make_pair,
@@ -19,7 +18,6 @@ from .config import (
 
 __all__ = [
     "DEFAULT_EXCHANGE",
-    "DEFAULT_QUOTE",
     "FUTURES_QUOTE",
     "load_config",
     "make_pair",
