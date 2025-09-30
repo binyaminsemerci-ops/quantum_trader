@@ -12,7 +12,7 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from config.config import DEFAULT_SYMBOLS, DEFAULT_QUOTE
+from config.config import DEFAULT_SYMBOLS, settings
 from ai_engine.feature_engineer import (
     DEFAULT_TARGET_COLUMN,
     add_sentiment_features,
@@ -320,7 +320,7 @@ def train_and_save(
         if default_symbols:
             symbols = default_symbols
         else:
-            symbols = [f"BTC{DEFAULT_QUOTE}", f"ETH{DEFAULT_QUOTE}"]
+            symbols = [f"BTC{settings.default_quote}", f"ETH{settings.default_quote}"]
 
     dataset = _prepare_dataset(list(symbols), limit)
 
