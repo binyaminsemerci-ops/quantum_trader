@@ -1,31 +1,27 @@
-# --- Bygg steg ---
-FROM node:18-slim AS build
+# syntax=docker/dockerfile:1.7
+
+ARG NODE_IMAGE=node:20-bullseye-slim
+
+FROM ${NODE_IMAGE} AS deps
 
 WORKDIR /app
 
-# Kopier kun package.json først for bedre cache
-COPY package*.json ./
+COPY frontend/package*.json ./
+RUN npm ci
 
-RUN npm install
-
-# Kopier resten av prosjektet (inkl. src/components)
-COPY . .
-
-# Bygg React/Vite frontend
+FROM ${NODE_IMAGE} AS build
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY frontend/ ./
 RUN npm run build
 
-# --- Produksjons steg ---
-FROM nginx:alpine
+FROM nginx:1.27-alpine AS runtime
 
-# Fjern default nginx-html
-RUN rm -rf /usr/share/nginx/html/*
-
-# Kopier bygget app fra build-steg
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Valgfri: Egendefinert nginx-konfig hvis du har en nginx.conf
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
-
 EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD wget -qO- http://localhost/health || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

@@ -1,18 +1,24 @@
-from backend.database import get_db
+from typing import List, Tuple
 import math
+from sqlalchemy import select
+
+from backend.database import session_scope, Trade
 
 
 def calculate_analytics():
-    db = next(get_db())
-    cursor = db.cursor()
-    cursor.execute("SELECT side, qty, price FROM trades")
-    trades = cursor.fetchall()
+    with session_scope() as session:
+        rows: List[Tuple[str, float, float]] = [
+            (side, qty, price)
+            for side, qty, price in session.execute(
+                select(Trade.side, Trade.qty, Trade.price)
+            )
+        ]
 
     wins = 0
     losses = 0
-    returns = []
+    returns: List[float] = []
 
-    for side, qty, price in trades:
+    for side, qty, price in rows:
         ret = qty * price if side.upper() == "SELL" else -qty * price
         returns.append(ret)
         if ret > 0:
@@ -30,5 +36,5 @@ def calculate_analytics():
     return {
         "win_rate": round(win_rate, 2),
         "sharpe_ratio": round(sharpe, 2),
-        "trades_count": len(trades),
+        "trades_count": len(returns),
     }

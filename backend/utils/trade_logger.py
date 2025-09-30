@@ -1,29 +1,20 @@
-from backend.database import get_db, TradeLog
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Any
+
+from backend.database import session_scope, TradeLog
 
 
 def log_trade(trade: dict[str, Any], status: str, reason: Optional[str] = None):
-    """
-    Logger en trade til databasen.
-    trade = {"symbol": "BTCUSDT", "side": "BUY", "qty": 0.05, "price": 25000}
-    """
-    db = next(get_db())
-    try:
-        # Coerce and validate incoming values so MyPy sees the expected types
-        raw_symbol = trade.get("symbol")
-        raw_side = trade.get("side")
-        raw_qty = trade.get("qty")
-        raw_price = trade.get("price")
-
-        symbol: str = str(raw_symbol or "")
-        side: str = str(raw_side or "")
+    """Persist a trade log entry using the configured database backend."""
+    with session_scope() as session:
+        symbol = str(trade.get("symbol") or "")
+        side = str(trade.get("side") or "")
         try:
-            qty: float = float(raw_qty or 0.0)
+            qty = float(trade.get("qty") or 0.0)
         except (TypeError, ValueError):
             qty = 0.0
         try:
-            price: float = float(raw_price or 0.0)
+            price = float(trade.get("price") or 0.0)
         except (TypeError, ValueError):
             price = 0.0
 
@@ -34,15 +25,9 @@ def log_trade(trade: dict[str, Any], status: str, reason: Optional[str] = None):
             price=price,
             status=status,
             reason=reason,
-            # 🔑 Bruk datetime-objekt, ikke string
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
-        db.add(log)
-        db.commit()
-        db.refresh(log)
+        session.add(log)
+        session.flush()
+        session.refresh(log)
         return log
-    except Exception as e:
-        db.rollback()
-        raise e
-    finally:
-        db.close()

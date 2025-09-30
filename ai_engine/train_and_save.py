@@ -1,38 +1,53 @@
-import os
+from __future__ import annotations
+
 import asyncio
+import datetime
+import json
+import logging
+import os
 import pickle
-from typing import List, Optional
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable, List, Optional, Sequence, Tuple
 
-"""Simple training harness for the XGBoost agent.
+import numpy as np
 
-This script fetches data from the internal `backend.routes.external_data` helpers
-to build a dataset, adds technical + sentiment features, trains a regressor,
-and writes model and scaler artifacts to `ai_engine/models/`.
+from config.config import DEFAULT_SYMBOLS, DEFAULT_QUOTE
+from ai_engine.feature_engineer import (
+    DEFAULT_TARGET_COLUMN,
+    add_sentiment_features,
+    add_target,
+    add_technical_indicators,
+)
 
-The script is defensive: if xgboost or sklearn are not installed it falls back
-to a DummyRegressor and a lightweight scaler so it can run in minimal CI/dev
-environments.
-"""
+MODEL_DIR = Path(__file__).resolve().parent / "models"
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
+REPORT_FILENAME = "training_report.json"
+logger = logging.getLogger(__name__)
 
-MODEL_DIR = os.path.join(os.path.dirname(__file__), "models")
-os.makedirs(MODEL_DIR, exist_ok=True)
+
+@dataclass
+class PreparedDataset:
+    """Container holding feature arrays and metadata for training/backtests."""
+
+    features: np.ndarray
+    target: np.ndarray
+    timestamps: List[str]
+    feature_names: List[str]
 
 
 class _SimpleScaler:
     """Very small replacement for sklearn StandardScaler when not available."""
 
-    def fit(self, X):
-        import numpy as _np
-
-        self.mean_ = _np.nanmean(X, axis=0)
-        self.scale_ = _np.nanstd(X, axis=0)
+    def fit(self, X: np.ndarray) -> None:
+        self.mean_ = np.nanmean(X, axis=0)
+        self.scale_ = np.nanstd(X, axis=0)
         self.scale_[self.scale_ == 0] = 1.0
 
-    def transform(self, X):
-
+    def transform(self, X: np.ndarray) -> np.ndarray:
         return (X - self.mean_) / self.scale_
 
-    def fit_transform(self, X):
+    def fit_transform(self, X: np.ndarray) -> np.ndarray:
         self.fit(X)
         return self.transform(X)
 
@@ -40,104 +55,129 @@ class _SimpleScaler:
 class _MeanRegressor:
     """Simple mean predictor used when no regressor is available."""
 
-    def fit(self, X, y):
-        import numpy as _np
+    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
+        self.mean_ = float(np.nanmean(y))
 
-        self.mean_ = float(_np.nanmean(y))
-
-    def predict(self, X):
-        import numpy as _np
-
-        return _np.full((len(X),), getattr(self, "mean_", 0.0))
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        return np.full((len(X),), getattr(self, "mean_", 0.0), dtype=float)
 
 
-async def _fetch_symbol_data(symbol: str, limit: int = 600):
-    # import the internal async route function and call it
+async def _fetch_symbol_data(symbol: str, limit: int = 600) -> Tuple[List[dict], List[float], List[float]]:
+    """Fetch candles + sentiment/news summaries using internal stubs."""
     from backend.routes import external_data
 
-    # external_data.binance_ohlcv is async; call with asyncio
-    resp = await external_data.binance_ohlcv(symbol=symbol, limit=limit)
-    candles = resp.get("candles", [])
+    candles_payload = await external_data.binance_ohlcv(symbol=symbol, limit=limit)
+    candles = candles_payload.get("candles", [])
 
-    # sentiment: try twitter client
-    tw = await external_data.twitter_sentiment(symbol=symbol)
+    sentiment_payload = await external_data.twitter_sentiment(symbol=symbol)
     sent_score = 0.0
     try:
-        sent_score = float(tw.get("sentiment", {}).get("score", 0.0))
+        sent_score = float(sentiment_payload.get("sentiment", {}).get("score", sentiment_payload.get("score", 0.0)))
     except Exception:
         sent_score = 0.0
 
-    # news: count
-    news = await external_data.cryptopanic_news(symbol=symbol, limit=200)
-    news_count = len(news.get("news", []))
+    news_payload = await external_data.cryptopanic_news(symbol=symbol, limit=200)
+    news_count = len(news_payload.get("news", []))
 
-    # Expand sentiment/news into series aligned to candles
     n = len(candles)
     sentiment_series = [sent_score] * n
-    news_series = [0] * n
+    news_series = [0.0] * n
     if n > 0 and news_count > 0:
-        # place news events sparsely into the array
         step = max(1, n // news_count)
-        for i in range(0, n, step):
-            if sum(news_series) >= news_count:
+        inserted = 0
+        for idx in range(0, n, step):
+            if inserted >= news_count:
                 break
-            news_series[i] = 1
+            news_series[idx] = 1.0
+            inserted += 1
 
     return candles, sentiment_series, news_series
 
 
-def build_dataset(all_symbol_data):
-    """Given list of (symbol, candles, sentiment, news) tuples, build X,y arrays."""
-    import pandas as pd  # type: ignore[import-untyped]
-    import numpy as np
-    from ai_engine.feature_engineer import (
-        add_technical_indicators,
-        add_sentiment_features,
-        add_target,
-    )  # type: ignore[import-not-found, import-untyped]
+def _gather_symbol_payloads(symbols: Sequence[str], limit: int) -> List[Tuple[str, List[dict], List[float], List[float]]]:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    tasks = [_fetch_symbol_data(symbol, limit=limit) for symbol in symbols]
+    try:
+        results = loop.run_until_complete(asyncio.gather(*tasks))
+    finally:
+        try:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        except Exception:
+            pass
+        loop.close()
+    grouped: List[Tuple[str, List[dict], List[float], List[float]]] = []
+    for symbol, payload in zip(symbols, results):
+        grouped.append((symbol, payload[0], payload[1], payload[2]))
+    return grouped
 
-    X_list = []
-    y_list = []
-    for symbol, candles, sentiment, news in all_symbol_data:
+
+def build_dataset(
+    all_symbol_data: Iterable[Tuple[str, List[dict], List[float], List[float]]],
+    *,
+    horizon: int = 1,
+) -> PreparedDataset:
+    """Transform fetched symbol data into feature/target arrays."""
+    import pandas as pd
+
+    X_blocks: List[np.ndarray] = []
+    y_blocks: List[np.ndarray] = []
+    timestamps: List[str] = []
+    feature_names: List[str] = []
+
+    for _, candles, sentiment, news in all_symbol_data:
         if not candles:
             continue
-        df = pd.DataFrame(candles)
-        # ensure expected column names
-        df = df.rename(columns={c: c.capitalize() for c in df.columns})
-        # compute technicals
-        try:
-            feat = add_technical_indicators(
-                df.rename(columns={"Close": "Close", "High": "High", "Low": "Low"})
-            )
-        except Exception:
+        df = pd.DataFrame(candles).rename(columns=lambda c: str(c).lower())
+        if "close" not in df.columns:
+            continue
+        df = add_technical_indicators(df)
+        df = add_sentiment_features(df, sentiment_series=sentiment, news_counts=news, window=5)
+        df = add_target(df, horizon=horizon, target_column=DEFAULT_TARGET_COLUMN, threshold=0.0)
+        if df.empty or DEFAULT_TARGET_COLUMN not in df.columns:
             continue
 
-        # add sentiment/news aligned series
-        feat = add_sentiment_features(
-            feat, sentiment_series=sentiment, news_counts=news, window=5
-        )
-
-        # add target (predict Return horizon=1)
-        feat_t = add_target(feat, horizon=1, threshold=0.0)
-        if feat_t.empty:
+        numeric_df = df.select_dtypes(include=[np.number]).copy()
+        if DEFAULT_TARGET_COLUMN not in numeric_df.columns:
+            continue
+        y = numeric_df[DEFAULT_TARGET_COLUMN].to_numpy(dtype=float)
+        feature_df = numeric_df.drop(columns=[DEFAULT_TARGET_COLUMN])
+        if feature_df.empty:
+            continue
+        feature_names = list(feature_df.columns)
+        X = feature_df.to_numpy(dtype=float)
+        if not len(X):
             continue
 
-        y = feat_t["Return"].values
-        X = feat_t.select_dtypes(include=[float, int]).drop(columns=["Return"]).values
-        X_list.append(X)
-        y_list.append(y)
+        X_blocks.append(X)
+        y_blocks.append(y)
 
-    if not X_list:
-        raise RuntimeError("No training data assembled")
+        ts_series = df["timestamp"] if "timestamp" in df.columns else pd.Series(df.index.astype(str))
+        ts_values = [str(v) for v in ts_series.iloc[: len(y)]]
+        timestamps.extend(ts_values)
 
-    X_all = np.vstack(X_list)
-    y_all = np.concatenate(y_list)
-    return X_all, y_all
+    if not X_blocks:
+        raise RuntimeError("No training data assembled from the provided symbols")
+
+    features = np.vstack(X_blocks)
+    target = np.concatenate(y_blocks)
+    if not timestamps:
+        timestamps = [f"sample-{i}" for i in range(len(target))]
+    return PreparedDataset(features=features, target=target, timestamps=timestamps, feature_names=feature_names)
+
+
+def _synthetic_dataset(samples: int = 1000, features: int = 16) -> PreparedDataset:
+    rng = np.random.default_rng(12345)
+    X = rng.normal(size=(samples, features))
+    y = X[:, 0] * 0.3 + X[:, 1] * -0.2 + rng.normal(scale=0.1, size=(samples,))
+    timestamps = [f"synthetic-{i}" for i in range(samples)]
+    feature_names = [f"f{i}" for i in range(features)]
+    return PreparedDataset(features=X, target=y.astype(float), timestamps=timestamps, feature_names=feature_names)
 
 
 def make_scaler():
     try:
-        from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
+        from sklearn.preprocessing import StandardScaler
 
         return StandardScaler()
     except Exception:
@@ -146,109 +186,252 @@ def make_scaler():
 
 def make_regressor():
     try:
-        from xgboost import XGBRegressor  # type: ignore[import-untyped]
+        from xgboost import XGBRegressor
 
         return XGBRegressor(n_estimators=50, max_depth=3, verbosity=0)
     except Exception:
         try:
-            from sklearn.dummy import DummyRegressor  # type: ignore[import-untyped]
+            from sklearn.dummy import DummyRegressor
 
             return DummyRegressor(strategy="mean")
         except Exception:
             return _MeanRegressor()
 
 
-def save_artifacts(model, scaler, model_path, scaler_path):
-    with open(model_path, "wb") as f:
-        pickle.dump(model, f)
+def evaluate_predictions(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
+    diff = y_pred - y_true
+    rmse = float(np.sqrt(np.mean(np.square(diff))))
+    mae = float(np.mean(np.abs(diff)))
+    direction = float(np.mean(np.sign(y_pred) == np.sign(y_true)))
+    return {
+        "rmse": rmse,
+        "mae": mae,
+        "directional_accuracy": direction,
+    }
+
+
+def simulate_equity_curve(
+    y_true: Sequence[float],
+    y_pred: Sequence[float],
+    timestamps: Sequence[str],
+    *,
+    starting_equity: float = 10000.0,
+    entry_threshold: float = 0.001,
+    fee_per_trade: float = 0.0005,
+    max_abs_return: float = 0.01,
+) -> dict:
+    equity = starting_equity
+    curve: List[dict] = []
+    wins = 0
+    losses = 0
+    trades = 0
+    peak = starting_equity
+    max_drawdown = 0.0
+
+    for ts, true_ret, pred_ret in zip(timestamps, y_true, y_pred):
+        signal = 1 if pred_ret > entry_threshold else -1 if pred_ret < -entry_threshold else 0
+        trade_return = 0.0
+        if signal != 0:
+            trades += 1
+            raw_return = signal * float(true_ret)
+            clamped_return = float(np.clip(raw_return, -max_abs_return, max_abs_return))
+            trade_return = clamped_return - fee_per_trade
+            if trade_return > 0:
+                wins += 1
+            elif trade_return < 0:
+                losses += 1
+            equity *= 1 + trade_return
+        curve.append({"timestamp": str(ts), "equity": round(equity, 2), "signal": signal})
+        if equity > peak:
+            peak = equity
+        drawdown = (peak - equity) / peak if peak else 0.0
+        max_drawdown = max(max_drawdown, drawdown)
+
+    pnl = equity - starting_equity
+    win_rate = wins / trades if trades else 0.0
+    return {
+        "starting_equity": starting_equity,
+        "final_equity": round(equity, 2),
+        "pnl": round(pnl, 2),
+        "trades": trades,
+        "wins": wins,
+        "losses": losses,
+        "win_rate": round(win_rate, 4),
+        "max_drawdown": round(max_drawdown, 4),
+        "equity_curve": curve,
+    }
+
+
+def save_artifacts(model, scaler, model_path: Path, scaler_path: Path) -> dict:
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    artifacts: dict = {}
+    try:
+        with open(model_path, "wb") as f:
+            pickle.dump(model, f)
+        artifacts["model_path"] = str(model_path)
+    except Exception as exc:
+        fallback = model_path.with_suffix(".json")
+        with open(fallback, "w", encoding="utf-8") as f:
+            json.dump({"error": str(exc)}, f)
+        artifacts["model_path"] = str(fallback)
+
     with open(scaler_path, "wb") as f:
         pickle.dump(scaler, f)
-    # write simple metadata JSON next to model
+    artifacts["scaler_path"] = str(scaler_path)
+
+    metadata_path = model_path.parent / "metadata.json"
+    metadata = {
+        "model_path": artifacts["model_path"],
+        "scaler_path": artifacts["scaler_path"],
+        "saved_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+    with open(metadata_path, "w", encoding="utf-8") as mf:
+        json.dump(metadata, mf)
+    artifacts["metadata_path"] = str(metadata_path)
+    return artifacts
+
+
+def _write_json(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+
+
+def _prepare_dataset(symbols: Sequence[str], limit: int) -> PreparedDataset:
     try:
-        import json
-        import datetime
-
-        meta = {
-            "model_path": model_path,
-            "scaler_path": scaler_path,
-            "saved_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        }
-        meta_path = os.path.join(MODEL_DIR, "metadata.json")
-        with open(meta_path, "w", encoding="utf-8") as mf:
-            json.dump(meta, mf)
-    except Exception:
-        import logging
-
-        logging.getLogger(__name__).debug(
-            "failed to write model metadata", exc_info=True
-        )
+        symbol_payloads = _gather_symbol_payloads(symbols, limit)
+        return build_dataset(symbol_payloads)
+    except Exception as exc:
+        logger.warning("Falling back to synthetic dataset: %s", exc)
+        return _synthetic_dataset()
 
 
-def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
+def train_and_save(
+    symbols: Optional[Sequence[str]] = None,
+    limit: int = 600,
+    *,
+    model_dir: Optional[Path | str] = None,
+    backtest: bool = True,
+    write_report: bool = True,
+    entry_threshold: float = 0.001,
+) -> dict:
     if symbols is None:
-        # prefer USDC as the spot quote by default for training / dataset assembly
-        try:
-            from config.config import DEFAULT_QUOTE  # type: ignore[import-not-found, import-untyped]
-
+        default_symbols = list(DEFAULT_SYMBOLS)
+        if default_symbols:
+            symbols = default_symbols
+        else:
             symbols = [f"BTC{DEFAULT_QUOTE}", f"ETH{DEFAULT_QUOTE}"]
-        except Exception:
-            symbols = ["BTCUSDC", "ETHUSDC"]
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    tasks = [_fetch_symbol_data(s, limit=limit) for s in symbols]
-    results = loop.run_until_complete(asyncio.gather(*tasks))
-    all_symbol_data = []
-    for sym, (candles, sentiment, news) in zip(symbols, results):
-        all_symbol_data.append((sym, candles, sentiment, news))
-
-    # Attempt to build dataset using pandas-based routines; if pandas is
-    # unavailable (e.g., import-time binary issues), fall back to a
-    # synthetic dataset so training can proceed for CI/dev.
-    try:
-        X, y = build_dataset(all_symbol_data)
-    except Exception as exc:  # pragma: no cover - environment dependent
-        print("Warning: build_dataset failed, falling back to synthetic dataset:", exc)
-        # create a small synthetic dataset
-        import numpy as _np
-
-        def synthetic_dataset(samples=1000, features=16):
-            rng = _np.random.default_rng(12345)
-            Xs = rng.normal(size=(samples, features))
-            # create a target correlated with a subset of features
-            y = (
-                Xs[:, 0] * 0.3
-                + Xs[:, 1] * -0.2
-                + rng.normal(scale=0.1, size=(samples,))
-            )
-            return Xs, y
-
-        X, y = synthetic_dataset(samples=1000, features=16)
+    dataset = _prepare_dataset(list(symbols), limit)
 
     scaler = make_scaler()
-    try:
-        Xs = scaler.fit_transform(X)
-    except Exception:
-        try:
-            Xs = scaler.fit_transform(X)
-        except Exception as e:
-            import logging
+    features_scaled = scaler.fit_transform(dataset.features)
 
-            logging.getLogger(__name__).debug("scaler fit_transform failed: %s", e)
-            # final fallback: attempt a simple identity-like transform
-            Xs = X
+    regressor = make_regressor()
+    regressor.fit(features_scaled, dataset.target)
 
-    reg = make_regressor()
-    reg.fit(Xs, y)
+    predictions = np.asarray(regressor.predict(features_scaled), dtype=float)
+    metrics = evaluate_predictions(dataset.target, predictions)
 
-    model_path = os.path.join(MODEL_DIR, "xgb_model.pkl")
-    scaler_path = os.path.join(MODEL_DIR, "scaler.pkl")
-    save_artifacts(reg, scaler, model_path, scaler_path)
-    print("Saved model ->", model_path)
-    print("Saved scaler ->", scaler_path)
+    backtest_report = None
+    if backtest:
+        backtest_report = simulate_equity_curve(
+            dataset.target,
+            predictions,
+            dataset.timestamps,
+            entry_threshold=entry_threshold,
+        )
+
+    output_dir = Path(model_dir) if model_dir is not None else MODEL_DIR
+    model_path = output_dir / "xgb_model.pkl"
+    scaler_path = output_dir / "scaler.pkl"
+    artifacts = save_artifacts(regressor, scaler, model_path, scaler_path)
+
+    report_payload = {
+        "symbols": list(symbols),
+        "limit": limit,
+        "num_samples": int(dataset.target.shape[0]),
+        "feature_names": dataset.feature_names,
+        "metrics": metrics,
+        "entry_threshold": entry_threshold,
+    }
+    if backtest_report is not None:
+        report_payload["backtest"] = backtest_report
+
+    report_path = output_dir / REPORT_FILENAME if write_report else None
+    if report_path is not None:
+        _write_json(report_path, report_payload)
+
+    return {
+        "artifacts": artifacts,
+        "metrics": metrics,
+        "backtest": backtest_report,
+        "report_path": str(report_path) if report_path is not None else None,
+    }
+
+
+def load_artifacts(model_dir: Optional[Path | str] = None) -> Tuple[object, object]:
+    directory = Path(model_dir) if model_dir is not None else MODEL_DIR
+    model_path = directory / "xgb_model.pkl"
+    scaler_path = directory / "scaler.pkl"
+    if not model_path.exists() and model_path.with_suffix(".json").exists():
+        model_path = model_path.with_suffix(".json")
+    with open(model_path, "rb" if model_path.suffix == ".pkl" else "r") as f:
+        if model_path.suffix == ".pkl":
+            model = pickle.load(f)
+        else:
+            spec = json.load(f)
+
+            class JSONModel:
+                def __init__(self, spec: dict) -> None:
+                    self.scale = float(spec.get("scale", 1.0))
+
+                def predict(self, arr):
+                    arr = np.asarray(arr, dtype=float)
+                    if arr.ndim == 1:
+                        arr = arr.reshape(1, -1)
+                    return np.nanmean(arr, axis=1) * self.scale
+
+            model = JSONModel(spec)
+    with open(scaler_path, "rb") as f:
+        scaler = pickle.load(f)
+    return model, scaler
+
+
+def run_backtest_only(
+    symbols: Sequence[str],
+    limit: int = 600,
+    *,
+    model_dir: Optional[Path | str] = None,
+    entry_threshold: float = 0.001,
+) -> dict:
+    dataset = _prepare_dataset(list(symbols), limit)
+    model, scaler = load_artifacts(model_dir)
+    features_scaled = scaler.transform(dataset.features)
+    predictions = np.asarray(model.predict(features_scaled), dtype=float)
+    metrics = evaluate_predictions(dataset.target, predictions)
+    backtest_report = simulate_equity_curve(
+        dataset.target,
+        predictions,
+        dataset.timestamps,
+        entry_threshold=entry_threshold,
+    )
+    return {
+        "metrics": metrics,
+        "backtest": backtest_report,
+        "num_samples": int(dataset.target.shape[0]),
+    }
+
+
+def load_report(model_dir: Optional[Path | str] = None) -> Optional[dict]:
+    directory = Path(model_dir) if model_dir is not None else MODEL_DIR
+    path = directory / REPORT_FILENAME
+    if not path.exists():
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 if __name__ == "__main__":
-    # quick local run (will use internal route fallbacks if external
-    # APIs are not configured)
-    train_and_save()
+    summary = train_and_save()
+    print(json.dumps(summary, indent=2))

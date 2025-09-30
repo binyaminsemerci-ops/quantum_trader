@@ -43,15 +43,25 @@ Thanks — contributions are appreciated!
 1. Create a virtual environment (`python -m venv .venv`).
 2. Activate it and install runtime deps: `pip install -r backend/requirements.txt`.
 3. Install dev tooling when you need it: `pip install -r backend/requirements-dev.txt`.
-4. Run the API with `uvicorn backend.main:app --reload --port 8000`.
+4. Apply migrations (defaults to SQLite, override `QUANTUM_TRADER_DATABASE_URL` for Postgres):
+   ```bash
+   alembic upgrade head
+   python backend/seed_trades.py
+   ```
+5. Run the API with `uvicorn backend.main:app --reload --port 8000`.
 
 ### Frontend
 1. `cd frontend`
 2. `npm install`
 3. `npm run dev` (Vite dev server on <http://localhost:5173>).
+4. Run the unit tests with `npm run test` (Vitest).
 
 ### Tooling
 - Install pre-commit (`pip install pre-commit`) and run `pre-commit install` once.
 - Before pushing, run `pre-commit run --all-files` to avoid CI lint failures.
 - Stress harness tests: `python scripts/stress/harness.py --count 1` and
   `pytest scripts/stress/tests`.
+
+### Containers
+- Build/run the full stack with `docker compose up --build` (backend, frontend, Postgres).
+- Set `INSTALL_OPTIONAL=true` to bake in optional adapters when building the backend image.
