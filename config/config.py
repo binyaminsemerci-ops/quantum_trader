@@ -45,7 +45,10 @@ class Settings(BaseSettings):
         alias="LAYER2_SYMBOLS",
     )
 
-    enable_live_market_data: bool = Field(default=False, alias="ENABLE_LIVE_MARKET_DATA")
+    # Enable live market data by default so the application uses ccxt adapters
+    # when credentials are present. Set ENV ENABLE_LIVE_MARKET_DATA=0 to force
+    # demo deterministic data instead.
+    enable_live_market_data: bool = Field(default=True, alias="ENABLE_LIVE_MARKET_DATA")
     ccxt_timeframe: str = Field(default="1m", alias="CCXT_TIMEFRAME")
     ccxt_timeout: int = Field(default=10000, alias="CCXT_TIMEOUT_MS")
 
