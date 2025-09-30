@@ -28,7 +28,7 @@ To initialise or upgrade the database schema (SQLite by default; set `QUANTUM_TR
 alembic upgrade head
 python backend/seed_trades.py
 ```
-If you prefer PostgreSQL, install the optional dependencies, create a database (e.g. `quantum_trader`), and set `QUANTUM_TRADER_DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/quantum_trader` before running Alembic.
+If you prefer PostgreSQL, install the optional dependencies, create a database (e.g. `quantum_trader`), and set `QUANTUM_TRADER_DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/quantum_trader` # pragma: allowlist secret before running Alembic.
 The backend uses SQLite (created under `backend/data/`) and exposes demo endpoints such as:
 
 - `GET /prices/recent` - deterministic candle series (ccxt when live data is enabled)
