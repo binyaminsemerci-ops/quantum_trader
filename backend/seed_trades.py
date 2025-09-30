@@ -1,58 +1,62 @@
-# backend/seed_trades.py
-import sqlite3
-import os
+"""Seed demo trades/stats/equity data using SQLAlchemy."""
 
-# Finn riktig database path
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "database", "trades.db")
+from datetime import datetime, timedelta, timezone
+from typing import Iterable
+
+from backend.database import session_scope, Trade, TradeLog, EquityPoint
 
 
-def seed_trades():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
+def _clear_tables():
+    with session_scope() as session:
+        session.query(Trade).delete()
+        session.query(TradeLog).delete()
+        session.query(EquityPoint).delete()
 
-    print("🗑️ Sletter eksisterende trades...")
-    cur.execute("DELETE FROM trades")
 
-    dummy_trades = [
-        ("BTCUSDT", "buy", 20000, 20100, 0.01, 100),
-        ("BTCUSDT", "sell", 20100, 20000, 0.01, 100),
-        ("ETHUSDT", "buy", 1500, 1550, 0.5, 250),
-        ("ETHUSDT", "sell", 1550, 1500, 0.5, 250),
+def seed_trades() -> None:
+    demo_trades: Iterable[Trade] = [
+        Trade(symbol="BTCUSDT", side="BUY", qty=0.01, price=20_000),
+        Trade(symbol="BTCUSDT", side="SELL", qty=0.01, price=20_300),
+        Trade(symbol="ETHUSDT", side="BUY", qty=0.5, price=1_500),
+        Trade(symbol="ETHUSDT", side="SELL", qty=0.5, price=1_620),
     ]
+    with session_scope() as session:
+        for trade in demo_trades:
+            session.add(trade)
+            session.flush()
+            session.add(
+                TradeLog(
+                    symbol=trade.symbol,
+                    side=trade.side,
+                    qty=trade.qty,
+                    price=trade.price,
+                    status="demo",
+                    reason="seed",
+                    timestamp=trade.timestamp,
+                )
+            )
 
-    cur.executemany(
-        """
-        INSERT INTO trades (symbol, side, entry_price, exit_price, qty, pnl)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """,
-        dummy_trades,
-    )
 
-    conn.commit()
-    conn.close()
-    print("✅ Trades testdata lagt inn!")
+def seed_equity_curve(days: int = 30) -> None:
+    start = datetime.now(timezone.utc) - timedelta(days=days)
+    equity = 10_000.0
+    with session_scope() as session:
+        for i in range(days):
+            equity *= 1 + 0.002 * ((-1) ** (i % 5))
+            session.add(
+                EquityPoint(
+                    date=(start + timedelta(days=i)),
+                    equity=round(equity, 2),
+                )
+            )
 
 
-def seed_stats():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-
-    print("🗑️ Sletter eksisterende stats...")
-    cur.execute("DELETE FROM stats")
-
-    cur.execute(
-        """
-        INSERT INTO stats (balance, total_pnl, win_rate)
-        VALUES (?, ?, ?)
-    """,
-        (10000, 450, 0.75),
-    )
-
-    conn.commit()
-    conn.close()
-    print("✅ Stats testdata lagt inn!")
+def main() -> None:
+    _clear_tables()
+    seed_trades()
+    seed_equity_curve()
+    print("Seeded demo trades and equity curve")
 
 
 if __name__ == "__main__":
-    seed_trades()
-    seed_stats()
+    main()
