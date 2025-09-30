@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from typing import List
+from typing import List, Any, cast
 
 from sqlalchemy.orm import Session
 
@@ -18,7 +18,7 @@ class TradeCreate(BaseModel):
 
 @router.get("", response_model=List[dict])
 async def get_trades(db: Session = Depends(get_session)):
-    trades = db.query(TradeLog).order_by(TradeLog.id.desc()).all()
+    trades = db.query(TradeLog).order_by(cast(Any, TradeLog.id).desc()).all()
     return [
         {"id": t.id, "symbol": t.symbol, "side": t.side, "qty": t.qty, "price": t.price}
         for t in trades

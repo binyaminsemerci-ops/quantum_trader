@@ -12,7 +12,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
-from config.config import DEFAULT_QUOTE, load_config
+from config.config import load_config, settings
 from backend.routes.settings import SETTINGS
 from backend.utils.market_data import fetch_recent_candles
 from backend.utils.twitter_client import TwitterClient
@@ -39,7 +39,7 @@ def _live_market_data_enabled() -> bool:
 
 
 def _strip_quote(symbol: str) -> str:
-    quote = load_config().default_quote or DEFAULT_QUOTE
+    quote = load_config().default_quote or settings.default_quote
     upper = symbol.upper()
     if upper.endswith(quote.upper()):
         return symbol[: -len(quote)]
