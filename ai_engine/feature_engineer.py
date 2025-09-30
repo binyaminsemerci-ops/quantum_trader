@@ -76,13 +76,13 @@ def add_sentiment_features(
     """Attach optional sentiment-related features to the dataframe."""
     df = df.copy()
     if sentiment_series is not None:
-        sentiment = sentiment_series if isinstance(sentiment_series, pd.Series) else pd.Series(sentiment_series)
+        sentiment = sentiment_series if isinstance(sentiment_series, pd.Series) else pd.Series(list(sentiment_series))
         sentiment = pd.to_numeric(sentiment.reindex(df.index, fill_value=fill_value), errors="coerce")
         if window > 1:
             sentiment = sentiment.rolling(window, min_periods=1).mean()
         df["sentiment"] = sentiment
     if news_counts is not None:
-        news = news_counts if isinstance(news_counts, pd.Series) else pd.Series(news_counts)
+        news = news_counts if isinstance(news_counts, pd.Series) else pd.Series(list(news_counts))
         news = pd.to_numeric(news.reindex(df.index, fill_value=0), errors="coerce")
         if window > 1:
             news = news.rolling(window, min_periods=1).sum()

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Query, Depends
-from typing import Annotated
+from typing import Annotated, Any, cast
 from sqlalchemy.orm import Session
 
 from backend.database import get_session, TradeLog
@@ -15,7 +15,7 @@ async def get_trade_logs(
     """Return the most recent trade logs."""
     logs = (
         db.query(TradeLog)
-        .order_by(TradeLog.id.desc())
+        .order_by(cast(Any, TradeLog.id).desc())
         .limit(limit)
         .all()
     )

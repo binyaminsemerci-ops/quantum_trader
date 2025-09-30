@@ -4,11 +4,10 @@ import asyncio
 import datetime
 import json
 import logging
-import os
 import pickle
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Iterable, List, Optional, Sequence, Tuple, Any
 
 import numpy as np
 
@@ -211,8 +210,8 @@ def evaluate_predictions(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
 
 
 def simulate_equity_curve(
-    y_true: Sequence[float],
-    y_pred: Sequence[float],
+    y_true: Sequence[float] | np.ndarray,
+    y_pred: Sequence[float] | np.ndarray,
     timestamps: Sequence[str],
     *,
     starting_equity: float = 10000.0,
@@ -325,12 +324,16 @@ def train_and_save(
     dataset = _prepare_dataset(list(symbols), limit)
 
     scaler = make_scaler()
-    features_scaled = scaler.fit_transform(dataset.features)
+    # scaler may be a scikit-learn scaler or our simple fallback; treat as Any
+    from typing import Any as _Any
+    _scaler: _Any = scaler
+    features_scaled = _scaler.fit_transform(dataset.features)
 
     regressor = make_regressor()
-    regressor.fit(features_scaled, dataset.target)
+    _reg: _Any = regressor
+    _reg.fit(features_scaled, dataset.target)
 
-    predictions = np.asarray(regressor.predict(features_scaled), dtype=float)
+    predictions = np.asarray(_reg.predict(features_scaled), dtype=float)
     metrics = evaluate_predictions(dataset.target, predictions)
 
     backtest_report = None
@@ -370,7 +373,7 @@ def train_and_save(
     }
 
 
-def load_artifacts(model_dir: Optional[Path | str] = None) -> Tuple[object, object]:
+def load_artifacts(model_dir: Optional[Path | str] = None) -> Tuple[Any, Any]:
     directory = Path(model_dir) if model_dir is not None else MODEL_DIR
     model_path = directory / "xgb_model.pkl"
     scaler_path = directory / "scaler.pkl"

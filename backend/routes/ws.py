@@ -2,6 +2,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import json
 import asyncio
 from sqlalchemy import select, func
+from typing import Any, cast
 
 from backend.database import session_scope, Trade, TradeLog, EquityPoint
 from backend.utils.pnl import calculate_pnl, calculate_pnl_per_symbol
@@ -17,9 +18,9 @@ async def dashboard_ws(websocket: WebSocket):
     try:
         while True:
             with session_scope() as session:
-                total_trades = session.scalar(select(func.count(Trade.id))) or 0
-                avg_price = session.scalar(select(func.avg(Trade.price))) or 0.0
-                active_symbols = session.scalar(select(func.count(func.distinct(Trade.symbol)))) or 0
+                total_trades = session.scalar(select(func.count(cast(Any, Trade.id)))) or 0
+                avg_price = session.scalar(select(func.avg(cast(Any, Trade.price)))) or 0.0
+                active_symbols = session.scalar(select(func.count(func.distinct(cast(Any, Trade.symbol))))) or 0
 
                 trades = [
                     {
@@ -31,7 +32,7 @@ async def dashboard_ws(websocket: WebSocket):
                         "price": trade.price,
                     }
                     for trade in session.execute(
-                        select(Trade).order_by(Trade.timestamp.desc()).limit(20)
+                        select(Trade).order_by(cast(Any, Trade.timestamp).desc()).limit(20)
                     ).scalars()
                 ]
 
@@ -46,7 +47,7 @@ async def dashboard_ws(websocket: WebSocket):
                         "reason": log.reason,
                     }
                     for log in session.execute(
-                        select(TradeLog).order_by(TradeLog.timestamp.desc()).limit(50)
+                        select(TradeLog).order_by(cast(Any, TradeLog.timestamp).desc()).limit(50)
                     ).scalars()
                 ]
 
@@ -56,7 +57,7 @@ async def dashboard_ws(websocket: WebSocket):
                         "equity": point.equity,
                     }
                     for point in session.execute(
-                        select(EquityPoint).order_by(EquityPoint.date.asc())
+                        select(EquityPoint).order_by(cast(Any, EquityPoint.date).asc())
                     ).scalars()
                 ]
 
