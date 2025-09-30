@@ -9,7 +9,7 @@ services:
       - .env
     environment:
       - QUANTUM_TRADER_DATABASE_URL=${QUANTUM_TRADER_DATABASE_URL:-sqlite:///backend/data/trades.db}
-      - ENABLE_LIVE_MARKET_DATA=${ENABLE_LIVE_MARKET_DATA:-0}
+      - ENABLE_LIVE_MARKET_DATA=${ENABLE_LIVE_MARKET_DATA:-1}
     ports:
       - "8000:8000"
     depends_on:

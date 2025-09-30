@@ -5,11 +5,13 @@ import datetime
 import json
 import logging
 import pickle
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple, Any
 
 import numpy as np
+    # Allow disabling sklearn via env var USE_SKLEARN=0/false
 
 from config.config import DEFAULT_SYMBOLS, settings
 from ai_engine.feature_engineer import (
@@ -24,6 +26,7 @@ MODEL_DIR.mkdir(parents=True, exist_ok=True)
 REPORT_FILENAME = "training_report.json"
 logger = logging.getLogger(__name__)
 
+    # Allow disabling xgboost via env var USE_XGB=0/false
 
 @dataclass
 class PreparedDataset:
@@ -177,23 +180,25 @@ def _synthetic_dataset(samples: int = 1000, features: int = 16) -> PreparedDatas
 def make_scaler():
     try:
         from sklearn.preprocessing import StandardScaler
-
+        logger.info("Using sklearn StandardScaler")
         return StandardScaler()
     except Exception:
+        logger.info("sklearn StandardScaler not available, using _SimpleScaler fallback")
         return _SimpleScaler()
 
 
 def make_regressor():
     try:
         from xgboost import XGBRegressor
-
+        logger.info("Using XGBRegressor from xgboost")
         return XGBRegressor(n_estimators=50, max_depth=3, verbosity=0)
     except Exception:
         try:
             from sklearn.dummy import DummyRegressor
-
+            logger.info("Using sklearn DummyRegressor")
             return DummyRegressor(strategy="mean")
         except Exception:
+            logger.info("No xgboost or sklearn DummyRegressor available, using _MeanRegressor fallback")
             return _MeanRegressor()
 
 
