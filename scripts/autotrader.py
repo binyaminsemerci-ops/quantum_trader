@@ -8,28 +8,20 @@ be swapped for real Binance client calls once keys and staging are in place.
 """
 from __future__ import annotations
 
+import os
 import argparse
 import logging
-import os
 import time
 from datetime import datetime, timezone
-import sys
-
-# Ensure repo root is on sys.path so `import backend` works when running
-# the script directly.
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
-
-from backend.database import Base, engine, SessionLocal, TradeLog, Trade
-from config.config import MAINBASE_SYMBOLS, LAYER1_SYMBOLS, LAYER2_SYMBOLS
-from sqlalchemy import text
 
 logger = logging.getLogger("autotrader")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
 def ensure_trade_tables():
+    # import backend models at runtime to avoid top-level import-order issues
+    from backend.database import Base, engine, Trade, TradeLog
+
     Base.metadata.create_all(bind=engine, tables=[Trade.__table__, TradeLog.__table__])
 
 
@@ -45,6 +37,10 @@ def send_order(symbol: str, side: str, qty: float, price: float, dry_run: bool =
 
 
 def process_new_signals(max_symbols: int = 5, dry_run: bool = True, notional_usd: float = 100.0):
+    # import SessionLocal locally to avoid top-level import-order issues
+    from backend.database import SessionLocal
+    from sqlalchemy import text
+
     with SessionLocal() as session:
         # use raw SQL quickly to select new signals for prototype
         # Optionally filter by DEFAULT_SYMBOLS env if set
@@ -83,6 +79,8 @@ def process_new_signals(max_symbols: int = 5, dry_run: bool = True, notional_usd
             status = resp.get("status", "unknown")
             # write to trade_logs and mark processed
             try:
+                from backend.database import TradeLog
+
                 tl = TradeLog(
                     symbol=sym,
                     side=side,
@@ -107,6 +105,9 @@ def main():
     parser.add_argument("--notional-usd", type=float, default=100.0)
     parser.add_argument("--symbol-group", type=str, default="default", choices=["default", "mainbase", "layer1", "layer2"], help="Use a predefined symbol group: mainbase, layer1, layer2 or default (from DEFAULT_SYMBOLS)")
     args = parser.parse_args()
+
+    # import symbol lists locally to avoid top-level import-order issues
+    from config.config import MAINBASE_SYMBOLS, LAYER1_SYMBOLS, LAYER2_SYMBOLS
 
     ensure_trade_tables()
     if args.once:

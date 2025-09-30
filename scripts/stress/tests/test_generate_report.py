@@ -48,8 +48,8 @@ def test_generate_report_uses_override(tmp_path, monkeypatch):
     (outdir / "aggregated.json").write_text(json.dumps(aggregated), encoding="utf-8")
     monkeypatch.setenv("STRESS_REPORT_OUTDIR", str(outdir))
 
-    mod = load_report_module()
-    html = (outdir / "report.html").read_text(encoding="utf-8")
+    load_report_module()
+    html = (outdir / "report.html").read_text(encoding="utf-8")        
     assert "Summary" in html
     assert "Summary (percentages)" in html
     assert "Trend" in html
