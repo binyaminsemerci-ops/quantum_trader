@@ -11,9 +11,6 @@ from ai_engine.train_and_save import train_and_save
 from config.config import DEFAULT_SYMBOLS, settings
 from backend.database import create_training_task, update_training_task, get_session, TrainingTask  # type: ignore[attr-defined]
 
-# backend.database exports ORM symbols dynamically; narrow-ignore attr-defined for now
-from backend.database import TrainingTask  # type: ignore[attr-defined]
-
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
