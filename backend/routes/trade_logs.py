@@ -1,41 +1,35 @@
-# backend/routes/trade_logs.py
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from typing import Annotated
-from backend.database import get_db
+from sqlalchemy.orm import Session
+
+from backend.database import get_session, TradeLog
 
 router = APIRouter()
 
 
 @router.get("/trade_logs")
-async def get_trade_logs(limit: Annotated[int, Query(ge=1, le=500)] = 50):
-    """
-    Henter siste trade logs fra databasen.
-    :param limit: Hvor mange logs som skal returneres (default 50, max 500)
-    """
-    db = next(get_db())
-    cursor = db.cursor()
-    cursor.execute(
-        """
-        SELECT timestamp, symbol, side, qty, price, status, reason
-        FROM trade_logs
-        ORDER BY id DESC
-        LIMIT ?
-    """,
-        (limit,),
+async def get_trade_logs(
+    limit: Annotated[int, Query(ge=1, le=500)] = 50,
+    db: Session = Depends(get_session),
+):
+    """Return the most recent trade logs."""
+    logs = (
+        db.query(TradeLog)
+        .order_by(TradeLog.id.desc())
+        .limit(limit)
+        .all()
     )
-    rows = cursor.fetchall()
-
-    logs = [
-        {
-            "timestamp": row[0],
-            "symbol": row[1],
-            "side": row[2],
-            "qty": row[3],
-            "price": row[4],
-            "status": row[5],
-            "reason": row[6],
-        }
-        for row in rows
-    ]
-
-    return {"logs": logs}
+    return {
+        "logs": [
+            {
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+                "symbol": log.symbol,
+                "side": log.side,
+                "qty": log.qty,
+                "price": log.price,
+                "status": log.status,
+                "reason": log.reason,
+            }
+            for log in logs
+        ]
+    }

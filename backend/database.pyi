@@ -1,49 +1,64 @@
-from typing import Iterator, Any, Optional, List
+from typing import Iterator, Optional
 from datetime import datetime
+
+class Trade:
+    id: Optional[int]
+    symbol: str
+    side: str
+    qty: float
+    price: float
+    timestamp: Optional[datetime]
 
 class TradeLog:
     id: Optional[int]
-    timestamp: Optional[datetime]
     symbol: str
     side: str
     qty: float
     price: float
     status: str
     reason: Optional[str]
+    timestamp: Optional[datetime]
 
-    def __init__(
-        self,
-        *,
-        symbol: str = ...,
-        side: str = ...,
-        qty: float = ...,
-        price: float = ...,
-        status: str = ...,
-        reason: Optional[str] = ...,
-        timestamp: Optional[datetime] = ...,
-        id: Optional[int] = ...
-    ) -> None: ...
+class Candle:
+    id: Optional[int]
+    symbol: str
+    timestamp: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
 
-class Query:
-    def all(self) -> List[Any]: ...
-    def first(self) -> Optional[Any]: ...
-    def order_by(self, *args: Any) -> "Query": ...
-    def filter(self, *args: Any) -> "Query": ...
-    def limit(self, n: int) -> "Query": ...
-    def offset(self, n: int) -> "Query": ...
+class EquityPoint:
+    id: Optional[int]
+    date: datetime
+    equity: float
+
+class TrainingTask:
+    id: Optional[int]
+    symbols: str
+    limit: int
+    status: str
+    details: Optional[str]
+    created_at: Optional[datetime]
+    completed_at: Optional[datetime]
 
 class Session:
-    def add(self, obj: Any) -> None: ...
+    def add(self, obj): ...
     def commit(self) -> None: ...
-    def refresh(self, obj: Any) -> None: ...
+    def refresh(self, obj): ...
     def rollback(self) -> None: ...
     def close(self) -> None: ...
-    def cursor(self) -> Any: ...
-    def query(self, model: Any) -> Query: ...
+    def query(self, model): ...
+    def execute(self, query): ...
+
+
+def get_session() -> Iterator[Session]: ...
 
 def get_db() -> Iterator[Session]: ...
-def get_session() -> Session: ...
-def create_training_task(db: Session, symbols: str, limit: int): ...
-def update_training_task(
-    db: Session, task_id: int, status: str, details: Optional[str] = ...
-) -> None: ...
+
+def session_scope(): ...
+
+def create_training_task(session: Session, symbols: str, limit: int) -> TrainingTask: ...
+
+def update_training_task(session: Session, task_id: int, status: str, details: Optional[str] = ...) -> None: ...

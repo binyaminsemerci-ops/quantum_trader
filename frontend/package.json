@@ -8,7 +8,8 @@
     "build": "vite build",
     "serve": "vite preview",
     "typecheck": "tsc --noEmit -p ./tsconfig.json",
-    "test:frontend": "vitest --run"
+    "test:frontend": "vitest --run",
+    "test": "vitest run"
   },
   "dependencies": {
     "chart.js": "^4.4.1",
@@ -21,7 +22,7 @@
     "@types/react": "^18.2.21",
     "@types/react-dom": "^18.2.7",
     "@types/recharts": "^1.8.29",
-  "@types/node": "^20.4.2",
+    "@types/node": "^20.4.2",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.38",
