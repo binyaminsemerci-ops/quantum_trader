@@ -49,7 +49,7 @@ def test_generate_report_uses_override(tmp_path, monkeypatch):
     monkeypatch.setenv("STRESS_REPORT_OUTDIR", str(outdir))
 
     load_report_module()
-    html = (outdir / "report.html").read_text(encoding="utf-8")        
+    html = (outdir / "report.html").read_text(encoding="utf-8")
     assert "Summary" in html
     assert "Summary (percentages)" in html
     assert "Trend" in html
