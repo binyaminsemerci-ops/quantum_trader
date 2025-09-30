@@ -15,7 +15,8 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5.2.0
         with:
-          python-version: '3.13'
+          # Use 3.12 to keep binary dependencies like pandas compatible in CI
+          python-version: '3.12'
 
       - name: Cache pip
         uses: actions/cache@v4
@@ -34,6 +35,9 @@ jobs:
           # Install the application's runtime dependencies so mypy can import them
           if [ -f backend/requirements.txt ]; then
             python -m pip install -r backend/requirements.txt || true
+          else
+            # Ensure key runtime deps are present in case requirements file is missing
+            python -m pip install prometheus_client fastapi sqlalchemy || true
           fi
 
       - name: Install mypy, pytest and pinned stubs

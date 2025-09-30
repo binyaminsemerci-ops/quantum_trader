@@ -1,21 +1,20 @@
-fastapi
-uvicorn
-sqlalchemy
-xgboost
-pandas
-numpy
-scikit-learn
-matplotlib
-binance
-python-binance
-python-dotenv
-cryptography
-requests
-aiohttp
-httpx
+fastapi==0.112.0
+uvicorn[standard]==0.30.5
+sqlalchemy==2.0.35
+pydantic==2.9.2
+pydantic-settings==2.3.2
+python-dotenv==1.0.1
 
-# NOTE: SQLAlchemy-Utils was previously pinned here for investigation of PyUp
-# advisory 42194. A scan of the codebase showed no direct usage of
-# SQLAlchemy-Utils APIs (EncryptedType etc.), so we remove the pin and allow
-# the project to avoid installing it unless explicitly required by developers.
-# If dev tooling needs it, add it to backend/requirements-dev.txt instead.
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.5.2
+xgboost==2.0.3
+
+requests==2.32.3
+httpx==0.27.0
+aiohttp==3.10.5
+
+python-binance==1.0.19
+cryptography==43.0.1
+prometheus_client==0.20.0
+

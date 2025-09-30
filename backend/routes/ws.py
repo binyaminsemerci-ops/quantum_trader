@@ -1,10 +1,12 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from backend.database import get_db
+import json
+import asyncio
+from sqlalchemy import select, func
+
+from backend.database import session_scope, Trade, TradeLog, EquityPoint
 from backend.utils.pnl import calculate_pnl, calculate_pnl_per_symbol
 from backend.utils.risk import calculate_risk
 from backend.utils.analytics import calculate_analytics
-import json
-import asyncio
 
 router = APIRouter()
 
@@ -14,39 +16,49 @@ async def dashboard_ws(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            db = next(get_db())
-            cursor = db.cursor()
+            with session_scope() as session:
+                total_trades = session.scalar(select(func.count(Trade.id))) or 0
+                avg_price = session.scalar(select(func.avg(Trade.price))) or 0.0
+                active_symbols = session.scalar(select(func.count(func.distinct(Trade.symbol)))) or 0
 
-            cursor.execute("SELECT COUNT(*) FROM trades")
-            total_trades = cursor.fetchone()[0]
-            cursor.execute("SELECT AVG(price) FROM trades")
-            avg_price = cursor.fetchone()[0] or 0
-            cursor.execute("SELECT COUNT(DISTINCT symbol) FROM trades")
-            active_symbols = cursor.fetchone()[0]
+                trades = [
+                    {
+                        "id": trade.id,
+                        "timestamp": trade.timestamp.isoformat() if trade.timestamp else None,
+                        "symbol": trade.symbol,
+                        "side": trade.side,
+                        "qty": trade.qty,
+                        "price": trade.price,
+                    }
+                    for trade in session.execute(
+                        select(Trade).order_by(Trade.timestamp.desc()).limit(20)
+                    ).scalars()
+                ]
 
-            cursor.execute(
-                "SELECT timestamp, symbol, side, qty, price FROM trades "
-                "ORDER BY id DESC LIMIT 20"
-            )
-            trades = [
-                dict(zip([d[0] for d in cursor.description], row))
-                for row in cursor.fetchall()
-            ]
+                logs = [
+                    {
+                        "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+                        "symbol": log.symbol,
+                        "side": log.side,
+                        "qty": log.qty,
+                        "price": log.price,
+                        "status": log.status,
+                        "reason": log.reason,
+                    }
+                    for log in session.execute(
+                        select(TradeLog).order_by(TradeLog.timestamp.desc()).limit(50)
+                    ).scalars()
+                ]
 
-            cursor.execute(
-                "SELECT timestamp, symbol, side, qty, price, status, reason "
-                "FROM trade_logs ORDER BY id DESC LIMIT 50"
-            )
-            logs = [
-                dict(zip([d[0] for d in cursor.description], row))
-                for row in cursor.fetchall()
-            ]
-
-            cursor.execute("SELECT date, equity FROM equity_curve ORDER BY date ASC")
-            chart = [
-                dict(zip([d[0] for d in cursor.description], row))
-                for row in cursor.fetchall()
-            ]
+                chart = [
+                    {
+                        "date": point.date.isoformat() if point.date else None,
+                        "equity": point.equity,
+                    }
+                    for point in session.execute(
+                        select(EquityPoint).order_by(EquityPoint.date.asc())
+                    ).scalars()
+                ]
 
             payload = {
                 "stats": {
@@ -66,4 +78,4 @@ async def dashboard_ws(websocket: WebSocket):
             await websocket.send_text(json.dumps(payload))
             await asyncio.sleep(2)
     except WebSocketDisconnect:
-        print("🔌 Client disconnected")
+        print("?? Client disconnected")

@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import types
+import shutil
 
 
 def test_run_frontend_repeats_monkeypatched(tmp_path, monkeypatch):
@@ -12,7 +13,10 @@ def test_run_frontend_repeats_monkeypatched(tmp_path, monkeypatch):
     # ensure clean
     if outdir.exists():
         for f in outdir.iterdir():
-            f.unlink()
+            if f.is_dir():
+                shutil.rmtree(f)
+            else:
+                f.unlink()
     else:
         outdir.mkdir(parents=True)
 
