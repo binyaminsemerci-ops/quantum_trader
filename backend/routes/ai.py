@@ -8,7 +8,8 @@ import json
 import numpy as np
 from ai_engine.agents.xgb_agent import make_default_agent
 from ai_engine.train_and_save import train_and_save
-from backend.database import create_training_task, update_training_task, get_db  # type: ignore[attr-defined]
+from config.config import DEFAULT_SYMBOLS, DEFAULT_QUOTE
+from backend.database import create_training_task, update_training_task, get_session, TrainingTask  # type: ignore[attr-defined]
 
 # backend.database exports ORM symbols dynamically; narrow-ignore attr-defined for now
 from backend.database import TrainingTask  # type: ignore[attr-defined]
@@ -156,6 +157,7 @@ class ScanRequest(BaseModel):
 class TrainRequest(BaseModel):
     symbols: Optional[List[str]] = None
     limit: Optional[int] = 600
+    entry_threshold: Optional[float] = None
 
 
 class ReloadResponse(BaseModel):
@@ -314,28 +316,33 @@ async def train_endpoint(req: TrainRequest, background: BackgroundTasks):
     # Use USDC as the spot quote by default; futures/cross-margin can still use USDT
     from config.config import DEFAULT_QUOTE
 
-    symbols = req.symbols or [f"BTC{DEFAULT_QUOTE}", f"ETH{DEFAULT_QUOTE}"]
+    default_symbols = list(DEFAULT_SYMBOLS)
+    symbols = req.symbols or (default_symbols if default_symbols else [f"BTC{DEFAULT_QUOTE}", f"ETH{DEFAULT_QUOTE}"])
     limit = req.limit or 600
+    entry_threshold = req.entry_threshold if req.entry_threshold is not None else 0.001
     # create a DB task record
     # get a session for creating the task synchronously
-    db = next(get_db())
+    db = next(get_session())
     task = create_training_task(db, ",".join(symbols), limit)
+    db.close()
 
     # background wrapper to run training and update task status
-    def _bg_train(task_id: int, symbols_list: list, limit_val: int):
-        db2 = next(get_db())
+    def _bg_train(task_id: int, symbols_list: list, limit_val: int, entry_threshold_val: float):
+        db2 = next(get_session())
         try:
             update_training_task(db2, task_id, "running")
-            train_and_save(symbols=symbols_list, limit=limit_val)
-            update_training_task(db2, task_id, "completed", details="ok")
+            train_and_save(symbols=symbols_list, limit=limit_val, entry_threshold=entry_threshold_val)
+            update_training_task(db2, task_id, "completed", details=f"threshold={entry_threshold_val}")
         except Exception as e:
             try:
                 update_training_task(db2, task_id, "failed", details=str(e))
             except Exception as err:
                 logger.error("Failed to update training task after exception: %s", err)
+        finally:
+            db2.close()
 
     # schedule background training
-    background.add_task(_bg_train, task.id, symbols, limit)
+    background.add_task(_bg_train, task.id, symbols, limit, entry_threshold)
     return {
         "status": "scheduled",
         "task_id": task.id,
@@ -347,7 +354,7 @@ async def train_endpoint(req: TrainRequest, background: BackgroundTasks):
 @router.get("/tasks")
 async def list_tasks(limit: int = 50, offset: int = 0):
     """Return a paginated list of recent training tasks."""
-    db = next(get_db())
+    db = next(get_session())
     try:
         q = (
             db.query(TrainingTask)
@@ -377,7 +384,7 @@ async def list_tasks(limit: int = 50, offset: int = 0):
 
 @router.get("/tasks/{task_id}")
 async def get_task(task_id: int):
-    db = next(get_db())
+    db = next(get_session())
     try:
         t = db.query(TrainingTask).filter(TrainingTask.id == task_id).first()
         if not t:

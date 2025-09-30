@@ -1,25 +1,22 @@
-import sqlite3
-import os
+from typing import List, Dict
+from sqlalchemy import select
 
-DB_FILE = os.path.join(os.path.dirname(__file__), "..", "trades.db")
-DB_FILE = os.path.abspath(DB_FILE)
-
-
-def get_connection():
-    """Åpner SQLite-tilkobling."""
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
+from backend.database import session_scope, Trade
 
 
-def get_all_trades():
-    """Hent alle trades fra databasen."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, symbol, side, quantity, price, timestamp FROM trades "
-        "ORDER BY timestamp DESC"
-    )
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+def get_all_trades() -> List[Dict[str, object]]:
+    with session_scope() as session:
+        rows = session.execute(
+            select(Trade).order_by(Trade.timestamp.desc())
+        ).scalars()
+        return [
+            {
+                "id": trade.id,
+                "symbol": trade.symbol,
+                "side": trade.side,
+                "quantity": trade.qty,
+                "price": trade.price,
+                "timestamp": trade.timestamp.isoformat() if trade.timestamp else None,
+            }
+            for trade in rows
+        ]

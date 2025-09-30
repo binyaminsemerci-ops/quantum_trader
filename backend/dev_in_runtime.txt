@@ -1,1 +1,1 @@
-coverage,pytest,pytest-asyncio,sqlalchemy-utils,types-requests
+alembic,pytest,pytest-asyncio

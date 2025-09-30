@@ -7,8 +7,24 @@ This guide covers local stress runs, retention, and artifact handling.
 - Docker installed (for frontend tests inside a container)
 - Optional: Node.js if you want to run frontend tests without Docker
 
+## Dependencies
+- Runtime: `pip install -r backend/requirements.txt`
+- Full dev/test: `pip install -r backend/requirements-dev.txt`
+- Optional adapters (ccxt, Postgres, plotting): `pip install -r backend/requirements-optional.txt`
+
+- Run migrations with `alembic upgrade head` after changing `QUANTUM_TRADER_DATABASE_URL`. Use `python backend/seed_trades.py` to populate demo trades/equity.
+
+- Enable live market data by setting `ENABLE_LIVE_MARKET_DATA=1` (and installing optional adapters). The `/prices` and `/signals` endpoints will then pull via ccxt.
+
+## Database
+- Default SQLite file lives under `backend/data/trades.db`.
+- Override `QUANTUM_TRADER_DATABASE_URL` (e.g. `postgresql+psycopg://user:pass@localhost:5432/quantum_trader`) before running Alembic to use Postgres.
+- Apply migrations with `alembic upgrade head`.
+- Seed demo trades/equity with `python backend/seed_trades.py` (idempotent).
+
 ## Environment
 - Copy `.env.example` to `.env` (optional) and adjust values as needed.
+  - `DEFAULT_SYMBOLS` controls which trading pairs training/scans pull by default (comma-separated, defaults to ~100 high-volume L1/L2 pairs).
 - Useful env vars for stress runs:
   - `STRESS_PREFER_DOCKER=1` — prefer running frontend tests in Docker
   - `DOCKER_FORCE_BUILD=1` — force rebuild of frontend test image
@@ -42,6 +58,20 @@ Artifacts:
 - Aggregated: `artifacts/stress/aggregated.json` (includes `stats` section)
 - HTML report: `artifacts/stress/report.html`
 - Zips: `artifacts/stress_artifacts_<timestamp>.zip`
+
+## Model training & backtesting
+- Quick refresh (offline stubs): `python -m ai_engine.train_and_save --limit 600` regenerates `xgb_model.pkl`, `scaler.pkl`, `metadata.json`, and `training_report.json` under `ai_engine/models/`.
+  The helper automatically falls back to deterministic synthetic data when live adapters are not configured.
+- Full CLI pipeline: `python main_train_and_backtest.py train --limit 480 --symbols BTCUSDC ETHUSDC` fetches data via the FastAPI helpers (ccxt when `ENABLE_LIVE_MARKET_DATA=1`), trains the regressor,
+  runs a capped equity backtest, and writes the same artefacts.
+  Use `--skip-backtest` when you only need refreshed model/scaler files.
+- Evaluate an existing model: `python main_train_and_backtest.py backtest --symbols BTCUSDC ETHUSDC --entry-threshold 0.001` reruns metrics using previously saved artefacts.
+- Background workflow: `POST /ai/train` schedules the same pipeline via FastAPI; follow up with `GET /ai/tasks/{id}` to monitor progress.
+  Ensure the database schema is up to date (`alembic upgrade head`) so the `training_tasks` table exists before scheduling jobs.
+## Deployment
+- Build locally with Docker Compose: `docker compose up --build`. The stack includes backend (uvicorn), frontend (nginx) and Postgres.
+- Override database/env secrets by setting environment variables before running compose or by supplying a `.env` file (Compose reads from the shell by default).
+- Production images are built/published by `.github/workflows/deployment-build.yml`; set `GHCR_PAT` in repository secrets to enable pushes.
 
 ## Retention utilities
 - Zip rotation is automatic with `STRESS_KEEP_ZIPS` or via uploader `--retain N`.
@@ -84,8 +114,5 @@ env:
 ```
 
 The stress workflow defaults to `node:20-bullseye-slim@sha256:1c2b56658c1ea4737e92c76057061a2a5f904bdb2db6ccd45bb97fda41496b80`; override via the `NODE_IMAGE_REF` secret if you need a different digest.
-## Backend database
-- The default demo API uses SQLite (files under `backend/data/`). No migrations are required.
-- If you want to experiment with PostgreSQL, install `psycopg2-binary` from
-  `backend/requirements-optional.txt`, set `QUANTUM_TRADER_DATABASE_URL`, and run Alembic once the
-  migration story is reintroduced.
+
+

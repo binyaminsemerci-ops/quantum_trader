@@ -3,6 +3,10 @@ import { render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { vi } from 'vitest'
 
+vi.mock('../../api/signals', () => ({
+  fetchSignals: vi.fn(() => Promise.resolve({ items: [], source: 'live' })),
+}))
+
 import PriceChart from '../PriceChart'
 
 const mockCandles = Array.from({ length: 10 }).map((_, i) => ({
@@ -19,6 +23,10 @@ beforeEach(() => {
   ;(globalThis as any).fetch = vi.fn(() =>
     Promise.resolve({ ok: true, json: () => Promise.resolve(mockCandles) })
   )
+})
+
+afterEach(() => {
+  ;(globalThis as any).fetch = undefined
 })
 
 test('renders PriceChart and shows latest price', async () => {

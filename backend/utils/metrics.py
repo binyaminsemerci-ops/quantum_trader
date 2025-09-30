@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import time
-from typing import Dict
 
 from fastapi import APIRouter, Request, Response
 from prometheus_client import Counter, Gauge, Histogram, CONTENT_TYPE_LATEST, generate_latest
