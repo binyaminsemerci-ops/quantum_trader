@@ -54,6 +54,27 @@ class Trade(Base):
     price = Column(Float, nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
+    def __init__(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        qty: float,
+        price: float,
+        timestamp: Optional[datetime] = None,
+        **kwargs,
+    ) -> None:
+        # Provide an explicit constructor for static type checkers. SQLAlchemy
+        # will still populate columns as usual and these assignments are
+        # lightweight and preserve runtime behaviour.
+        super().__init__(**kwargs)
+        self.symbol = symbol
+        self.side = side
+        self.qty = qty
+        self.price = price
+        if timestamp is not None:
+            self.timestamp = timestamp
+
 
 class TradeLog(Base):
     __tablename__ = "trade_logs"
@@ -66,6 +87,28 @@ class TradeLog(Base):
     price = Column(Float, nullable=False)
     status = Column(String(32), nullable=False)
     reason = Column(Text, nullable=True)
+
+    def __init__(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        qty: float,
+        price: float,
+        status: str,
+        reason: Optional[str] = None,
+        timestamp: Optional[datetime] = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.symbol = symbol
+        self.side = side
+        self.qty = qty
+        self.price = price
+        self.status = status
+        self.reason = reason
+        if timestamp is not None:
+            self.timestamp = timestamp
 
 
 class Candle(Base):
@@ -80,6 +123,27 @@ class Candle(Base):
     close = Column(Float, nullable=False)
     volume = Column(Float, nullable=False)
 
+    def __init__(
+        self,
+        *,
+        symbol: str,
+        timestamp: datetime,
+        open: float,
+        high: float,
+        low: float,
+        close: float,
+        volume: float,
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.symbol = symbol
+        self.timestamp = timestamp
+        self.open = open
+        self.high = high
+        self.low = low
+        self.close = close
+        self.volume = volume
+
 
 class EquityPoint(Base):
     __tablename__ = "equity_curve"
@@ -87,6 +151,11 @@ class EquityPoint(Base):
     id = Column(Integer, primary_key=True, index=True)
     date = Column(DateTime(timezone=True), nullable=False, index=True)
     equity = Column(Float, nullable=False)
+
+    def __init__(self, *, date: datetime, equity: float, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.date = date
+        self.equity = equity
 
 
 class TrainingTask(Base):
@@ -100,6 +169,27 @@ class TrainingTask(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
+    def __init__(
+        self,
+        *,
+        symbols: str,
+        limit: int,
+        status: str = "pending",
+        details: Optional[str] = None,
+        created_at: Optional[datetime] = None,
+        completed_at: Optional[datetime] = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.symbols = symbols
+        self.limit = limit
+        self.status = status
+        self.details = details
+        if created_at is not None:
+            self.created_at = created_at
+        if completed_at is not None:
+            self.completed_at = completed_at
+
 
 class Settings(Base):
     __tablename__ = "settings"
@@ -107,6 +197,11 @@ class Settings(Base):
     id = Column(Integer, primary_key=True, index=True)
     api_key = Column(String(255))
     api_secret = Column(String(255))
+
+    def __init__(self, *, api_key: Optional[str] = None, api_secret: Optional[str] = None, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.api_key = api_key
+        self.api_secret = api_secret
 
 
 Base.metadata.create_all(bind=engine)
