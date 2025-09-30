@@ -11,7 +11,8 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Protocol, Type
 import logging
 import datetime
-from config.config import DEFAULT_EXCHANGE
+from backend.routes.settings import SETTINGS
+from config.config import DEFAULT_EXCHANGE, load_config
 
 
 class ExchangeClient(Protocol):
@@ -451,6 +452,13 @@ class _KuCoinAdapter:
             return {"error": str(exc)}
 
 
+CREDENTIAL_ATTRS = {
+    "binance": ("binance_api_key", "binance_api_secret"),
+    "coinbase": ("coinbase_api_key", "coinbase_api_secret"),
+    "kucoin": ("kucoin_api_key", "kucoin_api_secret"),
+}
+
+
 _ADAPTER_REGISTRY: Dict[str, Type] = {
     "binance": _BinanceAdapter,
     "coinbase": _CoinbaseAdapter,
@@ -458,19 +466,47 @@ _ADAPTER_REGISTRY: Dict[str, Type] = {
 }
 
 
+def resolve_exchange_name(name: Optional[str]) -> str:
+    if name:
+        return name
+    override = SETTINGS.get("DEFAULT_EXCHANGE")
+    if override:
+        return str(override)
+    return DEFAULT_EXCHANGE
+
+
+def resolve_credentials(
+    name: str, api_key: Optional[str], api_secret: Optional[str]
+) -> tuple[Optional[str], Optional[str]]:
+    if api_key or api_secret:
+        return api_key, api_secret
+    attrs = CREDENTIAL_ATTRS.get(name.lower())
+    if not attrs:
+        return api_key, api_secret
+    cfg = load_config()
+    cfg_key = getattr(cfg, attrs[0], None)
+    cfg_secret = getattr(cfg, attrs[1], None)
+    settings_key = SETTINGS.get(attrs[0].upper())
+    settings_secret = SETTINGS.get(attrs[1].upper())
+    resolved_key = api_key or settings_key or cfg_key
+    resolved_secret = api_secret or settings_secret or cfg_secret
+    return resolved_key, resolved_secret
+
+
 def get_exchange_client(
     name: Optional[str] = None,
     api_key: Optional[str] = None,
     api_secret: Optional[str] = None,
 ) -> ExchangeClient:
-    # If no name provided, use repository-wide default
-    if not name:
-        name = DEFAULT_EXCHANGE
-    cls = _ADAPTER_REGISTRY.get(name.lower())
+    resolved_name = resolve_exchange_name(name)
+    resolved_key, resolved_secret = resolve_credentials(
+        resolved_name, api_key, api_secret
+    )
+    cls = _ADAPTER_REGISTRY.get(resolved_name.lower())
     if not cls:
-        raise ValueError(f"Unknown exchange adapter: {name}")
+        raise ValueError(f"Unknown exchange adapter: {resolved_name}")
     # mypy: cls is a Type and calling it returns an ExchangeClient at runtime
-    return cls(api_key=api_key, api_secret=api_secret)
+    return cls(api_key=resolved_key, api_secret=resolved_secret)
 
 
 def get_adapter(
@@ -496,4 +532,4 @@ def get_adapter(
     return get_exchange_client(name=name, api_key=api_key, api_secret=api_secret)
 
 
-__all__ = ["ExchangeClient", "get_exchange_client", "get_adapter"]
+__all__ = ["ExchangeClient", "get_exchange_client", "get_adapter", "resolve_exchange_name", "resolve_credentials", "CREDENTIAL_ATTRS"]

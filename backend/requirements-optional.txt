@@ -1,0 +1,7 @@
+# Optional extras to enable live adapters, plotting, and Postgres support.
+# Install with: pip install -r backend/requirements-optional.txt
+
+ccxt==4.4.56
+matplotlib==3.9.1.post1
+psycopg2-binary==2.9.9
+sqlalchemy-utils==0.41.2

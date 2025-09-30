@@ -1,66 +1,52 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from typing import Annotated
 import logging
-import sqlite3
-from sqlalchemy import exc as sa_exc
+import datetime
 
-from backend.database import get_db
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from backend.database import get_session, Candle
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("")
 @router.get("/")
 def get_candles(
-    symbol: Annotated[str, Query(..., description="Trading symbol f.eks. BTCUSDT")],
+    symbol: Annotated[str, Query(..., description="Trading symbol, e.g. BTCUSDT")],
     limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    db: Session = Depends(get_session),
 ) -> dict:
-    """
-    Returner OHLCV-data fra SQLite candles-tabellen.
-    """
-
-    db = next(get_db())
-
-    # Some environments (tests) provide a SQLAlchemy Session which doesn't have
-    # a DB-API cursor(). In that case, return a small deterministic demo
-    # candle series so the endpoint remains useful for frontend/tests.
     try:
-        if hasattr(db, "cursor"):
-            cursor = db.cursor()
-
-            cursor.execute(
-                """
-                SELECT timestamp, open, high, low, close, volume
-                FROM candles
-                WHERE symbol = ?
-                ORDER BY timestamp DESC
-                LIMIT ?
-                """,
-                (symbol, limit),
+        candles = (
+            db.execute(
+                select(Candle)
+                .where(Candle.symbol == symbol)
+                .order_by(Candle.timestamp.desc())
+                .limit(limit)
             )
-
-            rows = cursor.fetchall()
-            candles = [
-                {
-                    "timestamp": row[0],
-                    "open": row[1],
-                    "high": row[2],
-                    "low": row[3],
-                    "close": row[4],
-                    "volume": row[5],
-                }
-                for row in rows
-            ]
-            # Return in chronological order
-            return {"symbol": symbol, "candles": list(reversed(candles))}
-    except (sqlite3.DatabaseError, sa_exc.DatabaseError, sa_exc.OperationalError) as e:
-        # Log database-specific errors but don't surface them to the API; fall
-        # back to deterministic demo data so the frontend/tests remain usable.
-        logging.exception("Database error fetching candles: %s", e)
-
-    # Fallback deterministic demo candles (used in tests or when DB isn't
-    # available). Mirrors the shape produced by the real query.
-    import datetime
+            .scalars()
+            .all()
+        )
+        if candles:
+            return {
+                "symbol": symbol,
+                "candles": [
+                    {
+                        "timestamp": c.timestamp.isoformat() if c.timestamp else None,
+                        "open": c.open,
+                        "high": c.high,
+                        "low": c.low,
+                        "close": c.close,
+                        "volume": c.volume,
+                    }
+                    for c in reversed(candles)
+                ],
+            }
+    except Exception as exc:
+        logger.exception("Database error fetching candles: %s", exc)
 
     now = datetime.datetime.now(datetime.timezone.utc)
     demo_candles = []
