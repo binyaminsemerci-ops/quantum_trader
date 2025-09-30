@@ -12,7 +12,6 @@ import argparse
 import logging
 import os
 import time
-from typing import Optional
 from datetime import datetime, timezone
 import sys
 
@@ -23,7 +22,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from backend.database import Base, engine, SessionLocal, TradeLog, Trade
-from config.config import DEFAULT_SYMBOLS, MAINBASE_SYMBOLS, LAYER1_SYMBOLS, LAYER2_SYMBOLS
+from config.config import MAINBASE_SYMBOLS, LAYER1_SYMBOLS, LAYER2_SYMBOLS
 from sqlalchemy import text
 
 logger = logging.getLogger("autotrader")
