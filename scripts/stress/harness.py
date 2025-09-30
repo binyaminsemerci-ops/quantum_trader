@@ -1,3 +1,13 @@
+import subprocess
+import sys
+import json
+import os
+from pathlib import Path
+import time
+import random
+import shutil
+
+
 def run_frontend_repeats(count=100, start_at=1):
     """
     Run the frontend Docker test helper many times and record results.
@@ -75,15 +85,6 @@ def run_frontend_repeats(count=100, start_at=1):
     with out_path.open("w", encoding="utf-8") as fh:
         json.dump(agg, fh, indent=2)
     print(f"Wrote {out_path}")
-
-import subprocess
-import sys
-import json
-import os
-from pathlib import Path
-import time
-import random
-import shutil
 
 
 ROOT = Path(__file__).resolve().parents[2]

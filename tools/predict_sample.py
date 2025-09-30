@@ -1,13 +1,8 @@
-import sys
-import os
 import datetime
 
-# Ensure the repository root is on sys.path so local packages can be imported
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
+from scripts.import_helper import import_module
 
-from ai_engine.agents.xgb_agent import make_default_agent  # noqa: E402
+make_default_agent = import_module("ai_engine.agents.xgb_agent", "make_default_agent")
 
 agent = make_default_agent()
 print("Model loaded?", agent.model is not None)
