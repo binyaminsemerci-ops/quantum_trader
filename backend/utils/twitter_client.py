@@ -14,10 +14,11 @@ from typing import Optional, Dict, Any
 from config.config import load_config  # type: ignore[import-not-found, import-untyped]
 import time
 import requests  # type: ignore[import-untyped]
-import warnings
+import logging
 
 # Small in-process cache to avoid repeated API calls during short tests
 _CACHE: Dict[str, Any] = {}
+logger = logging.getLogger(__name__)
 
 
 class TwitterClient:
@@ -115,10 +116,11 @@ class TwitterClient:
             url, params=params, headers=headers, max_attempts=4, timeout=8
         )
         if r is None:
-            warnings.warn("Twitter API request failed after retries")
+            logger.warning("Twitter API request failed after retries")
             return {"score": 0.0, "label": "neutral", "source": "error"}
 
         if r.status_code != 200:
+            logger.warning("Twitter API request returned status %s", r.status_code)
             return {
                 "score": 0.0,
                 "label": "neutral",

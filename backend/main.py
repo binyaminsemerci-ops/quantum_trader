@@ -12,6 +12,7 @@ from backend.routes import (
     prices,
     candles,
     stress,
+    health,
 )
 
 configure_logging()
@@ -36,6 +37,7 @@ async def root():
 
 
 # inkluder routere uten trailing slash-problemer
+app.include_router(health.router)
 app.include_router(trades.router, prefix="/trades")
 app.include_router(stats.router, prefix="/stats")
 app.include_router(chart.router, prefix="/chart")

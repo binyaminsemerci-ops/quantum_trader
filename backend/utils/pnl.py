@@ -1,31 +1,26 @@
-from backend.database import get_db
+from typing import Dict
+from sqlalchemy import select
+
+from backend.database import session_scope, Trade
 
 
-def calculate_pnl():
-    db = next(get_db())
-    cursor = db.cursor()
-    cursor.execute("SELECT side, qty, price FROM trades")
-    trades = cursor.fetchall()
-    pnl = 0
-    for side, qty, price in trades:
-        if side.upper() == "BUY":
-            pnl -= qty * price
-        elif side.upper() == "SELL":
+def calculate_pnl() -> float:
+    with session_scope() as session:
+        rows = session.execute(select(Trade.side, Trade.qty, Trade.price)).all()
+    pnl = 0.0
+    for side, qty, price in rows:
+        if side.upper() == "SELL":
             pnl += qty * price
+        else:
+            pnl -= qty * price
     return round(pnl, 2)
 
 
-def calculate_pnl_per_symbol():
-    db = next(get_db())
-    cursor = db.cursor()
-    cursor.execute("SELECT symbol, side, qty, price FROM trades")
-    trades = cursor.fetchall()
-    pnl_by_symbol = {}
-    for symbol, side, qty, price in trades:
-        if symbol not in pnl_by_symbol:
-            pnl_by_symbol[symbol] = 0
-        if side.upper() == "BUY":
-            pnl_by_symbol[symbol] -= qty * price
-        elif side.upper() == "SELL":
-            pnl_by_symbol[symbol] += qty * price
-    return {sym: round(val, 2) for sym, val in pnl_by_symbol.items()}
+def calculate_pnl_per_symbol() -> Dict[str, float]:
+    with session_scope() as session:
+        rows = session.execute(select(Trade.symbol, Trade.side, Trade.qty, Trade.price)).all()
+    pnl: Dict[str, float] = {}
+    for symbol, side, qty, price in rows:
+        delta = qty * price if side.upper() == "SELL" else -qty * price
+        pnl[symbol] = round(pnl.get(symbol, 0.0) + delta, 2)
+    return pnl

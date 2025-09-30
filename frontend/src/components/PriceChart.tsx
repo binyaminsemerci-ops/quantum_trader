@@ -1,61 +1,90 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchRecentPrices } from "../api/prices";
+import { fetchSignals } from "../api/signals";
 import type { Candle } from "../api/prices";
-import type { Signal } from "./SignalFeed";
+import type { Signal } from "../api/signals";
 
 type PricePoint = Candle;
 
+type Props = {
+  data?: PricePoint[];
+  signals?: Signal[];
+  source?: 'live' | 'demo';
+};
+
 function formatNumber(n: number) {
-  return Number.isFinite(n) ? n.toFixed(2) : "-";
+  return Number.isFinite(n) ? n.toFixed(2) : '-';
 }
 
-// A very small, dependency-free SVG price chart.
-export default function PriceChart({ data, signals }: { data?: PricePoint[]; signals?: Signal[] }) {
-  const [internal, setInternal] = useState<PricePoint[] | null>(null);
+export default function PriceChart({ data, signals, source }: Props) {
+  const [internalPrices, setInternalPrices] = useState<PricePoint[] | null>(data ?? null);
+  const [priceSource, setPriceSource] = useState<'live' | 'demo' | null>(source ?? null);
+  const [loading, setLoading] = useState<boolean>(!data);
+  const [error, setError] = useState<string | null>(source === 'demo' ? 'Using demo price data (backend fetch failed)' : null);
+  const [internalSignals, setInternalSignals] = useState<Signal[] | null>(null);
   const [highlightIdx, setHighlightIdx] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!data) {
-      let mounted = true;
-      setLoading(true);
-      setError(null);
-      fetchRecentPrices()
-        .then((d) => {
-          if (!mounted) return;
-          setInternal(d);
-          setError(null);
-        })
-        .catch((err) => {
-          if (!mounted) return;
-          console.warn('price fetch failed, using demo series', err);
-          setError('Using demo price data (backend fetch failed)');
-          const now = Date.now();
-          const seed = 100 + Math.random() * 10;
-          const demo: PricePoint[] = Array.from({ length: 40 }).map((_, i) => {
-            const t = new Date(now - (40 - i) * 60000).toISOString();
-            const open = seed + Math.sin(i / 5) * 2 + (i * 0.1);
-            const close = open + (Math.random() - 0.5) * 1.5;
-            const high = Math.max(open, close) + Math.random() * 0.8;
-            const low = Math.min(open, close) - Math.random() * 0.8;
-            const volume = Math.round(10 + Math.random() * 5);
-            return { time: t, open, high, low, close, volume };
-          });
-          setInternal(demo);
-        })
-        .finally(() => {
-          if (mounted) setLoading(false);
-        });
-      return () => {
-        mounted = false;
-      };
+    if (data) {
+      setInternalPrices(null);
+      setPriceSource(source ?? null);
+      setLoading(false);
+      setError(source === 'demo' ? 'Using demo price data (backend fetch failed)' : null);
+      return;
     }
-    setLoading(false);
-    return;
-  }, [data]);
 
-  const points = data ?? internal ?? [];
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
 
+    fetchRecentPrices()
+      .then((result) => {
+        if (cancelled) return;
+        setInternalPrices(result.candles);
+        setPriceSource(result.source);
+        setError(result.source === 'demo' ? 'Using demo price data (backend fetch failed)' : null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.warn('price fetch failed', err);
+        setError('Unable to load price data');
+        setInternalPrices([]);
+        setPriceSource('demo');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data, source]);
+
+  useEffect(() => {
+    if (signals) {
+      setInternalSignals(null);
+      return;
+    }
+    let cancelled = false;
+    fetchSignals({ limit: 40 })
+      .then(({ items }) => {
+        if (!cancelled) setInternalSignals(items);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.warn('signal overlay fetch failed', err);
+          setInternalSignals([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [signals]);
+
+  const points = data ?? internalPrices ?? [];
+  const overlaySignals = signals ?? internalSignals ?? [];
   const latest = points[points.length - 1];
+  const resolvedSource = source ?? priceSource ?? (overlaySignals.some((s) => s.source === 'demo') ? 'demo' : null);
 
   const svg = useMemo(() => {
     if (!points.length) return null;
@@ -69,9 +98,7 @@ export default function PriceChart({ data, signals }: { data?: PricePoint[]; sig
     const x = (i: number) => padding + (i / Math.max(1, points.length - 1)) * (w - padding * 2);
     const y = (v: number) => padding + ((max - v) / range) * (h - padding * 2);
 
-    const path = points
-      .map((p, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(p.close)}`)
-      .join(" ");
+    const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.close)}`).join(' ');
 
     const candles = points.map((p, i) => {
       const cx = x(i);
@@ -79,7 +106,7 @@ export default function PriceChart({ data, signals }: { data?: PricePoint[]; sig
       const cy2 = y(p.close);
       const chigh = y(p.high);
       const clow = y(p.low);
-      const color = p.close >= p.open ? "green" : "red";
+      const color = p.close >= p.open ? 'green' : 'red';
       return { cx, cy1, cy2, chigh, clow, color };
     });
 
@@ -89,9 +116,7 @@ export default function PriceChart({ data, signals }: { data?: PricePoint[]; sig
         <path d={path} fill="none" stroke="#2563eb" strokeWidth={2} strokeOpacity={0.9} />
         {candles.map((c, i) => (
           <g key={i}>
-            {/* wick */}
             <line x1={c.cx} x2={c.cx} y1={c.chigh} y2={c.clow} stroke={c.color} strokeWidth={1} />
-            {/* body */}
             <rect x={c.cx - 4} y={Math.min(c.cy1, c.cy2)} width={8} height={Math.max(1, Math.abs(c.cy2 - c.cy1))} fill={c.color} />
           </g>
         ))}
@@ -99,9 +124,8 @@ export default function PriceChart({ data, signals }: { data?: PricePoint[]; sig
     );
   }, [points]);
 
-  // Simple overlay: render small markers above the chart for signals
   const overlay = useMemo(() => {
-    if (!points.length || !signals || !signals.length) return null;
+    if (!points.length || !overlaySignals.length) return null;
     const w = 600;
     const padding = 20;
     const prices = points.map((p) => p.close);
@@ -111,8 +135,7 @@ export default function PriceChart({ data, signals }: { data?: PricePoint[]; sig
     const x = (i: number) => padding + (i / Math.max(1, points.length - 1)) * (w - padding * 2);
     const y = (v: number) => padding + ((max - v) / range) * (200 - padding * 2);
 
-    // map signal timestamps to nearest index in points
-    const markers = signals
+    const markers = overlaySignals
       .map((s) => {
         const sigTime = new Date(s.timestamp).getTime();
         let bestIdx = 0;
@@ -124,7 +147,7 @@ export default function PriceChart({ data, signals }: { data?: PricePoint[]; sig
             bestIdx = i;
           }
         });
-        return { idx: bestIdx, score: s.score, side: s.direction };
+        return { idx: bestIdx, score: s.score, direction: s.direction };
       })
       .slice(0, 20);
 
@@ -132,8 +155,10 @@ export default function PriceChart({ data, signals }: { data?: PricePoint[]; sig
       <svg width={600} height={200} viewBox={`0 0 ${600} ${200}`} className="absolute top-0 left-0 pointer-events-none">
         {markers.map((m, i) => (
           <g key={i} transform={`translate(${x(m.idx)}, ${y(points[m.idx].close) - 10})`}>
-            <circle r={6} fill={m.side === "LONG" ? "#10b981" : "#ef4444"} opacity={0.9} />
-            <text x={10} y={4} fontSize={10} fill="#111">{Math.round(m.score * 100)}%</text>
+            <circle r={6} fill={m.direction === 'LONG' ? '#10b981' : m.direction === 'SHORT' ? '#ef4444' : '#64748b'} opacity={0.9} />
+            <text x={10} y={4} fontSize={10} fill="#111">
+              {Math.round(m.score * 100)}%
+            </text>
           </g>
         ))}
         {highlightIdx !== null && points[highlightIdx] && (
@@ -144,11 +169,11 @@ export default function PriceChart({ data, signals }: { data?: PricePoint[]; sig
         )}
       </svg>
     );
-  }, [points, signals]);
+  }, [points, overlaySignals, highlightIdx]);
 
   useEffect(() => {
-    function onFocus(e: any) {
-      const detail = e?.detail;
+    function onFocus(e: Event) {
+      const detail = (e as CustomEvent).detail as { timestamp?: string } | undefined;
       if (!detail || !detail.timestamp) return;
       const sigTime = new Date(detail.timestamp).getTime();
       let bestIdx = 0;
@@ -161,11 +186,11 @@ export default function PriceChart({ data, signals }: { data?: PricePoint[]; sig
         }
       });
       setHighlightIdx(bestIdx);
-      setTimeout(() => setHighlightIdx(null), 4000);
+      window.setTimeout(() => setHighlightIdx(null), 4000);
     }
 
-    window.addEventListener('focus-signal', onFocus as any);
-    return () => window.removeEventListener('focus-signal', onFocus as any);
+    window.addEventListener('focus-signal', onFocus as EventListener);
+    return () => window.removeEventListener('focus-signal', onFocus as EventListener);
   }, [points]);
 
   return (
@@ -174,7 +199,12 @@ export default function PriceChart({ data, signals }: { data?: PricePoint[]; sig
         <h3 className="font-semibold">Price chart</h3>
         {latest && <div className="text-sm">Latest: {formatNumber(latest.close)}</div>}
       </div>
-      {error && (
+      {resolvedSource === 'demo' && (
+        <div className="mb-2 text-xs text-amber-600" role="status">
+          Using demo price data (backend fetch failed or live data disabled)
+        </div>
+      )}
+      {error && resolvedSource !== 'demo' && (
         <div className="mb-2 text-xs text-amber-600" role="alert">
           {error}
         </div>

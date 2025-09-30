@@ -19,15 +19,17 @@ describe('fetchRecentPrices', () => {
     // @ts-ignore
     global.fetch.mockResolvedValueOnce({ ok: true, json: async () => mockData });
 
-    const candles = await fetchRecentPrices('BTCUSDC', 1);
-    expect(candles).toHaveLength(1);
-    expect(candles[0].close).toBe(100);
+    const result = await fetchRecentPrices('BTCUSDC', 1);
+    expect(result.candles).toHaveLength(1);
+    expect(result.candles[0].close).toBe(100);
+    expect(result.source).toBe('live');
   });
 
   it('returns fallback candles when fetch fails', async () => {
     // @ts-ignore
     global.fetch.mockRejectedValueOnce(new Error('network'));
-    const candles = await fetchRecentPrices('BTCUSDC', 3);
-    expect(candles).toHaveLength(3);
+    const result = await fetchRecentPrices('BTCUSDC', 3);
+    expect(result.candles).toHaveLength(3);
+    expect(result.source).toBe('demo');
   });
 });

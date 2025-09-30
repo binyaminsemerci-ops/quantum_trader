@@ -13,8 +13,8 @@ export default function useCandlesPoll(symbol = 'BTCUSDC', limit = 200, interval
 
   useEffect(() => {
     mounted.current = true;
-  // In browsers the timer id is a number; avoid importing NodeJS types in the frontend bundle
-  let timer: number | undefined;
+    // In browsers the timer id is a number; avoid importing NodeJS types in the frontend bundle
+    let timer: number | undefined;
 
     async function fetchOnce() {
       try {
@@ -22,15 +22,13 @@ export default function useCandlesPoll(symbol = 'BTCUSDC', limit = 200, interval
         if (resp && 'data' in resp && Array.isArray(resp.data) && resp.data.length) {
           setData(resp.data as OHLCV[]);
         } else {
-          // Fallback to helper which calls /prices/recent or returns deterministic mock candles
-          const candles = await fetchRecentPrices(symbol, limit);
-          // map Candle -> OHLCV shape
+          const { candles } = await fetchRecentPrices(symbol, limit);
           setData(candles.map((c) => ({ timestamp: c.time, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume })) as OHLCV[]);
         }
       } catch (err: unknown) {
         setError(String(err));
         try {
-          const candles = await fetchRecentPrices(symbol, limit);
+          const { candles } = await fetchRecentPrices(symbol, limit);
           setData(candles.map((c) => ({ timestamp: c.time, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume })) as OHLCV[]);
         } catch {}
       } finally {
@@ -39,11 +37,11 @@ export default function useCandlesPoll(symbol = 'BTCUSDC', limit = 200, interval
     }
 
     fetchOnce();
-  timer = window.setInterval(fetchOnce, intervalMs);
+    timer = window.setInterval(fetchOnce, intervalMs);
 
     return () => {
       mounted.current = false;
-  if (timer !== undefined) clearInterval(timer);
+      if (timer !== undefined) window.clearInterval(timer);
     };
   }, [symbol, limit, intervalMs]);
 
