@@ -31,15 +31,17 @@ def find_files(globs: List[str]) -> List[Path]:
 
 
 def backup_write(path: Path, text: str) -> None:
-    bak = path.with_suffix(path.suffix + '.bak')
-    path.write_text(text, encoding='utf-8')
+    bak = path.with_suffix(path.suffix + ".bak")
+    path.write_text(text, encoding="utf-8")
     if not bak.exists():
-        bak.write_text(text, encoding='utf-8')
+        bak.write_text(text, encoding="utf-8")
 
 
 def replace_get_db_cursor(path: Path) -> bool:
-    src = path.read_text(encoding='utf-8')
-    pattern = re.compile(r"(?m)^(\s*)db\s*=\s*get_db\(\)\s*\n\s*cursor\s*=\s*db\.cursor\(\)\s*$")
+    src = path.read_text(encoding="utf-8")
+    pattern = re.compile(
+        r"(?m)^(\s*)db\s*=\s*get_db\(\)\s*\n\s*cursor\s*=\s*db\.cursor\(\)\s*$"
+    )
     new, n = pattern.subn(r"\1db = next(get_db())\n\1cursor = db.cursor()", src)
     if n:
         backup_write(path, new)
@@ -48,7 +50,7 @@ def replace_get_db_cursor(path: Path) -> bool:
 
 
 def replace_fetch_urls(path: Path) -> bool:
-    src = path.read_text(encoding='utf-8')
+    src = path.read_text(encoding="utf-8")
     new = src.replace("http://127.0.0.1:8000/api", "/api")
     if new != src:
         backup_write(path, new)
@@ -58,8 +60,8 @@ def replace_fetch_urls(path: Path) -> bool:
 
 def ensure_trade_logger_coercion(path: Path) -> bool:
     # targeted, idempotent change for the specific pattern we saw earlier
-    src = path.read_text(encoding='utf-8')
-    if 'TradeLog(' not in src:
+    src = path.read_text(encoding="utf-8")
+    if "TradeLog(" not in src:
         return False
 
     # detect the old pattern where trade.get(...) values are passed directly
@@ -74,15 +76,15 @@ def ensure_trade_logger_coercion(path: Path) -> bool:
     # Replace the call site with a guarded/coercion block similar to the one we
     # used earlier. This replacement is conservative and keeps indentation.
     def repl(match: re.Match) -> str:
-        indent = match.group(0).split('T')[0]
+        indent = match.group(0).split("T")[0]
         block = (
             "# Coerce and validate incoming values so MyPy sees the expected types\n"
-            f"{indent}raw_symbol = trade.get(\"symbol\")\n"
-            f"{indent}raw_side = trade.get(\"side\")\n"
-            f"{indent}raw_qty = trade.get(\"qty\")\n"
-            f"{indent}raw_price = trade.get(\"price\")\n\n"
-            f"{indent}symbol: str = str(raw_symbol or \"\")\n"
-            f"{indent}side: str = str(raw_side or \"\")\n"
+            f'{indent}raw_symbol = trade.get("symbol")\n'
+            f'{indent}raw_side = trade.get("side")\n'
+            f'{indent}raw_qty = trade.get("qty")\n'
+            f'{indent}raw_price = trade.get("price")\n\n'
+            f'{indent}symbol: str = str(raw_symbol or "")\n'
+            f'{indent}side: str = str(raw_side or "")\n'
             f"{indent}try:\n"
             f"{indent}    qty: float = float(raw_qty or 0.0)\n"
             f"{indent}except (TypeError, ValueError):\n"
@@ -111,8 +113,15 @@ def main() -> None:
     changed: List[Path] = []
 
     # Files to scan: backend .py files and frontend src .ts/.tsx files
-    backend_files = find_files(['backend/**/*.py'])
-    frontend_files = find_files(['frontend/src/**/*.ts', 'frontend/src/**/*.tsx', 'frontend/src/**/*.js', 'frontend/src/**/*.jsx'])
+    backend_files = find_files(["backend/**/*.py"])
+    frontend_files = find_files(
+        [
+            "frontend/src/**/*.ts",
+            "frontend/src/**/*.tsx",
+            "frontend/src/**/*.js",
+            "frontend/src/**/*.jsx",
+        ]
+    )
 
     # 1) Replace get_db() cursor patterns in backend files
     for p in backend_files:
@@ -125,7 +134,7 @@ def main() -> None:
             changed.append(p)
 
     # 3) Ensure trade_logger coercion if needed
-    tl = ROOT / 'backend' / 'utils' / 'trade_logger.py'
+    tl = ROOT / "backend" / "utils" / "trade_logger.py"
     if tl.exists() and ensure_trade_logger_coercion(tl):
         changed.append(tl)
 
@@ -137,5 +146,5 @@ def main() -> None:
         print("No changes made (everything already looks good).")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

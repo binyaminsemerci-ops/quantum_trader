@@ -10,3 +10,9 @@
 - Verified locally: `tsc --noEmit`, `vite build`, and `vitest --run` all passed.
 
 See PRs: #17 (migration prep), #18 (cleanup build artifacts), #19 (archive .bak files)
+
+## 2025-09-27 — Backwards-compatible exchange API alias
+
+- Added `get_adapter(name, ...)` alias in `backend.utils.exchanges` which wraps the canonical `get_exchange_client(...)` factory and emits a `DeprecationWarning` to signal deprecation.
+- Added `backend/tests/test_exchanges_adapter_alias.py` to lock the alias behavior into CI.
+- Migration note: update any external callers to use `get_exchange_client(...)`. Plan to remove `get_adapter(...)` in a future major release after callers have migrated.

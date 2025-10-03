@@ -1,6 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.routes import trades, stats, chart, settings, binance
+from backend.routes import (
+    trades,
+    stats,
+    chart,
+    settings,
+    binance,
+    signals,
+    prices,
+    candles,
+)
 
 app = FastAPI()
 
@@ -24,3 +33,6 @@ app.include_router(stats.router, prefix="/stats")
 app.include_router(chart.router, prefix="/chart")
 app.include_router(settings.router, prefix="/settings")
 app.include_router(binance.router, prefix="/binance")
+app.include_router(signals.router, prefix="/signals")
+app.include_router(prices.router, prefix="/prices")
+app.include_router(candles.router, prefix="/candles")

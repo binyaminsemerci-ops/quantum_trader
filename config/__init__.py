@@ -4,6 +4,7 @@ This file makes ``config`` an explicit package and re-exports the
 convenience symbols from ``config.config`` so existing imports continue to
 work and mypy has a consistent module mapping.
 """
+
 from __future__ import annotations
 
 from .config import (
