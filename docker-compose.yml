@@ -1,0 +1,76 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        INSTALL_OPTIONAL: ${INSTALL_OPTIONAL:-false}
+    env_file:
+      - .env
+    environment:
+      - QUANTUM_TRADER_DATABASE_URL=${QUANTUM_TRADER_DATABASE_URL:-sqlite:///backend/data/trades.db}
+      - ENABLE_LIVE_MARKET_DATA=${ENABLE_LIVE_MARKET_DATA:-1}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    healthcheck:
+      test: ["CMD", "python", "-m", "http.client", "localhost", "8000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:20-bullseye-slim}
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        INSTALL_OPTIONAL: ${INSTALL_OPTIONAL:-false}
+    command: ["python", "scripts/scheduler.py"]
+    env_file:
+      - .env
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  autotrader:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        INSTALL_OPTIONAL: ${INSTALL_OPTIONAL:-false}
+    command: ["python", "scripts/autotrader.py"]
+    env_file:
+      - .env
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-quantum_trader}
+      - POSTGRES_USER=${POSTGRES_USER:-quantum}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-quantum}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  pgdata:
