@@ -5,8 +5,8 @@ pydantic==2.9.2
 pydantic-settings==2.3.2
 python-dotenv==1.0.1
 
-numpy>=2.1.0  # bumped from 1.26.4 to support Python 3.13 wheels
-pandas>=2.2.3  # allow newer wheel (Python 3.13 compatibility)
+numpy==1.26.4
+pandas==2.2.2
 scikit-learn==1.5.2
 xgboost==2.0.3
 

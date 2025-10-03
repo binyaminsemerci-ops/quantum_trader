@@ -1,12 +1,6 @@
-// Enhanced version - full-featured HTTP polling dashboard with all components
-import './App.css';
-import FullSizeDashboard from './FullSizeDashboard';
-import ErrorBoundary from './components/ErrorBoundary';
+// Render the new DashboardPage (composes PriceChart + SignalFeed)
+import DashboardPage from './pages/DashboardPage';
 
 export default function App(): JSX.Element {
-  return (
-    <ErrorBoundary>
-      <FullSizeDashboard />
-    </ErrorBoundary>
-  );
+  return <DashboardPage />;
 }

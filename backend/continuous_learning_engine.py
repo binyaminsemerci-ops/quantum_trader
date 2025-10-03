@@ -31,6 +31,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.utils.twitter_client import TwitterClient
 from backend.routes.external_data import (
     binance_ohlcv,
+    twitter_sentiment,
     enhanced_market_data,
     fear_greed_index,
     reddit_sentiment,
@@ -39,6 +40,7 @@ from backend.routes.external_data import (
     market_indicators,
 )
 from ai_engine.train_and_save import train_and_save
+from ai_engine.agents.xgb_agent import make_default_agent
 
 logger = logging.getLogger(__name__)
 

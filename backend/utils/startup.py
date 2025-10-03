@@ -7,13 +7,14 @@ free so CI and tests that import it don't need external services.
 
 from __future__ import annotations
 
-from typing import List, Dict
+from typing import List
 import logging
 import json
 import os
 
 from config.config import load_config
 from backend.utils.exchanges import _ADAPTER_REGISTRY
+from typing import Dict
 
 
 def _configure_logger() -> logging.Logger:
@@ -50,13 +51,12 @@ async def log_startup_info() -> None:
     cfg = load_config()
     adapters: List[str] = list(_ADAPTER_REGISTRY.keys())
 
-    # Masked presence of keys (don't print the actual secrets).
-    # Include cryptopanic presence flag for environments that still use it.
+    # Masked presence of keys (don't print the actual secrets)
     key_presence: Dict[str, bool] = {
         "binance": bool(cfg.binance_api_key and cfg.binance_api_secret),
         "coinbase": bool(cfg.coinbase_api_key and cfg.coinbase_api_secret),
         "kucoin": bool(cfg.kucoin_api_key and cfg.kucoin_api_secret),
-        "cryptopanic": bool(getattr(cfg, "cryptopanic_key", None)),
+        "cryptopanic": bool(cfg.cryptopanic_key),
     }
 
     # Capability summary: probe adapter classes for expected methods

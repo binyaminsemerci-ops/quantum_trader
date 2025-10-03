@@ -197,25 +197,7 @@ export default function PriceChart({ data, signals, source }: Props) {
     <div className="p-2 border rounded">
       <div className="flex justify-between items-center mb-2">
         <h3 className="font-semibold">Price chart</h3>
-        <div className="flex items-center gap-3">
-          {latest && <div className="text-sm">Latest: {formatNumber(latest.close)}</div>}
-          {/* buy/sell summary pills */}
-          {overlaySignals && overlaySignals.length > 0 && (
-            (() => {
-              const buys = overlaySignals.filter((s) => s.direction === 'LONG').length;
-              const sells = overlaySignals.filter((s) => s.direction === 'SHORT').length;
-              const total = Math.max(1, overlaySignals.length);
-              const buyPct = Math.round((buys / total) * 100);
-              const sellPct = Math.round((sells / total) * 100);
-              return (
-                <div className="flex items-center gap-2">
-                  <div className="px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-800">Buy {buyPct}%</div>
-                  <div className="px-2 py-0.5 text-xs rounded-full bg-rose-100 text-rose-800">Sell {sellPct}%</div>
-                </div>
-              );
-            })()
-          )}
-        </div>
+        {latest && <div className="text-sm">Latest: {formatNumber(latest.close)}</div>}
       </div>
       {resolvedSource === 'demo' && (
         <div className="mb-2 text-xs text-amber-600" role="status">

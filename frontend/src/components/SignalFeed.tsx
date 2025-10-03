@@ -166,30 +166,6 @@ export default function SignalFeed({ symbol: initialSymbol = "BTCUSDT" }: Props)
                 {s.details?.note && (
                   <div className="text-xs text-slate-400 mt-1">{String(s.details.note)}</div>
                 )}
-                {/* Visual score/confidence bars */}
-                <div className="mt-2 space-y-1">
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span>Score</span>
-                    <span>{Number.isFinite(s.score) ? Math.round(s.score * 100) + '%' : '-'}</span>
-                  </div>
-                  <div className="w-full bg-slate-100 h-2 rounded overflow-hidden">
-                    <div
-                      className={`h-2 ${s.direction === 'LONG' ? 'bg-emerald-500' : s.direction === 'SHORT' ? 'bg-rose-500' : 'bg-slate-400'}`}
-                      style={{ width: `${Math.min(100, Math.max(0, (Number.isFinite(s.score) ? s.score * 100 : 0)))}%` }}
-                    />
-                  </div>
-                  {typeof s.confidence === 'number' && (
-                    <>
-                      <div className="flex items-center justify-between text-xs text-slate-500 mt-1">
-                        <span>Confidence</span>
-                        <span>{Math.round(s.confidence * 100)}%</span>
-                      </div>
-                      <div className="w-full bg-slate-100 h-2 rounded overflow-hidden">
-                        <div className="h-2 bg-indigo-500" style={{ width: `${Math.round(s.confidence * 100)}%` }} />
-                      </div>
-                    </>
-                  )}
-                </div>
               </div>
             </div>
           </li>

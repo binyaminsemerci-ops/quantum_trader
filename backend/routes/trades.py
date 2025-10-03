@@ -54,7 +54,7 @@ async def create_trade(payload: TradeCreate, db: Session = Depends(get_session))
 @router.get("/recent")
 async def recent_trades(limit: int = 20):
     trades = []
-    symbols = ["BTCUSDC", "ETHUSDC", "SOLUSDC"]
+    symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
     for i in range(limit):
         trades.append(
             {

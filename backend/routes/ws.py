@@ -5,13 +5,12 @@ import time
 from sqlalchemy import select, func
 from typing import Any, cast
 
-from backend.database import session_scope, Trade, EquityPoint
+from backend.database import session_scope, Trade, TradeLog, EquityPoint
 from backend.utils.pnl import calculate_pnl, calculate_pnl_per_symbol
 from backend.utils.risk import calculate_risk
 from backend.utils.analytics import calculate_analytics
 from backend.routes.portfolio import get_portfolio, get_market_overview
 from config.config import load_config
-from backend.routes.signals import recent_signals  # reuse logic
 
 try:
     from backend.services.binance_trading import get_trading_engine  # type: ignore
@@ -19,6 +18,9 @@ except Exception:  # pragma: no cover
 
     def get_trading_engine():  # type: ignore
         raise RuntimeError("Trading engine unavailable")
+
+
+from backend.routes.signals import recent_signals  # reuse logic
 from backend.utils.market_data import fetch_recent_signals
 from backend.services.price_stream import (
     ensure_price_stream,

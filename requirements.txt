@@ -1,30 +1,13 @@
-#############################################
-# Root requirements (aggregator / thin layer)
-#
-# Removed invalid/stdlib entries (sqlite3) and renamed 'binance' -> 'python-binance'.
-# Prefer pinned versions in backend/requirements*.txt for reproducibility.
-# Keep only essentials needed before backend bootstrap OR fall back if backend folder absent.
-#
-# If you add Python deps, prefer pinning them in backend/requirements.txt (runtime)
-# or backend/requirements-dev.txt (dev/test) instead of here.
-#############################################
-
-# Minimal unpinned fallbacks (used only if backend/ not yet available):
 fastapi
 uvicorn
+sqlite3
 sqlalchemy
-python-binance
-python-dotenv
-httpx
-
-# ML stack (kept for legacy scripts that may still reference this file directly):
-numpy
-pandas
-scikit-learn
 xgboost
+pandas
+numpy
+scikit-learn
 matplotlib
-
-# Testing
+binance
+python-dotenv
 pytest
-
-# NOTE: For deterministic builds, run orchestrator option B (Bootstrap) which installs pinned backend requirements.
+httpx

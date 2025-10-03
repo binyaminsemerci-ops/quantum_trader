@@ -9,8 +9,6 @@ be swapped for real Binance client calls once keys and staging are in place.
 from __future__ import annotations
 
 import os
-import sys
-from pathlib import Path
 import argparse
 import logging
 import time
@@ -18,15 +16,6 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger("autotrader")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-
-# When running this file directly (python scripts/autotrader.py) the
-# interpreter sets sys.path[0] to the scripts/ directory which makes
-# package-level imports like `config.config` fail. Ensure the repo root
-# is on sys.path so top-level packages can be imported the same way as
-# when running via `python -m scripts.autotrader` or via the app entry.
-_ROOT = Path(__file__).resolve().parents[1]
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
 
 
 def ensure_trade_tables():
@@ -36,30 +25,15 @@ def ensure_trade_tables():
     Base.metadata.create_all(bind=engine, tables=[Trade.__table__, TradeLog.__table__])
 
 
-def send_order(symbol: str, side: str, qty: float, price: float, dry_run: bool = True, exchange_name: str | None = None) -> dict:
-    """Send an order using the exchange adapter.
-
-    By default this function simulates orders. To allow real orders, set the
-    environment variable AUTOTRADER_ALLOW_REAL_ORDERS=1 and ensure the exchange
-    credentials are available via config or env vars. The adapter factory will
-    pick up configured credentials.
-    """
+def send_order(symbol: str, side: str, qty: float, price: float, dry_run: bool = True) -> dict:
+    # Replace this with binance client code. For now just log and return fake response.
     logger.info("send_order: %s %s %s @ %s (dry_run=%s)", symbol, side, qty, price, dry_run)
-    allow_real = bool(os.environ.get("AUTOTRADER_ALLOW_REAL_ORDERS") in ("1", "true", "True"))
-    if dry_run or not allow_real:
+    # If dry-run requested or no API keys are configured, always simulate.
+    if dry_run or not (os.environ.get("BINANCE_API_KEY") and os.environ.get("BINANCE_API_SECRET")):
         return {"status": "simulated", "order_id": "sim-123", "filled_qty": 0.0}
-
-    # attempt to resolve an exchange client and submit the order
-    try:
-        from backend.utils.exchanges import get_exchange_client
-
-        client = get_exchange_client(name=exchange_name)
-        # client.create_order expects symbol, side, qty (adapter normalizes type)
-        res = client.create_order(symbol=symbol, side=side, qty=float(qty))
-        return res
-    except Exception as exc:
-        logger.exception("Real order failed: %s", exc)
-        return {"status": "error", "error": str(exc)}
+    # production path: initialize a client here if keys are present and dry_run is False
+    # TODO: implement real Binance client call (e.g., python-binance or ccxt), carefully handle errors
+    return {"status": "ok", "order_id": "real-123", "filled_qty": qty}
 
 
 def process_new_signals(max_symbols: int = 5, dry_run: bool = True, notional_usd: float = 100.0):
@@ -125,8 +99,7 @@ def process_new_signals(max_symbols: int = 5, dry_run: bool = True, notional_usd
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dry-run", dest="dry_run", action="store_true", default=True, help="Run in dry-run mode (simulate orders).")
-    parser.add_argument("--no-dry-run", dest="dry_run", action="store_false", help="Disable dry-run; allow sending real orders when AUTOTRADER_ALLOW_REAL_ORDERS is set.")
+    parser.add_argument("--dry-run", dest="dry_run", action="store_true", default=True)
     parser.add_argument("--once", dest="once", action="store_true", default=False)
     parser.add_argument("--max-symbols", type=int, default=5)
     parser.add_argument("--notional-usd", type=float, default=100.0)
