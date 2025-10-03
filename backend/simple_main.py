@@ -10,6 +10,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
+import asyncio
 import logging
 import json
 import sqlite3
@@ -395,7 +396,6 @@ async def get_pnl():
     result = conn.execute(
         "SELECT SUM(pnl) as total_pnl, COUNT(*) as trade_count FROM trades"
     ).fetchone()
-    base_pnl = result["total_pnl"] or 0
     trade_count = result["trade_count"] or 1
 
     # More realistic P&L data
@@ -1045,7 +1045,6 @@ async def get_stress_summary():
 
 
 # WebSocket endpoints
-import asyncio
 
 
 @app.websocket("/ws/dashboard")

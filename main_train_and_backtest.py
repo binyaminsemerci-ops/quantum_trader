@@ -64,25 +64,59 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command")
 
-    train_parser = sub.add_parser("train", help="Train a model and optionally run a backtest.")
-    train_parser.add_argument("--symbols", nargs="+", help="Symbols to pull data for (defaults to config)")
-    train_parser.add_argument("--limit", type=int, default=600, help="Number of candles per symbol")
-    train_parser.add_argument("--model-dir", type=Path, help="Directory where artifacts are stored")
-    train_parser.add_argument("--entry-threshold", type=float, default=0.001, help="Minimum predicted return required before taking a trade during the backtest")
-    train_parser.add_argument("--skip-backtest", action="store_true", help="Skip the evaluation step")
-    train_parser.add_argument("--no-report", action="store_true", help="Do not write training_report.json")
+    train_parser = sub.add_parser(
+        "train", help="Train a model and optionally run a backtest."
+    )
+    train_parser.add_argument(
+        "--symbols", nargs="+", help="Symbols to pull data for (defaults to config)"
+    )
+    train_parser.add_argument(
+        "--limit", type=int, default=600, help="Number of candles per symbol"
+    )
+    train_parser.add_argument(
+        "--model-dir", type=Path, help="Directory where artifacts are stored"
+    )
+    train_parser.add_argument(
+        "--entry-threshold",
+        type=float,
+        default=0.001,
+        help="Minimum predicted return required before taking a trade during the backtest",
+    )
+    train_parser.add_argument(
+        "--skip-backtest", action="store_true", help="Skip the evaluation step"
+    )
+    train_parser.add_argument(
+        "--no-report", action="store_true", help="Do not write training_report.json"
+    )
     train_parser.set_defaults(func=_handle_train)
 
-    backtest_parser = sub.add_parser("backtest", help="Run a backtest using existing artifacts.")
-    backtest_parser.add_argument("--symbols", nargs="+", required=True, help="Symbols to evaluate")
-    backtest_parser.add_argument("--limit", type=int, default=600, help="Number of candles per symbol")
-    backtest_parser.add_argument("--model-dir", type=Path, help="Directory with previously saved artifacts")
-    backtest_parser.add_argument("--entry-threshold", type=float, default=0.001, help="Minimum predicted return required before taking a trade")
+    backtest_parser = sub.add_parser(
+        "backtest", help="Run a backtest using existing artifacts."
+    )
+    backtest_parser.add_argument(
+        "--symbols", nargs="+", required=True, help="Symbols to evaluate"
+    )
+    backtest_parser.add_argument(
+        "--limit", type=int, default=600, help="Number of candles per symbol"
+    )
+    backtest_parser.add_argument(
+        "--model-dir", type=Path, help="Directory with previously saved artifacts"
+    )
+    backtest_parser.add_argument(
+        "--entry-threshold",
+        type=float,
+        default=0.001,
+        help="Minimum predicted return required before taking a trade",
+    )
     backtest_parser.set_defaults(func=_handle_backtest)
 
     report_parser = sub.add_parser("report", help="Print the last training report.")
-    report_parser.add_argument("--model-dir", type=Path, help="Directory containing training_report.json")
-    report_parser.add_argument("--json", action="store_true", help="Emit the raw JSON instead of a summary")
+    report_parser.add_argument(
+        "--model-dir", type=Path, help="Directory containing training_report.json"
+    )
+    report_parser.add_argument(
+        "--json", action="store_true", help="Emit the raw JSON instead of a summary"
+    )
     report_parser.set_defaults(func=_handle_report)
 
     parser.set_defaults(func=_handle_train)

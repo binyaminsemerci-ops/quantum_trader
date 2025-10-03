@@ -5,16 +5,12 @@ Komplett system som fungerer fra bunn - alle endpoints frontend trenger
 """
 
 import asyncio
-import json
 import time
 import threading
-import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Dict, Any, List
-from dataclasses import dataclass
+from typing import List
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
@@ -44,7 +40,7 @@ system_state = {
     "testnet": True,
 }
 
-# AI state 
+# AI state
 ai_state = {
     "learning_active": False,
     "symbols_monitored": 0,
@@ -95,6 +91,7 @@ websocket_connections: List[WebSocket] = []
 # 3. ALLE ENDPOINTS SOM FRONTEND TRENGER
 # ===========================================
 
+
 @app.get("/api/v1/system/status")
 def get_system_status():
     """System status endpoint"""
@@ -105,8 +102,9 @@ def get_system_status():
         "uptime": f"{uptime // 60} min",
         "binance_keys": system_state["binance_keys"],
         "testnet": system_state["testnet"],
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
 
 @app.get("/api/v1/portfolio")
 @app.get("/api/v1/portfolio/")
@@ -116,8 +114,9 @@ def get_portfolio():
         "total_value": portfolio_state["total_value"],
         "positions": portfolio_state["positions"],
         "pnl_percent": portfolio_state["pnl_percent"],
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
 
 @app.get("/api/v1/portfolio/market-overview")
 def get_market_overview():
@@ -126,21 +125,25 @@ def get_market_overview():
         "market_cap": portfolio_state["market_cap"],
         "volume_24h": portfolio_state["volume_24h"],
         "fear_greed": portfolio_state["fear_greed"],
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
 
 @app.get("/api/v1/signals/recent")
 def get_recent_signals(limit: int = 5):
     """Recent trading signals"""
     signals = []
     for i in range(limit):
-        signals.append({
-            "symbol": "BTCUSDT",
-            "side": "buy" if i % 2 == 0 else "sell",
-            "confidence": 0.5 + (i * 0.1),
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        })
+        signals.append(
+            {
+                "symbol": "BTCUSDT",
+                "side": "buy" if i % 2 == 0 else "sell",
+                "confidence": 0.5 + (i * 0.1),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
     return signals
+
 
 # AI Trading endpoints
 @app.get("/api/v1/ai-trading/status")
@@ -156,34 +159,38 @@ def get_ai_trading_status():
             "learning_active": ai_state["learning_active"],
             "symbols_monitored": ai_state["symbols_monitored"],
             "data_points": ai_state["data_points"],
-            "continuous_learning_status": "Active" if ai_state["learning_active"] else "Inactive",
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "continuous_learning_status": (
+                "Active" if ai_state["learning_active"] else "Inactive"
+            ),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+
 
 @app.post("/api/v1/continuous-learning/start")
 def start_continuous_learning():
     """Start continuous learning"""
     symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
-    
+
     with state_lock:
         ai_state["learning_active"] = True
         ai_state["symbols_monitored"] = len(symbols)
         ai_state["data_points"] = 150
         ai_state["model_accuracy"] = 0.75
-        
+
     # Start background learning simulation
     threading.Thread(target=simulate_learning, daemon=True).start()
-        
+
     return {
         "status": "Continuous Learning Started",
         "message": "Real-time AI strategy evolution from live data feeds",
         "symbols": symbols,
         "twitter_analysis": "ACTIVE",
         "market_feeds": "ACTIVE",
-        "model_training": "ACTIVE", 
+        "model_training": "ACTIVE",
         "enhanced_sources": "ACTIVE",
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
 
 @app.get("/api/v1/continuous-learning/status")
 def get_learning_status():
@@ -196,9 +203,9 @@ def get_learning_status():
                 "data_points": 0,
                 "model_accuracy": 0.0,
                 "status": "Inactive",
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
-            
+
         return {
             "learning_active": True,
             "symbols_monitored": ai_state["symbols_monitored"],
@@ -209,19 +216,21 @@ def get_learning_status():
             "twitter_sentiment": "ACTIVE",
             "market_data": "ACTIVE",
             "enhanced_feeds": "ACTIVE",
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+
 
 # ===========================================
 # 4. WEBSOCKET ENDPOINTS
 # ===========================================
+
 
 @app.websocket("/ws/dashboard")
 async def dashboard_websocket(websocket: WebSocket):
     """Main dashboard WebSocket"""
     await websocket.accept()
     websocket_connections.append(websocket)
-    
+
     try:
         while True:
             # Send dashboard data every 5 seconds
@@ -232,67 +241,78 @@ async def dashboard_websocket(websocket: WebSocket):
                 "ai_status": get_ai_trading_status(),
                 "learning_status": get_learning_status(),
                 "signals": get_recent_signals(5),
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             await websocket.send_json(data)
             await asyncio.sleep(5)
-            
+
     except WebSocketDisconnect:
         websocket_connections.remove(websocket)
+
 
 @app.websocket("/api/v1/watchlist/ws/watchlist")
 async def watchlist_websocket(websocket: WebSocket, symbols: str = "", limit: int = 60):
     """Watchlist WebSocket for coin table"""
     await websocket.accept()
-    
+
     try:
         # Parse symbols parameter
-        symbol_list = symbols.split(',') if symbols else list(crypto_data.keys())
-        
+        symbol_list = symbols.split(",") if symbols else list(crypto_data.keys())
+
         while True:
             # Send crypto data for coin table
             watchlist_data = []
             for symbol in symbol_list:
                 if symbol in crypto_data:
                     data = crypto_data[symbol]
-                    watchlist_data.append({
-                        "symbol": symbol,
-                        "price": data["price"],
-                        "change24h": data["change_24h"],
-                        "volume24h": data["volume_24h"],
-                        "sparkline": [data["price"] * (1 + i*0.001) for i in range(10)],
-                        "ts": datetime.now(timezone.utc).isoformat()
-                    })
-            
+                    watchlist_data.append(
+                        {
+                            "symbol": symbol,
+                            "price": data["price"],
+                            "change24h": data["change_24h"],
+                            "volume24h": data["volume_24h"],
+                            "sparkline": [
+                                data["price"] * (1 + i * 0.001) for i in range(10)
+                            ],
+                            "ts": datetime.now(timezone.utc).isoformat(),
+                        }
+                    )
+
             await websocket.send_json(watchlist_data)
             await asyncio.sleep(2)  # Update every 2 seconds
-            
+
     except WebSocketDisconnect:
         pass
 
-@app.websocket("/ws/chat") 
+
+@app.websocket("/ws/chat")
 async def chat_websocket(websocket: WebSocket):
     """Chat WebSocket"""
     await websocket.accept()
-    
+
     try:
         while True:
             await websocket.receive_text()  # Just accept messages
             await websocket.send_json({"status": "received"})
-            
+
     except WebSocketDisconnect:
         pass
+
 
 # ===========================================
 # 5. ENHANCED DATA ENDPOINTS
 # ===========================================
+
 
 @app.get("/api/v1/enhanced/data")
 def get_enhanced_data():
     """Enhanced data feeds"""
     return {
         "sources": 7,
-        "coingecko": {"status": "active", "last_update": datetime.now(timezone.utc).isoformat()},
+        "coingecko": {
+            "status": "active",
+            "last_update": datetime.now(timezone.utc).isoformat(),
+        },
         "fear_greed": {"value": 52, "classification": "Neutral"},
         "reddit_sentiment": {"btc": 0.65, "eth": 0.32, "ada": -0.21},
         "cryptocompare_news": {"count": 15, "sentiment": "positive"},
@@ -302,14 +322,16 @@ def get_enhanced_data():
             "market_regime": "BULL",
             "volatility": 2.5,
             "trend_strength": 3.2,
-            "sentiment_score": 0.65
+            "sentiment_score": 0.65,
         },
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
 
 # ===========================================
 # 6. BACKGROUND SIMULATION FUNCTIONS
 # ===========================================
+
 
 def simulate_learning():
     """Simulate continuous learning in background"""
@@ -318,15 +340,17 @@ def simulate_learning():
         with state_lock:
             ai_state["data_points"] += 5
             ai_state["model_accuracy"] = min(0.95, ai_state["model_accuracy"] + 0.001)
-            
+
         # Update crypto prices slightly
         for symbol in crypto_data:
             change = (time.time() % 10 - 5) * 0.001
-            crypto_data[symbol]["price"] *= (1 + change)
+            crypto_data[symbol]["price"] *= 1 + change
+
 
 # ===========================================
 # 7. STARTUP & MAIN
 # ===========================================
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -337,11 +361,7 @@ async def startup_event():
     print("🤖 AI system ready")
     print("📡 Enhanced data feeds ready")
 
+
 if __name__ == "__main__":
     print("🌟 STARTING HELHETLIG QUANTUM TRADER SYSTEM")
-    uvicorn.run(
-        app, 
-        host="0.0.0.0", 
-        port=8000,
-        log_level="info"
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

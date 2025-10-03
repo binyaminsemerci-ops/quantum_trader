@@ -15,7 +15,6 @@ Tests the new multi-source data feeds:
 import asyncio
 import pytest
 import logging
-import json
 from datetime import datetime
 import sys
 import os
@@ -25,23 +24,28 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.enhanced_data_feeds import EnhancedDataFeed, get_enhanced_market_data
 from backend.routes.external_data import (
-    enhanced_market_data, fear_greed_index, reddit_sentiment,
-    comprehensive_crypto_news, on_chain_metrics, market_indicators
+    enhanced_market_data,
+    fear_greed_index,
+    reddit_sentiment,
+    comprehensive_crypto_news,
 )
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
+
 
 @pytest.mark.asyncio
 async def test_enhanced_data_feeds():
     """Test all enhanced data feeds."""
     logger.info("🚀 Testing Enhanced Multi-Source Data Integration")
 
-    test_symbols = ['BTC', 'ETH', 'ADA', 'SOL']
+    test_symbols = ["BTC", "ETH", "ADA", "SOL"]
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("🔄 ENHANCED DATA FEED INTEGRATION TEST")
-    print("="*60)
+    print("=" * 60)
 
     # Test 1: Direct EnhancedDataFeed usage
     print("\n1️⃣ Testing Direct EnhancedDataFeed...")
@@ -51,10 +55,14 @@ async def test_enhanced_data_feeds():
             print(f"   ✅ Direct feed test passed - {len(all_data)} data sources")
 
             # Show AI insights
-            insights = all_data.get('ai_insights', {})
+            insights = all_data.get("ai_insights", {})
             if insights:
-                print(f"   🧠 Market Sentiment: {insights.get('market_sentiment', 'unknown')}")
-                print(f"   📊 Momentum Signals: {len(insights.get('momentum_signals', []))}")
+                print(
+                    f"   🧠 Market Sentiment: {insights.get('market_sentiment', 'unknown')}"
+                )
+                print(
+                    f"   📊 Momentum Signals: {len(insights.get('momentum_signals', []))}"
+                )
                 print(f"   ⚠️  Risk Factors: {len(insights.get('risk_factors', []))}")
         except Exception as e:
             print(f"   ❌ Direct feed test failed: {e}")
@@ -65,19 +73,21 @@ async def test_enhanced_data_feeds():
     # Fear & Greed Index
     try:
         fg_data = await fear_greed_index()
-        current_fg = fg_data.get('current', {})
-        print(f"   😱 Fear & Greed: {current_fg.get('value', 'N/A')} ({current_fg.get('value_classification', 'N/A')})")
+        current_fg = fg_data.get("current", {})
+        print(
+            f"   😱 Fear & Greed: {current_fg.get('value', 'N/A')} ({current_fg.get('value_classification', 'N/A')})"
+        )
     except Exception as e:
         print(f"   ❌ Fear & Greed test failed: {e}")
 
     # Reddit sentiment
     try:
         reddit_data = await reddit_sentiment(test_symbols[:3])  # Limit for speed
-        symbols_data = reddit_data.get('symbols', {})
+        symbols_data = reddit_data.get("symbols", {})
         print(f"   🔴 Reddit Sentiment: {len(symbols_data)} symbols analyzed")
         for symbol, data in symbols_data.items():
-            score = data.get('sentiment_score', 0)
-            posts = data.get('total_posts', 0)
+            score = data.get("sentiment_score", 0)
+            posts = data.get("total_posts", 0)
             print(f"      {symbol}: {score:.2f} sentiment, {posts} posts")
     except Exception as e:
         print(f"   ❌ Reddit sentiment test failed: {e}")
@@ -85,22 +95,26 @@ async def test_enhanced_data_feeds():
     # CoinGecko data
     try:
         enhanced_data = await enhanced_market_data(test_symbols)
-        coingecko_data = enhanced_data.get('data', {}).get('coingecko', {})
-        market_data = coingecko_data.get('market_data', [])
-        global_data = coingecko_data.get('global_data', {})
+        coingecko_data = enhanced_data.get("data", {}).get("coingecko", {})
+        market_data = coingecko_data.get("market_data", [])
+        global_data = coingecko_data.get("global_data", {})
 
-        print(f"   📈 CoinGecko: {len(market_data)} coins, Global market cap: ${global_data.get('total_market_cap', {}).get('usd', 0)/1e12:.2f}T")
+        print(
+            f"   📈 CoinGecko: {len(market_data)} coins, Global market cap: ${global_data.get('total_market_cap', {}).get('usd', 0)/1e12:.2f}T"
+        )
 
         if market_data:
             top_coin = market_data[0]
-            print(f"      Top coin: {top_coin.get('name', 'N/A')} - ${top_coin.get('current_price', 0):,.2f}")
+            print(
+                f"      Top coin: {top_coin.get('name', 'N/A')} - ${top_coin.get('current_price', 0):,.2f}"
+            )
     except Exception as e:
         print(f"   ❌ CoinGecko test failed: {e}")
 
     # News data
     try:
         news_data = await comprehensive_crypto_news()
-        news_items = news_data.get('news', [])
+        news_items = news_data.get("news", [])
         print(f"   📰 News: {len(news_items)} articles")
         if news_items:
             latest = news_items[0]
@@ -112,22 +126,32 @@ async def test_enhanced_data_feeds():
     print("\n3️⃣ Testing AI Insights Extraction...")
     try:
         full_enhanced_data = await get_enhanced_market_data(test_symbols)
-        insights = full_enhanced_data.get('ai_insights', {})
+        insights = full_enhanced_data.get("ai_insights", {})
 
         if insights:
-            print(f"   🧠 AI Analysis Complete:")
-            print(f"      Market Sentiment: {insights.get('market_sentiment', 'neutral').upper()}")
-            print(f"      Active Momentum Signals: {len(insights.get('momentum_signals', []))}")
-            print(f"      Risk Factors Identified: {len(insights.get('risk_factors', []))}")
-            print(f"      Opportunity Signals: {len(insights.get('opportunity_signals', []))}")
+            print("   🧠 AI Analysis Complete:")
+            print(
+                f"      Market Sentiment: {insights.get('market_sentiment', 'neutral').upper()}"
+            )
+            print(
+                f"      Active Momentum Signals: {len(insights.get('momentum_signals', []))}"
+            )
+            print(
+                f"      Risk Factors Identified: {len(insights.get('risk_factors', []))}"
+            )
+            print(
+                f"      Opportunity Signals: {len(insights.get('opportunity_signals', []))}"
+            )
 
-            regime = insights.get('regime_indicators', {})
+            regime = insights.get("regime_indicators", {})
             if regime:
                 print(f"      BTC Dominance: {regime.get('btc_dominance', 0):.1f}%")
-                print(f"      Market Stage: {regime.get('market_stage', 'unknown').upper()}")
+                print(
+                    f"      Market Stage: {regime.get('market_stage', 'unknown').upper()}"
+                )
 
             # Show active signals
-            momentum_signals = insights.get('momentum_signals', [])
+            momentum_signals = insights.get("momentum_signals", [])
             if momentum_signals:
                 print(f"      Active Signals: {', '.join(momentum_signals[:3])}")
         else:
@@ -143,11 +167,11 @@ async def test_enhanced_data_feeds():
     try:
         async with EnhancedDataFeed() as feed:
             # First call
-            data1 = await feed.get_all_enhanced_data(test_symbols)
+            await feed.get_all_enhanced_data(test_symbols)
             mid_time = datetime.now()
 
             # Second call (should use cache)
-            data2 = await feed.get_all_enhanced_data(test_symbols)
+            await feed.get_all_enhanced_data(test_symbols)
             end_time = datetime.now()
 
         first_call_ms = (mid_time - start_time).total_seconds() * 1000
@@ -161,69 +185,75 @@ async def test_enhanced_data_feeds():
         print(f"   ❌ Performance test failed: {e}")
 
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("✅ ENHANCED DATA INTEGRATION TEST COMPLETE")
-    print("="*60)
+    print("=" * 60)
 
-    print(f"\n📊 Test Summary:")
-    print(f"   • Multi-source data aggregation: ✅")
-    print(f"   • AI insights extraction: ✅")
-    print(f"   • Caching mechanism: ✅")
-    print(f"   • Error handling: ✅")
-    print(f"   • Performance optimization: ✅")
+    print("\n📊 Test Summary:")
+    print("   • Multi-source data aggregation: ✅")
+    print("   • AI insights extraction: ✅")
+    print("   • Caching mechanism: ✅")
+    print("   • Error handling: ✅")
+    print("   • Performance optimization: ✅")
 
-    print(f"\n🔥 Enhanced data feeds are ready for continuous learning!")
-    print(f"   The AI can now learn from:")
-    print(f"   • 📈 CoinGecko market data & global metrics")
-    print(f"   • 😱 Fear & Greed Index sentiment")
-    print(f"   • 🔴 Reddit community sentiment")
-    print(f"   • 📰 Multi-source crypto news")
-    print(f"   • ⛓️  On-chain metrics & indicators")
-    print(f"   • 🧠 AI-extracted market insights")
+    print("\n🔥 Enhanced data feeds are ready for continuous learning!")
+    print("   The AI can now learn from:")
+    print("   • 📈 CoinGecko market data & global metrics")
+    print("   • 😱 Fear & Greed Index sentiment")
+    print("   • 🔴 Reddit community sentiment")
+    print("   • 📰 Multi-source crypto news")
+    print("   • ⛓️  On-chain metrics & indicators")
+    print("   • 🧠 AI-extracted market insights")
+
 
 @pytest.mark.asyncio
 async def test_continuous_integration():
     """Test integration with continuous learning engine."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("🤖 CONTINUOUS LEARNING INTEGRATION TEST")
-    print("="*60)
+    print("=" * 60)
 
     try:
         from backend.continuous_learning_engine import ContinuousLearningEngine
 
         # Create engine with enhanced data
         engine = ContinuousLearningEngine(
-            symbols=['BTC', 'ETH'],
+            symbols=["BTC", "ETH"],
             twitter_update_interval=300,  # 5 min for test
-            market_update_interval=180,   # 3 min for test
-            training_interval=1800,       # 30 min for test
-            enhanced_fetch_interval=300   # 5 min for enhanced data
+            market_update_interval=180,  # 3 min for test
+            training_interval=1800,  # 30 min for test
+            enhanced_fetch_interval=300,  # 5 min for enhanced data
         )
 
         print("   🔧 Continuous Learning Engine created")
 
         # Test enhanced data fetching
         enhanced_data = await engine.fetch_enhanced_market_data()
-        insights = enhanced_data.get('ai_insights', {})
+        insights = enhanced_data.get("ai_insights", {})
 
-        print(f"   📡 Enhanced data fetch: ✅")
+        print("   📡 Enhanced data fetch: ✅")
         print(f"   🧠 AI insights available: {bool(insights)}")
 
         if insights:
-            print(f"      Market sentiment: {insights.get('market_sentiment', 'neutral')}")
+            print(
+                f"      Market sentiment: {insights.get('market_sentiment', 'neutral')}"
+            )
             print(f"      Signal strength: {len(insights.get('momentum_signals', []))}")
 
         # Test enhanced regime detection
-        market_data = {'BTC': {'volatility': 0.02, 'trend_strength': 0.01}}
-        sentiment_data = {'BTC': {'score': 0.2, 'label': 'slightly_bullish'}}
+        market_data = {"BTC": {"volatility": 0.02, "trend_strength": 0.01}}
+        sentiment_data = {"BTC": {"score": 0.2, "label": "slightly_bullish"}}
 
-        regime = engine.detect_enhanced_market_regime(market_data, sentiment_data, enhanced_data)
+        regime = engine.detect_enhanced_market_regime(
+            market_data, sentiment_data, enhanced_data
+        )
         print(f"   🌊 Enhanced regime detection: {regime.regime_type.upper()}")
 
         print("   ✅ Continuous learning integration successful!")
 
     except Exception as e:
         print(f"   ❌ Continuous learning test failed: {e}")
+
 
 if __name__ == "__main__":  # pragma: no cover
     asyncio.run(test_enhanced_data_feeds())
