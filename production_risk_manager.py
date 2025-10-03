@@ -202,7 +202,7 @@ class RiskManager:
         side: str,
         entry_price: float,
         signal_strength: float = 1.0,
-        market_data: dict | None = None,
+    market_data: dict[str, Any] | None = None,
     ) -> tuple[bool, dict[str, Any]]:
         """Validate if a trade signal should be executed based on risk rules.
 
@@ -364,7 +364,9 @@ class RiskManager:
         ) * 100
         self.portfolio.max_drawdown = max(self.portfolio.max_drawdown, current_drawdown)
 
-    def check_exit_conditions(self, current_prices: dict[str, float]) -> list[dict]:
+    def check_exit_conditions(
+        self, current_prices: dict[str, float]
+    ) -> list[dict[str, Any]]:
         """Check if any positions should be closed based on stop loss/take profit."""
         exit_signals: list[dict[str, Any]] = []
 

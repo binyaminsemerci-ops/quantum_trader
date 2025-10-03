@@ -266,10 +266,10 @@ def _get_active_model_meta():  # placed after definition for clarity
                 sortino = None
                 max_dd = None
                 try:
-                    if row.metrics_json:
+                    if getattr(row, "metrics_json", None):
                         import json as _json
 
-                        mj = _json.loads(row.metrics_json)
+                        mj = _json.loads(getattr(row, "metrics_json", "{}"))
                         bt = (mj.get("backtest") or {}) if isinstance(mj, dict) else {}
                         sharpe = bt.get("sharpe")
                         sortino = bt.get("sortino")
@@ -278,7 +278,7 @@ def _get_active_model_meta():  # placed after definition for clarity
                     logger.debug(f"Could not parse model metrics: {e}")
                 return {
                     "version": row.version,
-                    "tag": row.tag,
+                    "tag": getattr(row, "tag", None),
                     "id": row.id,
                     "sharpe": sharpe,
                     "sortino": sortino,

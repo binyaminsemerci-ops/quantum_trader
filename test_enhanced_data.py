@@ -11,20 +11,16 @@ Tests the new multi-source data feeds:
 - AI insights extraction
 """
 
-import sys
-import os
-ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
-BACKEND_DIR = os.path.join(ROOT_DIR, "backend")
-if BACKEND_DIR not in sys.path:
-    sys.path.insert(0, BACKEND_DIR)
+"""Enhanced Data Integration Tests.
+
+Path setup is handled centrally in `conftest.py`.
+"""
 
 import asyncio
 import logging
 from datetime import datetime, timezone
 
-import pytest
+import pytest  # noqa: F401
 
 from backend.enhanced_data_feeds import EnhancedDataFeed, get_enhanced_market_data
 from backend.routes.external_data import (

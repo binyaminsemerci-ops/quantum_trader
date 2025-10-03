@@ -1,6 +1,5 @@
 fastapi
 uvicorn
-sqlite3
 sqlalchemy
 xgboost
 pandas
@@ -11,3 +10,5 @@ binance
 python-dotenv
 pytest
 httpx
+websocket-client
+alembic

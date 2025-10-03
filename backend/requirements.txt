@@ -17,3 +17,4 @@ aiohttp==3.10.5
 python-binance==1.0.19
 cryptography==43.0.1
 prometheus_client==0.20.0
+alembic==1.13.2

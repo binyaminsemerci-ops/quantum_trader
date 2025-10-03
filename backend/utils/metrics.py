@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Awaitable, Callable, Protocol, Any
 
 from fastapi import APIRouter, Request, Response
 from prometheus_client import (
@@ -58,6 +59,10 @@ MODEL_PERF_SORTINO = Gauge(
     "Active model backtest Sortino ratio (downside risk adjusted)",
 )
 
+class _ASGIAppLike(Protocol):  # minimal interface for FastAPI/Starlette app
+    def middleware(self, name: str) -> Callable[[Callable[..., Any]], Any]: ...
+
+
 router = APIRouter()
 
 
@@ -67,9 +72,11 @@ def metrics_endpoint() -> Response:
     return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
 
-def add_metrics_middleware(app) -> None:
+def add_metrics_middleware(app: _ASGIAppLike) -> None:
     @app.middleware("http")
-    async def _metrics_middleware(request: Request, call_next):  # type: ignore
+    async def _metrics_middleware(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         path = request.url.path
         if path.startswith("/metrics"):
             return await call_next(request)
