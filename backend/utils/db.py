@@ -17,7 +17,10 @@ def get_all_trades():
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, symbol, side, quantity, price, timestamp FROM trades ORDER BY timestamp DESC"
+        (
+            "SELECT id, symbol, side, quantity, price, timestamp FROM trades "
+            "ORDER BY timestamp DESC"
+        )
     )
     rows = cursor.fetchall()
     conn.close()

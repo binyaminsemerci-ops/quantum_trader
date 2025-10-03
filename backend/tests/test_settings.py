@@ -1,7 +1,8 @@
 from backend.config import settings
 
-# tests may include placeholder literals; mark the whole file allowlisted for detect-secrets
-# to avoid CI false positives when test fixtures include dummy credentials.
+# tests may include placeholder literals; mark the whole file
+# allowlisted for detect-secrets to avoid CI false positives when test
+# fixtures include dummy credentials.
 # pragma: allowlist secret
 
 
