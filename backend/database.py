@@ -145,6 +145,84 @@ class Candle(Base):
         self.volume = volume
 
 
+class ModelRegistry(Base):
+    __tablename__ = "model_registry"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    model_name = Column(String(255), nullable=False)
+    version = Column(String(50), nullable=False)
+    is_active = Column(Integer, default=0)
+    created_at = Column(DateTime, default=func.now())
+    accuracy = Column(Float)
+    path = Column(String(500))
+    
+    def __init__(
+        self,
+        *,
+        model_name: str,
+        version: str,
+        is_active: int = 0,
+        accuracy: Optional[float] = None,
+        path: Optional[str] = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.model_name = model_name
+        self.version = version
+        self.is_active = is_active
+        self.accuracy = accuracy
+        self.path = path
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(20), nullable=False)
+    condition = Column(String(500), nullable=False)
+    threshold = Column(Float, nullable=False)
+    is_active = Column(Integer, default=1)
+    created_at = Column(DateTime, default=func.now())
+    
+    def __init__(
+        self,
+        *,
+        symbol: str,
+        condition: str,
+        threshold: float,
+        is_active: int = 1,
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.symbol = symbol
+        self.condition = condition
+        self.threshold = threshold
+        self.is_active = is_active
+
+
+class WatchlistEntry(Base):
+    __tablename__ = "watchlist"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(20), nullable=False, unique=True)
+    name = Column(String(100))
+    category = Column(String(50))
+    added_at = Column(DateTime, default=func.now())
+    
+    def __init__(
+        self,
+        *,
+        symbol: str,
+        name: Optional[str] = None,
+        category: Optional[str] = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.symbol = symbol
+        self.name = name
+        self.category = category
+
+
 class EquityPoint(Base):
     __tablename__ = "equity_curve"
 
@@ -276,6 +354,9 @@ __all__ = [
     "EquityPoint",
     "TrainingTask",
     "Settings",
+    "ModelRegistry",
+    "Alert", 
+    "WatchlistEntry",
     "get_session",
     "get_db",
     "session_scope",

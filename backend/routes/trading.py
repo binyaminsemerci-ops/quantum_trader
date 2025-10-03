@@ -3,7 +3,7 @@ API routes for controlling the Binance trading engine
 """
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import logging
 import asyncio
 
@@ -104,7 +104,7 @@ async def analyze_symbol(symbol: str) -> Dict[str, Any]:
 
 @router.post("/manual-trade")
 async def manual_trade(
-    symbol: str, action: str, quantity: float = None, force: bool = False
+    symbol: str, action: str, quantity: Optional[float] = None, force: bool = False
 ) -> Dict[str, Any]:
     """Execute a manual trade (bypassing AI if force=True)"""
     try:
@@ -232,9 +232,9 @@ async def get_trading_symbols() -> List[str]:
 
 @router.post("/update-config")
 async def update_trading_config(
-    max_position_size_usdc: float = None,
-    min_confidence_threshold: float = None,
-    risk_per_trade: float = None,
+    max_position_size_usdc: Optional[float] = None,
+    min_confidence_threshold: Optional[float] = None,
+    risk_per_trade: Optional[float] = None,
 ) -> Dict[str, str]:
     """Update trading configuration parameters"""
     try:
