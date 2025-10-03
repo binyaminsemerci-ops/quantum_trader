@@ -7,14 +7,13 @@ free so CI and tests that import it don't need external services.
 
 from __future__ import annotations
 
-from typing import List
-import logging
 import json
+import logging
 import os
+from typing import Dict, List
 
-from config.config import load_config
 from backend.utils.exchanges import _ADAPTER_REGISTRY
-from typing import Dict
+from config.config import load_config
 
 
 def _configure_logger() -> logging.Logger:

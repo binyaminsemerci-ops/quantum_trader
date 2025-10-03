@@ -5,14 +5,14 @@ Komplett system som fungerer fra bunn - alle endpoints frontend trenger
 """
 
 import asyncio
-import time
 import threading
+import time
 from datetime import datetime, timezone
 from typing import List
 
+import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 
 # ===========================================
 # 1. STABIL FASTAPI APP MED ALLE ENDPOINTS

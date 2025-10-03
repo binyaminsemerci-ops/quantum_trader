@@ -1,12 +1,13 @@
-from typing import List, Dict, Any, Optional, Mapping
+import asyncio
+import logging
 import os
 import pickle
-import logging
-import asyncio
+from typing import Any, Dict, List, Mapping, Optional
+
 import numpy as np
 
-from backend.utils.twitter_client import TwitterClient
 from backend.utils.cryptopanic_client import CryptoPanicClient
+from backend.utils.twitter_client import TwitterClient
 
 logger = logging.getLogger(__name__)
 
@@ -68,9 +69,14 @@ class XGBAgent:
         try:
             import pandas as _pd  # type: ignore[import-untyped]
 
+            from ai_engine.feature_engineer import (
+                add_sentiment_features as _add_sentiment_features,  # type: ignore[import-not-found, import-untyped]
+            )
+
             # local import for feature engineer; mypy in CI may not resolve ai_engine package here
-            from ai_engine.feature_engineer import add_technical_indicators as _add_technical_indicators  # type: ignore[import-not-found, import-untyped]
-            from ai_engine.feature_engineer import add_sentiment_features as _add_sentiment_features  # type: ignore[import-not-found, import-untyped]
+            from ai_engine.feature_engineer import (
+                add_technical_indicators as _add_technical_indicators,  # type: ignore[import-not-found, import-untyped]
+            )
         except Exception:
             logger.debug("Pandas or feature_engineer not available")
             raise
@@ -135,7 +141,8 @@ class XGBAgent:
             return {"action": "HOLD", "score": 0.0}
 
         # Cast to Any to satisfy static checkers that may not have pandas stubs
-        from typing import Any as _Any, cast as _cast
+        from typing import Any as _Any
+        from typing import cast as _cast
 
         feat_any = _cast(_Any, feat)
 
@@ -262,8 +269,10 @@ class XGBAgent:
         """
         try:
             # backend.routes.external_data is a runtime-only import; mypy may not see dynamic attributes
+            from typing import Any as _Any
+            from typing import cast as _cast
+
             import backend.routes as _br  # type: ignore[import-not-found]
-            from typing import Any as _Any, cast as _cast
 
             # obtain external_data dynamically to avoid mypy attr-defined errors
             external_data = _cast(_Any, getattr(_br, "external_data", None))

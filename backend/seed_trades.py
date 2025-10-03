@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
-from backend.database import session_scope, Trade, TradeLog, EquityPoint
+from backend.database import EquityPoint, Trade, TradeLog, session_scope
 
 
 def _clear_tables():

@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Query
-from typing import List, Dict, Literal, Annotated, Any
 import datetime
+from typing import Annotated, Any, Dict, List, Literal
+
+from fastapi import APIRouter, Query
 
 from backend.utils.market_data import fetch_recent_signals
 

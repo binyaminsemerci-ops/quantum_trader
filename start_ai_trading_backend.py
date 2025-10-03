@@ -5,9 +5,9 @@ Start Quantum Trader Backend with AI Auto Trading
 This script starts the backend server with AI auto trading capabilities.
 """
 
-import sys
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 

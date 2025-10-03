@@ -1,5 +1,6 @@
 from fastapi import FastAPI
-from backend.routes import trades, stats, chart
+
+from backend.routes import chart, stats, trades
 
 app = FastAPI(title="Quantum Trader API")
 

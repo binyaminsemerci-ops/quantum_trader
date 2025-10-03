@@ -9,8 +9,9 @@ import traceback
 
 try:
     import os
-    import uvicorn
     import sys
+
+    import uvicorn
 
     # Ensure project root is on sys.path so `import backend` works when run from
     # the repository root.

@@ -1,16 +1,22 @@
-from fastapi import APIRouter, HTTPException, Response, BackgroundTasks
-from pydantic import BaseModel
-from typing import List, Optional, Any
+import json
 import logging
 import os
 import pickle  # nosec B403 - pickle used to load internal model artifacts only
-import json
+from typing import Any, List, Optional, cast
+
 import numpy as np
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Response
+from pydantic import BaseModel
+
 from ai_engine.agents.xgb_agent import make_default_agent
 from ai_engine.train_and_save import train_and_save
+from backend.database import (  # type: ignore[attr-defined]
+    TrainingTask,
+    create_training_task,
+    get_session,
+    update_training_task,
+)
 from config.config import DEFAULT_SYMBOLS, settings
-from backend.database import create_training_task, update_training_task, get_session, TrainingTask  # type: ignore[attr-defined]
-from typing import cast
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

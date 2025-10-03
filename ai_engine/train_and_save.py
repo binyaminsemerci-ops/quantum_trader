@@ -1,5 +1,6 @@
-import os
 import asyncio
+import logging
+import os
 import pickle
 from typing import List, Optional
 
@@ -16,6 +17,8 @@ environments.
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "models")
 os.makedirs(MODEL_DIR, exist_ok=True)
+
+logger = logging.getLogger(__name__)
 
 
 class _SimpleScaler:
@@ -88,9 +91,14 @@ async def _fetch_symbol_data(symbol: str, limit: int = 600):
 
 def build_dataset(all_symbol_data):
     """Given list of (symbol, candles, sentiment, news) tuples, build X,y arrays."""
-    import pandas as pd  # type: ignore[import-untyped]
     import numpy as np
-    from ai_engine.feature_engineer import add_technical_indicators, add_sentiment_features, add_target  # type: ignore[import-not-found, import-untyped]
+    import pandas as pd  # type: ignore[import-untyped]
+
+    from ai_engine.feature_engineer import (  # type: ignore[import-not-found, import-untyped]
+        add_sentiment_features,
+        add_target,
+        add_technical_indicators,
+    )
 
     X_list = []
     y_list = []
@@ -105,7 +113,8 @@ def build_dataset(all_symbol_data):
             feat = add_technical_indicators(
                 df.rename(columns={"Close": "Close", "High": "High", "Low": "Low"})
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to process symbol {symbol}: {e}")
             continue
 
         # add sentiment/news aligned series
@@ -161,8 +170,8 @@ def save_artifacts(model, scaler, model_path, scaler_path):
         pickle.dump(scaler, f)
     # write simple metadata JSON next to model
     try:
-        import json
         import datetime
+        import json
 
         meta = {
             "model_path": model_path,
@@ -184,7 +193,9 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
     if symbols is None:
         # prefer USDC as the spot quote by default for training / dataset assembly
         try:
-            from config.config import DEFAULT_QUOTE  # type: ignore[import-not-found, import-untyped]
+            from config.config import (
+                DEFAULT_QUOTE,  # type: ignore[import-not-found, import-untyped]
+            )
 
             symbols = [f"BTC{DEFAULT_QUOTE}", f"ETH{DEFAULT_QUOTE}"]
         except Exception:

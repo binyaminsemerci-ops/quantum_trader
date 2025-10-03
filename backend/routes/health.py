@@ -1,7 +1,8 @@
 from fastapi import APIRouter
-from config.config import load_config, masked_config_summary
-from backend.utils.metrics import update_health_metric
+
 from backend.routes.settings import SETTINGS
+from backend.utils.metrics import update_health_metric
+from config.config import load_config, masked_config_summary
 
 router = APIRouter()
 

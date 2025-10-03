@@ -8,9 +8,9 @@ methods and registering them in get_exchange_client.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Protocol, Type
-import logging
 import datetime
+import logging
+from typing import Any, Dict, List, Optional, Protocol, Type
 
 # Import SETTINGS directly to avoid circular import through routes.__init__
 try:

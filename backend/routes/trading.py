@@ -2,10 +2,11 @@
 API routes for controlling the Binance trading engine
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from typing import Dict, Any, List, Optional
-import logging
 import asyncio
+import logging
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 # Use fully-qualified import to avoid ModuleNotFoundError when working directory differs
 from backend.services.binance_trading import get_trading_engine

@@ -4,8 +4,8 @@ Start the Enhanced Continuous Learning Engine with Live Data Feeds
 Dette starter AI-systemet som lærer kontinuerlig fra Twitter, nyheter og markedsdata
 """
 
-import sys
 import os
+import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 

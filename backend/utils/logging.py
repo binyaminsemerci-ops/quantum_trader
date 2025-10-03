@@ -7,7 +7,6 @@ import logging
 from logging.config import dictConfig
 from typing import Any, Dict
 
-
 DEFAULT_LOGGING_CONFIG: Dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,

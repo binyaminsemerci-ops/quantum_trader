@@ -5,8 +5,8 @@ Ikke stopp selv om noe går galt
 """
 
 import http.server
-import socketserver
 import json
+import socketserver
 import time
 import traceback
 from datetime import datetime, timezone
@@ -578,8 +578,8 @@ class RobustHandler(http.server.SimpleHTTPRequestHandler):
             print(traceback.format_exc())
             try:
                 self.wfile.write(b'{"error": "server error"}')
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Failed to send error response: {e}")
 
     def do_OPTIONS(self):
         try:

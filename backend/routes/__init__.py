@@ -10,23 +10,23 @@ registered predictably. This avoids import-order issues where tests may import
 # created when the package is imported. Keep the list explicit so linters
 # and tooling can see what's exported.
 from . import (
-    trades,
-    stats,
-    chart,
-    settings,
+    ai_trading,
     binance,
-    signals,
-    prices,
     candles,
-    stress,
-    trade_logs,
+    chart,
+    enhanced_api,
     health,
-    watchlist,
     layout,
     portfolio,
+    prices,
+    settings,
+    signals,
+    stats,
+    stress,
+    trade_logs,
+    trades,
     trading,
-    enhanced_api,
-    ai_trading,
+    watchlist,
 )
 
 __all__ = [

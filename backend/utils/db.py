@@ -1,7 +1,8 @@
-from typing import List, Dict, Any, cast
+from typing import Any, Dict, List, cast
+
 from sqlalchemy import select
 
-from backend.database import session_scope, Trade
+from backend.database import Trade, session_scope
 
 
 def get_all_trades() -> List[Dict[str, object]]:

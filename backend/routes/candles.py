@@ -1,12 +1,12 @@
-from fastapi import APIRouter, Query, Depends
-from typing import Annotated, Any, cast
-import logging
 import datetime
+import logging
+from typing import Annotated, Any, cast
 
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.database import get_session, Candle
+from backend.database import Candle, get_session
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

@@ -7,11 +7,13 @@ This wrapper fetches latest posts (public) filtered by symbol tag when possible.
 If no key is configured it returns an empty list / mock items.
 """
 
-from typing import Optional, List, Dict, Any
-from config.config import load_config  # type: ignore[import-not-found, import-untyped]
-import requests  # type: ignore[import-untyped]
 import time
 import warnings
+from typing import Any, Dict, List, Optional
+
+import requests  # type: ignore[import-untyped]
+
+from config.config import load_config  # type: ignore[import-not-found, import-untyped]
 
 _CACHE: Dict[str, Any] = {}
 

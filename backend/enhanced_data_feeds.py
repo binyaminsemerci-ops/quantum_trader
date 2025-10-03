@@ -12,11 +12,12 @@ Integrates multiple free APIs to provide comprehensive data feeds:
 """
 
 import asyncio
-import aiohttp
 import logging
-from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional
 import time
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+import aiohttp
 
 logger = logging.getLogger(__name__)
 

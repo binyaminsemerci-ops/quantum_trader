@@ -7,7 +7,7 @@ pipeline.
 
 from __future__ import annotations
 
-from typing import Dict, Any
+from typing import Any, Dict
 
 import pandas as pd
 

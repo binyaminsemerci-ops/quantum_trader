@@ -4,7 +4,7 @@ Complete System Test Runner
 
 Master test runner that executes all system tests:
 - Backend system tests
-- Frontend system tests  
+- Frontend system tests
 - End-to-end integration tests
 - Performance validation
 - Comprehensive reporting
@@ -18,7 +18,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 
 class SystemTestRunner:

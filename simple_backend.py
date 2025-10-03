@@ -2,8 +2,8 @@
 """
 Simple working backend for quantum trader with basic AI endpoints
 """
-from datetime import datetime, timezone
 import threading
+from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

@@ -7,10 +7,11 @@ It verifies that all endpoints work correctly and that the AI service can
 generate signals and execute trades.
 """
 
-import requests
 import json
-import sys
 import os
+import sys
+
+import requests
 
 # Backend URL
 BASE_URL = "http://127.0.0.1:8000"

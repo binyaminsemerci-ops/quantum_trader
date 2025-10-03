@@ -12,14 +12,14 @@ This script orchestrates the complete production deployment including:
 
 import argparse
 import logging
+import signal
 import sys
 import time
-from typing import Dict, Any
-import signal
+from typing import Any, Dict
 
 from config.config import settings
+from production_monitor import AlertConfig, PerformanceMonitor
 from production_risk_manager import RiskManager, RiskParameters
-from production_monitor import PerformanceMonitor, AlertConfig
 
 # Setup logging
 logging.basicConfig(

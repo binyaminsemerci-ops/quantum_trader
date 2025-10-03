@@ -1,40 +1,50 @@
-from contextlib import asynccontextmanager
 import signal
 import time as _time
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from backend.database import ModelRegistry, SessionLocal
+from backend.routes import (
+    ai_trading,
+    binance,
+    candles,
+    chart,
+    enhanced_api,
+    health,
+    layout,
+    portfolio,
+    prices,
+    settings,
+    signals,
+    stats,
+    stress,
+    trade_logs,
+    trades,
+    trading,
+    watchlist,
+)
+from backend.routes import (
+    ws as dashboard_ws,
+)
 
 # Use explicit backend.* imports to avoid ModuleNotFoundError when launched with different CWDs
 from backend.utils.logging import configure_logging, get_logger
 from backend.utils.metrics import (
-    router as metrics_router,
     add_metrics_middleware,
     update_model_info,
 )
-from backend.database import SessionLocal, ModelRegistry
-from backend.routes import (
-    trades,
-    stats,
-    chart,
-    settings,
-    binance,
-    signals,
-    prices,
-    candles,
-    stress,
-    trade_logs,
-    watchlist,
-    health,
-    layout,
-    portfolio,
-    trading,
-    ws as dashboard_ws,
-    enhanced_api,
-    ai_trading,
+from backend.utils.metrics import (
+    router as metrics_router,
 )
 
 try:
-    from backend.alerts.evaluator import evaluator_loop, register_ws, unregister_ws  # type: ignore
+    from backend.alerts.evaluator import (  # type: ignore
+        evaluator_loop,
+        register_ws,
+        unregister_ws,
+    )
 except Exception:  # pragma: no cover - optional component
 
     async def evaluator_loop(*_args, **_kwargs):  # type: ignore

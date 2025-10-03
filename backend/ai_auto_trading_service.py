@@ -13,17 +13,17 @@ Komplett implementering av AI-drevet automatisk handel:
 
 import json
 import logging
-import time
-from datetime import datetime, timezone, timedelta, date
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
-import threading
-from dataclasses import dataclass, asdict
+import os
 import sqlite3
 
 # Import existing components (adjust paths for backend location)
 import sys
-import os
+import threading
+import time
+from dataclasses import asdict, dataclass
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -37,7 +37,7 @@ XGBAgent = None
 make_default_agent = None
 
 try:
-    from ai_engine.agents.xgb_agent import make_default_agent, XGBAgent
+    from ai_engine.agents.xgb_agent import XGBAgent, make_default_agent
 except ImportError:
     # Mock XGBAgent for testing if ai_engine not available
     from typing import Any, Protocol
@@ -323,7 +323,7 @@ class AIAutoTradingService:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     """
-                    INSERT INTO trading_signals 
+                    INSERT INTO trading_signals
                     (symbol, action, confidence, predicted_return, timestamp, features_used, model_version)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -499,7 +499,7 @@ class AIAutoTradingService:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     """
-                    INSERT INTO trade_executions 
+                    INSERT INTO trade_executions
                     (signal_id, symbol, side, quantity, price, order_id, status, timestamp, ai_confidence)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -744,8 +744,8 @@ class AIAutoTradingService:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.execute(
                     """
-                    SELECT * FROM trading_signals 
-                    ORDER BY timestamp DESC 
+                    SELECT * FROM trading_signals
+                    ORDER BY timestamp DESC
                     LIMIT ?
                 """,
                     (limit,),
@@ -764,8 +764,8 @@ class AIAutoTradingService:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.execute(
                     """
-                    SELECT * FROM trade_executions 
-                    ORDER BY timestamp DESC 
+                    SELECT * FROM trade_executions
+                    ORDER BY timestamp DESC
                     LIMIT ?
                 """,
                     (limit,),
@@ -787,9 +787,9 @@ class AIAutoTradingService:
                 if symbol:
                     cursor = conn.execute(
                         """
-                        SELECT * FROM trade_executions 
+                        SELECT * FROM trade_executions
                         WHERE symbol = ?
-                        ORDER BY timestamp DESC 
+                        ORDER BY timestamp DESC
                         LIMIT ?
                     """,
                         (symbol, limit),
@@ -797,8 +797,8 @@ class AIAutoTradingService:
                 else:
                     cursor = conn.execute(
                         """
-                        SELECT * FROM trade_executions 
-                        ORDER BY timestamp DESC 
+                        SELECT * FROM trade_executions
+                        ORDER BY timestamp DESC
                         LIMIT ?
                     """,
                         (limit,),

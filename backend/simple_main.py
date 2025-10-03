@@ -2,23 +2,24 @@
 Simplified backend server for development
 """
 
+import asyncio
+import json
+import logging
+import os
+import sqlite3
+import threading
+import time as _time
+from datetime import datetime, timezone
+
+from ai_auto_trading_service import AIAutoTradingService
 from fastapi import (
+    BackgroundTasks,
     FastAPI,
     HTTPException,
-    BackgroundTasks,
     WebSocket,
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
-import asyncio
-import logging
-import json
-import sqlite3
-from datetime import datetime, timezone
-import os
-import threading
-import time as _time
-from ai_auto_trading_service import AIAutoTradingService
 
 # In-memory runtime state for auto-training + auto-trading (lightweight)
 runtime_state = {
@@ -49,8 +50,8 @@ _STATE_LOCK = threading.Lock()
 def _safe_log(msg: str):
     try:
         logger.info(msg)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Logging failed: {e}")  # fallback to print since logger failed
 
 
 def _run_periodic_training():
@@ -266,8 +267,8 @@ async def system_status():
         has_binance_keys = bool(cfg.binance_api_key and cfg.binance_api_secret)
         binance_testnet = bool(getattr(cfg, "binance_use_testnet", False))
         real_trading_enabled = bool(getattr(cfg, "enable_real_trading", False))
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as e:  # pragma: no cover
+        logger.warning(f"Failed to load config for status: {e}")
     return {
         "service": "quantum_trader_simple",
         "version": app.version,
@@ -297,7 +298,7 @@ async def get_portfolio():
         """
         SELECT symbol, SUM(CASE WHEN side='BUY' THEN quantity ELSE -quantity END) as position,
                AVG(price) as avg_price, SUM(pnl) as total_pnl
-        FROM trades 
+        FROM trades
         GROUP BY symbol
         HAVING position != 0
     """
@@ -440,8 +441,9 @@ market_data_cache = {
 @app.get("/portfolio/market-overview")  # Legacy endpoint
 async def get_market_overview():
     """Get market overview data with LIVE prices"""
-    import aiohttp
     import time
+
+    import aiohttp
 
     # Check cache first to avoid rate limiting
     current_time = time.time()
