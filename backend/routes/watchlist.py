@@ -1,10 +1,13 @@
 import asyncio
+import logging
 from typing import List, Dict, Annotated
 from fastapi import APIRouter, Query, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 from backend.utils.market_data import fetch_recent_candles
 from backend.database import session_scope, WatchlistEntry, Alert
 from backend.alerts.evaluator import register_ws, unregister_ws
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -192,8 +195,10 @@ def _generate_extended_watchlist() -> List[Dict]:
                 latest = candles[-1]
                 if latest.get("close"):
                     live_prices[symbol] = latest["close"]
-        except Exception:
-            pass  # Fall back to demo data
+        except Exception as e:
+            logger.debug(
+                f"Failed to fetch live price for {symbol}: {e}"
+            )  # Fall back to demo data
 
     for sym, name, demo_price, cat in base:
         # Use live price if available, otherwise demo + randomization
