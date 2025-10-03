@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ROBUST HTTP SERVER
-Ikke stopp selv om noe går galt
+Ikke stopp selv om noe går galt.
 """
 
 import http.server
@@ -33,7 +33,7 @@ ai_state = {
 
 class RobustHandler(http.server.SimpleHTTPRequestHandler):
     def generate_extended_watchlist(self):
-        """Generate comprehensive watchlist with 50+ coins from major exchanges and L1/L2"""
+        """Generate comprehensive watchlist with 50+ coins from major exchanges and L1/L2."""
         import random
 
         # Base coin data with realistic pricing
@@ -386,7 +386,7 @@ class RobustHandler(http.server.SimpleHTTPRequestHandler):
         return watchlist
 
     def generate_chart_data(self, symbol):
-        """Generate realistic chart data for a specific symbol"""
+        """Generate realistic chart data for a specific symbol."""
         import random
         from datetime import timedelta
 

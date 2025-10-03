@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Production Risk Management System
+"""Production Risk Management System.
 
 This module implements comprehensive risk management features including:
 - Position sizing based on account equity
@@ -200,7 +200,7 @@ class RiskManager:
     ) -> Tuple[bool, Dict[str, Any]]:
         """Validate if a trade signal should be executed based on risk rules.
 
-        Returns:
+        Returns
         -------
             Tuple of (is_valid, validation_info)
 

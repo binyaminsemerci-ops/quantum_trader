@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Simple working backend for quantum trader with basic AI endpoints"""
+"""Simple working backend for quantum trader with basic AI endpoints."""
 
 import threading
 from datetime import datetime, timezone
@@ -34,7 +34,7 @@ _state_lock = threading.Lock()
 
 @app.get("/api/v1/system/status")
 def get_system_status():
-    """Get system status"""
+    """Get system status."""
     return {
         "status": "online",
         "service": "quantum_trader_core",
@@ -46,7 +46,7 @@ def get_system_status():
 
 @app.get("/api/v1/ai-trading/status")
 def get_ai_trading_status():
-    """Get AI trading status"""
+    """Get AI trading status."""
     with _state_lock:
         return {
             "enabled": _ai_state["enabled"],
@@ -66,7 +66,7 @@ def get_ai_trading_status():
 
 @app.post("/api/v1/continuous-learning/start")
 async def start_continuous_learning(symbols: list[str] = None):
-    """Start continuous learning"""
+    """Start continuous learning."""
     if symbols is None:
         symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
 
@@ -90,7 +90,7 @@ async def start_continuous_learning(symbols: list[str] = None):
 
 @app.get("/api/v1/continuous-learning/status")
 async def get_learning_status():
-    """Get continuous learning status"""
+    """Get continuous learning status."""
     with _state_lock:
         if not _ai_state["learning_active"]:
             return {
@@ -118,7 +118,7 @@ async def get_learning_status():
 
 @app.post("/api/v1/continuous-learning/stop")
 async def stop_continuous_learning():
-    """Stop continuous learning"""
+    """Stop continuous learning."""
     with _state_lock:
         _ai_state["learning_active"] = False
         _ai_state["symbols_monitored"] = 0
@@ -132,19 +132,19 @@ async def stop_continuous_learning():
 
 @app.get("/api/v1/portfolio")
 async def get_portfolio():
-    """Get portfolio data"""
+    """Get portfolio data."""
     return {"total_value": 861498, "positions": 1, "pnl_percent": -38.50}
 
 
 @app.get("/api/v1/portfolio/market-overview")
 async def get_market_overview():
-    """Get market overview"""
+    """Get market overview."""
     return {"market_cap": 1000000000, "volume_24h": 1000000, "fear_greed": 52}
 
 
 @app.get("/api/v1/signals/recent")
 async def get_recent_signals(limit: int = 5):
-    """Get recent signals"""
+    """Get recent signals."""
     return [
         {
             "symbol": "BTCUSDT",

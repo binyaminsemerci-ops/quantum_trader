@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Frontend System Tests
+"""Frontend System Tests.
 
 Comprehensive tests for the Quantum Trader frontend including:
 - Component rendering tests

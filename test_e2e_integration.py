@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-End System Integration Tests
+"""End-to-End System Integration Tests.
 
 Comprehensive integration tests for the complete Quantum Trader system including:
 - Full stack integration (Frontend + Backend + AI)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AI Auto Trading Integration Test
+"""AI Auto Trading Integration Test.
 
 This script tests the AI Auto Trading Service integration with the backend.
 It verifies that all endpoints work correctly and that the AI service can
@@ -17,7 +17,7 @@ BASE_URL = "http://127.0.0.1:8000"
 
 
 def test_endpoint(method, endpoint, data=None, description=""):
-    """Test a single API endpoint"""
+    """Test a single API endpoint."""
     url = f"{BASE_URL}{endpoint}"
 
     print(f"\n🧪 Testing {method} {endpoint}")

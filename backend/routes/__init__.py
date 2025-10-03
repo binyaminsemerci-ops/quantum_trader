@@ -1,4 +1,4 @@
-"""backend.routes package
+"""backend.routes package.
 
 Import the submodules at package import time so that router-side-effects are
 registered predictably. This avoids import-order issues where tests may import

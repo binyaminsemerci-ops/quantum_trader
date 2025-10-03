@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """HELHETLIG QUANTUM TRADER BACKEND
-Komplett system som fungerer fra bunn - alle endpoints frontend trenger
+Komplett system som fungerer fra bunn - alle endpoints frontend trenger.
 """
 
 import asyncio
@@ -93,7 +93,7 @@ websocket_connections: List[WebSocket] = []
 
 @app.get("/api/v1/system/status")
 def get_system_status():
-    """System status endpoint"""
+    """System status endpoint."""
     uptime = int(time.time() - system_state["uptime_start"])
     return {
         "status": "online",
@@ -108,7 +108,7 @@ def get_system_status():
 @app.get("/api/v1/portfolio")
 @app.get("/api/v1/portfolio/")
 def get_portfolio():
-    """Portfolio data"""
+    """Portfolio data."""
     return {
         "total_value": portfolio_state["total_value"],
         "positions": portfolio_state["positions"],
@@ -119,7 +119,7 @@ def get_portfolio():
 
 @app.get("/api/v1/portfolio/market-overview")
 def get_market_overview():
-    """Market overview data"""
+    """Market overview data."""
     return {
         "market_cap": portfolio_state["market_cap"],
         "volume_24h": portfolio_state["volume_24h"],
@@ -130,7 +130,7 @@ def get_market_overview():
 
 @app.get("/api/v1/signals/recent")
 def get_recent_signals(limit: int = 5):
-    """Recent trading signals"""
+    """Recent trading signals."""
     signals = []
     for i in range(limit):
         signals.append(
@@ -147,7 +147,7 @@ def get_recent_signals(limit: int = 5):
 # AI Trading endpoints
 @app.get("/api/v1/ai-trading/status")
 def get_ai_trading_status():
-    """AI trading status"""
+    """AI trading status."""
     with state_lock:
         return {
             "enabled": ai_state["enabled"],
@@ -167,7 +167,7 @@ def get_ai_trading_status():
 
 @app.post("/api/v1/continuous-learning/start")
 def start_continuous_learning():
-    """Start continuous learning"""
+    """Start continuous learning."""
     symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
 
     with state_lock:
@@ -193,7 +193,7 @@ def start_continuous_learning():
 
 @app.get("/api/v1/continuous-learning/status")
 def get_learning_status():
-    """Continuous learning status"""
+    """Continuous learning status."""
     with state_lock:
         if not ai_state["learning_active"]:
             return {
@@ -226,7 +226,7 @@ def get_learning_status():
 
 @app.websocket("/ws/dashboard")
 async def dashboard_websocket(websocket: WebSocket):
-    """Main dashboard WebSocket"""
+    """Main dashboard WebSocket."""
     await websocket.accept()
     websocket_connections.append(websocket)
 
@@ -251,7 +251,7 @@ async def dashboard_websocket(websocket: WebSocket):
 
 @app.websocket("/api/v1/watchlist/ws/watchlist")
 async def watchlist_websocket(websocket: WebSocket, symbols: str = "", limit: int = 60):
-    """Watchlist WebSocket for coin table"""
+    """Watchlist WebSocket for coin table."""
     await websocket.accept()
 
     try:
@@ -286,7 +286,7 @@ async def watchlist_websocket(websocket: WebSocket, symbols: str = "", limit: in
 
 @app.websocket("/ws/chat")
 async def chat_websocket(websocket: WebSocket):
-    """Chat WebSocket"""
+    """Chat WebSocket."""
     await websocket.accept()
 
     try:
@@ -305,7 +305,7 @@ async def chat_websocket(websocket: WebSocket):
 
 @app.get("/api/v1/enhanced/data")
 def get_enhanced_data():
-    """Enhanced data feeds"""
+    """Enhanced data feeds."""
     return {
         "sources": 7,
         "coingecko": {
@@ -333,7 +333,7 @@ def get_enhanced_data():
 
 
 def simulate_learning():
-    """Simulate continuous learning in background"""
+    """Simulate continuous learning in background."""
     while ai_state["learning_active"]:
         time.sleep(60)  # Update every minute
         with state_lock:
@@ -353,7 +353,7 @@ def simulate_learning():
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize system on startup"""
+    """Initialize system on startup."""
     print("🚀 Quantum Trader Helhetlig System Started")
     print("📊 All endpoints active")
     print("🔌 WebSocket connections ready")

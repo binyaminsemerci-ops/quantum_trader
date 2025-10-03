@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Quick AI Test Script - Kjøre rask AI modell test
+"""Quick AI Test Script - Kjøre rask AI modell test.
 =============================================
 
 Dette skriptet kjører en rask test av AI-systemet med færre symboler for rask validering.
@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 def run_quick_ai_test():
-    """Run a quick AI test and show results"""
+    """Run a quick AI test and show results."""
     print("🚀 Starter rask AI modell test...")
     print("=" * 60)
 
@@ -100,7 +100,7 @@ def run_quick_ai_test():
 
 
 def show_model_info():
-    """Show information about saved model"""
+    """Show information about saved model."""
     try:
         from ai_engine.train_and_save import load_report
 

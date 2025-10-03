@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Quick AI Trading Service Test
+"""Quick AI Trading Service Test.
 
 A minimal test to verify the AI trading service works.
 """

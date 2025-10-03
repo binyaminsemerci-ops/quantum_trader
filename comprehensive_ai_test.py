@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Comprehensive AI Model Test Script for Quantum Trader
+"""Comprehensive AI Model Test Script for Quantum Trader.
 ====================================================
 
 Dette skriptet kjører en fullstendig test av AI-systemet inkludert:
@@ -83,7 +83,7 @@ TEST_CONFIGS = {
 
 
 class AITestRunner:
-    """Comprehensive AI model test runner"""
+    """Comprehensive AI model test runner."""
 
     def __init__(self, output_dir: Path = None):
         self.output_dir = output_dir or Path("test_results")
@@ -92,7 +92,7 @@ class AITestRunner:
         self.start_time = datetime.now()
 
     def log_result(self, test_name: str, result: Dict[str, Any], duration: float):
-        """Log test result with metadata"""
+        """Log test result with metadata."""
         test_result = {
             "test_name": test_name,
             "timestamp": datetime.now().isoformat(),
@@ -112,7 +112,7 @@ class AITestRunner:
     def run_training_test(
         self, config_name: str, config: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        """Run training test with given configuration"""
+        """Run training test with given configuration."""
         logger.info(f"Starting training test: {config_name}")
         logger.info(f"Description: {config['description']}")
 
@@ -154,7 +154,7 @@ class AITestRunner:
     def run_backtest_variations(
         self, config_name: str, config: Dict[str, Any], model_dir: Path = None
     ) -> List[Dict[str, Any]]:
-        """Run backtest with different entry thresholds"""
+        """Run backtest with different entry thresholds."""
         logger.info(f"Running backtest variations for {config_name}")
 
         symbols = config["symbols"]
@@ -198,7 +198,7 @@ class AITestRunner:
         return results
 
     def run_model_validation(self, model_dir: Path) -> Optional[Dict[str, Any]]:
-        """Validate trained model artifacts and report"""
+        """Validate trained model artifacts and report."""
         logger.info("Validating model artifacts")
 
         validation_result = {
@@ -257,7 +257,7 @@ class AITestRunner:
         return validation_result
 
     def run_performance_comparison(self) -> Dict[str, Any]:
-        """Compare performance across different test configurations"""
+        """Compare performance across different test configurations."""
         logger.info("Running performance comparison")
 
         comparison = {
@@ -336,7 +336,7 @@ class AITestRunner:
         return comparison
 
     def generate_summary_report(self):
-        """Generate comprehensive summary report"""
+        """Generate comprehensive summary report."""
         logger.info("Generating summary report")
 
         summary_file = self.output_dir / f"test_summary_{int(time.time())}.json"
@@ -381,7 +381,7 @@ class AITestRunner:
 
 
 def run_quick_test(runner: AITestRunner):
-    """Run quick test configuration"""
+    """Run quick test configuration."""
     config = TEST_CONFIGS["quick"]
     result = runner.run_training_test("quick", config)
     if result:
@@ -390,7 +390,7 @@ def run_quick_test(runner: AITestRunner):
 
 
 def run_standard_test(runner: AITestRunner):
-    """Run standard test configuration"""
+    """Run standard test configuration."""
     config = TEST_CONFIGS["standard"]
     result = runner.run_training_test("standard", config)
     if result:
@@ -398,7 +398,7 @@ def run_standard_test(runner: AITestRunner):
 
 
 def run_comprehensive_test(runner: AITestRunner):
-    """Run comprehensive test configuration"""
+    """Run comprehensive test configuration."""
     config = TEST_CONFIGS["comprehensive"]
     result = runner.run_training_test("comprehensive", config)
     if result:
@@ -406,7 +406,7 @@ def run_comprehensive_test(runner: AITestRunner):
 
 
 def run_stress_test(runner: AITestRunner):
-    """Run stress test configuration"""
+    """Run stress test configuration."""
     config = TEST_CONFIGS["stress"]
     result = runner.run_training_test("stress", config)
     if result:

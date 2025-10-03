@@ -1,4 +1,4 @@
-"""AI Trading routes for status and control endpoints"""
+"""AI Trading routes for status and control endpoints."""
 
 import threading
 from datetime import datetime, timezone
@@ -31,7 +31,7 @@ _state_lock = threading.Lock()
 
 @router.get("/ai-trading/status")
 async def get_ai_trading_status() -> Dict[str, Any]:
-    """Get AI auto trading status and performance metrics"""
+    """Get AI auto trading status and performance metrics."""
     try:
         with _state_lock:
             return {
@@ -55,7 +55,7 @@ async def get_ai_trading_status() -> Dict[str, Any]:
 
 @router.post("/ai-trading/start")
 async def start_ai_trading(symbols: Optional[list[str]] = None) -> Dict[str, Any]:
-    """Start AI auto trading for specified symbols"""
+    """Start AI auto trading for specified symbols."""
     try:
         if symbols is None:
             symbols = ["BTCUSDT", "ETHUSDT"]  # Default symbols
@@ -76,7 +76,7 @@ async def start_ai_trading(symbols: Optional[list[str]] = None) -> Dict[str, Any
 
 @router.post("/ai-trading/stop")
 async def stop_ai_trading() -> Dict[str, Any]:
-    """Stop AI auto trading"""
+    """Stop AI auto trading."""
     try:
         with _state_lock:
             _ai_trading_state["enabled"] = False
@@ -95,7 +95,7 @@ async def stop_ai_trading() -> Dict[str, Any]:
 async def start_continuous_learning(
     symbols: Optional[list[str]] = None,
 ) -> Dict[str, Any]:
-    """Start continuous learning engine with live data feeds"""
+    """Start continuous learning engine with live data feeds."""
     try:
         if symbols is None:
             symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
@@ -126,7 +126,7 @@ async def start_continuous_learning(
 
 @router.post("/continuous-learning/stop")
 async def stop_continuous_learning() -> Dict[str, Any]:
-    """Stop continuous learning engine"""
+    """Stop continuous learning engine."""
     global _learning_engine
 
     try:
@@ -151,7 +151,7 @@ async def stop_continuous_learning() -> Dict[str, Any]:
 
 @router.get("/continuous-learning/status")
 async def get_learning_status() -> Dict[str, Any]:
-    """Get continuous learning engine status"""
+    """Get continuous learning engine status."""
     try:
         with _state_lock:
             learning_active = _ai_trading_state["learning_active"]
@@ -197,7 +197,7 @@ async def get_learning_status() -> Dict[str, Any]:
 def update_ai_stats(
     signal_count: Optional[int] = None, accuracy: Optional[float] = None
 ):
-    """Update AI trading statistics"""
+    """Update AI trading statistics."""
     with _state_lock:
         if signal_count is not None:
             _ai_trading_state["total_signals"] = signal_count

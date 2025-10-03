@@ -1,4 +1,4 @@
-"""Simplified backend server for development"""
+"""Simplified backend server for development."""
 
 import asyncio
 import json
@@ -181,7 +181,7 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "quantum_trader.db")
 
 
 def get_db_connection():
-    """Get database connection"""
+    """Get database connection."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -189,7 +189,7 @@ def get_db_connection():
 
 # Initialize database with basic tables
 def init_db():
-    """Initialize database with basic tables"""
+    """Initialize database with basic tables."""
     conn = get_db_connection()
 
     # Create trades table
@@ -288,7 +288,7 @@ async def system_status():
 @app.get("/api/v1/portfolio")
 @app.get("/portfolio")  # Legacy endpoint
 async def get_portfolio():
-    """Get portfolio data"""
+    """Get portfolio data."""
     conn = get_db_connection()
 
     # Calculate portfolio metrics from trades
@@ -388,7 +388,7 @@ async def get_portfolio():
 @app.get("/api/v1/portfolio/pnl")
 @app.get("/portfolio/pnl")  # Legacy endpoint
 async def get_pnl():
-    """Get P&L data"""
+    """Get P&L data."""
     conn = get_db_connection()
 
     # Get total P&L from trades and calculate realistic metrics
@@ -438,7 +438,7 @@ market_data_cache = {
 @app.get("/api/v1/portfolio/market-overview")
 @app.get("/portfolio/market-overview")  # Legacy endpoint
 async def get_market_overview():
-    """Get market overview data with LIVE prices"""
+    """Get market overview data with LIVE prices."""
     import time
 
     import aiohttp
@@ -618,7 +618,7 @@ async def get_market_overview():
 @app.get("/api/v1/stats")
 @app.get("/stats")  # Legacy endpoint
 async def get_stats():
-    """Get trading statistics"""
+    """Get trading statistics."""
     conn = get_db_connection()
 
     # Calculate realistic trading statistics
@@ -656,7 +656,7 @@ async def get_stats():
 @app.get("/api/v1/trading/status")
 @app.get("/trading/status")  # Legacy endpoint
 async def get_trading_status():
-    """Get trading engine status"""
+    """Get trading engine status."""
     return {
         "is_running": False,  # Mock - not running yet
         "ai_model_loaded": False,
@@ -678,7 +678,7 @@ async def get_trading_status():
 @app.post("/api/v1/trading/start")
 @app.post("/trading/start")  # Legacy endpoint
 async def start_trading(interval_minutes: int = 5):
-    """Start AI trading engine"""
+    """Start AI trading engine."""
     # Enable background trading loop (demo)
     with _STATE_LOCK:
         runtime_state["trading_cycle_interval_sec"] = interval_minutes * 60
@@ -694,7 +694,7 @@ async def start_trading(interval_minutes: int = 5):
 @app.post("/api/v1/trading/stop")
 @app.post("/trading/stop")  # Legacy endpoint
 async def stop_trading():
-    """Stop AI trading engine"""
+    """Stop AI trading engine."""
     _stop_trading_thread()
     return {
         "message": "Trading engine stop requested",
@@ -705,7 +705,7 @@ async def stop_trading():
 @app.post("/api/v1/trading/run-cycle")
 @app.post("/trading/run-cycle")  # Legacy endpoint
 async def run_trading_cycle():
-    """Run one trading cycle"""
+    """Run one trading cycle."""
     # Manual single cycle placeholder
     _safe_log("[AUTO-TRADE] Manual trading cycle trigger (demo)")
     return {
@@ -811,7 +811,7 @@ async def auto_trading_status():
 @app.post("/api/v1/trading/update-config")
 @app.post("/trading/update-config")  # Legacy endpoint
 async def update_config(config: dict):
-    """Update trading configuration"""
+    """Update trading configuration."""
     return {
         "message": "Configuration updated",
         "config": config,
@@ -824,7 +824,7 @@ async def update_config(config: dict):
 
 @app.get("/api/v1/ai-trading/status")
 async def get_ai_trading_status():
-    """Get AI auto trading status and performance metrics"""
+    """Get AI auto trading status and performance metrics."""
     try:
         with _STATE_LOCK:
             ai_service = runtime_state.get("ai_auto_trading_service")
@@ -850,7 +850,7 @@ async def get_ai_trading_status():
 
 @app.post("/api/v1/ai-trading/start")
 async def start_ai_trading(symbols: list[str] = None):
-    """Start AI auto trading for specified symbols"""
+    """Start AI auto trading for specified symbols."""
     try:
         with _STATE_LOCK:
             ai_service = runtime_state.get("ai_auto_trading_service")
@@ -882,7 +882,7 @@ async def start_ai_trading(symbols: list[str] = None):
 
 @app.post("/api/v1/ai-trading/stop")
 async def stop_ai_trading():
-    """Stop AI auto trading"""
+    """Stop AI auto trading."""
     try:
         with _STATE_LOCK:
             ai_service = runtime_state.get("ai_auto_trading_service")
@@ -910,7 +910,7 @@ async def stop_ai_trading():
 
 @app.get("/api/v1/ai-trading/signals")
 async def get_ai_trading_signals(symbol: str = None, limit: int = 10):
-    """Get recent AI trading signals"""
+    """Get recent AI trading signals."""
     try:
         with _STATE_LOCK:
             ai_service = runtime_state.get("ai_auto_trading_service")
@@ -940,7 +940,7 @@ async def get_ai_trading_signals(symbol: str = None, limit: int = 10):
 
 @app.get("/api/v1/ai-trading/executions")
 async def get_ai_trading_executions(symbol: str = None, limit: int = 10):
-    """Get recent AI trade executions"""
+    """Get recent AI trade executions."""
     try:
         with _STATE_LOCK:
             ai_service = runtime_state.get("ai_auto_trading_service")
@@ -970,7 +970,7 @@ async def get_ai_trading_executions(symbol: str = None, limit: int = 10):
 
 @app.post("/api/v1/ai-trading/config")
 async def update_ai_trading_config(config: dict):
-    """Update AI trading configuration"""
+    """Update AI trading configuration."""
     try:
         with _STATE_LOCK:
             ai_service = runtime_state.get("ai_auto_trading_service")
@@ -1008,7 +1008,7 @@ async def update_ai_trading_config(config: dict):
 @app.get("/api/v1/stress/summary")
 @app.get("/stress/summary")  # Legacy endpoint for frontend compatibility
 async def get_stress_summary():
-    """Get stress test summary"""
+    """Get stress test summary."""
     return {
         "status": "completed",
         "source": "AI Trading",
@@ -1049,7 +1049,7 @@ async def get_stress_summary():
 
 @app.websocket("/ws/dashboard")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time dashboard updates"""
+    """WebSocket endpoint for real-time dashboard updates."""
     await websocket.accept()
     try:
         while True:
@@ -1073,7 +1073,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.websocket("/ws/ai-trading")
 async def ai_trading_websocket(websocket: WebSocket):
-    """WebSocket endpoint for real-time AI trading updates"""
+    """WebSocket endpoint for real-time AI trading updates."""
     await websocket.accept()
     try:
         last_signal_id = 0
@@ -1159,7 +1159,7 @@ async def ai_trading_websocket(websocket: WebSocket):
 @app.get("/api/v1/signals/recent")
 @app.get("/signals/recent")  # Legacy endpoint
 async def get_recent_signals(symbol: str = "BTCUSDC", limit: int = 20):
-    """Get recent trading signals"""
+    """Get recent trading signals."""
     # Mock trading signals
     import random
 
@@ -1192,7 +1192,7 @@ async def get_recent_signals(symbol: str = "BTCUSDC", limit: int = 20):
 async def get_chart_data(
     symbol: str = "BTCUSDC", interval: str = "1h", limit: int = 100
 ):
-    """Get chart/candlestick data"""
+    """Get chart/candlestick data."""
     # Mock candlestick data
     import random
 

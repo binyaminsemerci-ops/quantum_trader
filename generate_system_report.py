@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""System Test Summary Report
+"""System Test Summary Report.
 
 Generates a comprehensive summary of backend and frontend system tests.
 """
