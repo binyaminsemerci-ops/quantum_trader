@@ -286,7 +286,7 @@ def main() -> None:
     PORT = 8000
     with (
         socketserver.TCPServer(("", PORT), QuantumTraderHandler) as httpd,
-        contextlib.suppress(KeyboardInterrupt)
+        contextlib.suppress(KeyboardInterrupt),
     ):
         httpd.serve_forever()
 

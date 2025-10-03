@@ -41,7 +41,5 @@ async def final_demo() -> None:
     # System status
 
 
-
-
 if __name__ == "__main__":
     asyncio.run(final_demo())

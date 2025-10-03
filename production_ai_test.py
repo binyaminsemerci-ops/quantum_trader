@@ -18,7 +18,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +30,8 @@ from production_risk_manager import RiskManager, RiskParameters
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -124,7 +125,7 @@ class ProductionTestRunner:
 
         # Performance tracking
         self.performance_metrics = {
-            "test_start_time": datetime.now(),
+            "test_start_time": datetime.now(timezone.utc),
             "total_tests_run": 0,
             "successful_tests": 0,
             "failed_tests": 0,
@@ -196,7 +197,7 @@ class ProductionTestRunner:
                         "entry_threshold": entry_threshold,
                         "timeframe": timeframe,
                         "duration_seconds": test_duration,
-                        "timestamp": datetime.now().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     },
                 },
             )
@@ -216,7 +217,7 @@ class ProductionTestRunner:
                 "test_metadata": {
                     "test_name": test_name,
                     "duration_seconds": time.time() - test_start,
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
             }
 
@@ -260,7 +261,9 @@ class ProductionTestRunner:
         return analysis
 
     def calculate_sharpe_ratio(
-        self, returns: np.ndarray, risk_free_rate: float = 0.02,
+        self,
+        returns: np.ndarray,
+        risk_free_rate: float = 0.02,
     ) -> float:
         """Calculate Sharpe ratio for returns."""
         if len(returns) == 0:
@@ -274,7 +277,9 @@ class ProductionTestRunner:
         )
 
     def run_parallel_tests(
-        self, config: TestConfiguration, max_workers: int = 3,
+        self,
+        config: TestConfiguration,
+        max_workers: int = 3,
     ) -> list[dict[str, Any]]:
         """Run multiple tests in parallel for efficiency."""
         symbols = self.get_symbol_list(config)
@@ -387,7 +392,7 @@ class ProductionTestRunner:
             },
             "performance_analysis": analysis,
             "detailed_results": test_results,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         # Save results
@@ -403,7 +408,9 @@ class ProductionTestRunner:
         return final_result
 
     def analyze_test_results(
-        self, results: list[dict], config: TestConfiguration,
+        self,
+        results: list[dict],
+        config: TestConfiguration,
     ) -> dict[str, Any]:
         """Analyze test results and provide insights."""
         successful_results = [r for r in results if "error" not in r]
@@ -475,9 +482,9 @@ class ProductionTestRunner:
     def generate_performance_report(self) -> dict[str, Any]:
         """Generate comprehensive performance report."""
         return {
-            "report_generated": datetime.now().isoformat(),
+            "report_generated": datetime.now(timezone.utc).isoformat(),
             "test_session_duration": (
-                datetime.now() - self.performance_metrics["test_start_time"]
+                datetime.now(timezone.utc) - self.performance_metrics["test_start_time"]
             ).total_seconds()
             / 60,
             "overall_metrics": self.performance_metrics,
@@ -497,7 +504,9 @@ def main() -> None:
         help="Run specific test configuration",
     )
     parser.add_argument(
-        "--all-configs", action="store_true", help="Run all test configurations",
+        "--all-configs",
+        action="store_true",
+        help="Run all test configurations",
     )
     parser.add_argument(
         "--output-dir",
@@ -515,7 +524,6 @@ def main() -> None:
         # Run specific configuration
         result = runner.run_configuration_test(args.config)
         runner.results.append(result)
-
 
         if (
             "performance_analysis" in result
@@ -544,7 +552,6 @@ def main() -> None:
 
     with open(report_file, "w") as f:
         json.dump(final_report, f, indent=2, sort_keys=True)
-
 
 
 if __name__ == "__main__":

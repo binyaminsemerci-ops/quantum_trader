@@ -15,13 +15,18 @@ import json
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
 
 class SystemTestRunner:
     """Master system test runner."""
+
+    # Explicit attribute annotations to keep mypy happy
+    test_results: Dict[str, Any]
+    overall_summary: Dict[str, Any]
+    test_scripts: List[Dict[str, str]]
 
     def __init__(self) -> None:
         self.test_results: Dict[str, Any] = {}
@@ -55,21 +60,26 @@ class SystemTestRunner:
 
     def check_prerequisites(self) -> Dict[str, Any]:
         """Check system prerequisites for testing."""
-        prereqs = {
+        # Use explicitly typed locals so mypy can track mutations
+        test_scripts_present: Dict[str, bool] = {}
+        dependencies_available: Dict[str, bool] = {}
+        errors: List[str] = []
+
+        prereqs: Dict[str, Any] = {
             "python_version": sys.version,
             "python_executable": sys.executable,
             "working_directory": str(Path.cwd()),
-            "test_scripts_present": {},
-            "dependencies_available": {},
-            "errors": [],
+            "test_scripts_present": test_scripts_present,
+            "dependencies_available": dependencies_available,
+            "errors": errors,
         }
 
         # Check test scripts exist
         for test in self.test_scripts:
             script_path = Path(test["script"])
-            prereqs["test_scripts_present"][test["script"]] = script_path.exists()
+            test_scripts_present[test["script"]] = script_path.exists()
             if not script_path.exists():
-                prereqs["errors"].append(f"Test script not found: {test['script']}")
+                errors.append(f"Test script not found: {test['script']}")
 
         # Check key dependencies
         dependencies = [
@@ -81,10 +91,10 @@ class SystemTestRunner:
         for dep_name, import_name in dependencies:
             try:
                 __import__(import_name)
-                prereqs["dependencies_available"][dep_name] = True
+                dependencies_available[dep_name] = True
             except ImportError:
-                prereqs["dependencies_available"][dep_name] = False
-                prereqs["errors"].append(f"Missing dependency: {dep_name}")
+                dependencies_available[dep_name] = False
+                errors.append(f"Missing dependency: {dep_name}")
 
         # Check if requirements files exist
         req_files = ["requirements.txt", "backend/requirements.txt"]
@@ -96,12 +106,12 @@ class SystemTestRunner:
         all(prereqs["test_scripts_present"].values())
         all(prereqs["dependencies_available"].values())
 
-        prereqs["all_prerequisites_met"] = len(prereqs["errors"]) == 0
+        prereqs["all_prerequisites_met"] = len(errors) == 0
 
         if prereqs["all_prerequisites_met"]:
             pass
         else:
-            for _error in prereqs["errors"]:
+            for _error in errors:
                 pass
 
         return prereqs
@@ -110,7 +120,6 @@ class SystemTestRunner:
         """Run a single test script and capture results."""
         script_name = test_info["script"]
         test_name = test_info["name"]
-
 
         start_time = time.time()
 
@@ -125,7 +134,8 @@ class SystemTestRunner:
                 ],
                 capture_output=True,
                 text=True,
-                timeout=300, check=False,  # 5 minute timeout
+                timeout=300,
+                check=False,  # 5 minute timeout
             )
 
             duration_ms = (time.time() - start_time) * 1000
@@ -137,8 +147,8 @@ class SystemTestRunner:
                 if Path(results_file).exists():
                     with open(results_file) as f:
                         detailed_results = json.load(f)
-            except Exception as e:
-                print(f"⚠️ Could not load detailed results: {e}")
+            except Exception:
+                pass
 
             test_result = {
                 "test_name": test_name,
@@ -149,7 +159,7 @@ class SystemTestRunner:
                 "stdout": result.stdout,
                 "stderr": result.stderr,
                 "detailed_results": detailed_results,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             # Extract key metrics from detailed results
@@ -187,7 +197,7 @@ class SystemTestRunner:
                 "success": False,
                 "error": "Test timed out after 5 minutes",
                 "duration_ms": (time.time() - start_time) * 1000,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -197,7 +207,7 @@ class SystemTestRunner:
                 "success": False,
                 "error": str(e),
                 "duration_ms": (time.time() - start_time) * 1000,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     def generate_comprehensive_report(self) -> Dict[str, Any]:
@@ -291,7 +301,7 @@ class SystemTestRunner:
 
         return {
             "report_metadata": {
-                "generated_at": datetime.now().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
                 "system": "Quantum Trader",
                 "test_environment": "Development",
                 "python_version": sys.version,
@@ -303,7 +313,6 @@ class SystemTestRunner:
             "detailed_results": self.test_results,
             "recommendations": self.generate_recommendations(),
         }
-
 
     def generate_recommendations(self) -> List[str]:
         """Generate recommendations based on test results."""
@@ -375,7 +384,7 @@ class SystemTestRunner:
 
     def run_all_system_tests(self) -> Dict[str, Any]:
         """Run complete system test suite."""
-        self.overall_summary["start_time"] = datetime.now().isoformat()
+        self.overall_summary["start_time"] = datetime.now(timezone.utc).isoformat()
         start_time = time.time()
 
         # Check prerequisites
@@ -384,7 +393,7 @@ class SystemTestRunner:
             return {
                 "error": "Prerequisites not met",
                 "prerequisite_check": prereq_check,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         # Run each test category
@@ -398,11 +407,11 @@ class SystemTestRunner:
                     "script": test_info["script"],
                     "success": False,
                     "error": str(e),
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
         # Complete summary
-        self.overall_summary["end_time"] = datetime.now().isoformat()
+        self.overall_summary["end_time"] = datetime.now(timezone.utc).isoformat()
         self.overall_summary["total_duration_ms"] = (time.time() - start_time) * 1000
 
         # Generate comprehensive report
@@ -449,7 +458,6 @@ class SystemTestRunner:
         # Recommendations
         for _rec in report["recommendations"]:
             pass
-
 
 
 def main() -> int:

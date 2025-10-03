@@ -4,14 +4,14 @@
 import json
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
 def check_system_status():
-    """Sjekk gjeldende systemstatus."""
+    """Kontroller generelle systemstatus."""
     status = {
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "components": {},
         "services": {},
         "frontend": {},
@@ -31,10 +31,18 @@ def check_system_status():
     # Sjekk Node.js og npm
     try:
         node_result = subprocess.run(
-            ["node", "--version"], capture_output=True, text=True, timeout=5, check=False,
+            ["node", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
         )
         npm_result = subprocess.run(
-            ["npm", "--version"], capture_output=True, text=True, timeout=5, check=False,
+            ["npm", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
         )
 
         status["frontend"]["node_version"] = (
@@ -56,7 +64,8 @@ def check_system_status():
                 capture_output=True,
                 text=True,
                 timeout=10,
-                cwd="frontend", check=False,
+                cwd="frontend",
+                check=False,
             )
             status["frontend"]["dependencies_installed"] = npm_ls_result.returncode == 0
             status["frontend"]["node_modules_exists"] = True
@@ -73,7 +82,8 @@ def check_system_status():
             capture_output=True,
             text=True,
             timeout=60,
-            cwd="frontend", check=False,
+            cwd="frontend",
+            check=False,
         )
         status["frontend"]["can_build"] = build_result.returncode == 0
         if build_result.returncode != 0:
@@ -119,7 +129,6 @@ def print_status_report(status) -> None:
     else:
         pass
 
-
     # Tjenester
     services = status["services"]
 
@@ -140,14 +149,12 @@ def print_status_report(status) -> None:
 
     len([v for v in services.values() if v])
 
-
     overall_score = (component_score + frontend_score) / 2
 
     if overall_score >= 0.8 or overall_score >= 0.6:
         pass
     else:
         pass
-
 
 
 def main() -> int:
@@ -161,7 +168,6 @@ def main() -> int:
     # Lagre til fil
     with open("current_system_status.json", "w") as f:
         json.dump(status, f, indent=2, default=str)
-
 
     return 0
 

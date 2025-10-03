@@ -11,11 +11,11 @@ import json
 
 try:
     import websockets  # type: ignore
-except ImportError:
+except ImportError as e:
     msg = "Install websockets package to run this manual check: pip install websockets"
     raise SystemExit(
         msg,
-    )
+    ) from e
 
 
 async def main() -> None:
@@ -25,8 +25,8 @@ async def main() -> None:
             await ws.send(json.dumps({"type": "ping"}))
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(ws.recv(), timeout=5)
-    except Exception as e:  # noqa: BLE001
-        print(f"⚠️ WebSocket check warning: {e}")
+    except Exception as e:
+        print(f"WebSocket connection failed: {e}")
 
 
 if __name__ == "__main__":

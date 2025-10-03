@@ -1,4 +1,5 @@
 """AI Trading routes for status and control endpoints."""
+
 from __future__ import annotations
 
 import threading
@@ -51,7 +52,7 @@ async def get_ai_trading_status() -> dict[str, Any]:
             }
     except Exception as e:
         logger.exception(f"Error getting AI trading status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/ai-trading/start")
@@ -72,7 +73,7 @@ async def start_ai_trading(symbols: list[str] | None = None) -> dict[str, Any]:
         }
     except Exception as e:
         logger.exception(f"Error starting AI trading: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/ai-trading/stop")
@@ -89,7 +90,7 @@ async def stop_ai_trading() -> dict[str, Any]:
         }
     except Exception as e:
         logger.exception(f"Error stopping AI trading: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/continuous-learning/start")
@@ -122,7 +123,7 @@ async def start_continuous_learning(
 
     except Exception as e:
         logger.exception(f"Error starting continuous learning: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/continuous-learning/stop")
@@ -147,7 +148,7 @@ async def stop_continuous_learning() -> dict[str, Any]:
 
     except Exception as e:
         logger.exception(f"Error stopping continuous learning: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/continuous-learning/status")
@@ -196,7 +197,8 @@ async def get_learning_status() -> dict[str, Any]:
 
 
 def update_ai_stats(
-    signal_count: int | None = None, accuracy: float | None = None,
+    signal_count: int | None = None,
+    accuracy: float | None = None,
 ) -> None:
     """Update AI trading statistics."""
     with _state_lock:

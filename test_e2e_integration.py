@@ -15,7 +15,7 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import requests
@@ -156,7 +156,7 @@ class E2ESystemTester:
                 data = json.loads(message)
                 messages_received.append(
                     {
-                        "timestamp": datetime.now().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                         "type": data.get("type", "unknown"),
                         "size": len(message),
                     },
@@ -164,7 +164,7 @@ class E2ESystemTester:
             except Exception:
                 messages_received.append(
                     {
-                        "timestamp": datetime.now().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                         "raw": message[:100],  # First 100 chars
                     },
                 )
@@ -174,7 +174,7 @@ class E2ESystemTester:
             # Send test messages to simulate frontend interactions
             test_messages = [
                 {"type": "subscribe", "symbols": ["BTCUSDT", "ETHUSDT"]},
-                {"type": "ping", "timestamp": datetime.now().isoformat()},
+                {"type": "ping", "timestamp": datetime.now(timezone.utc).isoformat()},
                 {"type": "get_portfolio", "user_id": "test_user"},
             ]
 
@@ -286,7 +286,8 @@ class E2ESystemTester:
             for symbol in symbols:
                 try:
                     response = requests.get(
-                        f"{self.backend_url}/api/chart/{symbol}", timeout=10,
+                        f"{self.backend_url}/api/chart/{symbol}",
+                        timeout=10,
                     )
                     workflow_steps.append(
                         {
@@ -378,7 +379,8 @@ class E2ESystemTester:
                 for endpoint in endpoints:
                     try:
                         response = requests.get(
-                            f"{self.backend_url}{endpoint}", timeout=10,
+                            f"{self.backend_url}{endpoint}",
+                            timeout=10,
                         )
                         requests_made += 1
                         if response.status_code != 200:
@@ -469,7 +471,8 @@ class E2ESystemTester:
             for invalid_url in invalid_requests:
                 try:
                     response = requests.get(
-                        f"{self.backend_url}{invalid_url}", timeout=5,
+                        f"{self.backend_url}{invalid_url}",
+                        timeout=5,
                     )
                     # Good error handling returns 4xx status codes
                     handles_error_properly = 400 <= response.status_code < 500
@@ -589,11 +592,11 @@ class E2ESystemTester:
         if not self.start_full_stack():
             return {
                 "error": "Failed to start full stack for E2E testing",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         test_summary = {
-            "start_time": datetime.now().isoformat(),
+            "start_time": datetime.now(timezone.utc).isoformat(),
             "tests_run": 0,
             "tests_passed": 0,
             "tests_failed": 0,
@@ -639,7 +642,7 @@ class E2ESystemTester:
                 if test_summary["tests_run"] > 0
                 else 0
             )
-            test_summary["end_time"] = datetime.now().isoformat()
+            test_summary["end_time"] = datetime.now(timezone.utc).isoformat()
             test_summary["detailed_results"] = self.test_results
 
             # Print final summary

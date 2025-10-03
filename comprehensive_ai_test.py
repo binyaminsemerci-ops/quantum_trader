@@ -23,7 +23,7 @@ import json
 import logging
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +36,8 @@ from config.config import settings
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -89,13 +90,15 @@ class AITestRunner:
         self.output_dir = output_dir or Path("test_results")
         self.output_dir.mkdir(exist_ok=True)
         self.test_results: list[dict[str, Any]] = []
-        self.start_time = datetime.now()
+        self.start_time = datetime.now(timezone.utc)
 
-    def log_result(self, test_name: str, result: dict[str, Any], duration: float) -> None:
+    def log_result(
+        self, test_name: str, result: dict[str, Any], duration: float
+    ) -> None:
         """Log test result with metadata."""
         test_result = {
             "test_name": test_name,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "duration_seconds": duration,
             "result": result,
             "success": result is not None and "error" not in result,
@@ -110,7 +113,9 @@ class AITestRunner:
         logger.info(f"Test '{test_name}' completed in {duration:.2f}s")
 
     def run_training_test(
-        self, config_name: str, config: dict[str, Any],
+        self,
+        config_name: str,
+        config: dict[str, Any],
     ) -> dict[str, Any] | None:
         """Run training test with given configuration."""
         logger.info(f"Starting training test: {config_name}")
@@ -152,7 +157,10 @@ class AITestRunner:
             return None
 
     def run_backtest_variations(
-        self, config_name: str, config: dict[str, Any], model_dir: Path | None = None,
+        self,
+        config_name: str,
+        config: dict[str, Any],
+        model_dir: Path | None = None,
     ) -> list[dict[str, Any]]:
         """Run backtest with different entry thresholds."""
         logger.info(f"Running backtest variations for {config_name}")
@@ -264,7 +272,9 @@ class AITestRunner:
             "test_count": len(self.test_results),
             "successful_tests": len([r for r in self.test_results if r["success"]]),
             "failed_tests": len([r for r in self.test_results if not r["success"]]),
-            "total_duration": (datetime.now() - self.start_time).total_seconds(),
+            "total_duration": (
+                datetime.now(timezone.utc) - self.start_time
+            ).total_seconds(),
             "test_breakdown": {},
             "performance_metrics": {},
         }
@@ -344,8 +354,10 @@ class AITestRunner:
         summary = {
             "test_session": {
                 "start_time": self.start_time.isoformat(),
-                "end_time": datetime.now().isoformat(),
-                "total_duration": (datetime.now() - self.start_time).total_seconds(),
+                "end_time": datetime.now(timezone.utc).isoformat(),
+                "total_duration": (
+                    datetime.now(timezone.utc) - self.start_time
+                ).total_seconds(),
                 "output_directory": str(self.output_dir),
             },
             "results": self.test_results,
@@ -365,7 +377,6 @@ class AITestRunner:
                 pass
             if "avg_win_rate" in metrics:
                 pass
-
 
 
 def run_quick_test(runner: AITestRunner) -> None:
@@ -406,10 +417,14 @@ def main() -> int:
         description="Comprehensive AI Model Testing for Quantum Trader",
     )
     parser.add_argument(
-        "--quick-test", action="store_true", help="Run quick test with 3 symbols",
+        "--quick-test",
+        action="store_true",
+        help="Run quick test with 3 symbols",
     )
     parser.add_argument(
-        "--standard-test", action="store_true", help="Run standard test with 6 symbols",
+        "--standard-test",
+        action="store_true",
+        help="Run standard test with 6 symbols",
     )
     parser.add_argument(
         "--full-test",
@@ -417,7 +432,9 @@ def main() -> int:
         help="Run comprehensive test with 12 symbols",
     )
     parser.add_argument(
-        "--stress-test", action="store_true", help="Run stress test with all symbols",
+        "--stress-test",
+        action="store_true",
+        help="Run stress test with all symbols",
     )
     parser.add_argument(
         "--compare-configs",
@@ -425,7 +442,9 @@ def main() -> int:
         help="Run all configurations and compare",
     )
     parser.add_argument(
-        "--output-dir", type=Path, help="Output directory for test results",
+        "--output-dir",
+        type=Path,
+        help="Output directory for test results",
     )
 
     args = parser.parse_args()

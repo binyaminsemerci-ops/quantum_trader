@@ -16,7 +16,21 @@ from backend.enhanced_data_feeds import EnhancedDataFeed, get_enhanced_market_da
 from backend.routes.settings import SETTINGS
 from backend.utils.market_data import fetch_recent_candles
 from backend.utils.twitter_client import TwitterClient
-from config.config import load_config, settings
+# Defensive config import with fallback for early test collection
+try:  # pragma: no cover
+    from config.config import load_config, settings  # type: ignore[import-not-found, import-untyped]
+except Exception:  # pragma: no cover
+    def load_config():  # type: ignore
+        class _Cfg:
+            enable_live_market_data = False
+            default_quote = "USDT"
+
+        return _Cfg()
+
+    class _Settings:  # minimal shim
+        default_quote = "USDT"
+
+    settings = _Settings()  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +152,10 @@ async def binance_ohlcv(symbol: str, limit: int = 600) -> dict[str, Any]:
         source = "live" if _live_market_data_enabled() else "demo"
     except Exception as exc:  # pragma: no cover - network/adapter issues
         logger.debug(
-            "fetch_recent_candles failed for %s: %s", symbol, exc, exc_info=True,
+            "fetch_recent_candles failed for %s: %s",
+            symbol,
+            exc,
+            exc_info=True,
         )
         candles = _fallback_candles(symbol, limit)
         source = "fallback"

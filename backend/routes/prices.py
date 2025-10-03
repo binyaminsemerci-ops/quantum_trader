@@ -9,7 +9,8 @@ router = APIRouter()
 
 @router.get("/recent")
 def recent_prices(
-    symbol: str = "BTCUSDT", limit: Annotated[int, Query(ge=1, le=500)] = 50,
+    symbol: str = "BTCUSDT",
+    limit: Annotated[int, Query(ge=1, le=500)] = 50,
 ) -> List[Dict]:
     """Return recent candles for the requested symbol.
 

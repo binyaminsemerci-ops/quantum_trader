@@ -36,13 +36,17 @@ def _normalise_curve(points: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
 def _model_backtest(symbol: str, limit: int, entry_threshold: float) -> dict[str, Any]:
     try:
         summary = run_backtest_only(
-            symbols=[symbol], limit=limit, entry_threshold=entry_threshold,
+            symbols=[symbol],
+            limit=limit,
+            entry_threshold=entry_threshold,
         )
     except FileNotFoundError:
         logger.debug("Model artifacts missing; running training step for %s", symbol)
         train_and_save(symbols=[symbol], limit=max(limit, 300), backtest=True)
         summary = run_backtest_only(
-            symbols=[symbol], limit=limit, entry_threshold=entry_threshold,
+            symbols=[symbol],
+            limit=limit,
+            entry_threshold=entry_threshold,
         )
 
     metrics = summary.get("metrics", {})

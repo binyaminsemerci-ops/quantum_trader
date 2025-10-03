@@ -15,15 +15,32 @@ from typing import Any
 from ai_engine.agents.xgb_agent import make_default_agent
 from backend.routes.settings import SETTINGS
 from backend.utils.exchanges import resolve_credentials, resolve_exchange_name
-from config.config import load_config, settings
+# Defensive config import with fallback for early test discovery
+try:  # pragma: no cover
+    from config.config import load_config, settings  # type: ignore[import-not-found, import-untyped]
+except Exception:  # pragma: no cover
+    def load_config():  # type: ignore
+        class _Cfg:
+            enable_live_market_data = False
+            default_exchange = "binance"
+            default_quote = "USDT"
+
+        return _Cfg()
+
+    class _Settings:  # minimal shim
+        default_quote = "USDT"
+
+    settings = _Settings()  # type: ignore
+
+from typing import Optional, Tuple
 
 # Cache for ML agent to avoid repeated disk loads every poll
-_CACHED_AGENT = None  # type: ignore
-_AGENT_FAILED = False
+_CACHED_AGENT: Optional[object] = None
+_AGENT_FAILED: bool = False
 
 # Cache for signals to avoid slow ML operations on every dashboard poll
-_SIGNALS_CACHE = {}  # symbol -> (timestamp, signals_list)
-_SIGNALS_CACHE_TTL = 30.0  # Cache signals for 30 seconds
+_SIGNALS_CACHE: dict[str, Tuple[float, list[dict[str, Any]]]] = {}
+_SIGNALS_CACHE_TTL: float = 30.0  # Cache signals for 30 seconds
 
 
 def _get_agent_once():
@@ -86,7 +103,8 @@ def fetch_recent_candles(symbol: str, limit: int = 100) -> list[dict[str, Any]]:
     cfg = load_config()
     enable_live = bool(
         SETTINGS.get(
-            "ENABLE_LIVE_MARKET_DATA", getattr(cfg, "enable_live_market_data", False),
+            "ENABLE_LIVE_MARKET_DATA",
+            getattr(cfg, "enable_live_market_data", False),
         ),
     )
     if enable_live and ccxt is not None:
@@ -95,7 +113,8 @@ def fetch_recent_candles(symbol: str, limit: int = 100) -> list[dict[str, Any]]:
             exchange_class = getattr(ccxt, exchange_name)
         except AttributeError:
             logger.warning(
-                "Unknown ccxt exchange '%s'; falling back to demo data", exchange_name,
+                "Unknown ccxt exchange '%s'; falling back to demo data",
+                exchange_name,
             )
         else:
             params: dict[str, Any] = {
@@ -112,7 +131,8 @@ def fetch_recent_candles(symbol: str, limit: int = 100) -> list[dict[str, Any]]:
             try:
                 exchange = exchange_class(params)
                 market = _normalize_symbol(
-                    symbol, getattr(cfg, "default_quote", settings.default_quote),
+                    symbol,
+                    getattr(cfg, "default_quote", settings.default_quote),
                 )
                 timeframe = getattr(cfg, "ccxt_timeframe", "1m")
                 ohlcv = exchange.fetch_ohlcv(market, timeframe=timeframe, limit=limit)
@@ -121,7 +141,8 @@ def fetch_recent_candles(symbol: str, limit: int = 100) -> list[dict[str, Any]]:
                     candles.append(
                         {
                             "time": datetime.fromtimestamp(
-                                ts / 1000, timezone.utc,
+                                ts / 1000,
+                                timezone.utc,
                             ).isoformat(),
                             "open": float(open_p),
                             "high": float(high_p),
@@ -144,7 +165,9 @@ def fetch_recent_candles(symbol: str, limit: int = 100) -> list[dict[str, Any]]:
 
 
 def _demo_signals(
-    symbol: str, limit: int, profile: str = "mixed",
+    symbol: str,
+    limit: int,
+    profile: str = "mixed",
 ) -> list[dict[str, Any]]:
     now = datetime.now(timezone.utc)
     signals: list[dict[str, Any]] = []
@@ -171,7 +194,9 @@ def _demo_signals(
 
 
 def fetch_recent_signals(
-    symbol: str, limit: int = 20, profile: str = "mixed",
+    symbol: str,
+    limit: int = 20,
+    profile: str = "mixed",
 ) -> list[dict[str, Any]]:
     # Check cache first - return cached signals if fresh (within TTL)
     import time
@@ -187,7 +212,8 @@ def fetch_recent_signals(
     cfg = load_config()
     enable_live = bool(
         SETTINGS.get(
-            "ENABLE_LIVE_MARKET_DATA", getattr(cfg, "enable_live_market_data", False),
+            "ENABLE_LIVE_MARKET_DATA",
+            getattr(cfg, "enable_live_market_data", False),
         ),
     )
 

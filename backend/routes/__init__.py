@@ -1,3 +1,10 @@
+"""Route handlers package.
+
+Having this file present guarantees `backend.routes` imports resolve cleanly
+under both plain execution and test discovery.
+"""
+
+# This file intentionally left minimal.
 """backend.routes package.
 
 Import the submodules at package import time so that router-side-effects are
@@ -9,42 +16,9 @@ registered predictably. This avoids import-order issues where tests may import
 # Import submodules to ensure their top-level router objects and handlers are
 # created when the package is imported. Keep the list explicit so linters
 # and tooling can see what's exported.
-from . import (
-    ai_trading,
-    binance,
-    candles,
-    chart,
-    enhanced_api,
-    health,
-    layout,
-    portfolio,
-    prices,
-    settings,
-    signals,
-    stats,
-    stress,
-    trade_logs,
-    trades,
-    trading,
-    watchlist,
-)
+# Switch to lazy import pattern to avoid cascading failures during early
+# test discovery when optional dependencies or configuration may not be
+# available. Individual modules should import the specific route modules
+# they need.
 
-__all__ = [
-    "trades",
-    "stats",
-    "chart",
-    "settings",
-    "binance",
-    "signals",
-    "prices",
-    "candles",
-    "stress",
-    "trade_logs",
-    "health",
-    "watchlist",
-    "layout",
-    "portfolio",
-    "trading",
-    "enhanced_api",
-    "ai_trading",
-]
+__all__ = []  # Explicitly empty; routers imported by backend.main on startup

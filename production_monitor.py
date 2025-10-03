@@ -32,7 +32,8 @@ if TYPE_CHECKING:
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,21 @@ class Alert:
 class PerformanceMonitor:
     """Real-time performance monitoring system."""
 
+    # Attribute annotations for mypy
+    risk_manager: "RiskManager" | None
+    alert_config: AlertConfig
+    output_dir: Path
+    is_running: bool
+    monitoring_thread: threading.Thread | None
+    performance_history: list[PerformanceMetrics]
+    alerts: list[Alert]
+    last_alert_times: dict[str, datetime]
+    daily_trades: list[dict[str, Any]]
+    model_predictions: list[dict[str, Any]]
+    signal_history: list[dict[str, Any]]
+    performance_log: Path
+    alerts_log: Path
+
     def __init__(
         self,
         risk_manager: RiskManager | None = None,
@@ -107,10 +123,12 @@ class PerformanceMonitor:
 
         # Files for logging
         self.performance_log = (
-            self.output_dir / f"performance_{datetime.now().strftime('%Y%m%d')}.jsonl"
+            self.output_dir
+            / f"performance_{datetime.now(timezone.utc).strftime('%Y%m%d')}.jsonl"
         )
         self.alerts_log = (
-            self.output_dir / f"alerts_{datetime.now().strftime('%Y%m%d')}.jsonl"
+            self.output_dir
+            / f"alerts_{datetime.now(timezone.utc).strftime('%Y%m%d')}.jsonl"
         )
 
         # Setup signal handlers for graceful shutdown
@@ -134,7 +152,9 @@ class PerformanceMonitor:
 
         # Start monitoring in separate thread
         self.monitoring_thread = threading.Thread(
-            target=self._monitoring_loop, args=(interval_seconds,), daemon=True,
+            target=self._monitoring_loop,
+            args=(interval_seconds,),
+            daemon=True,
         )
         self.monitoring_thread.start()
 
@@ -218,14 +238,13 @@ class PerformanceMonitor:
                 avg_signal_strength=avg_signal_strength,
             )
 
-
         except Exception as e:
             logger.exception(f"Failed to collect performance metrics: {e}")
             return None
 
     def _get_today_trades(self) -> list[dict]:
         """Get trades executed today."""
-        today = datetime.now().date()
+        today = datetime.now(timezone.utc).date()
         return [
             trade
             for trade in self.daily_trades
@@ -259,7 +278,7 @@ class PerformanceMonitor:
             return 0.0
 
         # Use signals from last hour
-        one_hour_ago = datetime.now() - timedelta(hours=1)
+        one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
         recent_signals = [
             sig
             for sig in self.signal_history
@@ -405,7 +424,7 @@ class PerformanceMonitor:
     def _send_alert(self, alert: Alert) -> None:
         """Send an alert (with cooldown logic)."""
         alert_key = f"{alert.category}_{alert.level}"
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Check cooldown
         if alert_key in self.last_alert_times:
@@ -434,7 +453,7 @@ class PerformanceMonitor:
     def _cleanup_old_data(self) -> None:
         """Clean up old data to prevent memory issues."""
         # Keep last 24 hours of performance data
-        cutoff_time = datetime.now() - timedelta(hours=24)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
         self.performance_history = [
             m for m in self.performance_history if m.timestamp > cutoff_time
         ]
@@ -454,7 +473,7 @@ class PerformanceMonitor:
     def _save_monitoring_state(self) -> None:
         """Save current monitoring state."""
         state = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "performance_history_count": len(self.performance_history),
             "alerts_count": len(self.alerts),
             "trades_count": len(self.daily_trades),
@@ -468,17 +487,17 @@ class PerformanceMonitor:
 
     def add_trade(self, trade_data: dict) -> None:
         """Add a completed trade to tracking."""
-        trade_data["timestamp"] = datetime.now().isoformat()
+        trade_data["timestamp"] = datetime.now(timezone.utc).isoformat()
         self.daily_trades.append(trade_data)
 
     def add_model_prediction(self, prediction_data: dict) -> None:
         """Add a model prediction for accuracy tracking."""
-        prediction_data["timestamp"] = datetime.now().isoformat()
+        prediction_data["timestamp"] = datetime.now(timezone.utc).isoformat()
         self.model_predictions.append(prediction_data)
 
     def add_signal(self, signal_data: dict) -> None:
         """Add a trading signal for analysis."""
-        signal_data["timestamp"] = datetime.now().isoformat()
+        signal_data["timestamp"] = datetime.now(timezone.utc).isoformat()
         self.signal_history.append(signal_data)
 
     def get_current_status(self) -> dict[str, Any]:
@@ -490,7 +509,7 @@ class PerformanceMonitor:
         recent_alerts = [
             a
             for a in self.alerts
-            if (datetime.now() - a.timestamp).total_seconds() < 3600
+            if (datetime.now(timezone.utc) - a.timestamp).total_seconds() < 3600
         ]
 
         return {
@@ -510,7 +529,7 @@ class PerformanceMonitor:
             return {"error": "No performance data available"}
 
         # Get today's data
-        today = datetime.now().date()
+        today = datetime.now(timezone.utc).date()
         today_metrics = [
             m for m in self.performance_history if m.timestamp.date() == today
         ]
@@ -581,7 +600,10 @@ def main() -> None:
     parser.add_argument("--status", action="store_true", help="Show current status")
     parser.add_argument("--report", action="store_true", help="Generate daily report")
     parser.add_argument(
-        "--interval", type=int, default=60, help="Monitoring interval in seconds",
+        "--interval",
+        type=int,
+        default=60,
+        help="Monitoring interval in seconds",
     )
 
     args = parser.parse_args()

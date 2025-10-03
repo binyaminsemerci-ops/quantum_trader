@@ -17,15 +17,38 @@ try:
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(
-        "settings", "backend/routes/settings.py",
+        "settings",
+        "backend/routes/settings.py",
     )
-    settings_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(settings_module)
-    SETTINGS = settings_module.SETTINGS
+    # Be defensive: spec may be None in some environments (mypy warns)
+    if spec is not None and getattr(spec, "loader", None) is not None:
+        settings_module = importlib.util.module_from_spec(spec)
+        # spec.loader may be a loader object with exec_module
+        loader = getattr(spec, "loader")
+        try:
+            loader.exec_module(settings_module)  # type: ignore[attr-defined]
+            SETTINGS = getattr(settings_module, "SETTINGS", {})
+        except Exception:
+            SETTINGS = {}
+    else:
+        SETTINGS = {}
 except Exception:
     # Fallback if direct import fails
     SETTINGS = {}
-from config.config import DEFAULT_EXCHANGE, load_config
+# Import config with a defensive fallback so tests still run if packaging differs
+try:
+    from config.config import DEFAULT_EXCHANGE, load_config  # type: ignore
+except Exception:  # pragma: no cover - extremely narrow fallback
+    DEFAULT_EXCHANGE = "binance"  # type: ignore
+
+    def load_config():  # type: ignore
+        class _Cfg:
+            binance_api_key = None
+            binance_api_secret = None
+            coinbase_api_key = None
+            coinbase_api_secret = None
+
+        return _Cfg()
 
 
 class ExchangeClient(Protocol):
@@ -34,11 +57,17 @@ class ExchangeClient(Protocol):
     def futures_balance(self) -> dict[str, Any]: ...
 
     def fetch_recent_trades(
-        self, symbol: str, limit: int = 5,
+        self,
+        symbol: str,
+        limit: int = 5,
     ) -> list[dict[str, Any]]: ...
 
     def create_order(
-        self, symbol: str, side: str, qty: float, order_type: str = "MARKET",
+        self,
+        symbol: str,
+        side: str,
+        qty: float,
+        order_type: str = "MARKET",
     ) -> dict[str, Any]: ...
 
 
@@ -49,7 +78,9 @@ class _BinanceAdapter:
     don't install it can still import the module.
     """
 
-    def __init__(self, api_key: str | None = None, api_secret: str | None = None) -> None:
+    def __init__(
+        self, api_key: str | None = None, api_secret: str | None = None
+    ) -> None:
         self.api_key = api_key
         self.api_secret = api_secret
         self._client = None
@@ -88,7 +119,8 @@ class _BinanceAdapter:
                 fut = self._client.futures_account_balance()
             except Exception as e:
                 logging.getLogger(__name__).debug(
-                    "futures_account_balance inner error: %s", e,
+                    "futures_account_balance inner error: %s",
+                    e,
                 )
                 fut = None
             if fut:
@@ -121,13 +153,20 @@ class _BinanceAdapter:
             return []
 
     def create_order(
-        self, symbol: str, side: str, qty: float, order_type: str = "MARKET",
+        self,
+        symbol: str,
+        side: str,
+        qty: float,
+        order_type: str = "MARKET",
     ) -> dict[str, Any]:
         if not self._client:
             return {"symbol": symbol, "status": "mock", "side": side, "qty": qty}
         try:
             return self._client.create_order(
-                symbol=symbol, side=side, type=order_type, quantity=qty,
+                symbol=symbol,
+                side=side,
+                type=order_type,
+                quantity=qty,
             )  # type: ignore
         except Exception as exc:
             logging.getLogger(__name__).debug("create_order error: %s", exc)
@@ -143,7 +182,9 @@ class _CoinbaseAdapter:
     this to call coinbase-pro or the newer Coinbase Exchange APIs.
     """
 
-    def __init__(self, api_key: str | None = None, api_secret: str | None = None) -> None:
+    def __init__(
+        self, api_key: str | None = None, api_secret: str | None = None
+    ) -> None:
         self.api_key = api_key
         self.api_secret = api_secret
         self._client = None
@@ -184,12 +225,14 @@ class _CoinbaseAdapter:
                             return {"asset": k, "free": float(v)}
                     except Exception as e:
                         logging.getLogger(__name__).debug(
-                            "parse balance entry failed: %s", e,
+                            "parse balance entry failed: %s",
+                            e,
                         )
                         continue
         except Exception as e:
             logging.getLogger(__name__).debug(
-                "coinbase spot_balance outer error: %s", e,
+                "coinbase spot_balance outer error: %s",
+                e,
             )
         return {"asset": "USDC", "free": 0.0}
 
@@ -207,7 +250,8 @@ class _CoinbaseAdapter:
                     bal = self._client.fetch_balance({"type": "futures"})
                 except Exception as e2:
                     logging.getLogger(__name__).debug(
-                        "coinbase fetch_balance(type=future) failed: %s", e2,
+                        "coinbase fetch_balance(type=future) failed: %s",
+                        e2,
                     )
                     bal = None
             if bal:
@@ -216,7 +260,8 @@ class _CoinbaseAdapter:
                     return {"asset": "USDT", "balance": float(total.get("USDT", 0))}
         except Exception as e:
             logging.getLogger(__name__).debug(
-                "coinbase futures_balance outer error: %s", e,
+                "coinbase futures_balance outer error: %s",
+                e,
             )
         return {"asset": "USDT", "balance": 0.0}
 
@@ -265,7 +310,8 @@ class _CoinbaseAdapter:
             return out
         except Exception as e:
             logging.getLogger(__name__).debug(
-                "coinbase fetch_recent_trades error: %s", e,
+                "coinbase fetch_recent_trades error: %s",
+                e,
             )
             return [
                 {
@@ -279,7 +325,11 @@ class _CoinbaseAdapter:
             ]
 
     def create_order(
-        self, symbol: str, side: str, qty: float, order_type: str = "MARKET",
+        self,
+        symbol: str,
+        side: str,
+        qty: float,
+        order_type: str = "MARKET",
     ) -> dict[str, Any]:
         if not self._client:
             return {"symbol": symbol, "status": "mock", "side": side, "qty": qty}
@@ -293,7 +343,10 @@ class _CoinbaseAdapter:
                 ccxt_sym = symbol
             # ccxt create_order(symbol, type, side, amount, params)
             return self._client.create_order(
-                ccxt_sym, order_type.lower(), side.lower(), float(qty),
+                ccxt_sym,
+                order_type.lower(),
+                side.lower(),
+                float(qty),
             )
         except Exception as exc:
             return {"error": str(exc)}
@@ -306,7 +359,9 @@ class _KuCoinAdapter:
     application can call through the factory without special-casing.
     """
 
-    def __init__(self, api_key: str | None = None, api_secret: str | None = None) -> None:
+    def __init__(
+        self, api_key: str | None = None, api_secret: str | None = None
+    ) -> None:
         self.api_key = api_key
         self.api_secret = api_secret
         self._client = None
@@ -347,12 +402,14 @@ class _KuCoinAdapter:
                         return {"asset": k, "free": float(v)}
                 except Exception as e:
                     logging.getLogger(__name__).debug(
-                        "parse balance entry failed: %s", e,
+                        "parse balance entry failed: %s",
+                        e,
                     )
                     continue
         except Exception as e:
             logging.getLogger(__name__).debug(
-                "coinbase spot_balance outer error: %s", e,
+                "coinbase spot_balance outer error: %s",
+                e,
             )
         return {"asset": "USDC", "free": 0.0}
 
@@ -370,7 +427,8 @@ class _KuCoinAdapter:
                     bal = self._client.fetch_balance({"type": "futures"})
                 except Exception as e2:
                     logging.getLogger(__name__).debug(
-                        "coinbase fetch_balance(type=futures) failed: %s", e2,
+                        "coinbase fetch_balance(type=futures) failed: %s",
+                        e2,
                     )
                     bal = None
             if bal:
@@ -379,7 +437,8 @@ class _KuCoinAdapter:
                     return {"asset": "USDT", "balance": float(total.get("USDT", 0))}
         except Exception as e:
             logging.getLogger(__name__).debug(
-                "coinbase futures_balance outer error: %s", e,
+                "coinbase futures_balance outer error: %s",
+                e,
             )
         return {"asset": "USDT", "balance": 0.0}
 
@@ -428,7 +487,8 @@ class _KuCoinAdapter:
             return out
         except Exception as e:
             logging.getLogger(__name__).debug(
-                "coinbase fetch_recent_trades error: %s", e,
+                "coinbase fetch_recent_trades error: %s",
+                e,
             )
             return [
                 {
@@ -442,7 +502,11 @@ class _KuCoinAdapter:
             ]
 
     def create_order(
-        self, symbol: str, side: str, qty: float, order_type: str = "MARKET",
+        self,
+        symbol: str,
+        side: str,
+        qty: float,
+        order_type: str = "MARKET",
     ) -> dict[str, Any]:
         if not self._client:
             return {"symbol": symbol, "status": "mock", "side": side, "qty": qty}
@@ -456,7 +520,10 @@ class _KuCoinAdapter:
                 ccxt_sym = symbol
             # ccxt create_order(symbol, type, side, amount, params)
             return self._client.create_order(
-                ccxt_sym, order_type.lower(), side.lower(), float(qty),
+                ccxt_sym,
+                order_type.lower(),
+                side.lower(),
+                float(qty),
             )
         except Exception as exc:
             logging.getLogger(__name__).debug("coinbase create_order error: %s", exc)
@@ -487,7 +554,9 @@ def resolve_exchange_name(name: str | None) -> str:
 
 
 def resolve_credentials(
-    name: str, api_key: str | None, api_secret: str | None,
+    name: str,
+    api_key: str | None,
+    api_secret: str | None,
 ) -> tuple[str | None, str | None]:
     if api_key or api_secret:
         return api_key, api_secret
@@ -511,7 +580,9 @@ def get_exchange_client(
 ) -> ExchangeClient:
     resolved_name = resolve_exchange_name(name)
     resolved_key, resolved_secret = resolve_credentials(
-        resolved_name, api_key, api_secret,
+        resolved_name,
+        api_key,
+        api_secret,
     )
     cls = _ADAPTER_REGISTRY.get(resolved_name.lower())
     if not cls:

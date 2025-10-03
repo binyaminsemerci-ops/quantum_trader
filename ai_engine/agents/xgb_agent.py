@@ -11,6 +11,15 @@ from backend.utils.twitter_client import TwitterClient
 
 logger = logging.getLogger(__name__)
 
+# Trading thresholds
+BUY_THRESHOLD = 0.55
+SELL_THRESHOLD = 0.45
+MIN_PREDICTION_THRESHOLD = 0.01
+EMA_SELL_FACTOR = 0.998
+EMA_BUY_FACTOR = 1.002
+CONFIDENCE_SCORE = 0.6
+MAX_SCORE = 0.99
+
 
 class XGBAgent:
     """Lightweight agent wrapper that loads model artifacts and provides
@@ -21,7 +30,9 @@ class XGBAgent:
     """
 
     def __init__(
-        self, model_path: Optional[str] = None, scaler_path: Optional[str] = None,
+        self,
+        model_path: Optional[str] = None,
+        scaler_path: Optional[str] = None,
     ) -> None:
         base = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
         self.model_path = model_path or os.path.join(base, "xgb_model.pkl")
@@ -122,7 +133,9 @@ class XGBAgent:
 
         if sentiment_series is not None or news_counts is not None:
             feat = _add_sentiment_features(
-                feat, sentiment_series=sentiment_series, news_counts=news_counts,
+                feat,
+                sentiment_series=sentiment_series,
+                news_counts=news_counts,
             )
 
         if feat.shape[0] == 0:
@@ -133,13 +146,13 @@ class XGBAgent:
         # selection defensively. Use Any to avoid strict pandas typing issues here.
         return feat.iloc[-1:]
 
-    def predict_for_symbol(self, ohlcv) -> Dict[str, Any]:
-        """Synchronous predict helper. Returns {'action':..., 'score':...}."""
+    def _prepare_features(self, ohlcv) -> Optional[np.ndarray]:
+        """Extract and prepare features from OHLCV data."""
         try:
             feat = self._features_from_ohlcv(ohlcv)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.debug("Feature extraction failed: %s", e)
-            return {"action": "HOLD", "score": 0.0}
+            return None
 
         # Cast to Any to satisfy static checkers that may not have pandas stubs
         from typing import Any as _Any
@@ -150,12 +163,12 @@ class XGBAgent:
         # select numeric features
         try:
             X = feat_any.select_dtypes(include=[np.number]).to_numpy().astype(float)
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.debug("Failed to select numeric features")
-            return {"action": "HOLD", "score": 0.0}
+            return None
 
         if X.size == 0:
-            return {"action": "HOLD", "score": 0.0}
+            return None
 
         # Ensure 2D
         if X.ndim == 1:
@@ -164,50 +177,77 @@ class XGBAgent:
         # apply scaler when available
         if self.scaler is not None:
             try:
-                Xs = self.scaler.transform(X)
-            except Exception as e:
+                return self.scaler.transform(X)
+            except Exception as e:  # noqa: BLE001
                 logger.debug("Scaler.transform failed: %s", e)
-                Xs = X
+                return X
         else:
-            Xs = X
+            return X
 
-        # If no trained model, use simple EMA heuristic if available
-        if self.model is None:
-            try:
-                if "EMA_10" in feat_any.columns and "Close" in feat_any.columns:
-                    last = float(feat_any["Close"].iloc[0])
-                    ema = float(feat_any["EMA_10"].iloc[0])
-                    if last > ema * 1.002:
-                        return {"action": "BUY", "score": 0.6}
-                    if last < ema * 0.998:
-                        return {"action": "SELL", "score": 0.6}
-            except Exception as e:
-                logger.debug("EMA heuristic failed: %s", e)
-            return {"action": "HOLD", "score": 0.0}
+    def _ema_heuristic_prediction(self, feat_any) -> Dict[str, Any]:
+        """Use EMA-based heuristic when no model is available."""
+        try:
+            if "EMA_10" in feat_any.columns and "Close" in feat_any.columns:
+                last = float(feat_any["Close"].iloc[0])
+                ema = float(feat_any["EMA_10"].iloc[0])
+                if last > ema * EMA_BUY_FACTOR:
+                    return {"action": "BUY", "score": CONFIDENCE_SCORE}
+                if last < ema * EMA_SELL_FACTOR:
+                    return {"action": "SELL", "score": CONFIDENCE_SCORE}
+        except Exception as e:  # noqa: BLE001
+            logger.debug("EMA heuristic failed: %s", e)
+        return {"action": "HOLD", "score": 0.0}
 
-        # Use model predict or predict_proba when available
+    def _model_prediction(self, Xs: np.ndarray) -> Dict[str, Any]:
+        """Use trained model for prediction."""
         try:
             if hasattr(self.model, "predict_proba"):
                 proba = self.model.predict_proba(Xs)
                 # choose positive class probability if 2-class
                 score = float(proba[0][1]) if proba.shape[1] > 1 else float(proba[0][0])
-                action = "BUY" if score > 0.55 else "HOLD" if score > 0.45 else "SELL"
+                action = (
+                    "BUY"
+                    if score > BUY_THRESHOLD
+                    else "HOLD" if score > SELL_THRESHOLD else "SELL"
+                )
                 return {"action": action, "score": score}
 
             preds = self.model.predict(Xs)
             v = float(preds[0])
             # interpret numeric prediction: positive -> buy, negative -> sell
-            if v > 0.01:
-                return {"action": "BUY", "score": min(0.99, float(v))}
-            if v < -0.01:
-                return {"action": "SELL", "score": min(0.99, float(abs(v)))}
+            if v > MIN_PREDICTION_THRESHOLD:
+                return {"action": "BUY", "score": min(MAX_SCORE, float(v))}
+            if v < -MIN_PREDICTION_THRESHOLD:
+                return {"action": "SELL", "score": min(MAX_SCORE, float(abs(v)))}
             return {"action": "HOLD", "score": float(abs(v))}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.debug("Model prediction failed: %s", e)
             return {"action": "HOLD", "score": 0.0}
 
+    def predict_for_symbol(self, ohlcv) -> Dict[str, Any]:
+        """Synchronous predict helper. Returns {'action':..., 'score':...}."""
+        # Prepare features
+        Xs = self._prepare_features(ohlcv)
+        if Xs is None:
+            return {"action": "HOLD", "score": 0.0}
+
+        # Get feat_any for EMA heuristic
+        feat = self._features_from_ohlcv(ohlcv)
+        from typing import Any as _Any
+        from typing import cast as _cast
+
+        feat_any = _cast(_Any, feat)
+
+        # Use model or fallback to EMA heuristic
+        if self.model is None:
+            return self._ema_heuristic_prediction(feat_any)
+        else:
+            return self._model_prediction(Xs)
+
     def scan_symbols(
-        self, symbol_ohlcv: Mapping[str, Any], top_n: int = 10,
+        self,
+        symbol_ohlcv: Mapping[str, Any],
+        top_n: int = 10,
     ) -> Dict[str, Dict[str, Any]]:
         """Pick top_n symbols by recent volume and return predictions."""
         volumes = []
@@ -261,27 +301,83 @@ class XGBAgent:
             logger.debug("Failed to read metadata: %s", e)
             return None
 
-    async def scan_top_by_volume_from_api(
-        self, symbols: List[str], top_n: int = 10, limit: int = 240,
-    ) -> Dict[str, Dict[str, Any]]:
-        """Fetch OHLCV for symbols using internal external_data routes and run scan.
-
-        Uses a bounded concurrency semaphore to avoid hammering internal helpers.
-        """
+    def _get_external_data_module(self):
+        """Get external_data module dynamically."""
         try:
-            # backend.routes.external_data is a runtime-only import; mypy may not see dynamic attributes
             from typing import Any as _Any
             from typing import cast as _cast
 
             import backend.routes as _br  # type: ignore[import-not-found]
 
-            # obtain external_data dynamically to avoid mypy attr-defined errors
-            external_data = _cast(_Any, getattr(_br, "external_data", None))
+            return _cast(_Any, getattr(_br, "external_data", None))
         except Exception as e:
             logger.exception("external_data not importable: %s", e)
             msg = "external_data endpoint not importable"
-            raise RuntimeError(msg)
+            raise RuntimeError(msg) from e
 
+    async def _fetch_sentiment_data(self, external_data, symbol: str) -> float:
+        """Fetch sentiment score for a symbol."""
+        try:
+            tw = await external_data.twitter_sentiment(symbol=symbol)
+            return (
+                tw.get("score", tw.get("sentiment", {}).get("score", 0.0))
+                if isinstance(tw, dict)
+                else 0.0
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("twitter_sentiment lookup failed for %s", symbol)
+            return 0.0
+
+    async def _fetch_news_data(self, external_data, symbol: str) -> List[Any]:
+        """Fetch news data for a symbol."""
+        try:
+            news = await external_data.cryptopanic_news(symbol=symbol, limit=200)
+            return news.get("news", []) if isinstance(news, dict) else (news or [])
+        except Exception:  # noqa: BLE001
+            logger.debug("cryptopanic_news lookup failed for %s", symbol)
+            return []
+
+    def _enrich_candles_with_metadata(
+        self, candles, sent_score: float, news_items: List[Any]
+    ):
+        """Enrich candles with sentiment and news data."""
+        n = len(candles)
+        sentiment_series = [float(sent_score)] * n
+        news_series = [0] * n
+        nc = len(news_items)
+
+        if n > 0 and nc > 0:
+            step = max(1, n // nc)
+            placed = 0
+            for i in range(0, n, step):
+                if placed >= nc:
+                    break
+                news_series[i] = 1
+                placed += 1
+
+        # attach when list-of-dicts
+        if isinstance(candles, list):
+            for idx, row in enumerate(candles):
+                try:
+                    row["sentiment"] = sentiment_series[idx]
+                    row["news_count"] = news_series[idx]
+                except Exception:  # noqa: BLE001
+                    logger.debug(
+                        "failed to attach sentiment/news to candle idx=%s",
+                        idx,
+                    )
+
+    async def scan_top_by_volume_from_api(
+        self,
+        symbols: List[str],
+        top_n: int = 10,
+        limit: int = 240,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Fetch OHLCV for symbols using internal external_data routes and run scan.
+
+        Uses a bounded concurrency semaphore to avoid hammering internal helpers.
+        """
+        external_data = self._get_external_data_module()
         sem = asyncio.Semaphore(6)
 
         async def _fetch(s: str):
@@ -289,57 +385,16 @@ class XGBAgent:
                 try:
                     resp = await external_data.binance_ohlcv(symbol=s, limit=limit)
                     candles = resp.get("candles", [])
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.debug("Failed to fetch candles for %s: %s", s, e)
                     candles = []
 
-                # sentiment/news from internal endpoints; handle errors gracefully
-                try:
-                    tw = await external_data.twitter_sentiment(symbol=s)
-                    sent_score = (
-                        tw.get("score", tw.get("sentiment", {}).get("score", 0.0))
-                        if isinstance(tw, dict)
-                        else 0.0
-                    )
-                except Exception:
-                    logger.debug("twitter_sentiment lookup failed for %s", s)
-                    sent_score = 0.0
+                # Get sentiment and news data
+                sent_score = await self._fetch_sentiment_data(external_data, s)
+                news_items = await self._fetch_news_data(external_data, s)
 
-                try:
-                    news = await external_data.cryptopanic_news(symbol=s, limit=200)
-                    news_items = (
-                        news.get("news", []) if isinstance(news, dict) else (news or [])
-                    )
-                except Exception:
-                    logger.debug("cryptopanic_news lookup failed for %s", s)
-                    news_items = []
-
-                # expand sentiment/news into arrays aligned to candles
-                n = len(candles)
-                sentiment_series = [float(sent_score)] * n
-                news_series = [0] * n
-                nc = len(news_items)
-                if n > 0 and nc > 0:
-                    step = max(1, n // nc)
-                    placed = 0
-                    for i in range(0, n, step):
-                        if placed >= nc:
-                            break
-                        news_series[i] = 1
-                        placed += 1
-
-                # attach when list-of-dicts
-                if isinstance(candles, list):
-                    for idx, row in enumerate(candles):
-                        try:
-                            row["sentiment"] = sentiment_series[idx]
-                            row["news_count"] = news_series[idx]
-                        except Exception:
-                            logger.debug(
-                                "failed to attach sentiment/news to candle idx=%s for %s",
-                                idx,
-                                s,
-                            )
+                # Enrich candles with metadata
+                self._enrich_candles_with_metadata(candles, sent_score, news_items)
 
                 return s, candles
 

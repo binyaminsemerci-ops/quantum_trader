@@ -16,7 +16,7 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -32,8 +32,14 @@ try:
 except ImportError:
     psutil = None
 
-# Add backend to path for imports
-sys.path.insert(0, str(Path(__file__).parent / "backend"))
+# Ensure project root (containing `backend` and `config`) is on sys.path first
+ROOT_DIR = Path(__file__).parent.resolve()
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+# Also ensure the backend subdir is available (legacy expectation)
+BACKEND_DIR = ROOT_DIR / "backend"
+if BACKEND_DIR.exists() and str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 
 class BackendSystemTester:
@@ -54,7 +60,6 @@ class BackendSystemTester:
                 return True
         except Exception:
             pass
-
 
         # Start the backend server
         self.backend_process = subprocess.Popen(
@@ -148,7 +153,9 @@ class BackendSystemTester:
                     response = requests.get(f"{self.base_url}{endpoint}", timeout=10)
                 elif method == "POST":
                     response = requests.post(
-                        f"{self.base_url}{endpoint}", json=payload, timeout=10,
+                        f"{self.base_url}{endpoint}",
+                        json=payload,
+                        timeout=10,
                     )
 
                 response_time = (time.time() - start_time) * 1000  # ms
@@ -222,7 +229,12 @@ class BackendSystemTester:
             connection_successful = True
             # Send a test message
             ws.send(
-                json.dumps({"type": "ping", "timestamp": datetime.now().isoformat()}),
+                json.dumps(
+                    {
+                        "type": "ping",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                ),
             )
 
         def on_error(ws, error) -> None:
@@ -232,7 +244,10 @@ class BackendSystemTester:
             # Test dashboard WebSocket
             ws_url = f"{self.ws_base_url}/ws/dashboard"
             ws = websocket.WebSocketApp(
-                ws_url, on_open=on_open, on_message=on_message, on_error=on_error,
+                ws_url,
+                on_open=on_open,
+                on_message=on_message,
+                on_error=on_error,
             )
 
             # Run WebSocket in thread for 5 seconds
@@ -405,7 +420,7 @@ class BackendSystemTester:
             return {"error": "Failed to start backend server"}
 
         test_summary = {
-            "start_time": datetime.now().isoformat(),
+            "start_time": datetime.now(timezone.utc).isoformat(),
             "tests_run": 0,
             "tests_passed": 0,
             "tests_failed": 0,
@@ -431,7 +446,8 @@ class BackendSystemTester:
                     result = test_func()
 
                     if isinstance(
-                        result, list,
+                        result,
+                        list,
                     ):  # Multiple results (like API endpoints)
                         for r in result:
                             test_summary["tests_run"] += 1
@@ -456,7 +472,7 @@ class BackendSystemTester:
                 if test_summary["tests_run"] > 0
                 else 0
             )
-            test_summary["end_time"] = datetime.now().isoformat()
+            test_summary["end_time"] = datetime.now(timezone.utc).isoformat()
             test_summary["detailed_results"] = self.test_results
 
             # Print summary

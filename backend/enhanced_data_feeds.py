@@ -59,7 +59,9 @@ class EnhancedDataFeed:
         return None
 
     async def _safe_request(
-        self, url: str, params: Optional[Dict] = None,
+        self,
+        url: str,
+        params: Optional[Dict] = None,
     ) -> Optional[Dict]:
         """Make safe HTTP request with error handling."""
         try:
@@ -189,106 +191,11 @@ class EnhancedDataFeed:
             return cached
 
         try:
-            # Reddit doesn't require API key for basic reads
-            results = {}
-
+            results: Dict[str, Any] = {}
             for symbol in symbols:
-                clean_symbol = (
-                    symbol.replace("USDC", "").replace("USDT", "").replace("USD", "")
-                )
-
-                # Search multiple crypto subreddits
-                subreddits = ["CryptoCurrency", "Bitcoin", "ethereum", "cardano"]
-                symbol_sentiment = []
-
-                for subreddit in subreddits:
-                    try:
-                        url = f"https://www.reddit.com/r/{subreddit}/search.json"
-                        params = {
-                            "q": clean_symbol,
-                            "restrict_sr": "true",
-                            "sort": "new",
-                            "limit": 10,
-                        }
-
-                        data = await self._safe_request(url, params)
-
-                        if data and "data" in data and "children" in data["data"]:
-                            posts = data["data"]["children"]
-
-                            for post in posts:
-                                post_data = post.get("data", {})
-                                title = post_data.get("title", "")
-                                score = post_data.get("score", 0)
-                                comments = post_data.get("num_comments", 0)
-
-                                # Simple sentiment analysis based on title keywords
-                                positive_words = [
-                                    "moon",
-                                    "bullish",
-                                    "buy",
-                                    "good",
-                                    "great",
-                                    "up",
-                                    "rise",
-                                    "pump",
-                                    "gain",
-                                ]
-                                negative_words = [
-                                    "dump",
-                                    "crash",
-                                    "sell",
-                                    "bad",
-                                    "down",
-                                    "fall",
-                                    "bear",
-                                    "drop",
-                                    "loss",
-                                ]
-
-                                sentiment_score = 0
-                                title_lower = title.lower()
-
-                                for word in positive_words:
-                                    if word in title_lower:
-                                        sentiment_score += 1
-
-                                for word in negative_words:
-                                    if word in title_lower:
-                                        sentiment_score -= 1
-
-                                symbol_sentiment.append(
-                                    {
-                                        "title": title,
-                                        "score": score,
-                                        "comments": comments,
-                                        "sentiment": sentiment_score,
-                                        "subreddit": subreddit,
-                                    },
-                                )
-
-                        await asyncio.sleep(0.1)  # Be nice to Reddit
-
-                    except Exception as e:
-                        logger.debug(f"Reddit API error for {subreddit}: {e}")
-                        continue
-
-                # Calculate aggregate sentiment
+                symbol_sentiment = await self._get_symbol_reddit_sentiment(symbol)
                 if symbol_sentiment:
-                    total_sentiment = sum(
-                        post["sentiment"] for post in symbol_sentiment
-                    )
-                    avg_sentiment = total_sentiment / len(symbol_sentiment)
-                    total_engagement = sum(
-                        post["score"] + post["comments"] for post in symbol_sentiment
-                    )
-
-                    results[symbol] = {
-                        "sentiment_score": avg_sentiment,
-                        "total_posts": len(symbol_sentiment),
-                        "total_engagement": total_engagement,
-                        "posts": symbol_sentiment[:5],  # Top 5 posts
-                    }
+                    results[symbol] = self._calculate_reddit_aggregate(symbol_sentiment)
 
             result = {
                 "symbols": results,
@@ -298,12 +205,119 @@ class EnhancedDataFeed:
 
             self._set_cache(cache_key, result)
             logger.info(f"🔴 Reddit sentiment fetched for {len(results)} symbols")
-
             return result
 
         except Exception as e:
             logger.exception(f"Reddit sentiment error: {e}")
             return {}
+
+    async def _get_symbol_reddit_sentiment(self, symbol: str) -> List[Dict[str, Any]]:
+        """Get Reddit sentiment for a single symbol."""
+        clean_symbol = symbol.replace("USDC", "").replace("USDT", "").replace("USD", "")
+        subreddits = ["CryptoCurrency", "Bitcoin", "ethereum", "cardano"]
+        symbol_sentiment = []
+
+        for subreddit in subreddits:
+            try:
+                posts = await self._fetch_reddit_posts(subreddit, clean_symbol)
+                symbol_sentiment.extend(posts)
+                await asyncio.sleep(0.1)  # Be nice to Reddit
+            except Exception as e:
+                logger.debug(f"Reddit API error for {subreddit}: {e}")
+                continue
+
+        return symbol_sentiment
+
+    async def _fetch_reddit_posts(
+        self, subreddit: str, symbol: str
+    ) -> List[Dict[str, Any]]:
+        """Fetch and analyze Reddit posts for a symbol."""
+        url = f"https://www.reddit.com/r/{subreddit}/search.json"
+        params = {
+            "q": symbol,
+            "restrict_sr": "true",
+            "sort": "new",
+            "limit": 10,
+        }
+
+        data = await self._safe_request(url, params)
+        posts = []
+
+        if data and "data" in data and "children" in data["data"]:
+            for post in data["data"]["children"]:
+                post_data = post.get("data", {})
+                title = post_data.get("title", "")
+                score = post_data.get("score", 0)
+                comments = post_data.get("num_comments", 0)
+
+                sentiment_score = self._analyze_post_sentiment(title)
+
+                posts.append(
+                    {
+                        "title": title,
+                        "score": score,
+                        "comments": comments,
+                        "sentiment": sentiment_score,
+                        "subreddit": subreddit,
+                    }
+                )
+
+        return posts
+
+    def _analyze_post_sentiment(self, title: str) -> int:
+        """Analyze sentiment of a Reddit post title."""
+        positive_words = [
+            "moon",
+            "bullish",
+            "buy",
+            "good",
+            "great",
+            "up",
+            "rise",
+            "pump",
+            "gain",
+        ]
+        negative_words = [
+            "dump",
+            "crash",
+            "sell",
+            "bad",
+            "down",
+            "fall",
+            "bear",
+            "drop",
+            "loss",
+        ]
+
+        sentiment_score = 0
+        title_lower = title.lower()
+
+        for word in positive_words:
+            if word in title_lower:
+                sentiment_score += 1
+
+        for word in negative_words:
+            if word in title_lower:
+                sentiment_score -= 1
+
+        return sentiment_score
+
+    def _calculate_reddit_aggregate(
+        self, symbol_sentiment: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Calculate aggregate sentiment for a symbol."""
+        total_sentiment = sum(post["sentiment"] for post in symbol_sentiment)
+        avg_sentiment = total_sentiment / len(symbol_sentiment)
+        total_engagement = sum(
+            post["score"] + post["comments"] for post in symbol_sentiment
+        )
+
+        return {
+            "sentiment_score": avg_sentiment,
+            "total_posts": len(symbol_sentiment),
+            "total_engagement": total_engagement,
+            "posts": symbol_sentiment[:5],  # Top 5 posts
+        }
 
     async def get_cryptocompare_data(self, symbols: List[str]) -> Dict[str, Any]:
         """Get CryptoCompare data (free tier)."""
@@ -313,7 +327,7 @@ class EnhancedDataFeed:
             return cached
 
         try:
-            results = {}
+            results: Dict[str, Any] = {}
 
             # Get news data
             news_url = "https://min-api.cryptocompare.com/data/v2/news/"
@@ -373,7 +387,7 @@ class EnhancedDataFeed:
                 "LINK": "link-chainlink",
             }
 
-            results = {}
+            results: Dict[str, Any] = {}
 
             for symbol in symbols:
                 clean_symbol = (
@@ -537,126 +551,141 @@ class EnhancedDataFeed:
         }
 
         try:
-            # Fear & Greed Index insights
-            fear_greed = enhanced_data.get("fear_greed", {}).get("current", {})
-            if fear_greed:
-                fg_value = fear_greed.get("value", 50)
-                if isinstance(fg_value, str):
-                    try:
-                        fg_value = int(fg_value)
-                    except ValueError:
-                        fg_value = 50
-
-                fg_classification = fear_greed.get("value_classification", "Neutral")
-
-                insights["market_sentiment"] = fg_classification.lower()
-
-                # Extreme fear/greed signals
-                if fg_value <= 25:
-                    insights["opportunity_signals"].append(
-                        "extreme_fear_buy_opportunity",
-                    )
-                elif fg_value >= 75:
-                    insights["risk_factors"].append("extreme_greed_sell_signal")
-
-            # Reddit sentiment analysis
-            reddit_data = enhanced_data.get("reddit", {}).get("symbols", {})
-            for symbol, reddit_info in reddit_data.items():
-                sentiment_score = reddit_info.get("sentiment_score", 0)
-                total_posts = reddit_info.get("total_posts", 0)
-
-                if total_posts > 5:  # Significant discussion
-                    if sentiment_score > 0.3:
-                        insights["momentum_signals"].append(f"{symbol}_reddit_bullish")
-                    elif sentiment_score < -0.3:
-                        insights["momentum_signals"].append(f"{symbol}_reddit_bearish")
-
-            # CoinGecko market data insights
-            coingecko_data = enhanced_data.get("coingecko", {})
-            market_data = coingecko_data.get("market_data", [])
-
-            for coin in market_data:
-                symbol = coin.get("symbol", "").upper()
-                price_change_24h = coin.get("price_change_percentage_24h", 0)
-                volume_24h = coin.get("total_volume", 0)
-                market_cap_rank = coin.get("market_cap_rank", 999)
-
-                # Volume spike detection
-                if volume_24h and coin.get("market_cap", 0):
-                    volume_ratio = volume_24h / coin["market_cap"]
-                    if volume_ratio > 0.1:  # 10% of market cap in 24h volume
-                        insights["momentum_signals"].append(f"{symbol}_volume_spike")
-
-                # Momentum signals from top coins
-                if market_cap_rank <= 20:  # Top 20 coins
-                    if price_change_24h > 10:
-                        insights["momentum_signals"].append(f"{symbol}_strong_bullish")
-                    elif price_change_24h < -10:
-                        insights["momentum_signals"].append(f"{symbol}_strong_bearish")
-
-            # News sentiment analysis
-            news_data = enhanced_data.get("cryptocompare", {}).get("news", [])
-            positive_news = 0
-            negative_news = 0
-
-            for news_item in news_data[:10]:  # Analyze recent news
-                title = news_item.get("title", "").lower()
-
-                # Simple keyword-based sentiment
-                positive_keywords = [
-                    "bullish",
-                    "rally",
-                    "surge",
-                    "adoption",
-                    "partnership",
-                    "breakthrough",
-                ]
-                negative_keywords = [
-                    "crash",
-                    "dump",
-                    "hack",
-                    "regulation",
-                    "ban",
-                    "selloff",
-                ]
-
-                if any(keyword in title for keyword in positive_keywords):
-                    positive_news += 1
-                elif any(keyword in title for keyword in negative_keywords):
-                    negative_news += 1
-
-            if positive_news > negative_news and positive_news > 2:
-                insights["momentum_signals"].append("positive_news_sentiment")
-            elif negative_news > positive_news and negative_news > 2:
-                insights["risk_factors"].append("negative_news_sentiment")
-
-            # Global market indicators - handle missing data gracefully
-            global_data = coingecko_data.get("global_data", {})
-            btc_dominance = 50  # Default fallback
-            total_market_cap = 0
-
-            if global_data and isinstance(global_data, dict):
-                market_cap_percentages = global_data.get("market_cap_percentage", {})
-                if isinstance(market_cap_percentages, dict):
-                    btc_dominance = market_cap_percentages.get("btc", 50)
-
-                total_mcaps = global_data.get("total_market_cap", {})
-                if isinstance(total_mcaps, dict):
-                    total_market_cap = total_mcaps.get("usd", 0)
-
-            insights["regime_indicators"] = {
-                "btc_dominance": btc_dominance,
-                "total_market_cap": total_market_cap,
-                "market_stage": (
-                    "altcoin_season" if btc_dominance < 40 else "btc_dominance"
-                ),
-            }
+            self._process_fear_greed_insights_feeds(insights, enhanced_data)
+            self._process_reddit_insights_feeds(insights, enhanced_data)
+            self._process_coingecko_insights_feeds(insights, enhanced_data)
+            self._process_news_insights_feeds(insights, enhanced_data)
+            self._process_global_market_insights_feeds(insights, enhanced_data)
 
         except Exception as e:
             logger.exception(f"Error extracting AI insights: {e}")
             insights["error"] = str(e)
 
         return insights
+
+    def _process_fear_greed_insights_feeds(
+        self, insights: Dict[str, Any], enhanced_data: Dict[str, Any]
+    ) -> None:
+        """Process Fear & Greed Index insights."""
+        fear_greed = enhanced_data.get("fear_greed", {}).get("current", {})
+        if not fear_greed:
+            return
+
+        fg_value = fear_greed.get("value", 50)
+        if isinstance(fg_value, str):
+            try:
+                fg_value = int(fg_value)
+            except ValueError:
+                fg_value = 50
+
+        fg_classification = fear_greed.get("value_classification", "Neutral")
+        insights["market_sentiment"] = fg_classification.lower()
+
+        # Extreme fear/greed signals
+        if fg_value <= 25:
+            insights["opportunity_signals"].append("extreme_fear_buy_opportunity")
+        elif fg_value >= 75:
+            insights["risk_factors"].append("extreme_greed_sell_signal")
+
+    def _process_reddit_insights_feeds(
+        self, insights: Dict[str, Any], enhanced_data: Dict[str, Any]
+    ) -> None:
+        """Process Reddit sentiment insights."""
+        reddit_data = enhanced_data.get("reddit", {}).get("symbols", {})
+
+        for symbol, reddit_info in reddit_data.items():
+            sentiment_score = reddit_info.get("sentiment_score", 0)
+            total_posts = reddit_info.get("total_posts", 0)
+
+            if total_posts > 5:  # Significant discussion
+                if sentiment_score > 0.3:
+                    insights["momentum_signals"].append(f"{symbol}_reddit_bullish")
+                elif sentiment_score < -0.3:
+                    insights["momentum_signals"].append(f"{symbol}_reddit_bearish")
+
+    def _process_coingecko_insights_feeds(
+        self, insights: Dict[str, Any], enhanced_data: Dict[str, Any]
+    ) -> None:
+        """Process CoinGecko market data insights."""
+        coingecko_data = enhanced_data.get("coingecko", {})
+        market_data = coingecko_data.get("market_data", [])
+
+        for coin in market_data:
+            symbol = coin.get("symbol", "").upper()
+            price_change_24h = coin.get("price_change_percentage_24h", 0)
+            volume_24h = coin.get("total_volume", 0)
+            market_cap_rank = coin.get("market_cap_rank", 999)
+
+            # Volume spike detection
+            if volume_24h and coin.get("market_cap", 0):
+                volume_ratio = volume_24h / coin["market_cap"]
+                if volume_ratio > 0.1:  # 10% of market cap in 24h volume
+                    insights["momentum_signals"].append(f"{symbol}_volume_spike")
+
+            # Momentum signals from top coins
+            if market_cap_rank <= 20:  # Top 20 coins
+                if price_change_24h > 10:
+                    insights["momentum_signals"].append(f"{symbol}_strong_bullish")
+                elif price_change_24h < -10:
+                    insights["momentum_signals"].append(f"{symbol}_strong_bearish")
+
+    def _process_news_insights_feeds(
+        self, insights: Dict[str, Any], enhanced_data: Dict[str, Any]
+    ) -> None:
+        """Process news sentiment insights."""
+        news_data = enhanced_data.get("cryptocompare", {}).get("news", [])
+        positive_news = 0
+        negative_news = 0
+
+        positive_keywords = [
+            "bullish",
+            "rally",
+            "surge",
+            "adoption",
+            "partnership",
+            "breakthrough",
+        ]
+        negative_keywords = ["crash", "dump", "hack", "regulation", "ban", "selloff"]
+
+        for news_item in news_data[:10]:  # Analyze recent news
+            title = news_item.get("title", "").lower()
+
+            if any(keyword in title for keyword in positive_keywords):
+                positive_news += 1
+            elif any(keyword in title for keyword in negative_keywords):
+                negative_news += 1
+
+        if positive_news > negative_news and positive_news > 2:
+            insights["momentum_signals"].append("positive_news_sentiment")
+        elif negative_news > positive_news and negative_news > 2:
+            insights["risk_factors"].append("negative_news_sentiment")
+
+    def _process_global_market_insights_feeds(
+        self, insights: Dict[str, Any], enhanced_data: Dict[str, Any]
+    ) -> None:
+        """Process global market indicators."""
+        coingecko_data = enhanced_data.get("coingecko", {})
+        global_data = coingecko_data.get("global_data", {})
+
+        btc_dominance = 50  # Default fallback
+        total_market_cap = 0
+
+        if global_data and isinstance(global_data, dict):
+            market_cap_percentages = global_data.get("market_cap_percentage", {})
+            if isinstance(market_cap_percentages, dict):
+                btc_dominance = market_cap_percentages.get("btc", 50)
+
+            total_mcaps = global_data.get("total_market_cap", {})
+            if isinstance(total_mcaps, dict):
+                total_market_cap = total_mcaps.get("usd", 0)
+
+        insights["regime_indicators"] = {
+            "btc_dominance": btc_dominance,
+            "total_market_cap": total_market_cap,
+            "market_stage": (
+                "altcoin_season" if btc_dominance < 40 else "btc_dominance"
+            ),
+        }
 
 
 # Convenience functions for external use

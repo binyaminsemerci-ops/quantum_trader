@@ -17,7 +17,6 @@ def test_ai_service() -> Optional[bool]:
         # Import the service
         from ai_auto_trading_service import AIAutoTradingService
 
-
         # Create instance
         ai_service = AIAutoTradingService()
 

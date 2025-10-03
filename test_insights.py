@@ -1,3 +1,9 @@
+
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "backend")))
+
 import pytest
 
 from backend.enhanced_data_feeds import get_enhanced_market_data

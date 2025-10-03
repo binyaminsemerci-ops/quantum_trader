@@ -250,7 +250,9 @@ async def dashboard_websocket(websocket: WebSocket) -> None:
 
 
 @app.websocket("/api/v1/watchlist/ws/watchlist")
-async def watchlist_websocket(websocket: WebSocket, symbols: str = "", limit: int = 60) -> None:
+async def watchlist_websocket(
+    websocket: WebSocket, symbols: str = "", limit: int = 60
+) -> None:
     """Watchlist WebSocket for coin table."""
     await websocket.accept()
 

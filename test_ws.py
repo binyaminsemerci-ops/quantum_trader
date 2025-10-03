@@ -11,9 +11,9 @@ import json
 
 try:
     import websockets  # type: ignore
-except ImportError:  # pragma: no cover
+except ImportError as e:  # pragma: no cover
     msg = "Install websockets to run this script: pip install websockets"
-    raise SystemExit(msg)
+    raise SystemExit(msg) from e
 
 
 async def _manual_ws_check() -> None:
@@ -23,8 +23,8 @@ async def _manual_ws_check() -> None:
             await ws.send(json.dumps({"type": "ping"}))
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(ws.recv(), timeout=5)
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:
+        print(f"WebSocket test failed: {e}")
 
 
 def main() -> None:  # pragma: no cover

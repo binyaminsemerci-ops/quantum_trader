@@ -68,7 +68,9 @@ class EnhancedDataManager:
         for conn in disconnected:
             self.disconnect(conn)
 
-    async def start_enhanced_broadcast(self, symbols: List[str], interval: int = 300) -> None:
+    async def start_enhanced_broadcast(
+        self, symbols: List[str], interval: int = 300
+    ) -> None:
         """Start broadcasting enhanced data every 5 minutes."""
         if self.is_broadcasting:
             return
@@ -114,7 +116,7 @@ async def get_enhanced_market_data(symbols: str = "BTC,ETH,ADA,SOL"):
         return {"success": True, "data": data}
     except Exception as e:
         logger.exception(f"Enhanced market data endpoint error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/fear-greed")
@@ -125,7 +127,7 @@ async def get_fear_greed():
         return {"success": True, "data": data}
     except Exception as e:
         logger.exception(f"Fear & Greed endpoint error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/reddit-sentiment")
@@ -137,7 +139,7 @@ async def get_reddit_sentiment_endpoint(symbols: str = "BTC,ETH,ADA"):
         return {"success": True, "data": data}
     except Exception as e:
         logger.exception(f"Reddit sentiment endpoint error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/news")
@@ -148,7 +150,7 @@ async def get_crypto_news():
         return {"success": True, "data": data}
     except Exception as e:
         logger.exception(f"Crypto news endpoint error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/on-chain")
@@ -160,7 +162,7 @@ async def get_on_chain_metrics_endpoint(symbols: str = "BTC,ETH"):
         return {"success": True, "data": data}
     except Exception as e:
         logger.exception(f"On-chain metrics endpoint error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/indicators")
@@ -171,7 +173,7 @@ async def get_market_indicators_endpoint():
         return {"success": True, "data": data}
     except Exception as e:
         logger.exception(f"Market indicators endpoint error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/all")
@@ -208,12 +210,13 @@ async def get_all_enhanced_data(symbols: str = "BTC,ETH,ADA,SOL,DOT,LINK"):
 
     except Exception as e:
         logger.exception(f"All enhanced data endpoint error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/broadcast/start")
 async def start_enhanced_broadcast(
-    symbols: str = "BTC,ETH,ADA,SOL", interval: int = 300,
+    symbols: str = "BTC,ETH,ADA,SOL",
+    interval: int = 300,
 ):
     """Start broadcasting enhanced data via WebSocket."""
     try:
@@ -236,7 +239,7 @@ async def start_enhanced_broadcast(
 
     except Exception as e:
         logger.exception(f"Start broadcast error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/broadcast/stop")
@@ -247,7 +250,7 @@ async def stop_enhanced_broadcast():
         return {"success": True, "message": "Enhanced data broadcast stopped"}
     except Exception as e:
         logger.exception(f"Stop broadcast error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.websocket("/ws")

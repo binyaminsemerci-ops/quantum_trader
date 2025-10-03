@@ -153,7 +153,9 @@ async def dashboard_ws(websocket: WebSocket) -> None:
                 # Signals (fast path direct util for performance)
                 try:
                     signal_records = fetch_recent_signals(
-                        symbol="BTCUSDT", limit=15, profile="mixed",
+                        symbol="BTCUSDT",
+                        limit=15,
+                        profile="mixed",
                     )
                     signals_payload = []
                     for item in signal_records:
@@ -302,7 +304,10 @@ async def dashboard_ws(websocket: WebSocket) -> None:
                 with session_scope() as s4:
                     old_rows = s4.execute(
                         select(
-                            Trade.side, Trade.qty, Trade.price, Trade.timestamp,
+                            Trade.side,
+                            Trade.qty,
+                            Trade.price,
+                            Trade.timestamp,
                         ).where(cast(Any, Trade.timestamp) <= cutoff),
                     ).all()
                 pnl_24h = 0.0

@@ -16,7 +16,7 @@ import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 from config.config import settings
 
@@ -96,7 +96,10 @@ class RiskManager:
             risk_logger.setLevel(logging.INFO)
 
     def calculate_position_size(
-        self, entry_price: float, stop_loss_price: float, signal_confidence: float = 1.0,
+        self,
+        entry_price: float,
+        stop_loss_price: float,
+        signal_confidence: float = 1.0,
     ) -> tuple[float, dict[str, Any]]:
         """Calculate optimal position size based on risk parameters.
 
@@ -157,7 +160,10 @@ class RiskManager:
         return position_size, risk_info
 
     def calculate_stop_loss_take_profit(
-        self, entry_price: float, side: str, atr: float | None = None,
+        self,
+        entry_price: float,
+        side: str,
+        atr: float | None = None,
     ) -> tuple[float, float]:
         """Calculate stop loss and take profit levels.
 
@@ -205,68 +211,69 @@ class RiskManager:
             Tuple of (is_valid, validation_info)
 
         """
-        validation_info = {
+        checks: Dict[str, Dict[str, Any]] = {}
+        validation_info: Dict[str, Any] = {
             "symbol": symbol,
             "side": side,
             "entry_price": entry_price,
             "signal_strength": signal_strength,
-            "checks": {},
+            "checks": checks,
         }
 
         # Check 1: Daily loss limit
         daily_loss_pct = (self.portfolio.daily_pnl / self.daily_start_equity) * 100
         if daily_loss_pct < -self.params.max_daily_loss_pct:
-            validation_info["checks"]["daily_loss"] = {
+            checks["daily_loss"] = {
                 "passed": False,
                 "current": daily_loss_pct,
                 "limit": -self.params.max_daily_loss_pct,
             }
             return False, validation_info
-        validation_info["checks"]["daily_loss"] = {"passed": True}
+        checks["daily_loss"] = {"passed": True}
 
         # Check 2: Maximum drawdown
         current_drawdown = (
             (self.equity_peak - self.portfolio.total_equity) / self.equity_peak
         ) * 100
         if current_drawdown > self.params.max_drawdown_pct:
-            validation_info["checks"]["max_drawdown"] = {
+            checks["max_drawdown"] = {
                 "passed": False,
                 "current": current_drawdown,
                 "limit": self.params.max_drawdown_pct,
             }
             return False, validation_info
-        validation_info["checks"]["max_drawdown"] = {"passed": True}
+        checks["max_drawdown"] = {"passed": True}
 
         # Check 3: Portfolio risk utilization
         if self.portfolio.risk_utilization > self.params.max_portfolio_risk_pct:
-            validation_info["checks"]["portfolio_risk"] = {
+            checks["portfolio_risk"] = {
                 "passed": False,
                 "current": self.portfolio.risk_utilization,
                 "limit": self.params.max_portfolio_risk_pct,
             }
             return False, validation_info
-        validation_info["checks"]["portfolio_risk"] = {"passed": True}
+        checks["portfolio_risk"] = {"passed": True}
 
         # Check 4: Position limits per symbol
         existing_positions = [p for p in self.portfolio.positions if p.symbol == symbol]
         if len(existing_positions) >= 1:  # Max 1 position per symbol
-            validation_info["checks"]["position_limit"] = {
+            checks["position_limit"] = {
                 "passed": False,
                 "existing_positions": len(existing_positions),
             }
             return False, validation_info
-        validation_info["checks"]["position_limit"] = {"passed": True}
+        checks["position_limit"] = {"passed": True}
 
         # Check 5: Minimum signal strength
         min_signal_strength = 0.6  # Require at least 60% confidence
         if signal_strength < min_signal_strength:
-            validation_info["checks"]["signal_strength"] = {
+            checks["signal_strength"] = {
                 "passed": False,
                 "current": signal_strength,
                 "minimum": min_signal_strength,
             }
             return False, validation_info
-        validation_info["checks"]["signal_strength"] = {"passed": True}
+        checks["signal_strength"] = {"passed": True}
 
         # All checks passed
         logger.info(f"Trade signal validated for {symbol} {side} @ {entry_price}")
@@ -286,7 +293,8 @@ class RiskManager:
             # Calculate stop loss and take profit if not provided
             if stop_loss is None or take_profit is None:
                 calc_stop, calc_tp = self.calculate_stop_loss_take_profit(
-                    entry_price, side,
+                    entry_price,
+                    side,
                 )
                 stop_loss = stop_loss or calc_stop
                 take_profit = take_profit or calc_tp
@@ -358,7 +366,7 @@ class RiskManager:
 
     def check_exit_conditions(self, current_prices: dict[str, float]) -> list[dict]:
         """Check if any positions should be closed based on stop loss/take profit."""
-        exit_signals = []
+        exit_signals: list[dict[str, Any]] = []
 
         for position in self.portfolio.positions:
             if position.symbol not in current_prices:
@@ -368,19 +376,33 @@ class RiskManager:
             should_exit = False
             exit_reason = ""
 
+            # Compare only when stop_loss / take_profit are set (not None)
             if position.side == "long":
-                if current_price <= position.stop_loss:
+                if (
+                    position.stop_loss is not None
+                    and current_price <= position.stop_loss
+                ):
                     should_exit = True
                     exit_reason = "stop_loss"
-                elif current_price >= position.take_profit:
+                elif (
+                    position.take_profit is not None
+                    and current_price >= position.take_profit
+                ):
                     should_exit = True
                     exit_reason = "take_profit"
-            elif current_price >= position.stop_loss:
-                should_exit = True
-                exit_reason = "stop_loss"
-            elif current_price <= position.take_profit:
-                should_exit = True
-                exit_reason = "take_profit"
+            elif position.side == "short":
+                if (
+                    position.stop_loss is not None
+                    and current_price >= position.stop_loss
+                ):
+                    should_exit = True
+                    exit_reason = "stop_loss"
+                elif (
+                    position.take_profit is not None
+                    and current_price <= position.take_profit
+                ):
+                    should_exit = True
+                    exit_reason = "take_profit"
 
             if should_exit:
                 exit_signals.append(
@@ -394,7 +416,9 @@ class RiskManager:
 
         return exit_signals
 
-    def close_position(self, symbol: str, exit_price: float, reason: str = "manual") -> bool:
+    def close_position(
+        self, symbol: str, exit_price: float, reason: str = "manual"
+    ) -> bool:
         """Close a position and update portfolio."""
         position_to_close = None
         for _i, position in enumerate(self.portfolio.positions):
@@ -446,9 +470,7 @@ class RiskManager:
     def save_state(self, filepath: str | None = None) -> None:
         """Save current portfolio state to file."""
         if filepath is None:
-            filepath = (
-                f"logs/portfolio_state_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-            )
+            filepath = f"logs/portfolio_state_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
 
         state = self.get_portfolio_summary()
         with open(filepath, "w") as f:
@@ -473,12 +495,17 @@ def test_risk_manager() -> None:
     stop_loss = 49000.0
 
     position_size, risk_info = rm.calculate_position_size(
-        entry_price, stop_loss, signal_confidence=0.8,
+        entry_price,
+        stop_loss,
+        signal_confidence=0.8,
     )
 
     # Test trade validation
     is_valid, validation_info = rm.validate_trade_signal(
-        "BTCUSDT", "long", entry_price, signal_strength=0.8,
+        "BTCUSDT",
+        "long",
+        entry_price,
+        signal_strength=0.8,
     )
 
     # Test adding position
@@ -489,7 +516,6 @@ def test_risk_manager() -> None:
     rm.update_portfolio(current_prices)
 
     rm.get_portfolio_summary()
-
 
 
 if __name__ == "__main__":

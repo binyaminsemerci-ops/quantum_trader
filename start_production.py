@@ -22,7 +22,8 @@ from production_risk_manager import RiskManager, RiskParameters
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ class ProductionDeployment:
                 validation_results.append("✅ Binance API keys configured")
         else:
             validation_results.append(
-                "ℹ️  Paper trading mode (ENABLE_REAL_TRADING=False)",
+                "i  Paper trading mode (ENABLE_REAL_TRADING=False)",
             )
 
         # Check market data configuration
@@ -147,7 +148,8 @@ class ProductionDeployment:
             )
 
             self.monitor = PerformanceMonitor(
-                risk_manager=self.risk_manager, alert_config=alert_config,
+                risk_manager=self.risk_manager,
+                alert_config=alert_config,
             )
 
             # Start monitoring
@@ -346,13 +348,19 @@ def main() -> None:
     """Main production startup function."""
     parser = argparse.ArgumentParser(description="Quantum Trader Production Deployment")
     parser.add_argument(
-        "--skip-tests", action="store_true", help="Skip production tests",
+        "--skip-tests",
+        action="store_true",
+        help="Skip production tests",
     )
     parser.add_argument(
-        "--skip-training", action="store_true", help="Skip initial training",
+        "--skip-training",
+        action="store_true",
+        help="Skip initial training",
     )
     parser.add_argument(
-        "--validate-only", action="store_true", help="Only validate configuration",
+        "--validate-only",
+        action="store_true",
+        help="Only validate configuration",
     )
 
     args = parser.parse_args()
@@ -370,7 +378,8 @@ def main() -> None:
     # Run full deployment
     try:
         success = deployment.deploy(
-            skip_tests=args.skip_tests, skip_training=args.skip_training,
+            skip_tests=args.skip_tests,
+            skip_training=args.skip_training,
         )
 
         if not success:
