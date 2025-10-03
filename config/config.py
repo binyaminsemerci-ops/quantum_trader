@@ -24,6 +24,13 @@ DEFAULT_EXCHANGE: str = os.environ.get("DEFAULT_EXCHANGE", "binance")
 DEFAULT_QUOTE: str = os.environ.get("DEFAULT_QUOTE", "USDT")
 FUTURES_QUOTE: str = os.environ.get("FUTURES_QUOTE", DEFAULT_QUOTE)
 
+# Default trading symbols - parsed from environment or fallback to common pairs
+DEFAULT_SYMBOLS_ENV = os.environ.get(
+    "DEFAULT_SYMBOLS",
+    "BTCUSDT,ETHUSDT,BNBUSDT,XRPUSDT,SOLUSDT,ADAUSDT,DOGEUSDT,TRXUSDT,DOTUSDT,LINKUSDT,AVAXUSDT,MATICUSDT,ATOMUSDT,LTCUSDT,UNIUSDT,ETCUSDT,XLMUSDT,NEARUSDT,AAVEUSDT,ALGOUSDT",
+)
+DEFAULT_SYMBOLS = [s.strip() for s in DEFAULT_SYMBOLS_ENV.split(",") if s.strip()]
+
 
 def make_pair(base: str, quote: str | None = None) -> str:
     """Build a simple market pair string used by helpers and tests.
@@ -49,6 +56,7 @@ def load_config() -> Any:
         ),
         DEFAULT_QUOTE=os.environ.get("DEFAULT_QUOTE", DEFAULT_QUOTE),
         FUTURES_QUOTE=os.environ.get("FUTURES_QUOTE", FUTURES_QUOTE),
+        default_symbols=DEFAULT_SYMBOLS,  # Add default symbols to namespace
         binance_api_key=os.environ.get("BINANCE_API_KEY"),
         binance_api_secret=os.environ.get("BINANCE_API_SECRET"),
         coinbase_api_key=os.environ.get("COINBASE_API_KEY"),
@@ -84,4 +92,10 @@ def masked_config_summary(cfg: Any) -> Dict[str, Any]:
 settings: Any = load_config()
 
 
-__all__ = ["DEFAULT_EXCHANGE", "load_config", "settings"]
+__all__ = [
+    "DEFAULT_EXCHANGE",
+    "DEFAULT_SYMBOLS",
+    "load_config",
+    "settings",
+    "masked_config_summary",
+]

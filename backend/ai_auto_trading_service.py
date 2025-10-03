@@ -14,7 +14,7 @@ Komplett implementering av AI-drevet automatisk handel:
 import json
 import logging
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 import threading
@@ -32,15 +32,28 @@ from backend.continuous_learning_engine import create_continuous_learning_servic
 # Default symbols for testing (fallback if config import fails)
 DEFAULT_SYMBOLS = ["BTCUSDC", "ETHUSDC", "ADAUSDC"]
 
+# Try to import the real XGBAgent, fallback to mock if not available
+XGBAgent = None
+make_default_agent = None
+
 try:
     from ai_engine.agents.xgb_agent import make_default_agent, XGBAgent
 except ImportError:
-    # Mock XGBAgent for testing
-    class XGBAgent:
+    # Mock XGBAgent for testing if ai_engine not available
+    from typing import Any, Protocol
+
+    class XGBAgent(Protocol):
+        model_name: str
+
+        def predict_for_symbol(
+            self, symbol: str, limit: int = 100
+        ) -> Dict[str, Any]: ...
+
+    class MockXGBAgent:
         def __init__(self):
             self.model_name = "mock_xgb"
 
-        def predict_for_symbol(self, symbol: str, limit: int = 100):
+        def predict_for_symbol(self, symbol: str, limit: int = 100) -> Dict[str, Any]:
             # Mock prediction - random but realistic values
             import random
 
@@ -51,8 +64,8 @@ except ImportError:
                 "model_version": "mock_v1.0",
             }
 
-    def make_default_agent():
-        return XGBAgent()
+    def make_default_agent() -> XGBAgent:
+        return MockXGBAgent()  # type: ignore
 
 
 logger = logging.getLogger(__name__)
@@ -121,7 +134,7 @@ class AIAutoTradingService:
         # State tracking
         self.active_positions: Dict[str, Dict[str, Any]] = {}
         self.daily_trade_count = 0
-        self.last_trade_date = None
+        self.last_trade_date: Optional[date] = None
         self.is_running = False
         self.trading_thread: Optional[threading.Thread] = None
 
@@ -233,7 +246,7 @@ class AIAutoTradingService:
             import random
 
             base_price = 50000 if "BTC" in symbol else 3000 if "ETH" in symbol else 100
-            data = []
+            data: List[Dict[str, Any]] = []
 
             for i in range(limit):
                 timestamp = datetime.now(timezone.utc) - timedelta(minutes=i)
