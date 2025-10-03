@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Start the Enhanced Continuous Learning Engine with Live Data Feeds
+"""Start the Enhanced Continuous Learning Engine with Live Data Feeds
 Dette starter AI-systemet som lærer kontinuerlig fra Twitter, nyheter og markedsdata
 """
 
@@ -17,7 +16,6 @@ logger = get_logger(__name__)
 
 def start_enhanced_learning():
     """Start the continuous learning engine with enhanced data feeds."""
-
     # Default symbols for learning (most liquid crypto pairs)
     symbols = [
         "BTCUSDT",

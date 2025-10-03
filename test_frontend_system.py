@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Frontend System Tests
+"""Frontend System Tests
 
 Comprehensive tests for the Quantum Trader frontend including:
 - Component rendering tests
@@ -65,7 +64,7 @@ class FrontendSystemTester:
         )
 
         # Wait for server to start
-        for attempt in range(30):
+        for _attempt in range(30):
             try:
                 time.sleep(1)
                 response = requests.get(f"{self.backend_url}/health", timeout=2)
@@ -101,7 +100,7 @@ class FrontendSystemTester:
         )
 
         # Wait for server to start
-        for attempt in range(60):  # Vite can take longer to start
+        for _attempt in range(60):  # Vite can take longer to start
             try:
                 time.sleep(1)
                 response = requests.get(self.frontend_url, timeout=2)
@@ -229,7 +228,7 @@ class FrontendSystemTester:
                     if "passed" in line.lower() and "failed" in line.lower():
                         # Extract numbers from lines like "Tests  2 passed (2)"
                         words = line.split()
-                        for i, word in enumerate(words):
+                        for _i, word in enumerate(words):
                             if word.isdigit():
                                 if "passed" in line.lower():
                                     tests_passed = int(word)

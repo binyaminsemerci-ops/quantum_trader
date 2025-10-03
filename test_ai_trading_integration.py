@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-AI Auto Trading Integration Test
+"""AI Auto Trading Integration Test
 
 This script tests the AI Auto Trading Service integration with the backend.
 It verifies that all endpoints work correctly and that the AI service can

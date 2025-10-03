@@ -1,4 +1,4 @@
-﻿from typing import Any, Optional, cast
+from typing import Any, Optional, cast
 
 # This file intentionally does not contain hard-coded credentials. The
 # Binance API key/secret are loaded at runtime via the centralized

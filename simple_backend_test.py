@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Simple Backend System Test
+"""Simple Backend System Test
 
 A simplified version of backend testing without external dependencies.
 Tests basic API connectivity and core functionality.

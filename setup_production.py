@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Production API Configuration Setup Script
+"""Production API Configuration Setup Script
 
 This script helps configure live API keys and enables production features
 for the Quantum Trader system.
@@ -13,7 +12,6 @@ from pathlib import Path
 
 def create_production_env():
     """Create a production-ready .env file with live API configuration."""
-
     print("🚀 Quantum Trader Production Configuration Setup")
     print("=" * 50)
 

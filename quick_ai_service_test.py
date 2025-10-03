@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Quick AI Trading Service Test
+"""Quick AI Trading Service Test
 
 A minimal test to verify the AI trading service works.
 """
@@ -13,7 +12,6 @@ sys.path.append("backend")
 
 def test_ai_service():
     """Test AI trading service basic functionality."""
-
     print("🧪 Testing AI Auto Trading Service...")
 
     try:

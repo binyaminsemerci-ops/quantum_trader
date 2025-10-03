@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-ROBUST HTTP SERVER
+"""ROBUST HTTP SERVER
 Ikke stopp selv om noe går galt
 """
 
@@ -33,7 +32,6 @@ ai_state = {
 
 
 class RobustHandler(http.server.SimpleHTTPRequestHandler):
-
     def generate_extended_watchlist(self):
         """Generate comprehensive watchlist with 50+ coins from major exchanges and L1/L2"""
         import random
@@ -365,7 +363,7 @@ class RobustHandler(http.server.SimpleHTTPRequestHandler):
             # Generate sparkline data
             base_price = current_price
             sparkline = []
-            for i in range(10):
+            for _i in range(10):
                 variation = random.uniform(-0.03, 0.03)
                 price_point = base_price * (1 + variation)
                 sparkline.append(round(price_point, 6 if price_point < 1 else 2))

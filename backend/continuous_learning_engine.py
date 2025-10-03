@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Enhanced Live Data Feed & Continuous Learning Engine
+"""Enhanced Live Data Feed & Continuous Learning Engine
 Integrates Twitter sentiment, news feeds, live market data for real-time strategy evolution
 
 Quantum Trader AI kontinuerlig læring system som:
@@ -78,7 +77,6 @@ class ContinuousLearningEngine:
         sentiment_threshold: float = 0.3,  # Minimum sentiment impact
         enhanced_fetch_interval: int = 300,
     ):  # Enhanced data every 5 min
-
         self.symbols = symbols
         self.twitter_update_interval = twitter_update_interval
         self.market_update_interval = market_update_interval

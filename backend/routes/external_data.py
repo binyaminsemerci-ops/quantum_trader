@@ -133,7 +133,6 @@ def _fallback_news(symbol: str, limit: int) -> List[Dict[str, Any]]:
 
 async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
     """Fetch OHLCV candles via market-data adapters with deterministic fallback."""
-
     try:
         candles = await asyncio.to_thread(fetch_recent_candles, symbol, limit)
         source = "live" if _live_market_data_enabled() else "demo"
@@ -149,7 +148,6 @@ async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
 
 async def twitter_sentiment(symbol: str) -> Dict[str, Any]:
     """Return a light-touch sentiment summary for a symbol."""
-
     base_symbol = _strip_quote(symbol)
     client = _twitter_client()
     try:

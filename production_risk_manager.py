@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Production Risk Management System
+"""Production Risk Management System
 
 This module implements comprehensive risk management features including:
 - Position sizing based on account equity
@@ -99,16 +98,18 @@ class RiskManager:
     def calculate_position_size(
         self, entry_price: float, stop_loss_price: float, signal_confidence: float = 1.0
     ) -> Tuple[float, Dict[str, Any]]:
-        """
-        Calculate optimal position size based on risk parameters.
+        """Calculate optimal position size based on risk parameters.
 
         Args:
+        ----
             entry_price: Entry price for the position
             stop_loss_price: Stop loss price
             signal_confidence: AI model confidence (0.0 to 1.0)
 
         Returns:
+        -------
             Tuple of (position_size, risk_info)
+
         """
         # Calculate risk per share
         risk_per_share = abs(entry_price - stop_loss_price)
@@ -158,16 +159,18 @@ class RiskManager:
     def calculate_stop_loss_take_profit(
         self, entry_price: float, side: str, atr: Optional[float] = None
     ) -> Tuple[float, float]:
-        """
-        Calculate stop loss and take profit levels.
+        """Calculate stop loss and take profit levels.
 
         Args:
+        ----
             entry_price: Entry price
             side: 'long' or 'short'
             atr: Average True Range for dynamic stops (optional)
 
         Returns:
+        -------
             Tuple of (stop_loss_price, take_profit_price)
+
         """
         if atr and atr > 0:
             # Dynamic stops based on volatility (ATR)
@@ -195,11 +198,12 @@ class RiskManager:
         signal_strength: float = 1.0,
         market_data: Optional[Dict] = None,
     ) -> Tuple[bool, Dict[str, Any]]:
-        """
-        Validate if a trade signal should be executed based on risk rules.
+        """Validate if a trade signal should be executed based on risk rules.
 
         Returns:
+        -------
             Tuple of (is_valid, validation_info)
+
         """
         validation_info = {
             "symbol": symbol,
@@ -394,7 +398,7 @@ class RiskManager:
     def close_position(self, symbol: str, exit_price: float, reason: str = "manual"):
         """Close a position and update portfolio."""
         position_to_close = None
-        for i, position in enumerate(self.portfolio.positions):
+        for _i, position in enumerate(self.portfolio.positions):
             if position.symbol == symbol:
                 position_to_close = position
                 break

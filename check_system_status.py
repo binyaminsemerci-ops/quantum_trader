@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Oppdatert systemstatus etter Node.js-bekreftelse
-"""
+"""Oppdatert systemstatus etter Node.js-bekreftelse"""
 
 import json
 import subprocess
@@ -11,7 +9,6 @@ from pathlib import Path
 
 def check_system_status():
     """Sjekk gjeldende systemstatus."""
-
     print("🔍 Sjekker komplett systemstatus...")
 
     status = {
@@ -113,7 +110,6 @@ def check_system_status():
 
 def print_status_report(status):
     """Print formatert statusrapport."""
-
     print("\n" + "=" * 60)
     print("📊 QUANTUM TRADER - SYSTEMSTATUS")
     print("=" * 60)
@@ -197,7 +193,6 @@ def print_status_report(status):
 
 def main():
     """Hovedfunksjon."""
-
     # Sjekk status
     status = check_system_status()
 

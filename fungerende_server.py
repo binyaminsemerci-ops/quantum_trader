@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-KOMPLETT FUNGERENDE HTTP SERVER
+"""KOMPLETT FUNGERENDE HTTP SERVER
 Helhetlig løsning for Quantum Trader - ingen fancy dependencies
 """
 

@@ -12,7 +12,6 @@ router = APIRouter()
 @router.get("")  # alias without trailing slash to avoid 307 redirect for frontend fetch
 async def get_portfolio(db: Session = Depends(get_session)):
     """Get real portfolio data from trades table."""
-
     # Calculate current positions by symbol
     # SUM(CASE WHEN side = 'BUY' THEN qty ELSE -qty END) AS net_qty
     # AVG(price) AS avg_price (weighted by quantity would be better but this is simpler)
@@ -92,7 +91,6 @@ async def get_portfolio(db: Session = Depends(get_session)):
 @router.get("/pnl")
 async def get_pnl_data(db: Session = Depends(get_session)):
     """Get P&L analytics from real trade data."""
-
     # Get all trades for analysis
     trades = db.execute(select(Trade).order_by(Trade.timestamp.desc())).scalars().all()
 
@@ -176,7 +174,6 @@ async def get_pnl_data(db: Session = Depends(get_session)):
 @router.get("/market-overview")
 async def get_market_overview(db: Session = Depends(get_session)):
     """Get market overview based on real trading activity."""
-
     # Get symbols being traded
     active_symbols = db.execute(
         select(Trade.symbol, func.count(Trade.id).label("trade_count"))

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-ENKEL FUNGERENDE SERVER
+"""ENKEL FUNGERENDE SERVER
 Fokuserer kun på å levere data til dashboardet
 """
 

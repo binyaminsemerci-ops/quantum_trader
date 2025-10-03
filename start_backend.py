@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""
-Quick backend starter script
-"""
+"""Quick backend starter script"""
+
 import os
 import sys
 

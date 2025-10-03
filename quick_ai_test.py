@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Quick AI Test Script - Kjøre rask AI modell test
+"""Quick AI Test Script - Kjøre rask AI modell test
 =============================================
 
 Dette skriptet kjører en rask test av AI-systemet med færre symboler for rask validering.

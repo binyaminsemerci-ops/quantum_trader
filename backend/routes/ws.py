@@ -30,6 +30,7 @@ except Exception:  # pragma: no cover
     def get_trading_engine():  # type: ignore
         raise RuntimeError("Trading engine unavailable")
 
+
 _WS_START_TIME = time.time()
 
 router = APIRouter()
