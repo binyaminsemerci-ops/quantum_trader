@@ -1,3 +1,6 @@
+# Exclude large model/image blobs and manifests
+blobs/
+manifests/
 # Ignore downloaded CI artifacts and other runtime captures
 artifacts/
 .venv*/
