@@ -1,15 +1,15 @@
 {
-  "timestamp": "2025-10-02T03:59:36.866476",
+  "timestamp": "2025-10-03T08:41:39.507661",
   "components": {
     "backend_dir": true,
     "frontend_dir": true,
-    "database": true,
+    "database": false,
     "package_json": true,
-    "vite_config": true,
+    "vite_config": false,
     "backend_main": true
   },
   "services": {
-    "backend_running": false,
+    "backend_running": true,
     "frontend_running": false
   },
   "frontend": {
