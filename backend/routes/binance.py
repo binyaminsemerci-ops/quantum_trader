@@ -14,10 +14,12 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend.routes.settings import SETTINGS
 from backend.utils.exchanges import (
-    ExchangeClient,
     get_exchange_client,
     resolve_exchange_name,
 )
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from backend.utils.exchanges import ExchangeClient  # noqa: F401
 # Defensive import of config; fallback stub if packaging differs under tests
 try:  # pragma: no cover - simple import path
     from config.config import load_config  # type: ignore
@@ -68,7 +70,7 @@ def _demo_trades(symbol: str, limit: int) -> list[dict[str, Any]]:
     ]
 
 
-def _client_or_raise(name: str) -> ExchangeClient:
+def _client_or_raise(name: str):  # -> ExchangeClient:
     try:
         return get_exchange_client(name)
     except Exception as exc:  # pragma: no cover - adapter construction errors

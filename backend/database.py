@@ -155,17 +155,22 @@ class ModelRegistry(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     model_name = Column(String(255), nullable=False)
     version = Column(String(50), nullable=False)
-    is_active = Column(Integer, default=0)
+    # New fields added to align with CI/test expectations
+    tag = Column(String(64), nullable=True, index=True)
+    metrics_json = Column(Text, nullable=True)
+    is_active = Column(Integer, default=0, index=True)
     created_at = Column(DateTime, default=func.now())
-    accuracy = Column(Float)
-    path = Column(String(500))
+    accuracy = Column(Float, nullable=True)
+    path = Column(String(500), nullable=True)
 
     def __init__(
         self,
         *,
         model_name: str,
         version: str,
+        tag: str | None = None,
         is_active: int = 0,
+        metrics_json: str | None = None,
         accuracy: float | None = None,
         path: str | None = None,
         **kwargs,
@@ -173,7 +178,9 @@ class ModelRegistry(Base):
         super().__init__(**kwargs)
         self.model_name = model_name
         self.version = version
+        self.tag = tag
         self.is_active = is_active
+        self.metrics_json = metrics_json
         self.accuracy = accuracy
         self.path = path
 
@@ -299,6 +306,25 @@ class Settings(Base):
 Base.metadata.create_all(bind=engine)
 
 
+class AlertEvent(Base):
+    """Simple event log for alerts (activation, trigger, disable).
+
+    Added to satisfy CI/tests expecting `AlertEvent` export. Can be expanded later.
+    """
+
+    __tablename__ = "alert_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    alert_id = Column(Integer, index=True, nullable=False)
+    event = Column(String(64), nullable=False, default="trigger")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    def __init__(self, *, alert_id: int, event: str = "trigger", **kwargs) -> None:  # type: ignore[no-untyped-def]
+        super().__init__(**kwargs)
+        self.alert_id = alert_id
+        self.event = event
+
+
 def get_session() -> Iterator[Session]:
     session = SessionLocal()
     try:
@@ -363,6 +389,7 @@ __all__ = [
     "ModelRegistry",
     "Alert",
     "WatchlistEntry",
+    "AlertEvent",
     "get_session",
     "get_db",
     "session_scope",
