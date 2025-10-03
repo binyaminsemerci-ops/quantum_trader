@@ -8,7 +8,7 @@ Tests basic API connectivity and core functionality.
 import json
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 import requests
@@ -121,9 +121,8 @@ class SimpleBackendTester:
             "success_rate": successful_tests / total_tests if total_tests > 0 else 0,
             "total_duration_ms": (time.time() - start_time) * 1000,
             "detailed_results": self.test_results,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
-
 
 
 def main() -> int:

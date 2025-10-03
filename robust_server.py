@@ -549,7 +549,8 @@ class RobustHandler(http.server.SimpleHTTPRequestHandler):
                 # Add some randomness to make it dynamic
                 for signal in signals:
                     signal["confidence"] = round(
-                        signal["confidence"] + random.uniform(-5, 5), 1,
+                        signal["confidence"] + random.uniform(-5, 5),
+                        1,
                     )
                     signal["timestamp"] = datetime.now(timezone.utc).isoformat()
                 response = signals

@@ -6,7 +6,7 @@ Generates a comprehensive summary of backend and frontend system tests.
 
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -174,12 +174,17 @@ class SystemTestSummaryGenerator:
             "health_emoji": health_emoji,
             "component_scores": {name: score for name, score, _ in scores},
             "recommendations": self.generate_health_recommendations(
-                weighted_score, components, coverage,
+                weighted_score,
+                components,
+                coverage,
             ),
         }
 
     def generate_health_recommendations(
-        self, overall_score: float, components: Dict[str, Any], coverage: Dict[str, Any],
+        self,
+        overall_score: float,
+        components: Dict[str, Any],
+        coverage: Dict[str, Any],
     ) -> List[str]:
         """Generate recommendations based on system health."""
         recommendations = []
@@ -281,7 +286,8 @@ class SystemTestSummaryGenerator:
                     "tests_passed": results.get("tests_passed", 0),
                     "success_rate": results.get("success_rate", 0),
                     "duration_ms": results.get(
-                        "total_duration_ms", results.get("test_duration_ms", 0),
+                        "total_duration_ms",
+                        results.get("test_duration_ms", 0),
                     ),
                     "status": (
                         "✅ PASS"
@@ -297,7 +303,7 @@ class SystemTestSummaryGenerator:
 
         return {
             "report_metadata": {
-                "generated_at": datetime.now().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
                 "system": "Quantum Trader",
                 "report_type": "System Health & Test Summary",
             },
@@ -307,7 +313,6 @@ class SystemTestSummaryGenerator:
             "test_summaries": test_summaries,
             "detailed_results": self.results,
         }
-
 
     def print_report(self, report: Dict[str, Any]) -> None:
         """Print formatted system test report."""
@@ -344,7 +349,6 @@ class SystemTestSummaryGenerator:
         # Recommendations
         for _rec in health["recommendations"]:
             pass
-
 
 
 def main() -> int:

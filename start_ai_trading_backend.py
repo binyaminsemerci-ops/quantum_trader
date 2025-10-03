@@ -49,7 +49,6 @@ def main():
     if not check_dependencies():
         return 1
 
-
     input("Press Enter to start the backend server...")
 
     return start_backend()

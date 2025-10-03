@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Iterator
+from typing import Iterator, Any
 
 from sqlalchemy import (
     Column,
@@ -34,14 +34,18 @@ if not os.path.isdir(DATA_DIR):
     os.makedirs(DATA_DIR, exist_ok=True)
 
 DATABASE_URL = os.environ.get(
-    "QUANTUM_TRADER_DATABASE_URL", f"sqlite:///{DEFAULT_SQLITE_PATH}",
+    "QUANTUM_TRADER_DATABASE_URL",
+    f"sqlite:///{DEFAULT_SQLITE_PATH}",
 )
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=connect_args, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
-Base = declarative_base()
+# SQLAlchemy Base - annotate as Any for static type checkers to avoid
+# "Variable ... is not valid as a type" complaints while preserving runtime
+# behavior.
+Base: Any = declarative_base()
 
 
 class Trade(Base):
@@ -245,7 +249,9 @@ class TrainingTask(Base):
     status = Column(String(32), nullable=False, default="pending")
     details = Column(Text, nullable=True)
     created_at = Column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(),
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )
     completed_at = Column(DateTime(timezone=True), nullable=True)
 

@@ -10,7 +10,11 @@ class RiskManager:
         self.max_loss_pct = max_loss_pct
 
     def validate_order(
-        self, balance: float, qty: float, price: float, stop_loss: float,
+        self,
+        balance: float,
+        qty: float,
+        price: float,
+        stop_loss: float,
     ) -> tuple[bool, str]:
         """Validerer en ordre basert på risikoregler.
         :param balance: Kontoens balanse

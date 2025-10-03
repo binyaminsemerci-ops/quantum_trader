@@ -16,7 +16,16 @@ from typing import Any, Dict, Optional
 
 import requests  # type: ignore[import-untyped]
 
-from config.config import load_config  # type: ignore[import-not-found, import-untyped]
+# Defensive import; under some test discovery flows the package layout may not
+# yet register. Provide a tiny fallback config shim.
+try:  # pragma: no cover
+    from config.config import load_config  # type: ignore[import-not-found, import-untyped]
+except Exception:  # pragma: no cover
+    def load_config():  # type: ignore
+        class _Cfg:
+            x_bearer_token = None
+
+        return _Cfg()
 
 # Small in-process cache to avoid repeated API calls during short tests
 _CACHE: Dict[str, Any] = {}
@@ -84,7 +93,9 @@ class TwitterClient:
         return None
 
     def sentiment_for_symbol(
-        self, symbol: Optional[str] = None, max_results: int = 20,
+        self,
+        symbol: Optional[str] = None,
+        max_results: int = 20,
     ) -> Dict[str, Any]:
         """Return a lightweight sentiment summary for a symbol.
 
@@ -118,7 +129,11 @@ class TwitterClient:
         url = f"{self.base_v2}/tweets/search/recent"
 
         r = self._request_with_retries(
-            url, params=params, headers=headers, max_attempts=4, timeout=8,
+            url,
+            params=params,
+            headers=headers,
+            max_attempts=4,
+            timeout=8,
         )
         if r is None:
             logger.warning("Twitter API request failed after retries")

@@ -24,12 +24,13 @@ async def get_trading_status() -> Dict[str, Any]:
         return engine.get_trading_status()
     except Exception as e:
         logger.exception(f"Error getting trading status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/start")
 async def start_trading(
-    background_tasks: BackgroundTasks, interval_minutes: int = 5,
+    background_tasks: BackgroundTasks,
+    interval_minutes: int = 5,
 ) -> Dict[str, str]:
     """Start automated trading."""
     global trading_task
@@ -50,7 +51,7 @@ async def start_trading(
 
     except Exception as e:
         logger.exception(f"Error starting trading: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/stop")
@@ -70,7 +71,7 @@ async def stop_trading() -> Dict[str, str]:
 
     except Exception as e:
         logger.exception(f"Error stopping trading: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/analyze/{symbol}")
@@ -83,7 +84,8 @@ async def analyze_symbol(symbol: str) -> Dict[str, Any]:
         ohlcv_data = await engine.get_market_data(symbol)
         if not ohlcv_data:
             raise HTTPException(
-                status_code=404, detail=f"No market data found for {symbol}",
+                status_code=404,
+                detail=f"No market data found for {symbol}",
             )
 
         # Get AI prediction
@@ -98,12 +100,15 @@ async def analyze_symbol(symbol: str) -> Dict[str, Any]:
 
     except Exception as e:
         logger.exception(f"Error analyzing symbol {symbol}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/manual-trade")
 async def manual_trade(
-    symbol: str, action: str, quantity: Optional[float] = None, force: bool = False,
+    symbol: str,
+    action: str,
+    quantity: Optional[float] = None,
+    force: bool = False,
 ) -> Dict[str, Any]:
     """Execute a manual trade (bypassing AI if force=True)."""
     try:
@@ -116,7 +121,8 @@ async def manual_trade(
         ohlcv_data = await engine.get_market_data(symbol)
         if not ohlcv_data:
             raise HTTPException(
-                status_code=404, detail=f"No market data found for {symbol}",
+                status_code=404,
+                detail=f"No market data found for {symbol}",
             )
 
         current_price = ohlcv_data[-1]["close"]
@@ -140,13 +146,15 @@ async def manual_trade(
 
         # Execute the trade
         return engine.execute_trade(
-            symbol, action, quantity, 1.0 if force else prediction.get("score", 0.5),
+            symbol,
+            action,
+            quantity,
+            1.0 if force else prediction.get("score", 0.5),
         )
-
 
     except Exception as e:
         logger.exception(f"Error executing manual trade: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/balances")
@@ -157,7 +165,7 @@ async def get_balances() -> Dict[str, float]:
         return engine.get_account_balance()
     except Exception as e:
         logger.exception(f"Error getting balances: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/positions")
@@ -196,7 +204,7 @@ async def get_open_positions() -> List[Dict[str, Any]]:
 
     except Exception as e:
         logger.exception(f"Error getting positions: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/run-cycle")
@@ -214,7 +222,7 @@ async def run_single_cycle() -> Dict[str, Any]:
 
     except Exception as e:
         logger.exception(f"Error running trading cycle: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/symbols")
@@ -225,7 +233,7 @@ async def get_trading_symbols() -> List[str]:
         return engine.get_trading_symbols()
     except Exception as e:
         logger.exception(f"Error getting trading symbols: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/update-config")
@@ -261,7 +269,7 @@ async def update_trading_config(
 
     except Exception as e:
         logger.exception(f"Error updating trading config: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/ai-model-info")
@@ -281,4 +289,4 @@ async def get_ai_model_info() -> Dict[str, Any]:
 
     except Exception as e:
         logger.exception(f"Error getting AI model info: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

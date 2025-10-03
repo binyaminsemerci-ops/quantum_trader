@@ -11,16 +11,20 @@ Tests the new multi-source data feeds:
 - AI insights extraction
 """
 
+import sys
+import os
+ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+BACKEND_DIR = os.path.join(ROOT_DIR, "backend")
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
+
 import asyncio
 import logging
-import os
-import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
-
-# Add backend to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.enhanced_data_feeds import EnhancedDataFeed, get_enhanced_market_data
 from backend.routes.external_data import (
@@ -31,7 +35,8 @@ from backend.routes.external_data import (
 )
 
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -42,7 +47,6 @@ async def test_enhanced_data_feeds() -> None:
     logger.info("🚀 Testing Enhanced Multi-Source Data Integration")
 
     test_symbols = ["BTC", "ETH", "ADA", "SOL"]
-
 
     # Test 1: Direct EnhancedDataFeed usage
     async with EnhancedDataFeed() as feed:
@@ -82,7 +86,6 @@ async def test_enhanced_data_feeds() -> None:
         market_data = coingecko_data.get("market_data", [])
         coingecko_data.get("global_data", {})
 
-
         if market_data:
             market_data[0]
     except Exception:
@@ -120,27 +123,24 @@ async def test_enhanced_data_feeds() -> None:
 
     # Test 4: Performance and caching
 
-    start_time = datetime.now()
+    start_time = datetime.now(timezone.utc)
     try:
         async with EnhancedDataFeed() as feed:
             # First call
             await feed.get_all_enhanced_data(test_symbols)
-            mid_time = datetime.now()
+            mid_time = datetime.now(timezone.utc)
 
             # Second call (should use cache)
             await feed.get_all_enhanced_data(test_symbols)
-            end_time = datetime.now()
+            end_time = datetime.now(timezone.utc)
 
         (mid_time - start_time).total_seconds() * 1000
         (end_time - mid_time).total_seconds() * 1000
-
 
     except Exception:
         pass
 
     # Summary
-
-
 
 
 @pytest.mark.asyncio()
@@ -158,11 +158,9 @@ async def test_continuous_integration() -> None:
             enhanced_fetch_interval=300,  # 5 min for enhanced data
         )
 
-
         # Test enhanced data fetching
         enhanced_data = await engine.fetch_enhanced_market_data()
         insights = enhanced_data.get("ai_insights", {})
-
 
         if insights:
             pass
@@ -172,9 +170,10 @@ async def test_continuous_integration() -> None:
         sentiment_data = {"BTC": {"score": 0.2, "label": "slightly_bullish"}}
 
         engine.detect_enhanced_market_regime(
-            market_data, sentiment_data, enhanced_data,
+            market_data,
+            sentiment_data,
+            enhanced_data,
         )
-
 
     except Exception:
         pass

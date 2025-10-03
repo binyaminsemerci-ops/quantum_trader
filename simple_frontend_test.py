@@ -9,7 +9,7 @@ import json
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -79,10 +79,12 @@ class SimpleFrontendTester:
                 has_scripts = "scripts" in package_data
                 has_dependencies = "dependencies" in package_data
                 has_dev_script = has_scripts and "dev" in package_data.get(
-                    "scripts", {},
+                    "scripts",
+                    {},
                 )
                 has_build_script = has_scripts and "build" in package_data.get(
-                    "scripts", {},
+                    "scripts",
+                    {},
                 )
 
                 checks = [
@@ -130,7 +132,8 @@ class SimpleFrontendTester:
                 capture_output=True,
                 text=True,
                 timeout=10,
-                cwd=self.frontend_dir, check=False,
+                cwd=self.frontend_dir,
+                check=False,
             )
 
             npm_available = result.returncode == 0
@@ -172,7 +175,8 @@ class SimpleFrontendTester:
                     capture_output=True,
                     text=True,
                     timeout=30,
-                    cwd=self.frontend_dir, check=False,
+                    cwd=self.frontend_dir,
+                    check=False,
                 )
 
                 has_packages = result.returncode == 0 or "node_modules" in result.stdout
@@ -191,7 +195,8 @@ class SimpleFrontendTester:
                     capture_output=True,
                     text=True,
                     timeout=60,
-                    cwd=self.frontend_dir, check=False,
+                    cwd=self.frontend_dir,
+                    check=False,
                 )
 
                 test_result = {
@@ -224,9 +229,8 @@ class SimpleFrontendTester:
         if not self.frontend_dir.exists():
             return {
                 "error": f"Frontend directory not found: {self.frontend_dir}",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
-
 
         # Test frontend files
         files_result = self.test_frontend_files_exist()
@@ -272,9 +276,8 @@ class SimpleFrontendTester:
             "success_rate": successful_tests / total_tests if total_tests > 0 else 0,
             "total_duration_ms": (time.time() - start_time) * 1000,
             "detailed_results": self.test_results,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
-
 
 
 def main() -> int:

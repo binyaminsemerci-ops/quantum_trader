@@ -50,7 +50,8 @@ def load_config() -> Any:
     ns = SimpleNamespace(
         DEFAULT_EXCHANGE=os.environ.get("DEFAULT_EXCHANGE", DEFAULT_EXCHANGE),
         QUANTUM_TRADER_DATABASE_URL=os.environ.get(
-            "QUANTUM_TRADER_DATABASE_URL", "sqlite:///./db.sqlite3",
+            "QUANTUM_TRADER_DATABASE_URL",
+            "sqlite:///./db.sqlite3",
         ),
         DEFAULT_QUOTE=os.environ.get("DEFAULT_QUOTE", DEFAULT_QUOTE),
         FUTURES_QUOTE=os.environ.get("FUTURES_QUOTE", FUTURES_QUOTE),

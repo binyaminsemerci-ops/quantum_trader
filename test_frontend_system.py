@@ -14,7 +14,7 @@ import json
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -25,7 +25,9 @@ class FrontendSystemTester:
     """Comprehensive frontend system testing."""
 
     def __init__(
-        self, frontend_dir: str = "frontend", backend_url: str = "http://localhost:8000",
+        self,
+        frontend_dir: str = "frontend",
+        backend_url: str = "http://localhost:8000",
     ) -> None:
         self.frontend_dir = Path(frontend_dir)
         self.backend_url = backend_url
@@ -43,7 +45,6 @@ class FrontendSystemTester:
                 return True
         except Exception:
             pass
-
 
         self.backend_process = subprocess.Popen(
             [
@@ -82,7 +83,6 @@ class FrontendSystemTester:
                 return True
         except Exception:
             pass
-
 
         # Start the frontend dev server
         self.frontend_process = subprocess.Popen(
@@ -132,7 +132,8 @@ class FrontendSystemTester:
                 cwd=self.frontend_dir,
                 capture_output=True,
                 text=True,
-                timeout=300, check=False,  # 5 minutes
+                timeout=300,
+                check=False,  # 5 minutes
             )
 
             build_time = time.time() - start_time
@@ -194,7 +195,8 @@ class FrontendSystemTester:
                 cwd=self.frontend_dir,
                 capture_output=True,
                 text=True,
-                timeout=180, check=False,  # 3 minutes
+                timeout=180,
+                check=False,  # 3 minutes
             )
 
             test_time = time.time() - start_time
@@ -259,7 +261,8 @@ class FrontendSystemTester:
                 cwd=self.frontend_dir,
                 capture_output=True,
                 text=True,
-                timeout=120, check=False,  # 2 minutes
+                timeout=120,
+                check=False,  # 2 minutes
             )
 
             compile_time = time.time() - start_time
@@ -362,7 +365,8 @@ class FrontendSystemTester:
                             "status_code": response.status_code,
                             "response_time_ms": api_time,
                             "has_json": response.headers.get(
-                                "content-type", "",
+                                "content-type",
+                                "",
                             ).startswith("application/json"),
                         },
                     )
@@ -487,7 +491,7 @@ class FrontendSystemTester:
     def run_all_tests(self) -> Dict[str, Any]:
         """Run all frontend system tests."""
         test_summary = {
-            "start_time": datetime.now().isoformat(),
+            "start_time": datetime.now(timezone.utc).isoformat(),
             "tests_run": 0,
             "tests_passed": 0,
             "tests_failed": 0,
@@ -554,7 +558,7 @@ class FrontendSystemTester:
                 if test_summary["tests_run"] > 0
                 else 0
             )
-            test_summary["end_time"] = datetime.now().isoformat()
+            test_summary["end_time"] = datetime.now(timezone.utc).isoformat()
             test_summary["detailed_results"] = self.test_results
 
             # Print summary
@@ -573,7 +577,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Frontend System Tests")
     parser.add_argument("--frontend-dir", default="frontend", help="Frontend directory")
     parser.add_argument(
-        "--backend-url", default="http://localhost:8000", help="Backend URL",
+        "--backend-url",
+        default="http://localhost:8000",
+        help="Backend URL",
     )
     parser.add_argument("--output", help="Output file for test results")
 

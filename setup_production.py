@@ -91,7 +91,6 @@ def create_production_env() -> bool:
     with open(env_path, "w") as f:
         f.write(env_content)
 
-
     return True
 
 
@@ -101,7 +100,6 @@ def verify_configuration() -> Optional[bool]:
         # Import and test configuration
         sys.path.insert(0, str(Path.cwd()))
         from config.config import settings
-
 
         # Test API connectivity (if configured)
         if hasattr(settings, "binance_api_key") and settings.binance_api_key:
@@ -132,7 +130,6 @@ def main() -> None:
 
     if not verify_configuration():
         sys.exit(1)
-
 
 
 if __name__ == "__main__":

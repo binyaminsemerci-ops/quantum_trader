@@ -2,7 +2,27 @@ from fastapi import APIRouter
 
 from backend.routes.settings import SETTINGS
 from backend.utils.metrics import update_health_metric
-from config.config import load_config, masked_config_summary
+# Defensive import for config with fallback shim
+try:  # pragma: no cover
+    from config.config import load_config, masked_config_summary  # type: ignore[import-not-found]
+except Exception:  # pragma: no cover
+    def load_config():  # type: ignore
+        class _Cfg:
+            binance_api_key = None
+            binance_api_secret = None
+            coinbase_api_key = None
+            coinbase_api_secret = None
+            kucoin_api_key = None
+            kucoin_api_secret = None
+            enable_live_market_data = False
+
+        return _Cfg()
+
+    def masked_config_summary(_cfg):  # type: ignore
+        return {
+            "has_binance_keys": False,
+            "has_coinbase_keys": False,
+        }
 
 router = APIRouter()
 

@@ -28,6 +28,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.continuous_learning_engine import create_continuous_learning_service
 
+# Trading simulation constants
+EXECUTION_SUCCESS_RATE = 0.95  # 95% success rate for order execution
+
 # Default symbols for testing (fallback if config import fails)
 DEFAULT_SYMBOLS = ["BTCUSDC", "ETHUSDC", "ADAUSDC"]
 
@@ -45,7 +48,9 @@ except ImportError:
         model_name: str
 
         def predict_for_symbol(
-            self, symbol: str, limit: int = 100,
+            self,
+            symbol: str,
+            limit: int = 100,
         ) -> Dict[str, Any]: ...
 
     class MockXGBAgent:
@@ -236,7 +241,9 @@ class AIAutoTradingService:
             return False
 
     def get_market_data(
-        self, symbol: str, limit: int = 100,
+        self,
+        symbol: str,
+        limit: int = 100,
     ) -> Optional[List[Dict[str, Any]]]:
         """Get recent market data for symbol."""
         try:
@@ -273,7 +280,8 @@ class AIAutoTradingService:
         try:
             # Get market data
             ohlcv_data = self.get_market_data(
-                symbol, limit=120,
+                symbol,
+                limit=120,
             )  # Need enough for indicators
             if not ohlcv_data:
                 return None
@@ -336,7 +344,9 @@ class AIAutoTradingService:
             logger.exception(f"Failed to log signal: {e}")
 
     def calculate_position_size(
-        self, signal: TradingSignal, current_price: float,
+        self,
+        signal: TradingSignal,
+        current_price: float,
     ) -> float:
         """Calculate position size based on AI confidence and risk management."""
         try:
@@ -471,7 +481,7 @@ class AIAutoTradingService:
         # Simple simulation - 95% success rate
         import random
 
-        return random.random() > 0.05
+        return random.random() > (1 - EXECUTION_SUCCESS_RATE)
 
     def _calculate_stop_loss(self, trade: TradeExecution) -> float:
         """Calculate stop loss price."""
@@ -549,7 +559,11 @@ class AIAutoTradingService:
             logger.exception(f"Error checking positions: {e}")
 
     def _close_position(
-        self, symbol: str, position: Dict[str, Any], close_price: float, reason: str,
+        self,
+        symbol: str,
+        position: Dict[str, Any],
+        close_price: float,
+        reason: str,
     ) -> None:
         """Close position and calculate P&L."""
         try:
@@ -772,7 +786,9 @@ class AIAutoTradingService:
             return []
 
     def get_recent_executions(
-        self, symbol: Optional[str] = None, limit: int = 10,
+        self,
+        symbol: Optional[str] = None,
+        limit: int = 10,
     ) -> List[Dict[str, Any]]:
         """Get recent trade executions - alias for get_recent_trades with optional symbol filter."""
         try:
@@ -826,7 +842,6 @@ if __name__ == "__main__":
         max_position_size=100.0,  # Small amounts for testing
         min_confidence=0.5,
     )
-
 
     if service.start_trading():
         try:

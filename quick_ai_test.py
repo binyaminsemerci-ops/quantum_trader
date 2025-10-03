@@ -5,7 +5,7 @@
 Dette skriptet kjører en rask test av AI-systemet med færre symboler for rask validering.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -19,10 +19,9 @@ def run_quick_ai_test() -> Optional[bool]:
     symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
     limit = 200  # Fewer candles for speed
 
-
     try:
         # Step 1: Train the model
-        start_time = datetime.now()
+        start_time = datetime.now(timezone.utc)
 
         training_result = train_and_save(
             symbols=symbols,
@@ -32,7 +31,7 @@ def run_quick_ai_test() -> Optional[bool]:
             entry_threshold=0.001,
         )
 
-        (datetime.now() - start_time).total_seconds()
+        (datetime.now(timezone.utc) - start_time).total_seconds()
 
         if training_result:
             for value in training_result.values():
@@ -46,13 +45,15 @@ def run_quick_ai_test() -> Optional[bool]:
         thresholds = [0.001, 0.005, 0.01]
 
         for threshold in thresholds:
-            backtest_start = datetime.now()
+            backtest_start = datetime.now(timezone.utc)
 
             backtest_result = run_backtest_only(
-                symbols=symbols, limit=limit, entry_threshold=threshold,
+                symbols=symbols,
+                limit=limit,
+                entry_threshold=threshold,
             )
 
-            (datetime.now() - backtest_start).total_seconds()
+            (datetime.now(timezone.utc) - backtest_start).total_seconds()
 
             if backtest_result:
                 # Show key metrics
@@ -68,7 +69,7 @@ def run_quick_ai_test() -> Optional[bool]:
                 if "num_trades" in backtest_result:
                     backtest_result["num_trades"]
 
-        (datetime.now() - start_time).total_seconds()
+        (datetime.now(timezone.utc) - start_time).total_seconds()
 
         return True
 
@@ -83,7 +84,6 @@ def show_model_info() -> None:
     """Show information about saved model."""
     try:
         from ai_engine.train_and_save import load_report
-
 
         # Check default model directory
         model_dir = Path("ai_engine/models")
@@ -105,8 +105,8 @@ def show_model_info() -> None:
         else:
             pass
 
-    except Exception as e:
-        print(f"⚠️ AI test warning: {e}")
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

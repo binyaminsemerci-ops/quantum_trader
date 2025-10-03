@@ -124,8 +124,9 @@ async def predict(req: PredictRequest):
         # Simple fallback: return the mean of features as a mock prediction
         if not req.features:
             raise HTTPException(
-                status_code=400, detail="features must be a non-empty list",
-            )
+                status_code=400,
+                detail="features must be a non-empty list",
+            ) from None
         pred = float(np.mean(req.features))
         return PredictResponse(prediction=pred)
 
@@ -139,7 +140,9 @@ async def predict(req: PredictRequest):
         # otherwise try sklearn API compatibility
         raise HTTPException(status_code=500, detail="Loaded model has no predict()")
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"prediction failed: {exc}")
+        raise HTTPException(
+            status_code=500, detail=f"prediction failed: {exc}"
+        ) from exc
 
 
 # Some browsers send an OPTIONS preflight request before POSTing JSON. While
@@ -181,95 +184,116 @@ async def scan(req: ScanRequest):
     if not req.symbols:
         raise HTTPException(status_code=400, detail="symbols list required")
 
-    # In this minimal implementation we attempt to fetch OHLCV from a simple
-    # in-memory source - callers should provide full OHLCV for best results.
-    # We'll create a synthetic DataFrame per symbol when pandas is available;
-    # otherwise we build plain Python lists-of-dicts and use a lightweight
-    # heuristic so the endpoint remains usable in constrained environments.
-    # Avoid shadowing the pandas module name with None; use pandas_mod so
-    # mypy doesn't infer a Module | None assignment which can cause errors.
-    pandas_mod: Optional[Any] = None
-    try:
-        import pandas as pd  # type: ignore
-
-        pandas_mod = pd
-    except Exception as e:
-        # leave pandas_mod as None when pandas isn't available
-        logger.debug("pandas not available: %s", e)
-
-    from ai_engine.agents.xgb_agent import make_default_agent
-
+    pandas_mod = _try_import_pandas()
     symbol_ohlcv = {}
 
     if pandas_mod is not None:
-        # build pandas DataFrames (agent requires pandas for feature engineering)
-        agent = make_default_agent()
-        for s in req.symbols:
-            now = pandas_mod.Timestamp.utcnow()
-            rows = []
-            price = 40000.0
-            for i in range(120):
-                ts = now - pandas_mod.Timedelta(minutes=(120 - i))
-                open_p = price
-                close_p = price + ((i % 5) - 2) * 10
-                high_p = max(open_p, close_p) + 5
-                low_p = min(open_p, close_p) - 5
-                volume = 1000 + (i % 10) * 10
-                rows.append(
-                    {
-                        "timestamp": ts.isoformat() + "Z",
-                        "open": open_p,
-                        "high": high_p,
-                        "low": low_p,
-                        "close": close_p,
-                        "volume": volume,
-                    },
-                )
-                price = close_p
-            df = pandas_mod.DataFrame(rows)
-            symbol_ohlcv[s] = df
-
-        # Optionally reload model artifacts before running the scan
-        if getattr(req, "reload_model", False):
-            try:
-                agent.reload()
-            except Exception as e:
-                logger.debug("agent.reload() failed: %s", e)
-
-        try:
-            return agent.scan_symbols(symbol_ohlcv, top_n=min(10, len(req.symbols)))
-        except Exception as e:
-            # fall through to fallback heuristic below
-            logger.debug("agent.scan_symbols failed: %s", e)
+        symbol_ohlcv = _generate_pandas_ohlcv_data(pandas_mod, req.symbols)
+        result = _try_agent_scan(req, symbol_ohlcv)
+        if result is not None:
+            return result
     else:
-        # pandas is not available: create plain lists-of-dicts using stdlib datetime
-        import datetime
-
-        for s in req.symbols:
-            now = datetime.datetime.now(datetime.timezone.utc)
-            rows = []
-            price = 40000.0
-            for i in range(120):
-                ts = now - datetime.timedelta(minutes=(120 - i))
-                open_p = price
-                close_p = price + ((i % 5) - 2) * 10
-                high_p = max(open_p, close_p) + 5
-                low_p = min(open_p, close_p) - 5
-                volume = 1000 + (i % 10) * 10
-                rows.append(
-                    {
-                        "timestamp": ts.isoformat() + "Z",
-                        "open": open_p,
-                        "high": high_p,
-                        "low": low_p,
-                        "close": close_p,
-                        "volume": volume,
-                    },
-                )
-                price = close_p
-            symbol_ohlcv[s] = rows
+        symbol_ohlcv = _generate_python_ohlcv_data(req.symbols)
 
     # Fallback heuristic (pure Python) if agent or pandas isn't usable
+    return _apply_fallback_heuristic(symbol_ohlcv)
+
+
+def _try_import_pandas():
+    """Try to import pandas, return None if not available."""
+    try:
+        import pandas as pd  # type: ignore
+
+        return pd
+    except Exception as e:
+        logger.debug("pandas not available: %s", e)
+        return None
+
+
+def _generate_pandas_ohlcv_data(pandas_mod, symbols: list) -> dict:
+    """Generate synthetic OHLCV data using pandas."""
+    symbol_ohlcv = {}
+    for s in symbols:
+        now = pandas_mod.Timestamp.utcnow()
+        rows = []
+        price = 40000.0
+        for i in range(120):
+            ts = now - pandas_mod.Timedelta(minutes=(120 - i))
+            open_p = price
+            close_p = price + ((i % 5) - 2) * 10
+            high_p = max(open_p, close_p) + 5
+            low_p = min(open_p, close_p) - 5
+            volume = 1000 + (i % 10) * 10
+            rows.append(
+                {
+                    "timestamp": ts.isoformat() + "Z",
+                    "open": open_p,
+                    "high": high_p,
+                    "low": low_p,
+                    "close": close_p,
+                    "volume": volume,
+                }
+            )
+            price = close_p
+        df = pandas_mod.DataFrame(rows)
+        symbol_ohlcv[s] = df
+    return symbol_ohlcv
+
+
+def _generate_python_ohlcv_data(symbols: list) -> dict:
+    """Generate synthetic OHLCV data using pure Python."""
+    import datetime
+
+    symbol_ohlcv = {}
+    for s in symbols:
+        now = datetime.datetime.now(datetime.timezone.utc)
+        rows = []
+        price = 40000.0
+        for i in range(120):
+            ts = now - datetime.timedelta(minutes=(120 - i))
+            open_p = price
+            close_p = price + ((i % 5) - 2) * 10
+            high_p = max(open_p, close_p) + 5
+            low_p = min(open_p, close_p) - 5
+            volume = 1000 + (i % 10) * 10
+            rows.append(
+                {
+                    "timestamp": ts.isoformat() + "Z",
+                    "open": open_p,
+                    "high": high_p,
+                    "low": low_p,
+                    "close": close_p,
+                    "volume": volume,
+                }
+            )
+            price = close_p
+        symbol_ohlcv[s] = rows
+    return symbol_ohlcv
+
+
+def _try_agent_scan(req, symbol_ohlcv: dict):
+    """Try to run agent scan, return None if failed."""
+    from ai_engine.agents.xgb_agent import make_default_agent
+
+    agent = make_default_agent()
+
+    # Optionally reload model artifacts before running the scan
+    if getattr(req, "reload_model", False):
+        try:
+            agent.reload()
+        except Exception as e:
+            logger.debug("agent.reload() failed: %s", e)
+
+    try:
+        return agent.scan_symbols(symbol_ohlcv, top_n=min(10, len(req.symbols)))
+    except Exception as e:
+        # fall through to fallback heuristic
+        logger.debug("agent.scan_symbols failed: %s", e)
+        return None
+
+
+def _apply_fallback_heuristic(symbol_ohlcv: dict) -> dict:
+    """Apply simple fallback heuristic for symbol analysis."""
     out = {}
     for s, df in symbol_ohlcv.items():
         try:
@@ -285,23 +309,27 @@ async def scan(req: ScanRequest):
                 # pandas DataFrame path
                 last = float(df["close"].iloc[-1])
                 prev = float(df["close"].iloc[-2]) if len(df) >= 2 else last
+
             change = (last - prev) / prev if prev != 0 else 0
-            # simple thresholds
-            if change > 0.002:
-                action = "BUY"
-                score = min(0.99, change * 100)
-            elif change < -0.002:
-                action = "SELL"
-                score = min(0.99, abs(change) * 100)
-            else:
-                action = "HOLD"
-                score = 0.0
+            action, score = _calculate_action_score(change)
+
         except Exception as e:
             logger.debug("fallback heuristic error for symbol %s: %s", s, e)
             action = "HOLD"
             score = 0.0
+
         out[s] = {"action": action, "score": float(score)}
     return out
+
+
+def _calculate_action_score(change: float) -> tuple[str, float]:
+    """Calculate action and score based on price change."""
+    if change > 0.002:
+        return "BUY", min(0.99, change * 100)
+    elif change < -0.002:
+        return "SELL", min(0.99, abs(change) * 100)
+    else:
+        return "HOLD", 0.0
 
 
 @router.post("/reload", response_model=ReloadResponse)
@@ -310,7 +338,8 @@ async def reload_model_endpoint():
     agent = make_default_agent()
     agent.reload()
     return ReloadResponse(
-        loaded_model=(agent.model is not None), loaded_scaler=(agent.scaler is not None),
+        loaded_model=(agent.model is not None),
+        loaded_scaler=(agent.scaler is not None),
     )
 
 
@@ -334,7 +363,10 @@ async def train_endpoint(req: TrainRequest, background: BackgroundTasks):
 
     # background wrapper to run training and update task status
     def _bg_train(
-        task_id: int, symbols_list: list, limit_val: int, entry_threshold_val: float,
+        task_id: int,
+        symbols_list: list,
+        limit_val: int,
+        entry_threshold_val: float,
     ) -> None:
         db2 = next(get_session())
         try:
@@ -345,13 +377,18 @@ async def train_endpoint(req: TrainRequest, background: BackgroundTasks):
                 entry_threshold=entry_threshold_val,
             )
             update_training_task(
-                db2, task_id, "completed", details=f"threshold={entry_threshold_val}",
+                db2,
+                task_id,
+                "completed",
+                details=f"threshold={entry_threshold_val}",
             )
         except Exception as e:
             try:
                 update_training_task(db2, task_id, "failed", details=str(e))
             except Exception as err:
-                logger.exception("Failed to update training task after exception: %s", err)
+                logger.exception(
+                    "Failed to update training task after exception: %s", err
+                )
         finally:
             db2.close()
 

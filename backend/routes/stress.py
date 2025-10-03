@@ -90,7 +90,8 @@ async def stress_summary() -> dict[str, Any]:
         data = _load_aggregated(agg_path)
     except FileNotFoundError:
         raise HTTPException(
-            status_code=404, detail=f"No aggregated.json at {agg_path}",
+            status_code=404,
+            detail=f"No aggregated.json at {agg_path}",
         ) from None
 
     runs: list[dict[str, Any]] = data.get("runs") or []

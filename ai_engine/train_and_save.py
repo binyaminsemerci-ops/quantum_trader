@@ -2,7 +2,8 @@ import asyncio
 import logging
 import os
 import pickle
-from typing import List, Optional
+from pathlib import Path
+from typing import List, Optional, Any, Dict
 
 """Simple training harness for the XGBoost agent.
 
@@ -117,7 +118,10 @@ def build_dataset(all_symbol_data):
 
         # add sentiment/news aligned series
         feat = add_sentiment_features(
-            feat, sentiment_series=sentiment, news_counts=news, window=5,
+            feat,
+            sentiment_series=sentiment,
+            news_counts=news,
+            window=5,
         )
 
         # add target (predict Return horizon=1)
@@ -184,11 +188,20 @@ def save_artifacts(model, scaler, model_path, scaler_path) -> None:
         import logging
 
         logging.getLogger(__name__).debug(
-            "failed to write model metadata", exc_info=True,
+            "failed to write model metadata",
+            exc_info=True,
         )
 
 
-def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600) -> None:
+def train_and_save(
+    symbols: Optional[List[str]] = None,
+    limit: int = 600,
+    model_dir: Optional[Path | str] = None,
+    backtest: bool = False,
+    write_report: bool = False,
+    entry_threshold: float = 0.0,  # noqa: ARG001 (compat placeholder)
+    **_extra: Any,  # absorb legacy/experimental kwargs (use_live_data, enhanced_features, etc.)
+) -> Dict[str, Any]:
     if symbols is None:
         # prefer USDC as the spot quote by default for training / dataset assembly
         try:
@@ -250,7 +263,112 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600) -> Non
     scaler_path = os.path.join(MODEL_DIR, "scaler.pkl")
     save_artifacts(reg, scaler, model_path, scaler_path)
 
+    # Simple metric placeholder: compute naive directional accuracy if possible
+    metrics: Dict[str, Any] = {}
+    try:  # best-effort metric without introducing heavy deps
+        import numpy as np  # type: ignore[import-untyped]
 
-if __name__ == "__main__":
-    # quick local run (will use internal route fallbacks if external APIs are not configured)
-    train_and_save()
+        # Predict on a small slice
+        sample_preds = reg.predict(Xs[: min(100, len(Xs))])  # type: ignore[attr-defined]
+        sample_true = y[: len(sample_preds)]
+        # directional accuracy: sign agreement
+        agree = np.sum(np.sign(sample_preds) == np.sign(sample_true))
+        metrics["directional_accuracy"] = float(agree) / max(1, len(sample_preds))
+    except Exception:
+        metrics["directional_accuracy"] = 0.0
+    metrics["num_samples"] = int(len(y))
+
+    backtest_payload: Dict[str, Any] | None = None
+    if backtest:
+        # Minimal synthetic backtest payload (placeholder)
+        backtest_payload = {
+            "pnl": 0.0,
+            "final_equity": 10_000.0,
+            "trades": 0,
+            "win_rate": None,
+            "max_drawdown": None,
+            "equity_curve": [],
+            "entry_threshold": entry_threshold,
+        }
+
+    # Optional report writing
+    target_dir = Path(model_dir) if model_dir else Path(MODEL_DIR)
+    if write_report:
+        try:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            report_path = target_dir / "training_report.json"
+            # Local imports for resilience (avoid import cost if not writing)
+            import json
+            import datetime
+
+            with report_path.open("w", encoding="utf-8") as fh:
+                json.dump(
+                    {
+                        "metrics": metrics,
+                        "backtest": backtest_payload,
+                        "saved_at": datetime.datetime.now(
+                            datetime.timezone.utc
+                        ).isoformat(),
+                    },
+                    fh,
+                )
+        except Exception:  # pragma: no cover - non critical
+            logger.debug("Failed to write training report", exc_info=True)
+
+    return {
+        "metrics": metrics,
+        "backtest": backtest_payload,
+        "saved": True,
+        "num_samples": metrics.get("num_samples"),
+    }
+
+
+def run_backtest_only(
+    symbols: Optional[List[str]] = None,
+    limit: int = 600,
+    model_dir: Optional[Path | str] = None,
+    entry_threshold: float = 0.0,  # noqa: ARG001
+) -> Dict[str, Any]:
+    """Lightweight placeholder backtest using saved artifacts.
+
+    Real backtest logic is not yet implemented; we return a structured stub so
+    callers and the API layer have consistent keys to inspect.
+    """
+    # Verify artifacts exist
+    base = Path(model_dir) if model_dir else Path(MODEL_DIR)
+    model_path = base / "xgb_model.pkl"
+    scaler_path = base / "scaler.pkl"
+    if not (model_path.exists() and scaler_path.exists()):  # mimic expected failure
+        raise FileNotFoundError("model artifacts not found for backtest")
+    return {
+        "metrics": {"directional_accuracy": 0.0, "num_samples": None},
+        "backtest": {
+            "pnl": 0.0,
+            "final_equity": 10_000.0,
+            "trades": 0,
+            "win_rate": None,
+            "max_drawdown": None,
+            "equity_curve": [],
+            "entry_threshold": entry_threshold,
+        },
+        "num_samples": None,
+    }
+
+
+def load_report(model_dir: Optional[Path | str] = None) -> Dict[str, Any] | None:
+    base = Path(model_dir) if model_dir else Path(MODEL_DIR)
+    report_path = base / "training_report.json"
+    if not report_path.exists():
+        return None
+    try:
+        import json
+
+        with report_path.open("r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except Exception:
+        logger.debug("Failed to load report", exc_info=True)
+        return None
+
+
+if __name__ == "__main__":  # pragma: no cover
+    train_and_save(backtest=True, write_report=True)

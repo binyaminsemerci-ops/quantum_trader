@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Annotated, Dict, List
+from typing import Annotated, Dict, List, Any
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
@@ -262,10 +262,20 @@ def full_watchlist():
     return _FULL_WATCHLIST_CACHE
 
 
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    try:
+        if val is None:
+            return default
+        return float(val)
+    except Exception:
+        return default
+
+
 @router.get("/prices")
 def watchlist_prices(
     symbols: Annotated[
-        str, Query(..., description="Comma-separated symbols e.g. BTCUSDT,ETHUSDT"),
+        str,
+        Query(..., description="Comma-separated symbols e.g. BTCUSDT,ETHUSDT"),
     ],
     limit: Annotated[int, Query(ge=1, le=200)] = 24,
 ) -> List[Dict]:
@@ -279,24 +289,28 @@ def watchlist_prices(
         raise HTTPException(status_code=400, detail="symbols parameter is required")
     out: List[Dict] = []
     requested = [s.strip() for s in symbols.split(",") if s.strip()]
+
     for sym in requested:
         try:
             candles = fetch_recent_candles(symbol=sym, limit=limit)
-            closes = [c.get("close") for c in candles if c.get("close") is not None]
+            closes_raw = [c.get("close") for c in candles]
+            closes = [_safe_float(v) for v in closes_raw if v is not None]
             if not closes:
                 msg = "no candle closes"
                 raise ValueError(msg)
             latest = closes[-1]
             first = closes[0]
             change24 = (latest - first) / first if first else 0.0
-            volume24 = sum([c.get("volume", 0) for c in candles])
+            volume24 = 0.0
+            for c in candles:
+                volume24 += _safe_float(c.get("volume"), 0.0)
             out.append(
                 {
                     "symbol": sym,
-                    "price": float(latest),
-                    "change24h": float(change24),
-                    "volume24h": float(volume24),
-                    "sparkline": [float(round(v, 6)) for v in closes],
+                    "price": latest,
+                    "change24h": change24,
+                    "volume24h": volume24,
+                    "sparkline": [round(v, 6) for v in closes],
                     "ts": candles[-1].get("time"),
                 },
             )
@@ -308,7 +322,9 @@ def watchlist_prices(
 
 @router.websocket("/ws/watchlist")
 async def watchlist_ws(
-    websocket: WebSocket, symbols: str = "BTCUSDT,ETHUSDT", limit: int = 24,
+    websocket: WebSocket,
+    symbols: str = "BTCUSDT,ETHUSDT",
+    limit: int = 24,
 ) -> None:
     await websocket.accept()
     requested = [s.strip() for s in symbols.split(",") if s.strip()]
@@ -318,23 +334,24 @@ async def watchlist_ws(
             for sym in requested:
                 try:
                     candles = fetch_recent_candles(symbol=sym, limit=limit)
-                    closes = [
-                        c.get("close") for c in candles if c.get("close") is not None
-                    ]
+                    closes_raw = [c.get("close") for c in candles]
+                    closes = [_safe_float(v) for v in closes_raw if v is not None]
                     if not closes:
                         msg = "no candle closes"
                         raise ValueError(msg)
                     latest = closes[-1]
                     first = closes[0]
                     change24 = (latest - first) / first if first else 0.0
-                    volume24 = sum([c.get("volume", 0) for c in candles])
+                    volume24 = 0.0
+                    for c in candles:
+                        volume24 += _safe_float(c.get("volume"), 0.0)
                     out.append(
                         {
                             "symbol": sym,
-                            "price": float(latest),
-                            "change24h": float(change24),
-                            "volume24h": float(volume24),
-                            "sparkline": [float(round(v, 6)) for v in closes],
+                            "price": latest,
+                            "change24h": change24,
+                            "volume24h": volume24,
+                            "sparkline": [round(v, 6) for v in closes],
                             "ts": candles[-1].get("time"),
                         },
                     )

@@ -1,3 +1,12 @@
+"""Config package initializer.
+
+Ensures the local `config` directory is treated as a standard package rather than
+being shadowed by any similarly named third-party distribution.  Intentionally
+kept minimal.
+"""
+
+# Optionally, explicit re-exports could be added here, e.g.:
+# from .config import *  # noqa: F401,F403
 """Config package shim.
 
 This file makes ``config`` an explicit package and re-exports the

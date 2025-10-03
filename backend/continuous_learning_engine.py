@@ -193,12 +193,14 @@ class ContinuousLearningEngine:
 
                 # Fetch Twitter sentiment
                 sentiment = self.twitter_client.sentiment_for_symbol(
-                    base_symbol, max_results=50,
+                    base_symbol,
+                    max_results=50,
                 )
 
                 # Enhanced sentiment analysis
                 enhanced_sentiment = await self._analyze_enhanced_sentiment(
-                    base_symbol, sentiment,
+                    base_symbol,
+                    sentiment,
                 )
 
                 sentiment_data[symbol] = enhanced_sentiment
@@ -297,112 +299,11 @@ class ContinuousLearningEngine:
         }
 
         try:
-            # Fear & Greed Index insights
-            fear_greed = enhanced_data.get("fear_greed", {}).get("current", {})
-            if fear_greed:
-                fg_value = fear_greed.get("value", 50)
-                fg_classification = fear_greed.get("value_classification", "Neutral")
-
-                insights["market_sentiment"] = fg_classification.lower()
-
-                # Extreme fear/greed signals
-                if fg_value <= 25:
-                    insights["opportunity_signals"].append(
-                        "extreme_fear_buy_opportunity",
-                    )
-                elif fg_value >= 75:
-                    insights["risk_factors"].append("extreme_greed_sell_signal")
-
-            # Reddit sentiment analysis
-            reddit_data = enhanced_data.get("reddit", {}).get("symbols", {})
-            for symbol, reddit_info in reddit_data.items():
-                sentiment_score = reddit_info.get("sentiment_score", 0)
-                total_posts = reddit_info.get("total_posts", 0)
-
-                if total_posts > 5:  # Significant discussion
-                    if sentiment_score > 0.3:
-                        insights["momentum_signals"].append(f"{symbol}_reddit_bullish")
-                    elif sentiment_score < -0.3:
-                        insights["momentum_signals"].append(f"{symbol}_reddit_bearish")
-
-            # CoinGecko market data insights
-            coingecko_data = (
-                enhanced_data.get("multi_source_data", {})
-                .get("data", {})
-                .get("coingecko", {})
-            )
-            market_data = coingecko_data.get("market_data", [])
-
-            for coin in market_data:
-                symbol = coin.get("symbol", "").upper()
-                price_change_24h = coin.get("price_change_percentage_24h", 0)
-                volume_24h = coin.get("total_volume", 0)
-                market_cap_rank = coin.get("market_cap_rank", 999)
-
-                # Volume spike detection
-                if volume_24h and coin.get("market_cap", 0):
-                    volume_ratio = volume_24h / coin["market_cap"]
-                    if volume_ratio > 0.1:  # 10% of market cap in 24h volume
-                        insights["momentum_signals"].append(f"{symbol}_volume_spike")
-
-                # Momentum signals from top coins
-                if market_cap_rank <= 20:  # Top 20 coins
-                    if price_change_24h > 10:
-                        insights["momentum_signals"].append(f"{symbol}_strong_bullish")
-                    elif price_change_24h < -10:
-                        insights["momentum_signals"].append(f"{symbol}_strong_bearish")
-
-            # News sentiment analysis
-            news_data = enhanced_data.get("news", {}).get("news", [])
-            positive_news = 0
-            negative_news = 0
-
-            for news_item in news_data[:10]:  # Analyze recent news
-                title = news_item.get("title", "").lower()
-
-                # Simple keyword-based sentiment
-                positive_keywords = [
-                    "bullish",
-                    "rally",
-                    "surge",
-                    "adoption",
-                    "partnership",
-                    "breakthrough",
-                ]
-                negative_keywords = [
-                    "crash",
-                    "dump",
-                    "hack",
-                    "regulation",
-                    "ban",
-                    "selloff",
-                ]
-
-                if any(keyword in title for keyword in positive_keywords):
-                    positive_news += 1
-                elif any(keyword in title for keyword in negative_keywords):
-                    negative_news += 1
-
-            if positive_news > negative_news and positive_news > 2:
-                insights["momentum_signals"].append("positive_news_sentiment")
-            elif negative_news > positive_news and negative_news > 2:
-                insights["risk_factors"].append("negative_news_sentiment")
-
-            # Global market indicators
-            global_data = coingecko_data.get("global_data", {})
-            if global_data:
-                btc_dominance = global_data.get("market_cap_percentage", {}).get(
-                    "btc", 0,
-                )
-                total_market_cap = global_data.get("total_market_cap", {}).get("usd", 0)
-
-                insights["regime_indicators"] = {
-                    "btc_dominance": btc_dominance,
-                    "total_market_cap": total_market_cap,
-                    "market_stage": (
-                        "altcoin_season" if btc_dominance < 40 else "btc_dominance"
-                    ),
-                }
+            self._process_fear_greed_insights(insights, enhanced_data)
+            self._process_reddit_insights(insights, enhanced_data)
+            self._process_coingecko_insights(insights, enhanced_data)
+            self._process_news_insights(insights, enhanced_data)
+            self._process_global_market_insights(insights, enhanced_data)
 
         except Exception as e:
             logger.exception(f"Error extracting AI insights: {e}")
@@ -410,8 +311,131 @@ class ContinuousLearningEngine:
 
         return insights
 
+    def _process_fear_greed_insights(
+        self, insights: Dict[str, Any], enhanced_data: Dict[str, Any]
+    ) -> None:
+        """Process Fear & Greed Index insights."""
+        fear_greed = enhanced_data.get("fear_greed", {}).get("current", {})
+        if not fear_greed:
+            return
+
+        fg_value = fear_greed.get("value", 50)
+        fg_classification = fear_greed.get("value_classification", "Neutral")
+
+        insights["market_sentiment"] = fg_classification.lower()
+
+        # Extreme fear/greed signals
+        if fg_value <= 25:
+            insights["opportunity_signals"].append("extreme_fear_buy_opportunity")
+        elif fg_value >= 75:
+            insights["risk_factors"].append("extreme_greed_sell_signal")
+
+    def _process_reddit_insights(
+        self, insights: Dict[str, Any], enhanced_data: Dict[str, Any]
+    ) -> None:
+        """Process Reddit sentiment insights."""
+        reddit_data = enhanced_data.get("reddit", {}).get("symbols", {})
+
+        for symbol, reddit_info in reddit_data.items():
+            sentiment_score = reddit_info.get("sentiment_score", 0)
+            total_posts = reddit_info.get("total_posts", 0)
+
+            if total_posts > 5:  # Significant discussion
+                if sentiment_score > 0.3:
+                    insights["momentum_signals"].append(f"{symbol}_reddit_bullish")
+                elif sentiment_score < -0.3:
+                    insights["momentum_signals"].append(f"{symbol}_reddit_bearish")
+
+    def _process_coingecko_insights(
+        self, insights: Dict[str, Any], enhanced_data: Dict[str, Any]
+    ) -> None:
+        """Process CoinGecko market data insights."""
+        coingecko_data = (
+            enhanced_data.get("multi_source_data", {})
+            .get("data", {})
+            .get("coingecko", {})
+        )
+        market_data = coingecko_data.get("market_data", [])
+
+        for coin in market_data:
+            symbol = coin.get("symbol", "").upper()
+            price_change_24h = coin.get("price_change_percentage_24h", 0)
+            volume_24h = coin.get("total_volume", 0)
+            market_cap_rank = coin.get("market_cap_rank", 999)
+
+            # Volume spike detection
+            if volume_24h and coin.get("market_cap", 0):
+                volume_ratio = volume_24h / coin["market_cap"]
+                if volume_ratio > 0.1:  # 10% of market cap in 24h volume
+                    insights["momentum_signals"].append(f"{symbol}_volume_spike")
+
+            # Momentum signals from top coins
+            if market_cap_rank <= 20:  # Top 20 coins
+                if price_change_24h > 10:
+                    insights["momentum_signals"].append(f"{symbol}_strong_bullish")
+                elif price_change_24h < -10:
+                    insights["momentum_signals"].append(f"{symbol}_strong_bearish")
+
+    def _process_news_insights(
+        self, insights: Dict[str, Any], enhanced_data: Dict[str, Any]
+    ) -> None:
+        """Process news sentiment insights."""
+        news_data = enhanced_data.get("news", {}).get("news", [])
+        positive_news = 0
+        negative_news = 0
+
+        positive_keywords = [
+            "bullish",
+            "rally",
+            "surge",
+            "adoption",
+            "partnership",
+            "breakthrough",
+        ]
+        negative_keywords = ["crash", "dump", "hack", "regulation", "ban", "selloff"]
+
+        for news_item in news_data[:10]:  # Analyze recent news
+            title = news_item.get("title", "").lower()
+
+            if any(keyword in title for keyword in positive_keywords):
+                positive_news += 1
+            elif any(keyword in title for keyword in negative_keywords):
+                negative_news += 1
+
+        if positive_news > negative_news and positive_news > 2:
+            insights["momentum_signals"].append("positive_news_sentiment")
+        elif negative_news > positive_news and negative_news > 2:
+            insights["risk_factors"].append("negative_news_sentiment")
+
+    def _process_global_market_insights(
+        self, insights: Dict[str, Any], enhanced_data: Dict[str, Any]
+    ) -> None:
+        """Process global market indicators."""
+        coingecko_data = (
+            enhanced_data.get("multi_source_data", {})
+            .get("data", {})
+            .get("coingecko", {})
+        )
+        global_data = coingecko_data.get("global_data", {})
+
+        if not global_data:
+            return
+
+        btc_dominance = global_data.get("market_cap_percentage", {}).get("btc", 0)
+        total_market_cap = global_data.get("total_market_cap", {}).get("usd", 0)
+
+        insights["regime_indicators"] = {
+            "btc_dominance": btc_dominance,
+            "total_market_cap": total_market_cap,
+            "market_stage": (
+                "altcoin_season" if btc_dominance < 40 else "btc_dominance"
+            ),
+        }
+
     async def _analyze_enhanced_sentiment(
-        self, symbol: str, base_sentiment: Dict[str, Any],
+        self,
+        symbol: str,
+        base_sentiment: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Enhanced sentiment analysis with market context."""
         enhanced = base_sentiment.copy()
@@ -501,7 +525,8 @@ class ContinuousLearningEngine:
                 if candles:
                     # Enhanced market analysis
                     enhanced_data = await self._analyze_enhanced_market_data(
-                        symbol, candles,
+                        symbol,
+                        candles,
                     )
                     market_data[symbol] = enhanced_data
 
@@ -516,7 +541,9 @@ class ContinuousLearningEngine:
         return market_data
 
     async def _analyze_enhanced_market_data(
-        self, symbol: str, candles: List[Dict],
+        self,
+        symbol: str,
+        candles: List[Dict],
     ) -> Dict[str, Any]:
         """Enhanced market data analysis."""
         try:
@@ -582,7 +609,9 @@ class ContinuousLearningEngine:
             return {"error": str(e)}
 
     def detect_market_regime(
-        self, market_data: Dict[str, Any], sentiment_data: Dict[str, Any],
+        self,
+        market_data: Dict[str, Any],
+        sentiment_data: Dict[str, Any],
     ) -> MarketRegime:
         """Detect current market regime based on multiple factors."""
         try:
@@ -641,85 +670,20 @@ class ContinuousLearningEngine:
     ) -> MarketRegime:
         """Enhanced market regime detection using multi-source data."""
         try:
-            # Traditional metrics
-            avg_volatility = sum(
-                data.get("volatility", 0)
-                for data in market_data.values()
-                if isinstance(data, dict) and "volatility" in data
-            ) / max(1, len(market_data))
-
-            avg_trend_strength = sum(
-                data.get("trend_strength", 0)
-                for data in market_data.values()
-                if isinstance(data, dict) and "trend_strength" in data
-            ) / max(1, len(market_data))
-
-            avg_sentiment = sum(
-                data.get("score", 0)
-                for data in sentiment_data.values()
-                if isinstance(data, dict) and "score" in data
-            ) / max(1, len(sentiment_data))
-
-            # Enhanced factors
-            ai_insights = enhanced_data.get("ai_insights", {})
-            fear_greed = enhanced_data.get("fear_greed", {}).get("current", {})
-            regime_indicators = ai_insights.get("regime_indicators", {})
-
-            # Fear & Greed Index influence
-            fg_value = fear_greed.get("value", 50)
-            fg_factor = (fg_value - 50) / 50  # Normalize to [-1, 1]
-
-            # Combine sentiment sources
-            reddit_sentiment = 0.0
-            reddit_data = enhanced_data.get("reddit", {}).get("symbols", {})
-            if reddit_data:
-                reddit_scores = [
-                    data.get("sentiment_score", 0) for data in reddit_data.values()
-                ]
-                reddit_sentiment = (
-                    sum(reddit_scores) / len(reddit_scores) if reddit_scores else 0.0
-                )
-
-            # Weighted sentiment (Twitter 60%, Fear&Greed 30%, Reddit 10%)
-            combined_sentiment = (
-                0.6 * avg_sentiment + 0.3 * fg_factor + 0.1 * reddit_sentiment
+            # Calculate traditional metrics
+            avg_volatility, avg_trend_strength, avg_sentiment = (
+                self._calculate_base_metrics(market_data, sentiment_data)
             )
 
-            # News sentiment impact
-            momentum_signals = ai_insights.get("momentum_signals", [])
-            risk_factors = ai_insights.get("risk_factors", [])
+            # Calculate enhanced sentiment factors
+            adjusted_sentiment = self._calculate_enhanced_sentiment(
+                enhanced_data, avg_sentiment
+            )
 
-            momentum_score = len(momentum_signals) - len(risk_factors)
-            sentiment_adjustment = momentum_score * 0.1  # Small adjustment
-
-            adjusted_sentiment = combined_sentiment + sentiment_adjustment
-
-            # Enhanced regime classification
-            btc_dominance = regime_indicators.get("btc_dominance", 50)
-
-            # Volatility thresholds adjusted by market conditions
-            vol_threshold = 0.03
-            if btc_dominance > 60:  # BTC dominance phase, lower vol threshold
-                vol_threshold = 0.025
-            elif btc_dominance < 40:  # Altcoin season, higher vol threshold
-                vol_threshold = 0.04
-
-            # Classify enhanced regime
-            if avg_volatility > vol_threshold:
-                if fg_value < 20:  # Extreme fear
-                    regime_type = "panic_sell"
-                elif fg_value > 80:  # Extreme greed
-                    regime_type = "euphoric_buy"
-                else:
-                    regime_type = "volatile"
-            elif adjusted_sentiment > 0.3:
-                regime_type = "altcoin_bull" if btc_dominance < 40 else "btc_bull"
-            elif adjusted_sentiment < -0.3:
-                regime_type = "bear_market"
-            elif abs(avg_trend_strength) < 0.01:
-                regime_type = "accumulation" if fg_value < 40 else "distribution"
-            else:
-                regime_type = "sideways"
+            # Determine regime classification
+            regime_type = self._classify_enhanced_regime(
+                enhanced_data, avg_volatility, avg_trend_strength, adjusted_sentiment
+            )
 
             enhanced_regime = MarketRegime(
                 regime_type=regime_type,
@@ -729,10 +693,12 @@ class ContinuousLearningEngine:
                 timestamp=datetime.now(timezone.utc),
             )
 
-            logger.info(
-                f"🌊 Enhanced Market Regime: {regime_type.upper()} "
-                f"(Vol: {avg_volatility:.3f}, Trend: {avg_trend_strength:.3f}, "
-                f"Sent: {adjusted_sentiment:.3f}, F&G: {fg_value})",
+            self._log_regime_info(
+                regime_type,
+                avg_volatility,
+                avg_trend_strength,
+                adjusted_sentiment,
+                enhanced_data,
             )
 
             return enhanced_regime
@@ -741,6 +707,130 @@ class ContinuousLearningEngine:
             logger.exception(f"Enhanced market regime detection failed: {e}")
             # Fall back to traditional detection
             return self.detect_market_regime(market_data, sentiment_data)
+
+    def _calculate_base_metrics(
+        self, market_data: Dict[str, Any], sentiment_data: Dict[str, Any]
+    ) -> tuple:
+        """Calculate base volatility, trend strength, and sentiment metrics."""
+        avg_volatility = sum(
+            data.get("volatility", 0)
+            for data in market_data.values()
+            if isinstance(data, dict) and "volatility" in data
+        ) / max(1, len(market_data))
+
+        avg_trend_strength = sum(
+            data.get("trend_strength", 0)
+            for data in market_data.values()
+            if isinstance(data, dict) and "trend_strength" in data
+        ) / max(1, len(market_data))
+
+        avg_sentiment = sum(
+            data.get("score", 0)
+            for data in sentiment_data.values()
+            if isinstance(data, dict) and "score" in data
+        ) / max(1, len(sentiment_data))
+
+        return avg_volatility, avg_trend_strength, avg_sentiment
+
+    def _calculate_enhanced_sentiment(
+        self, enhanced_data: Dict[str, Any], avg_sentiment: float
+    ) -> float:
+        """Calculate enhanced sentiment using multiple data sources."""
+        ai_insights = enhanced_data.get("ai_insights", {})
+        fear_greed = enhanced_data.get("fear_greed", {}).get("current", {})
+
+        # Fear & Greed Index influence
+        fg_value = fear_greed.get("value", 50)
+        fg_factor = (fg_value - 50) / 50  # Normalize to [-1, 1]
+
+        # Reddit sentiment
+        reddit_sentiment = self._calculate_reddit_sentiment(enhanced_data)
+
+        # Weighted sentiment (Twitter 60%, Fear&Greed 30%, Reddit 10%)
+        combined_sentiment = (
+            0.6 * avg_sentiment + 0.3 * fg_factor + 0.1 * reddit_sentiment
+        )
+
+        # News sentiment impact
+        momentum_signals = ai_insights.get("momentum_signals", [])
+        risk_factors = ai_insights.get("risk_factors", [])
+        momentum_score = len(momentum_signals) - len(risk_factors)
+        sentiment_adjustment = momentum_score * 0.1  # Small adjustment
+
+        return combined_sentiment + sentiment_adjustment
+
+    def _calculate_reddit_sentiment(self, enhanced_data: Dict[str, Any]) -> float:
+        """Calculate average Reddit sentiment."""
+        reddit_data = enhanced_data.get("reddit", {}).get("symbols", {})
+        if not reddit_data:
+            return 0.0
+
+        reddit_scores = [
+            data.get("sentiment_score", 0) for data in reddit_data.values()
+        ]
+        return sum(reddit_scores) / len(reddit_scores) if reddit_scores else 0.0
+
+    def _classify_enhanced_regime(
+        self,
+        enhanced_data: Dict[str, Any],
+        avg_volatility: float,
+        avg_trend_strength: float,
+        adjusted_sentiment: float,
+    ) -> str:
+        """Classify market regime based on enhanced data."""
+        ai_insights = enhanced_data.get("ai_insights", {})
+        fear_greed = enhanced_data.get("fear_greed", {}).get("current", {})
+        regime_indicators = ai_insights.get("regime_indicators", {})
+
+        fg_value = fear_greed.get("value", 50)
+        btc_dominance = regime_indicators.get("btc_dominance", 50)
+
+        # Volatility thresholds adjusted by market conditions
+        vol_threshold = self._get_volatility_threshold(btc_dominance)
+
+        # Classify enhanced regime
+        if avg_volatility > vol_threshold:
+            if fg_value < 20:  # Extreme fear
+                return "panic_sell"
+            elif fg_value > 80:  # Extreme greed
+                return "euphoric_buy"
+            else:
+                return "volatile"
+        elif adjusted_sentiment > 0.3:
+            return "altcoin_bull" if btc_dominance < 40 else "btc_bull"
+        elif adjusted_sentiment < -0.3:
+            return "bear_market"
+        elif abs(avg_trend_strength) < 0.01:
+            return "accumulation" if fg_value < 40 else "distribution"
+        else:
+            return "sideways"
+
+    def _get_volatility_threshold(self, btc_dominance: float) -> float:
+        """Get volatility threshold based on BTC dominance."""
+        if btc_dominance > 60:  # BTC dominance phase, lower vol threshold
+            return 0.025
+        elif btc_dominance < 40:  # Altcoin season, higher vol threshold
+            return 0.04
+        else:
+            return 0.03
+
+    def _log_regime_info(
+        self,
+        regime_type: str,
+        avg_volatility: float,
+        avg_trend_strength: float,
+        adjusted_sentiment: float,
+        enhanced_data: Dict[str, Any],
+    ) -> None:
+        """Log regime information."""
+        fg_value = (
+            enhanced_data.get("fear_greed", {}).get("current", {}).get("value", 0)
+        )
+        logger.info(
+            f"🌊 Enhanced Market Regime: {regime_type.upper()} "
+            f"(Vol: {avg_volatility:.3f}, Trend: {avg_trend_strength:.3f}, "
+            f"Sent: {adjusted_sentiment:.3f}, F&G: {fg_value})"
+        )
 
     async def continuous_twitter_feed(self) -> None:
         """Continuous Twitter sentiment monitoring."""
@@ -774,7 +864,9 @@ class ContinuousLearningEngine:
 
                 # Detect market regime with enhanced data
                 regime = self.detect_enhanced_market_regime(
-                    market_data, sentiment_data, enhanced_data,
+                    market_data,
+                    sentiment_data,
+                    enhanced_data,
                 )
 
                 # Store data
@@ -864,7 +956,9 @@ class ContinuousLearningEngine:
 
             # Analyze current market conditions for adaptive training
             current_regime = self.detect_enhanced_market_regime(
-                fresh_market_data, fresh_sentiment_data, enhanced_data,
+                fresh_market_data,
+                fresh_sentiment_data,
+                enhanced_data,
             )
 
             # Extract AI insights for feature engineering
@@ -882,7 +976,8 @@ class ContinuousLearningEngine:
 
             # Enhanced feature engineering
             enhanced_features = self._extract_enhanced_features(
-                enhanced_data, ai_insights,
+                enhanced_data,
+                ai_insights,
             )
 
             logger.info(
@@ -930,7 +1025,9 @@ class ContinuousLearningEngine:
             logger.exception(f"Enhanced model retraining failed: {e}")
 
     def _extract_enhanced_features(
-        self, enhanced_data: Dict[str, Any], ai_insights: Dict[str, Any],
+        self,
+        enhanced_data: Dict[str, Any],
+        ai_insights: Dict[str, Any],
     ) -> Dict[str, float]:
         """Extract quantitative features from enhanced data sources."""
         features = {}
@@ -999,7 +1096,8 @@ class ContinuousLearningEngine:
                     sum(reddit_scores) / len(reddit_scores) if reddit_scores else 0.0
                 )
                 features["reddit_sentiment"] = max(
-                    -1.0, min(1.0, avg_reddit_sentiment),
+                    -1.0,
+                    min(1.0, avg_reddit_sentiment),
                 )  # Clamp to [-1, 1]
                 features["reddit_activity"] = len(reddit_data) / 10.0  # Normalize
 
@@ -1011,7 +1109,10 @@ class ContinuousLearningEngine:
         return features
 
     def _store_live_data_point(
-        self, symbol: str, market_data: Dict, sentiment_data: Dict,
+        self,
+        symbol: str,
+        market_data: Dict,
+        sentiment_data: Dict,
     ) -> None:
         """Store live data point to database."""
         try:
@@ -1034,7 +1135,11 @@ class ContinuousLearningEngine:
             logger.exception(f"Failed to store live data point: {e}")
 
     def _store_enhanced_data_point(
-        self, symbol: str, market_data: Dict, sentiment_data: Dict, enhanced_data: Dict,
+        self,
+        symbol: str,
+        market_data: Dict,
+        sentiment_data: Dict,
+        enhanced_data: Dict,
     ) -> None:
         """Store enhanced data point with multi-source information."""
         try:
@@ -1176,28 +1281,32 @@ class ContinuousLearningEngine:
 
         # Start Twitter feed thread
         self.twitter_thread = threading.Thread(
-            target=asyncio.run, args=(self.continuous_twitter_feed(),),
+            target=asyncio.run,
+            args=(self.continuous_twitter_feed(),),
         )
         self.twitter_thread.daemon = True
         self.twitter_thread.start()
 
         # Start market feed thread
         self.market_thread = threading.Thread(
-            target=asyncio.run, args=(self.continuous_market_feed(),),
+            target=asyncio.run,
+            args=(self.continuous_market_feed(),),
         )
         self.market_thread.daemon = True
         self.market_thread.start()
 
         # Start learning loop thread
         self.training_thread = threading.Thread(
-            target=asyncio.run, args=(self.continuous_learning_loop(),),
+            target=asyncio.run,
+            args=(self.continuous_learning_loop(),),
         )
         self.training_thread.daemon = True
         self.training_thread.start()
 
         # Start enhanced data collection thread
         self.enhanced_thread = threading.Thread(
-            target=asyncio.run, args=(self.continuous_enhanced_feed(),),
+            target=asyncio.run,
+            args=(self.continuous_enhanced_feed(),),
         )
         self.enhanced_thread.daemon = True
         self.enhanced_thread.start()
@@ -1236,7 +1345,9 @@ class ContinuousLearningEngine:
                     if self.market_regimes
                     else "unknown"
                 ),
-                "data_points_collected": len(functools.reduce(operator.iadd, self.live_data.values(), [])),
+                "data_points_collected": len(
+                    functools.reduce(operator.iadd, self.live_data.values(), [])
+                ),
                 "adaptive_features": list(self.adaptive_features),
             }
 
