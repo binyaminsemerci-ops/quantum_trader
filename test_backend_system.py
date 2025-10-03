@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Backend System Tests
+"""Backend System Tests.
 
 Comprehensive tests for the Quantum Trader backend including:
 - API endpoint testing

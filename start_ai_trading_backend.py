@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Start Quantum Trader Backend with AI Auto Trading
+"""Start Quantum Trader Backend with AI Auto Trading.
 
 This script starts the backend server with AI auto trading capabilities.
 """
@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 def check_dependencies():
-    """Check if required dependencies are available"""
+    """Check if required dependencies are available."""
     print("🔍 Checking dependencies...")
 
     # Check if we're in the right directory
@@ -39,7 +39,7 @@ def check_dependencies():
 
 
 def start_backend():
-    """Start the backend server"""
+    """Start the backend server."""
     print("🚀 Starting Quantum Trader Backend with AI Auto Trading...")
     print("📍 Backend will be available at: http://127.0.0.1:8001")
     print("🧠 AI Auto Trading endpoints will be available at: /api/v1/ai-trading/*")

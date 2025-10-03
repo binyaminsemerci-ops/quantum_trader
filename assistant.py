@@ -19,7 +19,7 @@ client = init_client()
 
 
 def ask_codegpt(prompt: str):
-    """Send spørsmål/kode til Code GPT og få svar"""
+    """Send spørsmål/kode til Code GPT og få svar."""
     try:
         response = client.chat.completions.create(
             model="gpt-4.1-mini",  # trygg modell

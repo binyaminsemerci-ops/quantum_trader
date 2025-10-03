@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Production Performance Monitoring System
+"""Production Performance Monitoring System.
 
 This system provides real-time monitoring of the AI trading system including:
 - Live performance tracking

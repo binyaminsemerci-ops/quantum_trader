@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Simple Frontend System Test
+"""Simple Frontend System Test.
 
 A simplified version of frontend testing without external dependencies.
 Tests basic frontend build and accessibility.

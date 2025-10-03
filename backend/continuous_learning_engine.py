@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Enhanced Live Data Feed & Continuous Learning Engine
-Integrates Twitter sentiment, news feeds, live market data for real-time strategy evolution
+Integrates Twitter sentiment, news feeds, live market data for real-time strategy evolution.
 
 Quantum Trader AI kontinuerlig læring system som:
 - Henter live Twitter sentiment i real-time

@@ -1,4 +1,4 @@
-"""API routes for controlling the Binance trading engine"""
+"""API routes for controlling the Binance trading engine."""
 
 import asyncio
 import logging
@@ -18,7 +18,7 @@ trading_task = None
 
 @router.get("/status")
 async def get_trading_status() -> Dict[str, Any]:
-    """Get current trading engine status"""
+    """Get current trading engine status."""
     try:
         engine = get_trading_engine()
         return engine.get_trading_status()
@@ -31,7 +31,7 @@ async def get_trading_status() -> Dict[str, Any]:
 async def start_trading(
     background_tasks: BackgroundTasks, interval_minutes: int = 5
 ) -> Dict[str, str]:
-    """Start automated trading"""
+    """Start automated trading."""
     global trading_task
 
     try:
@@ -55,7 +55,7 @@ async def start_trading(
 
 @router.post("/stop")
 async def stop_trading() -> Dict[str, str]:
-    """Stop automated trading"""
+    """Stop automated trading."""
     global trading_task
 
     try:
@@ -75,7 +75,7 @@ async def stop_trading() -> Dict[str, str]:
 
 @router.post("/analyze/{symbol}")
 async def analyze_symbol(symbol: str) -> Dict[str, Any]:
-    """Analyze a single symbol with AI (no trading)"""
+    """Analyze a single symbol with AI (no trading)."""
     try:
         engine = get_trading_engine()
 
@@ -105,7 +105,7 @@ async def analyze_symbol(symbol: str) -> Dict[str, Any]:
 async def manual_trade(
     symbol: str, action: str, quantity: Optional[float] = None, force: bool = False
 ) -> Dict[str, Any]:
-    """Execute a manual trade (bypassing AI if force=True)"""
+    """Execute a manual trade (bypassing AI if force=True)."""
     try:
         engine = get_trading_engine()
 
@@ -152,7 +152,7 @@ async def manual_trade(
 
 @router.get("/balances")
 async def get_balances() -> Dict[str, float]:
-    """Get current account balances"""
+    """Get current account balances."""
     try:
         engine = get_trading_engine()
         return engine.get_account_balance()
@@ -163,7 +163,7 @@ async def get_balances() -> Dict[str, float]:
 
 @router.get("/positions")
 async def get_open_positions() -> List[Dict[str, Any]]:
-    """Get all open positions"""
+    """Get all open positions."""
     try:
         engine = get_trading_engine()
 
@@ -202,7 +202,7 @@ async def get_open_positions() -> List[Dict[str, Any]]:
 
 @router.post("/run-cycle")
 async def run_single_cycle() -> Dict[str, Any]:
-    """Run a single trading cycle manually"""
+    """Run a single trading cycle manually."""
     try:
         engine = get_trading_engine()
         results = await engine.run_trading_cycle()
@@ -220,7 +220,7 @@ async def run_single_cycle() -> Dict[str, Any]:
 
 @router.get("/symbols")
 async def get_trading_symbols() -> List[str]:
-    """Get list of symbols being traded"""
+    """Get list of symbols being traded."""
     try:
         engine = get_trading_engine()
         return engine.get_trading_symbols()
@@ -235,7 +235,7 @@ async def update_trading_config(
     min_confidence_threshold: Optional[float] = None,
     risk_per_trade: Optional[float] = None,
 ) -> Dict[str, str]:
-    """Update trading configuration parameters"""
+    """Update trading configuration parameters."""
     try:
         engine = get_trading_engine()
 
@@ -267,7 +267,7 @@ async def update_trading_config(
 
 @router.get("/ai-model-info")
 async def get_ai_model_info() -> Dict[str, Any]:
-    """Get information about the loaded AI model"""
+    """Get information about the loaded AI model."""
     try:
         engine = get_trading_engine()
         metadata = engine.ai_agent.get_metadata()

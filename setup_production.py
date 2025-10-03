@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Production API Configuration Setup Script
+"""Production API Configuration Setup Script.
 
 This script helps configure live API keys and enables production features
 for the Quantum Trader system.

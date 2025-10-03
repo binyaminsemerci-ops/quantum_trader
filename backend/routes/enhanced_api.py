@@ -1,5 +1,5 @@
 """Enhanced Data API Routes
-Provides endpoints for multi-source market data integration
+Provides endpoints for multi-source market data integration.
 """
 
 import asyncio

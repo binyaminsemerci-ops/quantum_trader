@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Complete System Test Runner
+"""Complete System Test Runner.
 
 Master test runner that executes all system tests:
 - Backend system tests

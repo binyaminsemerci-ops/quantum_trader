@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ENKEL FUNGERENDE SERVER
-Fokuserer kun på å levere data til dashboardet
+Fokuserer kun på å levere data til dashboardet.
 """
 
 import http.server
@@ -204,7 +204,7 @@ class SimpleHandler(http.server.SimpleHTTPRequestHandler):
 
 
 def update_data():
-    """Update data continuously"""
+    """Update data continuously."""
     while True:
         time.sleep(30)  # Update every 30 seconds
 

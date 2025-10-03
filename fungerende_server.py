@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """KOMPLETT FUNGERENDE HTTP SERVER
-Helhetlig løsning for Quantum Trader - ingen fancy dependencies
+Helhetlig løsning for Quantum Trader - ingen fancy dependencies.
 """
 
 import asyncio
@@ -222,7 +222,7 @@ class QuantumTraderHandler(http.server.SimpleHTTPRequestHandler):
 
 
 async def watchlist_handler(websocket, path):
-    """Handle watchlist WebSocket connections"""
+    """Handle watchlist WebSocket connections."""
     print(f"🔌 WebSocket client connected: {path}")
     try:
         while True:
@@ -234,7 +234,7 @@ async def watchlist_handler(websocket, path):
 
 
 def start_websocket_server():
-    """Start WebSocket server in background"""
+    """Start WebSocket server in background."""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
@@ -251,7 +251,7 @@ def start_websocket_server():
 
 
 def update_data():
-    """Update data in background"""
+    """Update data in background."""
     while True:
         time.sleep(60)  # Update every minute
 

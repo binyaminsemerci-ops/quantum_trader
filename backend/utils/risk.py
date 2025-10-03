@@ -14,7 +14,7 @@ class RiskManager:
         :param qty: Antall enheter
         :param price: Kjøpspris
         :param stop_loss: Stop-loss pris
-        :return: (True/False, begrunnelse)
+        :return: (True/False, begrunnelse).
         """
         position_size = qty * price
 

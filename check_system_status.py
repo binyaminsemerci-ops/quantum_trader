@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Oppdatert systemstatus etter Node.js-bekreftelse"""
+"""Oppdatert systemstatus etter Node.js-bekreftelse."""
 
 import json
 import subprocess

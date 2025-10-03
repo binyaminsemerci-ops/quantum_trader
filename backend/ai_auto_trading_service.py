@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AI Auto Trading Service
+"""AI Auto Trading Service.
 
 Komplett implementering av AI-drevet automatisk handel:
 - Integrerer XGB Agent for prediksjoner

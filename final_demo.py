@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Enhanced Multi-Source Data Integration - Final Demo
-Shows the complete system in action
+Shows the complete system in action.
 """
 
 import asyncio

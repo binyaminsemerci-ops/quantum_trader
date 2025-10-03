@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Start the Enhanced Continuous Learning Engine with Live Data Feeds
-Dette starter AI-systemet som lærer kontinuerlig fra Twitter, nyheter og markedsdata
+Dette starter AI-systemet som lærer kontinuerlig fra Twitter, nyheter og markedsdata.
 """
 
 import os
