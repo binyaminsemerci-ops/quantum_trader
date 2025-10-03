@@ -97,7 +97,7 @@ async def _lifespan(app: FastAPI):
                 update_model_info(None, None)
     except Exception as exc:  # pragma: no cover
         logger.debug("initial model info load failed: %s", exc)
-    
+
     # Start background tasks
     tasks = []
     try:
@@ -105,18 +105,18 @@ async def _lifespan(app: FastAPI):
         alerts_task = asyncio.create_task(evaluator_loop(5.0))
         tasks.append(alerts_task)
         app.state._alerts_task = alerts_task
-        
+
         # Heartbeat monitor
         heartbeat_task = asyncio.create_task(_heartbeat_task())
         tasks.append(heartbeat_task)
         app.state._heartbeat_task = heartbeat_task
-        
+
         logger.info("Background tasks started successfully")
     except Exception as exc:
         logger.exception("Failed to start background tasks: %s", exc)
         app.state._alerts_task = None
         app.state._heartbeat_task = None
-    
+
     try:
         yield
     finally:
