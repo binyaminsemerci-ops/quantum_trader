@@ -14,9 +14,8 @@ Integrates multiple free APIs to provide comprehensive data feeds:
 import asyncio
 import aiohttp
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
-import json
 import time
 
 logger = logging.getLogger(__name__)
@@ -329,7 +328,7 @@ class EnhancedDataFeed:
                 )
 
                 social_url = (
-                    f"https://min-api.cryptocompare.com/data/social/coin/latest"
+                    "https://min-api.cryptocompare.com/data/social/coin/latest"
                 )
                 social_params = {"coinId": clean_symbol}
 

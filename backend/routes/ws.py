@@ -5,7 +5,7 @@ import time
 from sqlalchemy import select, func
 from typing import Any, cast
 
-from backend.database import session_scope, Trade, TradeLog, EquityPoint
+from backend.database import session_scope, Trade, EquityPoint
 from backend.utils.pnl import calculate_pnl, calculate_pnl_per_symbol
 from backend.utils.risk import calculate_risk
 from backend.utils.analytics import calculate_analytics
@@ -20,7 +20,6 @@ except Exception:  # pragma: no cover
         raise RuntimeError("Trading engine unavailable")
 
 
-from backend.routes.signals import recent_signals  # reuse logic
 from backend.utils.market_data import fetch_recent_signals
 from backend.services.price_stream import (
     ensure_price_stream,

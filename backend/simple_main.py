@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 import os
 import threading
 import time as _time
+import asyncio
 from ai_auto_trading_service import AIAutoTradingService
 
 # In-memory runtime state for auto-training + auto-trading (lightweight)
@@ -395,7 +396,7 @@ async def get_pnl():
     result = conn.execute(
         "SELECT SUM(pnl) as total_pnl, COUNT(*) as trade_count FROM trades"
     ).fetchone()
-    base_pnl = result["total_pnl"] or 0
+    # Use trade_count for derived stats; ignore base_pnl if unused
     trade_count = result["trade_count"] or 1
 
     # More realistic P&L data
@@ -1045,7 +1046,6 @@ async def get_stress_summary():
 
 
 # WebSocket endpoints
-import asyncio
 
 
 @app.websocket("/ws/dashboard")

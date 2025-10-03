@@ -11,7 +11,6 @@ Komplett implementering av AI-drevet automatisk handel:
 - Logging og overvåking av AI-handel
 """
 
-import asyncio
 import json
 import logging
 import time
@@ -516,7 +515,7 @@ class AIAutoTradingService:
                     continue
 
                 current_price = market_data[0]["close"]
-                entry_price = position["entry_price"]
+                # entry_price is not used in this scope; access when closing
                 side = position["side"]
 
                 # Check stop loss

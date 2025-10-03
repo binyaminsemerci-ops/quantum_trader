@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Dict, Iterable, Optional, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 try:  # pragma: no cover - runtime env dependent
     from binance import ThreadedWebsocketManager  # type: ignore
@@ -55,7 +55,8 @@ def _on_symbol_ticker(msg):  # type: ignore
 
 def _mock_prices(symbols: Iterable[str]):
     now = time.time()
-    import math, random
+    import math
+    import random
 
     for sym in symbols:
         h = hash(sym) % 10_000
