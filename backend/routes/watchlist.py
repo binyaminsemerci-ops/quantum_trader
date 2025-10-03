@@ -7,9 +7,8 @@ import asyncio
 from sqlalchemy import select
 from backend.database import session_scope, WatchlistEntry, Alert
 
-from backend.alerts.evaluator import register_ws, unregister_ws
-
 router = APIRouter()
+from backend.alerts.evaluator import register_ws, unregister_ws
 
 
 @router.get("")
@@ -105,8 +104,7 @@ def _generate_extended_watchlist() -> List[Dict]:
 
     Falls back to demo data if API fails.
     """
-    import random
-    import time
+    import random, time
     from backend.utils.market_data import fetch_recent_candles
 
     base = [

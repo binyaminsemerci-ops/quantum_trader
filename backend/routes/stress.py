@@ -6,9 +6,6 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException
-from backend.utils.logging import get_logger
-
-logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -80,17 +77,7 @@ def _trend(task: str, runs: List[Dict[str, Any]]) -> List[int]:
 
 
 def _load_aggregated(path: Path) -> Dict[str, Any]:
-    # If the exact path does not exist, try to find any file matching
-    # '*aggregated*.json' in the same directory as a graceful fallback.
     if not path.exists():
-        parent = path.parent
-        if parent.exists() and parent.is_dir():
-            for candidate in sorted(parent.glob("*aggregated*.json")):
-                try:
-                    with candidate.open("r", encoding="utf-8") as fh:
-                        return json.load(fh)
-                except Exception:
-                    continue
         raise FileNotFoundError(path)
     with path.open("r", encoding="utf-8") as fh:
         return json.load(fh)
@@ -101,7 +88,6 @@ async def stress_summary() -> Dict[str, Any]:
     agg_path = _resolve_aggregated_path()
     try:
         data = _load_aggregated(agg_path)
-        logger.info("Loaded stress aggregated data from %s", agg_path)
     except FileNotFoundError:
         raise HTTPException(
             status_code=404, detail=f"No aggregated.json at {agg_path}"
@@ -160,27 +146,11 @@ async def stress_summary() -> Dict[str, Any]:
             }
         )
 
-    # Normalize timestamps to ISO strings when possible so frontend sees a
-    # consistent format regardless of which aggregated file was used.
-    def _iso(val):
-        if val is None:
-            return None
-        try:
-            # If already a string, assume it's ISO; otherwise try to format
-            if isinstance(val, str):
-                return val
-            return val.isoformat()
-        except Exception:
-            try:
-                return str(val)
-            except Exception:
-                return None
-
     payload = {
         "status": "ok",
         "source": str(agg_path),
-        "started_at": _iso(data.get("started_at")),
-        "finished_at": _iso(data.get("finished_at")),
+        "started_at": data.get("started_at"),
+        "finished_at": data.get("finished_at"),
         "iterations": iterations,
         "duration": duration_stats,
         "totals": {"runs": len(runs)},
@@ -190,13 +160,8 @@ async def stress_summary() -> Dict[str, Any]:
             {
                 "iteration": run.get("iteration"),
                 "summary": run.get("summary"),
-                "total_duration": (run.get("total_duration") or run.get("duration")),
-                "details": run.get("details")
-                or run.get("stdout")
-                or run.get("fake-stdout"),
-                "ts": _iso(
-                    run.get("started_at") or run.get("timestamp") or run.get("time")
-                ),
+                "total_duration": run.get("total_duration"),
+                "details": run.get("details"),
             }
             for run in runs[-25:]
         ],
