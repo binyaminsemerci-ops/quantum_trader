@@ -1,0 +1,286 @@
+{
+  "report_metadata": {
+    "generated_at": "2025-10-02T03:52:51.171304",
+    "system": "Quantum Trader",
+    "report_type": "System Health & Test Summary"
+  },
+  "system_health": {
+    "overall_score": 0.5763888888888888,
+    "score_percentage": 57.638888888888886,
+    "health_category": "Fair",
+    "health_emoji": "\ud83d\udfe0",
+    "component_scores": {
+      "structure": 1.0,
+      "testing": 0.2222222222222222,
+      "coverage": 0.625
+    },
+    "recommendations": [
+      "\ud83d\udcca Add missing test coverage: WebSocket functionality testing, load/performance testing",
+      "\u26a0\ufe0f Fair system health. Significant improvements needed before production.",
+      "\ud83d\udd27 Fix backend connectivity issues - server may not be starting properly",
+      "\ud83d\udee0\ufe0f Install Node.js and npm for frontend development"
+    ]
+  },
+  "component_analysis": {
+    "components": {
+      "backend_directory": true,
+      "frontend_directory": true,
+      "backend_main": true,
+      "backend_simple": true,
+      "frontend_package": true,
+      "frontend_vite": true,
+      "database": true,
+      "requirements_backend": true,
+      "requirements_root": true
+    },
+    "backend_ready": true,
+    "frontend_ready": true,
+    "database_ready": true,
+    "overall_structure": 1.0
+  },
+  "test_coverage": {
+    "coverage_details": {
+      "backend_api_tested": true,
+      "backend_health_tested": true,
+      "frontend_structure_tested": true,
+      "frontend_build_tested": true,
+      "e2e_integration_tested": true,
+      "websocket_tested": false,
+      "load_testing_performed": false,
+      "error_handling_tested": false
+    },
+    "coverage_score": 0.625,
+    "coverage_percentage": 62.5
+  },
+  "test_summaries": {
+    "backend": {
+      "tests_run": 2,
+      "tests_passed": 0,
+      "success_rate": 0.0,
+      "duration_ms": 20349.550247192383,
+      "status": "\u274c FAIL"
+    },
+    "frontend": {
+      "tests_run": 3,
+      "tests_passed": 2,
+      "success_rate": 0.6666666666666666,
+      "duration_ms": 6.458759307861328,
+      "status": "\u2705 PASS"
+    },
+    "e2e": {
+      "status": "\u274c ERROR",
+      "error": "Results file not found"
+    },
+    "system": {
+      "tests_run": 0,
+      "tests_passed": 0,
+      "success_rate": 0,
+      "duration_ms": 0,
+      "status": "\u274c FAIL"
+    }
+  },
+  "detailed_results": {
+    "backend": {
+      "tests_run": 2,
+      "tests_passed": 0,
+      "tests_failed": 2,
+      "success_rate": 0.0,
+      "total_duration_ms": 20349.550247192383,
+      "detailed_results": [
+        {
+          "test_name": "health_endpoint",
+          "success": false,
+          "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000155213158B0>: Failed to establish a new connection: [WinError 10061] Kan ikke koble til fordi m\u00e5lmaskinen avslo tilkobling'))",
+          "test_duration_ms": 4076.5907764434814
+        },
+        {
+          "test_name": "api_endpoints",
+          "success": false,
+          "success_rate": 0.0,
+          "endpoints_tested": 4,
+          "endpoints_successful": 0,
+          "endpoint_results": [
+            {
+              "endpoint": "/api/prices",
+              "success": false,
+              "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/prices (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000155215F1E20>: Failed to establish a new connection: [WinError 10061] Kan ikke koble til fordi m\u00e5lmaskinen avslo tilkobling'))"
+            },
+            {
+              "endpoint": "/api/portfolio",
+              "success": false,
+              "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/portfolio (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000155215F25A0>: Failed to establish a new connection: [WinError 10061] Kan ikke koble til fordi m\u00e5lmaskinen avslo tilkobling'))"
+            },
+            {
+              "endpoint": "/api/trades",
+              "success": false,
+              "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/trades (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000155215F2D20>: Failed to establish a new connection: [WinError 10061] Kan ikke koble til fordi m\u00e5lmaskinen avslo tilkobling'))"
+            },
+            {
+              "endpoint": "/api/stats",
+              "success": false,
+              "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/stats (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000155215F34A0>: Failed to establish a new connection: [WinError 10061] Kan ikke koble til fordi m\u00e5lmaskinen avslo tilkobling'))"
+            }
+          ],
+          "test_duration_ms": 16272.959470748901
+        }
+      ],
+      "timestamp": "2025-10-02T03:51:26.728020"
+    },
+    "frontend": {
+      "tests_run": 3,
+      "tests_passed": 2,
+      "tests_failed": 1,
+      "success_rate": 0.6666666666666666,
+      "total_duration_ms": 6.458759307861328,
+      "detailed_results": [
+        {
+          "test_name": "frontend_files_exist",
+          "success": true,
+          "files_checked": 4,
+          "files_found": 4,
+          "success_rate": 1.0,
+          "file_results": [
+            {
+              "file": "package.json",
+              "exists": true,
+              "path": "frontend\\package.json"
+            },
+            {
+              "file": "index.html",
+              "exists": true,
+              "path": "frontend\\index.html"
+            },
+            {
+              "file": "vite.config.tsx",
+              "exists": true,
+              "path": "frontend\\vite.config.tsx"
+            },
+            {
+              "file": "tsconfig.json",
+              "exists": true,
+              "path": "frontend\\tsconfig.json"
+            }
+          ],
+          "test_duration_ms": 0.0
+        },
+        {
+          "test_name": "package_json_content",
+          "success": true,
+          "checks": {
+            "has_name": true,
+            "has_scripts": true,
+            "has_dependencies": true,
+            "has_dev_script": true,
+            "has_build_script": true
+          },
+          "success_rate": 1.0,
+          "test_duration_ms": 5.007743835449219
+        },
+        {
+          "test_name": "npm_available",
+          "success": false,
+          "error": "[WinError 2] Systemet finner ikke angitt fil",
+          "test_duration_ms": 1.4510154724121094
+        }
+      ],
+      "timestamp": "2025-10-02T03:51:49.729616"
+    },
+    "e2e": {
+      "error": "Results file not found"
+    },
+    "system": {
+      "report_metadata": {
+        "generated_at": "2025-10-02T03:47:49.637343",
+        "system": "Quantum Trader",
+        "test_environment": "Development",
+        "python_version": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]"
+      },
+      "executive_summary": {
+        "start_time": "2025-10-02T03:47:46.993379",
+        "end_time": "2025-10-02T03:47:49.637343",
+        "total_duration_ms": 2643.9645290374756,
+        "test_categories": {},
+        "overall_success": false,
+        "overall_success_rate": 0.0,
+        "total_categories": 3,
+        "successful_categories": 0,
+        "category_success_rate": 0.0,
+        "total_tests_run": 0,
+        "total_tests_passed": 0,
+        "test_success_rate": 0
+      },
+      "performance_summary": {
+        "total_test_duration_ms": 1812.0012283325195,
+        "average_category_duration_ms": 604.0004094441732,
+        "fastest_category_ms": 465.81125259399414,
+        "slowest_category_ms": 705.0430774688721
+      },
+      "error_summary": [
+        {
+          "category": "Backend System Tests",
+          "error": "Unknown error",
+          "return_code": 1
+        },
+        {
+          "category": "Frontend System Tests",
+          "error": "Unknown error",
+          "return_code": 1
+        },
+        {
+          "category": "End-to-End Integration Tests",
+          "error": "Unknown error",
+          "return_code": 1
+        }
+      ],
+      "coverage_analysis": {
+        "backend_coverage": false,
+        "frontend_coverage": false,
+        "integration_coverage": false,
+        "api_testing": false,
+        "websocket_testing": false,
+        "load_testing": false
+      },
+      "detailed_results": {
+        "Backend System Tests": {
+          "test_name": "Backend System Tests",
+          "script": "test_backend_system.py",
+          "success": false,
+          "return_code": 1,
+          "duration_ms": 705.0430774688721,
+          "stdout": "",
+          "stderr": "Traceback (most recent call last):\n  File \"C:\\quantum_trader\\test_backend_system.py\", line 478, in <module>\n    exit(main())\n         ^^^^^^\n  File \"C:\\quantum_trader\\test_backend_system.py\", line 459, in main\n    results = tester.run_all_tests()\n              ^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\quantum_trader\\test_backend_system.py\", line 369, in run_all_tests\n    print(\"\\U0001f50d Running Backend System Tests...\")\n  File \"C:\\Users\\belen\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\encodings\\cp1252.py\", line 19, in encode\n    return codecs.charmap_encode(input,self.errors,encoding_table)[0]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nUnicodeEncodeError: 'charmap' codec can't encode character '\\U0001f50d' in position 0: character maps to <undefined>\n",
+          "detailed_results": null,
+          "timestamp": "2025-10-02T03:47:48.528332"
+        },
+        "Frontend System Tests": {
+          "test_name": "Frontend System Tests",
+          "script": "test_frontend_system.py",
+          "success": false,
+          "return_code": 1,
+          "duration_ms": 465.81125259399414,
+          "stdout": "",
+          "stderr": "Traceback (most recent call last):\n  File \"C:\\quantum_trader\\test_frontend_system.py\", line 589, in <module>\n    exit(main())\n         ^^^^^^\n  File \"C:\\quantum_trader\\test_frontend_system.py\", line 570, in main\n    results = tester.run_all_tests()\n              ^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\quantum_trader\\test_frontend_system.py\", line 463, in run_all_tests\n    print(\"\\U0001f3a8 Running Frontend System Tests...\")\n  File \"C:\\Users\\belen\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\encodings\\cp1252.py\", line 19, in encode\n    return codecs.charmap_encode(input,self.errors,encoding_table)[0]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nUnicodeEncodeError: 'charmap' codec can't encode character '\\U0001f3a8' in position 0: character maps to <undefined>\n",
+          "detailed_results": null,
+          "timestamp": "2025-10-02T03:47:48.994143"
+        },
+        "End-to-End Integration Tests": {
+          "test_name": "End-to-End Integration Tests",
+          "script": "test_e2e_integration.py",
+          "success": false,
+          "return_code": 1,
+          "duration_ms": 641.1468982696533,
+          "stdout": "",
+          "stderr": "Traceback (most recent call last):\n  File \"C:\\quantum_trader\\test_e2e_integration.py\", line 616, in <module>\n    exit(main())\n         ^^^^^^\n  File \"C:\\quantum_trader\\test_e2e_integration.py\", line 597, in main\n    results = tester.run_all_e2e_tests()\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\quantum_trader\\test_e2e_integration.py\", line 510, in run_all_e2e_tests\n    print(\"\\U0001f517 Running End-to-End Integration Tests...\")\n  File \"C:\\Users\\belen\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\encodings\\cp1252.py\", line 19, in encode\n    return codecs.charmap_encode(input,self.errors,encoding_table)[0]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nUnicodeEncodeError: 'charmap' codec can't encode character '\\U0001f517' in position 0: character maps to <undefined>\n",
+          "detailed_results": null,
+          "timestamp": "2025-10-02T03:47:49.636349"
+        }
+      },
+      "recommendations": [
+        "\ud83d\udd27 Fix issues in Backend System Tests: Unknown error",
+        "\ud83d\udd27 Fix issues in Frontend System Tests: Unknown error",
+        "\ud83d\udd27 Fix issues in End-to-End Integration Tests: Unknown error",
+        "\u274c Poor test coverage. Major issues must be resolved before deployment."
+      ]
+    }
+  }
+}

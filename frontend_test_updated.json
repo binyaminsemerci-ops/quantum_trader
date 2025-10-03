@@ -1,0 +1,59 @@
+{
+  "tests_run": 3,
+  "tests_passed": 2,
+  "tests_failed": 1,
+  "success_rate": 0.6666666666666666,
+  "total_duration_ms": 3.519296646118164,
+  "detailed_results": [
+    {
+      "test_name": "frontend_files_exist",
+      "success": true,
+      "files_checked": 4,
+      "files_found": 4,
+      "success_rate": 1.0,
+      "file_results": [
+        {
+          "file": "package.json",
+          "exists": true,
+          "path": "frontend\\package.json"
+        },
+        {
+          "file": "index.html",
+          "exists": true,
+          "path": "frontend\\index.html"
+        },
+        {
+          "file": "vite.config.tsx",
+          "exists": true,
+          "path": "frontend\\vite.config.tsx"
+        },
+        {
+          "file": "tsconfig.json",
+          "exists": true,
+          "path": "frontend\\tsconfig.json"
+        }
+      ],
+      "test_duration_ms": 0.0
+    },
+    {
+      "test_name": "package_json_content",
+      "success": true,
+      "checks": {
+        "has_name": true,
+        "has_scripts": true,
+        "has_dependencies": true,
+        "has_dev_script": true,
+        "has_build_script": true
+      },
+      "success_rate": 1.0,
+      "test_duration_ms": 1.0104179382324219
+    },
+    {
+      "test_name": "npm_available",
+      "success": false,
+      "error": "[WinError 2] Systemet finner ikke angitt fil",
+      "test_duration_ms": 1.5218257904052734
+    }
+  ],
+  "timestamp": "2025-10-02T03:58:24.716714"
+}
