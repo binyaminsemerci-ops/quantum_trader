@@ -1,0 +1,34 @@
+name: CI - Fast Checks
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.1.7
+      - name: Set up Python
+        uses: actions/setup-python@v5.2.0
+        with:
+          python-version: '3.12'
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-dev.txt
+      - name: Lint (ruff)
+        run: ruff check backend
+      - name: Type check (mypy)
+        run: mypy backend --exclude 'backend/tests/.*'
+      - name: Backend tests
+        run: pytest backend/tests -q
+      - name: Frontend install
+        working-directory: frontend
+        run: npm ci
+      - name: Frontend build
+        working-directory: frontend
+        run: npm run build
