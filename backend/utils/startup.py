@@ -50,13 +50,13 @@ async def log_startup_info() -> None:
     cfg = load_config()
     adapters: List[str] = list(_ADAPTER_REGISTRY.keys())
 
-    # Masked presence of exchange keys (don't print the actual secrets).
-    # CryptoPanic has been removed as a live data provider so we no longer
-    # report it here.
+    # Masked presence of keys (don't print the actual secrets).
+    # Include cryptopanic presence flag for environments that still use it.
     key_presence: Dict[str, bool] = {
         "binance": bool(cfg.binance_api_key and cfg.binance_api_secret),
         "coinbase": bool(cfg.coinbase_api_key and cfg.coinbase_api_secret),
         "kucoin": bool(cfg.kucoin_api_key and cfg.kucoin_api_secret),
+        "cryptopanic": bool(getattr(cfg, "cryptopanic_key", None)),
     }
 
     # Capability summary: probe adapter classes for expected methods
