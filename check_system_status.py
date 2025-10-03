@@ -27,20 +27,20 @@ def check_system_status():
     status["components"] = {
         "backend_dir": Path("backend").exists(),
         "frontend_dir": Path("frontend").exists(),
-        "database": Path("backend/quantum_trader.db").exists(),
+        "database": Path("backend/data/trades.db").exists(),
         "package_json": Path("frontend/package.json").exists(),
-        "vite_config": Path("frontend/vite.config.tsx").exists(),
-        "backend_main": Path("backend/simple_main.py").exists(),
+        "vite_config": Path("frontend/vite.config.ts").exists(),
+        "backend_main": Path("backend/main.py").exists(),
     }
 
     # Sjekk Node.js og npm
     print("🛠️ Sjekker Node.js og npm...")
     try:
         node_result = subprocess.run(
-            ["node", "--version"], capture_output=True, text=True, timeout=5
+            ["node", "--version"], capture_output=True, text=True, timeout=5, shell=True
         )
         npm_result = subprocess.run(
-            ["npm", "--version"], capture_output=True, text=True, timeout=5
+            ["npm", "--version"], capture_output=True, text=True, timeout=5, shell=True
         )
 
         status["frontend"]["node_version"] = (
@@ -64,6 +64,7 @@ def check_system_status():
                 text=True,
                 timeout=10,
                 cwd="frontend",
+                shell=True,
             )
             status["frontend"]["dependencies_installed"] = npm_ls_result.returncode == 0
             status["frontend"]["node_modules_exists"] = True
@@ -82,6 +83,7 @@ def check_system_status():
             text=True,
             timeout=60,
             cwd="frontend",
+            shell=True,
         )
         status["frontend"]["can_build"] = build_result.returncode == 0
         if build_result.returncode != 0:

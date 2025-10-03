@@ -1,22 +1,25 @@
 {
-  "timestamp": "2025-10-03T08:41:39.507661",
+  "timestamp": "2025-10-03T08:52:19.176312",
   "components": {
     "backend_dir": true,
     "frontend_dir": true,
-    "database": false,
+    "database": true,
     "package_json": true,
-    "vite_config": false,
+    "vite_config": true,
     "backend_main": true
   },
   "services": {
     "backend_running": true,
-    "frontend_running": false
+    "frontend_running": true
   },
   "frontend": {
-    "error": "[WinError 2] Systemet finner ikke angitt fil",
-    "dependencies_error": "[WinError 2] Systemet finner ikke angitt fil",
-    "can_build": false,
-    "build_error": "[WinError 2] Systemet finner ikke angitt fil"
+    "node_version": "v22.19.0",
+    "npm_version": "11.6.0",
+    "node_available": true,
+    "npm_available": true,
+    "dependencies_installed": true,
+    "node_modules_exists": true,
+    "can_build": true
   },
   "backend": {}
 }
