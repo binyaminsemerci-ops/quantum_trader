@@ -5,7 +5,6 @@ import datetime
 import json
 import logging
 import pickle
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple, Any
@@ -20,6 +19,8 @@ from ai_engine.feature_engineer import (
     add_target,
     add_technical_indicators,
 )
+from backend.database import SessionLocal, ModelRegistry, Base, engine
+from backend.utils.metrics import update_model_perf  # best-effort import
 
 MODEL_DIR = Path(__file__).resolve().parent / "models"
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
@@ -78,20 +79,10 @@ async def _fetch_symbol_data(symbol: str, limit: int = 600) -> Tuple[List[dict],
     except Exception:
         sent_score = 0.0
 
-    news_payload = await external_data.cryptopanic_news(symbol=symbol, limit=200)
-    news_count = len(news_payload.get("news", []))
-
+    # Removed CryptoPanic - using only Binance OHLCV, Twitter sentiment, CoinGecko prices
     n = len(candles)
     sentiment_series = [sent_score] * n
-    news_series = [0.0] * n
-    if n > 0 and news_count > 0:
-        step = max(1, n // news_count)
-        inserted = 0
-        for idx in range(0, n, step):
-            if inserted >= news_count:
-                break
-            news_series[idx] = 1.0
-            inserted += 1
+    news_series = [0.0] * n  # No news data needed - focus on price and sentiment
 
     return candles, sentiment_series, news_series
 
@@ -253,7 +244,13 @@ def simulate_equity_curve(
 
     pnl = equity - starting_equity
     win_rate = wins / trades if trades else 0.0
-    return {
+    returns_series: List[float] = []
+    # Build returns list for Sharpe (approx using trade_return only when trade executed)
+    for point in curve:
+        # We didn't store per-trade return explicitly; approximation omitted here
+        pass
+
+    result = {
         "starting_equity": starting_equity,
         "final_equity": round(equity, 2),
         "pnl": round(pnl, 2),
@@ -264,6 +261,7 @@ def simulate_equity_curve(
         "max_drawdown": round(max_drawdown, 4),
         "equity_curve": curve,
     }
+    return result
 
 
 def save_artifacts(model, scaler, model_path: Path, scaler_path: Path) -> dict:
@@ -310,6 +308,42 @@ def _prepare_dataset(symbols: Sequence[str], limit: int) -> PreparedDataset:
         return _synthetic_dataset()
 
 
+def _prepare_live_dataset(symbols: Sequence[str], limit: int) -> PreparedDataset:
+    """Build a PreparedDataset by calling the live feature helper for each symbol.
+
+    Falls back to _prepare_dataset behavior on any error.
+    """
+    try:
+        from ai_engine.data.live_features import fetch_features_for_sklearn
+
+        X_blocks: List[np.ndarray] = []
+        y_blocks: List[np.ndarray] = []
+        timestamps: List[str] = []
+        feature_names: List[str] = []
+
+        for sym in symbols:
+            X, y, names = fetch_features_for_sklearn(sym, limit=limit)
+            if X.size == 0 or y.size == 0:
+                continue
+            # remember the first feature name set
+            if not feature_names:
+                feature_names = names
+            X_blocks.append(X)
+            y_blocks.append(y)
+            # timestamp placeholders: symbol:index
+            for i in range(len(y)):
+                timestamps.append(f"{sym}:{i}")
+
+        if not X_blocks:
+            raise RuntimeError("no live data assembled")
+        features = np.vstack(X_blocks)
+        target = np.concatenate(y_blocks)
+        return PreparedDataset(features=features, target=target, timestamps=timestamps, feature_names=feature_names)
+    except Exception as exc:
+        logger.warning("Live-data dataset assembly failed, falling back: %s", exc)
+        return _prepare_dataset(symbols, limit)
+
+
 def train_and_save(
     symbols: Optional[Sequence[str]] = None,
     limit: int = 600,
@@ -318,6 +352,7 @@ def train_and_save(
     backtest: bool = True,
     write_report: bool = True,
     entry_threshold: float = 0.001,
+    use_live_data: bool = False,
 ) -> dict:
     if symbols is None:
         default_symbols = list(DEFAULT_SYMBOLS)
@@ -326,7 +361,11 @@ def train_and_save(
         else:
             symbols = [f"BTC{settings.default_quote}", f"ETH{settings.default_quote}"]
 
-    dataset = _prepare_dataset(list(symbols), limit)
+    if use_live_data:
+        # prefer live-feature helper which returns sklearn-ready arrays per symbol
+        dataset = _prepare_live_dataset(list(symbols), limit)
+    else:
+        dataset = _prepare_dataset(list(symbols), limit)
 
     scaler = make_scaler()
     # scaler may be a scikit-learn scaler or our simple fallback; treat as Any
@@ -365,10 +404,68 @@ def train_and_save(
     }
     if backtest_report is not None:
         report_payload["backtest"] = backtest_report
+        # Compute Sharpe & Sortino (assume returns roughly hourly; annualize accordingly)
+        try:
+            eq = [p["equity"] for p in backtest_report["equity_curve"]]
+            sharpe = 0.0
+            sortino = 0.0
+            if len(eq) > 2:
+                import numpy as _np
+                eq_arr = _np.array(eq, dtype=float)
+                rets = _np.diff(eq_arr) / (eq_arr[:-1] + 1e-12)
+                if rets.size:
+                    # Risk-free assumed 0 for crypto short horizon; could inject later.
+                    mean_ret = _np.mean(rets)
+                    std_ret = _np.std(rets) + 1e-12
+                    # Downside deviation
+                    downside = rets[rets < 0]
+                    downside_dev = (_np.sqrt(_np.mean(downside ** 2))) if downside.size else std_ret
+                    # Approx trading periods per year: if hourly bars ~ 24*365
+                    periods_per_year = 24 * 365
+                    sharpe = float((mean_ret / std_ret) * _np.sqrt(periods_per_year))
+                    sortino = float((mean_ret / (downside_dev + 1e-12)) * _np.sqrt(periods_per_year))
+            report_payload["backtest"]["sharpe"] = sharpe
+            report_payload["backtest"]["sortino"] = sortino
+        except Exception:  # pragma: no cover
+            report_payload["backtest"]["sharpe"] = 0.0
+            report_payload["backtest"]["sortino"] = 0.0
 
     report_path = output_dir / REPORT_FILENAME if write_report else None
     if report_path is not None:
         _write_json(report_path, report_payload)
+
+    # --- Model registry integration ---
+    try:
+        # Ensure new table exists (idempotent)
+        Base.metadata.create_all(bind=engine)
+        with SessionLocal() as session:
+            version_tag = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d%H%M%S")
+            registry_entry = ModelRegistry(
+                version=version_tag,
+                tag="auto-train",
+                path=str(model_path),
+                params_json=json.dumps({"entry_threshold": entry_threshold}),
+                metrics_json=json.dumps({
+                    "metrics": metrics,
+                    "backtest": backtest_report if backtest_report else None,
+                }),
+                is_active=0,  # explicit promote later
+            )
+            session.add(registry_entry)
+            session.commit()
+            # Update perf gauges if backtest present
+            try:
+                if backtest_report:
+                    update_model_perf(backtest_report.get("sharpe"), backtest_report.get("max_drawdown"))
+                    try:
+                        from backend.utils.metrics import update_model_sortino  # local import to avoid circular
+                        update_model_sortino(backtest_report.get("sortino"))
+                    except Exception:
+                        pass
+            except Exception:  # pragma: no cover
+                pass
+    except Exception as exc:  # pragma: no cover - best effort
+        logger.warning("Model registry insertion failed: %s", exc)
 
     return {
         "artifacts": artifacts,
@@ -441,5 +538,21 @@ def load_report(model_dir: Optional[Path | str] = None) -> Optional[dict]:
 
 
 if __name__ == "__main__":
-    summary = train_and_save()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Train model and save artifacts")
+    parser.add_argument("--model-dir", dest="model_dir", default=None)
+    parser.add_argument("--limit", type=int, default=600)
+    parser.add_argument("--no-backtest", dest="no_backtest", action="store_true", default=False)
+    parser.add_argument("--no-write-report", dest="no_write_report", action="store_true", default=False)
+    parser.add_argument("--use-live-data", dest="use_live_data", action="store_true", default=False, help="Fetch live OHLCV and build features via ai_engine.data.live_features")
+    args = parser.parse_args()
+
+    summary = train_and_save(
+        limit=args.limit,
+        model_dir=args.model_dir,
+        backtest=not args.no_backtest,
+        write_report=not args.no_write_report,
+        use_live_data=args.use_live_data,
+    )
     print(json.dumps(summary, indent=2))
