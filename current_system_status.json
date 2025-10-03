@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-10-03T09:15:00.589296",
+  "timestamp": "2025-10-03T09:26:41.581614",
   "components": {
     "backend_dir": true,
     "frontend_dir": true,
@@ -13,13 +13,10 @@
     "frontend_running": true
   },
   "frontend": {
-    "node_version": "v22.19.0",
-    "npm_version": "11.6.0",
-    "node_available": true,
-    "npm_available": true,
-    "dependencies_installed": true,
-    "node_modules_exists": true,
-    "can_build": true
+    "error": "[WinError 2] Systemet finner ikke angitt fil",
+    "dependencies_error": "[WinError 2] Systemet finner ikke angitt fil",
+    "can_build": false,
+    "build_error": "[WinError 2] Systemet finner ikke angitt fil"
   },
   "backend": {}
 }
