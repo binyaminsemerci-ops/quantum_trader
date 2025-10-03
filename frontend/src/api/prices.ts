@@ -1,7 +1,3 @@
-// NOTE: we intentionally avoid importing OHLCV here to keep this helper minimal
-
-const API_BASE = 'http://localhost:8000';
-
 export type Candle = {
   time: string;
   open: number;
@@ -12,9 +8,10 @@ export type Candle = {
 };
 
 export async function fetchRecentPrices(symbol = 'BTCUSDC', limit = 50): Promise<Candle[]> {
+  const base = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
   try {
     const q = new URLSearchParams({ symbol, limit: String(limit) });
-    const res = await fetch(`${API_BASE}/prices/recent?${q.toString()}`);
+    const res = await fetch(`${base}/prices/recent?${q.toString()}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const payload = (await res.json()) as unknown;
     const data = Array.isArray(payload) ? payload : (payload && (payload as any).data) || [];
