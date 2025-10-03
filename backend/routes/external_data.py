@@ -1,8 +1,8 @@
 """Async helpers providing market/sentiment data for training/backtests.
 
-The original demo returned hard-coded payloads. This version routes requests
-through the shared config + adapter layer when possible and keeps deterministic
-fallbacks so CI/dev environments without external credentials still behave.
+Enhanced version with multi-source data integration from CoinGecko, Fear & Greed Index,
+Reddit sentiment, CryptoCompare news, CoinPaprika metrics, and Messari on-chain data.
+Routes requests through shared config + adapter layer with deterministic fallbacks.
 """
 
 from __future__ import annotations
@@ -16,12 +16,13 @@ from config.config import load_config, settings
 from backend.routes.settings import SETTINGS
 from backend.utils.market_data import fetch_recent_candles
 from backend.utils.twitter_client import TwitterClient
-from backend.utils.cryptopanic_client import CryptoPanicClient
+from backend.enhanced_data_feeds import EnhancedDataFeed, get_enhanced_market_data
 
 logger = logging.getLogger(__name__)
 
 _TWITTER_CLIENT: TwitterClient | None = None
-_CRYPTOPANIC_CLIENT: CryptoPanicClient | None = None
+_CRYPTOPANIC_CLIENT = None
+_ENHANCED_DATA_FEED: EnhancedDataFeed | None = None
 
 
 def _coerce_bool(value: Any) -> bool:
@@ -99,11 +100,20 @@ def _twitter_client() -> TwitterClient:
     return _TWITTER_CLIENT
 
 
-def _cryptopanic_client() -> CryptoPanicClient:
-    global _CRYPTOPANIC_CLIENT
-    if _CRYPTOPANIC_CLIENT is None:
-        _CRYPTOPANIC_CLIENT = CryptoPanicClient()
-    return _CRYPTOPANIC_CLIENT
+def _enhanced_feed() -> EnhancedDataFeed:
+    global _ENHANCED_DATA_FEED
+    if _ENHANCED_DATA_FEED is None:
+        _ENHANCED_DATA_FEED = EnhancedDataFeed()
+    return _ENHANCED_DATA_FEED
+
+
+def _cryptopanic_client() -> None:
+    """CryptoPanic has been removed as a live data source; return None.
+
+    Keep this function for compatibility but do not instantiate any external
+    client or make network calls.
+    """
+    return None
 
 
 def _fallback_news(symbol: str, limit: int) -> List[Dict[str, Any]]:
@@ -151,16 +161,120 @@ async def twitter_sentiment(symbol: str) -> Dict[str, Any]:
 
 
 async def cryptopanic_news(symbol: str, limit: int = 200) -> Dict[str, Any]:
-    """Fetch latest news headlines tagged for a symbol."""
+    """Return deterministic fallback news for a symbol.
 
+    CryptoPanic has been removed as an external live news provider. This
+    helper now returns deterministic mock news so callers keep working and
+    tests remain stable.
+    """
     base_symbol = _strip_quote(symbol)
-    client = _cryptopanic_client()
-    try:
-        items = await asyncio.to_thread(client.fetch_latest, base_symbol, limit)
-    except Exception as exc:  # pragma: no cover - network/adapter issues
-        logger.debug("cryptopanic fetch failed for %s: %s", symbol, exc, exc_info=True)
-        items = _fallback_news(base_symbol, limit)
+    items = _fallback_news(base_symbol, limit)
     return {"symbol": symbol, "news": items[:limit]}
 
 
-__all__ = ["binance_ohlcv", "twitter_sentiment", "cryptopanic_news"]
+# Enhanced multi-source data functions
+async def enhanced_market_data(symbols: List[str]) -> Dict[str, Any]:
+    """Get enhanced market data from multiple free API sources."""
+    try:
+        enhanced_data = await get_enhanced_market_data(symbols)
+        return {
+            "symbols": symbols,
+            "data": enhanced_data,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source": "enhanced_multi_api"
+        }
+    except Exception as exc:
+        logger.debug("Enhanced market data failed: %s", exc, exc_info=True)
+        return {
+            "symbols": symbols,
+            "data": {},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source": "fallback"
+        }
+
+
+async def fear_greed_index() -> Dict[str, Any]:
+    """Get Fear & Greed Index for market sentiment."""
+    try:
+        async with EnhancedDataFeed() as feed:
+            data = await feed.get_fear_greed_index()
+        return data
+    except Exception as exc:
+        logger.debug("Fear & Greed Index failed: %s", exc, exc_info=True)
+        return {
+            "current": {"value": 50, "value_classification": "Neutral"},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source": "fallback"
+        }
+
+
+async def reddit_sentiment(symbols: List[str]) -> Dict[str, Any]:
+    """Get Reddit sentiment analysis for crypto symbols."""
+    try:
+        async with EnhancedDataFeed() as feed:
+            data = await feed.get_reddit_sentiment(symbols)
+        return data
+    except Exception as exc:
+        logger.debug("Reddit sentiment failed: %s", exc, exc_info=True)
+        return {
+            "symbols": {symbol: {"sentiment_score": 0.0, "total_posts": 0} for symbol in symbols},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source": "fallback"
+        }
+
+
+async def comprehensive_crypto_news() -> Dict[str, Any]:
+    """Get comprehensive crypto news from multiple sources."""
+    try:
+        async with EnhancedDataFeed() as feed:
+            data = await feed.get_cryptocompare_data([])  # News doesn't need symbols
+        return data
+    except Exception as exc:
+        logger.debug("Comprehensive news failed: %s", exc, exc_info=True)
+        return {
+            "news": [],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source": "fallback"
+        }
+
+
+async def on_chain_metrics(symbols: List[str]) -> Dict[str, Any]:
+    """Get on-chain metrics from Messari."""
+    try:
+        async with EnhancedDataFeed() as feed:
+            data = await feed.get_messari_metrics(symbols)
+        return data
+    except Exception as exc:
+        logger.debug("On-chain metrics failed: %s", exc, exc_info=True)
+        return {
+            "metrics": {},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source": "fallback"
+        }
+
+
+async def market_indicators() -> Dict[str, Any]:
+    """Get global market indicators."""
+    try:
+        async with EnhancedDataFeed() as feed:
+            data = await feed.get_market_indicators()
+        return data
+    except Exception as exc:
+        logger.debug("Market indicators failed: %s", exc, exc_info=True)
+        return {
+            "global_stats": {},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source": "fallback"
+        }
+
+
+__all__ = [
+    "binance_ohlcv",
+    "twitter_sentiment",
+    "enhanced_market_data",
+    "fear_greed_index",
+    "reddit_sentiment",
+    "comprehensive_crypto_news",
+    "on_chain_metrics",
+    "market_indicators"
+]

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment and optional .env file."""
 
     default_exchange: str = Field(default="binance", alias="DEFAULT_EXCHANGE")
-    default_quote: str = Field(default="USDT", alias="DEFAULT_QUOTE")
+    default_quote: str = Field(default="USDT")
     futures_quote: str = Field(default="USDT", alias="FUTURES_QUOTE")
 
     default_symbols_raw: str | list[str] = Field(
@@ -49,6 +49,26 @@ class Settings(BaseSettings):
     # when credentials are present. Set ENV ENABLE_LIVE_MARKET_DATA=0 to force
     # demo deterministic data instead.
     enable_live_market_data: bool = Field(default=True, alias="ENABLE_LIVE_MARKET_DATA")
+
+    # Production trading configuration
+    enable_real_trading: bool = Field(default=False, alias="ENABLE_REAL_TRADING")
+    binance_testnet: bool = Field(default=True, alias="BINANCE_TESTNET")
+
+    # API Keys for live trading
+    binance_api_key: str = Field(default="", alias="BINANCE_API_KEY")
+    binance_api_secret: str = Field(default="", alias="BINANCE_API_SECRET")
+
+    # Risk management defaults
+    max_position_size_pct: float = Field(default=2.0, alias="MAX_POSITION_SIZE_PCT")
+    stop_loss_pct: float = Field(default=2.0, alias="STOP_LOSS_PCT")
+    take_profit_pct: float = Field(default=4.0, alias="TAKE_PROFIT_PCT")
+    max_daily_loss_pct: float = Field(default=5.0, alias="MAX_DAILY_LOSS_PCT")
+    max_drawdown_pct: float = Field(default=15.0, alias="MAX_DRAWDOWN_PCT")
+
+    # Performance monitoring
+    enable_monitoring: bool = Field(default=True, alias="ENABLE_MONITORING")
+    monitoring_interval_seconds: int = Field(default=60, alias="MONITORING_INTERVAL_SECONDS")
+    enable_live_market_data: bool = Field(default=True, alias="ENABLE_LIVE_MARKET_DATA")
     ccxt_timeframe: str = Field(default="1m", alias="CCXT_TIMEFRAME")
     ccxt_timeout: int = Field(default=10000, alias="CCXT_TIMEOUT_MS")
 
@@ -60,6 +80,8 @@ class Settings(BaseSettings):
     # Exchange credentials (optional)
     binance_api_key: str | None = Field(default=None, alias="BINANCE_API_KEY")
     binance_api_secret: str | None = Field(default=None, alias="BINANCE_API_SECRET")
+    binance_use_testnet: bool = Field(default=True, alias="BINANCE_TESTNET")
+    enable_real_trading: bool = Field(default=False, alias="ENABLE_REAL_TRADING")
 
     coinbase_api_key: str | None = Field(default=None, alias="COINBASE_API_KEY")
     coinbase_api_secret: str | None = Field(default=None, alias="COINBASE_API_SECRET")
@@ -68,6 +90,9 @@ class Settings(BaseSettings):
     kucoin_api_secret: str | None = Field(default=None, alias="KUCOIN_API_SECRET")
 
     cryptopanic_key: str | None = Field(default=None, alias="CRYPTOPANIC_KEY")
+
+    # Starting equity for PnL% kalkulasjoner
+    starting_equity: float = Field(default=10000.0, alias="STARTING_EQUITY")
 
     # Twitter / X credentials
     x_bearer_token: str | None = Field(default=None, alias="X_BEARER_TOKEN")

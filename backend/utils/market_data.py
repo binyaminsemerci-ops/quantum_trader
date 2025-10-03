@@ -18,6 +18,28 @@ from backend.routes.settings import SETTINGS
 from backend.utils.exchanges import resolve_exchange_name, resolve_credentials
 from ai_engine.agents.xgb_agent import make_default_agent
 
+# Cache for ML agent to avoid repeated disk loads every poll
+_CACHED_AGENT = None  # type: ignore
+_AGENT_FAILED = False
+
+# Cache for signals to avoid slow ML operations on every dashboard poll
+_SIGNALS_CACHE = {}  # symbol -> (timestamp, signals_list)
+_SIGNALS_CACHE_TTL = 30.0  # Cache signals for 30 seconds
+
+def _get_agent_once():
+    global _CACHED_AGENT, _AGENT_FAILED
+    if _CACHED_AGENT is not None:
+        return _CACHED_AGENT
+    if _AGENT_FAILED:
+        return None
+    try:
+        _CACHED_AGENT = make_default_agent()
+        return _CACHED_AGENT
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Failed to load ML agent (cached): %s", exc)
+        _AGENT_FAILED = True
+        return None
+
 try:  # pragma: no cover - ccxt is optional
     import ccxt  # type: ignore[import-not-found]
 except Exception:  # pragma: no cover - ccxt not installed
@@ -75,11 +97,12 @@ def fetch_recent_candles(symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
             params: Dict[str, Any] = {
                 "enableRateLimit": True,
                 "timeout": getattr(cfg, 'ccxt_timeout', 10000),
+                "sandbox": False,  # Use live public API
             }
             api_key, api_secret = resolve_credentials(exchange_name, None, None)
-            if api_key:
+            # Only add credentials if we have BOTH key and secret (for trading, not market data)
+            if api_key and api_secret:
                 params["apiKey"] = api_key
-            if api_secret:
                 params["secret"] = api_secret
             exchange = None
             try:
@@ -138,14 +161,21 @@ def _demo_signals(symbol: str, limit: int, profile: str = "mixed") -> List[Dict[
 
 
 def fetch_recent_signals(symbol: str, limit: int = 20, profile: str = "mixed") -> List[Dict[str, Any]]:
+    # Check cache first - return cached signals if fresh (within TTL)
+    import time
+    now = time.time()
+    cache_key = f"{symbol}:{limit}:{profile}"
+
+    if cache_key in _SIGNALS_CACHE:
+        cached_time, cached_signals = _SIGNALS_CACHE[cache_key]
+        if (now - cached_time) < _SIGNALS_CACHE_TTL:
+            return cached_signals
+
     cfg = load_config()
     enable_live = bool(SETTINGS.get("ENABLE_LIVE_MARKET_DATA", getattr(cfg, "enable_live_market_data", False)))
+
     if enable_live:
-        try:
-            agent = make_default_agent()
-        except Exception as exc:
-            logger.warning("Failed to initialise XGB agent: %s", exc)
-            agent = None
+        agent = _get_agent_once()
         if agent is not None:
             candles = fetch_recent_candles(symbol, limit + 200)
             if len(candles) >= 20:
@@ -185,5 +215,11 @@ def fetch_recent_signals(symbol: str, limit: int = 20, profile: str = "mixed") -
                         }
                     )
                 if signals:
+                    # Cache the ML signals for future requests
+                    _SIGNALS_CACHE[cache_key] = (now, signals[-limit:])
                     return signals[-limit:]
-    return _demo_signals(symbol, limit, profile)
+
+    # Generate demo signals and cache them too
+    demo_signals = _demo_signals(symbol, limit, profile)
+    _SIGNALS_CACHE[cache_key] = (now, demo_signals)
+    return demo_signals
