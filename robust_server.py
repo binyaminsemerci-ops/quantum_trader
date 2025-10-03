@@ -580,8 +580,8 @@ class RobustHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "*")
             self.end_headers()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"❌ OPTIONS error: {e}")
 
     def log_message(self, format, *args) -> None:
         # Disable default logging

@@ -105,8 +105,8 @@ def show_model_info() -> None:
         else:
             pass
 
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"⚠️ AI test warning: {e}")
 
 
 if __name__ == "__main__":

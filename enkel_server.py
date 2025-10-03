@@ -235,8 +235,8 @@ def main() -> None:
 
     except KeyboardInterrupt:
         pass
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"❌ Server error: {e}")
 
 
 if __name__ == "__main__":

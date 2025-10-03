@@ -69,7 +69,6 @@ async def _fetch_symbol_data(symbol: str, limit: int = 600):
     except Exception:
         sent_score = 0.0
 
-    # news: count
     news = await external_data.cryptopanic_news(symbol=symbol, limit=200)
     news_count = len(news.get("news", []))
 

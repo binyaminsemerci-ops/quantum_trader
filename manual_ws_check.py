@@ -25,8 +25,8 @@ async def main() -> None:
             await ws.send(json.dumps({"type": "ping"}))
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(ws.recv(), timeout=5)
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        print(f"⚠️ WebSocket check warning: {e}")
 
 
 if __name__ == "__main__":

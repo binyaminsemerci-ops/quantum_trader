@@ -116,8 +116,8 @@ def verify_configuration() -> Optional[bool]:
                     },
                 )
                 exchange.fetch_balance()
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"⚠️ Exchange validation warning: {e}")
 
         return True
 

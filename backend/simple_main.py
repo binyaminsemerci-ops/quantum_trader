@@ -47,10 +47,9 @@ _STATE_LOCK = threading.Lock()
 
 
 def _safe_log(msg: str) -> None:
-    try:
+    import contextlib
+    with contextlib.suppress(Exception):
         logger.info(msg)
-    except Exception:
-        pass  # fallback to print since logger failed
 
 
 def _run_periodic_training() -> None:
