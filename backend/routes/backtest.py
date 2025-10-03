@@ -35,11 +35,15 @@ def _normalise_curve(points: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def _model_backtest(symbol: str, limit: int, entry_threshold: float) -> Dict[str, Any]:
     try:
-        summary = run_backtest_only(symbols=[symbol], limit=limit, entry_threshold=entry_threshold)
+        summary = run_backtest_only(
+            symbols=[symbol], limit=limit, entry_threshold=entry_threshold
+        )
     except FileNotFoundError:
         logger.debug("Model artifacts missing; running training step for %s", symbol)
         train_and_save(symbols=[symbol], limit=max(limit, 300), backtest=True)
-        summary = run_backtest_only(symbols=[symbol], limit=limit, entry_threshold=entry_threshold)
+        summary = run_backtest_only(
+            symbols=[symbol], limit=limit, entry_threshold=entry_threshold
+        )
 
     metrics = summary.get("metrics", {})
     backtest = summary.get("backtest") or {}
@@ -69,9 +73,15 @@ def _model_backtest(symbol: str, limit: int, entry_threshold: float) -> Dict[str
 
 def _legacy_backtest(symbol: str, days: int) -> Dict[str, Any]:
     with session_scope() as session:
-        trade_rows = session.execute(
-            select(Trade).where(Trade.symbol == symbol).order_by(cast(Any, Trade.timestamp).asc())
-        ).scalars().all()
+        trade_rows = (
+            session.execute(
+                select(Trade)
+                .where(Trade.symbol == symbol)
+                .order_by(cast(Any, Trade.timestamp).asc())
+            )
+            .scalars()
+            .all()
+        )
 
         if trade_rows:
             start_equity = 10_000.0
@@ -86,7 +96,9 @@ def _legacy_backtest(symbol: str, days: int) -> Dict[str, Any]:
                     wins += 1
                 curve.append(
                     {
-                        "timestamp": trade.timestamp.isoformat() if trade.timestamp else None,
+                        "timestamp": (
+                            trade.timestamp.isoformat() if trade.timestamp else None
+                        ),
                         "equity": round(equity, 2),
                     }
                 )
@@ -102,12 +114,16 @@ def _legacy_backtest(symbol: str, days: int) -> Dict[str, Any]:
                 "max_drawdown": None,
             }
 
-        candle_rows = session.execute(
-            select(Candle)
-            .where(Candle.symbol == symbol)
-            .order_by(cast(Any, Candle.timestamp).asc())
-            .limit(days)
-        ).scalars().all()
+        candle_rows = (
+            session.execute(
+                select(Candle)
+                .where(Candle.symbol == symbol)
+                .order_by(cast(Any, Candle.timestamp).asc())
+                .limit(days)
+            )
+            .scalars()
+            .all()
+        )
 
     if not candle_rows:
         return {
