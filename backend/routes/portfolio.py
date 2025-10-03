@@ -125,7 +125,11 @@ async def get_pnl_data(db: Session = Depends(get_session)):
         if trade.side == "BUY" and i + 1 < len(trades):
             next_trade = trades[i + 1]
             if next_trade.side == "SELL" and next_trade.symbol == trade.symbol:
-                pnl = (next_trade.price - trade.price) * min(trade.qty, next_trade.qty)
+                qty_a = float(next_trade.qty)
+                qty_b = float(trade.qty)
+                pnl = (next_trade.price - trade.price) * (
+                    qty_a if qty_a < qty_b else qty_b
+                )
                 if pnl > 0:
                     wins += 1
                     total_profit += pnl
@@ -232,7 +236,8 @@ async def get_market_overview(db: Session = Depends(get_session)):
             "eth": 17.8,
         },
         "fearGreedIndex": min(
-            100, max(0, 50 + len(active_symbols) * 2),
+            100,
+            max(0, 50 + len(active_symbols) * 2),
         ),  # More activity = more greed
         "topGainers": gainers[:3],
         "topLosers": losers[:3],
