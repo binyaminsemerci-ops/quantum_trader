@@ -12,11 +12,18 @@ be invoked in place of `simulate_training_and_generate_signals`.
 from __future__ import annotations
 import os
 import sys
+from pathlib import Path
 import argparse
 import logging
 import random
 import time
 from datetime import datetime, timezone
+# Ensure the repo root is on sys.path when running this file directly (python scripts/scheduler.py)
+# When running as a module (python -m scripts.scheduler) sys.path is already set appropriately.
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
 import scripts.import_helper
 
 from sqlalchemy import Column, DateTime, Float, Integer, String, Text, func
@@ -27,6 +34,8 @@ from backend.database import Base
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("scheduler")
+
+
 
 class Signal(Base):
     __tablename__ = "signals"

@@ -1,0 +1,46 @@
+{
+  "tests_run": 2,
+  "tests_passed": 0,
+  "tests_failed": 2,
+  "success_rate": 0.0,
+  "total_duration_ms": 20349.550247192383,
+  "detailed_results": [
+    {
+      "test_name": "health_endpoint",
+      "success": false,
+      "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000155213158B0>: Failed to establish a new connection: [WinError 10061] Kan ikke koble til fordi m\u00e5lmaskinen avslo tilkobling'))",
+      "test_duration_ms": 4076.5907764434814
+    },
+    {
+      "test_name": "api_endpoints",
+      "success": false,
+      "success_rate": 0.0,
+      "endpoints_tested": 4,
+      "endpoints_successful": 0,
+      "endpoint_results": [
+        {
+          "endpoint": "/api/prices",
+          "success": false,
+          "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/prices (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000155215F1E20>: Failed to establish a new connection: [WinError 10061] Kan ikke koble til fordi m\u00e5lmaskinen avslo tilkobling'))"
+        },
+        {
+          "endpoint": "/api/portfolio",
+          "success": false,
+          "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/portfolio (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000155215F25A0>: Failed to establish a new connection: [WinError 10061] Kan ikke koble til fordi m\u00e5lmaskinen avslo tilkobling'))"
+        },
+        {
+          "endpoint": "/api/trades",
+          "success": false,
+          "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/trades (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000155215F2D20>: Failed to establish a new connection: [WinError 10061] Kan ikke koble til fordi m\u00e5lmaskinen avslo tilkobling'))"
+        },
+        {
+          "endpoint": "/api/stats",
+          "success": false,
+          "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/stats (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000155215F34A0>: Failed to establish a new connection: [WinError 10061] Kan ikke koble til fordi m\u00e5lmaskinen avslo tilkobling'))"
+        }
+      ],
+      "test_duration_ms": 16272.959470748901
+    }
+  ],
+  "timestamp": "2025-10-02T03:51:26.728020"
+}

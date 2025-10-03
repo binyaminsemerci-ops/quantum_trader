@@ -53,7 +53,9 @@ def test_training_pipeline_creates_artifacts(tmp_path: Path):
 
 
 def test_run_backtest_only_uses_saved_artifacts(tmp_path: Path):
-    train_and_save.train_and_save(symbols=["TEST"], limit=30, model_dir=tmp_path, backtest=True)
+    train_and_save.train_and_save(
+        symbols=["TEST"], limit=30, model_dir=tmp_path, backtest=True
+    )
     result = train_and_save.run_backtest_only(
         symbols=["TEST"], limit=20, model_dir=tmp_path, entry_threshold=0.001
     )

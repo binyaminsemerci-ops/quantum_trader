@@ -6,7 +6,6 @@ import asyncio
 import numpy as np
 
 from backend.utils.twitter_client import TwitterClient
-from backend.utils.cryptopanic_client import CryptoPanicClient
 
 logger = logging.getLogger(__name__)
 
@@ -29,15 +28,11 @@ class XGBAgent:
         self.scaler = None
         # helper clients
         self.twitter: Optional[TwitterClient] = None
-        self.cryptopanic: Optional[CryptoPanicClient] = None
         try:
             self.twitter = TwitterClient()
-            self.cryptopanic = CryptoPanicClient()
         except Exception as e:
-            # If for any reason these clients fail to instantiate, keep None
-            logger.debug("Failed to init auxiliary clients: %s", e)
+            logger.debug("Failed to init Twitter client: %s", e)
             self.twitter = None
-            self.cryptopanic = None
         self._load()
 
     def _load(self) -> None:
@@ -299,20 +294,14 @@ class XGBAgent:
                     logger.debug("twitter_sentiment lookup failed for %s", s)
                     sent_score = 0.0
 
-                try:
-                    news = await external_data.cryptopanic_news(symbol=s, limit=200)
-                    news_items = (
-                        news.get("news", []) if isinstance(news, dict) else (news or [])
-                    )
-                except Exception:
-                    logger.debug("cryptopanic_news lookup failed for %s", s)
-                    news_items = []
+                # Removed CryptoPanic - focusing on Binance OHLCV, Twitter sentiment, CoinGecko prices
+                news_items = []  # No external news needed
 
-                # expand sentiment/news into arrays aligned to candles
+                # expand sentiment into arrays aligned to candles
                 n = len(candles)
                 sentiment_series = [float(sent_score)] * n
-                news_series = [0] * n
-                nc = len(news_items)
+                news_series = [0] * n  # No news data
+                nc = 0  # No news count
                 if n > 0 and nc > 0:
                     step = max(1, n // nc)
                     placed = 0

@@ -1,18 +1,25 @@
+// Application entrypoint (fresh start baseline)
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import './index.css';
-import { DashboardProvider } from './hooks/useDashboardData';
 
-const rootEl = document.getElementById('root');
-if (rootEl) {
-  ReactDOM.createRoot(rootEl).render(
+// Robust mount with simple fallback logging.
+function mount() {
+  const rootEl = document.getElementById('root');
+  if (!rootEl) {
+    console.error('[entry] Could not find #root element');
+    return;
+  }
+  const root = ReactDOM.createRoot(rootEl);
+  root.render(
     <React.StrictMode>
-      <DashboardProvider>
-        <App />
-      </DashboardProvider>
+      <App />
     </React.StrictMode>
   );
+  // eslint-disable-next-line no-console
+  console.log('[entry] React application mounted');
 }
 
-export {};
+mount();
+
+export {}; // keep as a module

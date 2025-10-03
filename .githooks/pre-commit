@@ -1,26 +1,19 @@
 #!/usr/bin/env bash
-# Simple git pre-commit hook to prevent committing when dev-only packages are
-# installed in the runtime environment.
+set -euo pipefail
 
-python backend/scripts/check_dev_deps_in_runtime.py
-rc=$?
-if [ $rc -ne 0 ]; then
-  echo "ERROR: dev-only packages detected in runtime environment."
-  echo "Run: pip install -r backend/requirements-dev.txt to set up a dev env."
-  exit $rc
-fi
+# Dev-only dependency guard
+python backend/scripts/check_dev_deps_in_runtime.py || {
+  echo "ERROR: dev-only packages detected in runtime environment." >&2
+  echo "Run: pip install -r backend/requirements-dev.txt" >&2
+  exit 1
+}
 
-exit 0
-#!/usr/bin/env bash
-# Simple git pre-commit hook to prevent committing when dev-only packages are
-# installed in the runtime environment.
-
-python backend/scripts/check_dev_deps_in_runtime.py
-rc=$?
-if [ $rc -ne 0 ]; then
-  echo "ERROR: dev-only packages detected in runtime environment."
-  echo "Run: pip install -r backend/requirements-dev.txt to set up a dev env."
-  exit $rc
-fi
+# Block introduction of new root start_*.bat scripts (must use orchestrator)
+while IFS= read -r f; do
+  if [[ $f =~ ^start_.*\.bat$ && $f != start_orchestrator.bat ]]; then
+    echo "ERROR: '$f' not allowed. Use start_orchestrator.bat or scripts/." >&2
+    exit 1
+  fi
+done < <(git diff --cached --name-only)
 
 exit 0

@@ -34,11 +34,13 @@ function fallbackCandles(limit: number): Candle[] {
 }
 
 export async function fetchRecentPrices(symbol = 'BTCUSDT', limit = 50): Promise<PriceResult> {
-  const base = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+  const envBase = (import.meta as any).env?.VITE_API_BASE_URL || '';
+  const base = envBase.replace(/\/$/, '');
   try {
     const safeLimit = Math.max(1, limit);
-    const q = new URLSearchParams({ symbol, limit: String(safeLimit) });
-    const res = await fetch(`${base}/prices/recent?${q.toString()}`);
+  const q = new URLSearchParams({ symbol, limit: String(safeLimit) });
+  const url = base ? `${base}/prices/recent?${q.toString()}` : `/api/prices/recent?${q.toString()}`;
+  const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const payload = await res.json();
     const raw = Array.isArray(payload)

@@ -31,7 +31,7 @@ const SignalsList: React.FC = () => {
   async function fetchSignals(): Promise<void> {
     setLoading(true);
     try {
-      const res = await axios.get<Signal[]>('/signals');
+      const res = await axios.get<Signal[]>('/api/v1/signals/recent?limit=20');
       setSignals(res.data ?? []);
     } catch (err: unknown) {
       console.error('Error fetching signals', err);
@@ -41,11 +41,15 @@ const SignalsList: React.FC = () => {
     }
   }
 
-  async function executeSignal(symbol?: string) {
-    if (!symbol) return;
-    setExecutingSignal(symbol);
+  async function executeSignal(signal: Signal) {
+    if (!signal.symbol || !signal.signal) return;
+    setExecutingSignal(signal.symbol);
     try {
-      await axios.post(`/trade/signal/${symbol}`);
+      await axios.post('/api/v1/trading/manual-trade', {
+        symbol: signal.symbol,
+        action: signal.signal.toUpperCase(),
+        force: false
+      });
       await fetchSignals();
     } catch (err: unknown) {
       console.error('Error executing signal', err);
@@ -58,7 +62,7 @@ const SignalsList: React.FC = () => {
   async function generateSignal(symbol: string) {
     setExecutingSignal(symbol);
     try {
-      await axios.get(`/predict/${symbol}`);
+      await axios.post(`/api/v1/trading/analyze/${symbol}`);
       await fetchSignals();
     } catch (err: unknown) {
       console.error('Error generating signal', err);
@@ -77,7 +81,7 @@ const SignalsList: React.FC = () => {
 
       <div className="generate-signals mb-4">
         <h4>Generate New Signal</h4>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="flex gap-2">
           <button onClick={() => generateSignal('BTCUSDT')} disabled={executingSignal === 'BTCUSDT'}>BTC Signal</button>
           <button onClick={() => generateSignal('ETHUSDT')} disabled={executingSignal === 'ETHUSDT'}>ETH Signal</button>
           <button onClick={() => generateSignal('XRPUSDT')} disabled={executingSignal === 'XRPUSDT'}>XRP Signal</button>
@@ -108,7 +112,7 @@ const SignalsList: React.FC = () => {
                 <td>{s.executed ? 'Yes' : 'No'}</td>
                 <td>
                   {!s.executed && (
-                    <button onClick={() => executeSignal(s.symbol)} disabled={executingSignal === s.symbol}>Execute</button>
+                    <button onClick={() => executeSignal(s)} disabled={executingSignal === s.symbol}>Execute</button>
                   )}
                 </td>
               </tr>
@@ -117,7 +121,7 @@ const SignalsList: React.FC = () => {
         </table>
       )}
 
-      <div style={{ marginTop: 8 }}>
+      <div className="mt-2">
         <button onClick={fetchSignals}>Refresh</button>
       </div>
     </div>

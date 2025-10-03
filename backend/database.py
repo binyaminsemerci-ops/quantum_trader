@@ -166,7 +166,9 @@ class TrainingTask(Base):
     limit = Column(Integer, nullable=False)
     status = Column(String(32), nullable=False, default="pending")
     details = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     def __init__(
@@ -198,10 +200,145 @@ class Settings(Base):
     api_key = Column(String(255))
     api_secret = Column(String(255))
 
-    def __init__(self, *, api_key: Optional[str] = None, api_secret: Optional[str] = None, **kwargs) -> None:
+    def __init__(
+        self,
+        *,
+        api_key: Optional[str] = None,
+        api_secret: Optional[str] = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.api_key = api_key
         self.api_secret = api_secret
+
+
+class WatchlistEntry(Base):
+    __tablename__ = "watchlist"
+
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String(50), nullable=False, index=True)
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    def __init__(
+        self, *, symbol: str, created_at: Optional[datetime] = None, **kwargs
+    ) -> None:
+        super().__init__(**kwargs)
+        self.symbol = symbol
+        if created_at is not None:
+            self.created_at = created_at
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String(50), nullable=False, index=True)
+    condition = Column(
+        String(32), nullable=False
+    )  # e.g., 'price_above', 'price_below', 'change_pct'
+    threshold = Column(Float, nullable=False)
+    enabled = Column(Integer, nullable=False, default=1)
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    def __init__(
+        self,
+        *,
+        symbol: str,
+        condition: str,
+        threshold: float,
+        enabled: int = 1,
+        created_at: Optional[datetime] = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.symbol = symbol
+        self.condition = condition
+        self.threshold = threshold
+        self.enabled = enabled
+        if created_at is not None:
+            self.created_at = created_at
+
+
+class AlertEvent(Base):
+    __tablename__ = "alert_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    alert_id = Column(Integer, nullable=True, index=True)
+    symbol = Column(String(50), nullable=False, index=True)
+    condition = Column(String(32), nullable=False)
+    threshold = Column(Float, nullable=False)
+    value = Column(Float, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    def __init__(
+        self,
+        *,
+        alert_id: int | None,
+        symbol: str,
+        condition: str,
+        threshold: float,
+        value: float,
+        created_at: Optional[datetime] = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.alert_id = alert_id
+        self.symbol = symbol
+        self.condition = condition
+        self.threshold = threshold
+        self.value = value
+        if created_at is not None:
+            self.created_at = created_at
+
+
+class ModelRegistry(Base):
+    """Registered models with metadata & promotion flag.
+
+    The active model is the single row with is_active=1. All training runs
+    should insert a new row (is_active=0) with metrics snapshot; promotion
+    toggles flags. Simplicity first: JSON blobs for params & metrics.
+    """
+
+    __tablename__ = "model_registry"
+
+    id = Column(Integer, primary_key=True, index=True)
+    version = Column(String(64), nullable=False, index=True)
+    tag = Column(String(128), nullable=True, index=True)
+    path = Column(Text, nullable=False)  # relative or absolute path to artifact
+    params_json = Column(Text, nullable=True)
+    metrics_json = Column(Text, nullable=True)
+    trained_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    is_active = Column(Integer, nullable=False, default=0, index=True)
+
+    def __init__(
+        self,
+        *,
+        version: str,
+        path: str,
+        tag: str | None = None,
+        params_json: str | None = None,
+        metrics_json: str | None = None,
+        trained_at: datetime | None = None,
+        is_active: int = 0,
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.version = version
+        self.tag = tag
+        self.path = path
+        self.params_json = params_json
+        self.metrics_json = metrics_json
+        if trained_at is not None:
+            self.trained_at = trained_at
+        self.is_active = is_active
 
 
 Base.metadata.create_all(bind=engine)
@@ -247,7 +384,9 @@ def update_training_task(
     status: str,
     details: Optional[str] = None,
 ) -> None:
-    task: TrainingTask | None = session.query(TrainingTask).filter(TrainingTask.id == task_id).first()
+    task: TrainingTask | None = (
+        session.query(TrainingTask).filter(TrainingTask.id == task_id).first()
+    )
     if not task:
         return
     task.status = status
@@ -266,6 +405,10 @@ __all__ = [
     "EquityPoint",
     "TrainingTask",
     "Settings",
+    "WatchlistEntry",
+    "Alert",
+    "AlertEvent",
+    "ModelRegistry",
     "get_session",
     "get_db",
     "session_scope",

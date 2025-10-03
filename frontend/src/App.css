@@ -1,0 +1,6 @@
+/* Fresh start baseline styling */
+.app-root { font-family: system-ui, sans-serif; padding: 1rem; }
+.app-root h1 { font-size: 1.5rem; font-weight: 600; }
+.app-root p.lead { margin-top: 0.75rem; }
+.app-root ul.meta { margin-top: 1rem; line-height: 1.5; }
+.app-root hr.sep { margin: 1.5rem 0; }

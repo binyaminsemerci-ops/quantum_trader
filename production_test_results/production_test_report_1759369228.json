@@ -1,0 +1,9 @@
+{
+  "overall_metrics": {
+    "average_accuracy": 1.0,
+    "average_return": 5186366943.1956,
+    "best_performing_config": null,
+    "failed_tests": 0,
+    "performance_degradations": [],
+    "successful_tests": 6,
+    "test_start_time": 

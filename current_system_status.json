@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-10-02T03:59:36.866476",
+  "components": {
+    "backend_dir": true,
+    "frontend_dir": true,
+    "database": true,
+    "package_json": true,
+    "vite_config": true,
+    "backend_main": true
+  },
+  "services": {
+    "backend_running": false,
+    "frontend_running": false
+  },
+  "frontend": {
+    "error": "[WinError 2] Systemet finner ikke angitt fil",
+    "dependencies_error": "[WinError 2] Systemet finner ikke angitt fil",
+    "can_build": false,
+    "build_error": "[WinError 2] Systemet finner ikke angitt fil"
+  },
+  "backend": {}
+}

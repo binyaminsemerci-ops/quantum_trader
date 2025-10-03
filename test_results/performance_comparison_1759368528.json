@@ -1,0 +1,27 @@
+{
+  "duration_seconds": 0,
+  "result": {
+    "failed_tests": 2,
+    "performance_metrics": {},
+    "successful_tests": 1,
+    "test_breakdown": {
+      "backtest": {
+        "avg_duration": 16.668741464614868,
+        "count": 2,
+        "success_rate": 0.0,
+        "successful": 0
+      },
+      "training": {
+        "avg_duration": 20.45818781852722,
+        "count": 1,
+        "success_rate": 1.0,
+        "successful": 1
+      }
+    },
+    "test_count": 3,
+    "total_duration": 53.81086
+  },
+  "success": true,
+  "test_name": "performance_comparison",
+  "timestamp": "2025-10-02T03:28:48.459371"
+}

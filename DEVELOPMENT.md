@@ -62,6 +62,45 @@ Artifacts:
 ## Model training & backtesting
 - Quick refresh (offline stubs): `python -m ai_engine.train_and_save --limit 600` regenerates `xgb_model.pkl`, `scaler.pkl`, `metadata.json`, and `training_report.json` under `ai_engine/models/`.
   The helper automatically falls back to deterministic synthetic data when live adapters are not configured.
+  - Live-data option: pass `--use-live-data` to the training entrypoint to fetch recent OHLCV from exchanges (the trainer will call `ai_engine.data.live_features` which uses `ccxt`/Binance when available). Example:
+
+    ```powershell
+    # Use live candles (sets ENABLE_LIVE_MARKET_DATA=1) and build features from live OHLCV
+    python -m ai_engine.train_and_save --limit 300 --use-live-data --model-dir models\live_run
+    ```
+
+    The `start_training.ps1` and `start_training.bat` wrappers now accept `-UseLiveData` / `uselive` respectively and will set `ENABLE_LIVE_MARKET_DATA=1` and pass `--use-live-data` to the trainer script when requested.
+
+## Autotrader safety and enabling real orders
+
+The Autotrader is conservative by design and will never place real orders unless you explicitly opt in. Follow these steps to enable real orders safely:
+
+1. Configure testnet/staging credentials (recommended):
+  - Create or use a Binance testnet account and generate API keys with only the permissions you need (orders, read balances). Do not reuse production keys.
+  - Add keys to your environment or `config`/`.env` according to your local setup. The exchange adapter will resolve credentials from environment, `config/config.py`, or `backend/routes/settings`.
+
+2. Disable dry-run and allow real orders explicitly:
+  - The autotrader CLI requires two things to allow real orders:
+    - Pass `--no-dry-run` to the script (this sets dry_run=False).
+    - Set `AUTOTRADER_ALLOW_REAL_ORDERS=1` in your environment.
+
+  Example (PowerShell):
+
+  ```powershell
+  $env:AUTOTRADER_ALLOW_REAL_ORDERS = '1'
+  python scripts/autotrader.py --once --no-dry-run --max-symbols 5
+  ```
+
+3. Pre-flight checks (do these before enabling real orders):
+  - Verify balances via the exchange adapter: call `get_exchange_client().spot_balance()` and inspect the returned free balance.
+  - Run the autotrader in `--once` dry-run mode and review the `trade_logs` entries to ensure the signals and computed sizes look correct.
+  - Start with minimal `--max-symbols` and a small `--notional-usd` to limit exposure.
+
+4. Audit and rollback plan:
+  - Have a plan to revoke API keys quickly and monitor the account via exchange dashboards.
+  - Consider sending orders to a paper-trading endpoint or a sandbox account when available.
+
+By default, the repository will simulate orders; you must opt in via the two explicit steps above to enable live trading.
 - Full CLI pipeline: `python main_train_and_backtest.py train --limit 480 --symbols BTCUSDC ETHUSDC` fetches data via the FastAPI helpers (ccxt when `ENABLE_LIVE_MARKET_DATA=1`), trains the regressor,
   runs a capped equity backtest, and writes the same artefacts.
   Use `--skip-backtest` when you only need refreshed model/scaler files.

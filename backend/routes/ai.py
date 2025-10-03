@@ -313,7 +313,11 @@ async def train_endpoint(req: TrainRequest, background: BackgroundTasks):
     """Schedule a background training run. Returns 202 accepted immediately."""
     # Use USDC as the spot quote by default; futures/cross-margin can still use USDT
     default_symbols = list(DEFAULT_SYMBOLS)
-    symbols = req.symbols or (default_symbols if default_symbols else [f"BTC{settings.default_quote}", f"ETH{settings.default_quote}"])
+    symbols = req.symbols or (
+        default_symbols
+        if default_symbols
+        else [f"BTC{settings.default_quote}", f"ETH{settings.default_quote}"]
+    )
     limit = req.limit or 600
     entry_threshold = req.entry_threshold if req.entry_threshold is not None else 0.001
     # create a DB task record
@@ -323,12 +327,20 @@ async def train_endpoint(req: TrainRequest, background: BackgroundTasks):
     db.close()
 
     # background wrapper to run training and update task status
-    def _bg_train(task_id: int, symbols_list: list, limit_val: int, entry_threshold_val: float):
+    def _bg_train(
+        task_id: int, symbols_list: list, limit_val: int, entry_threshold_val: float
+    ):
         db2 = next(get_session())
         try:
             update_training_task(db2, task_id, "running")
-            train_and_save(symbols=symbols_list, limit=limit_val, entry_threshold=entry_threshold_val)
-            update_training_task(db2, task_id, "completed", details=f"threshold={entry_threshold_val}")
+            train_and_save(
+                symbols=symbols_list,
+                limit=limit_val,
+                entry_threshold=entry_threshold_val,
+            )
+            update_training_task(
+                db2, task_id, "completed", details=f"threshold={entry_threshold_val}"
+            )
         except Exception as e:
             try:
                 update_training_task(db2, task_id, "failed", details=str(e))
