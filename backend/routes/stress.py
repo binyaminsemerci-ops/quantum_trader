@@ -20,7 +20,9 @@ def _resolve_aggregated_path() -> Path:
     base = os.environ.get("STRESS_ARTIFACT_DIR")
     if base:
         candidate = Path(base)
-        candidate = candidate if candidate.is_absolute() else (ROOT / candidate).resolve()
+        candidate = (
+            candidate if candidate.is_absolute() else (ROOT / candidate).resolve()
+        )
         return candidate / "aggregated.json"
     return ROOT / "artifacts" / "stress" / "aggregated.json"
 
@@ -87,7 +89,9 @@ async def stress_summary() -> Dict[str, Any]:
     try:
         data = _load_aggregated(agg_path)
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"No aggregated.json at {agg_path}") from None
+        raise HTTPException(
+            status_code=404, detail=f"No aggregated.json at {agg_path}"
+        ) from None
 
     runs: List[Dict[str, Any]] = data.get("runs") or []
     stats: Dict[str, Any] = data.get("stats") or {}
@@ -121,7 +125,9 @@ async def stress_summary() -> Dict[str, Any]:
     task_stats = stats.get("tasks") or {}
     task_names = list(task_stats.keys())
     if not task_names:
-        task_names = sorted({name for run in runs for name in (run.get("summary") or {}).keys()})
+        task_names = sorted(
+            {name for run in runs for name in (run.get("summary") or {}).keys()}
+        )
 
     tasks_payload = []
     for name in task_names:

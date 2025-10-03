@@ -62,7 +62,11 @@ async def test_binance_routes_live(monkeypatch):
 
     from backend.routes import binance as binance_route
 
-    monkeypatch.setattr(binance_route, "get_exchange_client", lambda name, api_key=None, api_secret=None: DummyClient())
+    monkeypatch.setattr(
+        binance_route,
+        "get_exchange_client",
+        lambda name, api_key=None, api_secret=None: DummyClient(),
+    )
 
     route_settings.SETTINGS["ENABLE_LIVE_MARKET_DATA"] = True
 
@@ -70,7 +74,9 @@ async def test_binance_routes_live(monkeypatch):
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         spot = await ac.get("/binance/spot-balance")
         fut = await ac.get("/binance/futures-balance")
-        trades = await ac.get("/binance/recent-trades", params={"symbol": "ETHUSDC", "limit": 2})
+        trades = await ac.get(
+            "/binance/recent-trades", params={"symbol": "ETHUSDC", "limit": 2}
+        )
 
     assert spot.status_code == 200
     assert spot.json()["balance"]["free"] == 42.0

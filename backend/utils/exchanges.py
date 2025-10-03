@@ -532,4 +532,11 @@ def get_adapter(
     return get_exchange_client(name=name, api_key=api_key, api_secret=api_secret)
 
 
-__all__ = ["ExchangeClient", "get_exchange_client", "get_adapter", "resolve_exchange_name", "resolve_credentials", "CREDENTIAL_ATTRS"]
+__all__ = [
+    "ExchangeClient",
+    "get_exchange_client",
+    "get_adapter",
+    "resolve_exchange_name",
+    "resolve_credentials",
+    "CREDENTIAL_ATTRS",
+]

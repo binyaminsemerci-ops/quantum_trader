@@ -166,7 +166,9 @@ class TrainingTask(Base):
     limit = Column(Integer, nullable=False)
     status = Column(String(32), nullable=False, default="pending")
     details = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     def __init__(
@@ -198,7 +200,13 @@ class Settings(Base):
     api_key = Column(String(255))
     api_secret = Column(String(255))
 
-    def __init__(self, *, api_key: Optional[str] = None, api_secret: Optional[str] = None, **kwargs) -> None:
+    def __init__(
+        self,
+        *,
+        api_key: Optional[str] = None,
+        api_secret: Optional[str] = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.api_key = api_key
         self.api_secret = api_secret
@@ -247,7 +255,9 @@ def update_training_task(
     status: str,
     details: Optional[str] = None,
 ) -> None:
-    task: TrainingTask | None = session.query(TrainingTask).filter(TrainingTask.id == task_id).first()
+    task: TrainingTask | None = (
+        session.query(TrainingTask).filter(TrainingTask.id == task_id).first()
+    )
     if not task:
         return
     task.status = status

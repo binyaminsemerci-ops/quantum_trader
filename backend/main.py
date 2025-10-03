@@ -3,7 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Use explicit backend.* imports to avoid ModuleNotFoundError when launched with different CWDs
 from backend.utils.logging import configure_logging, get_logger
-from backend.utils.metrics import router as metrics_router, add_metrics_middleware, update_model_info
+from backend.utils.metrics import (
+    router as metrics_router,
+    add_metrics_middleware,
+    update_model_info,
+)
 from backend.database import SessionLocal, ModelRegistry
 from backend.routes import (
     trades,
@@ -25,15 +29,21 @@ from backend.routes import (
     enhanced_api,
     ai_trading,
 )
+
 try:
     from backend.alerts.evaluator import evaluator_loop, register_ws, unregister_ws  # type: ignore
 except Exception:  # pragma: no cover - optional component
+
     async def evaluator_loop(*_args, **_kwargs):  # type: ignore
         return
+
     def register_ws(*_a, **_k):
         return
+
     def unregister_ws(*_a, **_k):
         return
+
+
 import asyncio
 
 configure_logging()
@@ -54,7 +64,11 @@ async def _heartbeat_task():
         if counter % 4 == 0:
             try:
                 with SessionLocal() as session:
-                    row = session.query(ModelRegistry).filter(ModelRegistry.is_active == 1).first()
+                    row = (
+                        session.query(ModelRegistry)
+                        .filter(ModelRegistry.is_active == 1)
+                        .first()
+                    )
                     if row:
                         update_model_info(row.version, row.tag)
             except Exception as exc:  # pragma: no cover
@@ -65,6 +79,7 @@ async def _heartbeat_task():
 def _setup_signal_handlers():
     """Install graceful shutdown handlers unless under pytest or non-main thread."""
     import os, threading
+
     if os.environ.get("PYTEST_CURRENT_TEST"):
         return
     if threading.current_thread() is not threading.main_thread():
@@ -90,7 +105,11 @@ async def _lifespan(app: FastAPI):
     # Load active model info once at startup
     try:
         with SessionLocal() as session:
-            row = session.query(ModelRegistry).filter(ModelRegistry.is_active == 1).first()
+            row = (
+                session.query(ModelRegistry)
+                .filter(ModelRegistry.is_active == 1)
+                .first()
+            )
             if row:
                 update_model_info(row.version, row.tag)
             else:
@@ -136,7 +155,12 @@ add_metrics_middleware(app)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"],  # Support both ports
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+    ],  # Support both ports
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -150,7 +174,9 @@ async def root():
 
 
 import time as _time
+
 _START_TIME = _time.time()
+
 
 @app.get("/api/v1/system/status")
 @app.get("/system/status")
@@ -161,7 +187,7 @@ async def system_status():
     shape the React UI expects (status, uptime_hours, cpu_usage, memory_usage, connections).
     """
     eval_running = False
-    task = getattr(app.state, '_alerts_task', None)
+    task = getattr(app.state, "_alerts_task", None)
     if task and not task.cancelled():
         eval_running = True
 
@@ -171,10 +197,11 @@ async def system_status():
     real_trading_enabled = None
     try:  # pragma: no cover - defensive
         from config.config import load_config  # type: ignore
+
         cfg = load_config()
         has_binance_keys = bool(cfg.binance_api_key and cfg.binance_api_secret)
-        binance_testnet = bool(getattr(cfg, 'binance_use_testnet', False))
-        real_trading_enabled = bool(getattr(cfg, 'enable_real_trading', False))
+        binance_testnet = bool(getattr(cfg, "binance_use_testnet", False))
+        real_trading_enabled = bool(getattr(cfg, "enable_real_trading", False))
     except Exception:
         pass
 
@@ -184,6 +211,7 @@ async def system_status():
     connections = 0
     try:
         import psutil  # type: ignore
+
         # Get actual system metrics
         cpu_usage = float(psutil.cpu_percent(interval=0.1))
         memory_usage = float(psutil.virtual_memory().percent)
@@ -197,7 +225,7 @@ async def system_status():
     return {
         # Original / legacy fields
         "service": "quantum_trader_core",
-        "version": getattr(app, 'version', None),
+        "version": getattr(app, "version", None),
         "uptime_seconds": uptime_seconds,
         "evaluator_running": eval_running,
         # Normalized / UI-friendly fields
@@ -207,7 +235,7 @@ async def system_status():
         "memory_usage": memory_usage,
         "connections": connections,
         # Meta
-        "timestamp": __import__('datetime').datetime.utcnow().isoformat()+"Z",
+        "timestamp": __import__("datetime").datetime.utcnow().isoformat() + "Z",
         # Config flags
         "has_binance_keys": has_binance_keys,
         "binance_testnet": binance_testnet,
@@ -220,7 +248,11 @@ async def system_status():
 def _get_active_model_meta():  # placed after definition for clarity
     try:
         with SessionLocal() as session:
-            row = session.query(ModelRegistry).filter(ModelRegistry.is_active == 1).first()
+            row = (
+                session.query(ModelRegistry)
+                .filter(ModelRegistry.is_active == 1)
+                .first()
+            )
             if row:
                 # Attempt to parse metrics_json for sharpe / sortino / drawdown
                 sharpe = None
@@ -229,6 +261,7 @@ def _get_active_model_meta():  # placed after definition for clarity
                 try:
                     if row.metrics_json:
                         import json as _json
+
                         mj = _json.loads(row.metrics_json)
                         bt = (mj.get("backtest") or {}) if isinstance(mj, dict) else {}
                         sharpe = bt.get("sharpe")
@@ -236,7 +269,14 @@ def _get_active_model_meta():  # placed after definition for clarity
                         max_dd = bt.get("max_drawdown")
                 except Exception:  # pragma: no cover
                     pass
-                return {"version": row.version, "tag": row.tag, "id": row.id, "sharpe": sharpe, "sortino": sortino, "max_drawdown": max_dd}
+                return {
+                    "version": row.version,
+                    "tag": row.tag,
+                    "id": row.id,
+                    "sharpe": sharpe,
+                    "sortino": sortino,
+                    "max_drawdown": max_dd,
+                }
     except Exception:
         return None
     return None
@@ -254,12 +294,18 @@ async def active_model():
 API_PREFIX = ""  # base (non-versioned)
 V1_PREFIX = "/api/v1"  # compatibility / explicit version prefix
 
+
 def _safe_include(router_obj, prefix: str):
     try:
         app.include_router(router_obj, prefix=prefix)
-        logger.info("Included router %s at prefix %s", getattr(router_obj, 'tags', None) or router_obj, prefix)
+        logger.info(
+            "Included router %s at prefix %s",
+            getattr(router_obj, "tags", None) or router_obj,
+            prefix,
+        )
     except Exception as exc:  # pragma: no cover - defensive
         logger.exception("Failed including router at %s: %s", prefix, exc)
+
 
 for base in (API_PREFIX, V1_PREFIX):
     _safe_include(health.router, f"{base}")
@@ -284,4 +330,5 @@ for base in (API_PREFIX, V1_PREFIX):
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

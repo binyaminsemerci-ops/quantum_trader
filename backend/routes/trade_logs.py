@@ -13,12 +13,7 @@ async def get_trade_logs(
     db: Session = Depends(get_session),
 ):
     """Return the most recent trade logs."""
-    logs = (
-        db.query(TradeLog)
-        .order_by(cast(Any, TradeLog.id).desc())
-        .limit(limit)
-        .all()
-    )
+    logs = db.query(TradeLog).order_by(cast(Any, TradeLog.id).desc()).limit(limit).all()
     return {
         "logs": [
             {

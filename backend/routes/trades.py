@@ -27,7 +27,9 @@ async def get_trades(db: Session = Depends(get_session)):
 
 @router.post("", status_code=200)
 async def create_trade(payload: TradeCreate, db: Session = Depends(get_session)):
-    entry = Trade(symbol=payload.symbol, side=payload.side, qty=payload.qty, price=payload.price)
+    entry = Trade(
+        symbol=payload.symbol, side=payload.side, qty=payload.qty, price=payload.price
+    )
     log = TradeLog(
         symbol=payload.symbol,
         side=payload.side,
