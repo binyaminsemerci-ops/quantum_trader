@@ -1,3 +1,6 @@
+from contextlib import asynccontextmanager
+import signal
+import time as _time
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -49,10 +52,6 @@ import asyncio
 configure_logging()
 logger = get_logger(__name__)
 
-from contextlib import asynccontextmanager
-import signal
-import sys
-
 
 async def _heartbeat_task():
     """Periodic heartbeat to monitor app liveness."""
@@ -78,7 +77,8 @@ async def _heartbeat_task():
 
 def _setup_signal_handlers():
     """Install graceful shutdown handlers unless under pytest or non-main thread."""
-    import os, threading
+    import os
+    import threading
 
     if os.environ.get("PYTEST_CURRENT_TEST"):
         return
@@ -173,7 +173,7 @@ async def root():
     return {"message": "Quantum Trader API is running"}
 
 
-import time as _time
+# Import moved to top of file
 
 _START_TIME = _time.time()
 

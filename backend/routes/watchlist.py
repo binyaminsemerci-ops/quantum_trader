@@ -1,14 +1,12 @@
-from typing import List, Dict, Annotated
-from fastapi import APIRouter, Query, HTTPException
-
-from backend.utils.market_data import fetch_recent_candles
-from fastapi import WebSocket, WebSocketDisconnect
 import asyncio
+from typing import List, Dict, Annotated
+from fastapi import APIRouter, Query, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
+from backend.utils.market_data import fetch_recent_candles
 from backend.database import session_scope, WatchlistEntry, Alert
+from backend.alerts.evaluator import register_ws, unregister_ws
 
 router = APIRouter()
-from backend.alerts.evaluator import register_ws, unregister_ws
 
 
 @router.get("")
@@ -104,7 +102,8 @@ def _generate_extended_watchlist() -> List[Dict]:
 
     Falls back to demo data if API fails.
     """
-    import random, time
+    import random
+    import time
     from backend.utils.market_data import fetch_recent_candles
 
     base = [
