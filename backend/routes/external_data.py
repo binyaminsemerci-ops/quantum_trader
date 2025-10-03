@@ -12,11 +12,11 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
-from config.config import load_config, settings
+from backend.enhanced_data_feeds import EnhancedDataFeed, get_enhanced_market_data
 from backend.routes.settings import SETTINGS
 from backend.utils.market_data import fetch_recent_candles
 from backend.utils.twitter_client import TwitterClient
-from backend.enhanced_data_feeds import EnhancedDataFeed, get_enhanced_market_data
+from config.config import load_config, settings
 
 logger = logging.getLogger(__name__)
 

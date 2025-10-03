@@ -16,7 +16,7 @@ def run_quick_ai_test():
     print("=" * 60)
 
     # Import here to avoid startup delays
-    from ai_engine.train_and_save import train_and_save, run_backtest_only
+    from ai_engine.train_and_save import run_backtest_only, train_and_save
 
     # Test configuration - small set for quick results
     symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"]

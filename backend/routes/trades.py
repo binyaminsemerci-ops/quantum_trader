@@ -1,10 +1,10 @@
+from typing import Any, List, cast
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from typing import List, Any, cast
-
 from sqlalchemy.orm import Session
 
-from backend.database import get_session, TradeLog, Trade
+from backend.database import Trade, TradeLog, get_session
 
 router = APIRouter()
 

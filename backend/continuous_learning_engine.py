@@ -14,31 +14,31 @@ Quantum Trader AI kontinuerlig læring system som:
 import asyncio
 import json
 import logging
-import time
-from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Any, Optional
-import threading
-from dataclasses import dataclass
+import os
 import sqlite3
-from pathlib import Path
 
 # Import existing components
 import sys
-import os
+import threading
+import time
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.utils.twitter_client import TwitterClient
+from ai_engine.train_and_save import train_and_save
 from backend.routes.external_data import (
     binance_ohlcv,
+    comprehensive_crypto_news,
     enhanced_market_data,
     fear_greed_index,
-    reddit_sentiment,
-    comprehensive_crypto_news,
-    on_chain_metrics,
     market_indicators,
+    on_chain_metrics,
+    reddit_sentiment,
 )
-from ai_engine.train_and_save import train_and_save
+from backend.utils.twitter_client import TwitterClient
 
 logger = logging.getLogger(__name__)
 
@@ -457,7 +457,7 @@ class ContinuousLearningEngine:
                 cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=minutes)
                 cursor = conn.execute(
                     """
-                    SELECT sentiment_score FROM sentiment_tracking 
+                    SELECT sentiment_score FROM sentiment_tracking
                     WHERE symbol = ? AND timestamp > ?
                     ORDER BY timestamp ASC
                 """,
@@ -1020,7 +1020,7 @@ class ContinuousLearningEngine:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     """
-                    INSERT INTO live_data_points 
+                    INSERT INTO live_data_points
                     (symbol, price_data, sentiment_data, volume_spike, timestamp)
                     VALUES (?, ?, ?, ?, ?)
                 """,
@@ -1047,7 +1047,7 @@ class ContinuousLearningEngine:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     """
-                    UPDATE live_data_points 
+                    UPDATE live_data_points
                     SET news_data = ?
                     WHERE symbol = ? AND timestamp = (
                         SELECT MAX(timestamp) FROM live_data_points WHERE symbol = ?
@@ -1090,7 +1090,7 @@ class ContinuousLearningEngine:
                 conn.execute(
                     """
                     INSERT INTO ai_insights
-                    (market_sentiment, momentum_signals, risk_factors, 
+                    (market_sentiment, momentum_signals, risk_factors,
                      opportunity_signals, regime_indicators, timestamp)
                     VALUES (?, ?, ?, ?, ?, ?)
                 """,

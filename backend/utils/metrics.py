@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-import time
 import logging
+import time
 
 from fastapi import APIRouter, Request, Response
 from prometheus_client import (
+    CONTENT_TYPE_LATEST,
     Counter,
     Gauge,
     Histogram,
-    CONTENT_TYPE_LATEST,
-    generate_latest,
     Info,
+    generate_latest,
 )
 
 logger = logging.getLogger(__name__)

@@ -13,21 +13,22 @@ Tests the new multi-source data feeds:
 """
 
 import asyncio
-import pytest
 import logging
-from datetime import datetime
-import sys
 import os
+import sys
+from datetime import datetime
+
+import pytest
 
 # Add backend to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.enhanced_data_feeds import EnhancedDataFeed, get_enhanced_market_data
 from backend.routes.external_data import (
+    comprehensive_crypto_news,
     enhanced_market_data,
     fear_greed_index,
     reddit_sentiment,
-    comprehensive_crypto_news,
 )
 
 logging.basicConfig(

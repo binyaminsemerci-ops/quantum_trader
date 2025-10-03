@@ -9,7 +9,7 @@ from fastapi import APIRouter
 from sqlalchemy import select
 
 from ai_engine.train_and_save import load_report, run_backtest_only, train_and_save
-from backend.database import session_scope, Trade, Candle
+from backend.database import Candle, Trade, session_scope
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

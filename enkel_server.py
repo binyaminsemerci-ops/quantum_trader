@@ -5,8 +5,8 @@ Fokuserer kun på å levere data til dashboardet
 """
 
 import http.server
-import socketserver
 import json
+import socketserver
 import threading
 import time
 from datetime import datetime, timezone

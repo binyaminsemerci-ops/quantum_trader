@@ -12,15 +12,16 @@ Comprehensive tests for the Quantum Trader backend including:
 """
 
 import json
+import subprocess
 import sys
+import threading
 import time
-import requests
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-import subprocess
-import threading
+from typing import Any, Dict, List, Optional
+
+import requests
 
 try:
     import websocket
@@ -53,8 +54,8 @@ class BackendSystemTester:
             if response.status_code == 200:
                 print("✅ Backend server already running")
                 return True
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Server not running (will start): {e}")
 
         print("🚀 Starting backend server...")
 
@@ -84,7 +85,8 @@ class BackendSystemTester:
                 if response.status_code == 200:
                     print("✅ Backend server started successfully")
                     return True
-            except Exception:
+            except Exception as e:
+                print(f"Backend not ready yet: {e}")
                 continue
 
         print("❌ Failed to start backend server")

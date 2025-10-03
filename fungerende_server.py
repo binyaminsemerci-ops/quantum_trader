@@ -4,14 +4,15 @@ KOMPLETT FUNGERENDE HTTP SERVER
 Helhetlig løsning for Quantum Trader - ingen fancy dependencies
 """
 
+import asyncio
 import http.server
-import socketserver
 import json
+import socketserver
 import threading
 import time
-import websockets
-import asyncio
 from datetime import datetime, timezone
+
+import websockets
 
 # ===========================================
 # 1. GLOBAL STATE - FUNGERENDE DATA

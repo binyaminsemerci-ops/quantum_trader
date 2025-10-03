@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy import select, func, case
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from backend.database import get_session, Trade
+from backend.database import Trade, get_session
 from backend.utils.market_data import fetch_recent_candles
 
 router = APIRouter()

@@ -23,7 +23,7 @@ from sqlalchemy import (
     create_engine,
     func,
 )
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 # Resolve default SQLite path under backend/data/
 BASE_DIR = os.path.dirname(__file__)

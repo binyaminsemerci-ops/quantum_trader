@@ -1,5 +1,5 @@
-import sqlite3
 import os
+import sqlite3
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "trades.db")
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "schema.sql")

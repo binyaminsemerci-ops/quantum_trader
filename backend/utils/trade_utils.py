@@ -6,6 +6,7 @@ bots are consistent.
 """
 
 from typing import Literal
+
 from config.config import FUTURES_QUOTE, make_pair, settings
 
 MarketType = Literal["spot", "futures"]

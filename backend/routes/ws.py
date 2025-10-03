@@ -1,16 +1,24 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-import json
 import asyncio
-import time
+import json
 import logging
-from sqlalchemy import select, func
+import time
 from typing import Any, cast
 
-from backend.database import session_scope, Trade, EquityPoint
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from sqlalchemy import func, select
+
+from backend.database import EquityPoint, Trade, session_scope
+from backend.routes.portfolio import get_market_overview, get_portfolio
+from backend.services.price_stream import (
+    ensure_price_stream,
+    get_last_error,
+    get_orderbook_snapshot,
+    get_price_snapshot,
+)
+from backend.utils.analytics import calculate_analytics
+from backend.utils.market_data import fetch_recent_signals
 from backend.utils.pnl import calculate_pnl, calculate_pnl_per_symbol
 from backend.utils.risk import calculate_risk
-from backend.utils.analytics import calculate_analytics
-from backend.routes.portfolio import get_portfolio, get_market_overview
 from config.config import load_config
 
 logger = logging.getLogger(__name__)
@@ -21,15 +29,6 @@ except Exception:  # pragma: no cover
 
     def get_trading_engine():  # type: ignore
         raise RuntimeError("Trading engine unavailable")
-
-
-from backend.utils.market_data import fetch_recent_signals
-from backend.services.price_stream import (
-    ensure_price_stream,
-    get_price_snapshot,
-    get_last_error,
-    get_orderbook_snapshot,
-)
 
 _WS_START_TIME = time.time()
 
@@ -65,8 +64,9 @@ async def _fetch_prices(symbols: list[str]):
                 )
                 if price is not None:
                     _price_cache[sym] = {"price": price, "ts": now}
-            except Exception:
+            except Exception as e:
                 # ignore symbol-level failures
+                logger.debug(f"Failed to fetch price for {sym}: {e}")
                 continue
         _last_price_fetch = now
     except Exception as e:
@@ -180,8 +180,8 @@ async def dashboard_ws(websocket: WebSocket):
             cfg = None
             try:
                 cfg = load_config()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to load config: {e}")
             system_status = {
                 "service": "quantum_trader_core",
                 "uptime_seconds": uptime_seconds,
@@ -216,8 +216,8 @@ async def dashboard_ws(websocket: WebSocket):
             # Start/ensure streaming subscriptions (non-blocking)
             try:
                 ensure_price_stream(symbols)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to ensure price stream: {e}")
 
             # Attempt REST fetch only if streaming cache is sparse
             price_snapshot = get_price_snapshot()
@@ -258,13 +258,8 @@ async def dashboard_ws(websocket: WebSocket):
                                 ),
                             }
                         )
-            except Exception:
-                pass
-            except Exception:
-                trading_status = {
-                    "is_running": False,
-                    "error": "trading engine not active",
-                }
+            except Exception as e:
+                logger.warning(f"Failed to build market ticks: {e}")
 
             # Synthetic equity fallback if no chart points: build from cumulative PnL timeline (simplistic)
             persist_equity = False
@@ -315,8 +310,8 @@ async def dashboard_ws(websocket: WebSocket):
                         pnl_24h += qty * price
                     else:
                         pnl_24h -= qty * price
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to calculate 24h PnL: {e}")
             daily_change = round(pnl_now - pnl_24h, 2)
             starting_equity = (
                 getattr(cfg, "starting_equity", 10000.0) if cfg else 10000.0
@@ -342,8 +337,8 @@ async def dashboard_ws(websocket: WebSocket):
                             equity=float(last["price"] or 0),
                         )
                         ps.add(ep)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to add equity point: {e}")
 
             latency_flag = any(
                 t.get("age_ms", 0) and t.get("age_ms", 0) > 10_000 for t in market_ticks

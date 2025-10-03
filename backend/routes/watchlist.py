@@ -1,11 +1,13 @@
 import asyncio
 import logging
-from typing import List, Dict, Annotated
-from fastapi import APIRouter, Query, HTTPException, WebSocket, WebSocketDisconnect
+from typing import Annotated, Dict, List
+
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
-from backend.utils.market_data import fetch_recent_candles
-from backend.database import session_scope, WatchlistEntry, Alert
+
 from backend.alerts.evaluator import register_ws, unregister_ws
+from backend.database import Alert, WatchlistEntry, session_scope
+from backend.utils.market_data import fetch_recent_candles
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +109,7 @@ def _generate_extended_watchlist() -> List[Dict]:
     """
     import random
     import time
+
     from backend.utils.market_data import fetch_recent_candles
 
     base = [

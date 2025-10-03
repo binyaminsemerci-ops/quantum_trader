@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
-from typing import Optional, Any
+from typing import Any, Optional
 
-from backend.database import session_scope, TradeLog
+from backend.database import TradeLog, session_scope
 
 
 def log_trade(trade: dict[str, Any], status: str, reason: Optional[str] = None):

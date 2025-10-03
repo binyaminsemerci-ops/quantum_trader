@@ -3,20 +3,21 @@ Enhanced Data API Routes
 Provides endpoints for multi-source market data integration
 """
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from typing import List, Dict, Any
 import asyncio
 import json
 import logging
 from datetime import datetime, timezone
+from typing import Any, Dict, List
+
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
 from backend.routes.external_data import (
+    comprehensive_crypto_news,
     enhanced_market_data,
     fear_greed_index,
-    reddit_sentiment,
-    comprehensive_crypto_news,
-    on_chain_metrics,
     market_indicators,
+    on_chain_metrics,
+    reddit_sentiment,
 )
 
 logger = logging.getLogger(__name__)

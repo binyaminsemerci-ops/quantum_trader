@@ -37,10 +37,10 @@ def check_system_status():
     print("🛠️ Sjekker Node.js og npm...")
     try:
         node_result = subprocess.run(
-            ["node", "--version"], capture_output=True, text=True, timeout=5, shell=True
+            ["node", "--version"], capture_output=True, text=True, timeout=5
         )
         npm_result = subprocess.run(
-            ["npm", "--version"], capture_output=True, text=True, timeout=5, shell=True
+            ["npm", "--version"], capture_output=True, text=True, timeout=5
         )
 
         status["frontend"]["node_version"] = (
@@ -64,7 +64,6 @@ def check_system_status():
                 text=True,
                 timeout=10,
                 cwd="frontend",
-                shell=True,
             )
             status["frontend"]["dependencies_installed"] = npm_ls_result.returncode == 0
             status["frontend"]["node_modules_exists"] = True
@@ -83,7 +82,6 @@ def check_system_status():
             text=True,
             timeout=60,
             cwd="frontend",
-            shell=True,
         )
         status["frontend"]["can_build"] = build_result.returncode == 0
         if build_result.returncode != 0:

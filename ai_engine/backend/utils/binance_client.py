@@ -1,7 +1,9 @@
-import os
-from binance.client import Client
-from backend.utils.trade_logger import log_trade
 import datetime
+import os
+
+from binance.client import Client
+
+from backend.utils.trade_logger import log_trade
 
 API_KEY = os.getenv("BINANCE_API_KEY")
 API_SECRET = os.getenv("BINANCE_API_SECRET")

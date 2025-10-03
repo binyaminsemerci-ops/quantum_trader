@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+
 from backend.utils.trade_logger import get_trades
 
 router = APIRouter()

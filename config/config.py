@@ -9,10 +9,8 @@ complex external config system.
 from __future__ import annotations
 
 import os
-
-from typing import Dict, Any
 from types import SimpleNamespace
-
+from typing import Any, Dict
 
 # A simple default exchange name used by the exchange factory when no
 # explicit name is provided. Keep this stable across tests.

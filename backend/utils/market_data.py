@@ -8,14 +8,14 @@ CI.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List
 import logging
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List
 
-from config.config import load_config, settings
-from backend.routes.settings import SETTINGS
-from backend.utils.exchanges import resolve_exchange_name, resolve_credentials
 from ai_engine.agents.xgb_agent import make_default_agent
+from backend.routes.settings import SETTINGS
+from backend.utils.exchanges import resolve_credentials, resolve_exchange_name
+from config.config import load_config, settings
 
 # Cache for ML agent to avoid repeated disk loads every poll
 _CACHED_AGENT = None  # type: ignore
@@ -138,8 +138,8 @@ def fetch_recent_candles(symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
                 if exchange is not None:
                     try:
                         exchange.close()
-                    except Exception:  # pragma: no cover - best effort cleanup
-                        pass
+                    except Exception as e:  # pragma: no cover - best effort cleanup
+                        logger.debug(f"Exchange cleanup failed: {e}")
     return _demo_candles(symbol, limit)
 
 

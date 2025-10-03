@@ -1,4 +1,5 @@
-from typing import Dict, List, Annotated
+from typing import Annotated, Dict, List
+
 from fastapi import APIRouter, Query
 
 from backend.utils.market_data import fetch_recent_candles

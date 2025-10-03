@@ -4,7 +4,7 @@ Frontend System Tests
 
 Comprehensive tests for the Quantum Trader frontend including:
 - Component rendering tests
-- User interaction simulation  
+- User interaction simulation
 - API integration tests
 - Performance benchmarks
 - Cross-browser compatibility
@@ -17,7 +17,8 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
+
 import requests
 
 
@@ -42,8 +43,8 @@ class FrontendSystemTester:
             if response.status_code == 200:
                 print("✅ Backend server already running")
                 return True
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Backend not running (will start): {e}")
 
         print("🚀 Starting backend server for frontend tests...")
 
@@ -71,7 +72,8 @@ class FrontendSystemTester:
                 if response.status_code == 200:
                     print("✅ Backend server started")
                     return True
-            except Exception:
+            except Exception as e:
+                print(f"Backend not ready yet: {e}")
                 continue
 
         print("❌ Failed to start backend server")
@@ -85,8 +87,8 @@ class FrontendSystemTester:
             if response.status_code == 200:
                 print("✅ Frontend server already running")
                 return True
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Frontend not running (will start): {e}")
 
         print("🚀 Starting frontend development server...")
 
@@ -106,7 +108,8 @@ class FrontendSystemTester:
                 if response.status_code == 200:
                     print("✅ Frontend server started")
                     return True
-            except Exception:
+            except Exception as e:
+                print(f"Frontend not ready yet: {e}")
                 continue
 
         print("❌ Failed to start frontend server")
@@ -493,8 +496,8 @@ class FrontendSystemTester:
             for file_path in directory.rglob("*"):
                 if file_path.is_file():
                     total_size += file_path.stat().st_size
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error calculating directory size: {e}")
         return total_size
 
     def run_all_tests(self) -> Dict[str, Any]:

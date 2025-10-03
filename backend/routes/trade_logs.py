@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Query, Depends
 from typing import Annotated, Any, cast
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from backend.database import get_session, TradeLog
+from backend.database import TradeLog, get_session
 
 router = APIRouter()
 

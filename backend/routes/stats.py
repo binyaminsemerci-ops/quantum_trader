@@ -5,8 +5,9 @@ router = APIRouter()
 
 @router.get("")
 async def get_stats():
-    from backend.database import session_scope, Trade
-    from sqlalchemy import select, func
+    from sqlalchemy import func, select
+
+    from backend.database import Trade, session_scope
 
     with session_scope() as session:
         # Count total trades

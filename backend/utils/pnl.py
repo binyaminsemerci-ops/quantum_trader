@@ -1,7 +1,8 @@
 from typing import Dict
+
 from sqlalchemy import select
 
-from backend.database import session_scope, Trade
+from backend.database import Trade, session_scope
 
 
 def calculate_pnl() -> float:

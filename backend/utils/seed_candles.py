@@ -1,8 +1,8 @@
 import datetime
-from datetime import timezone
 import random
+from datetime import timezone
 
-from backend.database import session_scope, Candle
+from backend.database import Candle, session_scope
 
 
 def seed_candles(symbol: str = "BTCUSDT", days: int = 30) -> None:

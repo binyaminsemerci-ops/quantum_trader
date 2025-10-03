@@ -1,9 +1,10 @@
 """AI Trading routes for status and control endpoints"""
 
-from fastapi import APIRouter, HTTPException
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional
 import threading
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, HTTPException
 
 from backend.utils.logging import get_logger
 

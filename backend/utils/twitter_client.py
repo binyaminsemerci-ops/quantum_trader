@@ -10,11 +10,13 @@ method that queries recent public tweets mentioning the symbol and computes a
 very small heuristic sentiment score.
 """
 
-from typing import Optional, Dict, Any
-from config.config import load_config  # type: ignore[import-not-found, import-untyped]
-import time
-import requests  # type: ignore[import-untyped]
 import logging
+import time
+from typing import Any, Dict, Optional
+
+import requests  # type: ignore[import-untyped]
+
+from config.config import load_config  # type: ignore[import-not-found, import-untyped]
 
 # Small in-process cache to avoid repeated API calls during short tests
 _CACHE: Dict[str, Any] = {}

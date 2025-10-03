@@ -1,8 +1,9 @@
-from typing import List, Tuple
 import math
+from typing import List, Tuple
+
 from sqlalchemy import select
 
-from backend.database import session_scope, Trade
+from backend.database import Trade, session_scope
 
 
 def calculate_analytics():

@@ -6,9 +6,9 @@ This script helps configure live API keys and enables production features
 for the Quantum Trader system.
 """
 
+import shutil
 import sys
 from pathlib import Path
-import shutil
 
 
 def create_production_env():

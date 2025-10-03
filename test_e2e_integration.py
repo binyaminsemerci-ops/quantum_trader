@@ -5,7 +5,7 @@ End-to-End System Integration Tests
 Comprehensive integration tests for the complete Quantum Trader system including:
 - Full stack integration (Frontend + Backend + AI)
 - User workflow simulation
-- Real-time data flow testing  
+- Real-time data flow testing
 - Performance under load
 - Error recovery testing
 - Cross-component communication
@@ -13,13 +13,14 @@ Comprehensive integration tests for the complete Quantum Trader system including
 
 import json
 import subprocess
-import time
-import websocket
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
+
 import requests
+import websocket
 
 from test_backend_system import BackendSystemTester
 from test_frontend_system import FrontendSystemTester
