@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Enhanced Data Integration Test Script
+"""Enhanced Data Integration Test Script
 
 Tests the new multi-source data feeds:
 - CoinGecko market data & global metrics

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-End-to-End System Integration Tests
+"""End-to-End System Integration Tests
 
 Comprehensive integration tests for the complete Quantum Trader system including:
 - Full stack integration (Frontend + Backend + AI)
@@ -227,7 +226,7 @@ class E2ESystemTester:
                 "messages_received": len(messages_received),
                 "connection_events": connection_events,
                 "message_types": list(
-                    set(msg.get("type", "unknown") for msg in messages_received)
+                    {msg.get("type", "unknown") for msg in messages_received}
                 ),
                 "sample_messages": messages_received[:5],
                 "error": None if len(messages_received) > 0 else "No messages received",

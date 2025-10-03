@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Comprehensive AI Model Test Script for Quantum Trader
+"""Comprehensive AI Model Test Script for Quantum Trader
 ====================================================
 
 Dette skriptet kjører en fullstendig test av AI-systemet inkludert:

@@ -1,6 +1,4 @@
-"""
-API routes for controlling the Binance trading engine
-"""
+"""API routes for controlling the Binance trading engine"""
 
 import asyncio
 import logging

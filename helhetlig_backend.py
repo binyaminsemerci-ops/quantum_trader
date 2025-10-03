@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-HELHETLIG QUANTUM TRADER BACKEND
+"""HELHETLIG QUANTUM TRADER BACKEND
 Komplett system som fungerer fra bunn - alle endpoints frontend trenger
 """
 

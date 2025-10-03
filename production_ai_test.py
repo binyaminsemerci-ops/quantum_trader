@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Production-Scale AI Testing and Performance Monitoring
+"""Production-Scale AI Testing and Performance Monitoring
 
 This enhanced testing system provides:
 - Production-scale testing with larger symbol sets and timeframes

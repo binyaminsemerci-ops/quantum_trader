@@ -1,5 +1,4 @@
-"""
-Enhanced Data API Routes
+"""Enhanced Data API Routes
 Provides endpoints for multi-source market data integration
 """
 

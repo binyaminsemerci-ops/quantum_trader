@@ -89,12 +89,15 @@ class TwitterClient:
         """Return a lightweight sentiment summary for a symbol.
 
         Args:
+        ----
             symbol: e.g. 'BTC' or 'ETH'. If None, a general crypto query is used.
             max_results: how many recent tweets to fetch (bounded by API limits).
 
         Returns:
+        -------
             dict with keys: score (float), label (str), source
             (twitter|mock|error), and optional code.
+
         """
         if self.mock:
             return {"score": 0.0, "label": "neutral", "source": "mock"}

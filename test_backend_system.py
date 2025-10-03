@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Backend System Tests
+"""Backend System Tests
 
 Comprehensive tests for the Quantum Trader backend including:
 - API endpoint testing
@@ -78,7 +77,7 @@ class BackendSystemTester:
         )
 
         # Wait for server to start
-        for attempt in range(30):  # Wait up to 30 seconds
+        for _attempt in range(30):  # Wait up to 30 seconds
             try:
                 time.sleep(1)
                 response = requests.get(f"{self.base_url}/health", timeout=2)

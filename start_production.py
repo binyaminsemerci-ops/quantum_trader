@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Production Quantum Trader Startup Script
+"""Production Quantum Trader Startup Script
 
 This script orchestrates the complete production deployment including:
 - Configuration validation

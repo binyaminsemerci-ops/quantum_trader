@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""
-Simple working backend for quantum trader with basic AI endpoints
-"""
+"""Simple working backend for quantum trader with basic AI endpoints"""
+
 import threading
 from datetime import datetime, timezone
 

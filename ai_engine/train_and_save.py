@@ -32,7 +32,6 @@ class _SimpleScaler:
         self.scale_[self.scale_ == 0] = 1.0
 
     def transform(self, X):
-
         return (X - self.mean_) / self.scale_
 
     def fit_transform(self, X):

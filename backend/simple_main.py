@@ -1,6 +1,4 @@
-"""
-Simplified backend server for development
-"""
+"""Simplified backend server for development"""
 
 import asyncio
 import json
@@ -1169,7 +1167,7 @@ async def get_recent_signals(symbol: str = "BTCUSDC", limit: int = 20):
     symbols_list = ["BTC", "ETH", "SOL", "ADA", "XRP"]
     actions = ["BUY", "SELL"]
 
-    for i in range(limit):
+    for _i in range(limit):
         signals.append(
             {
                 "symbol": random.choice(symbols_list),

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-AI Auto Trading Service
+"""AI Auto Trading Service
 
 Komplett implementering av AI-drevet automatisk handel:
 - Integrerer XGB Agent for prediksjoner
@@ -117,7 +116,6 @@ class AIAutoTradingService:
         stop_loss_pct: float = 0.02,  # 2% stop loss
         take_profit_pct: float = 0.04,
     ):  # 4% take profit
-
         self.symbols = (
             symbols or list(DEFAULT_SYMBOLS)[:5]
         )  # Limit to 5 symbols initially
@@ -372,7 +370,6 @@ class AIAutoTradingService:
 
     def should_execute_trade(self, signal: TradingSignal) -> Tuple[bool, str]:
         """Determine if trade should be executed based on risk rules."""
-
         # Check confidence threshold
         if signal.confidence < self.min_confidence:
             return (

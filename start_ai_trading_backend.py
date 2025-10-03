@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Start Quantum Trader Backend with AI Auto Trading
+"""Start Quantum Trader Backend with AI Auto Trading
 
 This script starts the backend server with AI auto trading capabilities.
 """
