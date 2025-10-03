@@ -6,7 +6,14 @@ from __future__ import annotations
 import time
 
 from fastapi import APIRouter, Request, Response
-from prometheus_client import Counter, Gauge, Histogram, CONTENT_TYPE_LATEST, generate_latest
+from prometheus_client import (
+    Counter,
+    Gauge,
+    Histogram,
+    CONTENT_TYPE_LATEST,
+    generate_latest,
+    Info,
+)
 
 REQUEST_COUNT = Counter(
     "quantum_requests_total",
@@ -26,6 +33,27 @@ INFLIGHT_REQUESTS = Gauge(
 HEALTH_STATUS = Gauge(
     "quantum_health_status",
     "Latest health check status (1=ok, 0=failed)",
+)
+
+# Active model info (version/tag). Uses Info (labels converted to metrics)
+MODEL_INFO = Info(
+    "quantum_model",
+    "Active model metadata (version, tag)",
+)
+
+MODEL_PERF_SHARPE = Gauge(
+    "quantum_model_sharpe",
+    "Active model backtest Sharpe ratio (rolling training insert)",
+)
+
+MODEL_PERF_MAX_DRAWDOWN = Gauge(
+    "quantum_model_max_drawdown",
+    "Active model max drawdown from last backtest (fraction)",
+)
+
+MODEL_PERF_SORTINO = Gauge(
+    "quantum_model_sortino",
+    "Active model backtest Sortino ratio (downside risk adjusted)",
 )
 
 router = APIRouter()
@@ -61,8 +89,46 @@ def update_health_metric(ok: bool) -> None:
     HEALTH_STATUS.set(1.0 if ok else 0.0)
 
 
+def update_model_info(version: str | None, tag: str | None = None) -> None:
+    """Publish active model metadata.
+
+    Falls back to placeholders if None provided.
+    """
+    MODEL_INFO.info({
+        "version": version or "unknown",
+        "tag": tag or "none",
+    })
+
+
+def update_model_perf(sharpe: float | None, max_drawdown: float | None) -> None:
+    if sharpe is not None:
+        try:
+            MODEL_PERF_SHARPE.set(float(sharpe))
+        except Exception:
+            pass
+    if max_drawdown is not None:
+        try:
+            MODEL_PERF_MAX_DRAWDOWN.set(float(max_drawdown))
+        except Exception:
+            pass
+
+def update_model_sortino(sortino: float | None) -> None:
+    if sortino is not None:
+        try:
+            MODEL_PERF_SORTINO.set(float(sortino))
+        except Exception:
+            pass
+
+
 __all__ = [
     "router",
     "add_metrics_middleware",
     "update_health_metric",
+    "update_model_info",
+    "MODEL_INFO",
+    "MODEL_PERF_SHARPE",
+    "MODEL_PERF_MAX_DRAWDOWN",
+    "MODEL_PERF_SORTINO",
+    "update_model_perf",
+    "update_model_sortino",
 ]

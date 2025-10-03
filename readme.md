@@ -1,144 +1,314 @@
-# Quantum Trader (demo snapshot)
+# Quantum Trader 🚀 – Fully Autonomous AI Crypto Trading Platform
 
-Quantum Trader is an experiment-friendly trading bot sandbox. The repository currently ships a **demo environment**:
-
-- A FastAPI backend that serves deterministic sample data for prices, signals and stats.
-- A React/Vite dashboard that visualises that data (price chart, signal feed, stress trends).
-- Stress-test utilities under `scripts/stress/` for running repeatable end-to-end checks in CI.
-
-The original vision (full AI + live exchange connectivity + PostgreSQL) is documented in
-`ARCHITECTURE.md`, but the code base now focuses on demos and tooling. This README describes the
-*current* state so contributors know what is implemented and what remains work-in-progress.
+> Helhetlig system: AI-drevet, kontinuerlig lærende, selv-optimaliserende trading plattform som analyserer markedet, utvikler strategier, utfører handler og evaluerer resultat – helt autonomt.
 
 ---
 
-## Quick start
+## 🧠 Kjerneidé
 
-### Backend (FastAPI demo APIs)
-```bash
+Quantum Trader er ikke bare en bot – det er et adaptivt AI-trading økosystem. Systemet:
+
+| Kapabilitet | Status | Kort forklaring |
+|-------------|--------|-----------------|
+| Live markedsdata (Binance public) | ✅ | Henter priser, candlesticks, volum |
+| AI signal-generering (demo + XGBoost kjerne) | ✅ | Genererer strukturert signals feed med caching |
+| Portefølje P&L live | ✅ | Dynamisk P&L basert på posisjoner og live priser |
+| Auto-trading service (rammeverk) | ✅ | Tjeneste/loop for AI styrt handel (demo-modus) |
+| Kontinuerlig auto-trening | ✅ | API for planlagt retrening (intervaller) |
+| Risiko-motor (baseline) | 🟡 | Posisjonsbegrensning + konfigurerbar kapitalbruk |
+| Strategi-evolusjon (fase 2) | 🔄 | Planlagt genetisk / RL adaptiv modul |
+| Multi-kilde feature pipeline | 🔄 | Tekniske + sentiment + struktur (delvis) |
+| Full real trading (binance orders) | 🔜 | Klargjort i arkitektur (testnet først) |
+| Observability (logging, metrics, heartbeats) | ✅ | Structured logs + periodic heartbeat |
+| Frontend crash-safety | ✅ | Null-sikring + safeToFixed overalt |
+| WebSockets (dash / watchlist / alerts) | ✅ | Live strømmer med fallback |
+
+---
+
+## 🗺️ Arkitektur Oversikt
+
+```text
+┌───────────────────────────┐
+│        Frontend (React)   │
+│  - FullSizeDashboard      │
+│  - AI Trading Monitor     │
+│  - Watchlist + Chart      │
+└──────────────┬────────────┘
+       │ REST / WS
+┌──────────────▼────────────┐
+│        FastAPI Backend    │
+│  Routes: prices, signals, │
+│  watchlist, portfolio, AI │
+│  trading, training, ws    │
+├──────────────┬────────────┤
+│ Background   │ Task loops │
+│ - Heartbeat  │ - Auto ML  │
+│ - Evaluator  │ - AI Trade │
+└──────┬───────┴───────┬────┘
+   │ Feature + ML  │
+┌──────▼────────────────▼───┐
+│        AI Engine           │
+│  Feature Engineering       │
+│  XGBoost / Model Store     │
+│  Strategy Framework        │
+└──────────┬────────────────┘
+       │ Data / State
+┌──────────▼────────────────┐
+│   Storage Layer (SQLite)  │
+│  trades / signals / logs  │
+└───────────────────────────┘
+```
+
+Se også `ARCHITECTURE.md` og `AI_TRADING_README.md` for dypdykk.
+
+---
+
+## 📂 Katalogstruktur (Hoved)
+
+```text
+backend/               FastAPI app, AI trading & API routes
+frontend/              React/Vite dashboard (TypeScript + Tailwind)
+ai_engine/             Feature eng., modeller, agenter
+scripts/               Stress tester, system scripts, orchestration
+config/                Konfigurasjon og miljøstyring
+tests/                 Integrasjon, system- og AI-tester
+artifacts/             Modell- og evalueringsartefakter
+docs/                  Dokumentasjonsekstra (hvis utfylt)
+```
+
+---
+
+## 🚀 Hurtigstart
+
+### 1. Orkestrert oppstart (anbefalt)
+
+PowerShell:
+
+```powershell
+./start_orchestrator.ps1
+```
+
+Velg:
+
+```text
+A = Clean   · B = Bootstrap  · C = Start  · D = Test  · F = Train AI
+```
+
+### 2. Manuell Backend
+
+```powershell
 python -m venv .venv
-. .venv/bin/activate           # PowerShell: .venv\Scripts\Activate.ps1
-pip install -r backend/requirements-dev.txt  # includes runtime + test tooling
-# For production/minimal installs use: pip install -r backend/requirements.txt
-uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+./.venv/Scripts/Activate.ps1
+pip install -r backend/requirements-dev.txt
+uvicorn backend.main:app --reload --port 8000
+ 
 ```
 
-To initialise or upgrade the database schema (SQLite by default; set `QUANTUM_TRADER_DATABASE_URL` for Postgres), run:
-```bash
-alembic upgrade head
-python backend/seed_trades.py
-```
-If you prefer PostgreSQL, install the optional dependencies, create a database (e.g. `quantum_trader`), and set `QUANTUM_TRADER_DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/quantum_trader` # pragma: allowlist secret before running Alembic.
-The backend uses SQLite (created under `backend/data/`) and exposes demo endpoints such as:
+### 3. Manuell Frontend
 
-- `GET /prices/recent` - deterministic candle series (ccxt when live data is enabled)
-- `GET /signals/recent` - rolling signals with direction/confidence metadata
-- `POST /ai/train` - schedule an async training job; poll `/ai/tasks/{id}` for status
-- `GET /stress/summary` - aggregates produced by `scripts/stress/harness.py`
-
-### Frontend (React/Vite)
-```bash
+```powershell
 cd frontend
 npm install
 npm run dev
+ 
 ```
-Vite serves the dashboard on <http://localhost:5173>.
+Dashboard: <http://127.0.0.1:5173>
 
-Run the Vitest suite (headless):
-```bash
-npm run test
-```. The dashboard talks to the FastAPI instance
-at `http://localhost:8000` (configurable with `VITE_API_BASE_URL`).
+### 4. Docker Compose (full stack)
 
-### Stress harness
-```bash
-python scripts/stress/harness.py --count 1 --zip-after
+
+```powershell
+docker compose up --build
+ 
 ```
-### Model training & backtesting
-```bash
+
+---
+
+## 🔐 Miljø / Konfigurasjon
+
+Lag `.env` (se `.env.example` hvis tilgjengelig):
+
+```env
+ENABLE_LIVE_MARKET_DATA=1
+BINANCE_API_KEY=...           # (valgfritt for private/trade ops)
+BINANCE_API_SECRET=...
+REAL_TRADING=0                # Sett til 1 for ekte (testnet først)
+MODEL_REFRESH_INTERVAL=600
+```
+
+Konfig konsolideres gradvis i `backend/config.py`.
+
+---
+
+## 🤖 AI & Auto-Trading
+
+Se `AI_TRADING_README.md` for komplett detalj, men nøkkelkommandoer:
+
+Start dedikert AI trading backend:
+
+```powershell
+python start_ai_trading_backend.py
+```
+
+API (eksempler):
+
+```http
+GET  /api/v1/ai-trading/status
+POST /api/v1/ai-trading/start
+POST /api/v1/ai-trading/stop
+POST /api/v1/ai-trading/config
+GET  /api/v1/ai-trading/signals
+```
+
+Auto-trening:
+
+```http
+POST /api/v1/training/auto/enable?interval_minutes=10
+POST /api/v1/training/run-once?limit=1200
+```
+
+Tren & backtest lokalt:
+
+```powershell
 python main_train_and_backtest.py train
-```
-Runs the end-to-end training pipeline: fetches demo data (or live ccxt data when
-`ENABLE_LIVE_MARKET_DATA=1`), trains the regressor across the pairs in `DEFAULT_SYMBOLS`,
-executes a quick backtest, and writes artifacts plus `training_report.json` under `ai_engine/models/`.
-
-Run a fresh evaluation with the latest saved model:
-```bash
 python main_train_and_backtest.py backtest --symbols BTCUSDC ETHUSDC
 ```
-Add `--entry-threshold 0.001` to require a minimum predicted return before taking
-trades, or `--skip-backtest` during `train` if you just want artifacts.
-
-### Optional extras
-Install additional adapters when needed:
-```bash
-pip install -r backend/requirements-optional.txt
-```
-This pulls in ccxt, PostgreSQL drivers and other heavyweight tooling only when you
-explicitly need them.
-
-### Docker Compose (full stack demo)
-```bash
-docker compose up --build
-```
-Run migrations inside the backend container when you introduce schema changes:
-```bash
-docker compose exec backend alembic upgrade head
-```
-Stop the stack with `docker compose down` when finished.
-
-Artifacts are written to `artifacts/stress/`. See `DEVELOPMENT.md` for advanced scenarios (Docker
-runs, artifact retention, experiments).
 
 ---
 
-## Project layout
+## 📡 API Høydepunkter
 
+| Endpoint | Beskrivelse |
+|----------|-------------|
+| GET /watchlist/full | Utvidet watchlist m/ live priser + sparkline |
+| GET /portfolio/ | P&L, posisjoner, total verdi |
+| GET /signals/recent | AI/demosignaler (cache 30s) |
+| GET /api/v1/system/status | Uptime, CPU, memory, eval status |
+| WS /ws/watchlist | Live prisoppdateringer |
+| WS /ws/alerts | Signal / alert push |
+| GET /api/v1/training/status | ML retrening status |
+| POST /api/v1/trading/auto/enable | Starter demo trading loop |
+| GET /api/v1/model/active | Aktiv modell metadata (version, tag, id) |
+
+Swagger/OpenAPI: `http://localhost:8000/docs`
+
+---
+
+## 🧪 Testing
+
+Backend:
+
+```powershell
+pytest -q
 ```
-backend/               FastAPI app, mock routes, SQLite models
-frontend/              React/Vite dashboard (TypeScript)
-scripts/stress/        Harness, experiments, helpers (+ pytest tests)
-ai_engine/             Demo model artefacts and helpers (not wired into CI)
-config/stress/         Matrix definitions for stress experiments
-artifacts/             Generated results (aggregated.json, reports, experiments)
-.github/workflows/     CI pipelines (mypy, frontend/dev tests, stress runs, pre-commit)
+Frontend:
+
+```powershell
+cd frontend
+npm run test
+```
+Stress / e2e:
+
+```powershell
+python scripts/stress/harness.py --count 1
 ```
 
 ---
 
-## Current capabilities
-- Demo data by default: the training helpers supply deterministic datasets; enable live ccxt data by toggling config when credentials are present.
-- SQLite/Postgres via SQLAlchemy + Alembic with tables for trades, candles, equity snapshots, and background `training_tasks`.
-- `/ai/predict`, `/ai/train`, and `/ai/tasks` expose the refreshed model pipeline and async training queue.
-- Frontend renders charts, signal feed, and backtest views backed by the richer APIs; it now surfaces data provenance (live vs demo) and poll intervals.
-- `/prices` and `/signals` call ccxt-backed adapters when `ENABLE_LIVE_MARKET_DATA=1`, falling back to deterministic demo payloads otherwise.
-- Stress harness creates aggregated statistics consumable by `/stress/summary` and dashboard widgets.
+## 🛠️ Utvikling & Kvalitet
 
-
----
-
-## Backlog & roadmap
-The legacy README mixed long-term ambitions with the current MVP. The live backlog now lives in
-`TODO.md`, grouped by priority (security, CI policy, backend adapters, frontend UX, observability,
-Docs & onboarding). Open that file to see the next actionable tasks.
-
-High level themes:
-1. **Security & secrets** - centralise env handling and scrub keys from storage/logs.
-2. **CI / dependency hygiene** - optional heavy deps, reproducible installs, clearer workflows.
-3. **Real data adapters** - wire backend routes to ccxt / real indicators, add tests.
-4. **AI + feature engineering** - document and automate model training/backtesting (pipeline + CLI now in place).
-5. **Frontend polish** - flesh out settings, real-time updates, remove legacy TSX duplicates.
-6. **Operations** - logging, metrics, health checks, deploy scripts.
-
+- Lint: `ruff`, `mypy`
+- Typecheck: `npm run typecheck`
+- Pre-commit: se `.pre-commit-config.yaml`
+- Logging: strukturert + heartbeat hver 15s
+- Metrics: basis (kan utvides til Prometheus)
+       - Modell: Sharpe, Sortino & max_drawdown gauges (oppdateres ved ny trening)
+       - Prometheus: /metrics (inkluderer quantum_model info)
 
 ---
 
-## Contributing checklist
-1. Install pre-commit and run `pre-commit run --all-files` before pushing.
-2. Activate a virtual environment; install backend dependencies from
-   `backend/requirements.txt` (runtime) and `backend/requirements-dev.txt` (tests/dev tools).
-3. For frontend changes run `npm run lint` / `npm run test` if you touch TypeScript.
-4. For stress tooling run `pytest scripts/stress/tests`.
-5. Update `TODO.md` when scope changes so the backlog stays accurate.
+## 📈 Observability
 
-See `CONTRIBUTING.md` and `DEVELOPMENT.md` for detailed setup instructions.
+- Heartbeat logger i `backend/main.py`
+- System status endpoint (`/api/v1/system/status`)
+- Plan: Prometheus + grafana dashboard (TODO)
+
+---
+
+## 🛡️ Risiko & Sikkerhet
+
+- Ingen ekte ordre sendes med mindre `REAL_TRADING=1` + gyldige keys
+- Fallback til demo-data hvis eksterne kilder feiler
+- Planlagt: rate limiting, signert audit logg, secrets vault
+
+---
+
+## 🔭 Roadmap (Kort)
+
+| Tema | Neste Milepæl |
+|------|---------------|
+| AI Strategy Evolution | Genetisk pipeline + RL scoring |
+| Full Trading | Binance testnet ordre + fills tracking |
+| Risk Engine | Volatilitet-adaptive posisjoner |
+| Sentiment | Integrere CryptoPanic + klassifisering |
+| Charting | Candlestick + indikator overlays |
+| Monitoring | Prometheus + alert regler |
+| Portfolio | Multi-asset capital allocation modeller |
+
+Detaljert liste i `TODO.md`.
+
+---
+
+## 🤝 Bidra
+
+1. Fork & branch: `feature/<navn>`
+2. Kjør tester før PR
+3. Oppdater `TODO.md` ved funksjonell scope-endring
+4. Legg til korte notater i `CHANGELOG.md` hvis relevant
+
+---
+
+
+## ⚠️ Disclaimer
+
+Dette prosjektet er for forskning og eksperimentering. **Ingen garanti** for fortjeneste. All bruk skjer på eget ansvar. Test alltid i *demo / testnet* før ekte kapital eksponeres.
+
+---
+
+
+## 📄 Lisens
+
+(Legg inn lisensfil hvis ønskelig – MIT / Apache 2.0 anbefales.)
+
+---
+
+## 🧾 Hurtig Kommandoreferanse
+
+```powershell
+# Start backend
+uvicorn backend.main:app --reload
+
+# Start AI trading backend
+python start_ai_trading_backend.py
+
+# Start frontend
+cd frontend; npm run dev
+
+# Trening + backtest
+python main_train_and_backtest.py train
+
+# Auto-trening hver 10 min
+Invoke-RestMethod -Method Post http://localhost:8000/api/v1/training/auto/enable?interval_minutes=10
+
+# Hente watchlist
+curl http://localhost:8000/watchlist/full
+
+# Modellregister (CLI)
+python scripts/qtctl.py list
+python scripts/qtctl.py active
+python scripts/qtctl.py register --version v2025.10.03.1 --path ai_engine/models/model-x.bin --activate
+python scripts/qtctl.py promote --id 5
+```
+
+---
+*Denne README er generert som helhetlig status + visjon. Synkroniser alltid med `TODO.md` for oppgaver.*
