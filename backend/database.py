@@ -147,7 +147,7 @@ class Candle(Base):
 
 class ModelRegistry(Base):
     __tablename__ = "model_registry"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     model_name = Column(String(255), nullable=False)
     version = Column(String(50), nullable=False)
@@ -155,7 +155,7 @@ class ModelRegistry(Base):
     created_at = Column(DateTime, default=func.now())
     accuracy = Column(Float)
     path = Column(String(500))
-    
+
     def __init__(
         self,
         *,
@@ -176,14 +176,14 @@ class ModelRegistry(Base):
 
 class Alert(Base):
     __tablename__ = "alerts"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     symbol = Column(String(20), nullable=False)
     condition = Column(String(500), nullable=False)
     threshold = Column(Float, nullable=False)
     is_active = Column(Integer, default=1)
     created_at = Column(DateTime, default=func.now())
-    
+
     def __init__(
         self,
         *,
@@ -202,13 +202,13 @@ class Alert(Base):
 
 class WatchlistEntry(Base):
     __tablename__ = "watchlist"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     symbol = Column(String(20), nullable=False, unique=True)
     name = Column(String(100))
     category = Column(String(50))
     added_at = Column(DateTime, default=func.now())
-    
+
     def __init__(
         self,
         *,
@@ -355,7 +355,7 @@ __all__ = [
     "TrainingTask",
     "Settings",
     "ModelRegistry",
-    "Alert", 
+    "Alert",
     "WatchlistEntry",
     "get_session",
     "get_db",

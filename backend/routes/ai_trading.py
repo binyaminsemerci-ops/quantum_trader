@@ -91,7 +91,9 @@ async def stop_ai_trading() -> Dict[str, Any]:
 
 
 @router.post("/continuous-learning/start")
-async def start_continuous_learning(symbols: Optional[list[str]] = None) -> Dict[str, Any]:
+async def start_continuous_learning(
+    symbols: Optional[list[str]] = None,
+) -> Dict[str, Any]:
     """Start continuous learning engine with live data feeds"""
     try:
         if symbols is None:
@@ -191,7 +193,9 @@ async def get_learning_status() -> Dict[str, Any]:
         }
 
 
-def update_ai_stats(signal_count: Optional[int] = None, accuracy: Optional[float] = None):
+def update_ai_stats(
+    signal_count: Optional[int] = None, accuracy: Optional[float] = None
+):
     """Update AI trading statistics"""
     with _state_lock:
         if signal_count is not None:
