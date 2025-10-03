@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import logging
 
 from fastapi import APIRouter, Request, Response
 from prometheus_client import (
@@ -13,6 +14,8 @@ from prometheus_client import (
     generate_latest,
     Info,
 )
+
+logger = logging.getLogger(__name__)
 
 REQUEST_COUNT = Counter(
     "quantum_requests_total",
@@ -105,21 +108,21 @@ def update_model_perf(sharpe: float | None, max_drawdown: float | None) -> None:
     if sharpe is not None:
         try:
             MODEL_PERF_SHARPE.set(float(sharpe))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to update Sharpe metric: {e}")
     if max_drawdown is not None:
         try:
             MODEL_PERF_MAX_DRAWDOWN.set(float(max_drawdown))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to update max drawdown metric: {e}")
 
 
 def update_model_sortino(sortino: float | None) -> None:
     if sortino is not None:
         try:
             MODEL_PERF_SORTINO.set(float(sortino))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to update Sortino metric: {e}")
 
 
 __all__ = [
