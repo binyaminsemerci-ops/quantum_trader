@@ -1,4 +1,3 @@
-
 """Market data adapters with optional ccxt integration.
 
 If ccxt is available and ``ENABLE_LIVE_MARKET_DATA=1`` (or true) the helpers
@@ -26,6 +25,7 @@ _AGENT_FAILED = False
 _SIGNALS_CACHE = {}  # symbol -> (timestamp, signals_list)
 _SIGNALS_CACHE_TTL = 30.0  # Cache signals for 30 seconds
 
+
 def _get_agent_once():
     global _CACHED_AGENT, _AGENT_FAILED
     if _CACHED_AGENT is not None:
@@ -40,6 +40,7 @@ def _get_agent_once():
         _AGENT_FAILED = True
         return None
 
+
 try:  # pragma: no cover - ccxt is optional
     import ccxt  # type: ignore[import-not-found]
 except Exception:  # pragma: no cover - ccxt not installed
@@ -49,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 
 def _normalize_symbol(symbol: str, quote: str) -> str:
-    if '/' in symbol:
+    if "/" in symbol:
         return symbol
     if symbol.upper().endswith(quote.upper()):
         base = symbol[: -len(quote)]
@@ -81,22 +82,25 @@ def _demo_candles(symbol: str, limit: int) -> List[Dict[str, Any]]:
     return candles
 
 
-
 def fetch_recent_candles(symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
     cfg = load_config()
     enable_live = bool(
-        SETTINGS.get('ENABLE_LIVE_MARKET_DATA', getattr(cfg, 'enable_live_market_data', False))
+        SETTINGS.get(
+            "ENABLE_LIVE_MARKET_DATA", getattr(cfg, "enable_live_market_data", False)
+        )
     )
     if enable_live and ccxt is not None:
-        exchange_name = resolve_exchange_name(getattr(cfg, 'default_exchange', None))
+        exchange_name = resolve_exchange_name(getattr(cfg, "default_exchange", None))
         try:
             exchange_class = getattr(ccxt, exchange_name)
         except AttributeError:
-            logger.warning("Unknown ccxt exchange '%s'; falling back to demo data", exchange_name)
+            logger.warning(
+                "Unknown ccxt exchange '%s'; falling back to demo data", exchange_name
+            )
         else:
             params: Dict[str, Any] = {
                 "enableRateLimit": True,
-                "timeout": getattr(cfg, 'ccxt_timeout', 10000),
+                "timeout": getattr(cfg, "ccxt_timeout", 10000),
                 "sandbox": False,  # Use live public API
             }
             api_key, api_secret = resolve_credentials(exchange_name, None, None)
@@ -107,14 +111,18 @@ def fetch_recent_candles(symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
             exchange = None
             try:
                 exchange = exchange_class(params)
-                market = _normalize_symbol(symbol, getattr(cfg, 'default_quote', settings.default_quote))
-                timeframe = getattr(cfg, 'ccxt_timeframe', '1m')
+                market = _normalize_symbol(
+                    symbol, getattr(cfg, "default_quote", settings.default_quote)
+                )
+                timeframe = getattr(cfg, "ccxt_timeframe", "1m")
                 ohlcv = exchange.fetch_ohlcv(market, timeframe=timeframe, limit=limit)
                 candles = []
                 for ts, open_p, high_p, low_p, close_p, volume in ohlcv:
                     candles.append(
                         {
-                            "time": datetime.fromtimestamp(ts / 1000, timezone.utc).isoformat(),
+                            "time": datetime.fromtimestamp(
+                                ts / 1000, timezone.utc
+                            ).isoformat(),
                             "open": float(open_p),
                             "high": float(high_p),
                             "low": float(low_p),
@@ -135,7 +143,9 @@ def fetch_recent_candles(symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
     return _demo_candles(symbol, limit)
 
 
-def _demo_signals(symbol: str, limit: int, profile: str = "mixed") -> List[Dict[str, Any]]:
+def _demo_signals(
+    symbol: str, limit: int, profile: str = "mixed"
+) -> List[Dict[str, Any]]:
     now = datetime.now(timezone.utc)
     signals: List[Dict[str, Any]] = []
     for i in range(limit):
@@ -160,9 +170,12 @@ def _demo_signals(symbol: str, limit: int, profile: str = "mixed") -> List[Dict[
     return signals
 
 
-def fetch_recent_signals(symbol: str, limit: int = 20, profile: str = "mixed") -> List[Dict[str, Any]]:
+def fetch_recent_signals(
+    symbol: str, limit: int = 20, profile: str = "mixed"
+) -> List[Dict[str, Any]]:
     # Check cache first - return cached signals if fresh (within TTL)
     import time
+
     now = time.time()
     cache_key = f"{symbol}:{limit}:{profile}"
 
@@ -172,7 +185,11 @@ def fetch_recent_signals(symbol: str, limit: int = 20, profile: str = "mixed") -
             return cached_signals
 
     cfg = load_config()
-    enable_live = bool(SETTINGS.get("ENABLE_LIVE_MARKET_DATA", getattr(cfg, "enable_live_market_data", False)))
+    enable_live = bool(
+        SETTINGS.get(
+            "ENABLE_LIVE_MARKET_DATA", getattr(cfg, "enable_live_market_data", False)
+        )
+    )
 
     if enable_live:
         agent = _get_agent_once()
@@ -193,7 +210,11 @@ def fetch_recent_signals(symbol: str, limit: int = 20, profile: str = "mixed") -
                         continue
                     ts_str = candles[idx].get("time")
                     try:
-                        ts = datetime.fromisoformat(ts_str) if ts_str else datetime.now(timezone.utc)
+                        ts = (
+                            datetime.fromisoformat(ts_str)
+                            if ts_str
+                            else datetime.now(timezone.utc)
+                        )
                     except Exception:
                         ts = datetime.now(timezone.utc)
                     side = "buy" if action == "BUY" else "sell"

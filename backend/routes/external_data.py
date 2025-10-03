@@ -138,7 +138,9 @@ async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
         candles = await asyncio.to_thread(fetch_recent_candles, symbol, limit)
         source = "live" if _live_market_data_enabled() else "demo"
     except Exception as exc:  # pragma: no cover - network/adapter issues
-        logger.debug("fetch_recent_candles failed for %s: %s", symbol, exc, exc_info=True)
+        logger.debug(
+            "fetch_recent_candles failed for %s: %s", symbol, exc, exc_info=True
+        )
         candles = _fallback_candles(symbol, limit)
         source = "fallback"
     normalised = _normalise_candles(candles)
@@ -181,7 +183,7 @@ async def enhanced_market_data(symbols: List[str]) -> Dict[str, Any]:
             "symbols": symbols,
             "data": enhanced_data,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "source": "enhanced_multi_api"
+            "source": "enhanced_multi_api",
         }
     except Exception as exc:
         logger.debug("Enhanced market data failed: %s", exc, exc_info=True)
@@ -189,7 +191,7 @@ async def enhanced_market_data(symbols: List[str]) -> Dict[str, Any]:
             "symbols": symbols,
             "data": {},
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "source": "fallback"
+            "source": "fallback",
         }
 
 
@@ -204,7 +206,7 @@ async def fear_greed_index() -> Dict[str, Any]:
         return {
             "current": {"value": 50, "value_classification": "Neutral"},
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "source": "fallback"
+            "source": "fallback",
         }
 
 
@@ -217,9 +219,11 @@ async def reddit_sentiment(symbols: List[str]) -> Dict[str, Any]:
     except Exception as exc:
         logger.debug("Reddit sentiment failed: %s", exc, exc_info=True)
         return {
-            "symbols": {symbol: {"sentiment_score": 0.0, "total_posts": 0} for symbol in symbols},
+            "symbols": {
+                symbol: {"sentiment_score": 0.0, "total_posts": 0} for symbol in symbols
+            },
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "source": "fallback"
+            "source": "fallback",
         }
 
 
@@ -234,7 +238,7 @@ async def comprehensive_crypto_news() -> Dict[str, Any]:
         return {
             "news": [],
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "source": "fallback"
+            "source": "fallback",
         }
 
 
@@ -249,7 +253,7 @@ async def on_chain_metrics(symbols: List[str]) -> Dict[str, Any]:
         return {
             "metrics": {},
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "source": "fallback"
+            "source": "fallback",
         }
 
 
@@ -264,7 +268,7 @@ async def market_indicators() -> Dict[str, Any]:
         return {
             "global_stats": {},
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "source": "fallback"
+            "source": "fallback",
         }
 
 
@@ -276,5 +280,5 @@ __all__ = [
     "reddit_sentiment",
     "comprehensive_crypto_news",
     "on_chain_metrics",
-    "market_indicators"
+    "market_indicators",
 ]

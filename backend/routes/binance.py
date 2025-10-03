@@ -75,7 +75,9 @@ def spot_balance(exchange: Optional[str] = Query(None)) -> Dict[str, Any]:
     try:
         balance = client.spot_balance()
     except Exception as exc:  # pragma: no cover - adapter specific
-        raise HTTPException(status_code=503, detail=f"Unable to fetch spot balance: {exc}") from exc
+        raise HTTPException(
+            status_code=503, detail=f"Unable to fetch spot balance: {exc}"
+        ) from exc
     return {"exchange": name, "balance": balance}
 
 
@@ -88,7 +90,9 @@ def futures_balance(exchange: Optional[str] = Query(None)) -> Dict[str, Any]:
     try:
         balance = client.futures_balance()
     except Exception as exc:  # pragma: no cover
-        raise HTTPException(status_code=503, detail=f"Unable to fetch futures balance: {exc}") from exc
+        raise HTTPException(
+            status_code=503, detail=f"Unable to fetch futures balance: {exc}"
+        ) from exc
     return {"exchange": name, "balance": balance}
 
 
@@ -105,7 +109,9 @@ def recent_trades(
     try:
         trades = client.fetch_recent_trades(symbol, limit=limit)
     except Exception as exc:  # pragma: no cover
-        raise HTTPException(status_code=503, detail=f"Unable to fetch trades: {exc}") from exc
+        raise HTTPException(
+            status_code=503, detail=f"Unable to fetch trades: {exc}"
+        ) from exc
     return {"exchange": name, "symbol": symbol, "trades": trades[:limit]}
 
 
