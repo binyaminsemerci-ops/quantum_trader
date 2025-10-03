@@ -93,8 +93,8 @@ def _setup_signal_handlers():
         if hasattr(signal, sig_name):
             try:
                 signal.signal(getattr(signal, sig_name), _handler)
-            except Exception:  # pragma: no cover
-                pass
+            except Exception as e:  # pragma: no cover
+                logger.debug(f"Could not set signal handler for {sig_name}: {e}")
 
 
 @asynccontextmanager
@@ -202,8 +202,8 @@ async def system_status():
         has_binance_keys = bool(cfg.binance_api_key and cfg.binance_api_secret)
         binance_testnet = bool(getattr(cfg, "binance_use_testnet", False))
         real_trading_enabled = bool(getattr(cfg, "enable_real_trading", False))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Could not load config for health check: {e}")
 
     # Lightweight runtime metrics (best effort, but skip expensive ops for speed)
     cpu_usage = 0.0
@@ -216,8 +216,8 @@ async def system_status():
         cpu_usage = float(psutil.cpu_percent(interval=0.1))
         memory_usage = float(psutil.virtual_memory().percent)
         connections = len(psutil.net_connections())
-    except Exception:  # psutil not installed or unsupported env
-        pass
+    except Exception as e:  # psutil not installed or unsupported env
+        logger.debug(f"Could not get system metrics: {e}")
 
     uptime_seconds = round(_time.time() - _START_TIME, 2)
 
@@ -267,8 +267,8 @@ def _get_active_model_meta():  # placed after definition for clarity
                         sharpe = bt.get("sharpe")
                         sortino = bt.get("sortino")
                         max_dd = bt.get("max_drawdown")
-                except Exception:  # pragma: no cover
-                    pass
+                except Exception as e:  # pragma: no cover
+                    logger.debug(f"Could not parse model metrics: {e}")
                 return {
                     "version": row.version,
                     "tag": row.tag,

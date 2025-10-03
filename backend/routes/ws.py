@@ -2,6 +2,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import json
 import asyncio
 import time
+import logging
 from sqlalchemy import select, func
 from typing import Any, cast
 
@@ -11,6 +12,8 @@ from backend.utils.risk import calculate_risk
 from backend.utils.analytics import calculate_analytics
 from backend.routes.portfolio import get_portfolio, get_market_overview
 from config.config import load_config
+
+logger = logging.getLogger(__name__)
 
 try:
     from backend.services.binance_trading import get_trading_engine  # type: ignore
@@ -66,8 +69,8 @@ async def _fetch_prices(symbols: list[str]):
                 # ignore symbol-level failures
                 continue
         _last_price_fetch = now
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Failed to update price cache: {e}")
 
 
 @router.websocket("/ws/dashboard")
