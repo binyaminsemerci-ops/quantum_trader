@@ -1,14 +1,16 @@
 """Simple GitHub Actions monitor for a PR branch.
 
 Usage:
-  set GITHUB_TOKEN=ghp_...   # or use MY_PAT
-  python scripts/monitor_pr_ci.py --repo binyaminsemerci-ops/quantum_trader --branch chore/mypy-fixes
+    set GITHUB_TOKEN=ghp_...   # or use MY_PAT
+    python scripts/monitor_pr_ci.py \
+        --repo binyaminsemerci-ops/quantum_trader \
+        --branch chore/mypy-fixes
 
-This script requires `requests` and a token with `repo` and `actions:read` scopes.
+This script requires the `requests` package and a token with the
+`repo` and `actions:read` scopes.
 """
-
-import os
 import time
+import os
 import argparse
 import requests
 
@@ -46,7 +48,8 @@ def main():
                 print("No workflow runs found")
             for r in runs[:5]:
                 print(
-                    f"- {r['name']} #{r['run_number']} status={r['status']} conclusion={r['conclusion']} url={r['html_url']}"
+                    f"- {r['name']} #{r['run_number']} status={r['status']} "
+                    f"conclusion={r['conclusion']} url={r['html_url']}"
                 )
         except Exception as e:
             print("Error fetching runs:", e)

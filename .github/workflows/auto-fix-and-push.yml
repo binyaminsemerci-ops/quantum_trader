@@ -8,14 +8,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.7
         # Keep persist-credentials enabled so the automatically provided
         # GITHUB_TOKEN can be used for non-interactive push operations.
         # If you need to use a separate PAT, add it to repo secrets and
         # update the push step accordingly.
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5.2.0
         with:
           python-version: '3.11'
 

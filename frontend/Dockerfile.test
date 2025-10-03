@@ -1,0 +1,10 @@
+ARG BASE_IMAGE=node:20-bullseye-slim
+FROM ${BASE_IMAGE}
+ARG EXTRA_NPM_DEPS=""
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ git && rm -rf /var/lib/apt/lists/*
+RUN npm ci --no-audit --no-fund
+RUN if [ -n "$EXTRA_NPM_DEPS" ]; then npm install --no-audit --no-fund $EXTRA_NPM_DEPS; fi
+COPY . .
+CMD ["/bin/sh", "-c", "npm run test:frontend --silent"]

@@ -68,9 +68,12 @@ class XGBAgent:
         try:
             import pandas as _pd  # type: ignore[import-untyped]
 
-            # local import for feature engineer; mypy in CI may not resolve ai_engine package here
-            from ai_engine.feature_engineer import add_technical_indicators as _add_technical_indicators  # type: ignore[import-not-found, import-untyped]
-            from ai_engine.feature_engineer import add_sentiment_features as _add_sentiment_features  # type: ignore[import-not-found, import-untyped]
+            # local import for feature engineer; mypy in CI may not resolve
+            # ai_engine package here
+            from ai_engine.feature_engineer import (
+                add_technical_indicators as _add_technical_indicators,
+                add_sentiment_features as _add_sentiment_features,
+            )  # type: ignore[import-not-found, import-untyped]
         except Exception:
             logger.debug("Pandas or feature_engineer not available")
             raise
@@ -87,7 +90,8 @@ class XGBAgent:
             if col not in df.columns:
                 df[col] = _pd.NA
 
-        # prepare DataFrame expected by feature engineer (capitalized names sometimes expected)
+    # prepare DataFrame expected by feature engineer (capitalized names
+    # sometimes expected)
         df_norm = df.rename(
             columns={
                 "open": "Open",
@@ -261,7 +265,8 @@ class XGBAgent:
         Uses a bounded concurrency semaphore to avoid hammering internal helpers.
         """
         try:
-            # backend.routes.external_data is a runtime-only import; mypy may not see dynamic attributes
+            # backend.routes.external_data is a runtime-only import; mypy
+            # may not see dynamic attributes
             import backend.routes as _br  # type: ignore[import-not-found]
             from typing import Any as _Any, cast as _cast
 
@@ -325,7 +330,8 @@ class XGBAgent:
                             row["news_count"] = news_series[idx]
                         except Exception:
                             logger.debug(
-                                "failed to attach sentiment/news to candle idx=%s for %s",
+                                "failed to attach sentiment/news to candle "
+                                "idx=%s for %s",
                                 idx,
                                 s,
                             )

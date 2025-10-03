@@ -1,0 +1,138 @@
+name: Stress tests
+
+on:
+  push:
+    paths:
+      - 'scripts/stress/**'
+      - 'frontend/**'
+      - '.github/workflows/stress-tests.yml'
+  pull_request:
+    paths:
+      - 'scripts/stress/**'
+  workflow_dispatch:
+    inputs:
+      run_smoke:
+        description: 'Also run Docker-based smoke run (requires runner with docker)'
+        required: false
+        default: 'false'
+
+jobs:
+  unit-test:
+    name: Unit tests (monkeypatched)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.7
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.2.0
+        with:
+          python-version: '3.11'
+
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+
+      - name: Run monkeypatched unit test
+        run: |
+          pytest -q scripts/stress/tests
+
+  smoke-run:
+    name: Optional Docker smoke run
+    if: ${{ github.event.inputs.run_smoke == 'true' || github.event_name == 'push' }}
+    needs: unit-test
+    runs-on: ubuntu-latest
+    env:
+      # Optional: set these repo/org secrets to enable cloud upload
+      ARTIFACT_UPLOAD_PROVIDER: ${{ secrets.ARTIFACT_UPLOAD_PROVIDER }} # one of: s3, gcs, azure
+      ARTIFACT_UPLOAD_DEST: ${{ secrets.ARTIFACT_UPLOAD_DEST }}         # e.g., s3://bucket/path.zip | gs://bucket/path.zip | container/blob
+      # AWS
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+      # GCP
+      GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
+      # Azure
+      AZURE_STORAGE_ACCOUNT_URL: ${{ secrets.AZURE_STORAGE_ACCOUNT_URL }}
+      AZURE_STORAGE_ACCOUNT_KEY: ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}
+      AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
+    env:
+      # Pin the exact Node base image used for frontend tests. Override via secret if needed.
+      NODE_IMAGE_REF: ${{ secrets.NODE_IMAGE_REF || 'node:20-bullseye-slim@sha256:1c2b56658c1ea4737e92c76057061a2a5f904bdb2db6ccd45bb97fda41496b80' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.6.1
+
+      - name: Build frontend test image (supports digest pin)
+        run: |
+          BASE_REF="${NODE_IMAGE_REF:-node:20-bullseye-slim}"
+          echo "Using BASE_IMAGE=$BASE_REF"
+          docker build --pull \
+            --build-arg BASE_IMAGE="$BASE_REF" \
+            -f frontend/Dockerfile.test \
+            -t quantum_trader_frontend_test:ci \
+            frontend
+
+      - name: Set up Python (for harness)
+        uses: actions/setup-python@v5.2.0
+        with:
+          python-version: '3.11'
+
+      - name: Run harness (1 iter, zip-after)
+        run: |
+          python scripts/stress/harness.py --count 1 --zip-after
+
+      - name: Upload stress artifacts to GitHub
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: stress-artifacts
+          path: artifacts/stress/**
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Generate HTML report
+        if: ${{ always() }}
+        run: |
+          python scripts/stress/generate_report.py || true
+
+      - name: Upload report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: stress-report
+          path: artifacts/stress/report.html
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Set up Python (for uploader)
+        if: ${{ env.ARTIFACT_UPLOAD_PROVIDER != '' && env.ARTIFACT_UPLOAD_DEST != '' }}
+        uses: actions/setup-python@v5.2.0
+        with:
+          python-version: '3.11'
+
+      - name: Install upload SDKs (pinned)
+        if: ${{ env.ARTIFACT_UPLOAD_PROVIDER != '' && env.ARTIFACT_UPLOAD_DEST != '' }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-ci-upload.txt
+
+      - name: Write GCP credentials file
+        if: ${{ env.ARTIFACT_UPLOAD_PROVIDER == 'gcs' && env.GCP_SA_JSON != '' }}
+        run: |
+          echo "${{ env.GCP_SA_JSON }}" > $RUNNER_TEMP/gcp.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/gcp.json" >> $GITHUB_ENV
+
+      - name: Zip and upload to cloud provider
+        if: ${{ env.ARTIFACT_UPLOAD_PROVIDER != '' && env.ARTIFACT_UPLOAD_DEST != '' }}
+        run: |
+          python scripts/stress/upload_artifacts.py --provider "${{ env.ARTIFACT_UPLOAD_PROVIDER }}" --dest "${{ env.ARTIFACT_UPLOAD_DEST }}" --retries 3 --retry-delay 3 --retain 5
+
+      - name: Prune old iteration JSONs (keep 200)
+        if: ${{ always() }}
+        run: |
+          python scripts/stress/retention.py --keep 200
