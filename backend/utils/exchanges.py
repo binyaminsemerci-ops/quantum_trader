@@ -11,7 +11,20 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Protocol, Type
 import logging
 import datetime
-from backend.routes.settings import SETTINGS
+
+# Import SETTINGS directly to avoid circular import through routes.__init__
+try:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "settings", "backend/routes/settings.py"
+    )
+    settings_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(settings_module)
+    SETTINGS = settings_module.SETTINGS
+except Exception:
+    # Fallback if direct import fails
+    SETTINGS = {}
 from config.config import DEFAULT_EXCHANGE, load_config
 
 
