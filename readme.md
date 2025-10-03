@@ -101,7 +101,7 @@ python -m venv .venv
 ./.venv/Scripts/Activate.ps1
 pip install -r backend/requirements-dev.txt
 uvicorn backend.main:app --reload --port 8000
- 
+
 ```
 
 ### 3. Manuell Frontend
@@ -110,7 +110,7 @@ uvicorn backend.main:app --reload --port 8000
 cd frontend
 npm install
 npm run dev
- 
+
 ```
 Dashboard: <http://127.0.0.1:5173>
 
@@ -119,7 +119,7 @@ Dashboard: <http://127.0.0.1:5173>
 
 ```powershell
 docker compose up --build
- 
+
 ```
 
 ---
