@@ -8,5 +8,5 @@ def register_ws(websocket: Any) -> None:
 
 
 def unregister_ws(websocket: Any) -> None:
-    """Unregister websocket from alerts.""" 
+    """Unregister websocket from alerts."""
     pass
