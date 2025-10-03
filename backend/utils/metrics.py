@@ -1,4 +1,3 @@
-
 """Prometheus metrics helpers."""
 
 from __future__ import annotations
@@ -73,7 +72,7 @@ def add_metrics_middleware(app) -> None:
             return await call_next(request)
         start = time.perf_counter()
         INFLIGHT_REQUESTS.inc()
-        status_code = '500'
+        status_code = "500"
         try:
             response = await call_next(request)
             status_code = str(response.status_code)
@@ -94,10 +93,12 @@ def update_model_info(version: str | None, tag: str | None = None) -> None:
 
     Falls back to placeholders if None provided.
     """
-    MODEL_INFO.info({
-        "version": version or "unknown",
-        "tag": tag or "none",
-    })
+    MODEL_INFO.info(
+        {
+            "version": version or "unknown",
+            "tag": tag or "none",
+        }
+    )
 
 
 def update_model_perf(sharpe: float | None, max_drawdown: float | None) -> None:
@@ -111,6 +112,7 @@ def update_model_perf(sharpe: float | None, max_drawdown: float | None) -> None:
             MODEL_PERF_MAX_DRAWDOWN.set(float(max_drawdown))
         except Exception:
             pass
+
 
 def update_model_sortino(sortino: float | None) -> None:
     if sortino is not None:

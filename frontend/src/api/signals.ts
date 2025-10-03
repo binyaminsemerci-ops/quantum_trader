@@ -33,7 +33,11 @@ export async function fetchSignals({
   symbol = 'BTCUSDT',
   profile = 'mixed',
 }: FetchSignalsParams = {}): Promise<SignalsResult> {
-  const base = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+  const envBase = (import.meta as any).env?.VITE_API_BASE_URL || '';
+  // When developing with Vite we prefer the dev-server proxy ("/api") so
+  // requests are same-origin from the browser and avoid CORS issues. If the
+  // environment provides VITE_API_BASE_URL we use that instead (production).
+  const base = envBase.replace(/\/$/, '');
   const params = new URLSearchParams({
     limit: String(limit),
     symbol,
@@ -41,7 +45,8 @@ export async function fetchSignals({
   });
 
   try {
-    const res = await fetch(`${base}/signals/recent?${params.toString()}`);
+    const url = base ? `${base}/signals/recent?${params.toString()}` : `/api/signals/recent?${params.toString()}`;
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const payload = await res.json();
     const rawItems: any[] = Array.isArray(payload)

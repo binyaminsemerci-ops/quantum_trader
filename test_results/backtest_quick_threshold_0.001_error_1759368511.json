@@ -1,0 +1,11 @@
+{
+  "duration_seconds": 16.67297387123108,
+  "result": {
+    "error": "[Errno 2] No such file or directory: 'test_results\\\\model_quick\\\\xgb_model.pkl'",
+    "threshold": 0.001,
+    "type": "FileNotFoundError"
+  },
+  "success": false,
+  "test_name": "backtest_quick_threshold_0.001_error",
+  "timestamp": "2025-10-02T03:28:31.793853"
+}

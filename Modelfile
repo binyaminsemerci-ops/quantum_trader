@@ -1,0 +1,21 @@
+﻿from qwen2.5-coder:7b
+parameter temperature 0.01
+parameter repeat_penalty 1.2
+parameter num_predict 256
+parameter num_ctx 8192
+
+# Stopp hvis modellen prøver å skrive ChatML-tagger ut i output
+parameter stop "<|im_end|>"
+parameter stop "<|im_start|>"
+
+# ChatML-template for Qwen: system + user -> assistant
+template """{{- if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{- end }}<|im_start|>user
+{{ .Prompt }}<|im_end|>
+<|im_start|>assistant
+"""
+
+system """Returner KUN rå Python-kode. Ingen ``` og ingen forklaringer.
+Bruk ekte linjeskift (Enter) — ikke skriv \n, \t eller \" som tegn.
+Start direkte med gyldig Python på første linje. Ikke ekko av prompt."""

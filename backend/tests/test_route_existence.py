@@ -8,7 +8,7 @@ from backend.main import app
 def test_critical_routes_exist():
     """Test that all critical API routes exist and return valid responses."""
     client = TestClient(app)
-    
+
     # Test base routes - using only endpoints that definitely exist
     critical_routes = [
         "/",
@@ -20,7 +20,7 @@ def test_critical_routes_exist():
         "/api/v1/model/active",
         "/api/v1/metrics/",
     ]
-    
+
     for route in critical_routes:
         response = client.get(route)
         # Routes should exist (not return 404) - they may return other status codes
@@ -49,17 +49,35 @@ def test_router_imports():
         enhanced_api,
         ai_trading,
     )
-    
+
     # Verify each router has the expected router attribute
     routers = [
-        trades, stats, chart, settings, binance, signals, prices, 
-        candles, stress, trade_logs, health, watchlist, layout, 
-        portfolio, trading, enhanced_api, ai_trading
+        trades,
+        stats,
+        chart,
+        settings,
+        binance,
+        signals,
+        prices,
+        candles,
+        stress,
+        trade_logs,
+        health,
+        watchlist,
+        layout,
+        portfolio,
+        trading,
+        enhanced_api,
+        ai_trading,
     ]
-    
+
     for router_module in routers:
-        assert hasattr(router_module, 'router'), f"Module {router_module.__name__} missing 'router' attribute"
-        assert router_module.router is not None, f"Module {router_module.__name__} has None router"
+        assert hasattr(
+            router_module, "router"
+        ), f"Module {router_module.__name__} missing 'router' attribute"
+        assert (
+            router_module.router is not None
+        ), f"Module {router_module.__name__} has None router"
 
 
 def test_websocket_routes_exist():

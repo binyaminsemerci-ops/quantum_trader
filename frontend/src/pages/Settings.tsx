@@ -38,8 +38,10 @@ export default function Settings(): JSX.Element {
     let cancelled = false;
     async function loadHealth() {
       try {
-        const base = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
-        const res = await fetch(`${base}/health`);
+  const envBase = (import.meta as any).env?.VITE_API_BASE_URL || '';
+  const base = envBase.replace(/\/$/, '');
+  const url = base ? `${base}/health` : '/api/health';
+  const res = await fetch(url);
         if (cancelled) return;
         if (res.ok) {
           const payload = await res.json();

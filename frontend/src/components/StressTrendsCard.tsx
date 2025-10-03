@@ -219,6 +219,9 @@ export default function StressTrendsCard(): JSX.Element {
           <p className="text-sm text-slate-400">
             Pass rate and duration pulled from artifacts/stress/aggregated.json
           </p>
+          {summary?.source && (
+            <p className="text-xs text-slate-500 mt-1">Source: {summary.source}</p>
+          )}
         </div>
         {summary?.finished_at && (
           <span className="text-xs text-slate-400">
@@ -271,6 +274,7 @@ export default function StressTrendsCard(): JSX.Element {
                   <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
                     <tr>
                       <th className="py-2 pr-4">Iteration</th>
+                        <th className="py-2 pr-4">Time</th>
                       <th className="py-2 pr-4">Pytest</th>
                       <th className="py-2 pr-4">Backtest</th>
                       <th className="py-2 pr-4">Frontend</th>
@@ -283,14 +287,26 @@ export default function StressTrendsCard(): JSX.Element {
                         <td className="py-2 pr-4 tabular-nums text-slate-200">
                           {run.iteration ?? '-'}
                         </td>
+                          <td className="py-2 pr-4 text-slate-400">
+                            {run.ts ? new Date(run.ts).toLocaleString() : '-'}
+                          </td>
                         <td className="py-2 pr-4 text-slate-200">
-                          {(run.summary as Record<string, unknown> | null)?.pytest ?? '-'}
+                          {(() => {
+                            const v = (run.summary as Record<string, unknown> | null)?.pytest;
+                            return v === undefined || v === null ? '-' : String(v);
+                          })()}
                         </td>
                         <td className="py-2 pr-4 text-slate-200">
-                          {(run.summary as Record<string, unknown> | null)?.backtest ?? '-'}
+                          {(() => {
+                            const v = (run.summary as Record<string, unknown> | null)?.backtest;
+                            return v === undefined || v === null ? '-' : String(v);
+                          })()}
                         </td>
                         <td className="py-2 pr-4 text-slate-200">
-                          {(run.summary as Record<string, unknown> | null)?.frontend_tests ?? '-'}
+                          {(() => {
+                            const v = (run.summary as Record<string, unknown> | null)?.frontend_tests;
+                            return v === undefined || v === null ? '-' : String(v);
+                          })()}
                         </td>
                         <td className="py-2 text-slate-200">
                           {formatSeconds(run.total_duration)}

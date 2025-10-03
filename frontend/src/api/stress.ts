@@ -17,6 +17,8 @@ export type StressRun = {
   summary: Record<string, unknown> | null;
   total_duration: number | null;
   details?: string | null;
+  ts?: string | null;
+  source?: string | null;
 };
 
 export type StressSummary = {

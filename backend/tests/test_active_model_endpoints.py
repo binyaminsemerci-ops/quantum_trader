@@ -6,13 +6,19 @@ def _seed_active_model(version="test-ver", tag="unit", sharpe=1.23, max_dd=0.12)
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as session:
         # demote any existing
-        session.query(ModelRegistry).filter(ModelRegistry.is_active == 1).update({"is_active": 0})
+        session.query(ModelRegistry).filter(ModelRegistry.is_active == 1).update(
+            {"is_active": 0}
+        )
         row = ModelRegistry(
             version=version,
             tag=tag,
             path="/tmp/model.pkl",
             metrics_json=(
-                '{"backtest": {"sharpe": ' + str(sharpe) + ', "max_drawdown": ' + str(max_dd) + '}}'
+                '{"backtest": {"sharpe": '
+                + str(sharpe)
+                + ', "max_drawdown": '
+                + str(max_dd)
+                + "}}"
             ),
             is_active=1,
         )
@@ -41,7 +47,10 @@ def test_system_status_includes_active_model(client):
     data = r.json()
     active = data.get("active_model")
     assert active
-    assert active.get("version") in ("vv2", "test-ver")  # allow race if heartbeat refreshed
+    assert active.get("version") in (
+        "vv2",
+        "test-ver",
+    )  # allow race if heartbeat refreshed
 
 
 def test_metrics_expose_model_info(client):

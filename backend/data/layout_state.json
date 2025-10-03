@@ -1,0 +1,99 @@
+{
+  "layout": {
+    "version": 2,
+    "widgets": [
+      {
+        "id": "chart-1",
+        "type": "chart",
+        "title": "Price Chart",
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 6,
+        "minW": 6,
+        "minH": 4,
+        "visible": true,
+        "settings": {
+          "symbol": "BTCUSDC"
+        }
+      },
+      {
+        "id": "watchlist-1",
+        "type": "watchlist",
+        "title": "Watchlist",
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 6,
+        "minW": 3,
+        "minH": 3,
+        "visible": true,
+        "settings": {}
+      },
+      {
+        "id": "signals-1",
+        "type": "signals",
+        "title": "Signal Feed",
+        "x": 0,
+        "y": 6,
+        "w": 4,
+        "h": 3,
+        "minW": 4,
+        "minH": 3,
+        "visible": true,
+        "settings": {
+          "symbol": "BTCUSDC"
+        }
+      },
+      {
+        "id": "pnl-1",
+        "type": "pnl",
+        "title": "P&L Overview",
+        "x": 6,
+        "y": 6,
+        "w": 3,
+        "h": 4,
+        "minW": 2,
+        "minH": 2,
+        "visible": true,
+        "settings": {
+          "symbol": "BTCUSDC"
+        }
+      },
+      {
+        "id": "portfolio-1",
+        "type": "portfolio",
+        "title": "Portfolio",
+        "x": 9,
+        "y": 6,
+        "w": 3,
+        "h": 4,
+        "minW": 2,
+        "minH": 2,
+        "visible": true,
+        "settings": {
+          "symbol": "BTCUSDC"
+        }
+      },
+      {
+        "id": "trading-control-1",
+        "type": "trading-control",
+        "title": "AI Trading Engine",
+        "x": 2,
+        "y": 10,
+        "w": 4,
+        "h": 6,
+        "minW": 3,
+        "minH": 4,
+        "visible": true,
+        "settings": {}
+      }
+    ],
+    "theme": "dark",
+    "autoRefresh": true,
+    "refreshInterval": 5000,
+    "compactMode": false
+  },
+  "version": 2,
+  "_schemaVersion": 2
+}
