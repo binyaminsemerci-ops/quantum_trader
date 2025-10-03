@@ -84,12 +84,12 @@ def _load_model():
     )
     if os.path.exists(json_path):
         try:
-            with open(json_path, "r", encoding="utf-8") as f:
+            with open(json_path, encoding="utf-8") as f:
                 spec = json.load(f)
 
             # Simple wrapper: provide a .predict() that accepts a 2D numpy array
             class JSONModel:
-                def __init__(self, spec):
+                def __init__(self, spec) -> None:
                     # spec may contain a scale factor or other simple rules
                     self.scale = float(spec.get("scale", 1.0))
 
@@ -107,7 +107,8 @@ def _load_model():
         except Exception as e:
             logger.debug("failed to load JSON model spec %s: %s", json_path, e)
     # If model not found, raise so callers can fall back
-    raise FileNotFoundError("Model file not found in ai_engine/models/xgb_model.pkl")
+    msg = "Model file not found in ai_engine/models/xgb_model.pkl"
+    raise FileNotFoundError(msg)
 
 
 @router.post("/predict", response_model=PredictResponse)
@@ -123,7 +124,7 @@ async def predict(req: PredictRequest):
         # Simple fallback: return the mean of features as a mock prediction
         if not req.features:
             raise HTTPException(
-                status_code=400, detail="features must be a non-empty list"
+                status_code=400, detail="features must be a non-empty list",
             )
         pred = float(np.mean(req.features))
         return PredictResponse(prediction=pred)
@@ -222,7 +223,7 @@ async def scan(req: ScanRequest):
                         "low": low_p,
                         "close": close_p,
                         "volume": volume,
-                    }
+                    },
                 )
                 price = close_p
             df = pandas_mod.DataFrame(rows)
@@ -236,8 +237,7 @@ async def scan(req: ScanRequest):
                 logger.debug("agent.reload() failed: %s", e)
 
         try:
-            results = agent.scan_symbols(symbol_ohlcv, top_n=min(10, len(req.symbols)))
-            return results
+            return agent.scan_symbols(symbol_ohlcv, top_n=min(10, len(req.symbols)))
         except Exception as e:
             # fall through to fallback heuristic below
             logger.debug("agent.scan_symbols failed: %s", e)
@@ -264,7 +264,7 @@ async def scan(req: ScanRequest):
                         "low": low_p,
                         "close": close_p,
                         "volume": volume,
-                    }
+                    },
                 )
                 price = close_p
             symbol_ohlcv[s] = rows
@@ -310,7 +310,7 @@ async def reload_model_endpoint():
     agent = make_default_agent()
     agent.reload()
     return ReloadResponse(
-        loaded_model=(agent.model is not None), loaded_scaler=(agent.scaler is not None)
+        loaded_model=(agent.model is not None), loaded_scaler=(agent.scaler is not None),
     )
 
 
@@ -334,8 +334,8 @@ async def train_endpoint(req: TrainRequest, background: BackgroundTasks):
 
     # background wrapper to run training and update task status
     def _bg_train(
-        task_id: int, symbols_list: list, limit_val: int, entry_threshold_val: float
-    ):
+        task_id: int, symbols_list: list, limit_val: int, entry_threshold_val: float,
+    ) -> None:
         db2 = next(get_session())
         try:
             update_training_task(db2, task_id, "running")
@@ -345,13 +345,13 @@ async def train_endpoint(req: TrainRequest, background: BackgroundTasks):
                 entry_threshold=entry_threshold_val,
             )
             update_training_task(
-                db2, task_id, "completed", details=f"threshold={entry_threshold_val}"
+                db2, task_id, "completed", details=f"threshold={entry_threshold_val}",
             )
         except Exception as e:
             try:
                 update_training_task(db2, task_id, "failed", details=str(e))
             except Exception as err:
-                logger.error("Failed to update training task after exception: %s", err)
+                logger.exception("Failed to update training task after exception: %s", err)
         finally:
             db2.close()
 
@@ -392,7 +392,7 @@ async def list_tasks(limit: int = 50, offset: int = 0):
                         t.completed_at.isoformat() if t.completed_at else None
                     ),
                     "details": t.details,
-                }
+                },
             )
         return {"tasks": items, "count": len(items)}
     finally:

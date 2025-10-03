@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Dict, List
 
 from backend.utils.exchanges import _ADAPTER_REGISTRY
 from config.config import load_config
@@ -48,10 +47,10 @@ async def log_startup_info() -> None:
     """
     logger = _configure_logger()
     cfg = load_config()
-    adapters: List[str] = list(_ADAPTER_REGISTRY.keys())
+    adapters: list[str] = list(_ADAPTER_REGISTRY.keys())
 
     # Masked presence of keys (don't print the actual secrets)
-    key_presence: Dict[str, bool] = {
+    key_presence: dict[str, bool] = {
         "binance": bool(cfg.binance_api_key and cfg.binance_api_secret),
         "coinbase": bool(cfg.coinbase_api_key and cfg.coinbase_api_secret),
         "kucoin": bool(cfg.kucoin_api_key and cfg.kucoin_api_secret),
@@ -59,7 +58,7 @@ async def log_startup_info() -> None:
     }
 
     # Capability summary: probe adapter classes for expected methods
-    caps: Dict[str, Dict[str, bool]] = {}
+    caps: dict[str, dict[str, bool]] = {}
     for name, cls in _ADAPTER_REGISTRY.items():
         caps[name] = {
             "spot_balance": hasattr(cls, "spot_balance"),

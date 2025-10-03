@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Simple working backend for quantum trader with basic AI endpoints."""
+from __future__ import annotations
 
 import threading
 from datetime import datetime, timezone
@@ -65,7 +66,7 @@ def get_ai_trading_status():
 
 
 @app.post("/api/v1/continuous-learning/start")
-async def start_continuous_learning(symbols: list[str] = None):
+async def start_continuous_learning(symbols: list[str] | None = None):
     """Start continuous learning."""
     if symbols is None:
         symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]

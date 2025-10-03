@@ -7,13 +7,11 @@ Dette skriptet kjører en rask test av AI-systemet med færre symboler for rask 
 
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 
-def run_quick_ai_test():
+def run_quick_ai_test() -> Optional[bool]:
     """Run a quick AI test and show results."""
-    print("🚀 Starter rask AI modell test...")
-    print("=" * 60)
-
     # Import here to avoid startup delays
     from ai_engine.train_and_save import run_backtest_only, train_and_save
 
@@ -21,13 +19,9 @@ def run_quick_ai_test():
     symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
     limit = 200  # Fewer candles for speed
 
-    print(f"📊 Testing symbols: {', '.join(symbols)}")
-    print(f"📈 Candles per symbol: {limit}")
-    print(f"⏰ Started: {datetime.now().strftime('%H:%M:%S')}\n")
 
     try:
         # Step 1: Train the model
-        print("🔄 Step 1: Training AI model...")
         start_time = datetime.now()
 
         training_result = train_and_save(
@@ -38,113 +32,89 @@ def run_quick_ai_test():
             entry_threshold=0.001,
         )
 
-        training_duration = (datetime.now() - start_time).total_seconds()
-        print(f"✅ Training completed in {training_duration:.1f} seconds")
+        (datetime.now() - start_time).total_seconds()
 
         if training_result:
-            print("\n📋 Training Results:")
-            for key, value in training_result.items():
+            for value in training_result.values():
                 if isinstance(value, dict):
-                    print(f"  {key}:")
-                    for k, v in value.items():
-                        print(f"    {k}: {v}")
+                    for _k, _v in value.items():
+                        pass
                 else:
-                    print(f"  {key}: {value}")
+                    pass
 
         # Step 2: Run backtest with different thresholds
-        print("\n🔄 Step 2: Running backtest variations...")
         thresholds = [0.001, 0.005, 0.01]
 
         for threshold in thresholds:
-            print(f"\n  🧪 Testing threshold: {threshold}")
             backtest_start = datetime.now()
 
             backtest_result = run_backtest_only(
-                symbols=symbols, limit=limit, entry_threshold=threshold
+                symbols=symbols, limit=limit, entry_threshold=threshold,
             )
 
-            backtest_duration = (datetime.now() - backtest_start).total_seconds()
-            print(f"     ⏱️ Completed in {backtest_duration:.1f} seconds")
+            (datetime.now() - backtest_start).total_seconds()
 
             if backtest_result:
                 # Show key metrics
                 if "total_return" in backtest_result:
-                    ret = backtest_result["total_return"]
-                    print(f"     💰 Total Return: {ret:.4f}")
+                    backtest_result["total_return"]
 
                 if "sharpe_ratio" in backtest_result:
-                    sharpe = backtest_result["sharpe_ratio"]
-                    print(f"     📊 Sharpe Ratio: {sharpe:.4f}")
+                    backtest_result["sharpe_ratio"]
 
                 if "win_rate" in backtest_result:
-                    win_rate = backtest_result["win_rate"]
-                    print(f"     🎯 Win Rate: {win_rate:.4f}")
+                    backtest_result["win_rate"]
 
                 if "num_trades" in backtest_result:
-                    trades = backtest_result["num_trades"]
-                    print(f"     🔄 Number of Trades: {trades}")
+                    backtest_result["num_trades"]
 
-        total_duration = (datetime.now() - start_time).total_seconds()
-        print(f"\n🏁 Total test duration: {total_duration:.1f} seconds")
-        print("✅ AI model test completed successfully!")
+        (datetime.now() - start_time).total_seconds()
 
         return True
 
-    except Exception as e:
-        print(f"\n❌ Test failed with error: {e}")
+    except Exception:
         return False
 
     finally:
-        print("\n" + "=" * 60)
-        print(f"🕐 Test finished: {datetime.now().strftime('%H:%M:%S')}")
+        pass
 
 
-def show_model_info():
+def show_model_info() -> None:
     """Show information about saved model."""
     try:
         from ai_engine.train_and_save import load_report
 
-        print("\n📁 Checking for saved model artifacts...")
 
         # Check default model directory
         model_dir = Path("ai_engine/models")
         if model_dir.exists():
             files = list(model_dir.glob("*.pkl")) + list(model_dir.glob("*.json"))
             if files:
-                print(f"   Found {len(files)} artifact files:")
                 for file in sorted(files):
-                    size = file.stat().st_size / 1024  # KB
-                    print(f"   - {file.name} ({size:.1f} KB)")
+                    file.stat().st_size / 1024  # KB
             else:
-                print("   No model artifacts found")
+                pass
 
         # Try to load report
         report = load_report()
         if report:
-            print("\n📊 Latest Training Report:")
-            print(f"   Symbols: {report.get('symbols', 'N/A')}")
-            print(f"   Samples: {report.get('num_samples', 'N/A')}")
 
             metrics = report.get("metrics", {})
             if metrics:
-                print(f"   MSE: {metrics.get('mse', 'N/A')}")
-                print(f"   R²: {metrics.get('r2', 'N/A')}")
+                pass
         else:
-            print("   No training report found")
+            pass
 
-    except Exception as e:
-        print(f"   Error checking model info: {e}")
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
-    print("🤖 Quantum Trader - AI Model Quick Test")
-    print("=" * 60)
 
     # Show current model status first
     show_model_info()
 
     # Ask user if they want to run the test
-    print("\nVil du kjøre en rask AI modell test? (y/n): ", end="")
     try:
         response = input().lower().strip()
         if response in ["y", "yes", "ja", "j"]:
@@ -152,6 +122,6 @@ if __name__ == "__main__":
             if success:
                 show_model_info()  # Show updated info after test
         else:
-            print("Test avbrutt.")
+            pass
     except KeyboardInterrupt:
-        print("\n\nTest avbrutt av bruker.")
+        pass

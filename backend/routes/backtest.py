@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Iterable, List, cast
+from typing import Any, Iterable, cast
 
 from fastapi import APIRouter
 from sqlalchemy import select
@@ -15,8 +15,8 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def _normalise_curve(points: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    curve: List[Dict[str, Any]] = []
+def _normalise_curve(points: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    curve: list[dict[str, Any]] = []
     for idx, point in enumerate(points):
         timestamp = (
             point.get("timestamp")
@@ -33,16 +33,16 @@ def _normalise_curve(points: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return curve
 
 
-def _model_backtest(symbol: str, limit: int, entry_threshold: float) -> Dict[str, Any]:
+def _model_backtest(symbol: str, limit: int, entry_threshold: float) -> dict[str, Any]:
     try:
         summary = run_backtest_only(
-            symbols=[symbol], limit=limit, entry_threshold=entry_threshold
+            symbols=[symbol], limit=limit, entry_threshold=entry_threshold,
         )
     except FileNotFoundError:
         logger.debug("Model artifacts missing; running training step for %s", symbol)
         train_and_save(symbols=[symbol], limit=max(limit, 300), backtest=True)
         summary = run_backtest_only(
-            symbols=[symbol], limit=limit, entry_threshold=entry_threshold
+            symbols=[symbol], limit=limit, entry_threshold=entry_threshold,
         )
 
     metrics = summary.get("metrics", {})
@@ -51,7 +51,7 @@ def _model_backtest(symbol: str, limit: int, entry_threshold: float) -> Dict[str
     backtest_payload = dict(backtest)
     backtest_payload["equity_curve"] = curve
 
-    response: Dict[str, Any] = {
+    response: dict[str, Any] = {
         "symbol": symbol,
         "mode": "model",
         "source": "model_artifacts",
@@ -71,13 +71,13 @@ def _model_backtest(symbol: str, limit: int, entry_threshold: float) -> Dict[str
     return response
 
 
-def _legacy_backtest(symbol: str, days: int) -> Dict[str, Any]:
+def _legacy_backtest(symbol: str, days: int) -> dict[str, Any]:
     with session_scope() as session:
         trade_rows = (
             session.execute(
                 select(Trade)
                 .where(Trade.symbol == symbol)
-                .order_by(cast(Any, Trade.timestamp).asc())
+                .order_by(cast(Any, Trade.timestamp).asc()),
             )
             .scalars()
             .all()
@@ -86,7 +86,7 @@ def _legacy_backtest(symbol: str, days: int) -> Dict[str, Any]:
         if trade_rows:
             start_equity = 10_000.0
             equity = start_equity
-            curve: List[Dict[str, Any]] = []
+            curve: list[dict[str, Any]] = []
             wins = 0
             for trade in trade_rows:
                 if trade.side.upper() == "BUY":
@@ -100,7 +100,7 @@ def _legacy_backtest(symbol: str, days: int) -> Dict[str, Any]:
                             trade.timestamp.isoformat() if trade.timestamp else None
                         ),
                         "equity": round(equity, 2),
-                    }
+                    },
                 )
             pnl = round(equity - start_equity, 2)
             return {
@@ -119,7 +119,7 @@ def _legacy_backtest(symbol: str, days: int) -> Dict[str, Any]:
                 select(Candle)
                 .where(Candle.symbol == symbol)
                 .order_by(cast(Any, Candle.timestamp).asc())
-                .limit(days)
+                .limit(days),
             )
             .scalars()
             .all()
@@ -148,7 +148,7 @@ def _legacy_backtest(symbol: str, days: int) -> Dict[str, Any]:
             {
                 "timestamp": candle.timestamp.isoformat() if candle.timestamp else None,
                 "equity": round(equity, 2),
-            }
+            },
         )
 
     pnl = round(equity - start_equity, 2)

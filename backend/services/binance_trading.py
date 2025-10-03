@@ -1,5 +1,7 @@
 # Binance trading service implementation
-from typing import Any, Optional
+from __future__ import annotations
+
+from typing import Any
 
 
 class TradingEngine:
@@ -13,7 +15,7 @@ class TradingEngine:
         return {"USDT": 1000.0, "BTC": 0.0}
 
     def place_order(
-        self, symbol: str, side: str, quantity: float, price: Optional[float] = None
+        self, symbol: str, side: str, quantity: float, price: float | None = None,
     ) -> dict[str, Any]:
         """Place a trading order."""
         return {

@@ -52,8 +52,7 @@ crypto_data = [
 
 
 class SimpleHandler(http.server.SimpleHTTPRequestHandler):
-    def do_GET(self):
-        print(f"📡 GET Request: {self.path}")
+    def do_GET(self) -> None:
 
         # CORS headers
         self.send_response(200)
@@ -124,7 +123,7 @@ class SimpleHandler(http.server.SimpleHTTPRequestHandler):
                     "side": "buy",
                     "confidence": 0.85,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
+                },
             ]
         elif path == "/api/v1/enhanced/data":
             response = {
@@ -150,11 +149,9 @@ class SimpleHandler(http.server.SimpleHTTPRequestHandler):
             response = {"error": "Not found", "path": path}
 
         json_response = json.dumps(response)
-        print(f"✅ Response sent: {len(json_response)} bytes")
         self.wfile.write(json_response.encode())
 
-    def do_POST(self):
-        print(f"📡 POST Request: {self.path}")
+    def do_POST(self) -> None:
 
         self.send_response(200)
         self.send_header("Content-type", "application/json")
@@ -182,18 +179,16 @@ class SimpleHandler(http.server.SimpleHTTPRequestHandler):
             response = {"error": "Not found"}
 
         json_response = json.dumps(response)
-        print(f"✅ POST Response sent: {len(json_response)} bytes")
         self.wfile.write(json_response.encode())
 
-    def do_OPTIONS(self):
-        print(f"📡 OPTIONS Request: {self.path}")
+    def do_OPTIONS(self) -> None:
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "*")
         self.end_headers()
 
-    def log_message(self, format, *args):
+    def log_message(self, format, *args) -> None:
         # Disable default logging to avoid clutter
         pass
 
@@ -203,7 +198,7 @@ class SimpleHandler(http.server.SimpleHTTPRequestHandler):
 # ===========================================
 
 
-def update_data():
+def update_data() -> None:
     """Update data continuously."""
     while True:
         time.sleep(30)  # Update every 30 seconds
@@ -218,7 +213,6 @@ def update_data():
             coin["price"] *= 1 + change
             coin["change24h"] += change * 100
 
-        print(f"📊 Data updated - AI points: {ai_state['data_points']}")
 
 
 # ===========================================
@@ -226,39 +220,23 @@ def update_data():
 # ===========================================
 
 
-def main():
-    print("🚀 QUANTUM TRADER - ENKEL FUNGERENDE SERVER")
-    print("=" * 60)
+def main() -> None:
 
     # Start background updater
     threading.Thread(target=update_data, daemon=True).start()
-    print("📊 Background data updater started")
 
     # Start HTTP server
     PORT = 8000
-    print(f"🌐 Starting HTTP Server on port {PORT}")
 
     try:
         with socketserver.TCPServer(("", PORT), SimpleHandler) as httpd:
-            print(f"✅ Server running on http://localhost:{PORT}")
-            print("📡 Endpoints ready:")
-            print("   - /api/v1/system/status")
-            print("   - /api/v1/ai-trading/status")
-            print("   - /api/v1/continuous-learning/status")
-            print("   - /api/v1/portfolio")
-            print("   - /api/v1/portfolio/market-overview")
-            print("   - /api/v1/signals/recent")
-            print("   - /api/v1/enhanced/data")
-            print("=" * 60)
-            print("✅ DASHBOARD SKAL NÅ VISE DATA!")
-            print("💡 Gå til frontend og sjekk at data vises")
 
             httpd.serve_forever()
 
     except KeyboardInterrupt:
-        print("\n🛑 Server stopped")
-    except Exception as e:
-        print(f"❌ Server error: {e}")
+        pass
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

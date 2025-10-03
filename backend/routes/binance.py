@@ -8,7 +8,7 @@ configured) they call through to the configured exchange adapter.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -31,21 +31,21 @@ def _live_enabled() -> bool:
     return bool(getattr(cfg, "enable_live_market_data", False))
 
 
-def _determine_exchange(name: Optional[str]) -> str:
+def _determine_exchange(name: str | None) -> str:
     cfg = load_config()
     preferred = name or getattr(cfg, "default_exchange", None)
     return resolve_exchange_name(preferred)
 
 
-def _demo_spot() -> Dict[str, Any]:
+def _demo_spot() -> dict[str, Any]:
     return {"asset": "USDC", "free": 1000.0, "source": "demo"}
 
 
-def _demo_futures() -> Dict[str, Any]:
+def _demo_futures() -> dict[str, Any]:
     return {"asset": "USDT", "balance": 0.0, "source": "demo"}
 
 
-def _demo_trades(symbol: str, limit: int) -> List[Dict[str, Any]]:
+def _demo_trades(symbol: str, limit: int) -> list[dict[str, Any]]:
     now = datetime.now(timezone.utc).isoformat()
     return [
         {
@@ -67,7 +67,7 @@ def _client_or_raise(name: str) -> ExchangeClient:
 
 
 @router.get("/spot-balance")
-def spot_balance(exchange: Optional[str] = Query(None)) -> Dict[str, Any]:
+def spot_balance(exchange: str | None = Query(None)) -> dict[str, Any]:
     name = _determine_exchange(exchange)
     if not _live_enabled():
         return {"exchange": name, "balance": _demo_spot()}
@@ -76,13 +76,13 @@ def spot_balance(exchange: Optional[str] = Query(None)) -> Dict[str, Any]:
         balance = client.spot_balance()
     except Exception as exc:  # pragma: no cover - adapter specific
         raise HTTPException(
-            status_code=503, detail=f"Unable to fetch spot balance: {exc}"
+            status_code=503, detail=f"Unable to fetch spot balance: {exc}",
         ) from exc
     return {"exchange": name, "balance": balance}
 
 
 @router.get("/futures-balance")
-def futures_balance(exchange: Optional[str] = Query(None)) -> Dict[str, Any]:
+def futures_balance(exchange: str | None = Query(None)) -> dict[str, Any]:
     name = _determine_exchange(exchange)
     if not _live_enabled():
         return {"exchange": name, "balance": _demo_futures()}
@@ -91,7 +91,7 @@ def futures_balance(exchange: Optional[str] = Query(None)) -> Dict[str, Any]:
         balance = client.futures_balance()
     except Exception as exc:  # pragma: no cover
         raise HTTPException(
-            status_code=503, detail=f"Unable to fetch futures balance: {exc}"
+            status_code=503, detail=f"Unable to fetch futures balance: {exc}",
         ) from exc
     return {"exchange": name, "balance": balance}
 
@@ -100,8 +100,8 @@ def futures_balance(exchange: Optional[str] = Query(None)) -> Dict[str, Any]:
 def recent_trades(
     symbol: str = Query("BTCUSDT", min_length=4),
     limit: int = Query(5, ge=1, le=100),
-    exchange: Optional[str] = Query(None),
-) -> Dict[str, Any]:
+    exchange: str | None = Query(None),
+) -> dict[str, Any]:
     name = _determine_exchange(exchange)
     if not _live_enabled():
         return {"exchange": name, "trades": _demo_trades(symbol, limit)}
@@ -110,13 +110,13 @@ def recent_trades(
         trades = client.fetch_recent_trades(symbol, limit=limit)
     except Exception as exc:  # pragma: no cover
         raise HTTPException(
-            status_code=503, detail=f"Unable to fetch trades: {exc}"
+            status_code=503, detail=f"Unable to fetch trades: {exc}",
         ) from exc
     return {"exchange": name, "symbol": symbol, "trades": trades[:limit]}
 
 
 @router.get("/server-time")
-def server_time(exchange: Optional[str] = Query(None)) -> Dict[str, Any]:
+def server_time(exchange: str | None = Query(None)) -> dict[str, Any]:
     name = _determine_exchange(exchange)
     now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
     return {"exchange": name, "serverTime": now_ms}

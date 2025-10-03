@@ -3,8 +3,8 @@ import pytest
 from backend.enhanced_data_feeds import get_enhanced_market_data
 
 
-@pytest.mark.asyncio
-async def test_ai_insights():
+@pytest.mark.asyncio()
+async def test_ai_insights() -> None:
     data = await get_enhanced_market_data(["BTC", "ETH"])
     insights = data.get("ai_insights", {})
     # Basic structural assertions

@@ -39,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).parent / "backend"))
 class BackendSystemTester:
     """Comprehensive backend system testing."""
 
-    def __init__(self, base_url: str = "http://localhost:8000"):
+    def __init__(self, base_url: str = "http://localhost:8000") -> None:
         self.base_url = base_url
         self.ws_base_url = base_url.replace("http", "ws")
         self.backend_process: Optional[subprocess.Popen] = None
@@ -51,12 +51,10 @@ class BackendSystemTester:
             # Check if server is already running
             response = requests.get(f"{self.base_url}/health", timeout=2)
             if response.status_code == 200:
-                print("✅ Backend server already running")
                 return True
-        except Exception as e:
-            print(f"Server not running (will start): {e}")
+        except Exception:
+            pass
 
-        print("🚀 Starting backend server...")
 
         # Start the backend server
         self.backend_process = subprocess.Popen(
@@ -82,19 +80,15 @@ class BackendSystemTester:
                 time.sleep(1)
                 response = requests.get(f"{self.base_url}/health", timeout=2)
                 if response.status_code == 200:
-                    print("✅ Backend server started successfully")
                     return True
-            except Exception as e:
-                print(f"Backend not ready yet: {e}")
+            except Exception:
                 continue
 
-        print("❌ Failed to start backend server")
         return False
 
-    def stop_backend_server(self):
+    def stop_backend_server(self) -> None:
         """Stop the backend server."""
         if self.backend_process:
-            print("🛑 Stopping backend server...")
             self.backend_process.terminate()
             self.backend_process.wait(timeout=10)
             self.backend_process = None
@@ -154,7 +148,7 @@ class BackendSystemTester:
                     response = requests.get(f"{self.base_url}{endpoint}", timeout=10)
                 elif method == "POST":
                     response = requests.post(
-                        f"{self.base_url}{endpoint}", json=payload, timeout=10
+                        f"{self.base_url}{endpoint}", json=payload, timeout=10,
                     )
 
                 response_time = (time.time() - start_time) * 1000  # ms
@@ -216,29 +210,29 @@ class BackendSystemTester:
         messages_received = []
         connection_successful = False
 
-        def on_message(ws, message):
+        def on_message(ws, message) -> None:
             try:
                 data = json.loads(message)
                 messages_received.append(data)
             except Exception:
                 messages_received.append({"raw_message": message})
 
-        def on_open(ws):
+        def on_open(ws) -> None:
             nonlocal connection_successful
             connection_successful = True
             # Send a test message
             ws.send(
-                json.dumps({"type": "ping", "timestamp": datetime.now().isoformat()})
+                json.dumps({"type": "ping", "timestamp": datetime.now().isoformat()}),
             )
 
-        def on_error(ws, error):
-            print(f"WebSocket error: {error}")
+        def on_error(ws, error) -> None:
+            pass
 
         try:
             # Test dashboard WebSocket
             ws_url = f"{self.ws_base_url}/ws/dashboard"
             ws = websocket.WebSocketApp(
-                ws_url, on_open=on_open, on_message=on_message, on_error=on_error
+                ws_url, on_open=on_open, on_message=on_message, on_error=on_error,
             )
 
             # Run WebSocket in thread for 5 seconds
@@ -406,9 +400,6 @@ class BackendSystemTester:
 
     def run_all_tests(self) -> Dict[str, Any]:
         """Run all backend system tests."""
-        print("🔍 Running Backend System Tests...")
-        print("=" * 50)
-
         # Start backend server
         if not self.start_backend_server():
             return {"error": "Failed to start backend server"}
@@ -434,38 +425,30 @@ class BackendSystemTester:
                 ("Database Operations", self.test_database_operations),
             ]
 
-            for test_name, test_func in tests:
-                print(f"\n📋 Running: {test_name}")
+            for _test_name, test_func in tests:
 
                 try:
                     result = test_func()
 
                     if isinstance(
-                        result, list
+                        result, list,
                     ):  # Multiple results (like API endpoints)
                         for r in result:
                             test_summary["tests_run"] += 1
                             if r.get("success", False):
                                 test_summary["tests_passed"] += 1
-                                print(f"  ✅ {r['test_name']}")
                             else:
                                 test_summary["tests_failed"] += 1
-                                print(
-                                    f"  ❌ {r['test_name']}: {r.get('error', 'Failed')}"
-                                )
                     else:  # Single result
                         test_summary["tests_run"] += 1
                         if result.get("success", False):
                             test_summary["tests_passed"] += 1
-                            print(f"  ✅ {test_name}")
                         else:
                             test_summary["tests_failed"] += 1
-                            print(f"  ❌ {test_name}: {result.get('error', 'Failed')}")
 
-                except Exception as e:
+                except Exception:
                     test_summary["tests_run"] += 1
                     test_summary["tests_failed"] += 1
-                    print(f"  ❌ {test_name}: {str(e)}")
 
             test_summary["total_duration_ms"] = (time.time() - start_time) * 1000
             test_summary["success_rate"] = (
@@ -477,13 +460,6 @@ class BackendSystemTester:
             test_summary["detailed_results"] = self.test_results
 
             # Print summary
-            print("\n" + "=" * 50)
-            print("📊 Backend System Test Summary:")
-            print(f"  Tests Run: {test_summary['tests_run']}")
-            print(f"  Tests Passed: {test_summary['tests_passed']}")
-            print(f"  Tests Failed: {test_summary['tests_failed']}")
-            print(f"  Success Rate: {test_summary['success_rate']:.1%}")
-            print(f"  Total Duration: {test_summary['total_duration_ms']:.0f}ms")
 
             return test_summary
 
@@ -492,7 +468,7 @@ class BackendSystemTester:
             self.stop_backend_server()
 
 
-def main():
+def main() -> int:
     """Main test execution."""
     import argparse
 
@@ -510,17 +486,14 @@ def main():
     if args.output:
         with open(args.output, "w") as f:
             json.dump(results, f, indent=2, default=str)
-        print(f"📄 Results saved to: {args.output}")
 
     # Exit with appropriate code
     success_rate = results.get("success_rate", 0)
     if success_rate >= 0.8:  # 80% success rate required
-        print("✅ Backend system tests PASSED")
         return 0
     else:
-        print("❌ Backend system tests FAILED")
         return 1
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

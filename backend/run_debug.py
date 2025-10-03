@@ -21,9 +21,7 @@ try:
 
     from backend.main import app
 
-    print("Starting uvicorn via run_debug...")
     uvicorn.run(app, host="127.0.0.1", port=8000, log_level="debug")
 except Exception:
-    print("Exception starting uvicorn:")
     traceback.print_exc()
     sys.exit(1)

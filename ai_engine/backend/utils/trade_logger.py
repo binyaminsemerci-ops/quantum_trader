@@ -3,7 +3,7 @@ import sqlite3
 DB_PATH = "backend/data/trades.db"
 
 
-def init_db():
+def init_db() -> None:
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
@@ -16,13 +16,13 @@ def init_db():
         pnl REAL,
         equity REAL,
         timestamp TEXT
-    )"""
+    )""",
     )
     conn.commit()
     conn.close()
 
 
-def log_trade(symbol, side, qty, price, pnl, equity, timestamp):
+def log_trade(symbol, side, qty, price, pnl, equity, timestamp) -> None:
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(

@@ -7,6 +7,7 @@ Tests basic frontend build and accessibility.
 
 import json
 import subprocess
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -16,7 +17,7 @@ from typing import Any, Dict, List
 class SimpleFrontendTester:
     """Simplified frontend system tester."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.frontend_dir = Path("frontend")
         self.test_results: List[Dict[str, Any]] = []
 
@@ -36,7 +37,7 @@ class SimpleFrontendTester:
             file_path = self.frontend_dir / file_name
             exists = file_path.exists()
             file_results.append(
-                {"file": file_name, "exists": exists, "path": str(file_path)}
+                {"file": file_name, "exists": exists, "path": str(file_path)},
             )
 
         files_found = sum(1 for result in file_results if result["exists"])
@@ -70,7 +71,7 @@ class SimpleFrontendTester:
                     "test_duration_ms": (time.time() - start_time) * 1000,
                 }
             else:
-                with open(package_json_path, "r") as f:
+                with open(package_json_path) as f:
                     package_data = json.load(f)
 
                 # Check for key properties
@@ -78,10 +79,10 @@ class SimpleFrontendTester:
                 has_scripts = "scripts" in package_data
                 has_dependencies = "dependencies" in package_data
                 has_dev_script = has_scripts and "dev" in package_data.get(
-                    "scripts", {}
+                    "scripts", {},
                 )
                 has_build_script = has_scripts and "build" in package_data.get(
-                    "scripts", {}
+                    "scripts", {},
                 )
 
                 checks = [
@@ -129,7 +130,7 @@ class SimpleFrontendTester:
                 capture_output=True,
                 text=True,
                 timeout=10,
-                cwd=self.frontend_dir,
+                cwd=self.frontend_dir, check=False,
             )
 
             npm_available = result.returncode == 0
@@ -171,7 +172,7 @@ class SimpleFrontendTester:
                     capture_output=True,
                     text=True,
                     timeout=30,
-                    cwd=self.frontend_dir,
+                    cwd=self.frontend_dir, check=False,
                 )
 
                 has_packages = result.returncode == 0 or "node_modules" in result.stdout
@@ -190,7 +191,7 @@ class SimpleFrontendTester:
                     capture_output=True,
                     text=True,
                     timeout=60,
-                    cwd=self.frontend_dir,
+                    cwd=self.frontend_dir, check=False,
                 )
 
                 test_result = {
@@ -217,61 +218,46 @@ class SimpleFrontendTester:
 
     def run_simple_tests(self) -> Dict[str, Any]:
         """Run simple frontend tests."""
-        print("🧪 Running Simple Frontend Tests...")
-
         start_time = time.time()
 
         # Check if frontend directory exists
         if not self.frontend_dir.exists():
-            print(f"  ❌ Frontend directory not found: {self.frontend_dir}")
             return {
                 "error": f"Frontend directory not found: {self.frontend_dir}",
                 "timestamp": datetime.now().isoformat(),
             }
 
-        print(f"  📁 Frontend directory: {self.frontend_dir}")
 
         # Test frontend files
-        print("  🔍 Checking frontend files...")
         files_result = self.test_frontend_files_exist()
 
         if files_result["success"]:
-            print(f"  ✅ Frontend files present ({files_result['success_rate']:.1%})")
+            pass
         else:
-            print(f"  ⚠️ Missing frontend files ({files_result['success_rate']:.1%})")
+            pass
 
         # Test package.json
-        print("  🔍 Checking package.json...")
         package_result = self.test_package_json_content()
 
         if package_result["success"]:
-            print("  ✅ Package.json looks good")
+            pass
         else:
-            print(
-                f"  ⚠️ Package.json issues: {package_result.get('error', 'Invalid content')}"
-            )
+            pass
 
         # Test npm
-        print("  🔍 Checking npm availability...")
         npm_result = self.test_npm_available()
 
         if npm_result["success"]:
-            print(
-                f"  ✅ npm available (version: {npm_result.get('npm_version', 'unknown')})"
-            )
 
             # Test dependencies if npm is available
-            print("  🔍 Checking dependencies...")
             deps_result = self.test_dependencies_installable()
 
             if deps_result["success"]:
-                print("  ✅ Dependencies look good")
+                pass
             else:
-                print(
-                    f"  ⚠️ Dependency issues: {deps_result.get('error', 'Unknown issue')}"
-                )
+                pass
         else:
-            print(f"  ❌ npm not available: {npm_result.get('error', 'Unknown error')}")
+            pass
 
         # Calculate overall results
         total_tests = len(self.test_results)
@@ -279,7 +265,7 @@ class SimpleFrontendTester:
             1 for result in self.test_results if result.get("success", False)
         )
 
-        summary = {
+        return {
             "tests_run": total_tests,
             "tests_passed": successful_tests,
             "tests_failed": total_tests - successful_tests,
@@ -289,10 +275,9 @@ class SimpleFrontendTester:
             "timestamp": datetime.now().isoformat(),
         }
 
-        return summary
 
 
-def main():
+def main() -> int:
     """Main test execution."""
     import argparse
 
@@ -307,30 +292,21 @@ def main():
 
     # Handle error case
     if "error" in results:
-        print(f"❌ Frontend tests failed: {results['error']}")
         return 1
 
     # Print summary
-    print("\n📊 Frontend Test Summary:")
-    print(f"  Tests Run: {results['tests_run']}")
-    print(f"  Tests Passed: {results['tests_passed']}")
-    print(f"  Success Rate: {results['success_rate']:.1%}")
-    print(f"  Duration: {results['total_duration_ms']:.0f}ms")
 
     # Save results if requested
     if args.output:
         with open(args.output, "w") as f:
             json.dump(results, f, indent=2, default=str)
-        print(f"📄 Results saved to: {args.output}")
 
     # Exit with appropriate code
     if results["success_rate"] >= 0.5:
-        print("✅ Frontend tests PASSED")
         return 0
     else:
-        print("❌ Frontend tests FAILED")
         return 1
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

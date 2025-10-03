@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 from ai_engine.agents.xgb_agent import make_default_agent
 from backend.routes.settings import SETTINGS
@@ -58,10 +58,10 @@ def _normalize_symbol(symbol: str, quote: str) -> str:
     return f"{symbol}/{quote}"
 
 
-def _demo_candles(symbol: str, limit: int) -> List[Dict[str, Any]]:
+def _demo_candles(symbol: str, limit: int) -> list[dict[str, Any]]:
     now = datetime.now(timezone.utc)
     base = 100.0 + (hash(symbol) % 50)
-    candles: List[Dict[str, Any]] = []
+    candles: list[dict[str, Any]] = []
     for i in range(limit):
         ts = now - timedelta(minutes=(limit - i))
         open_p = base + (i * 0.1) + (0.5 * (i % 3))
@@ -77,17 +77,17 @@ def _demo_candles(symbol: str, limit: int) -> List[Dict[str, Any]]:
                 "low": round(low_p, 3),
                 "close": round(close_p, 3),
                 "volume": volume,
-            }
+            },
         )
     return candles
 
 
-def fetch_recent_candles(symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
+def fetch_recent_candles(symbol: str, limit: int = 100) -> list[dict[str, Any]]:
     cfg = load_config()
     enable_live = bool(
         SETTINGS.get(
-            "ENABLE_LIVE_MARKET_DATA", getattr(cfg, "enable_live_market_data", False)
-        )
+            "ENABLE_LIVE_MARKET_DATA", getattr(cfg, "enable_live_market_data", False),
+        ),
     )
     if enable_live and ccxt is not None:
         exchange_name = resolve_exchange_name(getattr(cfg, "default_exchange", None))
@@ -95,10 +95,10 @@ def fetch_recent_candles(symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
             exchange_class = getattr(ccxt, exchange_name)
         except AttributeError:
             logger.warning(
-                "Unknown ccxt exchange '%s'; falling back to demo data", exchange_name
+                "Unknown ccxt exchange '%s'; falling back to demo data", exchange_name,
             )
         else:
-            params: Dict[str, Any] = {
+            params: dict[str, Any] = {
                 "enableRateLimit": True,
                 "timeout": getattr(cfg, "ccxt_timeout", 10000),
                 "sandbox": False,  # Use live public API
@@ -112,7 +112,7 @@ def fetch_recent_candles(symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
             try:
                 exchange = exchange_class(params)
                 market = _normalize_symbol(
-                    symbol, getattr(cfg, "default_quote", settings.default_quote)
+                    symbol, getattr(cfg, "default_quote", settings.default_quote),
                 )
                 timeframe = getattr(cfg, "ccxt_timeframe", "1m")
                 ohlcv = exchange.fetch_ohlcv(market, timeframe=timeframe, limit=limit)
@@ -121,14 +121,14 @@ def fetch_recent_candles(symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
                     candles.append(
                         {
                             "time": datetime.fromtimestamp(
-                                ts / 1000, timezone.utc
+                                ts / 1000, timezone.utc,
                             ).isoformat(),
                             "open": float(open_p),
                             "high": float(high_p),
                             "low": float(low_p),
                             "close": float(close_p),
                             "volume": float(volume),
-                        }
+                        },
                     )
                 if candles:
                     return candles
@@ -144,10 +144,10 @@ def fetch_recent_candles(symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
 
 
 def _demo_signals(
-    symbol: str, limit: int, profile: str = "mixed"
-) -> List[Dict[str, Any]]:
+    symbol: str, limit: int, profile: str = "mixed",
+) -> list[dict[str, Any]]:
     now = datetime.now(timezone.utc)
-    signals: List[Dict[str, Any]] = []
+    signals: list[dict[str, Any]] = []
     for i in range(limit):
         ts = now - timedelta(minutes=5 * i)
         if profile == "left":
@@ -165,14 +165,14 @@ def _demo_signals(
                 "score": round(0.5 + ((-1) ** i) * 0.05, 3),
                 "confidence": 0.5 + ((i % 5) / 10),
                 "details": {"source": "demo", "note": f"mock signal #{i}"},
-            }
+            },
         )
     return signals
 
 
 def fetch_recent_signals(
-    symbol: str, limit: int = 20, profile: str = "mixed"
-) -> List[Dict[str, Any]]:
+    symbol: str, limit: int = 20, profile: str = "mixed",
+) -> list[dict[str, Any]]:
     # Check cache first - return cached signals if fresh (within TTL)
     import time
 
@@ -187,8 +187,8 @@ def fetch_recent_signals(
     cfg = load_config()
     enable_live = bool(
         SETTINGS.get(
-            "ENABLE_LIVE_MARKET_DATA", getattr(cfg, "enable_live_market_data", False)
-        )
+            "ENABLE_LIVE_MARKET_DATA", getattr(cfg, "enable_live_market_data", False),
+        ),
     )
 
     if enable_live:
@@ -198,7 +198,7 @@ def fetch_recent_signals(
             if len(candles) >= 20:
                 history = min(240, max(60, len(candles)))
                 start_idx = max(0, len(candles) - limit)
-                signals: List[Dict[str, Any]] = []
+                signals: list[dict[str, Any]] = []
                 for idx in range(start_idx, len(candles)):
                     window_start = max(0, idx - history + 1)
                     window = candles[window_start : idx + 1]
@@ -233,7 +233,7 @@ def fetch_recent_signals(
                                 "raw_action": action,
                                 "raw_score": raw_score,
                             },
-                        }
+                        },
                     )
                 if signals:
                     # Cache the ML signals for future requests

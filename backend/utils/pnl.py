@@ -20,7 +20,7 @@ def calculate_pnl() -> float:
 def calculate_pnl_per_symbol() -> Dict[str, float]:
     with session_scope() as session:
         rows = session.execute(
-            select(Trade.symbol, Trade.side, Trade.qty, Trade.price)
+            select(Trade.symbol, Trade.side, Trade.qty, Trade.price),
         ).all()
     pnl: Dict[str, float] = {}
     for symbol, side, qty, price in rows:

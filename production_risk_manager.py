@@ -16,7 +16,7 @@ import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from config.config import settings
 
@@ -46,8 +46,8 @@ class Position:
     entry_price: float
     quantity: float
     entry_time: datetime
-    stop_loss: Optional[float] = None
-    take_profit: Optional[float] = None
+    stop_loss: float | None = None
+    take_profit: float | None = None
     unrealized_pnl: float = 0.0
     risk_amount: float = 0.0
 
@@ -58,7 +58,7 @@ class PortfolioState:
 
     total_equity: float
     available_equity: float
-    positions: List[Position]
+    positions: list[Position]
     daily_pnl: float = 0.0
     max_drawdown: float = 0.0
     daily_trades: int = 0
@@ -68,7 +68,7 @@ class PortfolioState:
 class RiskManager:
     """Production-ready risk management system."""
 
-    def __init__(self, parameters: Optional[RiskParameters] = None):
+    def __init__(self, parameters: RiskParameters | None = None) -> None:
         self.params = parameters or RiskParameters()
         self.portfolio = PortfolioState(
             total_equity=settings.starting_equity,
@@ -83,21 +83,21 @@ class RiskManager:
         # Setup logging
         self._setup_logging()
 
-    def _setup_logging(self):
+    def _setup_logging(self) -> None:
         """Setup risk management logging."""
         risk_logger = logging.getLogger("risk_manager")
         if not risk_logger.handlers:
             handler = logging.FileHandler(self.log_file)
             formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             )
             handler.setFormatter(formatter)
             risk_logger.addHandler(handler)
             risk_logger.setLevel(logging.INFO)
 
     def calculate_position_size(
-        self, entry_price: float, stop_loss_price: float, signal_confidence: float = 1.0
-    ) -> Tuple[float, Dict[str, Any]]:
+        self, entry_price: float, stop_loss_price: float, signal_confidence: float = 1.0,
+    ) -> tuple[float, dict[str, Any]]:
         """Calculate optimal position size based on risk parameters.
 
         Args:
@@ -157,8 +157,8 @@ class RiskManager:
         return position_size, risk_info
 
     def calculate_stop_loss_take_profit(
-        self, entry_price: float, side: str, atr: Optional[float] = None
-    ) -> Tuple[float, float]:
+        self, entry_price: float, side: str, atr: float | None = None,
+    ) -> tuple[float, float]:
         """Calculate stop loss and take profit levels.
 
         Args:
@@ -196,8 +196,8 @@ class RiskManager:
         side: str,
         entry_price: float,
         signal_strength: float = 1.0,
-        market_data: Optional[Dict] = None,
-    ) -> Tuple[bool, Dict[str, Any]]:
+        market_data: dict | None = None,
+    ) -> tuple[bool, dict[str, Any]]:
         """Validate if a trade signal should be executed based on risk rules.
 
         Returns
@@ -278,15 +278,15 @@ class RiskManager:
         side: str,
         entry_price: float,
         quantity: float,
-        stop_loss: Optional[float] = None,
-        take_profit: Optional[float] = None,
+        stop_loss: float | None = None,
+        take_profit: float | None = None,
     ) -> bool:
         """Add a new position to the portfolio."""
         try:
             # Calculate stop loss and take profit if not provided
             if stop_loss is None or take_profit is None:
                 calc_stop, calc_tp = self.calculate_stop_loss_take_profit(
-                    entry_price, side
+                    entry_price, side,
                 )
                 stop_loss = stop_loss or calc_stop
                 take_profit = take_profit or calc_tp
@@ -313,16 +313,16 @@ class RiskManager:
 
             # Log the position
             logger.info(
-                f"Added position: {symbol} {side} {quantity}@{entry_price} SL:{stop_loss} TP:{take_profit}"
+                f"Added position: {symbol} {side} {quantity}@{entry_price} SL:{stop_loss} TP:{take_profit}",
             )
 
             return True
 
         except Exception as e:
-            logger.error(f"Failed to add position: {e}")
+            logger.exception(f"Failed to add position: {e}")
             return False
 
-    def update_portfolio(self, current_prices: Dict[str, float]):
+    def update_portfolio(self, current_prices: dict[str, float]) -> None:
         """Update portfolio with current market prices."""
         total_unrealized_pnl = 0.0
 
@@ -356,7 +356,7 @@ class RiskManager:
         ) * 100
         self.portfolio.max_drawdown = max(self.portfolio.max_drawdown, current_drawdown)
 
-    def check_exit_conditions(self, current_prices: Dict[str, float]) -> List[Dict]:
+    def check_exit_conditions(self, current_prices: dict[str, float]) -> list[dict]:
         """Check if any positions should be closed based on stop loss/take profit."""
         exit_signals = []
 
@@ -375,13 +375,12 @@ class RiskManager:
                 elif current_price >= position.take_profit:
                     should_exit = True
                     exit_reason = "take_profit"
-            else:  # short
-                if current_price >= position.stop_loss:
-                    should_exit = True
-                    exit_reason = "stop_loss"
-                elif current_price <= position.take_profit:
-                    should_exit = True
-                    exit_reason = "take_profit"
+            elif current_price >= position.stop_loss:
+                should_exit = True
+                exit_reason = "stop_loss"
+            elif current_price <= position.take_profit:
+                should_exit = True
+                exit_reason = "take_profit"
 
             if should_exit:
                 exit_signals.append(
@@ -390,12 +389,12 @@ class RiskManager:
                         "exit_price": current_price,
                         "exit_reason": exit_reason,
                         "pnl": position.unrealized_pnl,
-                    }
+                    },
                 )
 
         return exit_signals
 
-    def close_position(self, symbol: str, exit_price: float, reason: str = "manual"):
+    def close_position(self, symbol: str, exit_price: float, reason: str = "manual") -> bool:
         """Close a position and update portfolio."""
         position_to_close = None
         for _i, position in enumerate(self.portfolio.positions):
@@ -427,11 +426,11 @@ class RiskManager:
         self.portfolio.positions.remove(position_to_close)
 
         logger.info(
-            f"Closed position: {symbol} @ {exit_price} PnL: {pnl:.2f} Reason: {reason}"
+            f"Closed position: {symbol} @ {exit_price} PnL: {pnl:.2f} Reason: {reason}",
         )
         return True
 
-    def get_portfolio_summary(self) -> Dict[str, Any]:
+    def get_portfolio_summary(self) -> dict[str, Any]:
         """Get current portfolio summary."""
         return {
             "total_equity": self.portfolio.total_equity,
@@ -444,7 +443,7 @@ class RiskManager:
             "risk_parameters": asdict(self.params),
         }
 
-    def save_state(self, filepath: Optional[str] = None):
+    def save_state(self, filepath: str | None = None) -> None:
         """Save current portfolio state to file."""
         if filepath is None:
             filepath = (
@@ -458,10 +457,8 @@ class RiskManager:
         logger.info(f"Portfolio state saved to {filepath}")
 
 
-def test_risk_manager():
+def test_risk_manager() -> None:
     """Test the risk management system."""
-    print("🧪 Testing Risk Management System")
-
     # Initialize risk manager
     risk_params = RiskParameters(
         max_position_size_pct=1.0,  # Conservative for testing
@@ -472,39 +469,27 @@ def test_risk_manager():
     rm = RiskManager(risk_params)
 
     # Test position sizing
-    print("\n📊 Testing Position Sizing:")
     entry_price = 50000.0
     stop_loss = 49000.0
 
     position_size, risk_info = rm.calculate_position_size(
-        entry_price, stop_loss, signal_confidence=0.8
+        entry_price, stop_loss, signal_confidence=0.8,
     )
-    print(f"Position size: {position_size:.6f}")
-    print(f"Risk info: {risk_info}")
 
     # Test trade validation
-    print("\n✅ Testing Trade Validation:")
     is_valid, validation_info = rm.validate_trade_signal(
-        "BTCUSDT", "long", entry_price, signal_strength=0.8
+        "BTCUSDT", "long", entry_price, signal_strength=0.8,
     )
-    print(f"Trade valid: {is_valid}")
-    print(f"Validation: {validation_info['checks']}")
 
     # Test adding position
-    print("\n📈 Testing Position Management:")
-    success = rm.add_position("BTCUSDT", "long", entry_price, position_size)
-    print(f"Position added: {success}")
+    rm.add_position("BTCUSDT", "long", entry_price, position_size)
 
     # Test portfolio update
-    print("\n💰 Testing Portfolio Updates:")
     current_prices = {"BTCUSDT": 51000.0}  # Price moved up
     rm.update_portfolio(current_prices)
 
-    summary = rm.get_portfolio_summary()
-    print(f"Portfolio equity: ${summary['total_equity']:.2f}")
-    print(f"Daily PnL: ${summary['daily_pnl']:.2f}")
+    rm.get_portfolio_summary()
 
-    print("\n✅ Risk Management System Test Complete!")
 
 
 if __name__ == "__main__":
@@ -518,4 +503,4 @@ if __name__ == "__main__":
     if args.test:
         test_risk_manager()
     else:
-        print("Risk Management System - Use --test to run tests")
+        pass

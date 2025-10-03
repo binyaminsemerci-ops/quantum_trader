@@ -21,8 +21,8 @@ class XGBAgent:
     """
 
     def __init__(
-        self, model_path: Optional[str] = None, scaler_path: Optional[str] = None
-    ):
+        self, model_path: Optional[str] = None, scaler_path: Optional[str] = None,
+    ) -> None:
         base = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
         self.model_path = model_path or os.path.join(base, "xgb_model.pkl")
         self.scaler_path = scaler_path or os.path.join(base, "scaler.pkl")
@@ -67,7 +67,7 @@ class XGBAgent:
         Raises if pandas or the feature engineer cannot be imported.
         """
         try:
-            import pandas as _pd  # type: ignore[import-untyped]
+            import pandas as pd  # type: ignore[import-untyped]
 
             from ai_engine.feature_engineer import (
                 add_sentiment_features as _add_sentiment_features,  # type: ignore[import-not-found, import-untyped]
@@ -83,7 +83,7 @@ class XGBAgent:
 
         # Accept both DataFrame and list-of-dicts
         if isinstance(df, list):
-            df = _pd.DataFrame(df)
+            df = pd.DataFrame(df)
 
         # Normalize column casing to predictable names
         df.columns = [str(c).lower() for c in df.columns]
@@ -91,7 +91,7 @@ class XGBAgent:
         # ensure we have required columns (open, high, low, close, volume)
         for col in ("open", "high", "low", "close", "volume"):
             if col not in df.columns:
-                df[col] = _pd.NA
+                df[col] = pd.NA
 
         # prepare DataFrame expected by feature engineer (capitalized names sometimes expected)
         df_norm = df.rename(
@@ -101,7 +101,7 @@ class XGBAgent:
                 "low": "Low",
                 "close": "Close",
                 "volume": "Volume",
-            }
+            },
         )
 
         feat = _add_technical_indicators(df_norm)
@@ -122,11 +122,12 @@ class XGBAgent:
 
         if sentiment_series is not None or news_counts is not None:
             feat = _add_sentiment_features(
-                feat, sentiment_series=sentiment_series, news_counts=news_counts
+                feat, sentiment_series=sentiment_series, news_counts=news_counts,
             )
 
         if feat.shape[0] == 0:
-            raise RuntimeError("No features generated")
+            msg = "No features generated"
+            raise RuntimeError(msg)
 
         # return last row as DataFrame-like object; callers will handle numeric
         # selection defensively. Use Any to avoid strict pandas typing issues here.
@@ -206,7 +207,7 @@ class XGBAgent:
             return {"action": "HOLD", "score": 0.0}
 
     def scan_symbols(
-        self, symbol_ohlcv: Mapping[str, Any], top_n: int = 10
+        self, symbol_ohlcv: Mapping[str, Any], top_n: int = 10,
     ) -> Dict[str, Dict[str, Any]]:
         """Pick top_n symbols by recent volume and return predictions."""
         volumes = []
@@ -254,14 +255,14 @@ class XGBAgent:
         try:
             import json
 
-            with open(meta_path, "r", encoding="utf-8") as f:
+            with open(meta_path, encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
             logger.debug("Failed to read metadata: %s", e)
             return None
 
     async def scan_top_by_volume_from_api(
-        self, symbols: List[str], top_n: int = 10, limit: int = 240
+        self, symbols: List[str], top_n: int = 10, limit: int = 240,
     ) -> Dict[str, Dict[str, Any]]:
         """Fetch OHLCV for symbols using internal external_data routes and run scan.
 
@@ -277,8 +278,9 @@ class XGBAgent:
             # obtain external_data dynamically to avoid mypy attr-defined errors
             external_data = _cast(_Any, getattr(_br, "external_data", None))
         except Exception as e:
-            logger.error("external_data not importable: %s", e)
-            raise RuntimeError("external_data endpoint not importable")
+            logger.exception("external_data not importable: %s", e)
+            msg = "external_data endpoint not importable"
+            raise RuntimeError(msg)
 
         sem = asyncio.Semaphore(6)
 

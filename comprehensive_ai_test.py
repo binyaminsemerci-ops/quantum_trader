@@ -25,7 +25,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ai_engine.train_and_save import (
     load_report,
@@ -36,7 +36,7 @@ from config.config import settings
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -85,13 +85,13 @@ TEST_CONFIGS = {
 class AITestRunner:
     """Comprehensive AI model test runner."""
 
-    def __init__(self, output_dir: Path = None):
+    def __init__(self, output_dir: Path | None = None) -> None:
         self.output_dir = output_dir or Path("test_results")
         self.output_dir.mkdir(exist_ok=True)
-        self.test_results: List[Dict[str, Any]] = []
+        self.test_results: list[dict[str, Any]] = []
         self.start_time = datetime.now()
 
-    def log_result(self, test_name: str, result: Dict[str, Any], duration: float):
+    def log_result(self, test_name: str, result: dict[str, Any], duration: float) -> None:
         """Log test result with metadata."""
         test_result = {
             "test_name": test_name,
@@ -110,8 +110,8 @@ class AITestRunner:
         logger.info(f"Test '{test_name}' completed in {duration:.2f}s")
 
     def run_training_test(
-        self, config_name: str, config: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        self, config_name: str, config: dict[str, Any],
+    ) -> dict[str, Any] | None:
         """Run training test with given configuration."""
         logger.info(f"Starting training test: {config_name}")
         logger.info(f"Description: {config['description']}")
@@ -148,12 +148,12 @@ class AITestRunner:
             duration = time.time() - start_time
             error_result = {"error": str(e), "type": type(e).__name__}
             self.log_result(f"training_{config_name}_error", error_result, duration)
-            logger.error(f"Training test {config_name} failed: {e}")
+            logger.exception(f"Training test {config_name} failed: {e}")
             return None
 
     def run_backtest_variations(
-        self, config_name: str, config: Dict[str, Any], model_dir: Path = None
-    ) -> List[Dict[str, Any]]:
+        self, config_name: str, config: dict[str, Any], model_dir: Path | None = None,
+    ) -> list[dict[str, Any]]:
         """Run backtest with different entry thresholds."""
         logger.info(f"Running backtest variations for {config_name}")
 
@@ -193,11 +193,11 @@ class AITestRunner:
                 }
                 test_name = f"backtest_{config_name}_threshold_{threshold}_error"
                 self.log_result(test_name, error_result, duration)
-                logger.error(f"Backtest with threshold {threshold} failed: {e}")
+                logger.exception(f"Backtest with threshold {threshold} failed: {e}")
 
         return results
 
-    def run_model_validation(self, model_dir: Path) -> Optional[Dict[str, Any]]:
+    def run_model_validation(self, model_dir: Path) -> dict[str, Any] | None:
         """Validate trained model artifacts and report."""
         logger.info("Validating model artifacts")
 
@@ -215,7 +215,7 @@ class AITestRunner:
             validation_result["artifacts_found"][file_name] = file_path.exists()
             if not file_path.exists():
                 validation_result["validation_errors"].append(
-                    f"Missing artifact: {file_name}"
+                    f"Missing artifact: {file_name}",
                 )
 
         # Load and validate report
@@ -229,7 +229,7 @@ class AITestRunner:
                 for field in required_fields:
                     if field not in report:
                         validation_result["validation_errors"].append(
-                            f"Missing report field: {field}"
+                            f"Missing report field: {field}",
                         )
 
                 # Validate metrics
@@ -237,26 +237,26 @@ class AITestRunner:
                     metrics = report["metrics"]
                     if "mse" not in metrics:
                         validation_result["validation_errors"].append(
-                            "Missing MSE metric"
+                            "Missing MSE metric",
                         )
                     if "r2" not in metrics:
                         validation_result["validation_errors"].append(
-                            "Missing R² metric"
+                            "Missing R² metric",
                         )
             else:
                 validation_result["validation_errors"].append(
-                    "Could not load training report"
+                    "Could not load training report",
                 )
 
         except Exception as e:
             validation_result["validation_errors"].append(
-                f"Report validation error: {e}"
+                f"Report validation error: {e}",
             )
 
         self.log_result("model_validation", validation_result, 0)
         return validation_result
 
-    def run_performance_comparison(self) -> Dict[str, Any]:
+    def run_performance_comparison(self) -> dict[str, Any]:
         """Compare performance across different test configurations."""
         logger.info("Running performance comparison")
 
@@ -305,7 +305,7 @@ class AITestRunner:
             win_rates = []
 
             for result in backtest_results:
-                if "result" in result and result["result"]:
+                if result.get("result"):
                     res = result["result"]
                     if "total_return" in res:
                         returns.append(res["total_return"])
@@ -316,26 +316,26 @@ class AITestRunner:
 
             if returns:
                 comparison["performance_metrics"]["avg_return"] = sum(returns) / len(
-                    returns
+                    returns,
                 )
                 comparison["performance_metrics"]["best_return"] = max(returns)
                 comparison["performance_metrics"]["worst_return"] = min(returns)
 
             if sharpe_ratios:
                 comparison["performance_metrics"]["avg_sharpe"] = sum(
-                    sharpe_ratios
+                    sharpe_ratios,
                 ) / len(sharpe_ratios)
                 comparison["performance_metrics"]["best_sharpe"] = max(sharpe_ratios)
 
             if win_rates:
                 comparison["performance_metrics"]["avg_win_rate"] = sum(
-                    win_rates
+                    win_rates,
                 ) / len(win_rates)
 
         self.log_result("performance_comparison", comparison, 0)
         return comparison
 
-    def generate_summary_report(self):
+    def generate_summary_report(self) -> None:
         """Generate comprehensive summary report."""
         logger.info("Generating summary report")
 
@@ -356,31 +356,19 @@ class AITestRunner:
             json.dump(summary, f, indent=2, sort_keys=True)
 
         # Print summary to console
-        print("\n" + "=" * 80)
-        print("AI MODEL COMPREHENSIVE TEST SUMMARY")
-        print("=" * 80)
-        print(f"Test Duration: {summary['test_session']['total_duration']:.1f} seconds")
-        print(f"Total Tests: {summary['comparison']['test_count']}")
-        print(f"Successful: {summary['comparison']['successful_tests']}")
-        print(f"Failed: {summary['comparison']['failed_tests']}")
 
         if "performance_metrics" in summary["comparison"]:
             metrics = summary["comparison"]["performance_metrics"]
-            print("\nPerformance Metrics:")
             if "avg_return" in metrics:
-                print(f"  Average Return: {metrics['avg_return']:.4f}")
-                print(f"  Best Return: {metrics['best_return']:.4f}")
-                print(f"  Worst Return: {metrics['worst_return']:.4f}")
+                pass
             if "avg_sharpe" in metrics:
-                print(f"  Average Sharpe: {metrics['avg_sharpe']:.4f}")
+                pass
             if "avg_win_rate" in metrics:
-                print(f"  Average Win Rate: {metrics['avg_win_rate']:.4f}")
-
-        print(f"\nDetailed results saved to: {summary_file}")
-        print("=" * 80)
+                pass
 
 
-def run_quick_test(runner: AITestRunner):
+
+def run_quick_test(runner: AITestRunner) -> None:
     """Run quick test configuration."""
     config = TEST_CONFIGS["quick"]
     result = runner.run_training_test("quick", config)
@@ -389,7 +377,7 @@ def run_quick_test(runner: AITestRunner):
         runner.run_backtest_variations("quick", config)
 
 
-def run_standard_test(runner: AITestRunner):
+def run_standard_test(runner: AITestRunner) -> None:
     """Run standard test configuration."""
     config = TEST_CONFIGS["standard"]
     result = runner.run_training_test("standard", config)
@@ -397,7 +385,7 @@ def run_standard_test(runner: AITestRunner):
         runner.run_backtest_variations("standard", config)
 
 
-def run_comprehensive_test(runner: AITestRunner):
+def run_comprehensive_test(runner: AITestRunner) -> None:
     """Run comprehensive test configuration."""
     config = TEST_CONFIGS["comprehensive"]
     result = runner.run_training_test("comprehensive", config)
@@ -405,7 +393,7 @@ def run_comprehensive_test(runner: AITestRunner):
         runner.run_backtest_variations("comprehensive", config)
 
 
-def run_stress_test(runner: AITestRunner):
+def run_stress_test(runner: AITestRunner) -> None:
     """Run stress test configuration."""
     config = TEST_CONFIGS["stress"]
     result = runner.run_training_test("stress", config)
@@ -413,15 +401,15 @@ def run_stress_test(runner: AITestRunner):
         runner.run_backtest_variations("stress", config)
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Comprehensive AI Model Testing for Quantum Trader"
+        description="Comprehensive AI Model Testing for Quantum Trader",
     )
     parser.add_argument(
-        "--quick-test", action="store_true", help="Run quick test with 3 symbols"
+        "--quick-test", action="store_true", help="Run quick test with 3 symbols",
     )
     parser.add_argument(
-        "--standard-test", action="store_true", help="Run standard test with 6 symbols"
+        "--standard-test", action="store_true", help="Run standard test with 6 symbols",
     )
     parser.add_argument(
         "--full-test",
@@ -429,7 +417,7 @@ def main():
         help="Run comprehensive test with 12 symbols",
     )
     parser.add_argument(
-        "--stress-test", action="store_true", help="Run stress test with all symbols"
+        "--stress-test", action="store_true", help="Run stress test with all symbols",
     )
     parser.add_argument(
         "--compare-configs",
@@ -437,7 +425,7 @@ def main():
         help="Run all configurations and compare",
     )
     parser.add_argument(
-        "--output-dir", type=Path, help="Output directory for test results"
+        "--output-dir", type=Path, help="Output directory for test results",
     )
 
     args = parser.parse_args()
@@ -449,9 +437,8 @@ def main():
             args.full_test,
             args.stress_test,
             args.compare_configs,
-        ]
+        ],
     ):
-        print("No test specified. Use --help to see options.")
         return 1
 
     runner = AITestRunner(output_dir=args.output_dir)
@@ -481,7 +468,7 @@ def main():
         runner.generate_summary_report()
         return 130
     except Exception as e:
-        logger.error(f"Test failed with exception: {e}")
+        logger.exception(f"Test failed with exception: {e}")
         runner.generate_summary_report()
         return 1
 

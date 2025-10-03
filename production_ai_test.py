@@ -20,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 
@@ -30,7 +30,7 @@ from production_risk_manager import RiskManager, RiskParameters
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -40,10 +40,10 @@ class TestConfiguration:
     """Test configuration parameters."""
 
     name: str
-    symbols: List[str]
-    limits: List[int]  # Multiple candle limits to test
-    timeframes: List[str] = None  # ['1m', '5m', '15m', '1h']
-    entry_thresholds: List[float] = None
+    symbols: list[str]
+    limits: list[int]  # Multiple candle limits to test
+    timeframes: list[str] = None  # ['1m', '5m', '15m', '1h']
+    entry_thresholds: list[float] = None
     use_risk_management: bool = False
     stress_test: bool = False
     max_duration_minutes: int = 60
@@ -114,11 +114,11 @@ PRODUCTION_TEST_CONFIGS = {
 class ProductionTestRunner:
     """Enhanced production-scale test runner."""
 
-    def __init__(self, output_dir: Path = None):
+    def __init__(self, output_dir: Path | None = None) -> None:
         self.output_dir = output_dir or Path("production_test_results")
         self.output_dir.mkdir(exist_ok=True, parents=True)
 
-        self.results: List[Dict] = []
+        self.results: list[dict] = []
         self.risk_manager = None
         self.performance_baseline = None
 
@@ -134,7 +134,7 @@ class ProductionTestRunner:
             "performance_degradations": [],
         }
 
-    def setup_risk_management(self, config: TestConfiguration):
+    def setup_risk_management(self, config: TestConfiguration) -> None:
         """Setup risk management for testing."""
         if config.use_risk_management:
             risk_params = RiskParameters(
@@ -149,7 +149,7 @@ class ProductionTestRunner:
         else:
             self.risk_manager = None
 
-    def get_symbol_list(self, config: TestConfiguration) -> List[str]:
+    def get_symbol_list(self, config: TestConfiguration) -> list[str]:
         """Get symbol list based on configuration."""
         if config.symbols is None:
             # Use symbols from settings
@@ -162,12 +162,12 @@ class ProductionTestRunner:
 
     def run_single_test(
         self,
-        symbols: List[str],
+        symbols: list[str],
         limit: int,
         entry_threshold: float,
         timeframe: str = "1m",
         test_id: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Run a single AI model test."""
         test_start = time.time()
         test_name = f"test_{test_id}_{len(symbols)}sym_{limit}lim_{entry_threshold}thr_{timeframe}"
@@ -197,8 +197,8 @@ class ProductionTestRunner:
                         "timeframe": timeframe,
                         "duration_seconds": test_duration,
                         "timestamp": datetime.now().isoformat(),
-                    }
-                }
+                    },
+                },
             )
 
             # Risk management validation if enabled
@@ -210,7 +210,7 @@ class ProductionTestRunner:
             return result
 
         except Exception as e:
-            logger.error(f"Test {test_name} failed: {e}")
+            logger.exception(f"Test {test_name} failed: {e}")
             return {
                 "error": str(e),
                 "test_metadata": {
@@ -220,7 +220,7 @@ class ProductionTestRunner:
                 },
             }
 
-    def analyze_backtest_risk(self, backtest_result: Dict) -> Dict[str, Any]:
+    def analyze_backtest_risk(self, backtest_result: dict) -> dict[str, Any]:
         """Analyze backtest results from risk management perspective."""
         equity_curve = backtest_result.get("equity_curve", [])
         if not equity_curve:
@@ -260,7 +260,7 @@ class ProductionTestRunner:
         return analysis
 
     def calculate_sharpe_ratio(
-        self, returns: np.ndarray, risk_free_rate: float = 0.02
+        self, returns: np.ndarray, risk_free_rate: float = 0.02,
     ) -> float:
         """Calculate Sharpe ratio for returns."""
         if len(returns) == 0:
@@ -274,8 +274,8 @@ class ProductionTestRunner:
         )
 
     def run_parallel_tests(
-        self, config: TestConfiguration, max_workers: int = 3
-    ) -> List[Dict[str, Any]]:
+        self, config: TestConfiguration, max_workers: int = 3,
+    ) -> list[dict[str, Any]]:
         """Run multiple tests in parallel for efficiency."""
         symbols = self.get_symbol_list(config)
         test_combinations = []
@@ -288,7 +288,7 @@ class ProductionTestRunner:
                     test_combinations.append((symbols, limit, threshold, timeframe))
 
         logger.info(
-            f"Running {len(test_combinations)} test combinations with {max_workers} workers"
+            f"Running {len(test_combinations)} test combinations with {max_workers} workers",
         )
 
         results = []
@@ -304,7 +304,7 @@ class ProductionTestRunner:
                     f"{config.name}_{i}",
                 ): (symbols, limit, threshold, timeframe)
                 for i, (symbols, limit, threshold, timeframe) in enumerate(
-                    test_combinations
+                    test_combinations,
                 )
             }
 
@@ -318,12 +318,12 @@ class ProductionTestRunner:
                     self.update_performance_metrics(result)
 
                 except Exception as e:
-                    logger.error(f"Test future failed: {e}")
+                    logger.exception(f"Test future failed: {e}")
                     results.append({"error": str(e)})
 
         return results
 
-    def update_performance_metrics(self, result: Dict[str, Any]):
+    def update_performance_metrics(self, result: dict[str, Any]) -> None:
         """Update overall performance tracking."""
         self.performance_metrics["total_tests_run"] += 1
 
@@ -352,10 +352,11 @@ class ProductionTestRunner:
         else:
             self.performance_metrics["failed_tests"] += 1
 
-    def run_configuration_test(self, config_name: str) -> Dict[str, Any]:
+    def run_configuration_test(self, config_name: str) -> dict[str, Any]:
         """Run tests for a specific configuration."""
         if config_name not in PRODUCTION_TEST_CONFIGS:
-            raise ValueError(f"Unknown configuration: {config_name}")
+            msg = f"Unknown configuration: {config_name}"
+            raise ValueError(msg)
 
         config = PRODUCTION_TEST_CONFIGS[config_name]
         logger.info(f"Starting {config_name}: {config.description}")
@@ -395,15 +396,15 @@ class ProductionTestRunner:
             json.dump(final_result, f, indent=2, sort_keys=True)
 
         logger.info(
-            f"Configuration {config_name} completed in {total_duration/60:.1f} minutes"
+            f"Configuration {config_name} completed in {total_duration/60:.1f} minutes",
         )
         logger.info(f"Results saved to: {result_file}")
 
         return final_result
 
     def analyze_test_results(
-        self, results: List[Dict], config: TestConfiguration
-    ) -> Dict[str, Any]:
+        self, results: list[dict], config: TestConfiguration,
+    ) -> dict[str, Any]:
         """Analyze test results and provide insights."""
         successful_results = [r for r in results if "error" not in r]
 
@@ -471,7 +472,7 @@ class ProductionTestRunner:
         analysis["warnings"] = warnings
         return analysis
 
-    def generate_performance_report(self) -> Dict[str, Any]:
+    def generate_performance_report(self) -> dict[str, Any]:
         """Generate comprehensive performance report."""
         return {
             "report_generated": datetime.now().isoformat(),
@@ -487,7 +488,7 @@ class ProductionTestRunner:
         }
 
 
-def main():
+def main() -> None:
     """Main execution function."""
     parser = argparse.ArgumentParser(description="Production-Scale AI Testing System")
     parser.add_argument(
@@ -496,7 +497,7 @@ def main():
         help="Run specific test configuration",
     )
     parser.add_argument(
-        "--all-configs", action="store_true", help="Run all test configurations"
+        "--all-configs", action="store_true", help="Run all test configurations",
     )
     parser.add_argument(
         "--output-dir",
@@ -515,40 +516,26 @@ def main():
         result = runner.run_configuration_test(args.config)
         runner.results.append(result)
 
-        print(f"\n🎯 Test Configuration: {args.config}")
-        print(f"✅ Successful Tests: {result['test_summary']['successful_tests']}")
-        print(f"❌ Failed Tests: {result['test_summary']['failed_tests']}")
-        print(
-            f"⏱️  Duration: {result['test_summary']['total_duration_minutes']:.1f} minutes"
-        )
 
         if (
             "performance_analysis" in result
             and "return_stats" in result["performance_analysis"]
         ):
-            avg_return = result["performance_analysis"]["return_stats"]["mean"]
-            avg_accuracy = result["performance_analysis"]["accuracy_stats"]["mean"]
-            print(f"📊 Average Return: {avg_return:.2f}%")
-            print(f"🎯 Average Accuracy: {avg_accuracy:.1%}")
+            result["performance_analysis"]["return_stats"]["mean"]
+            result["performance_analysis"]["accuracy_stats"]["mean"]
 
     elif args.all_configs:
         # Run all configurations
-        print("🚀 Running all production test configurations...")
 
-        for config_name in PRODUCTION_TEST_CONFIGS.keys():
-            print(f"\n{'='*50}")
-            print(f"Running: {config_name}")
-            print(f"{'='*50}")
+        for config_name in PRODUCTION_TEST_CONFIGS:
 
             try:
                 result = runner.run_configuration_test(config_name)
                 runner.results.append(result)
             except Exception as e:
-                logger.error(f"Configuration {config_name} failed: {e}")
+                logger.exception(f"Configuration {config_name} failed: {e}")
 
     else:
-        print("Please specify --config <name> or --all-configs")
-        print(f"Available configurations: {list(PRODUCTION_TEST_CONFIGS.keys())}")
         return
 
     # Generate final report
@@ -558,8 +545,6 @@ def main():
     with open(report_file, "w") as f:
         json.dump(final_report, f, indent=2, sort_keys=True)
 
-    print(f"\n📋 Final report saved: {report_file}")
-    print("🎉 Production testing complete!")
 
 
 if __name__ == "__main__":

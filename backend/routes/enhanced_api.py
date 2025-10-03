@@ -26,25 +26,25 @@ router = APIRouter(prefix="/api/v1/enhanced", tags=["enhanced-data"])
 
 # WebSocket connections manager
 class EnhancedDataManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self.active_connections: List[WebSocket] = []
         self.is_broadcasting = False
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket) -> None:
         await websocket.accept()
         self.active_connections.append(websocket)
         logger.info(
-            f"Enhanced data WebSocket connected. Total: {len(self.active_connections)}"
+            f"Enhanced data WebSocket connected. Total: {len(self.active_connections)}",
         )
 
-    def disconnect(self, websocket: WebSocket):
+    def disconnect(self, websocket: WebSocket) -> None:
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
         logger.info(
-            f"Enhanced data WebSocket disconnected. Total: {len(self.active_connections)}"
+            f"Enhanced data WebSocket disconnected. Total: {len(self.active_connections)}",
         )
 
-    async def broadcast_enhanced_data(self, data: Dict[str, Any]):
+    async def broadcast_enhanced_data(self, data: Dict[str, Any]) -> None:
         """Broadcast enhanced data to all connected clients."""
         if not self.active_connections:
             return
@@ -68,14 +68,14 @@ class EnhancedDataManager:
         for conn in disconnected:
             self.disconnect(conn)
 
-    async def start_enhanced_broadcast(self, symbols: List[str], interval: int = 300):
+    async def start_enhanced_broadcast(self, symbols: List[str], interval: int = 300) -> None:
         """Start broadcasting enhanced data every 5 minutes."""
         if self.is_broadcasting:
             return
 
         self.is_broadcasting = True
         logger.info(
-            f"🔄 Starting enhanced data broadcast for {symbols} every {interval}s"
+            f"🔄 Starting enhanced data broadcast for {symbols} every {interval}s",
         )
 
         while self.is_broadcasting:
@@ -86,16 +86,16 @@ class EnhancedDataManager:
                 if enhanced_data and self.active_connections:
                     await self.broadcast_enhanced_data(enhanced_data)
                     logger.debug(
-                        f"📡 Broadcasted enhanced data to {len(self.active_connections)} clients"
+                        f"📡 Broadcasted enhanced data to {len(self.active_connections)} clients",
                     )
 
                 await asyncio.sleep(interval)
 
             except Exception as e:
-                logger.error(f"Error in enhanced data broadcast: {e}")
+                logger.exception(f"Error in enhanced data broadcast: {e}")
                 await asyncio.sleep(30)  # Wait before retry
 
-    def stop_enhanced_broadcast(self):
+    def stop_enhanced_broadcast(self) -> None:
         """Stop broadcasting enhanced data."""
         self.is_broadcasting = False
         logger.info("🛑 Enhanced data broadcast stopped")
@@ -113,7 +113,7 @@ async def get_enhanced_market_data(symbols: str = "BTC,ETH,ADA,SOL"):
         data = await enhanced_market_data(symbol_list)
         return {"success": True, "data": data}
     except Exception as e:
-        logger.error(f"Enhanced market data endpoint error: {e}")
+        logger.exception(f"Enhanced market data endpoint error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -124,7 +124,7 @@ async def get_fear_greed():
         data = await fear_greed_index()
         return {"success": True, "data": data}
     except Exception as e:
-        logger.error(f"Fear & Greed endpoint error: {e}")
+        logger.exception(f"Fear & Greed endpoint error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -136,7 +136,7 @@ async def get_reddit_sentiment_endpoint(symbols: str = "BTC,ETH,ADA"):
         data = await reddit_sentiment(symbol_list)
         return {"success": True, "data": data}
     except Exception as e:
-        logger.error(f"Reddit sentiment endpoint error: {e}")
+        logger.exception(f"Reddit sentiment endpoint error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -147,7 +147,7 @@ async def get_crypto_news():
         data = await comprehensive_crypto_news()
         return {"success": True, "data": data}
     except Exception as e:
-        logger.error(f"Crypto news endpoint error: {e}")
+        logger.exception(f"Crypto news endpoint error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -159,7 +159,7 @@ async def get_on_chain_metrics_endpoint(symbols: str = "BTC,ETH"):
         data = await on_chain_metrics(symbol_list)
         return {"success": True, "data": data}
     except Exception as e:
-        logger.error(f"On-chain metrics endpoint error: {e}")
+        logger.exception(f"On-chain metrics endpoint error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -170,7 +170,7 @@ async def get_market_indicators_endpoint():
         data = await market_indicators()
         return {"success": True, "data": data}
     except Exception as e:
-        logger.error(f"Market indicators endpoint error: {e}")
+        logger.exception(f"Market indicators endpoint error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -207,13 +207,13 @@ async def get_all_enhanced_data(symbols: str = "BTC,ETH,ADA,SOL,DOT,LINK"):
         return {"success": True, "data": enhanced_data}
 
     except Exception as e:
-        logger.error(f"All enhanced data endpoint error: {e}")
+        logger.exception(f"All enhanced data endpoint error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/broadcast/start")
 async def start_enhanced_broadcast(
-    symbols: str = "BTC,ETH,ADA,SOL", interval: int = 300
+    symbols: str = "BTC,ETH,ADA,SOL", interval: int = 300,
 ):
     """Start broadcasting enhanced data via WebSocket."""
     try:
@@ -222,7 +222,7 @@ async def start_enhanced_broadcast(
         if not enhanced_manager.is_broadcasting:
             # Start broadcast in background
             asyncio.create_task(
-                enhanced_manager.start_enhanced_broadcast(symbol_list, interval)
+                enhanced_manager.start_enhanced_broadcast(symbol_list, interval),
             )
             return {
                 "success": True,
@@ -235,7 +235,7 @@ async def start_enhanced_broadcast(
             }
 
     except Exception as e:
-        logger.error(f"Start broadcast error: {e}")
+        logger.exception(f"Start broadcast error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -246,12 +246,12 @@ async def stop_enhanced_broadcast():
         enhanced_manager.stop_enhanced_broadcast()
         return {"success": True, "message": "Enhanced data broadcast stopped"}
     except Exception as e:
-        logger.error(f"Stop broadcast error: {e}")
+        logger.exception(f"Stop broadcast error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.websocket("/ws")
-async def enhanced_data_websocket(websocket: WebSocket):
+async def enhanced_data_websocket(websocket: WebSocket) -> None:
     """WebSocket endpoint for real-time enhanced data."""
     await enhanced_manager.connect(websocket)
 
@@ -264,8 +264,8 @@ async def enhanced_data_websocket(websocket: WebSocket):
                     "type": "enhanced_data_update",
                     "data": initial_data,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
+                },
+            ),
         )
 
         # Keep connection alive

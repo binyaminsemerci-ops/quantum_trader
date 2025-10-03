@@ -45,11 +45,11 @@ except ImportError:
         model_name: str
 
         def predict_for_symbol(
-            self, symbol: str, limit: int = 100
+            self, symbol: str, limit: int = 100,
         ) -> Dict[str, Any]: ...
 
     class MockXGBAgent:
-        def __init__(self):
+        def __init__(self) -> None:
             self.model_name = "mock_xgb"
 
         def predict_for_symbol(self, symbol: str, limit: int = 100) -> Dict[str, Any]:
@@ -115,7 +115,7 @@ class AIAutoTradingService:
         max_daily_trades: int = 50,  # Daily trade limit
         stop_loss_pct: float = 0.02,  # 2% stop loss
         take_profit_pct: float = 0.04,
-    ):  # 4% take profit
+    ) -> None:  # 4% take profit
         self.symbols = (
             symbols or list(DEFAULT_SYMBOLS)[:5]
         )  # Limit to 5 symbols initially
@@ -151,7 +151,7 @@ class AIAutoTradingService:
 
         # Continuous learning engine integration
         self.continuous_learning_engine = create_continuous_learning_service(
-            self.symbols
+            self.symbols,
         )
         self.live_data_enabled = True
 
@@ -166,7 +166,7 @@ class AIAutoTradingService:
             "live_data_enabled": self.live_data_enabled,
         }
 
-    def _init_database(self):
+    def _init_database(self) -> None:
         """Initialize trading database."""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
@@ -181,7 +181,7 @@ class AIAutoTradingService:
                     features_used TEXT,
                     model_version TEXT
                 )
-            """
+            """,
             )
 
             conn.execute(
@@ -198,7 +198,7 @@ class AIAutoTradingService:
                     timestamp TEXT NOT NULL,
                     ai_confidence REAL NOT NULL
                 )
-            """
+            """,
             )
 
             conn.execute(
@@ -213,7 +213,7 @@ class AIAutoTradingService:
                     accuracy_rate REAL,
                     timestamp TEXT NOT NULL
                 )
-            """
+            """,
             )
 
     def initialize_ai_agent(self) -> bool:
@@ -232,11 +232,11 @@ class AIAutoTradingService:
                 return True  # Can still work with fallback
 
         except Exception as e:
-            logger.error(f"❌ Failed to load AI agent: {e}")
+            logger.exception(f"❌ Failed to load AI agent: {e}")
             return False
 
     def get_market_data(
-        self, symbol: str, limit: int = 100
+        self, symbol: str, limit: int = 100,
     ) -> Optional[List[Dict[str, Any]]]:
         """Get recent market data for symbol."""
         try:
@@ -249,10 +249,7 @@ class AIAutoTradingService:
             for i in range(limit):
                 timestamp = datetime.now(timezone.utc) - timedelta(minutes=i)
                 price_change = random.uniform(-0.02, 0.02)  # ±2% random walk
-                if i == 0:
-                    price = base_price
-                else:
-                    price = data[-1]["close"] * (1 + price_change)
+                price = base_price if i == 0 else data[-1]["close"] * (1 + price_change)
 
                 data.append(
                     {
@@ -262,13 +259,13 @@ class AIAutoTradingService:
                         "low": price * (1 - abs(random.uniform(0, 0.01))),
                         "close": price,
                         "volume": random.uniform(100, 1000),
-                    }
+                    },
                 )
 
             return list(reversed(data))  # Oldest first
 
         except Exception as e:
-            logger.error(f"Failed to get market data for {symbol}: {e}")
+            logger.exception(f"Failed to get market data for {symbol}: {e}")
             return None
 
     def generate_trading_signal(self, symbol: str) -> Optional[TradingSignal]:
@@ -276,7 +273,7 @@ class AIAutoTradingService:
         try:
             # Get market data
             ohlcv_data = self.get_market_data(
-                symbol, limit=120
+                symbol, limit=120,
             )  # Need enough for indicators
             if not ohlcv_data:
                 return None
@@ -306,16 +303,16 @@ class AIAutoTradingService:
                 self.signals_generated += 1
 
             logger.info(
-                f"📊 Signal for {symbol}: {signal.action} (confidence: {signal.confidence:.2f})"
+                f"📊 Signal for {symbol}: {signal.action} (confidence: {signal.confidence:.2f})",
             )
 
             return signal
 
         except Exception as e:
-            logger.error(f"Failed to generate signal for {symbol}: {e}")
+            logger.exception(f"Failed to generate signal for {symbol}: {e}")
             return None
 
-    def _log_signal(self, signal: TradingSignal):
+    def _log_signal(self, signal: TradingSignal) -> None:
         """Log signal to database."""
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -336,10 +333,10 @@ class AIAutoTradingService:
                     ),
                 )
         except Exception as e:
-            logger.error(f"Failed to log signal: {e}")
+            logger.exception(f"Failed to log signal: {e}")
 
     def calculate_position_size(
-        self, signal: TradingSignal, current_price: float
+        self, signal: TradingSignal, current_price: float,
     ) -> float:
         """Calculate position size based on AI confidence and risk management."""
         try:
@@ -359,13 +356,13 @@ class AIAutoTradingService:
             quantity = usd_amount / current_price
 
             logger.debug(
-                f"Position size calculation: {usd_amount:.2f} USD = {quantity:.6f} {signal.symbol}"
+                f"Position size calculation: {usd_amount:.2f} USD = {quantity:.6f} {signal.symbol}",
             )
 
             return quantity
 
         except Exception as e:
-            logger.error(f"Failed to calculate position size: {e}")
+            logger.exception(f"Failed to calculate position size: {e}")
             return 0.0
 
     def should_execute_trade(self, signal: TradingSignal) -> Tuple[bool, str]:
@@ -454,7 +451,7 @@ class AIAutoTradingService:
                     self.daily_trade_count += 1
 
                 logger.info(
-                    f"✅ Trade executed: {trade.side.upper()} {trade.quantity:.6f} {trade.symbol} @ {trade.price:.2f}"
+                    f"✅ Trade executed: {trade.side.upper()} {trade.quantity:.6f} {trade.symbol} @ {trade.price:.2f}",
                 )
             else:
                 trade.status = "rejected"
@@ -466,7 +463,7 @@ class AIAutoTradingService:
             return trade
 
         except Exception as e:
-            logger.error(f"Failed to execute trade: {e}")
+            logger.exception(f"Failed to execute trade: {e}")
             return None
 
     def _simulate_order_execution(self, trade: TradeExecution) -> bool:
@@ -490,7 +487,7 @@ class AIAutoTradingService:
         else:  # sell
             return trade.price * (1 - self.take_profit_pct)
 
-    def _log_trade(self, trade: TradeExecution):
+    def _log_trade(self, trade: TradeExecution) -> None:
         """Log trade to database."""
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -513,9 +510,9 @@ class AIAutoTradingService:
                     ),
                 )
         except Exception as e:
-            logger.error(f"Failed to log trade: {e}")
+            logger.exception(f"Failed to log trade: {e}")
 
-    def check_positions(self):
+    def check_positions(self) -> None:
         """Check active positions for stop loss/take profit."""
         try:
             for symbol, position in list(self.active_positions.items()):
@@ -538,23 +535,22 @@ class AIAutoTradingService:
                     elif current_price >= position["take_profit"]:
                         should_close = True
                         reason = "Take profit triggered"
-                else:  # sell position
-                    if current_price >= position["stop_loss"]:
-                        should_close = True
-                        reason = "Stop loss triggered"
-                    elif current_price <= position["take_profit"]:
-                        should_close = True
-                        reason = "Take profit triggered"
+                elif current_price >= position["stop_loss"]:
+                    should_close = True
+                    reason = "Stop loss triggered"
+                elif current_price <= position["take_profit"]:
+                    should_close = True
+                    reason = "Take profit triggered"
 
                 if should_close:
                     self._close_position(symbol, position, current_price, reason)
 
         except Exception as e:
-            logger.error(f"Error checking positions: {e}")
+            logger.exception(f"Error checking positions: {e}")
 
     def _close_position(
-        self, symbol: str, position: Dict[str, Any], close_price: float, reason: str
-    ):
+        self, symbol: str, position: Dict[str, Any], close_price: float, reason: str,
+    ) -> None:
         """Close position and calculate P&L."""
         try:
             entry_price = position["entry_price"]
@@ -579,7 +575,7 @@ class AIAutoTradingService:
             logger.info(f"🔚 Position closed: {symbol} - {reason} - P&L: {pnl:.2f} USD")
 
         except Exception as e:
-            logger.error(f"Error closing position for {symbol}: {e}")
+            logger.exception(f"Error closing position for {symbol}: {e}")
 
     def get_performance_stats(self) -> Dict[str, Any]:
         """Get current performance statistics."""
@@ -600,7 +596,7 @@ class AIAutoTradingService:
                 "is_running": self.is_running,
             }
 
-    def trading_loop(self):
+    def trading_loop(self) -> None:
         """Main trading loop."""
         logger.info("🚀 AI Auto Trading loop started")
 
@@ -627,7 +623,7 @@ class AIAutoTradingService:
                     time.sleep(30)
 
             except Exception as e:
-                logger.error(f"Error in trading loop: {e}")
+                logger.exception(f"Error in trading loop: {e}")
                 time.sleep(10)  # Wait before retrying
 
         logger.info("🛑 AI Auto Trading loop stopped")
@@ -643,7 +639,7 @@ class AIAutoTradingService:
             self.symbols = symbols
             # Update continuous learning engine with new symbols
             self.continuous_learning_engine = create_continuous_learning_service(
-                self.symbols
+                self.symbols,
             )
             # Update config as well
             self.config["max_positions"] = len(symbols)
@@ -663,7 +659,7 @@ class AIAutoTradingService:
                 logger.info("📊 Real-time market data feeds: ACTIVE")
                 logger.info("🤖 Continuous model retraining: ACTIVE")
             except Exception as e:
-                logger.error(f"Failed to start continuous learning: {e}")
+                logger.exception(f"Failed to start continuous learning: {e}")
                 # Continue with trading even if learning engine fails
 
         # Start trading loop in background thread
@@ -673,11 +669,11 @@ class AIAutoTradingService:
 
         logger.info(f"✅ AI Auto Trading started for symbols: {self.symbols}")
         logger.info(
-            "🔄 System now continuously learning from live Twitter, news & market data!"
+            "🔄 System now continuously learning from live Twitter, news & market data!",
         )
         return True
 
-    def stop_trading(self):
+    def stop_trading(self) -> None:
         """Stop auto trading and continuous learning."""
         if not self.is_running:
             logger.warning("Trading not running")
@@ -691,7 +687,7 @@ class AIAutoTradingService:
                 self.continuous_learning_engine.stop_continuous_learning()
                 logger.info("🛑 Continuous Learning Engine stopped")
             except Exception as e:
-                logger.error(f"Error stopping continuous learning: {e}")
+                logger.exception(f"Error stopping continuous learning: {e}")
 
         if self.trading_thread:
             self.trading_thread.join(timeout=5)
@@ -712,7 +708,7 @@ class AIAutoTradingService:
                         self.continuous_learning_engine.get_learning_status()
                     )
                 except Exception as e:
-                    logger.error(f"Error getting learning status: {e}")
+                    logger.exception(f"Error getting learning status: {e}")
                     learning_status = {"error": str(e)}
 
             return {
@@ -752,7 +748,7 @@ class AIAutoTradingService:
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
         except Exception as e:
-            logger.error(f"Failed to get recent signals: {e}")
+            logger.exception(f"Failed to get recent signals: {e}")
             return []
 
     def get_recent_trades(self, limit: int = 10) -> List[Dict[str, Any]]:
@@ -772,11 +768,11 @@ class AIAutoTradingService:
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
         except Exception as e:
-            logger.error(f"Failed to get recent trades: {e}")
+            logger.exception(f"Failed to get recent trades: {e}")
             return []
 
     def get_recent_executions(
-        self, symbol: Optional[str] = None, limit: int = 10
+        self, symbol: Optional[str] = None, limit: int = 10,
     ) -> List[Dict[str, Any]]:
         """Get recent trade executions - alias for get_recent_trades with optional symbol filter."""
         try:
@@ -805,7 +801,7 @@ class AIAutoTradingService:
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
         except Exception as e:
-            logger.error(f"Failed to get recent executions: {e}")
+            logger.exception(f"Failed to get recent executions: {e}")
             return []
 
 
@@ -831,7 +827,6 @@ if __name__ == "__main__":
         min_confidence=0.5,
     )
 
-    print("🤖 Starting AI Auto Trading Service demo...")
 
     if service.start_trading():
         try:
@@ -840,18 +835,14 @@ if __name__ == "__main__":
 
             # Show results
             stats = service.get_performance_stats()
-            print("\n📊 Performance Stats:")
-            for key, value in stats.items():
-                print(f"  {key}: {value}")
+            for _key, _value in stats.items():
+                pass
 
-            print("\n📈 Recent Signals:")
             signals = service.get_recent_signals(5)
-            for signal in signals:
-                print(
-                    f"  {signal['symbol']} - {signal['action']} (confidence: {signal['confidence']:.2f})"
-                )
+            for _signal in signals:
+                pass
 
         finally:
             service.stop_trading()
     else:
-        print("❌ Failed to start AI trading service")
+        pass

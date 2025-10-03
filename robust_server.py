@@ -3,11 +3,11 @@
 Ikke stopp selv om noe går galt.
 """
 
+import contextlib
 import http.server
 import json
 import socketserver
 import time
-import traceback
 from datetime import datetime, timezone
 
 # ===========================================
@@ -380,7 +380,7 @@ class RobustHandler(http.server.SimpleHTTPRequestHandler):
                     "confidence": round(random.uniform(0.35, 0.95), 2),
                     "sparkline": sparkline,
                     "ts": datetime.now(timezone.utc).isoformat(),
-                }
+                },
             )
 
         return watchlist
@@ -428,7 +428,7 @@ class RobustHandler(http.server.SimpleHTTPRequestHandler):
                     "low": round(low, 6 if low < 1 else 2),
                     "close": round(close, 6 if close < 1 else 2),
                     "volume": volume,
-                }
+                },
             )
 
             current_price = close
@@ -440,9 +440,8 @@ class RobustHandler(http.server.SimpleHTTPRequestHandler):
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-    def do_GET(self):
+    def do_GET(self) -> None:
         try:
-            print(f"📡 GET: {self.path}")
 
             # Always send headers first
             self.send_response(200)
@@ -550,7 +549,7 @@ class RobustHandler(http.server.SimpleHTTPRequestHandler):
                 # Add some randomness to make it dynamic
                 for signal in signals:
                     signal["confidence"] = round(
-                        signal["confidence"] + random.uniform(-5, 5), 1
+                        signal["confidence"] + random.uniform(-5, 5), 1,
                     )
                     signal["timestamp"] = datetime.now(timezone.utc).isoformat()
                 response = signals
@@ -569,29 +568,22 @@ class RobustHandler(http.server.SimpleHTTPRequestHandler):
             # Send response
             json_data = json.dumps(response)
             self.wfile.write(json_data.encode())
-            print(f"✅ Sent: {len(json_data)} bytes")
 
-        except Exception as e:
-            print(f"❌ GET Error: {e}")
-            print(traceback.format_exc())
-            try:
+        except Exception:
+            with contextlib.suppress(Exception):
                 self.wfile.write(b'{"error": "server error"}')
-            except Exception as e:
-                print(f"Failed to send error response: {e}")
 
-    def do_OPTIONS(self):
+    def do_OPTIONS(self) -> None:
         try:
-            print(f"📡 OPTIONS: {self.path}")
             self.send_response(200)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "*")
             self.end_headers()
-            print("✅ OPTIONS sent")
-        except Exception as e:
-            print(f"❌ OPTIONS Error: {e}")
+        except Exception:
+            pass
 
-    def log_message(self, format, *args):
+    def log_message(self, format, *args) -> None:
         # Disable default logging
         pass
 
@@ -602,47 +594,30 @@ class RobustHandler(http.server.SimpleHTTPRequestHandler):
 
 
 class RobustServer:
-    def __init__(self, port=8000):
+    def __init__(self, port=8000) -> None:
         self.port = port
         self.running = False
 
-    def start(self):
+    def start(self) -> None:
         self.running = True
         retry_count = 0
         max_retries = 5
 
         while self.running and retry_count < max_retries:
             try:
-                print(
-                    f"🌐 Attempting to start server on port {self.port} (attempt {retry_count + 1})"
-                )
 
                 with socketserver.TCPServer(("", self.port), RobustHandler) as httpd:
-                    print(f"✅ Server started on http://localhost:{self.port}")
-                    print("📡 Endpoints ready:")
-                    print("   - /api/v1/system/status")
-                    print("   - /api/v1/ai-trading/status")
-                    print("   - /api/v1/continuous-learning/status")
-                    print("   - /api/v1/portfolio")
-                    print("   - /api/v1/portfolio/market-overview")
-                    print("=" * 60)
-                    print("✅ DASHBOARD SKAL NÅ VISE DATA!")
 
                     httpd.serve_forever()
 
             except KeyboardInterrupt:
-                print("\n🛑 Keyboard interrupt - stopping server")
                 self.running = False
                 break
-            except Exception as e:
-                print(f"❌ Server error (attempt {retry_count + 1}): {e}")
-                print(traceback.format_exc())
+            except Exception:
                 retry_count += 1
                 if retry_count < max_retries:
-                    print("🔄 Retrying in 2 seconds...")
                     time.sleep(2)
                 else:
-                    print("❌ Max retries reached - giving up")
                     break
 
 
@@ -651,9 +626,7 @@ class RobustServer:
 # ===========================================
 
 
-def main():
-    print("🚀 QUANTUM TRADER - ROBUST SERVER")
-    print("=" * 60)
+def main() -> None:
 
     server = RobustServer(8000)
     server.start()

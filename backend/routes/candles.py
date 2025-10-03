@@ -25,7 +25,7 @@ def get_candles(
                 select(Candle)
                 .where(Candle.symbol == symbol)
                 .order_by(cast(Any, Candle.timestamp).desc())
-                .limit(limit)
+                .limit(limit),
             )
             .scalars()
             .all()
@@ -66,7 +66,7 @@ def get_candles(
                 "low": round(low_p, 3),
                 "close": round(close_p, 3),
                 "volume": volume,
-            }
+            },
         )
 
     return {"symbol": symbol, "candles": list(reversed(demo_candles))}

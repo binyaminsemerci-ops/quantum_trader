@@ -7,10 +7,6 @@ from openai import OpenAI, OpenAIError
 def init_client():
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        print("❌ Fant ingen API-nøkkel.")
-        print("➡ Sett den med:")
-        print('   PowerShell:  setx OPENAI_API_KEY "din-nøkkel"')
-        print("   (Lukk PowerShell og åpne på nytt etterpå)")
         sys.exit(1)
     return OpenAI(api_key=api_key)
 
@@ -34,12 +30,8 @@ def ask_codegpt(prompt: str):
 
 
 if __name__ == "__main__":
-    print("🚀 Code GPT terminal-klient startet. Skriv 'exit' for å avslutte.\n")
     while True:
         user_input = input("\n💬 Spørsmål til Code GPT: ")
         if user_input.lower() in {"exit", "quit"}:
-            print("👋 Avslutter...")
             break
         answer = ask_codegpt(user_input)
-        print("\n🤖 Svar fra Code GPT:\n")
-        print(answer)

@@ -1,8 +1,9 @@
 """AI Trading routes for status and control endpoints."""
+from __future__ import annotations
 
 import threading
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -12,8 +13,8 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 # Global continuous learning engine instance
-_learning_engine: Optional[Any] = None
-_learning_thread: Optional[threading.Thread] = None
+_learning_engine: Any | None = None
+_learning_thread: threading.Thread | None = None
 
 # Simple state management for AI trading
 _ai_trading_state = {
@@ -30,7 +31,7 @@ _state_lock = threading.Lock()
 
 
 @router.get("/ai-trading/status")
-async def get_ai_trading_status() -> Dict[str, Any]:
+async def get_ai_trading_status() -> dict[str, Any]:
     """Get AI auto trading status and performance metrics."""
     try:
         with _state_lock:
@@ -49,12 +50,12 @@ async def get_ai_trading_status() -> Dict[str, Any]:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
     except Exception as e:
-        logger.error(f"Error getting AI trading status: {e}")
+        logger.exception(f"Error getting AI trading status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/ai-trading/start")
-async def start_ai_trading(symbols: Optional[list[str]] = None) -> Dict[str, Any]:
+async def start_ai_trading(symbols: list[str] | None = None) -> dict[str, Any]:
     """Start AI auto trading for specified symbols."""
     try:
         if symbols is None:
@@ -70,12 +71,12 @@ async def start_ai_trading(symbols: Optional[list[str]] = None) -> Dict[str, Any
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
-        logger.error(f"Error starting AI trading: {e}")
+        logger.exception(f"Error starting AI trading: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/ai-trading/stop")
-async def stop_ai_trading() -> Dict[str, Any]:
+async def stop_ai_trading() -> dict[str, Any]:
     """Stop AI auto trading."""
     try:
         with _state_lock:
@@ -87,14 +88,14 @@ async def stop_ai_trading() -> Dict[str, Any]:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
-        logger.error(f"Error stopping AI trading: {e}")
+        logger.exception(f"Error stopping AI trading: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/continuous-learning/start")
 async def start_continuous_learning(
-    symbols: Optional[list[str]] = None,
-) -> Dict[str, Any]:
+    symbols: list[str] | None = None,
+) -> dict[str, Any]:
     """Start continuous learning engine with live data feeds."""
     try:
         if symbols is None:
@@ -105,7 +106,7 @@ async def start_continuous_learning(
             _ai_trading_state["symbols_monitored"] = len(symbols)
 
         logger.info(
-            f"🚀 Started Continuous Learning Engine with {len(symbols)} symbols"
+            f"🚀 Started Continuous Learning Engine with {len(symbols)} symbols",
         )
 
         return {
@@ -120,12 +121,12 @@ async def start_continuous_learning(
         }
 
     except Exception as e:
-        logger.error(f"Error starting continuous learning: {e}")
+        logger.exception(f"Error starting continuous learning: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/continuous-learning/stop")
-async def stop_continuous_learning() -> Dict[str, Any]:
+async def stop_continuous_learning() -> dict[str, Any]:
     """Stop continuous learning engine."""
     global _learning_engine
 
@@ -145,12 +146,12 @@ async def stop_continuous_learning() -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Error stopping continuous learning: {e}")
+        logger.exception(f"Error stopping continuous learning: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/continuous-learning/status")
-async def get_learning_status() -> Dict[str, Any]:
+async def get_learning_status() -> dict[str, Any]:
     """Get continuous learning engine status."""
     try:
         with _state_lock:
@@ -182,7 +183,7 @@ async def get_learning_status() -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Error getting learning status: {e}")
+        logger.exception(f"Error getting learning status: {e}")
         return {
             "learning_active": False,
             "symbols_monitored": 0,
@@ -195,14 +196,14 @@ async def get_learning_status() -> Dict[str, Any]:
 
 
 def update_ai_stats(
-    signal_count: Optional[int] = None, accuracy: Optional[float] = None
-):
+    signal_count: int | None = None, accuracy: float | None = None,
+) -> None:
     """Update AI trading statistics."""
     with _state_lock:
         if signal_count is not None:
             _ai_trading_state["total_signals"] = signal_count
             _ai_trading_state["last_signal_time"] = datetime.now(
-                timezone.utc
+                timezone.utc,
             ).isoformat()
         if accuracy is not None:
             _ai_trading_state["accuracy"] = accuracy

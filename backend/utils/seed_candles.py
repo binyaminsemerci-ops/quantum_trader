@@ -28,6 +28,6 @@ def seed_candles(symbol: str = "BTCUSDT", days: int = 30) -> None:
                     low=low_price,
                     close=close_price,
                     volume=volume,
-                )
+                ),
             )
             price = close_price

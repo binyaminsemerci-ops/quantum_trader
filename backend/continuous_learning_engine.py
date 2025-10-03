@@ -27,6 +27,9 @@ from typing import Any, Dict, List, Optional
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import functools
+import operator
+
 from ai_engine.train_and_save import train_and_save
 from backend.routes.external_data import (
     binance_ohlcv,
@@ -76,7 +79,7 @@ class ContinuousLearningEngine:
         training_interval: int = 3600,  # Retrain model every hour
         sentiment_threshold: float = 0.3,  # Minimum sentiment impact
         enhanced_fetch_interval: int = 300,
-    ):  # Enhanced data every 5 min
+    ) -> None:  # Enhanced data every 5 min
         self.symbols = symbols
         self.twitter_update_interval = twitter_update_interval
         self.market_update_interval = market_update_interval
@@ -116,7 +119,7 @@ class ContinuousLearningEngine:
         # Lock for thread safety
         self._lock = threading.Lock()
 
-    def _init_database(self):
+    def _init_database(self) -> None:
         """Initialize continuous learning database."""
         with sqlite3.connect(self.db_path) as conn:
             # Live data points table
@@ -131,7 +134,7 @@ class ContinuousLearningEngine:
                     volume_spike BOOLEAN,
                     timestamp TEXT NOT NULL
                 )
-            """
+            """,
             )
 
             # Market regimes table
@@ -145,7 +148,7 @@ class ContinuousLearningEngine:
                     sentiment_score REAL NOT NULL,
                     timestamp TEXT NOT NULL
                 )
-            """
+            """,
             )
 
             # Strategy evolution tracking
@@ -159,7 +162,7 @@ class ContinuousLearningEngine:
                     market_regime TEXT,
                     timestamp TEXT NOT NULL
                 )
-            """
+            """,
             )
 
             # Real-time sentiment tracking
@@ -174,7 +177,7 @@ class ContinuousLearningEngine:
                     price_impact REAL,
                     timestamp TEXT NOT NULL
                 )
-            """
+            """,
             )
 
     async def fetch_live_twitter_sentiment(self) -> Dict[str, Dict[str, Any]]:
@@ -190,22 +193,22 @@ class ContinuousLearningEngine:
 
                 # Fetch Twitter sentiment
                 sentiment = self.twitter_client.sentiment_for_symbol(
-                    base_symbol, max_results=50
+                    base_symbol, max_results=50,
                 )
 
                 # Enhanced sentiment analysis
                 enhanced_sentiment = await self._analyze_enhanced_sentiment(
-                    base_symbol, sentiment
+                    base_symbol, sentiment,
                 )
 
                 sentiment_data[symbol] = enhanced_sentiment
 
                 logger.debug(
-                    f"📱 Twitter sentiment for {symbol}: {sentiment['score']:.3f} ({sentiment['label']})"
+                    f"📱 Twitter sentiment for {symbol}: {sentiment['score']:.3f} ({sentiment['label']})",
                 )
 
             except Exception as e:
-                logger.error(f"Failed to fetch Twitter sentiment for {symbol}: {e}")
+                logger.exception(f"Failed to fetch Twitter sentiment for {symbol}: {e}")
                 sentiment_data[symbol] = {
                     "score": 0.0,
                     "label": "neutral",
@@ -271,11 +274,11 @@ class ContinuousLearningEngine:
                 and key != "ai_insights"
             )
             logger.info(
-                f"✅ Enhanced data fetched from {sources_active} active sources"
+                f"✅ Enhanced data fetched from {sources_active} active sources",
             )
 
         except Exception as e:
-            logger.error(f"Error fetching enhanced market data: {e}")
+            logger.exception(f"Error fetching enhanced market data: {e}")
             enhanced_data = {
                 "error": str(e),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -305,7 +308,7 @@ class ContinuousLearningEngine:
                 # Extreme fear/greed signals
                 if fg_value <= 25:
                     insights["opportunity_signals"].append(
-                        "extreme_fear_buy_opportunity"
+                        "extreme_fear_buy_opportunity",
                     )
                 elif fg_value >= 75:
                     insights["risk_factors"].append("extreme_greed_sell_signal")
@@ -389,7 +392,7 @@ class ContinuousLearningEngine:
             global_data = coingecko_data.get("global_data", {})
             if global_data:
                 btc_dominance = global_data.get("market_cap_percentage", {}).get(
-                    "btc", 0
+                    "btc", 0,
                 )
                 total_market_cap = global_data.get("total_market_cap", {}).get("usd", 0)
 
@@ -402,13 +405,13 @@ class ContinuousLearningEngine:
                 }
 
         except Exception as e:
-            logger.error(f"Error extracting AI insights: {e}")
+            logger.exception(f"Error extracting AI insights: {e}")
             insights["error"] = str(e)
 
         return insights
 
     async def _analyze_enhanced_sentiment(
-        self, symbol: str, base_sentiment: Dict[str, Any]
+        self, symbol: str, base_sentiment: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Enhanced sentiment analysis with market context."""
         enhanced = base_sentiment.copy()
@@ -445,7 +448,7 @@ class ContinuousLearningEngine:
             return enhanced
 
         except Exception as e:
-            logger.error(f"Enhanced sentiment analysis failed for {symbol}: {e}")
+            logger.exception(f"Enhanced sentiment analysis failed for {symbol}: {e}")
             return enhanced
 
     def _get_recent_sentiment(self, symbol: str, minutes: int = 30) -> List[float]:
@@ -464,7 +467,7 @@ class ContinuousLearningEngine:
 
                 return [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            logger.error(f"Failed to get recent sentiment for {symbol}: {e}")
+            logger.exception(f"Failed to get recent sentiment for {symbol}: {e}")
             return []
 
     async def _get_recent_price_trend(self, symbol: str, minutes: int = 30) -> float:
@@ -482,7 +485,7 @@ class ContinuousLearningEngine:
             return 0.0
 
         except Exception as e:
-            logger.error(f"Failed to get price trend for {symbol}: {e}")
+            logger.exception(f"Failed to get price trend for {symbol}: {e}")
             return 0.0
 
     async def fetch_live_market_data(self) -> Dict[str, Dict[str, Any]]:
@@ -498,22 +501,22 @@ class ContinuousLearningEngine:
                 if candles:
                     # Enhanced market analysis
                     enhanced_data = await self._analyze_enhanced_market_data(
-                        symbol, candles
+                        symbol, candles,
                     )
                     market_data[symbol] = enhanced_data
 
                     logger.debug(
-                        f"📊 Market data for {symbol}: Price={enhanced_data['current_price']:.4f}, Vol Spike={enhanced_data['volume_spike']}"
+                        f"📊 Market data for {symbol}: Price={enhanced_data['current_price']:.4f}, Vol Spike={enhanced_data['volume_spike']}",
                     )
 
             except Exception as e:
-                logger.error(f"Failed to fetch market data for {symbol}: {e}")
+                logger.exception(f"Failed to fetch market data for {symbol}: {e}")
                 market_data[symbol] = {"error": str(e)}
 
         return market_data
 
     async def _analyze_enhanced_market_data(
-        self, symbol: str, candles: List[Dict]
+        self, symbol: str, candles: List[Dict],
     ) -> Dict[str, Any]:
         """Enhanced market data analysis."""
         try:
@@ -534,7 +537,7 @@ class ContinuousLearningEngine:
                 for i in range(1, len(prices))
             ]
             volatility = sum(abs(change) for change in price_changes) / len(
-                price_changes
+                price_changes,
             )
 
             # Volume spike detection
@@ -575,11 +578,11 @@ class ContinuousLearningEngine:
             }
 
         except Exception as e:
-            logger.error(f"Enhanced market analysis failed for {symbol}: {e}")
+            logger.exception(f"Enhanced market analysis failed for {symbol}: {e}")
             return {"error": str(e)}
 
     def detect_market_regime(
-        self, market_data: Dict[str, Any], sentiment_data: Dict[str, Any]
+        self, market_data: Dict[str, Any], sentiment_data: Dict[str, Any],
     ) -> MarketRegime:
         """Detect current market regime based on multiple factors."""
         try:
@@ -621,13 +624,13 @@ class ContinuousLearningEngine:
             )
 
             logger.info(
-                f"🌊 Market Regime: {regime_type.upper()} (Vol: {avg_volatility:.3f}, Trend: {avg_trend_strength:.3f}, Sent: {avg_sentiment:.3f})"
+                f"🌊 Market Regime: {regime_type.upper()} (Vol: {avg_volatility:.3f}, Trend: {avg_trend_strength:.3f}, Sent: {avg_sentiment:.3f})",
             )
 
             return regime
 
         except Exception as e:
-            logger.error(f"Market regime detection failed: {e}")
+            logger.exception(f"Market regime detection failed: {e}")
             return MarketRegime("unknown", 0.0, 0.0, 0.0, datetime.now(timezone.utc))
 
     def detect_enhanced_market_regime(
@@ -710,10 +713,7 @@ class ContinuousLearningEngine:
                 else:
                     regime_type = "volatile"
             elif adjusted_sentiment > 0.3:
-                if btc_dominance < 40:
-                    regime_type = "altcoin_bull"
-                else:
-                    regime_type = "btc_bull"
+                regime_type = "altcoin_bull" if btc_dominance < 40 else "btc_bull"
             elif adjusted_sentiment < -0.3:
                 regime_type = "bear_market"
             elif abs(avg_trend_strength) < 0.01:
@@ -732,17 +732,17 @@ class ContinuousLearningEngine:
             logger.info(
                 f"🌊 Enhanced Market Regime: {regime_type.upper()} "
                 f"(Vol: {avg_volatility:.3f}, Trend: {avg_trend_strength:.3f}, "
-                f"Sent: {adjusted_sentiment:.3f}, F&G: {fg_value})"
+                f"Sent: {adjusted_sentiment:.3f}, F&G: {fg_value})",
             )
 
             return enhanced_regime
 
         except Exception as e:
-            logger.error(f"Enhanced market regime detection failed: {e}")
+            logger.exception(f"Enhanced market regime detection failed: {e}")
             # Fall back to traditional detection
             return self.detect_market_regime(market_data, sentiment_data)
 
-    async def continuous_twitter_feed(self):
+    async def continuous_twitter_feed(self) -> None:
         """Continuous Twitter sentiment monitoring."""
         logger.info("🐦 Starting continuous Twitter feed monitoring...")
 
@@ -758,10 +758,10 @@ class ContinuousLearningEngine:
                 await asyncio.sleep(self.twitter_update_interval)
 
             except Exception as e:
-                logger.error(f"Twitter feed error: {e}")
+                logger.exception(f"Twitter feed error: {e}")
                 await asyncio.sleep(30)  # Wait before retrying
 
-    async def continuous_market_feed(self):
+    async def continuous_market_feed(self) -> None:
         """Enhanced continuous market data monitoring with multi-source integration."""
         logger.info("📈 Starting enhanced continuous market data monitoring...")
 
@@ -774,7 +774,7 @@ class ContinuousLearningEngine:
 
                 # Detect market regime with enhanced data
                 regime = self.detect_enhanced_market_regime(
-                    market_data, sentiment_data, enhanced_data
+                    market_data, sentiment_data, enhanced_data,
                 )
 
                 # Store data
@@ -798,10 +798,10 @@ class ContinuousLearningEngine:
                 await asyncio.sleep(self.market_update_interval)
 
             except Exception as e:
-                logger.error(f"Enhanced market feed error: {e}")
+                logger.exception(f"Enhanced market feed error: {e}")
                 await asyncio.sleep(30)
 
-    async def continuous_enhanced_feed(self):
+    async def continuous_enhanced_feed(self) -> None:
         """Continuous enhanced data monitoring from multiple sources."""
         logger.info("🔄 Starting continuous enhanced data feed monitoring...")
 
@@ -816,7 +816,7 @@ class ContinuousLearningEngine:
                     logger.info(
                         f"🧠 AI Insights - Sentiment: {insights.get('market_sentiment', 'neutral')}, "
                         f"Signals: {len(insights.get('momentum_signals', []))}, "
-                        f"Risks: {len(insights.get('risk_factors', []))}"
+                        f"Risks: {len(insights.get('risk_factors', []))}",
                     )
 
                 # Store insights for AI learning
@@ -827,10 +827,10 @@ class ContinuousLearningEngine:
                 await asyncio.sleep(self.enhanced_fetch_interval)
 
             except Exception as e:
-                logger.error(f"Enhanced feed error: {e}")
+                logger.exception(f"Enhanced feed error: {e}")
                 await asyncio.sleep(60)  # Wait longer on error
 
-    async def continuous_learning_loop(self):
+    async def continuous_learning_loop(self) -> None:
         """Continuous AI model retraining loop."""
         logger.info("🤖 Starting continuous learning loop...")
 
@@ -851,10 +851,10 @@ class ContinuousLearningEngine:
                 await asyncio.sleep(60)  # Check every minute
 
             except Exception as e:
-                logger.error(f"Continuous learning error: {e}")
+                logger.exception(f"Continuous learning error: {e}")
                 await asyncio.sleep(300)  # Wait 5 minutes before retry
 
-    async def _retrain_model_with_live_data(self):
+    async def _retrain_model_with_live_data(self) -> None:
         """Retrain AI model with accumulated live data including enhanced multi-source features."""
         try:
             # Get comprehensive data for training
@@ -864,7 +864,7 @@ class ContinuousLearningEngine:
 
             # Analyze current market conditions for adaptive training
             current_regime = self.detect_enhanced_market_regime(
-                fresh_market_data, fresh_sentiment_data, enhanced_data
+                fresh_market_data, fresh_sentiment_data, enhanced_data,
             )
 
             # Extract AI insights for feature engineering
@@ -882,11 +882,11 @@ class ContinuousLearningEngine:
 
             # Enhanced feature engineering
             enhanced_features = self._extract_enhanced_features(
-                enhanced_data, ai_insights
+                enhanced_data, ai_insights,
             )
 
             logger.info(
-                f"🧠 Retraining with {len(enhanced_features)} enhanced features in {current_regime.regime_type} regime"
+                f"🧠 Retraining with {len(enhanced_features)} enhanced features in {current_regime.regime_type} regime",
             )
 
             # Train with enhanced features including sentiment and regime data
@@ -923,14 +923,14 @@ class ContinuousLearningEngine:
 
             logger.info(
                 f"🎯 Enhanced model retrained: Accuracy={new_accuracy:.3f}, "
-                f"Sharpe={sharpe_ratio:.3f}, Regime={current_regime.regime_type}"
+                f"Sharpe={sharpe_ratio:.3f}, Regime={current_regime.regime_type}",
             )
 
         except Exception as e:
-            logger.error(f"Enhanced model retraining failed: {e}")
+            logger.exception(f"Enhanced model retraining failed: {e}")
 
     def _extract_enhanced_features(
-        self, enhanced_data: Dict[str, Any], ai_insights: Dict[str, Any]
+        self, enhanced_data: Dict[str, Any], ai_insights: Dict[str, Any],
     ) -> Dict[str, float]:
         """Extract quantitative features from enhanced data sources."""
         features = {}
@@ -999,20 +999,20 @@ class ContinuousLearningEngine:
                     sum(reddit_scores) / len(reddit_scores) if reddit_scores else 0.0
                 )
                 features["reddit_sentiment"] = max(
-                    -1.0, min(1.0, avg_reddit_sentiment)
+                    -1.0, min(1.0, avg_reddit_sentiment),
                 )  # Clamp to [-1, 1]
                 features["reddit_activity"] = len(reddit_data) / 10.0  # Normalize
 
             logger.debug(f"🔧 Extracted {len(features)} enhanced features")
 
         except Exception as e:
-            logger.error(f"Error extracting enhanced features: {e}")
+            logger.exception(f"Error extracting enhanced features: {e}")
 
         return features
 
     def _store_live_data_point(
-        self, symbol: str, market_data: Dict, sentiment_data: Dict
-    ):
+        self, symbol: str, market_data: Dict, sentiment_data: Dict,
+    ) -> None:
         """Store live data point to database."""
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -1031,11 +1031,11 @@ class ContinuousLearningEngine:
                     ),
                 )
         except Exception as e:
-            logger.error(f"Failed to store live data point: {e}")
+            logger.exception(f"Failed to store live data point: {e}")
 
     def _store_enhanced_data_point(
-        self, symbol: str, market_data: Dict, sentiment_data: Dict, enhanced_data: Dict
-    ):
+        self, symbol: str, market_data: Dict, sentiment_data: Dict, enhanced_data: Dict,
+    ) -> None:
         """Store enhanced data point with multi-source information."""
         try:
             # Store traditional data point
@@ -1056,16 +1056,16 @@ class ContinuousLearningEngine:
                             {
                                 "enhanced_data": enhanced_data,
                                 "ai_insights": enhanced_data.get("ai_insights", {}),
-                            }
+                            },
                         ),
                         symbol,
                         symbol,
                     ),
                 )
         except Exception as e:
-            logger.error(f"Failed to store enhanced data point: {e}")
+            logger.exception(f"Failed to store enhanced data point: {e}")
 
-    def _store_ai_insights(self, insights: Dict):
+    def _store_ai_insights(self, insights: Dict) -> None:
         """Store AI insights for learning enhancement."""
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -1081,7 +1081,7 @@ class ContinuousLearningEngine:
                         regime_indicators TEXT,
                         timestamp TEXT NOT NULL
                     )
-                """
+                """,
                 )
 
                 # Store the insights
@@ -1102,9 +1102,9 @@ class ContinuousLearningEngine:
                     ),
                 )
         except Exception as e:
-            logger.error(f"Failed to store AI insights: {e}")
+            logger.exception(f"Failed to store AI insights: {e}")
 
-    def _store_sentiment_data(self, symbol: str, sentiment: Dict):
+    def _store_sentiment_data(self, symbol: str, sentiment: Dict) -> None:
         """Store sentiment data to database."""
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -1123,9 +1123,9 @@ class ContinuousLearningEngine:
                     ),
                 )
         except Exception as e:
-            logger.error(f"Failed to store sentiment data: {e}")
+            logger.exception(f"Failed to store sentiment data: {e}")
 
-    def _store_market_regime(self, regime: MarketRegime):
+    def _store_market_regime(self, regime: MarketRegime) -> None:
         """Store market regime to database."""
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -1144,9 +1144,9 @@ class ContinuousLearningEngine:
                     ),
                 )
         except Exception as e:
-            logger.error(f"Failed to store market regime: {e}")
+            logger.exception(f"Failed to store market regime: {e}")
 
-    def _store_strategy_evolution(self, training_result: Dict):
+    def _store_strategy_evolution(self, training_result: Dict) -> None:
         """Store strategy evolution tracking."""
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -1164,9 +1164,9 @@ class ContinuousLearningEngine:
                     ),
                 )
         except Exception as e:
-            logger.error(f"Failed to store strategy evolution: {e}")
+            logger.exception(f"Failed to store strategy evolution: {e}")
 
-    def start_continuous_learning(self):
+    def start_continuous_learning(self) -> None:
         """Start all continuous learning threads."""
         if self.is_running:
             logger.warning("Continuous learning already running")
@@ -1176,28 +1176,28 @@ class ContinuousLearningEngine:
 
         # Start Twitter feed thread
         self.twitter_thread = threading.Thread(
-            target=asyncio.run, args=(self.continuous_twitter_feed(),)
+            target=asyncio.run, args=(self.continuous_twitter_feed(),),
         )
         self.twitter_thread.daemon = True
         self.twitter_thread.start()
 
         # Start market feed thread
         self.market_thread = threading.Thread(
-            target=asyncio.run, args=(self.continuous_market_feed(),)
+            target=asyncio.run, args=(self.continuous_market_feed(),),
         )
         self.market_thread.daemon = True
         self.market_thread.start()
 
         # Start learning loop thread
         self.training_thread = threading.Thread(
-            target=asyncio.run, args=(self.continuous_learning_loop(),)
+            target=asyncio.run, args=(self.continuous_learning_loop(),),
         )
         self.training_thread.daemon = True
         self.training_thread.start()
 
         # Start enhanced data collection thread
         self.enhanced_thread = threading.Thread(
-            target=asyncio.run, args=(self.continuous_enhanced_feed(),)
+            target=asyncio.run, args=(self.continuous_enhanced_feed(),),
         )
         self.enhanced_thread.daemon = True
         self.enhanced_thread.start()
@@ -1208,7 +1208,7 @@ class ContinuousLearningEngine:
         logger.info(f"🔄 Enhanced data: every {self.enhanced_fetch_interval}s")
         logger.info(f"🤖 Model retraining: every {self.training_interval}s")
 
-    def stop_continuous_learning(self):
+    def stop_continuous_learning(self) -> None:
         """Stop continuous learning."""
         self.is_running = False
 
@@ -1236,7 +1236,7 @@ class ContinuousLearningEngine:
                     if self.market_regimes
                     else "unknown"
                 ),
-                "data_points_collected": len(sum(self.live_data.values(), [])),
+                "data_points_collected": len(functools.reduce(operator.iadd, self.live_data.values(), [])),
                 "adaptive_features": list(self.adaptive_features),
             }
 
@@ -1264,7 +1264,6 @@ if __name__ == "__main__":
         time.sleep(300)  # 5 minutes
 
         status = engine.get_learning_status()
-        print("Learning Status:", json.dumps(status, indent=2))
 
     finally:
         engine.stop_continuous_learning()

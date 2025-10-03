@@ -4,6 +4,7 @@ Helhetlig løsning for Quantum Trader - ingen fancy dependencies.
 """
 
 import asyncio
+import contextlib
 import http.server
 import json
 import socketserver
@@ -97,7 +98,7 @@ crypto_data = [
 
 
 class QuantumTraderHandler(http.server.SimpleHTTPRequestHandler):
-    def do_GET(self):
+    def do_GET(self) -> None:
         self.send_response(200)
         self.send_header("Content-type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -153,7 +154,7 @@ class QuantumTraderHandler(http.server.SimpleHTTPRequestHandler):
                     "side": "buy",
                     "confidence": 0.85,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
+                },
             ]
         elif path == "/api/v1/enhanced/data":
             response = {
@@ -180,7 +181,7 @@ class QuantumTraderHandler(http.server.SimpleHTTPRequestHandler):
 
         self.wfile.write(json.dumps(response).encode())
 
-    def do_POST(self):
+    def do_POST(self) -> None:
         self.send_response(200)
         self.send_header("Content-type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -208,7 +209,7 @@ class QuantumTraderHandler(http.server.SimpleHTTPRequestHandler):
 
         self.wfile.write(json.dumps(response).encode())
 
-    def do_OPTIONS(self):
+    def do_OPTIONS(self) -> None:
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -221,25 +222,23 @@ class QuantumTraderHandler(http.server.SimpleHTTPRequestHandler):
 # ===========================================
 
 
-async def watchlist_handler(websocket, path):
+async def watchlist_handler(websocket, path) -> None:
     """Handle watchlist WebSocket connections."""
-    print(f"🔌 WebSocket client connected: {path}")
     try:
         while True:
             # Send crypto data every 2 seconds
             await websocket.send(json.dumps(crypto_data))
             await asyncio.sleep(2)
     except websockets.exceptions.ConnectionClosed:
-        print("🔌 WebSocket client disconnected")
+        pass
 
 
-def start_websocket_server():
+def start_websocket_server() -> None:
     """Start WebSocket server in background."""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
     start_server = websockets.serve(watchlist_handler, "localhost", 8001)
-    print("🔌 WebSocket server starting on ws://localhost:8001")
 
     loop.run_until_complete(start_server)
     loop.run_forever()
@@ -250,7 +249,7 @@ def start_websocket_server():
 # ===========================================
 
 
-def update_data():
+def update_data() -> None:
     """Update data in background."""
     while True:
         time.sleep(60)  # Update every minute
@@ -272,17 +271,13 @@ def update_data():
 # ===========================================
 
 
-def main():
-    print("🚀 QUANTUM TRADER - HELHETLIG FUNGERENDE SYSTEM")
-    print("=" * 60)
+def main() -> None:
 
     # Start background data updater
     threading.Thread(target=update_data, daemon=True).start()
-    print("📊 Background data updater started")
 
     # Start WebSocket server for watchlist
     threading.Thread(target=start_websocket_server, daemon=True).start()
-    print("🔌 WebSocket server thread started")
 
     # Give WebSocket server time to start
     time.sleep(2)
@@ -290,23 +285,9 @@ def main():
     # Start HTTP server
     PORT = 8000
     with socketserver.TCPServer(("", PORT), QuantumTraderHandler) as httpd:
-        print(f"🌐 HTTP Server running on http://localhost:{PORT}")
-        print("📡 All endpoints active:")
-        print("   - /api/v1/system/status")
-        print("   - /api/v1/ai-trading/status")
-        print("   - /api/v1/continuous-learning/status")
-        print("   - /api/v1/portfolio")
-        print("   - /api/v1/portfolio/market-overview")
-        print("   - /api/v1/signals/recent")
-        print("   - /api/v1/enhanced/data")
-        print("🔌 WebSocket: ws://localhost:8001")
-        print("=" * 60)
-        print("✅ SYSTEM READY - Dashboard skal nå vise data!")
 
-        try:
+        with contextlib.suppress(KeyboardInterrupt):
             httpd.serve_forever()
-        except KeyboardInterrupt:
-            print("\n🛑 Shutting down...")
 
 
 if __name__ == "__main__":

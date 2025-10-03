@@ -1,5 +1,8 @@
+from __future__ import annotations
+
+
 class RiskManager:
-    def __init__(self, max_position: float = 0.1, max_loss_pct: float = 0.02):
+    def __init__(self, max_position: float = 0.1, max_loss_pct: float = 0.02) -> None:
         """:param max_position: Maks posisjon som andel av balansen (f.eks. 0.1 = 10%)
         :param max_loss_pct: Maks prosentvis tap pr. trade (f.eks. 0.02 = 2%)
         """
@@ -7,7 +10,7 @@ class RiskManager:
         self.max_loss_pct = max_loss_pct
 
     def validate_order(
-        self, balance: float, qty: float, price: float, stop_loss: float
+        self, balance: float, qty: float, price: float, stop_loss: float,
     ) -> tuple[bool, str]:
         """Validerer en ordre basert på risikoregler.
         :param balance: Kontoens balanse

@@ -1,6 +1,6 @@
 import signal
 import time as _time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -47,13 +47,13 @@ try:
     )
 except Exception:  # pragma: no cover - optional component
 
-    async def evaluator_loop(*_args, **_kwargs):  # type: ignore
+    async def evaluator_loop(*_args, **_kwargs) -> None:  # type: ignore
         return
 
-    def register_ws(*_a, **_k):
+    def register_ws(*_a, **_k) -> None:
         return
 
-    def unregister_ws(*_a, **_k):
+    def unregister_ws(*_a, **_k) -> None:
         return
 
 
@@ -63,7 +63,7 @@ configure_logging()
 logger = get_logger(__name__)
 
 
-async def _heartbeat_task():
+async def _heartbeat_task() -> None:
     """Periodic heartbeat to monitor app liveness."""
     counter = 0
     while True:
@@ -85,7 +85,7 @@ async def _heartbeat_task():
         await asyncio.sleep(15)
 
 
-def _setup_signal_handlers():
+def _setup_signal_handlers() -> None:
     """Install graceful shutdown handlers unless under pytest or non-main thread."""
     import os
     import threading
@@ -95,9 +95,8 @@ def _setup_signal_handlers():
     if threading.current_thread() is not threading.main_thread():
         return
 
-    def _handler(signum, _frame):  # pragma: no cover
+    def _handler(signum, _frame) -> None:  # pragma: no cover
         logger.warning("Received signal %s - graceful shutdown initiated", signum)
-        return  # Let uvicorn orchestrate shutdown
 
     for sig_name in ("SIGTERM", "SIGINT"):
         if hasattr(signal, sig_name):
@@ -153,10 +152,8 @@ async def _lifespan(app: FastAPI):
         for task in tasks:
             if task and not task.done():
                 task.cancel()
-                try:
+                with suppress(asyncio.CancelledError):
                     await task
-                except asyncio.CancelledError:
-                    pass
         logger.info("Background tasks cleanup completed")
 
 
@@ -305,7 +302,7 @@ API_PREFIX = ""  # base (non-versioned)
 V1_PREFIX = "/api/v1"  # compatibility / explicit version prefix
 
 
-def _safe_include(router_obj, prefix: str):
+def _safe_include(router_obj, prefix: str) -> None:
     try:
         app.include_router(router_obj, prefix=prefix)
         logger.info(

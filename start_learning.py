@@ -14,7 +14,7 @@ from backend.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-def start_enhanced_learning():
+def start_enhanced_learning() -> None:
     """Start the continuous learning engine with enhanced data feeds."""
     # Default symbols for learning (most liquid crypto pairs)
     symbols = [
@@ -62,7 +62,7 @@ def start_enhanced_learning():
             logger.info(
                 f"📚 Learning Status: {status['symbols_monitored']} symbols, "
                 f"{status['data_points']} data points, "
-                f"Accuracy: {status['model_accuracy']:.1%}"
+                f"Accuracy: {status['model_accuracy']:.1%}",
             )
 
             import time
@@ -75,7 +75,7 @@ def start_enhanced_learning():
         logger.info("✅ Enhanced Learning Engine stopped")
 
     except Exception as e:
-        logger.error(f"❌ Error in Enhanced Learning Engine: {e}")
+        logger.exception(f"❌ Error in Enhanced Learning Engine: {e}")
         if hasattr(engine, "stop"):
             engine.stop()
 

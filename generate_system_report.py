@@ -5,6 +5,7 @@ Generates a comprehensive summary of backend and frontend system tests.
 """
 
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
@@ -13,10 +14,10 @@ from typing import Any, Dict, List
 class SystemTestSummaryGenerator:
     """Generate comprehensive system test summary."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.results: Dict[str, Any] = {}
 
-    def load_test_results(self):
+    def load_test_results(self) -> None:
         """Load available test results."""
         result_files = [
             ("backend", "backend_test_results.json"),
@@ -29,14 +30,11 @@ class SystemTestSummaryGenerator:
             file_path = Path(filename)
             if file_path.exists():
                 try:
-                    with open(file_path, "r") as f:
+                    with open(file_path) as f:
                         self.results[category] = json.load(f)
-                    print(f"✅ Loaded {category} test results from {filename}")
                 except Exception as e:
-                    print(f"⚠️ Could not load {filename}: {e}")
                     self.results[category] = {"error": f"Failed to load: {e}"}
             else:
-                print(f"❌ Test results not found: {filename}")
                 self.results[category] = {"error": "Results file not found"}
 
     def check_system_components(self) -> Dict[str, Any]:
@@ -78,7 +76,7 @@ class SystemTestSummaryGenerator:
 
         # Check backend coverage
         if "backend" in self.results and self.results["backend"].get(
-            "detailed_results"
+            "detailed_results",
         ):
             for result in self.results["backend"]["detailed_results"]:
                 if result.get("test_name") == "health_endpoint":
@@ -88,7 +86,7 @@ class SystemTestSummaryGenerator:
 
         # Check frontend coverage
         if "frontend" in self.results and self.results["frontend"].get(
-            "detailed_results"
+            "detailed_results",
         ):
             for result in self.results["frontend"]["detailed_results"]:
                 if "files" in result.get("test_name", ""):
@@ -176,12 +174,12 @@ class SystemTestSummaryGenerator:
             "health_emoji": health_emoji,
             "component_scores": {name: score for name, score, _ in scores},
             "recommendations": self.generate_health_recommendations(
-                weighted_score, components, coverage
+                weighted_score, components, coverage,
             ),
         }
 
     def generate_health_recommendations(
-        self, overall_score: float, components: Dict[str, Any], coverage: Dict[str, Any]
+        self, overall_score: float, components: Dict[str, Any], coverage: Dict[str, Any],
     ) -> List[str]:
         """Generate recommendations based on system health."""
         recommendations = []
@@ -189,12 +187,12 @@ class SystemTestSummaryGenerator:
         # Structure recommendations
         if not components["backend_ready"]:
             recommendations.append(
-                "🔧 Fix backend structure: Ensure backend directory has working main.py or simple_main.py"
+                "🔧 Fix backend structure: Ensure backend directory has working main.py or simple_main.py",
             )
 
         if not components["frontend_ready"]:
             recommendations.append(
-                "🔧 Fix frontend structure: Ensure frontend directory has valid package.json"
+                "🔧 Fix frontend structure: Ensure frontend directory has valid package.json",
             )
 
         if not components["database_ready"]:
@@ -217,25 +215,25 @@ class SystemTestSummaryGenerator:
 
         if test_gaps:
             recommendations.append(
-                f"📊 Add missing test coverage: {', '.join(test_gaps)}"
+                f"📊 Add missing test coverage: {', '.join(test_gaps)}",
             )
 
         # Score-based recommendations
         if overall_score >= 0.8:
             recommendations.append(
-                "🎉 Excellent system health! Ready for production deployment."
+                "🎉 Excellent system health! Ready for production deployment.",
             )
         elif overall_score >= 0.6:
             recommendations.append(
-                "✅ Good system health. Address minor issues for production readiness."
+                "✅ Good system health. Address minor issues for production readiness.",
             )
         elif overall_score >= 0.4:
             recommendations.append(
-                "⚠️ Fair system health. Significant improvements needed before production."
+                "⚠️ Fair system health. Significant improvements needed before production.",
             )
         else:
             recommendations.append(
-                "❌ Poor system health. Major issues must be resolved before deployment."
+                "❌ Poor system health. Major issues must be resolved before deployment.",
             )
 
         # Specific technical recommendations
@@ -243,7 +241,7 @@ class SystemTestSummaryGenerator:
             backend_result = self.results["backend"]
             if backend_result.get("success_rate", 0) < 0.5:
                 recommendations.append(
-                    "🔧 Fix backend connectivity issues - server may not be starting properly"
+                    "🔧 Fix backend connectivity issues - server may not be starting properly",
                 )
 
         if "frontend" in self.results:
@@ -252,18 +250,16 @@ class SystemTestSummaryGenerator:
             if "detailed_results" in frontend_result:
                 for result in frontend_result["detailed_results"]:
                     if result.get("test_name") == "npm_available" and not result.get(
-                        "success"
+                        "success",
                     ):
                         recommendations.append(
-                            "🛠️ Install Node.js and npm for frontend development"
+                            "🛠️ Install Node.js and npm for frontend development",
                         )
 
         return recommendations
 
     def generate_comprehensive_report(self) -> Dict[str, Any]:
         """Generate comprehensive system test report."""
-        print("📊 Generating System Test Summary Report...")
-
         # Load all available test results
         self.load_test_results()
 
@@ -285,7 +281,7 @@ class SystemTestSummaryGenerator:
                     "tests_passed": results.get("tests_passed", 0),
                     "success_rate": results.get("success_rate", 0),
                     "duration_ms": results.get(
-                        "total_duration_ms", results.get("test_duration_ms", 0)
+                        "total_duration_ms", results.get("test_duration_ms", 0),
                     ),
                     "status": (
                         "✅ PASS"
@@ -299,7 +295,7 @@ class SystemTestSummaryGenerator:
                     "error": results["error"],
                 }
 
-        report = {
+        return {
             "report_metadata": {
                 "generated_at": datetime.now().isoformat(),
                 "system": "Quantum Trader",
@@ -312,33 +308,17 @@ class SystemTestSummaryGenerator:
             "detailed_results": self.results,
         }
 
-        return report
 
-    def print_report(self, report: Dict[str, Any]):
+    def print_report(self, report: Dict[str, Any]) -> None:
         """Print formatted system test report."""
-        print("\n" + "=" * 70)
-        print("📊 QUANTUM TRADER SYSTEM TEST SUMMARY")
-        print("=" * 70)
-
         # System health overview
         health = report["system_health"]
-        print(
-            f"\n{health['health_emoji']} OVERALL SYSTEM HEALTH: {health['health_category'].upper()}"
-        )
-        print(f"📈 Health Score: {health['score_percentage']:.1f}%")
 
         # Component status
-        components = report["component_analysis"]
-        print("\n🏗️ SYSTEM COMPONENTS:")
-        print(f"   Backend Ready: {'✅' if components['backend_ready'] else '❌'}")
-        print(f"   Frontend Ready: {'✅' if components['frontend_ready'] else '❌'}")
-        print(f"   Database Ready: {'✅' if components['database_ready'] else '❌'}")
-        print(f"   Structure Score: {components['overall_structure']:.1%}")
+        report["component_analysis"]
 
         # Test coverage
         coverage = report["test_coverage"]
-        print("\n📊 TEST COVERAGE:")
-        print(f"   Coverage Score: {coverage['coverage_percentage']:.1f}%")
 
         coverage_items = [
             ("Backend API", coverage["coverage_details"]["backend_api_tested"]),
@@ -351,34 +331,23 @@ class SystemTestSummaryGenerator:
             ("Load Testing", coverage["coverage_details"]["load_testing_performed"]),
         ]
 
-        for item, tested in coverage_items:
-            status = "✅" if tested else "❌"
-            print(f"   {status} {item}")
+        for _item, _tested in coverage_items:
+            pass
 
         # Test results summary
         test_summaries = report["test_summaries"]
-        print("\n🧪 TEST RESULTS:")
 
-        for category, summary in test_summaries.items():
-            print(f"   {summary['status']} {category.title()}:")
-            if "error" in summary:
-                print(f"       Error: {summary['error']}")
-            else:
-                print(
-                    f"       Tests: {summary['tests_passed']}/{summary['tests_run']} passed ({summary['success_rate']:.1%})"
-                )
-                if summary.get("duration_ms"):
-                    print(f"       Duration: {summary['duration_ms']:.0f}ms")
+        for summary in test_summaries.values():
+            if "error" in summary or summary.get("duration_ms"):
+                pass
 
         # Recommendations
-        print("\n💡 RECOMMENDATIONS:")
-        for rec in health["recommendations"]:
-            print(f"   {rec}")
-
-        print("\n" + "=" * 70)
+        for _rec in health["recommendations"]:
+            pass
 
 
-def main():
+
+def main() -> int:
     """Main report generation."""
     import argparse
 
@@ -398,17 +367,14 @@ def main():
     if args.output:
         with open(args.output, "w") as f:
             json.dump(report, f, indent=2, default=str)
-        print(f"📄 Comprehensive report saved to: {args.output}")
 
     # Exit with appropriate code based on system health
     health_score = report["system_health"]["overall_score"]
     if health_score >= 0.6:
-        print("✅ System health acceptable for development/testing")
         return 0
     else:
-        print("❌ System health needs improvement")
         return 1
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

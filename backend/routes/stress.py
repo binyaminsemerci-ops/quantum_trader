@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -27,7 +27,7 @@ def _resolve_aggregated_path() -> Path:
     return ROOT / "artifacts" / "stress" / "aggregated.json"
 
 
-def _normalize_counts(raw: Dict[str, Any] | None) -> Dict[str, int]:
+def _normalize_counts(raw: dict[str, Any] | None) -> dict[str, int]:
     counts = {"ok": 0, "fail": 0, "skipped": 0, "error": 0}
     if not isinstance(raw, dict):
         return counts
@@ -38,7 +38,7 @@ def _normalize_counts(raw: Dict[str, Any] | None) -> Dict[str, int]:
     return counts
 
 
-def _count_task(task: str, runs: List[Dict[str, Any]]) -> Dict[str, int]:
+def _count_task(task: str, runs: list[dict[str, Any]]) -> dict[str, int]:
     counts = {"ok": 0, "fail": 0, "skipped": 0, "error": 0}
     for item in runs:
         summary = item.get("summary") or {}
@@ -57,8 +57,8 @@ def _count_task(task: str, runs: List[Dict[str, Any]]) -> Dict[str, int]:
     return counts
 
 
-def _trend(task: str, runs: List[Dict[str, Any]]) -> List[int]:
-    values: List[int] = []
+def _trend(task: str, runs: list[dict[str, Any]]) -> list[int]:
+    values: list[int] = []
     for item in runs:
         summary = item.get("summary") or {}
         state = summary.get(task)
@@ -76,7 +76,7 @@ def _trend(task: str, runs: List[Dict[str, Any]]) -> List[int]:
     return values
 
 
-def _load_aggregated(path: Path) -> Dict[str, Any]:
+def _load_aggregated(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(path)
     with path.open("r", encoding="utf-8") as fh:
@@ -84,20 +84,20 @@ def _load_aggregated(path: Path) -> Dict[str, Any]:
 
 
 @router.get("/summary")
-async def stress_summary() -> Dict[str, Any]:
+async def stress_summary() -> dict[str, Any]:
     agg_path = _resolve_aggregated_path()
     try:
         data = _load_aggregated(agg_path)
     except FileNotFoundError:
         raise HTTPException(
-            status_code=404, detail=f"No aggregated.json at {agg_path}"
+            status_code=404, detail=f"No aggregated.json at {agg_path}",
         ) from None
 
-    runs: List[Dict[str, Any]] = data.get("runs") or []
-    stats: Dict[str, Any] = data.get("stats") or {}
+    runs: list[dict[str, Any]] = data.get("runs") or []
+    stats: dict[str, Any] = data.get("stats") or {}
 
     duration_stats = stats.get("duration_sec") or {}
-    durations: List[float] = []
+    durations: list[float] = []
     for run in runs:
         total_duration = run.get("total_duration")
         if total_duration is not None:
@@ -126,7 +126,7 @@ async def stress_summary() -> Dict[str, Any]:
     task_names = list(task_stats.keys())
     if not task_names:
         task_names = sorted(
-            {name for run in runs for name in (run.get("summary") or {}).keys()}
+            {name for run in runs for name in (run.get("summary") or {})},
         )
 
     tasks_payload = []
@@ -143,10 +143,10 @@ async def stress_summary() -> Dict[str, Any]:
                 "counts": counts,
                 "pass_rate": pass_rate,
                 "trend": _trend(name, runs),
-            }
+            },
         )
 
-    payload = {
+    return {
         "status": "ok",
         "source": str(agg_path),
         "started_at": data.get("started_at"),
@@ -166,4 +166,3 @@ async def stress_summary() -> Dict[str, Any]:
             for run in runs[-25:]
         ],
     }
-    return payload

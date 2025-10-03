@@ -16,14 +16,14 @@ async def get_stats():
         # Calculate basic P&L (buy vs sell value)
         buy_value = (
             session.scalar(
-                select(func.sum(Trade.qty * Trade.price)).where(Trade.side == "BUY")
+                select(func.sum(Trade.qty * Trade.price)).where(Trade.side == "BUY"),
             )
             or 0
         )
 
         sell_value = (
             session.scalar(
-                select(func.sum(Trade.qty * Trade.price)).where(Trade.side == "SELL")
+                select(func.sum(Trade.qty * Trade.price)).where(Trade.side == "SELL"),
             )
             or 0
         )

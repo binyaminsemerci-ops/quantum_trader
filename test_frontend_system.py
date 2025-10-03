@@ -25,8 +25,8 @@ class FrontendSystemTester:
     """Comprehensive frontend system testing."""
 
     def __init__(
-        self, frontend_dir: str = "frontend", backend_url: str = "http://localhost:8000"
-    ):
+        self, frontend_dir: str = "frontend", backend_url: str = "http://localhost:8000",
+    ) -> None:
         self.frontend_dir = Path(frontend_dir)
         self.backend_url = backend_url
         self.frontend_process: Optional[subprocess.Popen] = None
@@ -40,12 +40,10 @@ class FrontendSystemTester:
             # Check if server is already running
             response = requests.get(f"{self.backend_url}/health", timeout=2)
             if response.status_code == 200:
-                print("✅ Backend server already running")
                 return True
-        except Exception as e:
-            print(f"Backend not running (will start): {e}")
+        except Exception:
+            pass
 
-        print("🚀 Starting backend server for frontend tests...")
 
         self.backend_process = subprocess.Popen(
             [
@@ -69,13 +67,10 @@ class FrontendSystemTester:
                 time.sleep(1)
                 response = requests.get(f"{self.backend_url}/health", timeout=2)
                 if response.status_code == 200:
-                    print("✅ Backend server started")
                     return True
-            except Exception as e:
-                print(f"Backend not ready yet: {e}")
+            except Exception:
                 continue
 
-        print("❌ Failed to start backend server")
         return False
 
     def start_frontend_dev_server(self) -> bool:
@@ -84,12 +79,10 @@ class FrontendSystemTester:
             # Check if already running
             response = requests.get(self.frontend_url, timeout=2)
             if response.status_code == 200:
-                print("✅ Frontend server already running")
                 return True
-        except Exception as e:
-            print(f"Frontend not running (will start): {e}")
+        except Exception:
+            pass
 
-        print("🚀 Starting frontend development server...")
 
         # Start the frontend dev server
         self.frontend_process = subprocess.Popen(
@@ -105,19 +98,15 @@ class FrontendSystemTester:
                 time.sleep(1)
                 response = requests.get(self.frontend_url, timeout=2)
                 if response.status_code == 200:
-                    print("✅ Frontend server started")
                     return True
-            except Exception as e:
-                print(f"Frontend not ready yet: {e}")
+            except Exception:
                 continue
 
-        print("❌ Failed to start frontend server")
         return False
 
-    def stop_servers(self):
+    def stop_servers(self) -> None:
         """Stop both frontend and backend servers."""
         if self.frontend_process:
-            print("🛑 Stopping frontend server...")
             self.frontend_process.terminate()
             try:
                 self.frontend_process.wait(timeout=10)
@@ -126,7 +115,6 @@ class FrontendSystemTester:
             self.frontend_process = None
 
         if self.backend_process:
-            print("🛑 Stopping backend server...")
             self.backend_process.terminate()
             try:
                 self.backend_process.wait(timeout=10)
@@ -139,13 +127,12 @@ class FrontendSystemTester:
         start_time = time.time()
 
         try:
-            print("🔨 Testing frontend build...")
             result = subprocess.run(
                 ["npm", "run", "build"],
                 cwd=self.frontend_dir,
                 capture_output=True,
                 text=True,
-                timeout=300,  # 5 minutes
+                timeout=300, check=False,  # 5 minutes
             )
 
             build_time = time.time() - start_time
@@ -202,13 +189,12 @@ class FrontendSystemTester:
         start_time = time.time()
 
         try:
-            print("🧪 Running Vitest unit tests...")
             result = subprocess.run(
                 ["npm", "run", "test"],
                 cwd=self.frontend_dir,
                 capture_output=True,
                 text=True,
-                timeout=180,  # 3 minutes
+                timeout=180, check=False,  # 3 minutes
             )
 
             test_time = time.time() - start_time
@@ -268,13 +254,12 @@ class FrontendSystemTester:
         start_time = time.time()
 
         try:
-            print("📝 Testing TypeScript compilation...")
             result = subprocess.run(
                 ["npm", "run", "typecheck"],
                 cwd=self.frontend_dir,
                 capture_output=True,
                 text=True,
-                timeout=120,  # 2 minutes
+                timeout=120, check=False,  # 2 minutes
             )
 
             compile_time = time.time() - start_time
@@ -377,13 +362,13 @@ class FrontendSystemTester:
                             "status_code": response.status_code,
                             "response_time_ms": api_time,
                             "has_json": response.headers.get(
-                                "content-type", ""
+                                "content-type", "",
                             ).startswith("application/json"),
-                        }
+                        },
                     )
                 except Exception as e:
                     api_results.append(
-                        {"endpoint": api_url, "success": False, "error": str(e)}
+                        {"endpoint": api_url, "success": False, "error": str(e)},
                     )
 
             # Calculate overall success
@@ -447,11 +432,11 @@ class FrontendSystemTester:
                             "response_time_ms": asset_time,
                             "content_type": response.headers.get("content-type", ""),
                             "content_size": len(response.content),
-                        }
+                        },
                     )
                 except Exception as e:
                     asset_results.append(
-                        {"path": asset_path, "success": False, "error": str(e)}
+                        {"path": asset_path, "success": False, "error": str(e)},
                     )
 
             # Calculate success rate
@@ -495,15 +480,12 @@ class FrontendSystemTester:
             for file_path in directory.rglob("*"):
                 if file_path.is_file():
                     total_size += file_path.stat().st_size
-        except Exception as e:
-            print(f"Error calculating directory size: {e}")
+        except Exception:
+            pass
         return total_size
 
     def run_all_tests(self) -> Dict[str, Any]:
         """Run all frontend system tests."""
-        print("🎨 Running Frontend System Tests...")
-        print("=" * 50)
-
         test_summary = {
             "start_time": datetime.now().isoformat(),
             "tests_run": 0,
@@ -517,7 +499,7 @@ class FrontendSystemTester:
         try:
             # Start backend first
             if not self.start_backend_server():
-                print("⚠️  Continuing without backend server")
+                pass
 
             # Run build and compilation tests first (no servers needed)
             build_tests = [
@@ -526,8 +508,7 @@ class FrontendSystemTester:
                 ("Vitest Unit Tests", self.test_vitest_unit_tests),
             ]
 
-            for test_name, test_func in build_tests:
-                print(f"\n📋 Running: {test_name}")
+            for _test_name, test_func in build_tests:
 
                 try:
                     result = test_func()
@@ -535,15 +516,12 @@ class FrontendSystemTester:
 
                     if result.get("success", False):
                         test_summary["tests_passed"] += 1
-                        print(f"  ✅ {test_name}")
                     else:
                         test_summary["tests_failed"] += 1
-                        print(f"  ❌ {test_name}: {result.get('error', 'Failed')}")
 
-                except Exception as e:
+                except Exception:
                     test_summary["tests_run"] += 1
                     test_summary["tests_failed"] += 1
-                    print(f"  ❌ {test_name}: {str(e)}")
 
             # Start frontend server for runtime tests
             if self.start_frontend_dev_server():
@@ -553,8 +531,7 @@ class FrontendSystemTester:
                     ("Static Assets", self.test_static_assets),
                 ]
 
-                for test_name, test_func in runtime_tests:
-                    print(f"\n📋 Running: {test_name}")
+                for _test_name, test_func in runtime_tests:
 
                     try:
                         result = test_func()
@@ -562,17 +539,14 @@ class FrontendSystemTester:
 
                         if result.get("success", False):
                             test_summary["tests_passed"] += 1
-                            print(f"  ✅ {test_name}")
                         else:
                             test_summary["tests_failed"] += 1
-                            print(f"  ❌ {test_name}: {result.get('error', 'Failed')}")
 
-                    except Exception as e:
+                    except Exception:
                         test_summary["tests_run"] += 1
                         test_summary["tests_failed"] += 1
-                        print(f"  ❌ {test_name}: {str(e)}")
             else:
-                print("⚠️  Skipping runtime tests - frontend server failed to start")
+                pass
 
             test_summary["total_duration_ms"] = (time.time() - start_time) * 1000
             test_summary["success_rate"] = (
@@ -584,13 +558,6 @@ class FrontendSystemTester:
             test_summary["detailed_results"] = self.test_results
 
             # Print summary
-            print("\n" + "=" * 50)
-            print("🎨 Frontend System Test Summary:")
-            print(f"  Tests Run: {test_summary['tests_run']}")
-            print(f"  Tests Passed: {test_summary['tests_passed']}")
-            print(f"  Tests Failed: {test_summary['tests_failed']}")
-            print(f"  Success Rate: {test_summary['success_rate']:.1%}")
-            print(f"  Total Duration: {test_summary['total_duration_ms']:.0f}ms")
 
             return test_summary
 
@@ -599,14 +566,14 @@ class FrontendSystemTester:
             self.stop_servers()
 
 
-def main():
+def main() -> int:
     """Main test execution."""
     import argparse
 
     parser = argparse.ArgumentParser(description="Frontend System Tests")
     parser.add_argument("--frontend-dir", default="frontend", help="Frontend directory")
     parser.add_argument(
-        "--backend-url", default="http://localhost:8000", help="Backend URL"
+        "--backend-url", default="http://localhost:8000", help="Backend URL",
     )
     parser.add_argument("--output", help="Output file for test results")
 
@@ -620,17 +587,14 @@ def main():
     if args.output:
         with open(args.output, "w") as f:
             json.dump(results, f, indent=2, default=str)
-        print(f"📄 Results saved to: {args.output}")
 
     # Exit with appropriate code
     success_rate = results.get("success_rate", 0)
     if success_rate >= 0.7:  # 70% success rate required
-        print("✅ Frontend system tests PASSED")
         return 0
     else:
-        print("❌ Frontend system tests FAILED")
         return 1
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())
