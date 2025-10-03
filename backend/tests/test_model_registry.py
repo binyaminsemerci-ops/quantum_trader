@@ -1,4 +1,5 @@
-from backend.database import SessionLocal, ModelRegistry
+import json
+from backend.database import SessionLocal, ModelRegistry, Base, engine
 from ai_engine.train_and_save import train_and_save
 
 

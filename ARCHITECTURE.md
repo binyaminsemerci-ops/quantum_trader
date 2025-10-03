@@ -1,123 +1,69 @@
-﻿# Quantum Trader – Systemarkitektur (Autonom Versjon)
+﻿# Quantum Trader — Systemarkitektur
 
-Dette dokumentet beskriver hvordan plattformen er strukturert for å støtte en autonom, kontinuerlig lærende AI-handelsprosess. Fokus: sporbarhet, sikker aktivering av real trading, og modulær evolusjon (strategi → evaluering → promotering → utførelse → overvåking).
+Dette dokumentet gir en kort oppsummering av hvordan Quantum Trader er bygd, hvilke komponenter som finnes og hvor i repoet de befinner seg.
 
----
+## Hovedkomponenter
 
-## 1. Domener & Lag
+- Backend (FastAPI + Python)
+  - Katalog: `backend/` (filer: `main.py`, `routes/`, `database.py`, `train_and_save.py`)
+  - Ansvar: Ingest, API for predict/scan/train, bakgrunnsjobber, model serving
 
-| Lag | Ansvar | Artefakter / Katalog |
-|-----|--------|----------------------|
-| Presentasjon | Dashboard, monitorering, modellstatus, signaler | `frontend/` |
-| API / Orkestrering | REST + WS, oppgaver, status, risk gating | `backend/` (FastAPI) |
-| Feature / Data | Henter & beriker pris-/sentimentdata, genererer features | `ai_engine/feature_engineer.py` |
-| Modellering | Trening, evaluering, backtest, versjonering | `main_train_and_backtest.py`, `ai_engine/models/` |
-| Modellregister | Metadata, parametre, metrics, aktiv modell | (Tabell: `model_registry`) |
-| Strategi Evolusjon (future) | Genetisk / RL / ensemble pipelines | Planlagt (fase 2) |
-| Utførelse | Simulert / testnet / live ordre, posisjonslogikk | (Backend loops / kommende modul) |
-| Observability | Logging, heartbeats, metrics, drift alerts | `backend/`, (Prometheus plan) |
-| Persistens | SQLite (default) / Postgres (valg), artifacts disk | `backend/database.py`, `ai_engine/models/` |
+- Database (Postgres)
+  - Konfigurasjon: `docker-compose.yml` og `backend/database.py`
+  - Tabeller: prices, features, signals, trades, trade_logs, settings
 
----
+- AI Engine
+  - Katalog: `ai_engine/`
+  - Ansvar: Feature engineering (`feature_engineer.py`), treningsskall (`train_and_save.py`), agenter (`agents/`)
 
-## 2. Autonom livssyklus (nå → mål)
+- Frontend (React + TypeScript + Vite + Tailwind)
+  - Katalog: `frontend/` (src/ med `components/`, `api/`, `pages/`)
+  - Ansvar: Dashboard, grafer, trade-logg, realtime visning
 
-```text
-┌──────────────┐   train/backtest   ┌──────────────┐   promote   ┌──────────────┐
-│ Data + Feats │ ─────────────────> │  Model Build  │ ──────────> │ ModelRegistry │
-└──────┬───────┘                    └──────┬───────┘             └──────┬───────┘
-       │  live prices / sentiment         │ metrics JSON                 │ active model path
-       ▼                                  ▼                             ▼
-   Signal Engine  <──── evaluate loop ─── Backtest / Eval ─── risk gates ───▶ Execution (sim/testnet/live)
-       │                                                                   │
-       └───────> WebSocket / REST ───▶ Frontend Dashboard  ◀───────────────┘
+## Dataflyt (kort)
+1. Ingest jobber henter data fra Binance / CryptoPanic / Twitter.
+2. Data blir lagret i Postgres.
+3. Feature engineering bruker data fra Postgres til å lage features.
+4. AI-modellen (XGBoost) trenes og lagres (pickle eller JSON fallback).
+5. Backend eksponerer predict/scan/train API-er som frontend bruker.
+6. Handelsmotor oversetter signaler til ordre mot Binance.
+
+## Lokalt kjøreeksempel (Docker Compose)
+
+1. Bygg og start alle tjenester:
+
+```powershell
+docker-compose up --build
 ```
 
-Promoteringskriterier (grunnlag – kan utvides):
-1. Minimum Sharpe / Sortino.
-2. Ingen kritisk drift (feature distribution) siste N sykluser.
-3. Risiko-regler (maks drawdown, konsentrasjon) passerte i simulering.
+2. Backend: http://localhost:8000
+3. Frontend: http://localhost:3000
+4. Helse-endepunkt: http://localhost:8000/api/health
 
----
+## Frontend utvikling (lokalt)
 
-## 3. Modellregister (ny tabell)
-Kolonner (første versjon):
-| Felt | Type | Beskrivelse |
-|------|------|------------|
-| id | INT PK | Sekvens |
-| version | TEXT | Semver / timestamp-baserte versjoner |
-| tag | TEXT | Menneskelesbar etikett (f.eks. `exp-vol-adj`) |
-| path | TEXT | Relativ sti til artefakt (modellfil / katalog) |
-| params_json | TEXT | JSON serialiserte hyperparametre |
-| metrics_json | TEXT | JSON (Sharpe, drawdown, accuracy etc.) |
-| trained_at | DATETIME | UTC sluttid for trening |
-| is_active | INT (0/1) | Flag for «promotert» modell |
+Gå til `frontend/` og kjør:
 
-Aktivering skjer ved å sette `is_active=1` på én rad og `0` på andre.
-
----
-
-## 4. Signal & Utførelsesflyt (nåværende status)
-1. Live priser (Binance public) hentes og caches.
-2. Feature pipeline beregner tekniske indikatorer (MA, RSI – utvides med volatilitet & sentiment).
-3. Modell (aktiv) genererer signal (retur / score / retning).
-4. Risiko-baseline filtrerer (f.eks. maks samtidige posisjoner – planlagt).
-5. I demo-modus: pseudo-handler logges; i fremtid: testnet ordre.
-6. Eventer publiseres til frontend (WS) + logges strukturert.
-
----
-
-## 5. Planlagte utvidelser (faseinndeling)
-| Fase | Fokus | Innhold |
-|------|-------|---------|
-| 1 | Robust grunnmur | Modellregister, ekstra metrics, baseline risk, CLI (`qtctl`) |
-| 2 | Strategi Evolusjon | Genetisk pipeline + ensemble-blending |
-| 3 | Testnet Utførelse | Ordre-routing, fill tracking, latency måling |
-| 4 | Drift & Driftvern | Drift-deteksjon, regimeklassifisering, auto fallback |
-| 5 | RL / Online | Replay buffer, off-policy evaluering, sikker rollout |
-
----
-
-## 6. Kodeankre (oppdatert)
-| Fil / Mappe | Rolle |
-|-------------|-------|
-| `backend/main.py` | FastAPI app + bakgrunnsjobber |
-| `backend/database.py` | ORM-tabeller (inkl. `ModelRegistry`) |
-| `ai_engine/feature_engineer.py` | Feature-generering |
-| `main_train_and_backtest.py` | Trening + backtest pipeline |
-| `ai_engine/models/` | Lagrede modellartefakter |
-| `scripts/qtctl.py` | CLI for retrain, liste, promotere modeller |
-
----
-
-## 7. Observability (målbilde)
-- Heartbeats (implementert) → status-endepunkt.
-- Signal staleness métric.
-- Treningslatens & køtid.
-- Drift-métrics (PSI / KL) – plan.
-- Prometheus + Grafana dashboard – plan.
-
----
-
-## 8. Risiko / Sikkerhet (inkrementell innføring)
-- Kill-switch (manuell + automatisk ved overskredet drawdown).
-- Audit-logg med hash-kjede (trade & beslutninger) – planlagt.
-- Policy: Ingen real trading uten verifiserte quality gates (se `TODO.md`).
-
----
-
-## 9. Sekvens (eksempel) – Trening → Promotering (mål)
-```text
-User/cron -> qtctl retrain -> pipeline (feature build, train, backtest) ->
-metrics JSON -> registry insert (is_active=0) -> promoter sjekker gates ->
-qtctl promote <id> -> set is_active=1 -> backend hot-reloads active model reference.
+```bash
+npm install
+npm run dev
 ```
 
+## Fil-tilknytning (hurtigreferanse)
+- `ai_engine/feature_engineer.py` → Feature engineering pipeline
+- `ai_engine/train_and_save.py` → Training harness + artifact saving
+- `backend/routes/ai.py` → API-endepunkter for predict/scan/train
+- `backend/database.py` → SQLAlchemy, session factory, get_db
+- `frontend/src/components/CandlesChart.tsx` → Candles UI (henter fra /api/candles)
+
+## Diagram
+- `frontend/src/assets/system-architecture.svg` inneholder en visuell oversikt (SVG).
+
 ---
 
-## 10. Videre arbeid
-Se `TODO.md` for prioriterte neste steg. Dokumentet oppdateres når nye subsystemer materialiseres.
+Vil du at jeg skal:
+- Generere en mer detaljert sekvensdiagram for én trade?
+- Legge til en CI/CD pipeline-fil i `frontend/` som bygger og deployer til GitHub Pages / Vercel?
+- Lage en fullstendig `frontend/` scaffold (komponenter og TS-typer) som kan bygges direkte?
 
----
-
-_Arkitekturfilen er kuratert etter autonom visjon – tidligere demo-fokuserte beskrivelser er arkivert i git historikk._
+Gi beskjed hva jeg skal lage videre — jeg kan begynne å generere frontend-komponenter, Recharts-candlestick, eller en detaljert roadmap med tickets og prioriteringer.

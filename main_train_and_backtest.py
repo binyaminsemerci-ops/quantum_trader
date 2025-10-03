@@ -9,8 +9,6 @@ from ai_engine.train_and_save import (
     run_backtest_only,
     train_and_save,
 )
-from backend.database import SessionLocal, ModelRegistry, Base, engine
-from datetime import datetime, timezone
 
 
 def _print_json(payload: dict | None) -> None:
@@ -26,21 +24,6 @@ def _handle_train(args: argparse.Namespace) -> None:
         write_report=not args.no_report,
         entry_threshold=args.entry_threshold,
     )
-    # Optionally promote the newest registry entry
-    if args.auto_promote:
-        try:
-            Base.metadata.create_all(bind=engine)
-            with SessionLocal() as session:
-                newest = session.query(ModelRegistry).order_by(ModelRegistry.id.desc()).first()
-                if newest:
-                    # demote existing
-                    session.query(ModelRegistry).filter(ModelRegistry.is_active == 1).update({"is_active": 0})
-                    newest.is_active = 1
-                    session.add(newest)
-                    session.commit()
-                    summary.setdefault("registry", {})["promoted_model_id"] = newest.id
-        except Exception as exc:  # pragma: no cover
-            summary.setdefault("registry", {})["promotion_error"] = str(exc)
     _print_json(summary)
 
 
@@ -88,7 +71,6 @@ def build_parser() -> argparse.ArgumentParser:
     train_parser.add_argument("--entry-threshold", type=float, default=0.001, help="Minimum predicted return required before taking a trade during the backtest")
     train_parser.add_argument("--skip-backtest", action="store_true", help="Skip the evaluation step")
     train_parser.add_argument("--no-report", action="store_true", help="Do not write training_report.json")
-    train_parser.add_argument("--auto-promote", action="store_true", help="Automatically promote the newly trained model in the registry")
     train_parser.set_defaults(func=_handle_train)
 
     backtest_parser = sub.add_parser("backtest", help="Run a backtest using existing artifacts.")

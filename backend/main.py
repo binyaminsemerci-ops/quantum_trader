@@ -45,14 +45,13 @@ except Exception:  # pragma: no cover - optional component
 
 
 import asyncio
-from contextlib import asynccontextmanager
-import signal
-import time as _time
 
 configure_logging()
 logger = get_logger(__name__)
 
-
+from contextlib import asynccontextmanager
+import signal
+import sys
 
 
 async def _heartbeat_task():
@@ -79,8 +78,7 @@ async def _heartbeat_task():
 
 def _setup_signal_handlers():
     """Install graceful shutdown handlers unless under pytest or non-main thread."""
-    import os
-    import threading
+    import os, threading
 
     if os.environ.get("PYTEST_CURRENT_TEST"):
         return
@@ -174,6 +172,8 @@ async def root():
     logger.debug("health ping")
     return {"message": "Quantum Trader API is running"}
 
+
+import time as _time
 
 _START_TIME = _time.time()
 
