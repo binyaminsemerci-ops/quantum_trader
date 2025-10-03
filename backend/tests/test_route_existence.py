@@ -1,6 +1,5 @@
 """Test that critical routes exist and are properly imported."""
 
-import pytest
 from fastapi.testclient import TestClient
 from backend.main import app
 
