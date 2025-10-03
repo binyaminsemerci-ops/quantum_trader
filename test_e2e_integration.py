@@ -11,12 +11,12 @@ Comprehensive integration tests for the complete Quantum Trader system including
 """
 
 import json
-import subprocess
+import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import requests
 import websocket
@@ -24,11 +24,14 @@ import websocket
 from test_backend_system import BackendSystemTester
 from test_frontend_system import FrontendSystemTester
 
+if TYPE_CHECKING:
+    import subprocess
+
 
 class E2ESystemTester:
     """End-to-end system integration testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.backend_tester = BackendSystemTester()
         self.frontend_tester = FrontendSystemTester()
         self.test_results: List[Dict[str, Any]] = []
@@ -44,24 +47,15 @@ class E2ESystemTester:
 
     def start_full_stack(self) -> bool:
         """Start both backend and frontend servers."""
-        print("🚀 Starting full stack for E2E testing...")
-
         # Start backend
         if not self.backend_tester.start_backend_server():
-            print("❌ Failed to start backend")
             return False
 
         # Start frontend
-        if not self.frontend_tester.start_frontend_dev_server():
-            print("❌ Failed to start frontend")
-            return False
+        return self.frontend_tester.start_frontend_dev_server()
 
-        print("✅ Full stack started successfully")
-        return True
-
-    def stop_full_stack(self):
+    def stop_full_stack(self) -> None:
         """Stop all servers."""
-        print("🛑 Stopping full stack...")
         self.backend_tester.stop_backend_server()
         self.frontend_tester.stop_servers()
 
@@ -70,7 +64,6 @@ class E2ESystemTester:
         start_time = time.time()
 
         try:
-            print("🔄 Testing full stack communication...")
 
             # Test 1: Frontend can reach backend
             frontend_to_backend = []
@@ -90,11 +83,11 @@ class E2ESystemTester:
                             "success": response.status_code == 200,
                             "status_code": response.status_code,
                             "response_time": response.elapsed.total_seconds() * 1000,
-                        }
+                        },
                     )
                 except Exception as e:
                     frontend_to_backend.append(
-                        {"endpoint": endpoint, "success": False, "error": str(e)}
+                        {"endpoint": endpoint, "success": False, "error": str(e)},
                     )
 
             # Test 2: CORS headers for frontend
@@ -110,7 +103,7 @@ class E2ESystemTester:
                 cors_test = {
                     "cors_enabled": "access-control-allow-origin" in response.headers,
                     "allows_frontend": response.headers.get(
-                        "access-control-allow-origin"
+                        "access-control-allow-origin",
                     )
                     in ["*", "http://localhost:5173"],
                     "status_code": response.status_code,
@@ -158,7 +151,7 @@ class E2ESystemTester:
         messages_received = []
         connection_events = []
 
-        def on_message(ws, message):
+        def on_message(ws, message) -> None:
             try:
                 data = json.loads(message)
                 messages_received.append(
@@ -166,17 +159,17 @@ class E2ESystemTester:
                         "timestamp": datetime.now().isoformat(),
                         "type": data.get("type", "unknown"),
                         "size": len(message),
-                    }
+                    },
                 )
             except Exception:
                 messages_received.append(
                     {
                         "timestamp": datetime.now().isoformat(),
                         "raw": message[:100],  # First 100 chars
-                    }
+                    },
                 )
 
-        def on_open(ws):
+        def on_open(ws) -> None:
             connection_events.append("connected")
             # Send test messages to simulate frontend interactions
             test_messages = [
@@ -189,14 +182,13 @@ class E2ESystemTester:
                 ws.send(json.dumps(msg))
                 time.sleep(0.5)
 
-        def on_error(ws, error):
+        def on_error(ws, error) -> None:
             connection_events.append(f"error: {error}")
 
-        def on_close(ws, close_status_code, close_msg):
+        def on_close(ws, close_status_code, close_msg) -> None:
             connection_events.append("closed")
 
         try:
-            print("🌐 Testing real-time WebSocket data flow...")
 
             ws = websocket.WebSocketApp(
                 self.ws_url,
@@ -226,7 +218,7 @@ class E2ESystemTester:
                 "messages_received": len(messages_received),
                 "connection_events": connection_events,
                 "message_types": list(
-                    {msg.get("type", "unknown") for msg in messages_received}
+                    {msg.get("type", "unknown") for msg in messages_received},
                 ),
                 "sample_messages": messages_received[:5],
                 "error": None if len(messages_received) > 0 else "No messages received",
@@ -248,7 +240,6 @@ class E2ESystemTester:
         start_time = time.time()
 
         try:
-            print("👤 Testing user workflow simulation...")
 
             workflow_steps = []
 
@@ -260,11 +251,11 @@ class E2ESystemTester:
                         "step": "load_frontend",
                         "success": response.status_code == 200,
                         "details": f"HTTP {response.status_code}",
-                    }
+                    },
                 )
             except Exception as e:
                 workflow_steps.append(
-                    {"step": "load_frontend", "success": False, "error": str(e)}
+                    {"step": "load_frontend", "success": False, "error": str(e)},
                 )
 
             # Step 2: Frontend loads initial data
@@ -283,11 +274,11 @@ class E2ESystemTester:
                             "step": f"load_{name}",
                             "success": response.status_code == 200,
                             "details": f"HTTP {response.status_code}, {len(response.content)} bytes",
-                        }
+                        },
                     )
                 except Exception as e:
                     workflow_steps.append(
-                        {"step": f"load_{name}", "success": False, "error": str(e)}
+                        {"step": f"load_{name}", "success": False, "error": str(e)},
                     )
 
             # Step 3: User requests chart data
@@ -295,14 +286,14 @@ class E2ESystemTester:
             for symbol in symbols:
                 try:
                     response = requests.get(
-                        f"{self.backend_url}/api/chart/{symbol}", timeout=10
+                        f"{self.backend_url}/api/chart/{symbol}", timeout=10,
                     )
                     workflow_steps.append(
                         {
                             "step": f"load_chart_{symbol}",
                             "success": response.status_code == 200,
                             "details": f"HTTP {response.status_code}",
-                        }
+                        },
                     )
                 except Exception as e:
                     workflow_steps.append(
@@ -310,7 +301,7 @@ class E2ESystemTester:
                             "step": f"load_chart_{symbol}",
                             "success": False,
                             "error": str(e),
-                        }
+                        },
                     )
 
             # Step 4: User checks system stats
@@ -321,11 +312,11 @@ class E2ESystemTester:
                         "step": "load_stats",
                         "success": response.status_code == 200,
                         "details": f"HTTP {response.status_code}",
-                    }
+                    },
                 )
             except Exception as e:
                 workflow_steps.append(
-                    {"step": "load_stats", "success": False, "error": str(e)}
+                    {"step": "load_stats", "success": False, "error": str(e)},
                 )
 
             # Calculate workflow success
@@ -368,7 +359,6 @@ class E2ESystemTester:
         start_time = time.time()
 
         try:
-            print("⚡ Testing system under concurrent load...")
 
             def simulate_user_session():
                 """Simulate a single user session."""
@@ -388,7 +378,7 @@ class E2ESystemTester:
                 for endpoint in endpoints:
                     try:
                         response = requests.get(
-                            f"{self.backend_url}{endpoint}", timeout=10
+                            f"{self.backend_url}{endpoint}", timeout=10,
                         )
                         requests_made += 1
                         if response.status_code != 200:
@@ -465,7 +455,6 @@ class E2ESystemTester:
         start_time = time.time()
 
         try:
-            print("🔧 Testing error recovery and resilience...")
 
             recovery_tests = []
 
@@ -480,7 +469,7 @@ class E2ESystemTester:
             for invalid_url in invalid_requests:
                 try:
                     response = requests.get(
-                        f"{self.backend_url}{invalid_url}", timeout=5
+                        f"{self.backend_url}{invalid_url}", timeout=5,
                     )
                     # Good error handling returns 4xx status codes
                     handles_error_properly = 400 <= response.status_code < 500
@@ -494,7 +483,7 @@ class E2ESystemTester:
                                 if handles_error_properly
                                 else "Unexpected status code"
                             ),
-                        }
+                        },
                     )
                 except Exception as e:
                     recovery_tests.append(
@@ -502,7 +491,7 @@ class E2ESystemTester:
                             "test": f"invalid_request_{invalid_url.split('/')[-1]}",
                             "success": False,
                             "error": str(e),
-                        }
+                        },
                     )
 
             # Test 2: Malformed JSON requests
@@ -524,7 +513,7 @@ class E2ESystemTester:
                             if handles_bad_json
                             else "Doesn't handle bad JSON"
                         ),
-                    }
+                    },
                 )
             except Exception as e:
                 recovery_tests.append(
@@ -532,7 +521,7 @@ class E2ESystemTester:
                         "test": "malformed_json_request",
                         "success": False,
                         "error": str(e),
-                    }
+                    },
                 )
 
             # Test 3: System still responsive after errors
@@ -545,7 +534,7 @@ class E2ESystemTester:
                         "success": system_responsive,
                         "status_code": response.status_code,
                         "details": "System remains healthy after error tests",
-                    }
+                    },
                 )
             except Exception as e:
                 recovery_tests.append(
@@ -553,7 +542,7 @@ class E2ESystemTester:
                         "test": "system_responsive_after_errors",
                         "success": False,
                         "error": str(e),
-                    }
+                    },
                 )
 
             # Calculate recovery success rate
@@ -596,9 +585,6 @@ class E2ESystemTester:
 
     def run_all_e2e_tests(self) -> Dict[str, Any]:
         """Run all end-to-end integration tests."""
-        print("🔗 Running End-to-End Integration Tests...")
-        print("=" * 60)
-
         # Start full stack
         if not self.start_full_stack():
             return {
@@ -626,8 +612,7 @@ class E2ESystemTester:
                 ("Error Recovery", self.test_error_recovery),
             ]
 
-            for test_name, test_func in e2e_tests:
-                print(f"\n📋 Running E2E Test: {test_name}")
+            for _test_name, test_func in e2e_tests:
 
                 try:
                     result = test_func()
@@ -635,21 +620,18 @@ class E2ESystemTester:
 
                     if result.get("success", False):
                         test_summary["tests_passed"] += 1
-                        print(f"  ✅ {test_name}")
 
                         # Print key metrics for successful tests
                         if "success_rate" in result:
-                            print(f"     Success Rate: {result['success_rate']:.1%}")
+                            pass
                         if "test_duration_ms" in result:
-                            print(f"     Duration: {result['test_duration_ms']:.0f}ms")
+                            pass
                     else:
                         test_summary["tests_failed"] += 1
-                        print(f"  ❌ {test_name}: {result.get('error', 'Failed')}")
 
-                except Exception as e:
+                except Exception:
                     test_summary["tests_run"] += 1
                     test_summary["tests_failed"] += 1
-                    print(f"  ❌ {test_name}: {str(e)}")
 
             test_summary["total_duration_ms"] = (time.time() - start_time) * 1000
             test_summary["success_rate"] = (
@@ -661,13 +643,6 @@ class E2ESystemTester:
             test_summary["detailed_results"] = self.test_results
 
             # Print final summary
-            print("\n" + "=" * 60)
-            print("🔗 End-to-End Integration Test Summary:")
-            print(f"  Tests Run: {test_summary['tests_run']}")
-            print(f"  Tests Passed: {test_summary['tests_passed']}")
-            print(f"  Tests Failed: {test_summary['tests_failed']}")
-            print(f"  Success Rate: {test_summary['success_rate']:.1%}")
-            print(f"  Total Duration: {test_summary['total_duration_ms']:.0f}ms")
 
             return test_summary
 
@@ -676,7 +651,7 @@ class E2ESystemTester:
             self.stop_full_stack()
 
 
-def main():
+def main() -> int:
     """Main E2E test execution."""
     import argparse
 
@@ -693,17 +668,14 @@ def main():
     if args.output:
         with open(args.output, "w") as f:
             json.dump(results, f, indent=2, default=str)
-        print(f"📄 E2E results saved to: {args.output}")
 
     # Exit with appropriate code
     success_rate = results.get("success_rate", 0)
     if success_rate >= 0.75:  # 75% success rate required for E2E
-        print("✅ End-to-End integration tests PASSED")
         return 0
     else:
-        print("❌ End-to-End integration tests FAILED")
         return 1
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

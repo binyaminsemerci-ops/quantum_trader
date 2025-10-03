@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 import logging
 from logging.config import dictConfig
-from typing import Any, Dict
+from typing import Any
 
-DEFAULT_LOGGING_CONFIG: Dict[str, Any] = {
+DEFAULT_LOGGING_CONFIG: dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
@@ -50,7 +50,7 @@ class _JsonFormatter(logging.Formatter):
 _configured = False
 
 
-def configure_logging(config: Dict[str, Any] | None = None) -> None:
+def configure_logging(config: dict[str, Any] | None = None) -> None:
     global _configured
     if _configured:
         return

@@ -23,7 +23,7 @@ class BinanceClient:
     client: Optional[Any] = None
     mock: bool = True
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Use centralized config loader for credentials. This allows local
         # .env files (via python-dotenv) and CI environment secrets to be used
         # consistently.

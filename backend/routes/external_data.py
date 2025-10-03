@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 from backend.enhanced_data_feeds import EnhancedDataFeed, get_enhanced_market_data
 from backend.routes.settings import SETTINGS
@@ -47,8 +47,8 @@ def _strip_quote(symbol: str) -> str:
     return symbol
 
 
-def _fallback_candles(symbol: str, limit: int) -> List[Dict[str, Any]]:
-    candles: List[Dict[str, Any]] = []
+def _fallback_candles(symbol: str, limit: int) -> list[dict[str, Any]]:
+    candles: list[dict[str, Any]] = []
     price = 100.0
     for idx in range(limit):
         close_val = price + ((idx % 3) - 1) * 0.1
@@ -61,14 +61,14 @@ def _fallback_candles(symbol: str, limit: int) -> List[Dict[str, Any]]:
                 "low": float(price - 1),
                 "close": float(close_val),
                 "volume": float(100 + idx),
-            }
+            },
         )
         price = close_val
     return candles
 
 
-def _normalise_candles(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    normalised: List[Dict[str, Any]] = []
+def _normalise_candles(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalised: list[dict[str, Any]] = []
     for entry in raw:
         timestamp = entry.get("timestamp") or entry.get("time")
         if not timestamp:
@@ -88,7 +88,7 @@ def _normalise_candles(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "low": _as_float("low"),
                 "close": _as_float("close"),
                 "volume": _as_float("volume"),
-            }
+            },
         )
     return normalised
 
@@ -113,12 +113,12 @@ def _cryptopanic_client() -> None:
     Keep this function for compatibility but do not instantiate any external
     client or make network calls.
     """
-    return None
+    return
 
 
-def _fallback_news(symbol: str, limit: int) -> List[Dict[str, Any]]:
+def _fallback_news(symbol: str, limit: int) -> list[dict[str, Any]]:
     base_time = datetime.now(timezone.utc)
-    items: List[Dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
     for idx in range(limit):
         published = base_time - timedelta(minutes=15 * idx)
         items.append(
@@ -126,19 +126,19 @@ def _fallback_news(symbol: str, limit: int) -> List[Dict[str, Any]]:
                 "id": f"mock-{symbol}-{idx}",
                 "title": f"Mock news {idx} for {symbol}",
                 "published_at": published.isoformat(),
-            }
+            },
         )
     return items
 
 
-async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
+async def binance_ohlcv(symbol: str, limit: int = 600) -> dict[str, Any]:
     """Fetch OHLCV candles via market-data adapters with deterministic fallback."""
     try:
         candles = await asyncio.to_thread(fetch_recent_candles, symbol, limit)
         source = "live" if _live_market_data_enabled() else "demo"
     except Exception as exc:  # pragma: no cover - network/adapter issues
         logger.debug(
-            "fetch_recent_candles failed for %s: %s", symbol, exc, exc_info=True
+            "fetch_recent_candles failed for %s: %s", symbol, exc, exc_info=True,
         )
         candles = _fallback_candles(symbol, limit)
         source = "fallback"
@@ -146,7 +146,7 @@ async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
     return {"symbol": symbol, "source": source, "candles": normalised}
 
 
-async def twitter_sentiment(symbol: str) -> Dict[str, Any]:
+async def twitter_sentiment(symbol: str) -> dict[str, Any]:
     """Return a light-touch sentiment summary for a symbol."""
     base_symbol = _strip_quote(symbol)
     client = _twitter_client()
@@ -160,7 +160,7 @@ async def twitter_sentiment(symbol: str) -> Dict[str, Any]:
     return payload
 
 
-async def cryptopanic_news(symbol: str, limit: int = 200) -> Dict[str, Any]:
+async def cryptopanic_news(symbol: str, limit: int = 200) -> dict[str, Any]:
     """Return deterministic fallback news for a symbol.
 
     CryptoPanic has been removed as an external live news provider. This
@@ -173,7 +173,7 @@ async def cryptopanic_news(symbol: str, limit: int = 200) -> Dict[str, Any]:
 
 
 # Enhanced multi-source data functions
-async def enhanced_market_data(symbols: List[str]) -> Dict[str, Any]:
+async def enhanced_market_data(symbols: list[str]) -> dict[str, Any]:
     """Get enhanced market data from multiple free API sources."""
     try:
         enhanced_data = await get_enhanced_market_data(symbols)
@@ -193,12 +193,11 @@ async def enhanced_market_data(symbols: List[str]) -> Dict[str, Any]:
         }
 
 
-async def fear_greed_index() -> Dict[str, Any]:
+async def fear_greed_index() -> dict[str, Any]:
     """Get Fear & Greed Index for market sentiment."""
     try:
         async with EnhancedDataFeed() as feed:
-            data = await feed.get_fear_greed_index()
-        return data
+            return await feed.get_fear_greed_index()
     except Exception as exc:
         logger.debug("Fear & Greed Index failed: %s", exc, exc_info=True)
         return {
@@ -208,12 +207,11 @@ async def fear_greed_index() -> Dict[str, Any]:
         }
 
 
-async def reddit_sentiment(symbols: List[str]) -> Dict[str, Any]:
+async def reddit_sentiment(symbols: list[str]) -> dict[str, Any]:
     """Get Reddit sentiment analysis for crypto symbols."""
     try:
         async with EnhancedDataFeed() as feed:
-            data = await feed.get_reddit_sentiment(symbols)
-        return data
+            return await feed.get_reddit_sentiment(symbols)
     except Exception as exc:
         logger.debug("Reddit sentiment failed: %s", exc, exc_info=True)
         return {
@@ -225,12 +223,11 @@ async def reddit_sentiment(symbols: List[str]) -> Dict[str, Any]:
         }
 
 
-async def comprehensive_crypto_news() -> Dict[str, Any]:
+async def comprehensive_crypto_news() -> dict[str, Any]:
     """Get comprehensive crypto news from multiple sources."""
     try:
         async with EnhancedDataFeed() as feed:
-            data = await feed.get_cryptocompare_data([])  # News doesn't need symbols
-        return data
+            return await feed.get_cryptocompare_data([])  # News doesn't need symbols
     except Exception as exc:
         logger.debug("Comprehensive news failed: %s", exc, exc_info=True)
         return {
@@ -240,12 +237,11 @@ async def comprehensive_crypto_news() -> Dict[str, Any]:
         }
 
 
-async def on_chain_metrics(symbols: List[str]) -> Dict[str, Any]:
+async def on_chain_metrics(symbols: list[str]) -> dict[str, Any]:
     """Get on-chain metrics from Messari."""
     try:
         async with EnhancedDataFeed() as feed:
-            data = await feed.get_messari_metrics(symbols)
-        return data
+            return await feed.get_messari_metrics(symbols)
     except Exception as exc:
         logger.debug("On-chain metrics failed: %s", exc, exc_info=True)
         return {
@@ -255,12 +251,11 @@ async def on_chain_metrics(symbols: List[str]) -> Dict[str, Any]:
         }
 
 
-async def market_indicators() -> Dict[str, Any]:
+async def market_indicators() -> dict[str, Any]:
     """Get global market indicators."""
     try:
         async with EnhancedDataFeed() as feed:
-            data = await feed.get_market_indicators()
-        return data
+            return await feed.get_market_indicators()
     except Exception as exc:
         logger.debug("Market indicators failed: %s", exc, exc_info=True)
         return {

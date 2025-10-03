@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Iterator, Optional
+from typing import Iterator
 
 from sqlalchemy import (
     Column,
@@ -34,7 +34,7 @@ if not os.path.isdir(DATA_DIR):
     os.makedirs(DATA_DIR, exist_ok=True)
 
 DATABASE_URL = os.environ.get(
-    "QUANTUM_TRADER_DATABASE_URL", f"sqlite:///{DEFAULT_SQLITE_PATH}"
+    "QUANTUM_TRADER_DATABASE_URL", f"sqlite:///{DEFAULT_SQLITE_PATH}",
 )
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
@@ -61,7 +61,7 @@ class Trade(Base):
         side: str,
         qty: float,
         price: float,
-        timestamp: Optional[datetime] = None,
+        timestamp: datetime | None = None,
         **kwargs,
     ) -> None:
         # Provide an explicit constructor for static type checkers. SQLAlchemy
@@ -96,8 +96,8 @@ class TradeLog(Base):
         qty: float,
         price: float,
         status: str,
-        reason: Optional[str] = None,
-        timestamp: Optional[datetime] = None,
+        reason: str | None = None,
+        timestamp: datetime | None = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -162,8 +162,8 @@ class ModelRegistry(Base):
         model_name: str,
         version: str,
         is_active: int = 0,
-        accuracy: Optional[float] = None,
-        path: Optional[str] = None,
+        accuracy: float | None = None,
+        path: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -213,8 +213,8 @@ class WatchlistEntry(Base):
         self,
         *,
         symbol: str,
-        name: Optional[str] = None,
-        category: Optional[str] = None,
+        name: str | None = None,
+        category: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -245,7 +245,7 @@ class TrainingTask(Base):
     status = Column(String(32), nullable=False, default="pending")
     details = Column(Text, nullable=True)
     created_at = Column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
+        DateTime(timezone=True), nullable=False, server_default=func.now(),
     )
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -255,9 +255,9 @@ class TrainingTask(Base):
         symbols: str,
         limit: int,
         status: str = "pending",
-        details: Optional[str] = None,
-        created_at: Optional[datetime] = None,
-        completed_at: Optional[datetime] = None,
+        details: str | None = None,
+        created_at: datetime | None = None,
+        completed_at: datetime | None = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -281,8 +281,8 @@ class Settings(Base):
     def __init__(
         self,
         *,
-        api_key: Optional[str] = None,
-        api_secret: Optional[str] = None,
+        api_key: str | None = None,
+        api_secret: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -331,7 +331,7 @@ def update_training_task(
     session: Session,
     task_id: int,
     status: str,
-    details: Optional[str] = None,
+    details: str | None = None,
 ) -> None:
     task: TrainingTask | None = (
         session.query(TrainingTask).filter(TrainingTask.id == task_id).first()

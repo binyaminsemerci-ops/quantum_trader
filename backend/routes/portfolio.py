@@ -19,7 +19,7 @@ async def get_portfolio(db: Session = Depends(get_session)):
         select(
             Trade.symbol,
             func.sum(case((Trade.side == "BUY", Trade.qty), else_=-Trade.qty)).label(
-                "net_qty"
+                "net_qty",
             ),
             func.avg(Trade.price).label("avg_price"),
             func.count(Trade.id).label("trade_count"),
@@ -68,7 +68,7 @@ async def get_portfolio(db: Session = Depends(get_session)):
                     "pnlPercent": pnl_percent,
                     "avg_price": avg_price,
                     "current_price": current_price,
-                }
+                },
             )
 
             total_value += current_value
@@ -154,7 +154,7 @@ async def get_pnl_data(db: Session = Depends(get_session)):
                 "side": trade.side,
                 "pnl": pnl,
                 "timestamp": trade.timestamp.isoformat() if trade.timestamp else None,
-            }
+            },
         )
 
     return {
@@ -178,7 +178,7 @@ async def get_market_overview(db: Session = Depends(get_session)):
     active_symbols = db.execute(
         select(Trade.symbol, func.count(Trade.id).label("trade_count"))
         .group_by(Trade.symbol)
-        .order_by(func.count(Trade.id).desc())
+        .order_by(func.count(Trade.id).desc()),
     ).all()
 
     # Get recent price activity
@@ -189,7 +189,7 @@ async def get_market_overview(db: Session = Depends(get_session)):
             select(Trade.price)
             .where(Trade.symbol == symbol)
             .order_by(Trade.timestamp.desc())
-            .limit(1)
+            .limit(1),
         ).scalar()
 
         if latest_trade:
@@ -232,7 +232,7 @@ async def get_market_overview(db: Session = Depends(get_session)):
             "eth": 17.8,
         },
         "fearGreedIndex": min(
-            100, max(0, 50 + len(active_symbols) * 2)
+            100, max(0, 50 + len(active_symbols) * 2),
         ),  # More activity = more greed
         "topGainers": gainers[:3],
         "topLosers": losers[:3],

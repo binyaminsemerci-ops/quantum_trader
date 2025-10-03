@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import time
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import func, select
@@ -27,8 +29,9 @@ try:
     from backend.services.binance_trading import get_trading_engine  # type: ignore
 except Exception:  # pragma: no cover
 
-    def get_trading_engine():  # type: ignore
-        raise RuntimeError("Trading engine unavailable")
+    def get_trading_engine() -> NoReturn:  # type: ignore
+        msg = "Trading engine unavailable"
+        raise RuntimeError(msg)
 
 
 _WS_START_TIME = time.time()
@@ -40,7 +43,7 @@ _price_cache: dict[str, dict[str, Any]] = {}
 _last_price_fetch: float = 0.0
 
 
-async def _fetch_prices(symbols: list[str]):
+async def _fetch_prices(symbols: list[str]) -> None:
     """Fetch latest prices from Binance client if available, else skip.
     Updates _price_cache with {'price': float, 'ts': epoch_seconds} per symbol.
     Rate-limited to at most once per 2s.
@@ -75,7 +78,7 @@ async def _fetch_prices(symbols: list[str]):
 
 
 @router.websocket("/ws/dashboard")
-async def dashboard_ws(websocket: WebSocket):
+async def dashboard_ws(websocket: WebSocket) -> None:
     """Unified real-time dashboard stream.
 
     Sends a payload with keys expected by the simplified frontend dashboard:
@@ -100,7 +103,7 @@ async def dashboard_ws(websocket: WebSocket):
                 )
                 active_symbols = (
                     session.scalar(
-                        select(func.count(func.distinct(cast(Any, Trade.symbol))))
+                        select(func.count(func.distinct(cast(Any, Trade.symbol)))),
                     )
                     or 0
                 )
@@ -122,15 +125,15 @@ async def dashboard_ws(websocket: WebSocket):
                     for trade in session.execute(
                         select(Trade)
                         .order_by(cast(Any, Trade.timestamp).desc())
-                        .limit(30)
+                        .limit(30),
                     ).scalars()
                 ]
 
                 # Equity curve -> normalized to chartData (timestamp, price)
                 eq_rows = list(
                     session.execute(
-                        select(EquityPoint).order_by(cast(Any, EquityPoint.date).asc())
-                    ).scalars()
+                        select(EquityPoint).order_by(cast(Any, EquityPoint.date).asc()),
+                    ).scalars(),
                 )
                 chart_points = [
                     {
@@ -150,28 +153,25 @@ async def dashboard_ws(websocket: WebSocket):
                 # Signals (fast path direct util for performance)
                 try:
                     signal_records = fetch_recent_signals(
-                        symbol="BTCUSDT", limit=15, profile="mixed"
+                        symbol="BTCUSDT", limit=15, profile="mixed",
                     )
                     signals_payload = []
                     for item in signal_records:
                         ts = item.get("timestamp")
-                        if hasattr(ts, "isoformat"):
-                            ts_val = ts.isoformat()
-                        else:
-                            ts_val = ts
+                        ts_val = ts.isoformat() if hasattr(ts, "isoformat") else ts
                         signals_payload.append(
                             {
                                 "symbol": item.get("symbol", "BTCUSDT"),
                                 "side": item.get("side", "BUY"),
                                 "confidence": round(
                                     float(
-                                        item.get("score", item.get("confidence", 0.5))
+                                        item.get("score", item.get("confidence", 0.5)),
                                     )
                                     * 100,
                                     2,
                                 ),
                                 "ts": ts_val,
-                            }
+                            },
                         )
                 except Exception:
                     signals_payload = []
@@ -193,7 +193,7 @@ async def dashboard_ws(websocket: WebSocket):
                 "has_binance_keys": (
                     bool(
                         getattr(cfg, "binance_api_key", None)
-                        and getattr(cfg, "binance_api_secret", None)
+                        and getattr(cfg, "binance_api_secret", None),
                     )
                     if cfg
                     else None
@@ -239,7 +239,7 @@ async def dashboard_ws(websocket: WebSocket):
                                 select(Trade)
                                 .where(Trade.symbol == sym)
                                 .order_by(cast(Any, Trade.timestamp).desc())
-                                .limit(1)
+                                .limit(1),
                             ).scalar_one_or_none()
                             if last_trade and last_trade.price is not None:
                                 price = float(last_trade.price)
@@ -257,7 +257,7 @@ async def dashboard_ws(websocket: WebSocket):
                                     if sym in price_snapshot
                                     else ("rest" if price is not None else "fallback")
                                 ),
-                            }
+                            },
                         )
             except Exception as e:
                 logger.warning(f"Failed to build market ticks: {e}")
@@ -269,8 +269,8 @@ async def dashboard_ws(websocket: WebSocket):
                 with session_scope() as s3:
                     trade_rows = list(
                         s3.execute(
-                            select(Trade).order_by(cast(Any, Trade.timestamp).asc())
-                        ).scalars()
+                            select(Trade).order_by(cast(Any, Trade.timestamp).asc()),
+                        ).scalars(),
                     )
                 cumulative = 0.0
                 synthetic = []
@@ -285,7 +285,7 @@ async def dashboard_ws(websocket: WebSocket):
                                 tr.timestamp.isoformat() if tr.timestamp else None
                             ),
                             "price": round(cumulative, 2),
-                        }
+                        },
                     )
                 chart_points = synthetic[-200:]  # limit
                 # Persist last synthetic point as EquityPoint every loop if any trades exist
@@ -297,13 +297,13 @@ async def dashboard_ws(websocket: WebSocket):
             pnl_24h = 0.0
             try:
                 cutoff = __import__("datetime").datetime.utcnow() - __import__(
-                    "datetime"
+                    "datetime",
                 ).timedelta(hours=24)
                 with session_scope() as s4:
                     old_rows = s4.execute(
                         select(
-                            Trade.side, Trade.qty, Trade.price, Trade.timestamp
-                        ).where(cast(Any, Trade.timestamp) <= cutoff)
+                            Trade.side, Trade.qty, Trade.price, Trade.timestamp,
+                        ).where(cast(Any, Trade.timestamp) <= cutoff),
                     ).all()
                 pnl_24h = 0.0
                 for side, qty, price, _ts in old_rows:
@@ -380,19 +380,19 @@ async def dashboard_ws(websocket: WebSocket):
             await asyncio.sleep(2)
     except WebSocketDisconnect:
         # Graceful disconnect logging
-        print("[ws] Client disconnected /ws/dashboard")
+        pass
 
 
 _chat_clients: set[WebSocket] = set()
 
 
 @router.websocket("/ws/chat")
-async def chat_ws(websocket: WebSocket):
+async def chat_ws(websocket: WebSocket) -> None:
     await websocket.accept()
     _chat_clients.add(websocket)
     try:
         await websocket.send_text(
-            json.dumps({"system": "welcome", "message": "Chat connected"})
+            json.dumps({"system": "welcome", "message": "Chat connected"}),
         )
         while True:
             msg = await websocket.receive_text()
@@ -411,11 +411,10 @@ async def chat_ws(websocket: WebSocket):
                 _chat_clients.discard(ws)
     except WebSocketDisconnect:
         _chat_clients.discard(websocket)
-        print("[ws] Client disconnected /ws/chat")
 
 
 @router.websocket("/ws/enhanced-data")
-async def enhanced_data_websocket_endpoint(websocket: WebSocket):
+async def enhanced_data_websocket_endpoint(websocket: WebSocket) -> None:
     """WebSocket endpoint for enhanced multi-source data."""
     from backend.routes.enhanced_api import enhanced_manager
 
@@ -432,8 +431,8 @@ async def enhanced_data_websocket_endpoint(websocket: WebSocket):
                     "type": "enhanced_data_update",
                     "data": initial_data,
                     "timestamp": time.time(),
-                }
-            )
+                },
+            ),
         )
 
         # Keep connection alive and listen for client messages

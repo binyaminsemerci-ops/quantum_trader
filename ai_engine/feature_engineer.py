@@ -7,7 +7,7 @@ pipeline.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 import pandas as pd
 
@@ -24,7 +24,7 @@ def compute_basic_indicators(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def assemble_feature_row(row: pd.Series) -> Dict[str, Any]:
+def assemble_feature_row(row: pd.Series) -> dict[str, Any]:
     """Turn a row into a feature dict for model input.
 
     Keep this function stable (avoid changing keys) so stored artifacts remain

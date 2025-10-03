@@ -33,7 +33,7 @@ class TwitterClient:
     - Small, explainable sentiment heuristic (word counting) to avoid heavy NLP deps.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         cfg = load_config()
         self.bearer = cfg.x_bearer_token
         # Optionally support OAuth1 env vars in the future
@@ -84,7 +84,7 @@ class TwitterClient:
         return None
 
     def sentiment_for_symbol(
-        self, symbol: Optional[str] = None, max_results: int = 20
+        self, symbol: Optional[str] = None, max_results: int = 20,
     ) -> Dict[str, Any]:
         """Return a lightweight sentiment summary for a symbol.
 
@@ -118,7 +118,7 @@ class TwitterClient:
         url = f"{self.base_v2}/tweets/search/recent"
 
         r = self._request_with_retries(
-            url, params=params, headers=headers, max_attempts=4, timeout=8
+            url, params=params, headers=headers, max_attempts=4, timeout=8,
         )
         if r is None:
             logger.warning("Twitter API request failed after retries")

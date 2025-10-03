@@ -100,7 +100,7 @@ def update_model_info(version: str | None, tag: str | None = None) -> None:
         {
             "version": version or "unknown",
             "tag": tag or "none",
-        }
+        },
     )
 
 

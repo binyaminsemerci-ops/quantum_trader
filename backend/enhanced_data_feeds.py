@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class EnhancedDataFeed:
     """Enhanced data feed aggregator with multiple free APIs."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.session: Optional[aiohttp.ClientSession] = None
         self.cache: Dict[str, Any] = {}
         self.cache_ttl = 300  # 5 minutes cache
@@ -48,7 +48,7 @@ class EnhancedDataFeed:
         cached_time, _ = self.cache[key]
         return time.time() - cached_time < self.cache_ttl
 
-    def _set_cache(self, key: str, data: Any):
+    def _set_cache(self, key: str, data: Any) -> None:
         """Set data in cache with timestamp."""
         self.cache[key] = (time.time(), data)
 
@@ -59,7 +59,7 @@ class EnhancedDataFeed:
         return None
 
     async def _safe_request(
-        self, url: str, params: Optional[Dict] = None
+        self, url: str, params: Optional[Dict] = None,
     ) -> Optional[Dict]:
         """Make safe HTTP request with error handling."""
         try:
@@ -71,7 +71,7 @@ class EnhancedDataFeed:
                     return await response.json()
                 else:
                     logger.warning(
-                        f"API request failed: {url} - Status: {response.status}"
+                        f"API request failed: {url} - Status: {response.status}",
                     )
                     return None
 
@@ -79,7 +79,7 @@ class EnhancedDataFeed:
             logger.warning(f"Timeout for API request: {url}")
             return None
         except Exception as e:
-            logger.error(f"Error in API request {url}: {e}")
+            logger.exception(f"Error in API request {url}: {e}")
             return None
 
     async def get_coingecko_data(self, symbols: List[str]) -> Dict[str, Any]:
@@ -144,7 +144,7 @@ class EnhancedDataFeed:
             return result
 
         except Exception as e:
-            logger.error(f"CoinGecko API error: {e}")
+            logger.exception(f"CoinGecko API error: {e}")
             return {}
 
     async def get_fear_greed_index(self) -> Dict[str, Any]:
@@ -170,7 +170,7 @@ class EnhancedDataFeed:
 
                 self._set_cache(cache_key, result)
                 logger.info(
-                    f"😱 Fear & Greed Index: {result['current'].get('value', 'N/A')}"
+                    f"😱 Fear & Greed Index: {result['current'].get('value', 'N/A')}",
                 )
 
                 return result
@@ -178,7 +178,7 @@ class EnhancedDataFeed:
             return {}
 
         except Exception as e:
-            logger.error(f"Fear & Greed Index error: {e}")
+            logger.exception(f"Fear & Greed Index error: {e}")
             return {}
 
     async def get_reddit_sentiment(self, symbols: List[str]) -> Dict[str, Any]:
@@ -264,7 +264,7 @@ class EnhancedDataFeed:
                                         "comments": comments,
                                         "sentiment": sentiment_score,
                                         "subreddit": subreddit,
-                                    }
+                                    },
                                 )
 
                         await asyncio.sleep(0.1)  # Be nice to Reddit
@@ -302,7 +302,7 @@ class EnhancedDataFeed:
             return result
 
         except Exception as e:
-            logger.error(f"Reddit sentiment error: {e}")
+            logger.exception(f"Reddit sentiment error: {e}")
             return {}
 
     async def get_cryptocompare_data(self, symbols: List[str]) -> Dict[str, Any]:
@@ -346,13 +346,13 @@ class EnhancedDataFeed:
 
             self._set_cache(cache_key, result)
             logger.info(
-                f"📰 CryptoCompare data fetched: {len(result['news'])} news items"
+                f"📰 CryptoCompare data fetched: {len(result['news'])} news items",
             )
 
             return result
 
         except Exception as e:
-            logger.error(f"CryptoCompare error: {e}")
+            logger.exception(f"CryptoCompare error: {e}")
             return {}
 
     async def get_coinpaprika_data(self, symbols: List[str]) -> Dict[str, Any]:
@@ -412,7 +412,7 @@ class EnhancedDataFeed:
             return result
 
         except Exception as e:
-            logger.error(f"CoinPaprika error: {e}")
+            logger.exception(f"CoinPaprika error: {e}")
             return {}
 
     async def get_messari_metrics(self, symbols: List[str]) -> Dict[str, Any]:
@@ -451,7 +451,7 @@ class EnhancedDataFeed:
             return result
 
         except Exception as e:
-            logger.error(f"Messari error: {e}")
+            logger.exception(f"Messari error: {e}")
             return {}
 
     async def get_market_indicators(self) -> Dict[str, Any]:
@@ -478,7 +478,7 @@ class EnhancedDataFeed:
             return result
 
         except Exception as e:
-            logger.error(f"Market indicators error: {e}")
+            logger.exception(f"Market indicators error: {e}")
             return {}
 
     async def get_all_enhanced_data(self, symbols: List[str]) -> Dict[str, Any]:
@@ -554,7 +554,7 @@ class EnhancedDataFeed:
                 # Extreme fear/greed signals
                 if fg_value <= 25:
                     insights["opportunity_signals"].append(
-                        "extreme_fear_buy_opportunity"
+                        "extreme_fear_buy_opportunity",
                     )
                 elif fg_value >= 75:
                     insights["risk_factors"].append("extreme_greed_sell_signal")
@@ -653,7 +653,7 @@ class EnhancedDataFeed:
             }
 
         except Exception as e:
-            logger.error(f"Error extracting AI insights: {e}")
+            logger.exception(f"Error extracting AI insights: {e}")
             insights["error"] = str(e)
 
         return insights

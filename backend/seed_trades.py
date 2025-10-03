@@ -6,7 +6,7 @@ from typing import Iterable
 from backend.database import EquityPoint, Trade, TradeLog, session_scope
 
 
-def _clear_tables():
+def _clear_tables() -> None:
     with session_scope() as session:
         session.query(Trade).delete()
         session.query(TradeLog).delete()
@@ -33,7 +33,7 @@ def seed_trades() -> None:
                     status="demo",
                     reason="seed",
                     timestamp=trade.timestamp,
-                )
+                ),
             )
 
 
@@ -47,7 +47,7 @@ def seed_equity_curve(days: int = 30) -> None:
                 EquityPoint(
                     date=(start + timedelta(days=i)),
                     equity=round(equity, 2),
-                )
+                ),
             )
 
 
@@ -55,7 +55,6 @@ def main() -> None:
     _clear_tables()
     seed_trades()
     seed_equity_curve()
-    print("Seeded demo trades and equity curve")
 
 
 if __name__ == "__main__":

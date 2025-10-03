@@ -26,7 +26,7 @@ def list_watchlist():
                     "created_at": (
                         row.created_at.isoformat() if row.created_at else None
                     ),
-                }
+                },
             )
     return out
 
@@ -71,7 +71,7 @@ def list_alerts():
                     "created_at": (
                         row.created_at.isoformat() if row.created_at else None
                     ),
-                }
+                },
             )
     return out
 
@@ -200,7 +200,7 @@ def _generate_extended_watchlist() -> List[Dict]:
                     live_prices[symbol] = latest["close"]
         except Exception as e:
             logger.debug(
-                f"Failed to fetch live price for {symbol}: {e}"
+                f"Failed to fetch live price for {symbol}: {e}",
             )  # Fall back to demo data
 
     for sym, name, demo_price, cat in base:
@@ -234,7 +234,7 @@ def _generate_extended_watchlist() -> List[Dict]:
                 "sparkline": spark,
                 "ts": __import__("datetime").datetime.utcfromtimestamp(now).isoformat()
                 + "Z",
-            }
+            },
         )
     return out
 
@@ -265,7 +265,7 @@ def full_watchlist():
 @router.get("/prices")
 def watchlist_prices(
     symbols: Annotated[
-        str, Query(..., description="Comma-separated symbols e.g. BTCUSDT,ETHUSDT")
+        str, Query(..., description="Comma-separated symbols e.g. BTCUSDT,ETHUSDT"),
     ],
     limit: Annotated[int, Query(ge=1, le=200)] = 24,
 ) -> List[Dict]:
@@ -284,7 +284,8 @@ def watchlist_prices(
             candles = fetch_recent_candles(symbol=sym, limit=limit)
             closes = [c.get("close") for c in candles if c.get("close") is not None]
             if not closes:
-                raise ValueError("no candle closes")
+                msg = "no candle closes"
+                raise ValueError(msg)
             latest = closes[-1]
             first = closes[0]
             change24 = (latest - first) / first if first else 0.0
@@ -297,7 +298,7 @@ def watchlist_prices(
                     "volume24h": float(volume24),
                     "sparkline": [float(round(v, 6)) for v in closes],
                     "ts": candles[-1].get("time"),
-                }
+                },
             )
         except Exception:
             # Be tolerant: include an error entry rather than fail the whole request
@@ -307,8 +308,8 @@ def watchlist_prices(
 
 @router.websocket("/ws/watchlist")
 async def watchlist_ws(
-    websocket: WebSocket, symbols: str = "BTCUSDT,ETHUSDT", limit: int = 24
-):
+    websocket: WebSocket, symbols: str = "BTCUSDT,ETHUSDT", limit: int = 24,
+) -> None:
     await websocket.accept()
     requested = [s.strip() for s in symbols.split(",") if s.strip()]
     try:
@@ -321,7 +322,8 @@ async def watchlist_ws(
                         c.get("close") for c in candles if c.get("close") is not None
                     ]
                     if not closes:
-                        raise ValueError("no candle closes")
+                        msg = "no candle closes"
+                        raise ValueError(msg)
                     latest = closes[-1]
                     first = closes[0]
                     change24 = (latest - first) / first if first else 0.0
@@ -334,7 +336,7 @@ async def watchlist_ws(
                             "volume24h": float(volume24),
                             "sparkline": [float(round(v, 6)) for v in closes],
                             "ts": candles[-1].get("time"),
-                        }
+                        },
                     )
                 except Exception:
                     out.append({"symbol": sym, "error": "failed to fetch data"})
@@ -345,7 +347,7 @@ async def watchlist_ws(
 
 
 @router.websocket("/ws/alerts")
-async def alerts_ws(websocket: WebSocket):
+async def alerts_ws(websocket: WebSocket) -> None:
     await websocket.accept()
     register_ws(websocket)
     try:

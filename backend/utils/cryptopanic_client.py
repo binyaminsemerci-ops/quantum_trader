@@ -25,7 +25,7 @@ class CryptoPanicClient:
     - Adds retries/backoff for transient errors and simple caching.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         cfg = load_config()
         self.key = cfg.cryptopanic_key
         self.base = "https://cryptopanic.com/api/v1"
@@ -45,7 +45,7 @@ class CryptoPanicClient:
         _CACHE[key] = (time.time(), val)
 
     def _request_with_retries(
-        self, url: str, params: dict, max_attempts: int = 3, timeout: int = 6
+        self, url: str, params: dict, max_attempts: int = 3, timeout: int = 6,
     ) -> Optional[Any]:
         attempt = 0
         while attempt < max_attempts:
@@ -66,7 +66,7 @@ class CryptoPanicClient:
         return None
 
     def fetch_latest(
-        self, tag: Optional[str] = None, limit: int = 20
+        self, tag: Optional[str] = None, limit: int = 20,
     ) -> List[Dict[str, Any]]:
         if self.mock:
             # return deterministic mock items
@@ -78,7 +78,7 @@ class CryptoPanicClient:
                         "id": f"mock-{i}",
                         "title": f"Mock news {i} for {tag}",
                         "published_at": now - i * 60,
-                    }
+                    },
                 )
             return items
 
@@ -93,7 +93,7 @@ class CryptoPanicClient:
             params["filter"] = tag
 
         r = self._request_with_retries(
-            f"{self.base}/posts/", params=params, max_attempts=3, timeout=8
+            f"{self.base}/posts/", params=params, max_attempts=3, timeout=8,
         )
         if r is None:
             warnings.warn("CryptoPanic request failed after retries")

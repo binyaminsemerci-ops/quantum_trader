@@ -21,16 +21,18 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from config.config import settings
-from production_risk_manager import RiskManager
+
+if TYPE_CHECKING:
+    from production_risk_manager import RiskManager
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -74,7 +76,7 @@ class Alert:
     level: str  # 'INFO', 'WARNING', 'CRITICAL'
     category: str  # 'PERFORMANCE', 'RISK', 'MODEL', 'SYSTEM'
     message: str
-    data: Dict[str, Any]
+    data: dict[str, Any]
 
 
 class PerformanceMonitor:
@@ -82,10 +84,10 @@ class PerformanceMonitor:
 
     def __init__(
         self,
-        risk_manager: Optional[RiskManager] = None,
-        alert_config: Optional[AlertConfig] = None,
-        output_dir: Path = None,
-    ):
+        risk_manager: RiskManager | None = None,
+        alert_config: AlertConfig | None = None,
+        output_dir: Path | None = None,
+    ) -> None:
         self.risk_manager = risk_manager
         self.alert_config = alert_config or AlertConfig()
         self.output_dir = output_dir or Path("logs/monitoring")
@@ -94,9 +96,9 @@ class PerformanceMonitor:
         # Monitoring state
         self.is_running = False
         self.monitoring_thread = None
-        self.performance_history: List[PerformanceMetrics] = []
-        self.alerts: List[Alert] = []
-        self.last_alert_times: Dict[str, datetime] = {}
+        self.performance_history: list[PerformanceMetrics] = []
+        self.alerts: list[Alert] = []
+        self.last_alert_times: dict[str, datetime] = {}
 
         # Performance tracking
         self.daily_trades = []
@@ -115,13 +117,13 @@ class PerformanceMonitor:
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
-    def _signal_handler(self, signum, frame):
+    def _signal_handler(self, signum, frame) -> None:
         """Handle shutdown signals gracefully."""
         logger.info(f"Received signal {signum}, shutting down monitoring...")
         self.stop_monitoring()
         sys.exit(0)
 
-    def start_monitoring(self, interval_seconds: int = 60):
+    def start_monitoring(self, interval_seconds: int = 60) -> None:
         """Start the performance monitoring loop."""
         if self.is_running:
             logger.warning("Monitoring is already running")
@@ -132,11 +134,11 @@ class PerformanceMonitor:
 
         # Start monitoring in separate thread
         self.monitoring_thread = threading.Thread(
-            target=self._monitoring_loop, args=(interval_seconds,), daemon=True
+            target=self._monitoring_loop, args=(interval_seconds,), daemon=True,
         )
         self.monitoring_thread.start()
 
-    def stop_monitoring(self):
+    def stop_monitoring(self) -> None:
         """Stop the performance monitoring."""
         logger.info("Stopping performance monitoring...")
         self.is_running = False
@@ -148,7 +150,7 @@ class PerformanceMonitor:
         self._save_monitoring_state()
         logger.info("Monitoring stopped")
 
-    def _monitoring_loop(self, interval_seconds: int):
+    def _monitoring_loop(self, interval_seconds: int) -> None:
         """Main monitoring loop."""
         while self.is_running:
             try:
@@ -170,10 +172,10 @@ class PerformanceMonitor:
                 time.sleep(interval_seconds)
 
             except Exception as e:
-                logger.error(f"Error in monitoring loop: {e}")
+                logger.exception(f"Error in monitoring loop: {e}")
                 time.sleep(interval_seconds)
 
-    def _collect_performance_metrics(self) -> Optional[PerformanceMetrics]:
+    def _collect_performance_metrics(self) -> PerformanceMetrics | None:
         """Collect current performance metrics."""
         try:
             # Get current portfolio state
@@ -200,7 +202,7 @@ class PerformanceMonitor:
             # Risk metrics
             sharpe_ratio = self._calculate_sharpe_ratio()
 
-            metrics = PerformanceMetrics(
+            return PerformanceMetrics(
                 timestamp=datetime.now(timezone.utc),
                 total_equity=portfolio.get("total_equity", 0),
                 daily_pnl=portfolio.get("daily_pnl", 0),
@@ -216,13 +218,12 @@ class PerformanceMonitor:
                 avg_signal_strength=avg_signal_strength,
             )
 
-            return metrics
 
         except Exception as e:
-            logger.error(f"Failed to collect performance metrics: {e}")
+            logger.exception(f"Failed to collect performance metrics: {e}")
             return None
 
-    def _get_today_trades(self) -> List[Dict]:
+    def _get_today_trades(self) -> list[dict]:
         """Get trades executed today."""
         today = datetime.now().date()
         return [
@@ -231,7 +232,7 @@ class PerformanceMonitor:
             if datetime.fromisoformat(trade.get("timestamp", "")).date() == today
         ]
 
-    def _calculate_win_rate(self, trades: List[Dict]) -> float:
+    def _calculate_win_rate(self, trades: list[dict]) -> float:
         """Calculate win rate from trades."""
         if not trades:
             return 0.0
@@ -312,7 +313,7 @@ class PerformanceMonitor:
             else 0.0
         )
 
-    def _check_alerts(self, metrics: PerformanceMetrics):
+    def _check_alerts(self, metrics: PerformanceMetrics) -> None:
         """Check for alert conditions."""
         alerts_to_send = []
 
@@ -328,7 +329,7 @@ class PerformanceMonitor:
                         "daily_pnl_pct": metrics.daily_pnl_pct,
                         "limit": -self.alert_config.max_daily_loss_pct,
                     },
-                )
+                ),
             )
 
         # Drawdown alert
@@ -343,7 +344,7 @@ class PerformanceMonitor:
                         "max_drawdown_pct": metrics.max_drawdown * 100,
                         "limit": self.alert_config.max_drawdown_pct,
                     },
-                )
+                ),
             )
 
         # Model accuracy alert
@@ -361,7 +362,7 @@ class PerformanceMonitor:
                         "model_accuracy": metrics.model_accuracy,
                         "threshold": self.alert_config.min_model_accuracy,
                     },
-                )
+                ),
             )
 
         # Portfolio risk alert
@@ -376,7 +377,7 @@ class PerformanceMonitor:
                         "portfolio_risk": metrics.portfolio_risk,
                         "limit": self.alert_config.max_portfolio_risk,
                     },
-                )
+                ),
             )
 
         # Signal strength alert
@@ -394,14 +395,14 @@ class PerformanceMonitor:
                         "avg_signal_strength": metrics.avg_signal_strength,
                         "threshold": self.alert_config.min_signal_strength,
                     },
-                )
+                ),
             )
 
         # Send alerts (with cooldown)
         for alert in alerts_to_send:
             self._send_alert(alert)
 
-    def _send_alert(self, alert: Alert):
+    def _send_alert(self, alert: Alert) -> None:
         """Send an alert (with cooldown logic)."""
         alert_key = f"{alert.category}_{alert.level}"
         now = datetime.now()
@@ -425,12 +426,12 @@ class PerformanceMonitor:
         # Log to console
         logger.warning(f"ALERT [{alert.level}] {alert.category}: {alert.message}")
 
-    def _log_performance_metrics(self, metrics: PerformanceMetrics):
+    def _log_performance_metrics(self, metrics: PerformanceMetrics) -> None:
         """Log performance metrics to file."""
         with open(self.performance_log, "a") as f:
             f.write(json.dumps(asdict(metrics), default=str) + "\n")
 
-    def _cleanup_old_data(self):
+    def _cleanup_old_data(self) -> None:
         """Clean up old data to prevent memory issues."""
         # Keep last 24 hours of performance data
         cutoff_time = datetime.now() - timedelta(hours=24)
@@ -450,7 +451,7 @@ class PerformanceMonitor:
         if len(self.signal_history) > 1000:
             self.signal_history = self.signal_history[-1000:]
 
-    def _save_monitoring_state(self):
+    def _save_monitoring_state(self) -> None:
         """Save current monitoring state."""
         state = {
             "timestamp": datetime.now().isoformat(),
@@ -465,22 +466,22 @@ class PerformanceMonitor:
         with open(state_file, "w") as f:
             json.dump(state, f, indent=2)
 
-    def add_trade(self, trade_data: Dict):
+    def add_trade(self, trade_data: dict) -> None:
         """Add a completed trade to tracking."""
         trade_data["timestamp"] = datetime.now().isoformat()
         self.daily_trades.append(trade_data)
 
-    def add_model_prediction(self, prediction_data: Dict):
+    def add_model_prediction(self, prediction_data: dict) -> None:
         """Add a model prediction for accuracy tracking."""
         prediction_data["timestamp"] = datetime.now().isoformat()
         self.model_predictions.append(prediction_data)
 
-    def add_signal(self, signal_data: Dict):
+    def add_signal(self, signal_data: dict) -> None:
         """Add a trading signal for analysis."""
         signal_data["timestamp"] = datetime.now().isoformat()
         self.signal_history.append(signal_data)
 
-    def get_current_status(self) -> Dict[str, Any]:
+    def get_current_status(self) -> dict[str, Any]:
         """Get current monitoring status."""
         if not self.performance_history:
             return {"status": "No data available"}
@@ -503,7 +504,7 @@ class PerformanceMonitor:
             "total_metrics_collected": len(self.performance_history),
         }
 
-    def generate_daily_report(self) -> Dict[str, Any]:
+    def generate_daily_report(self) -> dict[str, Any]:
         """Generate daily performance report."""
         if not self.performance_history:
             return {"error": "No performance data available"}
@@ -528,7 +529,7 @@ class PerformanceMonitor:
 
         total_trades = sum(m.trades_today for m in today_metrics)
         avg_accuracy = np.mean(
-            [m.model_accuracy for m in today_metrics if m.model_accuracy > 0]
+            [m.model_accuracy for m in today_metrics if m.model_accuracy > 0],
         )
 
         today_alerts = [a for a in self.alerts if a.timestamp.date() == today]
@@ -551,16 +552,16 @@ class PerformanceMonitor:
                         s
                         for s in self.signal_history
                         if datetime.fromisoformat(s["timestamp"]).date() == today
-                    ]
+                    ],
                 ),
             },
             "alerts": {
                 "total_alerts": len(today_alerts),
                 "critical_alerts": len(
-                    [a for a in today_alerts if a.level == "CRITICAL"]
+                    [a for a in today_alerts if a.level == "CRITICAL"],
                 ),
                 "warning_alerts": len(
-                    [a for a in today_alerts if a.level == "WARNING"]
+                    [a for a in today_alerts if a.level == "WARNING"],
                 ),
             },
         }
@@ -573,14 +574,14 @@ class PerformanceMonitor:
         return report
 
 
-def main():
+def main() -> None:
     """Main monitoring execution."""
     parser = argparse.ArgumentParser(description="Production Performance Monitoring")
     parser.add_argument("--start", action="store_true", help="Start monitoring")
     parser.add_argument("--status", action="store_true", help="Show current status")
     parser.add_argument("--report", action="store_true", help="Generate daily report")
     parser.add_argument(
-        "--interval", type=int, default=60, help="Monitoring interval in seconds"
+        "--interval", type=int, default=60, help="Monitoring interval in seconds",
     )
 
     args = parser.parse_args()
@@ -589,7 +590,6 @@ def main():
     monitor = PerformanceMonitor()
 
     if args.start:
-        print("🚀 Starting production monitoring...")
         monitor.start_monitoring(args.interval)
 
         try:
@@ -597,24 +597,18 @@ def main():
             while monitor.is_running:
                 time.sleep(1)
         except KeyboardInterrupt:
-            print("\n📊 Stopping monitoring...")
             monitor.stop_monitoring()
 
     elif args.status:
         status = monitor.get_current_status()
-        print("📊 Current Monitoring Status:")
-        for key, value in status.items():
-            print(f"  {key}: {value}")
+        for _key, _value in status.items():
+            pass
 
     elif args.report:
-        report = monitor.generate_daily_report()
-        print("📈 Daily Performance Report:")
-        print(json.dumps(report, indent=2, default=str))
+        monitor.generate_daily_report()
 
     else:
-        print(
-            "Use --start to begin monitoring, --status for current status, or --report for daily report"
-        )
+        pass
 
 
 if __name__ == "__main__":

@@ -24,11 +24,11 @@ logger = logging.getLogger(__name__)
 class _SimpleScaler:
     """Very small replacement for sklearn StandardScaler when not available."""
 
-    def fit(self, X):
-        import numpy as _np
+    def fit(self, X) -> None:
+        import numpy as np
 
-        self.mean_ = _np.nanmean(X, axis=0)
-        self.scale_ = _np.nanstd(X, axis=0)
+        self.mean_ = np.nanmean(X, axis=0)
+        self.scale_ = np.nanstd(X, axis=0)
         self.scale_[self.scale_ == 0] = 1.0
 
     def transform(self, X):
@@ -42,15 +42,15 @@ class _SimpleScaler:
 class _MeanRegressor:
     """Simple mean predictor used when no regressor is available."""
 
-    def fit(self, X, y):
-        import numpy as _np
+    def fit(self, X, y) -> None:
+        import numpy as np
 
-        self.mean_ = float(_np.nanmean(y))
+        self.mean_ = float(np.nanmean(y))
 
     def predict(self, X):
-        import numpy as _np
+        import numpy as np
 
-        return _np.full((len(X),), getattr(self, "mean_", 0.0))
+        return np.full((len(X),), getattr(self, "mean_", 0.0))
 
 
 async def _fetch_symbol_data(symbol: str, limit: int = 600):
@@ -110,7 +110,7 @@ def build_dataset(all_symbol_data):
         # compute technicals
         try:
             feat = add_technical_indicators(
-                df.rename(columns={"Close": "Close", "High": "High", "Low": "Low"})
+                df.rename(columns={"Close": "Close", "High": "High", "Low": "Low"}),
             )
         except Exception as e:
             logger.warning(f"Failed to process symbol {symbol}: {e}")
@@ -118,7 +118,7 @@ def build_dataset(all_symbol_data):
 
         # add sentiment/news aligned series
         feat = add_sentiment_features(
-            feat, sentiment_series=sentiment, news_counts=news, window=5
+            feat, sentiment_series=sentiment, news_counts=news, window=5,
         )
 
         # add target (predict Return horizon=1)
@@ -132,7 +132,8 @@ def build_dataset(all_symbol_data):
         y_list.append(y)
 
     if not X_list:
-        raise RuntimeError("No training data assembled")
+        msg = "No training data assembled"
+        raise RuntimeError(msg)
 
     X_all = np.vstack(X_list)
     y_all = np.concatenate(y_list)
@@ -162,7 +163,7 @@ def make_regressor():
             return _MeanRegressor()
 
 
-def save_artifacts(model, scaler, model_path, scaler_path):
+def save_artifacts(model, scaler, model_path, scaler_path) -> None:
     with open(model_path, "wb") as f:
         pickle.dump(model, f)
     with open(scaler_path, "wb") as f:
@@ -184,11 +185,11 @@ def save_artifacts(model, scaler, model_path, scaler_path):
         import logging
 
         logging.getLogger(__name__).debug(
-            "failed to write model metadata", exc_info=True
+            "failed to write model metadata", exc_info=True,
         )
 
 
-def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
+def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600) -> None:
     if symbols is None:
         # prefer USDC as the spot quote by default for training / dataset assembly
         try:
@@ -213,13 +214,12 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
     # synthetic dataset so training can proceed for CI/dev.
     try:
         X, y = build_dataset(all_symbol_data)
-    except Exception as exc:  # pragma: no cover - environment dependent
-        print("Warning: build_dataset failed, falling back to synthetic dataset:", exc)
+    except Exception:  # pragma: no cover - environment dependent
         # create a small synthetic dataset
-        import numpy as _np
+        import numpy as np
 
         def synthetic_dataset(samples=1000, features=16):
-            rng = _np.random.default_rng(12345)
+            rng = np.random.default_rng(12345)
             Xs = rng.normal(size=(samples, features))
             # create a target correlated with a subset of features
             y = (
@@ -250,8 +250,6 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
     model_path = os.path.join(MODEL_DIR, "xgb_model.pkl")
     scaler_path = os.path.join(MODEL_DIR, "scaler.pkl")
     save_artifacts(reg, scaler, model_path, scaler_path)
-    print("Saved model ->", model_path)
-    print("Saved scaler ->", scaler_path)
 
 
 if __name__ == "__main__":

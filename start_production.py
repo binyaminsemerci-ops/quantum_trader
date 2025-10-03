@@ -22,7 +22,7 @@ from production_risk_manager import RiskManager, RiskParameters
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class ProductionDeployment:
     """Production deployment orchestrator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.processes: Dict[str, Any] = {}
         self.risk_manager: RiskManager = None
         self.monitor: PerformanceMonitor = None
@@ -40,7 +40,7 @@ class ProductionDeployment:
         signal.signal(signal.SIGINT, self._shutdown_handler)
         signal.signal(signal.SIGTERM, self._shutdown_handler)
 
-    def _shutdown_handler(self, signum, frame):
+    def _shutdown_handler(self, signum, frame) -> None:
         """Handle graceful shutdown."""
         logger.info(f"Received shutdown signal {signum}")
         self.shutdown()
@@ -56,13 +56,13 @@ class ProductionDeployment:
         if settings.enable_real_trading:
             if not settings.binance_api_key or not settings.binance_api_secret:
                 validation_results.append(
-                    "❌ Binance API keys required for live trading"
+                    "❌ Binance API keys required for live trading",
                 )
             else:
                 validation_results.append("✅ Binance API keys configured")
         else:
             validation_results.append(
-                "ℹ️  Paper trading mode (ENABLE_REAL_TRADING=False)"
+                "ℹ️  Paper trading mode (ENABLE_REAL_TRADING=False)",
             )
 
         # Check market data configuration
@@ -87,7 +87,7 @@ class ProductionDeployment:
             validation_results.append("⚠️  Low starting equity (<$1000)")
         else:
             validation_results.append(
-                f"✅ Starting equity: ${settings.starting_equity:,.2f}"
+                f"✅ Starting equity: ${settings.starting_equity:,.2f}",
             )
 
         # Check monitoring configuration
@@ -97,8 +97,8 @@ class ProductionDeployment:
             validation_results.append("⚠️  Performance monitoring disabled")
 
         # Print validation results
-        for result in validation_results:
-            print(result)
+        for _result in validation_results:
+            pass
 
         # Check for any critical issues
         critical_issues = [r for r in validation_results if r.startswith("❌")]
@@ -127,7 +127,7 @@ class ProductionDeployment:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to setup risk management: {e}")
+            logger.exception(f"Failed to setup risk management: {e}")
             return False
 
     def setup_monitoring(self) -> bool:
@@ -147,7 +147,7 @@ class ProductionDeployment:
             )
 
             self.monitor = PerformanceMonitor(
-                risk_manager=self.risk_manager, alert_config=alert_config
+                risk_manager=self.risk_manager, alert_config=alert_config,
             )
 
             # Start monitoring
@@ -156,7 +156,7 @@ class ProductionDeployment:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to setup monitoring: {e}")
+            logger.exception(f"Failed to setup monitoring: {e}")
             return False
 
     def run_initial_training(self) -> bool:
@@ -187,7 +187,7 @@ class ProductionDeployment:
 
             logger.info("Training completed:")
             logger.info(
-                f"  - Model accuracy: {metrics.get('directional_accuracy', 0):.1%}"
+                f"  - Model accuracy: {metrics.get('directional_accuracy', 0):.1%}",
             )
             logger.info(f"  - Backtest return: {backtest.get('pnl', 0):.2f}")
             logger.info(f"  - Win rate: {backtest.get('win_rate', 0):.1%}")
@@ -195,7 +195,7 @@ class ProductionDeployment:
             return True
 
         except Exception as e:
-            logger.error(f"Initial training failed: {e}")
+            logger.exception(f"Initial training failed: {e}")
             return False
 
     def start_trading_system(self) -> bool:
@@ -221,7 +221,7 @@ class ProductionDeployment:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to start trading system: {e}")
+            logger.exception(f"Failed to start trading system: {e}")
             return False
 
     def run_production_tests(self) -> bool:
@@ -241,20 +241,20 @@ class ProductionDeployment:
 
             if successful_tests / total_tests < 0.8:  # Require 80% success rate
                 logger.error(
-                    f"Production tests failed: {successful_tests}/{total_tests} successful"
+                    f"Production tests failed: {successful_tests}/{total_tests} successful",
                 )
                 return False
 
             logger.info(
-                f"✅ Production tests passed: {successful_tests}/{total_tests} successful"
+                f"✅ Production tests passed: {successful_tests}/{total_tests} successful",
             )
             return True
 
         except Exception as e:
-            logger.error(f"Production tests failed: {e}")
+            logger.exception(f"Production tests failed: {e}")
             return False
 
-    def monitor_system(self):
+    def monitor_system(self) -> None:
         """Monitor the running system."""
         logger.info("👁️  System monitoring active...")
 
@@ -271,9 +271,9 @@ class ProductionDeployment:
                 time.sleep(60)  # Check every minute
 
         except Exception as e:
-            logger.error(f"Monitoring error: {e}")
+            logger.exception(f"Monitoring error: {e}")
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """Shutdown all systems gracefully."""
         logger.info("🛑 Shutting down production system...")
 
@@ -294,14 +294,13 @@ class ProductionDeployment:
                 process.terminate()
                 process.wait(timeout=10)
             except Exception as e:
-                logger.error(f"Error stopping {name}: {e}")
+                logger.exception(f"Error stopping {name}: {e}")
 
         logger.info("✅ Shutdown complete")
 
     def deploy(self, skip_tests: bool = False, skip_training: bool = False) -> bool:
         """Run complete production deployment."""
         logger.info("🚀 Starting Quantum Trader Production Deployment")
-        print("=" * 60)
 
         # Step 1: Validate configuration
         if not self.validate_configuration():
@@ -319,16 +318,14 @@ class ProductionDeployment:
             return False
 
         # Step 4: Run production tests (optional)
-        if not skip_tests:
-            if not self.run_production_tests():
-                logger.error("Production tests failed")
-                return False
+        if not skip_tests and not self.run_production_tests():
+            logger.error("Production tests failed")
+            return False
 
         # Step 5: Initial training (optional)
-        if not skip_training:
-            if not self.run_initial_training():
-                logger.error("Initial training failed")
-                return False
+        if not skip_training and not self.run_initial_training():
+            logger.error("Initial training failed")
+            return False
 
         # Step 6: Start trading system
         if not self.start_trading_system():
@@ -336,14 +333,8 @@ class ProductionDeployment:
             return False
 
         logger.info("🎉 Production deployment successful!")
-        print("\n" + "=" * 60)
-        print("📊 Quantum Trader Production System Status:")
-        print("  🟢 Risk Management: Active")
         if self.monitor:
-            print("  🟢 Performance Monitoring: Active")
-        print("  🟢 AI Model: Trained and Ready")
-        print("  🟢 Trading System: Online")
-        print("=" * 60)
+            pass
 
         # Start monitoring loop
         self.monitor_system()
@@ -351,17 +342,17 @@ class ProductionDeployment:
         return True
 
 
-def main():
+def main() -> None:
     """Main production startup function."""
     parser = argparse.ArgumentParser(description="Quantum Trader Production Deployment")
     parser.add_argument(
-        "--skip-tests", action="store_true", help="Skip production tests"
+        "--skip-tests", action="store_true", help="Skip production tests",
     )
     parser.add_argument(
-        "--skip-training", action="store_true", help="Skip initial training"
+        "--skip-training", action="store_true", help="Skip initial training",
     )
     parser.add_argument(
-        "--validate-only", action="store_true", help="Only validate configuration"
+        "--validate-only", action="store_true", help="Only validate configuration",
     )
 
     args = parser.parse_args()
@@ -372,16 +363,14 @@ def main():
     if args.validate_only:
         # Just validate and exit
         if deployment.validate_configuration():
-            print("\n✅ Configuration is ready for production!")
             sys.exit(0)
         else:
-            print("\n❌ Configuration needs fixes before production deployment")
             sys.exit(1)
 
     # Run full deployment
     try:
         success = deployment.deploy(
-            skip_tests=args.skip_tests, skip_training=args.skip_training
+            skip_tests=args.skip_tests, skip_training=args.skip_training,
         )
 
         if not success:
@@ -392,7 +381,7 @@ def main():
         logger.info("\nDeployment interrupted by user")
         deployment.shutdown()
     except Exception as e:
-        logger.error(f"Deployment failed with error: {e}")
+        logger.exception(f"Deployment failed with error: {e}")
         deployment.shutdown()
         sys.exit(1)
 

@@ -6,6 +6,7 @@ Tests basic API connectivity and core functionality.
 """
 
 import json
+import sys
 import time
 from datetime import datetime
 from typing import Any, Dict, List
@@ -16,7 +17,7 @@ import requests
 class SimpleBackendTester:
     """Simplified backend system tester."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.base_url = "http://localhost:8000"
         self.test_results: List[Dict[str, Any]] = []
 
@@ -63,11 +64,11 @@ class SimpleBackendTester:
                         "success": response.status_code == 200,
                         "status_code": response.status_code,
                         "response_time_ms": response.elapsed.total_seconds() * 1000,
-                    }
+                    },
                 )
             except Exception as e:
                 endpoint_results.append(
-                    {"endpoint": endpoint, "success": False, "error": str(e)}
+                    {"endpoint": endpoint, "success": False, "error": str(e)},
                 )
 
         successful_endpoints = sum(
@@ -90,30 +91,20 @@ class SimpleBackendTester:
 
     def run_simple_tests(self) -> Dict[str, Any]:
         """Run simple backend tests."""
-        print("🧪 Running Simple Backend Tests...")
-
         start_time = time.time()
 
         # Check if backend is running
-        print("  🔍 Testing health endpoint...")
         health_result = self.test_health_endpoint()
 
         if health_result["success"]:
-            print("  ✅ Backend is running")
 
-            print("  🔍 Testing API endpoints...")
             api_result = self.test_api_endpoints()
 
             if api_result["success"]:
-                print(
-                    f"  ✅ API endpoints working ({api_result['success_rate']:.1%} success rate)"
-                )
+                pass
             else:
-                print(
-                    f"  ⚠️ API endpoints issues ({api_result['success_rate']:.1%} success rate)"
-                )
+                pass
         else:
-            print("  ❌ Backend not running or not accessible")
             # Still try API tests to see what fails
             api_result = self.test_api_endpoints()
 
@@ -123,7 +114,7 @@ class SimpleBackendTester:
             1 for result in self.test_results if result.get("success", False)
         )
 
-        summary = {
+        return {
             "tests_run": total_tests,
             "tests_passed": successful_tests,
             "tests_failed": total_tests - successful_tests,
@@ -133,10 +124,9 @@ class SimpleBackendTester:
             "timestamp": datetime.now().isoformat(),
         }
 
-        return summary
 
 
-def main():
+def main() -> int:
     """Main test execution."""
     import argparse
 
@@ -150,26 +140,18 @@ def main():
     results = tester.run_simple_tests()
 
     # Print summary
-    print("\n📊 Backend Test Summary:")
-    print(f"  Tests Run: {results['tests_run']}")
-    print(f"  Tests Passed: {results['tests_passed']}")
-    print(f"  Success Rate: {results['success_rate']:.1%}")
-    print(f"  Duration: {results['total_duration_ms']:.0f}ms")
 
     # Save results if requested
     if args.output:
         with open(args.output, "w") as f:
             json.dump(results, f, indent=2, default=str)
-        print(f"📄 Results saved to: {args.output}")
 
     # Exit with appropriate code
     if results["success_rate"] >= 0.5:
-        print("✅ Backend tests PASSED")
         return 0
     else:
-        print("❌ Backend tests FAILED")
         return 1
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

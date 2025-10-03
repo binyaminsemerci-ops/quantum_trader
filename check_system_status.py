@@ -3,14 +3,13 @@
 
 import json
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
 
 def check_system_status():
     """Sjekk gjeldende systemstatus."""
-    print("🔍 Sjekker komplett systemstatus...")
-
     status = {
         "timestamp": datetime.now().isoformat(),
         "components": {},
@@ -20,7 +19,6 @@ def check_system_status():
     }
 
     # Sjekk komponenter
-    print("📁 Sjekker systemkomponenter...")
     status["components"] = {
         "backend_dir": Path("backend").exists(),
         "frontend_dir": Path("frontend").exists(),
@@ -31,13 +29,12 @@ def check_system_status():
     }
 
     # Sjekk Node.js og npm
-    print("🛠️ Sjekker Node.js og npm...")
     try:
         node_result = subprocess.run(
-            ["node", "--version"], capture_output=True, text=True, timeout=5
+            ["node", "--version"], capture_output=True, text=True, timeout=5, check=False,
         )
         npm_result = subprocess.run(
-            ["npm", "--version"], capture_output=True, text=True, timeout=5
+            ["npm", "--version"], capture_output=True, text=True, timeout=5, check=False,
         )
 
         status["frontend"]["node_version"] = (
@@ -52,7 +49,6 @@ def check_system_status():
         status["frontend"]["error"] = str(e)
 
     # Sjekk frontend dependencies
-    print("📦 Sjekker frontend-avhengigheter...")
     try:
         if Path("frontend/node_modules").exists():
             npm_ls_result = subprocess.run(
@@ -60,7 +56,7 @@ def check_system_status():
                 capture_output=True,
                 text=True,
                 timeout=10,
-                cwd="frontend",
+                cwd="frontend", check=False,
             )
             status["frontend"]["dependencies_installed"] = npm_ls_result.returncode == 0
             status["frontend"]["node_modules_exists"] = True
@@ -71,14 +67,13 @@ def check_system_status():
         status["frontend"]["dependencies_error"] = str(e)
 
     # Test frontend build
-    print("🏗️ Tester frontend build...")
     try:
         build_result = subprocess.run(
             ["npm", "run", "build"],
             capture_output=True,
             text=True,
             timeout=60,
-            cwd="frontend",
+            cwd="frontend", check=False,
         )
         status["frontend"]["can_build"] = build_result.returncode == 0
         if build_result.returncode != 0:
@@ -88,7 +83,6 @@ def check_system_status():
         status["frontend"]["build_error"] = str(e)
 
     # Sjekk tjenester (uten å starte dem)
-    print("🌐 Sjekker tjenestestatus...")
     try:
         import requests
 
@@ -108,49 +102,26 @@ def check_system_status():
     return status
 
 
-def print_status_report(status):
+def print_status_report(status) -> None:
     """Print formatert statusrapport."""
-    print("\n" + "=" * 60)
-    print("📊 QUANTUM TRADER - SYSTEMSTATUS")
-    print("=" * 60)
-
     # Komponenter
     components = status["components"]
-    print("\n🏗️ SYSTEMKOMPONENTER:")
-    print(f"   Backend mappe: {'✅' if components['backend_dir'] else '❌'}")
-    print(f"   Frontend mappe: {'✅' if components['frontend_dir'] else '❌'}")
-    print(f"   Database: {'✅' if components['database'] else '❌'}")
-    print(f"   Package.json: {'✅' if components['package_json'] else '❌'}")
-    print(f"   Vite config: {'✅' if components['vite_config'] else '❌'}")
-    print(f"   Backend main: {'✅' if components['backend_main'] else '❌'}")
 
     # Frontend-miljø
     frontend = status["frontend"]
-    print("\n🛠️ FRONTEND-MILJØ:")
     if frontend.get("node_available"):
-        print(f"   ✅ Node.js: {frontend.get('node_version', 'ukjent versjon')}")
+        pass
     else:
-        print("   ❌ Node.js: Ikke tilgjengelig")
+        pass
 
     if frontend.get("npm_available"):
-        print(f"   ✅ npm: {frontend.get('npm_version', 'ukjent versjon')}")
+        pass
     else:
-        print("   ❌ npm: Ikke tilgjengelig")
+        pass
 
-    print(
-        f"   Dependencies: {'✅ Installert' if frontend.get('dependencies_installed') else '❌ Mangler'}"
-    )
-    print(f"   Kan bygge: {'✅ Ja' if frontend.get('can_build') else '❌ Nei'}")
 
     # Tjenester
     services = status["services"]
-    print("\n🌐 TJENESTER:")
-    print(
-        f"   Backend (port 8000): {'✅ Kjører' if services['backend_running'] else '❌ Ikke kjører'}"
-    )
-    print(
-        f"   Frontend (port 5173): {'✅ Kjører' if services['frontend_running'] else '❌ Ikke kjører'}"
-    )
 
     # Samlet vurdering
     total_components = len([v for v in components.values() if v])
@@ -167,31 +138,19 @@ def print_status_report(status):
     if frontend.get("can_build"):
         frontend_score += 0.2
 
-    services_running = len([v for v in services.values() if v])
+    len([v for v in services.values() if v])
 
-    print("\n📈 SAMLET VURDERING:")
-    print(
-        f"   Komponenter: {component_score:.1%} ({total_components}/{total_possible})"
-    )
-    print(f"   Frontend-miljø: {frontend_score:.1%}")
-    print(f"   Tjenester kjører: {services_running}/2")
 
     overall_score = (component_score + frontend_score) / 2
 
-    if overall_score >= 0.8:
-        print(f"   🟢 Status: UTMERKET ({overall_score:.1%})")
-        print("   💡 System er klar for utvikling og testing!")
-    elif overall_score >= 0.6:
-        print(f"   🟡 Status: BRA ({overall_score:.1%})")
-        print("   💡 System er i hovedsak funksjonelt")
+    if overall_score >= 0.8 or overall_score >= 0.6:
+        pass
     else:
-        print(f"   🔴 Status: TRENGER ARBEID ({overall_score:.1%})")
-        print("   💡 Flere komponenter må fikses")
-
-    print("\n" + "=" * 60)
+        pass
 
 
-def main():
+
+def main() -> int:
     """Hovedfunksjon."""
     # Sjekk status
     status = check_system_status()
@@ -203,10 +162,9 @@ def main():
     with open("current_system_status.json", "w") as f:
         json.dump(status, f, indent=2, default=str)
 
-    print("📄 Detaljert status lagret til: current_system_status.json")
 
     return 0
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 from types import SimpleNamespace
-from typing import Any, Dict
+from typing import Any
 
 # A simple default exchange name used by the exchange factory when no
 # explicit name is provided. Keep this stable across tests.
@@ -50,7 +50,7 @@ def load_config() -> Any:
     ns = SimpleNamespace(
         DEFAULT_EXCHANGE=os.environ.get("DEFAULT_EXCHANGE", DEFAULT_EXCHANGE),
         QUANTUM_TRADER_DATABASE_URL=os.environ.get(
-            "QUANTUM_TRADER_DATABASE_URL", "sqlite:///./db.sqlite3"
+            "QUANTUM_TRADER_DATABASE_URL", "sqlite:///./db.sqlite3",
         ),
         DEFAULT_QUOTE=os.environ.get("DEFAULT_QUOTE", DEFAULT_QUOTE),
         FUTURES_QUOTE=os.environ.get("FUTURES_QUOTE", FUTURES_QUOTE),
@@ -68,7 +68,7 @@ def load_config() -> Any:
     return ns
 
 
-def masked_config_summary(cfg: Any) -> Dict[str, Any]:
+def masked_config_summary(cfg: Any) -> dict[str, Any]:
     """Return a tiny, masked summary of secrets suitable for health endpoints.
 
     The real application might omit or redact secrets; for CI/tests we
@@ -77,11 +77,11 @@ def masked_config_summary(cfg: Any) -> Dict[str, Any]:
     return {
         "has_binance_keys": bool(
             getattr(cfg, "binance_api_key", None)
-            and getattr(cfg, "binance_api_secret", None)
+            and getattr(cfg, "binance_api_secret", None),
         ),
         "has_coinbase_keys": bool(
             getattr(cfg, "coinbase_api_key", None)
-            and getattr(cfg, "coinbase_api_secret", None)
+            and getattr(cfg, "coinbase_api_secret", None),
         ),
     }
 

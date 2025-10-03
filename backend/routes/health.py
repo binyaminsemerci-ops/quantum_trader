@@ -22,7 +22,7 @@ def health_check():
                 SETTINGS.get(
                     "ENABLE_LIVE_MARKET_DATA",
                     getattr(cfg, "enable_live_market_data", False),
-                )
+                ),
             ),
         }
         update_health_metric(True)

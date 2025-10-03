@@ -139,7 +139,7 @@ def get_recent_signals(limit: int = 5):
                 "side": "buy" if i % 2 == 0 else "sell",
                 "confidence": 0.5 + (i * 0.1),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
+            },
         )
     return signals
 
@@ -225,7 +225,7 @@ def get_learning_status():
 
 
 @app.websocket("/ws/dashboard")
-async def dashboard_websocket(websocket: WebSocket):
+async def dashboard_websocket(websocket: WebSocket) -> None:
     """Main dashboard WebSocket."""
     await websocket.accept()
     websocket_connections.append(websocket)
@@ -250,7 +250,7 @@ async def dashboard_websocket(websocket: WebSocket):
 
 
 @app.websocket("/api/v1/watchlist/ws/watchlist")
-async def watchlist_websocket(websocket: WebSocket, symbols: str = "", limit: int = 60):
+async def watchlist_websocket(websocket: WebSocket, symbols: str = "", limit: int = 60) -> None:
     """Watchlist WebSocket for coin table."""
     await websocket.accept()
 
@@ -274,7 +274,7 @@ async def watchlist_websocket(websocket: WebSocket, symbols: str = "", limit: in
                                 data["price"] * (1 + i * 0.001) for i in range(10)
                             ],
                             "ts": datetime.now(timezone.utc).isoformat(),
-                        }
+                        },
                     )
 
             await websocket.send_json(watchlist_data)
@@ -285,7 +285,7 @@ async def watchlist_websocket(websocket: WebSocket, symbols: str = "", limit: in
 
 
 @app.websocket("/ws/chat")
-async def chat_websocket(websocket: WebSocket):
+async def chat_websocket(websocket: WebSocket) -> None:
     """Chat WebSocket."""
     await websocket.accept()
 
@@ -332,7 +332,7 @@ def get_enhanced_data():
 # ===========================================
 
 
-def simulate_learning():
+def simulate_learning() -> None:
     """Simulate continuous learning in background."""
     while ai_state["learning_active"]:
         time.sleep(60)  # Update every minute
@@ -352,15 +352,9 @@ def simulate_learning():
 
 
 @app.on_event("startup")
-async def startup_event():
+async def startup_event() -> None:
     """Initialize system on startup."""
-    print("🚀 Quantum Trader Helhetlig System Started")
-    print("📊 All endpoints active")
-    print("🔌 WebSocket connections ready")
-    print("🤖 AI system ready")
-    print("📡 Enhanced data feeds ready")
 
 
 if __name__ == "__main__":
-    print("🌟 STARTING HELHETLIG QUANTUM TRADER SYSTEM")
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

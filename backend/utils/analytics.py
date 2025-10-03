@@ -9,7 +9,7 @@ from backend.database import Trade, session_scope
 def calculate_analytics():
     with session_scope() as session:
         rows: List[Tuple[str, float, float]] = list(
-            session.execute(select(Trade.side, Trade.qty, Trade.price))
+            session.execute(select(Trade.side, Trade.qty, Trade.price)),
         )
 
     wins = 0
@@ -27,7 +27,7 @@ def calculate_analytics():
     win_rate = (wins / max(1, (wins + losses))) * 100
     avg_return = sum(returns) / max(1, len(returns))
     std_dev = math.sqrt(
-        sum((r - avg_return) ** 2 for r in returns) / max(1, len(returns))
+        sum((r - avg_return) ** 2 for r in returns) / max(1, len(returns)),
     )
     sharpe = avg_return / std_dev if std_dev else 0
 

@@ -1,4 +1,5 @@
 """Simplified backend server for development."""
+from __future__ import annotations
 
 import asyncio
 import json
@@ -39,20 +40,20 @@ try:
     runtime_state["ai_auto_trading_service"] = ai_trading_service
     logging.info("AI Auto Trading Service initialized successfully")
 except Exception as e:
-    logging.error(f"Failed to initialize AI Auto Trading Service: {e}")
+    logging.exception(f"Failed to initialize AI Auto Trading Service: {e}")
     runtime_state["ai_auto_trading_service"] = None
 
 _STATE_LOCK = threading.Lock()
 
 
-def _safe_log(msg: str):
+def _safe_log(msg: str) -> None:
     try:
         logger.info(msg)
-    except Exception as e:
-        print(f"Logging failed: {e}")  # fallback to print since logger failed
+    except Exception:
+        pass  # fallback to print since logger failed
 
 
-def _run_periodic_training():
+def _run_periodic_training() -> None:
     """Background loop that retrains every N seconds when enabled."""
     while True:
         with _STATE_LOCK:
@@ -99,7 +100,7 @@ def _run_periodic_training():
                 break
 
 
-def _start_training_thread():
+def _start_training_thread() -> None:
     with _STATE_LOCK:
         if (
             runtime_state["training_thread"]
@@ -113,12 +114,12 @@ def _start_training_thread():
         _safe_log("[AUTO-TRAIN] Background training thread started")
 
 
-def _stop_training_thread():
+def _stop_training_thread() -> None:
     with _STATE_LOCK:
         runtime_state["auto_training_enabled"] = False
 
 
-def _run_trading_loop():
+def _run_trading_loop() -> None:
     """Placeholder loop for future real trading integration (every 5m)."""
     while True:
         with _STATE_LOCK:
@@ -141,7 +142,7 @@ def _run_trading_loop():
                 break
 
 
-def _start_trading_thread():
+def _start_trading_thread() -> None:
     with _STATE_LOCK:
         if (
             runtime_state["trading_thread"]
@@ -155,7 +156,7 @@ def _start_trading_thread():
         _safe_log("[AUTO-TRADE] Background trading thread started (demo)")
 
 
-def _stop_trading_thread():
+def _stop_trading_thread() -> None:
     with _STATE_LOCK:
         runtime_state["trading_enabled"] = False
 
@@ -188,7 +189,7 @@ def get_db_connection():
 
 
 # Initialize database with basic tables
-def init_db():
+def init_db() -> None:
     """Initialize database with basic tables."""
     conn = get_db_connection()
 
@@ -204,7 +205,7 @@ def init_db():
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             pnl REAL DEFAULT 0
         )
-    """
+    """,
     )
 
     # Insert some sample data if empty
@@ -299,7 +300,7 @@ async def get_portfolio():
         FROM trades
         GROUP BY symbol
         HAVING position != 0
-    """
+    """,
     ).fetchall()
 
     # More realistic portfolio values
@@ -331,7 +332,7 @@ async def get_portfolio():
                 "marketValue": round(market_value, 2),
                 "unrealizedPnL": round(unrealized_pnl, 2),
                 "realizedPnL": round(trade["total_pnl"], 2),
-            }
+            },
         )
 
     # Add additional positions to make portfolio more realistic
@@ -365,7 +366,7 @@ async def get_portfolio():
                     "unrealizedPnL": 450.0,
                     "realizedPnL": 75.0,
                 },
-            ]
+            ],
         )
 
     total_market_value = sum(pos["marketValue"] for pos in positions)
@@ -393,7 +394,7 @@ async def get_pnl():
 
     # Get total P&L from trades and calculate realistic metrics
     result = conn.execute(
-        "SELECT SUM(pnl) as total_pnl, COUNT(*) as trade_count FROM trades"
+        "SELECT SUM(pnl) as total_pnl, COUNT(*) as trade_count FROM trades",
     ).fetchone()
     trade_count = result["trade_count"] or 1
 
@@ -475,7 +476,7 @@ async def get_market_overview():
                             "symbol": "BTCUSDC",
                             "price": data.get("bitcoin", {}).get("usd", 65000),
                             "change24h": data.get("bitcoin", {}).get(
-                                "usd_24h_change", 0
+                                "usd_24h_change", 0,
                             ),
                             "volume24h": data.get("bitcoin", {}).get("usd_24h_vol", 0),
                         },
@@ -483,7 +484,7 @@ async def get_market_overview():
                             "symbol": "ETHUSDC",
                             "price": data.get("ethereum", {}).get("usd", 3200),
                             "change24h": data.get("ethereum", {}).get(
-                                "usd_24h_change", 0
+                                "usd_24h_change", 0,
                             ),
                             "volume24h": data.get("ethereum", {}).get("usd_24h_vol", 0),
                         },
@@ -491,7 +492,7 @@ async def get_market_overview():
                             "symbol": "ADAUSDC",
                             "price": data.get("cardano", {}).get("usd", 0.45),
                             "change24h": data.get("cardano", {}).get(
-                                "usd_24h_change", 0
+                                "usd_24h_change", 0,
                             ),
                             "volume24h": data.get("cardano", {}).get("usd_24h_vol", 0),
                         },
@@ -499,7 +500,7 @@ async def get_market_overview():
                             "symbol": "SOLUSDC",
                             "price": data.get("solana", {}).get("usd", 155),
                             "change24h": data.get("solana", {}).get(
-                                "usd_24h_change", 0
+                                "usd_24h_change", 0,
                             ),
                             "volume24h": data.get("solana", {}).get("usd_24h_vol", 0),
                         },
@@ -507,7 +508,7 @@ async def get_market_overview():
                             "symbol": "DOTUSDC",
                             "price": data.get("polkadot", {}).get("usd", 7.5),
                             "change24h": data.get("polkadot", {}).get(
-                                "usd_24h_change", 0
+                                "usd_24h_change", 0,
                             ),
                             "volume24h": data.get("polkadot", {}).get("usd_24h_vol", 0),
                         },
@@ -558,10 +559,10 @@ async def get_market_overview():
                     "price": round(current_price, 2 if current_price > 1 else 6),
                     "change24h": round(change_24h, 2),
                     "volume24h": random.randint(
-                        50000000, 200000000
+                        50000000, 200000000,
                     ),  # Realistic volume
                     "note": "SIMULATED",
-                }
+                },
             )
 
     # Calculate top gainers and losers
@@ -571,7 +572,7 @@ async def get_market_overview():
 
     top_losers = [coin for coin in symbols if coin["change24h"] < 0]
     top_losers.sort(
-        key=lambda x: x["change24h"]
+        key=lambda x: x["change24h"],
     )  # Sort ascending (most negative first)
     top_losers = top_losers[:3]  # Top 3 losers
 
@@ -586,7 +587,7 @@ async def get_market_overview():
         "topGainers": [
             {
                 "symbol": coin["symbol"].replace(
-                    "USDC", ""
+                    "USDC", "",
                 ),  # Remove USDC suffix for display
                 "change": coin["change24h"],
                 "price": coin["price"],
@@ -596,7 +597,7 @@ async def get_market_overview():
         "topLosers": [
             {
                 "symbol": coin["symbol"].replace(
-                    "USDC", ""
+                    "USDC", "",
                 ),  # Remove USDC suffix for display
                 "change": coin["change24h"],
                 "price": coin["price"],
@@ -623,7 +624,7 @@ async def get_stats():
 
     # Calculate realistic trading statistics
     result = conn.execute(
-        "SELECT COUNT(*) as count, SUM(quantity * price) as volume FROM trades"
+        "SELECT COUNT(*) as count, SUM(quantity * price) as volume FROM trades",
     ).fetchone()
     trades_count = result["count"] or 0
     total_volume = result["volume"] or 0
@@ -669,7 +670,7 @@ async def get_trading_status():
                 "qty": 0.05,
                 "price": 65200.0,
                 "timestamp": "2025-01-01T15:30:00Z",
-            }
+            },
         ],
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
@@ -718,7 +719,7 @@ async def run_trading_cycle():
 async def trigger_training(background_tasks: BackgroundTasks, limit: int = 1200):
     """Trigger one training run asynchronously."""
 
-    def _run():  # executed in background
+    def _run() -> None:  # executed in background
         _safe_log(f"[TRAIN-ONCE] Triggered model training limit={limit}")
         try:
             from ai_engine.train_and_save import train_and_save
@@ -726,7 +727,7 @@ async def trigger_training(background_tasks: BackgroundTasks, limit: int = 1200)
             res = train_and_save(limit=limit, backtest=False, write_report=True)
             with _STATE_LOCK:
                 runtime_state["last_training_start"] = datetime.now(
-                    timezone.utc
+                    timezone.utc,
                 ).isoformat()
                 runtime_state["last_training_result"] = res.get("metrics", {})
         except Exception as e:  # noqa: BLE001
@@ -769,13 +770,12 @@ async def disable_auto_training():
 async def training_status():
     """Get current training background status and last metrics."""
     with _STATE_LOCK:
-        status = {
+        return {
             "auto_training_enabled": runtime_state["auto_training_enabled"],
             "interval_sec": runtime_state["auto_training_interval_sec"],
             "last_training_start": runtime_state["last_training_start"],
             "last_training_result": runtime_state["last_training_result"],
         }
-    return status
 
 
 @app.post("/api/v1/trading/auto/enable")
@@ -801,11 +801,10 @@ async def disable_auto_trading():
 async def auto_trading_status():
     """Return current auto-trading runtime status."""
     with _STATE_LOCK:
-        st = {
+        return {
             "trading_enabled": runtime_state["trading_enabled"],
             "interval_sec": runtime_state["trading_cycle_interval_sec"],
         }
-    return st
 
 
 @app.post("/api/v1/trading/update-config")
@@ -839,17 +838,17 @@ async def get_ai_trading_status():
 
         status = ai_service.get_status()
         status.update(
-            {"enabled": enabled, "timestamp": datetime.now(timezone.utc).isoformat()}
+            {"enabled": enabled, "timestamp": datetime.now(timezone.utc).isoformat()},
         )
         return status
 
     except Exception as e:
-        logger.error(f"Error getting AI trading status: {e}")
+        logger.exception(f"Error getting AI trading status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/v1/ai-trading/start")
-async def start_ai_trading(symbols: list[str] = None):
+async def start_ai_trading(symbols: list[str] | None = None):
     """Start AI auto trading for specified symbols."""
     try:
         with _STATE_LOCK:
@@ -857,7 +856,7 @@ async def start_ai_trading(symbols: list[str] = None):
 
         if not ai_service:
             raise HTTPException(
-                status_code=503, detail="AI Auto Trading Service not available"
+                status_code=503, detail="AI Auto Trading Service not available",
             )
 
         if symbols is None:
@@ -876,7 +875,7 @@ async def start_ai_trading(symbols: list[str] = None):
         }
 
     except Exception as e:
-        logger.error(f"Error starting AI trading: {e}")
+        logger.exception(f"Error starting AI trading: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -889,7 +888,7 @@ async def stop_ai_trading():
 
         if not ai_service:
             raise HTTPException(
-                status_code=503, detail="AI Auto Trading Service not available"
+                status_code=503, detail="AI Auto Trading Service not available",
             )
 
         result = ai_service.stop_trading()
@@ -904,12 +903,12 @@ async def stop_ai_trading():
         }
 
     except Exception as e:
-        logger.error(f"Error stopping AI trading: {e}")
+        logger.exception(f"Error stopping AI trading: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/v1/ai-trading/signals")
-async def get_ai_trading_signals(symbol: str = None, limit: int = 10):
+async def get_ai_trading_signals(symbol: str | None = None, limit: int = 10):
     """Get recent AI trading signals."""
     try:
         with _STATE_LOCK:
@@ -917,7 +916,7 @@ async def get_ai_trading_signals(symbol: str = None, limit: int = 10):
 
         if not ai_service:
             raise HTTPException(
-                status_code=503, detail="AI Auto Trading Service not available"
+                status_code=503, detail="AI Auto Trading Service not available",
             )
 
         signals = ai_service.get_recent_signals(symbol=symbol, limit=limit)
@@ -934,12 +933,12 @@ async def get_ai_trading_signals(symbol: str = None, limit: int = 10):
         }
 
     except Exception as e:
-        logger.error(f"Error getting AI trading signals: {e}")
+        logger.exception(f"Error getting AI trading signals: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/v1/ai-trading/executions")
-async def get_ai_trading_executions(symbol: str = None, limit: int = 10):
+async def get_ai_trading_executions(symbol: str | None = None, limit: int = 10):
     """Get recent AI trade executions."""
     try:
         with _STATE_LOCK:
@@ -947,7 +946,7 @@ async def get_ai_trading_executions(symbol: str = None, limit: int = 10):
 
         if not ai_service:
             raise HTTPException(
-                status_code=503, detail="AI Auto Trading Service not available"
+                status_code=503, detail="AI Auto Trading Service not available",
             )
 
         executions = ai_service.get_recent_executions(symbol=symbol, limit=limit)
@@ -964,7 +963,7 @@ async def get_ai_trading_executions(symbol: str = None, limit: int = 10):
         }
 
     except Exception as e:
-        logger.error(f"Error getting AI trading executions: {e}")
+        logger.exception(f"Error getting AI trading executions: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -977,7 +976,7 @@ async def update_ai_trading_config(config: dict):
 
         if not ai_service:
             raise HTTPException(
-                status_code=503, detail="AI Auto Trading Service not available"
+                status_code=503, detail="AI Auto Trading Service not available",
             )
 
         # Update configuration
@@ -1001,7 +1000,7 @@ async def update_ai_trading_config(config: dict):
         }
 
     except Exception as e:
-        logger.error(f"Error updating AI trading config: {e}")
+        logger.exception(f"Error updating AI trading config: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1038,7 +1037,7 @@ async def get_stress_summary():
                 "summary": {"trades": 5},
                 "total_duration": 78.2,
                 "ts": "2025-01-01T10:30:00Z",
-            }
+            },
         ],
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
@@ -1048,7 +1047,7 @@ async def get_stress_summary():
 
 
 @app.websocket("/ws/dashboard")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket) -> None:
     """WebSocket endpoint for real-time dashboard updates."""
     await websocket.accept()
     try:
@@ -1067,12 +1066,12 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+        logger.exception(f"WebSocket error: {e}")
         await websocket.close()
 
 
 @app.websocket("/ws/ai-trading")
-async def ai_trading_websocket(websocket: WebSocket):
+async def ai_trading_websocket(websocket: WebSocket) -> None:
     """WebSocket endpoint for real-time AI trading updates."""
     await websocket.accept()
     try:
@@ -1101,13 +1100,13 @@ async def ai_trading_websocket(websocket: WebSocket):
                             "data": (
                                 new_signals
                                 if isinstance(
-                                    new_signals[0] if new_signals else {}, dict
+                                    new_signals[0] if new_signals else {}, dict,
                                 )
                                 else [signal.to_dict() for signal in new_signals]
                             ),
                             "timestamp": datetime.now(timezone.utc).isoformat(),
-                        }
-                    )
+                        },
+                    ),
                 )
 
             # Get new executions since last check
@@ -1124,15 +1123,15 @@ async def ai_trading_websocket(websocket: WebSocket):
                             "data": (
                                 new_executions
                                 if isinstance(
-                                    new_executions[0] if new_executions else {}, dict
+                                    new_executions[0] if new_executions else {}, dict,
                                 )
                                 else [
                                     execution.to_dict() for execution in new_executions
                                 ]
                             ),
                             "timestamp": datetime.now(timezone.utc).isoformat(),
-                        }
-                    )
+                        },
+                    ),
                 )
 
             # Send status update periodically (every 10 seconds)
@@ -1145,14 +1144,14 @@ async def ai_trading_websocket(websocket: WebSocket):
                             "type": "status",
                             "data": status,
                             "timestamp": datetime.now(timezone.utc).isoformat(),
-                        }
-                    )
+                        },
+                    ),
                 )
 
     except WebSocketDisconnect:
         logger.info("AI Trading WebSocket client disconnected")
     except Exception as e:
-        logger.error(f"AI Trading WebSocket error: {e}")
+        logger.exception(f"AI Trading WebSocket error: {e}")
         await websocket.close()
 
 
@@ -1176,7 +1175,7 @@ async def get_recent_signals(symbol: str = "BTCUSDC", limit: int = 20):
                 "timestamp": f"{random.randint(1, 60)}s",
                 "price": random.uniform(0.1, 70000),
                 "strength": random.choice(["STRONG", "MEDIUM", "WEAK"]),
-            }
+            },
         )
 
     return {
@@ -1190,7 +1189,7 @@ async def get_recent_signals(symbol: str = "BTCUSDC", limit: int = 20):
 @app.get("/api/v1/chart/data")
 @app.get("/chart/data")  # Legacy endpoint
 async def get_chart_data(
-    symbol: str = "BTCUSDC", interval: str = "1h", limit: int = 100
+    symbol: str = "BTCUSDC", interval: str = "1h", limit: int = 100,
 ):
     """Get chart/candlestick data."""
     # Mock candlestick data
@@ -1213,7 +1212,7 @@ async def get_chart_data(
                 "low": round(low_price, 2),
                 "close": round(close_price, 2),
                 "volume": random.uniform(10, 1000),
-            }
+            },
         )
 
     return {
@@ -1252,7 +1251,7 @@ async def get_risk_overview():
                     "marketValue": mv,
                     "exposurePct": round(pct, 2),
                     "unrealizedPnL": pos.get("unrealizedPnL", 0),
-                }
+                },
             )
             total_exposure_pct += pct
 
@@ -1278,7 +1277,7 @@ async def get_risk_overview():
             int(
                 margin_used_pct * 0.6
                 + (volatility * 100) * 0.25
-                + (10 if correlation_risk != "LOW" else 0)
+                + (10 if correlation_risk != "LOW" else 0),
             ),
         )
 
@@ -1290,7 +1289,7 @@ async def get_risk_overview():
             "max_portfolio_leverage": 3.0,
         }
 
-        payload = {
+        return {
             "riskScore": risk_score,
             "volatility": volatility,
             "var95": var95,
@@ -1304,9 +1303,8 @@ async def get_risk_overview():
             "exposures": exposures,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
-        return payload
-    except Exception as e:  # noqa: BLE001
-        logger.error(f"Risk overview generation failed: {e}")
+    except Exception as e:
+        logger.exception(f"Risk overview generation failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to compute risk overview")
 
 

@@ -23,7 +23,7 @@ from typing import Any, Dict, List
 class SystemTestRunner:
     """Master system test runner."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.test_results: Dict[str, Any] = {}
         self.overall_summary = {
             "start_time": None,
@@ -55,8 +55,6 @@ class SystemTestRunner:
 
     def check_prerequisites(self) -> Dict[str, Any]:
         """Check system prerequisites for testing."""
-        print("🔍 Checking system prerequisites...")
-
         prereqs = {
             "python_version": sys.version,
             "python_executable": sys.executable,
@@ -92,7 +90,7 @@ class SystemTestRunner:
         req_files = ["requirements.txt", "backend/requirements.txt"]
         for req_file in req_files:
             if Path(req_file).exists():
-                print(f"  ✅ Found {req_file}")
+                pass
 
         # Summary
         all(prereqs["test_scripts_present"].values())
@@ -101,11 +99,10 @@ class SystemTestRunner:
         prereqs["all_prerequisites_met"] = len(prereqs["errors"]) == 0
 
         if prereqs["all_prerequisites_met"]:
-            print("  ✅ All prerequisites met")
+            pass
         else:
-            print("  ❌ Prerequisites missing:")
-            for error in prereqs["errors"]:
-                print(f"    - {error}")
+            for _error in prereqs["errors"]:
+                pass
 
         return prereqs
 
@@ -114,9 +111,6 @@ class SystemTestRunner:
         script_name = test_info["script"]
         test_name = test_info["name"]
 
-        print(f"\n🧪 Running {test_name}...")
-        print(f"   Script: {script_name}")
-        print(f"   Testing: {test_info['description']}")
 
         start_time = time.time()
 
@@ -131,7 +125,7 @@ class SystemTestRunner:
                 ],
                 capture_output=True,
                 text=True,
-                timeout=300,  # 5 minute timeout
+                timeout=300, check=False,  # 5 minute timeout
             )
 
             duration_ms = (time.time() - start_time) * 1000
@@ -141,10 +135,10 @@ class SystemTestRunner:
             detailed_results = None
             try:
                 if Path(results_file).exists():
-                    with open(results_file, "r") as f:
+                    with open(results_file) as f:
                         detailed_results = json.load(f)
-            except Exception as e:
-                print(f"   ⚠️ Could not load detailed results: {e}")
+            except Exception:
+                pass
 
             test_result = {
                 "test_name": test_name,
@@ -176,19 +170,13 @@ class SystemTestRunner:
                         )
 
             if test_result["success"]:
-                success_rate = test_result.get("success_rate", 1.0)
-                print(f"   ✅ {test_name} completed successfully")
+                test_result.get("success_rate", 1.0)
                 if "success_rate" in test_result:
-                    print(f"      Success Rate: {success_rate:.1%}")
+                    pass
                 if "tests_passed" in test_result and "tests_run" in test_result:
-                    print(
-                        f"      Tests: {test_result['tests_passed']}/{test_result['tests_run']} passed"
-                    )
-                print(f"      Duration: {duration_ms:.0f}ms")
-            else:
-                print(f"   ❌ {test_name} failed (exit code: {result.returncode})")
-                if result.stderr:
-                    print(f"      Error: {result.stderr[:200]}...")
+                    pass
+            elif result.stderr:
+                pass
 
             return test_result
 
@@ -214,8 +202,6 @@ class SystemTestRunner:
 
     def generate_comprehensive_report(self) -> Dict[str, Any]:
         """Generate comprehensive test report."""
-        print("\n📊 Generating comprehensive test report...")
-
         # Calculate overall metrics
         total_categories = len(self.test_results)
         successful_categories = sum(
@@ -253,7 +239,7 @@ class SystemTestRunner:
                 "test_success_rate": test_success_rate,
                 "overall_success": overall_success,
                 "overall_success_rate": min(category_success_rate, test_success_rate),
-            }
+            },
         )
 
         # Performance summary
@@ -278,7 +264,7 @@ class SystemTestRunner:
                         "category": category,
                         "error": result.get("error", "Unknown error"),
                         "return_code": result.get("return_code"),
-                    }
+                    },
                 )
 
         # Coverage analysis
@@ -303,7 +289,7 @@ class SystemTestRunner:
             ),
         }
 
-        report = {
+        return {
             "report_metadata": {
                 "generated_at": datetime.now().isoformat(),
                 "system": "Quantum Trader",
@@ -318,7 +304,6 @@ class SystemTestRunner:
             "recommendations": self.generate_recommendations(),
         }
 
-        return report
 
     def generate_recommendations(self) -> List[str]:
         """Generate recommendations based on test results."""
@@ -328,11 +313,11 @@ class SystemTestRunner:
         for category, result in self.test_results.items():
             if not result.get("success", False):
                 recommendations.append(
-                    f"🔧 Fix issues in {category}: {result.get('error', 'Unknown error')}"
+                    f"🔧 Fix issues in {category}: {result.get('error', 'Unknown error')}",
                 )
             elif result.get("success_rate", 1.0) < 0.9:
                 recommendations.append(
-                    f"⚠️ Improve reliability in {category} (current: {result.get('success_rate', 0):.1%})"
+                    f"⚠️ Improve reliability in {category} (current: {result.get('success_rate', 0):.1%})",
                 )
 
         # Performance recommendations
@@ -343,7 +328,7 @@ class SystemTestRunner:
 
         if avg_duration > 60000:  # > 1 minute average
             recommendations.append(
-                "⚡ Consider optimizing test performance - average duration is > 1 minute"
+                "⚡ Consider optimizing test performance - average duration is > 1 minute",
             )
 
         # Coverage recommendations
@@ -364,42 +349,38 @@ class SystemTestRunner:
 
         if coverage_gaps:
             recommendations.append(
-                f"📊 Add missing test coverage: {', '.join(coverage_gaps)}"
+                f"📊 Add missing test coverage: {', '.join(coverage_gaps)}",
             )
 
         # Success recommendations
         overall_success_rate = self.overall_summary.get("overall_success_rate", 0)
         if overall_success_rate >= 0.95:
             recommendations.append(
-                "🎉 Excellent test coverage and reliability! System is production-ready."
+                "🎉 Excellent test coverage and reliability! System is production-ready.",
             )
         elif overall_success_rate >= 0.85:
             recommendations.append(
-                "✅ Good test coverage. Address failing tests for production readiness."
+                "✅ Good test coverage. Address failing tests for production readiness.",
             )
         elif overall_success_rate >= 0.75:
             recommendations.append(
-                "⚠️ Moderate test coverage. Significant improvements needed before production."
+                "⚠️ Moderate test coverage. Significant improvements needed before production.",
             )
         else:
             recommendations.append(
-                "❌ Poor test coverage. Major issues must be resolved before deployment."
+                "❌ Poor test coverage. Major issues must be resolved before deployment.",
             )
 
         return recommendations
 
     def run_all_system_tests(self) -> Dict[str, Any]:
         """Run complete system test suite."""
-        print("🚀 Quantum Trader - Complete System Test Suite")
-        print("=" * 70)
-
         self.overall_summary["start_time"] = datetime.now().isoformat()
         start_time = time.time()
 
         # Check prerequisites
         prereq_check = self.check_prerequisites()
         if not prereq_check["all_prerequisites_met"]:
-            print("❌ Prerequisites not met. Cannot run tests.")
             return {
                 "error": "Prerequisites not met",
                 "prerequisite_check": prereq_check,
@@ -412,7 +393,6 @@ class SystemTestRunner:
                 result = self.run_test_script(test_info)
                 self.test_results[test_info["name"]] = result
             except Exception as e:
-                print(f"❌ Failed to run {test_info['name']}: {e}")
                 self.test_results[test_info["name"]] = {
                     "test_name": test_info["name"],
                     "script": test_info["script"],
@@ -433,52 +413,28 @@ class SystemTestRunner:
 
         return report
 
-    def print_test_summary(self, report: Dict[str, Any]):
+    def print_test_summary(self, report: Dict[str, Any]) -> None:
         """Print formatted test summary."""
-        print("\n" + "=" * 70)
-        print("📊 SYSTEM TEST SUMMARY")
-        print("=" * 70)
-
         summary = report["executive_summary"]
 
         # Overall results
-        print(
-            f"🎯 Overall Success: {'✅ PASS' if summary['overall_success'] else '❌ FAIL'}"
-        )
-        print(f"📈 Success Rate: {summary['overall_success_rate']:.1%}")
-        print(f"⏱️ Total Duration: {summary['total_duration_ms']:.0f}ms")
 
         # Category breakdown
-        print("\n📋 Test Categories:")
-        print(f"   Categories Run: {summary['total_categories']}")
-        print(f"   Categories Passed: {summary['successful_categories']}")
-        print(f"   Category Success Rate: {summary['category_success_rate']:.1%}")
 
         # Individual test breakdown
         if "total_tests_run" in summary:
-            print("\n🧪 Individual Tests:")
-            print(f"   Tests Run: {summary['total_tests_run']}")
-            print(f"   Tests Passed: {summary['total_tests_passed']}")
-            print(f"   Test Success Rate: {summary['test_success_rate']:.1%}")
+            pass
 
         # Performance metrics
-        perf = report["performance_summary"]
-        print("\n⚡ Performance:")
-        print(
-            f"   Average Category Duration: {perf['average_category_duration_ms']:.0f}ms"
-        )
-        print(f"   Fastest Category: {perf['fastest_category_ms']:.0f}ms")
-        print(f"   Slowest Category: {perf['slowest_category_ms']:.0f}ms")
+        report["performance_summary"]
 
         # Errors (if any)
         if report["error_summary"]:
-            print("\n❌ Errors Encountered:")
-            for error in report["error_summary"]:
-                print(f"   - {error['category']}: {error['error']}")
+            for _error in report["error_summary"]:
+                pass
 
         # Coverage analysis
         coverage = report["coverage_analysis"]
-        print("\n📊 Test Coverage:")
         coverage_items = [
             ("Backend API", coverage["backend_coverage"]),
             ("Frontend Components", coverage["frontend_coverage"]),
@@ -487,19 +443,16 @@ class SystemTestRunner:
             ("Load Testing", coverage["load_testing"]),
         ]
 
-        for item, covered in coverage_items:
-            status = "✅" if covered else "❌"
-            print(f"   {status} {item}")
+        for _item, _covered in coverage_items:
+            pass
 
         # Recommendations
-        print("\n💡 Recommendations:")
-        for rec in report["recommendations"]:
-            print(f"   {rec}")
-
-        print("\n" + "=" * 70)
+        for _rec in report["recommendations"]:
+            pass
 
 
-def main():
+
+def main() -> int:
     """Main system test execution."""
     import argparse
 
@@ -511,7 +464,7 @@ def main():
 
     # Set verbosity
     if args.quiet:
-        print("Running in quiet mode...")
+        pass
 
     # Run complete system tests
     runner = SystemTestRunner()
@@ -521,7 +474,6 @@ def main():
     if args.output:
         with open(args.output, "w") as f:
             json.dump(report, f, indent=2, default=str)
-        print(f"📄 Comprehensive test report saved to: {args.output}")
 
     # Exit with appropriate code
     if report.get("error"):
@@ -529,12 +481,10 @@ def main():
 
     success = report.get("executive_summary", {}).get("overall_success", False)
     if success:
-        print("🎉 All system tests PASSED - System is ready for production!")
         return 0
     else:
-        print("❌ System tests FAILED - Issues must be resolved before production")
         return 1
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

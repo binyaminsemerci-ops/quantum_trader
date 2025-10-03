@@ -27,5 +27,5 @@ async def get_trade_logs(
                 "reason": log.reason,
             }
             for log in logs
-        ]
+        ],
     }

@@ -1,5 +1,7 @@
 # Price stream service
-from typing import Any, Callable, Optional
+from __future__ import annotations
+
+from typing import Any, Callable
 
 
 class PriceStreamManager:
@@ -19,11 +21,9 @@ class PriceStreamManager:
 
     async def start_stream(self) -> None:
         """Start the price stream."""
-        pass
 
     async def stop_stream(self) -> None:
         """Stop the price stream."""
-        pass
 
 
 _price_stream_manager = PriceStreamManager()
@@ -36,7 +36,6 @@ def get_price_stream_manager() -> PriceStreamManager:
 
 def ensure_price_stream() -> None:
     """Ensure price stream is running."""
-    pass
 
 
 def get_price_snapshot() -> dict[str, Any]:
@@ -44,7 +43,7 @@ def get_price_snapshot() -> dict[str, Any]:
     return {"BTCUSDT": 50000.0, "ETHUSDT": 3000.0}
 
 
-def get_last_error() -> Optional[str]:
+def get_last_error() -> str | None:
     """Get last error message."""
     return None
 

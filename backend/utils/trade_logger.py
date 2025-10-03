@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from backend.database import TradeLog, session_scope
 
 
-def log_trade(trade: dict[str, Any], status: str, reason: Optional[str] = None):
+def log_trade(trade: dict[str, Any], status: str, reason: str | None = None):
     """Persist a trade log entry using the configured database backend."""
     with session_scope() as session:
         symbol = str(trade.get("symbol") or "")
