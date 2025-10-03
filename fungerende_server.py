@@ -284,10 +284,11 @@ def main() -> None:
 
     # Start HTTP server
     PORT = 8000
-    with socketserver.TCPServer(("", PORT), QuantumTraderHandler) as httpd:
-
-        with contextlib.suppress(KeyboardInterrupt):
-            httpd.serve_forever()
+    with (
+        socketserver.TCPServer(("", PORT), QuantumTraderHandler) as httpd,
+        contextlib.suppress(KeyboardInterrupt)
+    ):
+        httpd.serve_forever()
 
 
 if __name__ == "__main__":

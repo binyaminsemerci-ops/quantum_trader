@@ -137,8 +137,8 @@ class SystemTestRunner:
                 if Path(results_file).exists():
                     with open(results_file) as f:
                         detailed_results = json.load(f)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"⚠️ Could not load detailed results: {e}")
 
             test_result = {
                 "test_name": test_name,
