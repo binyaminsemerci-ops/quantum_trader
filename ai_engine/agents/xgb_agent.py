@@ -343,7 +343,7 @@ class XGBAgent:
 
         tasks = [_fetch(s) for s in symbols]
         results = await asyncio.gather(*tasks)
-        symbol_ohlcv = {s: candles for s, candles in results}
+        symbol_ohlcv = dict(results)
 
         return self.scan_symbols(symbol_ohlcv, top_n=top_n)
 

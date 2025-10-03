@@ -174,7 +174,7 @@ class SystemTestSummaryGenerator:
             "score_percentage": weighted_score * 100,
             "health_category": health_category,
             "health_emoji": health_emoji,
-            "component_scores": dict((name, score) for name, score, _ in scores),
+            "component_scores": {name: score for name, score, _ in scores},
             "recommendations": self.generate_health_recommendations(
                 weighted_score, components, coverage
             ),

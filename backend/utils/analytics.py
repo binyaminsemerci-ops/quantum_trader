@@ -8,12 +8,9 @@ from backend.database import Trade, session_scope
 
 def calculate_analytics():
     with session_scope() as session:
-        rows: List[Tuple[str, float, float]] = [
-            (side, qty, price)
-            for side, qty, price in session.execute(
+        rows: List[Tuple[str, float, float]] = list(session.execute(
                 select(Trade.side, Trade.qty, Trade.price)
-            )
-        ]
+            ))
 
     wins = 0
     losses = 0

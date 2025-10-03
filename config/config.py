@@ -63,7 +63,7 @@ def load_config() -> Any:
 
     # Attach convenience helpers to the namespace so tests that import
     # these via `config.config` still find them.
-    setattr(ns, "make_pair", make_pair)
+    ns.make_pair = make_pair
 
     return ns
 
