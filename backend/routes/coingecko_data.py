@@ -2,7 +2,7 @@
 
 import asyncio
 import aiohttp
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,7 +12,7 @@ async def get_coin_price_data(coin_id: str, days: int = 7) -> Dict[str, Any]:
     """Fetch price history from CoinGecko."""
     try:
         url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
-        params = {"vs_currency": "usd", "days": days}
+        params: Dict[str, Union[str, int]] = {"vs_currency": "usd", "days": days}
         
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params) as response:
@@ -49,7 +49,7 @@ async def get_market_data(coin_ids: List[str]) -> List[Dict[str, Any]]:
     """Get current market data for multiple coins."""
     try:
         url = "https://api.coingecko.com/api/v3/coins/markets"
-        params = {
+        params: Dict[str, str] = {
             "vs_currency": "usd",
             "ids": ",".join(coin_ids),
             "order": "market_cap_desc",

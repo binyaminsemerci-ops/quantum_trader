@@ -10,12 +10,12 @@ from unittest.mock import patch, MagicMock
 import json
 from datetime import datetime, timezone
 
-from performance_monitor import (
-    collector, 
+from backend.performance_monitor import (
+    collector,
     PerformanceCollector,
     RequestMetrics,
     DatabaseMetrics,
-    performance_timer
+    performance_timer,
 )
 
 
