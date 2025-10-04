@@ -292,9 +292,10 @@ class XGBAgent:
                     from backend.routes.coingecko_data import get_trending_coins
                     trending = await get_trending_coins()
                     # Check if symbol is trending (simplified news proxy)
+                    trending_coins = trending[:10] if isinstance(trending, list) else []
                     is_trending = any(
                         coin.get("symbol", "").upper() == s.replace("USDT", "").replace("BTC", "").upper()
-                        for coin in trending.get("coins", [])[:10]
+                        for coin in trending_coins
                     )
                     news_items = [{"trending": True}] if is_trending else []
                 except Exception:

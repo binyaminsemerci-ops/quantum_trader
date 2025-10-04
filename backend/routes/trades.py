@@ -36,10 +36,10 @@ router = APIRouter(
 class TradeCreate(BaseModel):
     """Request model for creating a new trade order."""
 
-    symbol: str = Field(..., min_length=1, max_length=20, description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)", example="BTCUSDT")
-    side: str = Field(..., pattern="^(BUY|SELL)$", description="Trade direction: BUY or SELL", example="BUY")
-    qty: float = Field(..., gt=0, description="Trade quantity (must be positive)", example=0.01)
-    price: float = Field(..., gt=0, description="Trade price (must be positive)", example=43500.00)
+    symbol: str = Field(..., min_length=1, max_length=20, description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)")
+    side: str = Field(..., pattern="^(BUY|SELL)$", description="Trade direction: BUY or SELL")
+    qty: float = Field(..., gt=0, description="Trade quantity (must be positive)")
+    price: float = Field(..., gt=0, description="Trade price (must be positive)")
 
 
 class TradeResponse(BaseModel):

@@ -210,7 +210,11 @@ class AutonomousTradingBot:
             return f"{base_token}USDC"  # USDC-M futures
         elif market_type in ["MARGIN", "CROSS_MARGIN"]:
             # Prefer USDC, fallback to USDT
-            return f"{base_token}USDC" if "USDC" in MARKET_CONFIGS[market_type]["base_currencies"] else f"{base_token}USDT"
+            base_currencies = MARKET_CONFIGS[market_type]["base_currencies"]
+            if isinstance(base_currencies, list) and "USDC" in base_currencies:
+                return f"{base_token}USDC"
+            else:
+                return f"{base_token}USDT"
         else:  # SPOT
             return f"{base_token}USDC"
 
@@ -311,7 +315,7 @@ class AutonomousTradingBot:
 
             # Track position in specific market
             self.positions[market_type][symbol] = {
-                'side': side,
+                'side': 'buy' if side == 'buy' else 'sell',
                 'qty': qty,
                 'entry_price': price,
                 'entry_time': datetime.now(),
