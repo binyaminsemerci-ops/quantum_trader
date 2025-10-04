@@ -10,7 +10,7 @@ This module provides comprehensive performance monitoring including:
 Usage:
     from performance_monitor import add_monitoring_middleware
     from fastapi import FastAPI
-    
+
     app = FastAPI()
     add_monitoring_middleware(app)
 """
@@ -44,7 +44,7 @@ class RequestMetrics:
     db_queries: int = 0
     db_time_ms: float = 0.0
     memory_mb: float = 0.0
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
@@ -55,21 +55,21 @@ class DatabaseMetrics:
     query: str
     duration_ms: float
     timestamp: str
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
 class PerformanceCollector:
     """Centralized performance metrics collection."""
-    
+
     def __init__(self, max_metrics: int = 1000):
         self.max_metrics = max_metrics
         self.request_metrics: deque = deque(maxlen=max_metrics)
         self.db_metrics: deque = deque(maxlen=max_metrics)
         self.current_request_db_queries = 0
         self.current_request_db_time = 0.0
-        
+
     def add_request_metric(self, metric: RequestMetrics):
         """Add a request metric to the collection."""
         self.request_metrics.append(metric)
@@ -78,25 +78,25 @@ class PerformanceCollector:
             f"{metric.status_code} - {metric.duration_ms:.2f}ms - "
             f"DB: {metric.db_queries} queries ({metric.db_time_ms:.2f}ms)"
         )
-        
+
     def add_db_metric(self, metric: DatabaseMetrics):
         """Add a database metric to the collection."""
         self.db_metrics.append(metric)
-        
+
     def get_request_summary(self) -> Dict[str, Any]:
         """Get summary statistics for requests."""
         if not self.request_metrics:
             return {"message": "No request metrics available"}
-            
+
         metrics = list(self.request_metrics)
         durations = [m.duration_ms for m in metrics]
         db_queries = [m.db_queries for m in metrics]
-        
+
         # Group by endpoint
         endpoint_stats = defaultdict(list)
         for m in metrics:
             endpoint_stats[f"{m.method} {m.path}"].append(m.duration_ms)
-        
+
         return {
             "total_requests": len(metrics),
             "avg_duration_ms": sum(durations) / len(durations),
@@ -113,15 +113,15 @@ class PerformanceCollector:
                 for endpoint, times in endpoint_stats.items()
             }
         }
-        
+
     def get_db_summary(self) -> Dict[str, Any]:
         """Get summary statistics for database queries."""
         if not self.db_metrics:
             return {"message": "No database metrics available"}
-            
+
         metrics = list(self.db_metrics)
         durations = [m.duration_ms for m in metrics]
-        
+
         return {
             "total_queries": len(metrics),
             "avg_duration_ms": sum(durations) / len(durations),
@@ -133,7 +133,7 @@ class PerformanceCollector:
                 for m in metrics[-10:] if m.duration_ms > 100
             ]
         }
-        
+
     def reset_request_counters(self):
         """Reset per-request database counters."""
         self.current_request_db_queries = 0
@@ -146,20 +146,20 @@ collector = PerformanceCollector()
 
 class PerformanceMiddleware(BaseHTTPMiddleware):
     """Middleware to collect performance metrics for HTTP requests."""
-    
+
     async def dispatch(self, request: Request, call_next):
         # Reset per-request counters
         collector.reset_request_counters()
-        
+
         # Get initial memory usage
         process = psutil.Process()
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB
-        
+
         # Time the request
         start_time = time.perf_counter()
         response = await call_next(request)
         duration_ms = (time.perf_counter() - start_time) * 1000
-        
+
         # Create metrics
         metric = RequestMetrics(
             method=request.method,
@@ -171,30 +171,30 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
             db_time_ms=collector.current_request_db_time,
             memory_mb=initial_memory
         )
-        
+
         collector.add_request_metric(metric)
-        
+
         # Add performance headers
         response.headers["X-Response-Time-MS"] = str(round(duration_ms, 2))
         response.headers["X-DB-Queries"] = str(collector.current_request_db_queries)
-        
+
         return response
 
 
 def setup_db_monitoring():
     """Set up database query monitoring."""
-    
+
     def receive_before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
         context._query_start_time = time.perf_counter()
-        
+
     def receive_after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
         if hasattr(context, '_query_start_time'):
             duration_ms = (time.perf_counter() - context._query_start_time) * 1000
-            
+
             # Update per-request counters
             collector.current_request_db_queries += 1
             collector.current_request_db_time += duration_ms
-            
+
             # Store individual query metrics
             metric = DatabaseMetrics(
                 query=statement[:200],  # Truncate long queries
@@ -202,7 +202,7 @@ def setup_db_monitoring():
                 timestamp=datetime.now(timezone.utc).isoformat()
             )
             collector.add_db_metric(metric)
-    
+
     # Register the event listeners
     listen(Engine, "before_cursor_execute", receive_before_cursor_execute)
     listen(Engine, "after_cursor_execute", receive_after_cursor_execute)
@@ -223,25 +223,25 @@ def add_monitoring_middleware(app):
     """Add performance monitoring to a FastAPI app."""
     app.add_middleware(PerformanceMiddleware)
     setup_db_monitoring()
-    
+
     # Add metrics endpoints
     @app.get("/api/metrics/requests")
     async def get_request_metrics():
         """Get request performance metrics summary."""
         return collector.get_request_summary()
-    
+
     @app.get("/api/metrics/database")
     async def get_database_metrics():
         """Get database performance metrics summary."""
         return collector.get_db_summary()
-    
+
     @app.get("/api/metrics/system")
     async def get_system_metrics():
         """Get current system metrics."""
         process = psutil.Process()
         cpu_percent = process.cpu_percent()
         memory_info = process.memory_info()
-        
+
         return {
             "cpu_percent": cpu_percent,
             "memory_mb": memory_info.rss / 1024 / 1024,
@@ -250,7 +250,7 @@ def add_monitoring_middleware(app):
             "connections": len(process.connections()),
             "threads": process.num_threads()
         }
-    
+
     perf_logger.info("Performance monitoring enabled with metrics endpoints")
 
 

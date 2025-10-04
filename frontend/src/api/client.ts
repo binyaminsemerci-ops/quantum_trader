@@ -40,14 +40,14 @@ async function safeJson(res: Response): Promise<unknown> {
 async function handleResponse<T>(res: Response, defaultValue: T): Promise<ApiResponse<T>> {
   if (!res.ok) {
     const errorData = await safeJson(res);
-    const errorMessage = isRecord(errorData) && typeof errorData.message === 'string' 
-      ? errorData.message 
+    const errorMessage = isRecord(errorData) && typeof errorData.message === 'string'
+      ? errorData.message
       : `HTTP ${res.status}: ${res.statusText}`;
-    
+
     console.error('API Error:', errorMessage, errorData);
     return { error: errorMessage };
   }
-  
+
   const payload = await safeJson(res);
   return { data: payload as T };
 }
@@ -59,24 +59,24 @@ function isRecord(x: unknown): x is Record<string, unknown> {
 export async function fetchTrades(): Promise<ApiResponse<Trade[]>> {
   try {
     const res = await fetch(`${API_BASE}/trades`);
-    
+
     if (!res.ok) {
       const errorData = await safeJson(res);
-      const errorMessage = isRecord(errorData) && typeof errorData.message === 'string' 
-        ? errorData.message 
+      const errorMessage = isRecord(errorData) && typeof errorData.message === 'string'
+        ? errorData.message
         : `HTTP ${res.status}: ${res.statusText}`;
       return { error: errorMessage };
     }
-    
+
     const payload = await safeJson(res);
     let data: unknown = payload;
-    
+
     if (Array.isArray(payload)) {
       data = payload;
     } else if (isRecord(payload) && Array.isArray((payload as Record<string, unknown>)['trades'])) {
       data = (payload as Record<string, unknown>)['trades'];
     }
-    
+
     return { data: (Array.isArray(data) ? (data as Trade[]) : []) };
   } catch (error) {
     console.error('Error fetching trades:', error);

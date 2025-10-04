@@ -52,7 +52,7 @@ function isRecord(x: unknown): x is Record<string, unknown> {
 }
 
 async function apiRequest<T>(
-  endpoint: string, 
+  endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   try {
@@ -67,21 +67,21 @@ async function apiRequest<T>(
 
     if (!response.ok) {
       const errorData = await safeJson(response);
-      const errorMessage = isRecord(errorData) && typeof errorData.message === 'string' 
-        ? errorData.message 
+      const errorMessage = isRecord(errorData) && typeof errorData.message === 'string'
+        ? errorData.message
         : `HTTP ${response.status}: ${response.statusText}`;
-      
+
       console.error(`API Error [${endpoint}]:`, errorMessage, errorData);
       return { error: errorMessage };
     }
 
     const data = await safeJson(response);
     return { data: data as T };
-    
+
   } catch (error) {
     console.error(`Network error [${endpoint}]:`, error);
-    return { 
-      error: error instanceof Error ? error.message : 'Network error occurred' 
+    return {
+      error: error instanceof Error ? error.message : 'Network error occurred'
     };
   }
 }
@@ -98,7 +98,7 @@ export async function createTrade(trade: CreateTradeRequest): Promise<ApiRespons
   });
 }
 
-// Stats API  
+// Stats API
 export async function fetchStats(): Promise<ApiResponse<StatSummary>> {
   return apiRequest<StatSummary>('/stats/overview');
 }
@@ -115,7 +115,7 @@ export async function fetchSignals(): Promise<ApiResponse<any[]>> {
 
 // Candles API
 export async function fetchCandles(
-  symbol: string = 'BTCUSDT', 
+  symbol: string = 'BTCUSDT',
   interval: string = '1h'
 ): Promise<ApiResponse<OHLCV[]>> {
   return apiRequest<OHLCV[]>(`/candles?symbol=${symbol}&interval=${interval}`);
@@ -128,7 +128,7 @@ export async function fetchSettings(): Promise<ApiResponse<Record<string, any>>>
 
 export async function updateSettings(settings: Record<string, any>): Promise<ApiResponse<Record<string, any>>> {
   return apiRequest<Record<string, any>>('/settings', {
-    method: 'POST', 
+    method: 'POST',
     body: JSON.stringify(settings),
   });
 }

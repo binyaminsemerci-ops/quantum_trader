@@ -67,7 +67,7 @@ This guide provides step-by-step instructions for deploying Quantum Trader in va
    python scripts/seed_demo_data.py
 
    # For PostgreSQL (production-like)
-   export QUANTUM_TRADER_DATABASE_URL="postgresql://user:pass@localhost/quantum_trader"
+   export QUANTUM_TRADER_DATABASE_URL="postgresql://user:pass@localhost/quantum_trader"  # pragma: allowlist secret
    alembic upgrade head
    python scripts/seed_demo_data.py
    ```
@@ -103,7 +103,7 @@ This guide provides step-by-step instructions for deploying Quantum Trader in va
 cd backend
 pytest tests/ -v
 
-# Frontend tests  
+# Frontend tests
 cd frontend
 npm run test
 ```
@@ -273,7 +273,7 @@ METRICS_RETENTION_HOURS=24
 # Redis for Caching (optional)
 REDIS_URL=redis://localhost:6379/0
 
-# SMTP for Notifications (optional)  
+# SMTP for Notifications (optional)
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=notifications@yourdomain.com

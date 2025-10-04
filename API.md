@@ -120,7 +120,7 @@ Content-Type: application/json
   "order_id": "12345",
   "status": "FILLED",
   "symbol": "BTCUSDT",
-  "side": "BUY", 
+  "side": "BUY",
   "qty": 0.01,
   "filled_qty": 0.01,
   "price": 43500.00,
@@ -329,7 +329,7 @@ API requests are rate-limited to ensure fair usage and system stability.
 ### Current Limits
 
 - **General endpoints**: 100 requests per minute
-- **Trading endpoints**: 50 requests per minute  
+- **Trading endpoints**: 50 requests per minute
 - **Market data**: 200 requests per minute
 - **WebSocket connections**: 10 per IP address
 
@@ -406,14 +406,14 @@ class QuantumTraderAPI:
     def __init__(self, base_url="http://localhost:8000"):
         self.base_url = base_url
         self.session = requests.Session()
-    
+
     def get_prices(self, symbols):
         response = self.session.get(
             f"{self.base_url}/api/prices",
             params={"symbols": ",".join(symbols)}
         )
         return response.json()
-    
+
     def place_trade(self, symbol, side, qty, order_type="MARKET"):
         response = self.session.post(
             f"{self.base_url}/api/trades",

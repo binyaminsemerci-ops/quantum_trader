@@ -54,9 +54,9 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }): J
       `}
     >
       <div className="flex-shrink-0">{getIcon()}</div>
-      
+
       <div className="flex-1 text-sm font-medium">{toast.message}</div>
-      
+
       {toast.action && (
         <button
           onClick={toast.action.onClick}
@@ -65,7 +65,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }): J
           {toast.action.label}
         </button>
       )}
-      
+
       <button
         onClick={onClose}
         className="flex-shrink-0 p-1 hover:bg-black/10 rounded transition-colors"
