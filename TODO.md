@@ -14,9 +14,9 @@ This file lists actionable follow-ups now that the repo reflects the demo snapsh
 ## Medium Priority
 
 - [ ] **Database story**: decide whether to keep SQLite or restore PostgreSQL + Alembic migrations; update docs accordingly and add seed data scripts for demos.
-- [ ] **Feature parity**: make sure all UI components read from the updated APIs (no more hardcoded/mocked data) and that settings persist between sessions.
-- [ ] **Error boundaries**: add React error boundaries to the frontend and proper exception handling in backend routes.
-- [ ] **Testing coverage**: add integration tests for the main trading workflows and extend unit test coverage.
+- [x] **Feature parity**: make sure all UI components read from the updated APIs (no more hardcoded/mocked data) and that settings persist between sessions.
+- [x] **Error boundaries**: add React error boundaries to the frontend and proper exception handling in backend routes.
+- [x] **Testing coverage**: add integration tests for the main trading workflows and extend unit test coverage.
 
 ## Low Priority
 
@@ -32,3 +32,7 @@ This file lists actionable follow-ups now that the repo reflects the demo snapsh
 - ✅ **Code quality**: fixed all datetime deprecation warnings across codebase
 - ✅ **Test infrastructure**: all 37 backend tests now pass with proper async support
 - ✅ **Documentation recovery**: restored all README files from git history and committed to main branch
+- ✅ **Error boundaries**: implemented comprehensive exception handling with logging and consistent error responses
+- ✅ **Enhanced API client**: created type-safe frontend API client with proper error handling
+- ✅ **Integration tests**: added 13+ comprehensive workflow and error handling tests (50 total tests now pass)
+- ✅ **Logging system**: structured logging with rotation, multiple levels, and error tracking

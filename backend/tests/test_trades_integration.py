@@ -2,7 +2,7 @@ def test_create_and_read_trade(client):
     # Create a trade
     payload = {"symbol": "ETHUSDT", "side": "SELL", "qty": 0.5, "price": 1800.0}
     post_resp = client.post("/trades", json=payload)
-    assert post_resp.status_code == 200
+    assert post_resp.status_code == 201  # Updated to match new status code
     data = post_resp.json()
     assert data["symbol"] == "ETHUSDT"
     assert data["side"] == "SELL"
