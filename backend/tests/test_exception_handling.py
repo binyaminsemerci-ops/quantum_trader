@@ -1,8 +1,10 @@
 """
 Tests for exception handling and error boundaries in the API.
 """
+
 from fastapi.testclient import TestClient
 from backend.main import app
+
 client = TestClient(app)
 
 
@@ -13,7 +15,7 @@ def test_validation_error_handling():
         "symbol": "",  # Empty symbol should fail validation
         "side": "INVALID",  # Invalid side should fail validation
         "qty": -1.0,  # Negative quantity should fail validation
-        "price": 0  # Zero price should fail validation
+        "price": 0,  # Zero price should fail validation
     }
 
     response = client.post("/trades", json=invalid_payload)
@@ -29,12 +31,7 @@ def test_validation_error_handling():
 
 def test_unsupported_symbol_error():
     """Test error handling for unsupported trading symbols."""
-    payload = {
-        "symbol": "INVALID_SYMBOL",
-        "side": "BUY",
-        "qty": 1.0,
-        "price": 100.0
-    }
+    payload = {"symbol": "INVALID_SYMBOL", "side": "BUY", "qty": 1.0, "price": 100.0}
 
     response = client.post("/trades", json=payload)
 
@@ -50,7 +47,7 @@ def test_invalid_json_handling():
     response = client.post(
         "/trades",
         data="invalid json",  # Not JSON
-        headers={"content-type": "application/json"}
+        headers={"content-type": "application/json"},
     )
 
     assert response.status_code == 422
@@ -90,12 +87,7 @@ def test_successful_error_recovery():
     client.post("/trades", json={"invalid": "data"})
 
     # Then verify normal operations still work
-    valid_payload = {
-        "symbol": "BTCUSDT",
-        "side": "BUY",
-        "qty": 1.0,
-        "price": 50000.0
-    }
+    valid_payload = {"symbol": "BTCUSDT", "side": "BUY", "qty": 1.0, "price": 50000.0}
 
     response = client.post("/trades", json=valid_payload)
     assert response.status_code == 201
@@ -110,7 +102,12 @@ def test_consistent_error_format():
     test_cases = [
         ("/non-existent", "get", {}, 404),
         ("/trades", "post", {"invalid": "data"}, 422),
-        ("/trades", "post", {"symbol": "INVALID", "side": "BUY", "qty": 1, "price": 100}, 400),
+        (
+            "/trades",
+            "post",
+            {"symbol": "INVALID", "side": "BUY", "qty": 1, "price": 100},
+            400,
+        ),
     ]
 
     for endpoint, method, payload, expected_status in test_cases:

@@ -28,16 +28,23 @@ router = APIRouter(
         400: {"description": "Invalid trading parameters"},
         401: {"description": "Authentication required"},
         429: {"description": "Rate limit exceeded"},
-        502: {"description": "Exchange connectivity error"}
-    }
+        502: {"description": "Exchange connectivity error"},
+    },
 )
 
 
 class TradeCreate(BaseModel):
     """Request model for creating a new trade order."""
 
-    symbol: str = Field(..., min_length=1, max_length=20, description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)")
-    side: str = Field(..., pattern="^(BUY|SELL)$", description="Trade direction: BUY or SELL")
+    symbol: str = Field(
+        ...,
+        min_length=1,
+        max_length=20,
+        description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)",
+    )
+    side: str = Field(
+        ..., pattern="^(BUY|SELL)$", description="Trade direction: BUY or SELL"
+    )
     qty: float = Field(..., gt=0, description="Trade quantity (must be positive)")
     price: float = Field(..., gt=0, description="Trade price (must be positive)")
 
@@ -59,15 +66,19 @@ class TradeResponse(BaseModel):
     "",
     response_model=List[TradeResponse],
     summary="Get Trading History",
-    description="Retrieve comprehensive trading history with filtering and pagination options"
+    description="Retrieve comprehensive trading history with filtering and pagination options",
 )
 async def get_trades(
     db=Depends(get_db),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of trades to return"),
+    limit: int = Query(
+        100, ge=1, le=1000, description="Maximum number of trades to return"
+    ),
     symbol: Optional[str] = Query(None, description="Filter by trading pair symbol"),
     status: Optional[str] = Query(None, description="Filter by trade status"),
-    from_date: Optional[datetime] = Query(None, description="Start date for trade history"),
-    to_date: Optional[datetime] = Query(None, description="End date for trade history")
+    from_date: Optional[datetime] = Query(
+        None, description="Start date for trade history"
+    ),
+    to_date: Optional[datetime] = Query(None, description="End date for trade history"),
 ):
     """
     Retrieve trading history with comprehensive filtering options.
@@ -97,7 +108,9 @@ async def get_trades(
         # Apply ordering and limit
         trades = query.order_by(TradeLog.timestamp.desc()).limit(limit).all()
 
-        logger.info(f"Retrieved {len(trades)} trades from database with filters: symbol={symbol}, status={status}")
+        logger.info(
+            f"Retrieved {len(trades)} trades from database with filters: symbol={symbol}, status={status}"
+        )
 
         return [
             {
@@ -108,7 +121,7 @@ async def get_trades(
                 "price": t.price,
                 "status": t.status,
                 "reason": t.reason,
-                "timestamp": t.timestamp.isoformat() if t.timestamp else None
+                "timestamp": t.timestamp.isoformat() if t.timestamp else None,
             }
             for t in trades
         ]
@@ -125,7 +138,7 @@ async def get_trades(
     status_code=201,
     response_model=TradeResponse,
     summary="Execute Trade Order",
-    description="Execute a new trading order with comprehensive validation and error handling"
+    description="Execute a new trading order with comprehensive validation and error handling",
 )
 async def create_trade(payload: TradeCreate, db=Depends(get_db)):
     """
@@ -142,8 +155,16 @@ async def create_trade(payload: TradeCreate, db=Depends(get_db)):
     """
     try:
         # Validate trade data
-        if payload.symbol.upper() not in ["BTCUSDT", "ETHUSDT", "ADAUSDT", "DOTUSDT", "LINKUSDT"]:
-            raise HTTPException(status_code=400, detail=f"Unsupported trading symbol: {payload.symbol}")
+        if payload.symbol.upper() not in [
+            "BTCUSDT",
+            "ETHUSDT",
+            "ADAUSDT",
+            "DOTUSDT",
+            "LINKUSDT",
+        ]:
+            raise HTTPException(
+                status_code=400, detail=f"Unsupported trading symbol: {payload.symbol}"
+            )
 
         if payload.side.upper() not in ["BUY", "SELL"]:
             raise HTTPException(status_code=400, detail="Side must be BUY or SELL")
@@ -161,7 +182,9 @@ async def create_trade(payload: TradeCreate, db=Depends(get_db)):
         db.commit()
         db.refresh(t)
 
-        logger.info(f"Created new trade: {t.id} - {t.side} {t.qty} {t.symbol} @ {t.price}")
+        logger.info(
+            f"Created new trade: {t.id} - {t.side} {t.qty} {t.symbol} @ {t.price}"
+        )
 
         return {
             "id": t.id,
@@ -171,7 +194,7 @@ async def create_trade(payload: TradeCreate, db=Depends(get_db)):
             "price": t.price,
             "status": t.status,
             "reason": t.reason,
-            "timestamp": t.timestamp
+            "timestamp": t.timestamp,
         }
 
     except HTTPException:

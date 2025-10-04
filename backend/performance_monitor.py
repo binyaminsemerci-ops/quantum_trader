@@ -36,6 +36,7 @@ perf_logger = logging.getLogger("quantum_trader.performance")
 @dataclass
 class RequestMetrics:
     """Metrics for a single HTTP request."""
+
     method: str
     path: str
     status_code: int
@@ -52,6 +53,7 @@ class RequestMetrics:
 @dataclass
 class DatabaseMetrics:
     """Metrics for database operations."""
+
     query: str
     duration_ms: float
     timestamp: str
@@ -108,10 +110,10 @@ class PerformanceCollector:
                 endpoint: {
                     "count": len(times),
                     "avg_ms": sum(times) / len(times),
-                    "max_ms": max(times)
+                    "max_ms": max(times),
                 }
                 for endpoint, times in endpoint_stats.items()
-            }
+            },
         }
 
     def get_db_summary(self) -> Dict[str, Any]:
@@ -130,8 +132,9 @@ class PerformanceCollector:
             "slow_queries": len([d for d in durations if d > 100]),  # > 100ms
             "recent_slow_queries": [
                 {"query": m.query[:100] + "...", "duration_ms": m.duration_ms}
-                for m in metrics[-10:] if m.duration_ms > 100
-            ]
+                for m in metrics[-10:]
+                if m.duration_ms > 100
+            ],
         }
 
     def reset_request_counters(self):
@@ -169,7 +172,7 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
             timestamp=datetime.now(timezone.utc).isoformat(),
             db_queries=collector.current_request_db_queries,
             db_time_ms=collector.current_request_db_time,
-            memory_mb=initial_memory
+            memory_mb=initial_memory,
         )
 
         collector.add_request_metric(metric)
@@ -184,11 +187,15 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
 def setup_db_monitoring():
     """Set up database query monitoring."""
 
-    def receive_before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    def receive_before_cursor_execute(
+        conn, cursor, statement, parameters, context, executemany
+    ):
         context._query_start_time = time.perf_counter()
 
-    def receive_after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-        if hasattr(context, '_query_start_time'):
+    def receive_after_cursor_execute(
+        conn, cursor, statement, parameters, context, executemany
+    ):
+        if hasattr(context, "_query_start_time"):
             duration_ms = (time.perf_counter() - context._query_start_time) * 1000
 
             # Update per-request counters
@@ -199,7 +206,7 @@ def setup_db_monitoring():
             metric = DatabaseMetrics(
                 query=statement[:200],  # Truncate long queries
                 duration_ms=duration_ms,
-                timestamp=datetime.now(timezone.utc).isoformat()
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
             collector.add_db_metric(metric)
 
@@ -248,7 +255,7 @@ def add_monitoring_middleware(app):
             "memory_percent": process.memory_percent(),
             "open_files": len(process.open_files()),
             "connections": len(process.connections()),
-            "threads": process.num_threads()
+            "threads": process.num_threads(),
         }
 
     perf_logger.info("Performance monitoring enabled with metrics endpoints")
@@ -261,6 +268,6 @@ def get_performance_summary() -> Dict[str, Any]:
         "database": collector.get_db_summary(),
         "system": {
             "cpu_count": psutil.cpu_count(),
-            "memory_total_gb": psutil.virtual_memory().total / (1024**3)
-        }
+            "memory_total_gb": psutil.virtual_memory().total / (1024**3),
+        },
     }

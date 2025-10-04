@@ -47,10 +47,10 @@ class TrainAndSaveStub:
         mock_model = {"type": "xgboost", "features": ["price", "volume"]}
         mock_scaler = {"mean": [100.0, 1000.0], "std": [10.0, 100.0]}
 
-        with open(model_path, 'wb') as f:
+        with open(model_path, "wb") as f:
             pickle.dump(mock_model, f)
 
-        with open(scaler_path, 'wb') as f:
+        with open(scaler_path, "wb") as f:
             pickle.dump(mock_scaler, f)
 
         # Save metadata
@@ -61,10 +61,10 @@ class TrainAndSaveStub:
             "features_used": ["price", "volume", "rsi"],
             "training_samples": samples,
             "symbols": symbols,
-            "trained_at": "2025-10-04T13:50:00Z"
+            "trained_at": "2025-10-04T13:50:00Z",
         }
 
-        with open(metadata_path, 'w') as f:
+        with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
 
         return metadata
@@ -82,7 +82,9 @@ class ExternalDataStub:
     with predictable test data.
     """
 
-    async def binance_ohlcv(self, symbol: str, limit: int = 600) -> List[Dict[str, Any]]:
+    async def binance_ohlcv(
+        self, symbol: str, limit: int = 600
+    ) -> List[Dict[str, Any]]:
         """
         Mock OHLCV data from Binance API.
 
@@ -106,12 +108,13 @@ class ExternalDataStub:
             volume = 1000 + (i % 100)  # Varying volume
 
             candle = {
-                "timestamp": 1609459200 + (i * 60),  # Start from 2021-01-01, 1min intervals
+                "timestamp": 1609459200
+                + (i * 60),  # Start from 2021-01-01, 1min intervals
                 "open": round(open_price, 2),
                 "high": round(high_price, 2),
                 "low": round(low_price, 2),
                 "close": round(close_price, 2),
-                "volume": volume
+                "volume": volume,
             }
             candles.append(candle)
 
@@ -132,7 +135,7 @@ class ExternalDataStub:
             "sentiment_score": 0.65,
             "social_mentions": 150,
             "news_sentiment": "positive",
-            "fear_greed_index": 45
+            "fear_greed_index": 45,
         }
 
     async def twitter_sentiment(self, symbol: str) -> Dict[str, Any]:
@@ -150,12 +153,11 @@ class ExternalDataStub:
             "tweets": [
                 {"text": f"Bullish on {symbol}!", "sentiment": 0.8},
                 {"text": f"{symbol} looking strong", "sentiment": 0.6},
-                {"text": f"Not sure about {symbol}", "sentiment": 0.1}
+                {"text": f"Not sure about {symbol}", "sentiment": 0.1},
             ],
             "overall_sentiment": 0.5,
-            "tweet_count": 25
+            "tweet_count": 25,
         }
-
 
 
 # Create a global instance for easy importing
