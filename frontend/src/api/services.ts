@@ -21,7 +21,7 @@ export type SettingsUpdateResponse = {
 async function handleApiResponse<T>(response: Response): Promise<ApiResponse<T>> {
   if (!response.ok) {
     let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-    
+
     try {
       const errorData = await response.json();
       if (errorData.detail) {
@@ -32,10 +32,10 @@ async function handleApiResponse<T>(response: Response): Promise<ApiResponse<T>>
     } catch (e) {
       // If we can't parse the error response, use the default message
     }
-    
+
     return { error: errorMessage };
   }
-  
+
   try {
     const data = await response.json();
     return { data };

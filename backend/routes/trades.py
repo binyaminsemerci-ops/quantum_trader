@@ -36,44 +36,23 @@ router = APIRouter(
 class TradeCreate(BaseModel):
     """Request model for creating a new trade order."""
     
-    symbol: str = Field(
-        ..., 
-        min_length=1, 
-        max_length=20, 
-        description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)",
-        example="BTCUSDT"
-    )
-    side: str = Field(
-        ..., 
-        pattern="^(BUY|SELL)$", 
-        description="Trade direction: BUY or SELL",
-        example="BUY"
-    )
-    qty: float = Field(
-        ..., 
-        gt=0, 
-        description="Trade quantity (must be positive)",
-        example=0.01
-    )
-    price: float = Field(
-        ..., 
-        gt=0, 
-        description="Trade price (must be positive)",
-        example=43500.00
-    )
+    symbol: str = Field(..., min_length=1, max_length=20, description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)", example="BTCUSDT")
+    side: str = Field(..., pattern="^(BUY|SELL)$", description="Trade direction: BUY or SELL", example="BUY")
+    qty: float = Field(..., gt=0, description="Trade quantity (must be positive)", example=0.01)
+    price: float = Field(..., gt=0, description="Trade price (must be positive)", example=43500.00)
 
 
 class TradeResponse(BaseModel):
     """Response model for trade information."""
     
-    id: int = Field(description="Unique trade identifier")
-    symbol: str = Field(description="Trading pair symbol")
-    side: str = Field(description="Trade direction (BUY/SELL)")
-    qty: float = Field(description="Trade quantity")
-    price: float = Field(description="Execution price")
-    status: str = Field(description="Trade status")
+    id: int = Field(..., description="Unique trade identifier")
+    symbol: str = Field(..., description="Trading pair symbol")
+    side: str = Field(..., description="Trade direction (BUY/SELL)")
+    qty: float = Field(..., description="Trade quantity")
+    price: float = Field(..., description="Execution price")
+    status: str = Field(..., description="Trade status")
     reason: Optional[str] = Field(default=None, description="Trade rationale or notes")
-    timestamp: datetime = Field(description="Trade execution timestamp")
+    timestamp: datetime = Field(..., description="Trade execution timestamp")
 
 
 @router.get(

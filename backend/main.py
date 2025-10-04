@@ -16,7 +16,7 @@ from backend.logging_config import setup_logging
 from backend.performance_monitor import add_monitoring_middleware
 import os
 
-# Setup logging
+ # Setup logging
 log_level = os.getenv("LOG_LEVEL", "INFO")
 setup_logging(log_level=log_level)
 
