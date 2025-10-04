@@ -183,4 +183,5 @@ async def get_live_ai_signals(limit: int = 20, profile: str = "mixed") -> List[D
         return await ai_trader.generate_signals(symbols, limit)
     except Exception as e:
         logger.error(f"Error generating live signals: {e}")
+ 
         return []
