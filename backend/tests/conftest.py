@@ -38,3 +38,5 @@ def client(test_db_file):
 
     with TestClient(app) as c:
         yield c
+        # Drop all tables after test for clean DB
+        Base.metadata.drop_all(bind=engine)
