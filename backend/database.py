@@ -59,8 +59,8 @@ class Settings(Base):  # type: ignore[valid-type,misc]
     api_secret = Column(String)
 
 
-# Opprett tabellene hvis de ikke finnes
-Base.metadata.create_all(bind=engine)
+# Note: Tables are now created via Alembic migrations
+# Run `alembic upgrade head` to create/update the database schema
 
 
 # Dependency for å hente en DB-session
