@@ -5,8 +5,8 @@ import logging
 import asyncio
 import numpy as np
 
+
 from backend.utils.twitter_client import TwitterClient
-from backend.utils.cryptopanic_client import CryptoPanicClient
 
 logger = logging.getLogger(__name__)
 
@@ -29,15 +29,11 @@ class XGBAgent:
         self.scaler = None
         # helper clients
         self.twitter: Optional[TwitterClient] = None
-        self.cryptopanic: Optional[CryptoPanicClient] = None
         try:
             self.twitter = TwitterClient()
-            self.cryptopanic = CryptoPanicClient()
         except Exception as e:
-            # If for any reason these clients fail to instantiate, keep None
-            logger.debug("Failed to init auxiliary clients: %s", e)
+            logger.debug("Failed to init Twitter client: %s", e)
             self.twitter = None
-            self.cryptopanic = None
         self._load()
 
     def _load(self) -> None:
@@ -261,12 +257,8 @@ class XGBAgent:
         Uses a bounded concurrency semaphore to avoid hammering internal helpers.
         """
         try:
-            # backend.routes.external_data is a runtime-only import; mypy may not see dynamic attributes
-            import backend.routes as _br  # type: ignore[import-not-found]
-            from typing import Any as _Any, cast as _cast
-
-            # obtain external_data dynamically to avoid mypy attr-defined errors
-            external_data = _cast(_Any, getattr(_br, "external_data", None))
+            # Import external_data module directly
+            import backend.routes.external_data as external_data
         except Exception as e:
             logger.error("external_data not importable: %s", e)
             raise RuntimeError("external_data endpoint not importable")
@@ -294,13 +286,19 @@ class XGBAgent:
                     logger.debug("twitter_sentiment lookup failed for %s", s)
                     sent_score = 0.0
 
+                # Use CoinGecko trending coins as news proxy
                 try:
-                    news = await external_data.cryptopanic_news(symbol=s, limit=200)
-                    news_items = (
-                        news.get("news", []) if isinstance(news, dict) else (news or [])
+                    # Import CoinGecko functions
+                    from backend.routes.coingecko_data import get_trending_coins
+                    trending = await get_trending_coins()
+                    # Check if symbol is trending (simplified news proxy)
+                    is_trending = any(
+                        coin.get("symbol", "").upper() == s.replace("USDT", "").replace("BTC", "").upper()
+                        for coin in trending.get("coins", [])[:10]
                     )
+                    news_items = [{"trending": True}] if is_trending else []
                 except Exception:
-                    logger.debug("cryptopanic_news lookup failed for %s", s)
+                    logger.debug("trending coins lookup failed for %s", s)
                     news_items = []
 
                 # expand sentiment/news into arrays aligned to candles
