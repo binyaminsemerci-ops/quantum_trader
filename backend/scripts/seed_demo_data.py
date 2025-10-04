@@ -14,7 +14,7 @@ import os
 from datetime import datetime, timezone, timedelta
 
 # Add the backend directory to the path so we can import our modules
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from backend.database import SessionLocal, TradeLog
 from sqlalchemy.exc import IntegrityError
@@ -34,7 +34,7 @@ def create_demo_trades():
                 "price": 43500.00,
                 "status": "FILLED",
                 "reason": "Strong bullish signal detected",
-                "timestamp": datetime.now(timezone.utc) - timedelta(hours=2)
+                "timestamp": datetime.now(timezone.utc) - timedelta(hours=2),
             },
             {
                 "symbol": "BTCUSDT",
@@ -43,7 +43,8 @@ def create_demo_trades():
                 "price": 44200.00,
                 "status": "FILLED",
                 "reason": "Take profit target reached",
-                "timestamp": datetime.now(timezone.utc) - timedelta(hours=1, minutes=30)
+                "timestamp": datetime.now(timezone.utc)
+                - timedelta(hours=1, minutes=30),
             },
             {
                 "symbol": "ETHUSDT",
@@ -52,7 +53,7 @@ def create_demo_trades():
                 "price": 2650.00,
                 "status": "FILLED",
                 "reason": "Technical breakout confirmed",
-                "timestamp": datetime.now(timezone.utc) - timedelta(hours=1)
+                "timestamp": datetime.now(timezone.utc) - timedelta(hours=1),
             },
             {
                 "symbol": "ADAUSDT",
@@ -61,7 +62,7 @@ def create_demo_trades():
                 "price": 0.385,
                 "status": "CANCELLED",
                 "reason": "Market conditions changed",
-                "timestamp": datetime.now(timezone.utc) - timedelta(minutes=45)
+                "timestamp": datetime.now(timezone.utc) - timedelta(minutes=45),
             },
             {
                 "symbol": "SOLUSDT",
@@ -70,8 +71,8 @@ def create_demo_trades():
                 "price": 145.50,
                 "status": "PARTIALLY_FILLED",
                 "reason": "DCA strategy entry",
-                "timestamp": datetime.now(timezone.utc) - timedelta(minutes=20)
-            }
+                "timestamp": datetime.now(timezone.utc) - timedelta(minutes=20),
+            },
         ]
 
         # Create trade records
@@ -86,7 +87,9 @@ def create_demo_trades():
         trades = db.query(TradeLog).all()
         print(f"\n📊 Total trades in database: {len(trades)}")
         for trade in trades[-5:]:  # Show last 5
-            print(f"  {trade.timestamp.strftime('%H:%M')} | {trade.symbol} | {trade.side} | {trade.status}")
+            print(
+                f"  {trade.timestamp.strftime('%H:%M')} | {trade.symbol} | {trade.side} | {trade.status}"
+            )
 
     except IntegrityError as e:
         db.rollback()
@@ -111,7 +114,7 @@ def create_demo_settings():
         # Create demo settings (masked for security)
         demo_settings = Settings(
             api_key="demo_api_key_12345",  # pragma: allowlist secret
-            api_secret="demo_secret_67890"  # pragma: allowlist secret
+            api_secret="demo_secret_67890",  # pragma: allowlist secret
         )
 
         db.add(demo_settings)
@@ -131,6 +134,7 @@ if __name__ == "__main__":
     # Check if database exists and is accessible
     try:
         from sqlalchemy import text
+
         db = SessionLocal()
         db.execute(text("SELECT 1"))
         db.close()

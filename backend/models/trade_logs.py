@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime
 from backend.database import Base
 
+
 class TradeLog(Base):
     __tablename__ = "trade_logs"
     id = Column(Integer, primary_key=True, index=True)

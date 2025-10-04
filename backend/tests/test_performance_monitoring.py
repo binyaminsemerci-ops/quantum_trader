@@ -32,7 +32,7 @@ class TestPerformanceMonitoring:
             path="/api/test",
             status_code=200,
             duration_ms=150.5,
-            timestamp="2025-10-04T13:54:00Z"
+            timestamp="2025-10-04T13:54:00Z",
         )
 
         assert metric.method == "GET"
@@ -50,7 +50,7 @@ class TestPerformanceMonitoring:
         metric = DatabaseMetrics(
             query="SELECT * FROM trades WHERE symbol = ?",
             duration_ms=25.3,
-            timestamp="2025-10-04T13:54:00Z"
+            timestamp="2025-10-04T13:54:00Z",
         )
 
         assert metric.query.startswith("SELECT")
@@ -106,7 +106,7 @@ class TestPerformanceMonitoring:
             duration_ms=1500.0,  # 1.5 seconds - considered slow
             timestamp=datetime.now(timezone.utc).isoformat(),
             db_queries=5,
-            db_time_ms=800.0
+            db_time_ms=800.0,
         )
 
         collector.request_metrics.clear()
@@ -129,7 +129,7 @@ class TestPerformanceMonitoring:
                 path="/api/trades",
                 status_code=200,
                 duration_ms=100.0 + i * 10,  # 100, 110, 120ms
-                timestamp=datetime.now(timezone.utc).isoformat()
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
             collector.add_request_metric(metric)
 

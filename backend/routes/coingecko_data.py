@@ -20,7 +20,7 @@ async def get_coin_price_data(coin_id: str, days: int = 7) -> Dict[str, Any]:
                     return {
                         "prices": data.get("prices", []),
                         "market_caps": data.get("market_caps", []),
-                        "total_volumes": data.get("total_volumes", [])
+                        "total_volumes": data.get("total_volumes", []),
                     }
     except Exception as e:
         logger.error(f"Failed to fetch price data for {coin_id}: {e}")
@@ -54,7 +54,7 @@ async def get_market_data(coin_ids: List[str]) -> List[Dict[str, Any]]:
             "order": "market_cap_desc",
             "per_page": "100",
             "page": "1",
-            "sparkline": "false"
+            "sparkline": "false",
         }
 
         async with aiohttp.ClientSession() as session:
@@ -95,7 +95,7 @@ def symbol_to_coingecko_id(symbol: str) -> str:
         "LINKUSDT": "chainlink",
         "MATICUSDT": "matic-network",
         "AVAXUSDT": "avalanche-2",
-        "ATOMUSDT": "cosmos"
+        "ATOMUSDT": "cosmos",
     }
 
     return symbol_map.get(symbol.upper(), symbol.lower().replace("usdt", ""))

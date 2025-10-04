@@ -2,6 +2,7 @@
 Simplified AI-powered trading signals endpoint
 Uses live market data to generate real trading signals
 """
+
 import asyncio
 import aiohttp
 import pandas as pd
@@ -11,17 +12,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class SimpleAITrader:
     """Simple AI trading logic using live market data"""
 
-    async def get_binance_data(self, symbol: str, interval: str = "1h", limit: int = 50):
+    async def get_binance_data(
+        self, symbol: str, interval: str = "1h", limit: int = 50
+    ):
         """Fetch live OHLCV data from Binance"""
         url = "https://api.binance.com/api/v3/klines"
         from typing import Dict
+
         params: Dict[str, str] = {
             "symbol": symbol,
             "interval": interval,
-            "limit": str(limit)
+            "limit": str(limit),
         }
 
         try:
@@ -31,13 +36,26 @@ class SimpleAITrader:
                         data = await response.json()
 
                         # Convert to DataFrame
-                        df = pd.DataFrame(data, columns=[
-                            'timestamp', 'open', 'high', 'low', 'close', 'volume',
-                            'close_time', 'quote_volume', 'trades', 'buy_base', 'buy_quote', 'ignore'
-                        ])
+                        df = pd.DataFrame(
+                            data,
+                            columns=[
+                                "timestamp",
+                                "open",
+                                "high",
+                                "low",
+                                "close",
+                                "volume",
+                                "close_time",
+                                "quote_volume",
+                                "trades",
+                                "buy_base",
+                                "buy_quote",
+                                "ignore",
+                            ],
+                        )
 
                         # Convert numeric columns
-                        for col in ['open', 'high', 'low', 'close', 'volume']:
+                        for col in ["open", "high", "low", "close", "volume"]:
                             df[col] = pd.to_numeric(df[col])
 
                         return df
@@ -54,14 +72,14 @@ class SimpleAITrader:
             return {"action": "HOLD", "score": 0.0, "reason": "Insufficient data"}
 
         # Calculate indicators
-        df['sma_5'] = df['close'].rolling(5).mean()
-        df['sma_20'] = df['close'].rolling(20).mean()
-        df['rsi'] = self.calculate_rsi(df['close'])
+        df["sma_5"] = df["close"].rolling(5).mean()
+        df["sma_20"] = df["close"].rolling(20).mean()
+        df["rsi"] = self.calculate_rsi(df["close"])
 
-        current_price = df['close'].iloc[-1]
-        sma_5 = df['sma_5'].iloc[-1]
-        sma_20 = df['sma_20'].iloc[-1]
-        rsi = df['rsi'].iloc[-1]
+        current_price = df["close"].iloc[-1]
+        sma_5 = df["sma_5"].iloc[-1]
+        sma_20 = df["sma_20"].iloc[-1]
+        rsi = df["rsi"].iloc[-1]
 
         # Simple trading logic
         score = 0.0
@@ -69,7 +87,11 @@ class SimpleAITrader:
 
         # Check if we have valid indicators (handle NaN values)
         if pd.isna(sma_5) or pd.isna(sma_20) or pd.isna(rsi):
-            return {"action": "HOLD", "score": 0.0, "reason": "Insufficient indicator data"}
+            return {
+                "action": "HOLD",
+                "score": 0.0,
+                "reason": "Insufficient indicator data",
+            }
 
         # Trend following
         if sma_5 > sma_20:
@@ -88,7 +110,7 @@ class SimpleAITrader:
             signals.append("Overbought")
 
         # Price momentum
-        price_change = (current_price - df['close'].iloc[-5]) / df['close'].iloc[-5]
+        price_change = (current_price - df["close"].iloc[-5]) / df["close"].iloc[-5]
         if price_change > 0.01:  # Lower threshold
             score += 0.3
             signals.append("Strong momentum up")
@@ -110,20 +132,24 @@ class SimpleAITrader:
             "confidence": min(abs(score), 1.0),
             "reason": " | ".join(signals),
             "rsi": rsi,
-            "price_change": price_change
+            "price_change": price_change,
         }
 
     def calculate_rsi(self, prices: pd.Series, window: int = 14) -> pd.Series:
         """Calculate RSI indicator"""
-        prices_numeric = pd.to_numeric(prices, errors='coerce')
+        prices_numeric = pd.to_numeric(prices, errors="coerce")
         delta = prices_numeric.diff()
-        delta_numeric = pd.to_numeric(delta, errors='coerce')
+        delta_numeric = pd.to_numeric(delta, errors="coerce")
         gain = (delta_numeric.where(delta_numeric > 0, 0)).rolling(window=window).mean()
-        loss = (-delta_numeric.where(delta_numeric < 0, 0)).rolling(window=window).mean()
+        loss = (
+            (-delta_numeric.where(delta_numeric < 0, 0)).rolling(window=window).mean()
+        )
         rs = gain / loss
         return 100 - (100 / (1 + rs))
 
-    async def generate_signals(self, symbols: List[str], limit: int = 10) -> List[Dict[str, Any]]:
+    async def generate_signals(
+        self, symbols: List[str], limit: int = 10
+    ) -> List[Dict[str, Any]]:
         """Generate trading signals for multiple symbols"""
         signals = []
         current_time = datetime.now()
@@ -143,15 +169,17 @@ class SimpleAITrader:
                 if analysis["action"] != "HOLD" and analysis["score"] > 0.1:
                     signal = {
                         "id": f"ai_{symbol}_{int(current_time.timestamp())}",
-                        "timestamp": (current_time - timedelta(minutes=i*2)).isoformat(),
+                        "timestamp": (
+                            current_time - timedelta(minutes=i * 2)
+                        ).isoformat(),
                         "symbol": symbol,
                         "side": analysis["action"].lower(),
                         "score": round(analysis["score"], 3),
                         "confidence": round(analysis["confidence"], 3),
                         "details": {
                             "source": "Live AI Analysis",
-                            "note": f"RSI: {analysis['rsi']:.1f}, {analysis['reason']}"
-                        }
+                            "note": f"RSI: {analysis['rsi']:.1f}, {analysis['reason']}",
+                        },
                     }
                     signals.append(signal)
 
@@ -169,16 +197,35 @@ class SimpleAITrader:
 ai_trader = SimpleAITrader()
 
 
-async def get_live_ai_signals(limit: int = 20, profile: str = "mixed") -> List[Dict[str, Any]]:
+async def get_live_ai_signals(
+    limit: int = 20, profile: str = "mixed"
+) -> List[Dict[str, Any]]:
     """Generate live AI trading signals"""
 
     # Symbol selection based on profile
     if profile == "left":  # Conservative
         symbols = ["BTCUSDT", "ETHUSDT", "ADAUSDT", "DOTUSDT", "LTCUSDT"]
     elif profile == "right":  # Aggressive
-        symbols = ["SOLUSDT", "AVAXUSDT", "MATICUSDT", "LINKUSDT", "UNIUSDT", "AAVEUSDT", "SUSHIUSDT"]
+        symbols = [
+            "SOLUSDT",
+            "AVAXUSDT",
+            "MATICUSDT",
+            "LINKUSDT",
+            "UNIUSDT",
+            "AAVEUSDT",
+            "SUSHIUSDT",
+        ]
     else:  # Mixed
-        symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT", "DOTUSDT", "AVAXUSDT", "MATICUSDT"]
+        symbols = [
+            "BTCUSDT",
+            "ETHUSDT",
+            "BNBUSDT",
+            "SOLUSDT",
+            "ADAUSDT",
+            "DOTUSDT",
+            "AVAXUSDT",
+            "MATICUSDT",
+        ]
 
     try:
         return await ai_trader.generate_signals(symbols, limit)

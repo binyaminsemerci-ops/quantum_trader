@@ -22,8 +22,10 @@ logger = logging.getLogger(__name__)
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "ai_engine", "models")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
+
 class SimpleScaler:
     """Simple scaler for normalization"""
+
     def fit(self, X):
         self.mean_ = np.nanmean(X, axis=0)
         self.scale_ = np.nanstd(X, axis=0)
@@ -40,11 +42,7 @@ class SimpleScaler:
 async def fetch_binance_data(symbol: str, interval: str = "1h", limit: int = 500):
     """Fetch OHLCV data from Binance public API"""
     url = "https://api.binance.com/api/v3/klines"
-    params = {
-        "symbol": symbol,
-        "interval": interval,
-        "limit": limit
-    }
+    params = {"symbol": symbol, "interval": interval, "limit": limit}
 
     async with aiohttp.ClientSession() as session:
         try:
@@ -61,7 +59,7 @@ async def fetch_binance_data(symbol: str, interval: str = "1h", limit: int = 500
                             "high": float(item[2]),
                             "low": float(item[3]),
                             "close": float(item[4]),
-                            "volume": float(item[5])
+                            "volume": float(item[5]),
                         }
                         candles.append(candle)
 
@@ -88,7 +86,10 @@ async def fetch_coingecko_sentiment(symbol: str):
                     symbol_clean = symbol.replace("USDT", "").replace("BTC", "").lower()
 
                     for coin in data.get("coins", []):
-                        if coin.get("item", {}).get("symbol", "").lower() == symbol_clean:
+                        if (
+                            coin.get("item", {}).get("symbol", "").lower()
+                            == symbol_clean
+                        ):
                             return 0.7  # Positive sentiment if trending
 
                     return 0.5  # Neutral sentiment
@@ -144,8 +145,7 @@ def create_labels(df, future_periods=4):
 
     # Create labels: 2 for significant upward movement, 0 for downward, 1 for sideways
     # Then we'll filter to only use 0 and 2 (which become 0 and 1)
-    labels = np.where(price_change > 0.02, 2,
-                     np.where(price_change < -0.02, 0, 1))
+    labels = np.where(price_change > 0.02, 2, np.where(price_change < -0.02, 0, 1))
 
     return labels
 
@@ -153,8 +153,16 @@ def create_labels(df, future_periods=4):
 async def collect_training_data():
     """Collect training data from multiple symbols"""
     symbols = [
-        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT",
-        "DOTUSDT", "AVAXUSDT", "MATICUSDT", "LINKUSDT", "UNIUSDT"
+        "BTCUSDT",
+        "ETHUSDT",
+        "BNBUSDT",
+        "SOLUSDT",
+        "ADAUSDT",
+        "DOTUSDT",
+        "AVAXUSDT",
+        "MATICUSDT",
+        "LINKUSDT",
+        "UNIUSDT",
     ]
 
     all_features = []
@@ -183,14 +191,25 @@ async def collect_training_data():
 
         # Select features
         feature_columns = [
-            "SMA_10", "SMA_20", "EMA_10", "RSI", "BB_upper", "BB_lower",
-            "MACD", "MACD_signal", "price_change_1h", "price_change_24h",
-            "volume_ratio", "sentiment"
+            "SMA_10",
+            "SMA_20",
+            "EMA_10",
+            "RSI",
+            "BB_upper",
+            "BB_lower",
+            "MACD",
+            "MACD_signal",
+            "price_change_1h",
+            "price_change_24h",
+            "volume_ratio",
+            "sentiment",
         ]
 
         # Filter valid rows (drop NaN)
         valid_mask = df[feature_columns].notna().all(axis=1)
-        valid_mask = valid_mask & (labels != 1)  # Only use non-neutral labels (0=down, 2=up)
+        valid_mask = valid_mask & (
+            labels != 1
+        )  # Only use non-neutral labels (0=down, 2=up)
 
         if valid_mask.sum() > 10:  # Need at least some valid samples
             features = df.loc[valid_mask, feature_columns].values
@@ -229,20 +248,15 @@ async def train_model():
     # Train model
     try:
         from xgboost import XGBClassifier
+
         model = XGBClassifier(
-            n_estimators=100,
-            max_depth=6,
-            learning_rate=0.1,
-            random_state=42
+            n_estimators=100, max_depth=6, learning_rate=0.1, random_state=42
         )
         logger.info("Using XGBoost classifier")
     except ImportError:
         from sklearn.ensemble import RandomForestClassifier
-        model = RandomForestClassifier(
-            n_estimators=100,
-            max_depth=10,
-            random_state=42
-        )
+
+        model = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
         logger.info("Using Random Forest classifier (XGBoost not available)")
 
     # Train the model
@@ -266,7 +280,7 @@ async def train_model():
         "samples": len(X),
         "features": X.shape[1],
         "model_type": type(model).__name__,
-        "accuracy": "N/A"  # Could add cross-validation here
+        "accuracy": "N/A",  # Could add cross-validation here
     }
 
     metadata_path = os.path.join(MODEL_DIR, "metadata.json")

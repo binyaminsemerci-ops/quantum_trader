@@ -2,6 +2,7 @@
 Integration tests for main trading workflows in Quantum Trader.
 Tests complete end-to-end scenarios and API interactions.
 """
+
 from fastapi.testclient import TestClient
 from backend.main import app
 
@@ -36,12 +37,7 @@ def test_complete_trading_workflow():
         assert isinstance(signals, list)
 
     # 4. Execute a buy trade based on signals
-    trade_payload = {
-        "symbol": "BTCUSDT",
-        "side": "BUY",
-        "qty": 0.1,
-        "price": 45000.0
-    }
+    trade_payload = {"symbol": "BTCUSDT", "side": "BUY", "qty": 0.1, "price": 45000.0}
 
     trade_response = client.post("/trades", json=trade_payload)
     assert trade_response.status_code == 201
@@ -83,7 +79,7 @@ def test_settings_persistence_workflow():
         "risk_percentage": 2.5,
         "max_position_size": 5000.0,
         "trading_enabled": True,
-        "default_symbol": "ETHUSDT"
+        "default_symbol": "ETHUSDT",
     }
 
     update_response = client.post("/settings", json=new_settings)
@@ -108,7 +104,9 @@ def test_market_data_workflow():
 
     for symbol in symbols:
         for interval in timeframes:
-            candles_response = client.get(f"/candles?symbol={symbol}&interval={interval}")
+            candles_response = client.get(
+                f"/candles?symbol={symbol}&interval={interval}"
+            )
             assert candles_response.status_code == 200
 
             candles_data = candles_response.json()
@@ -121,7 +119,14 @@ def test_market_data_workflow():
                 # Verify candle data structure
                 if candles:  # If we have data
                     candle = candles[0]
-                    required_fields = ["timestamp", "open", "high", "low", "close", "volume"]
+                    required_fields = [
+                        "timestamp",
+                        "open",
+                        "high",
+                        "low",
+                        "close",
+                        "volume",
+                    ]
                     for field in required_fields:
                         assert field in candle
 
@@ -149,12 +154,7 @@ def test_error_recovery_workflow():
         assert response.status_code == 422
 
     # 2. Test system still works after errors
-    valid_request = {
-        "symbol": "BTCUSDT",
-        "side": "SELL",
-        "qty": 0.05,
-        "price": 44000.0
-    }
+    valid_request = {"symbol": "BTCUSDT", "side": "SELL", "qty": 0.05, "price": 44000.0}
 
     response = client.post("/trades", json=valid_request)
     assert response.status_code == 201
@@ -197,7 +197,9 @@ def test_concurrent_trading_operations():
 
     # Verify each trade has correct data
     for i, trade in enumerate(created_trades):
-        original_request = next(r for r in trade_requests if r["symbol"] == trade["symbol"])
+        original_request = next(
+            r for r in trade_requests if r["symbol"] == trade["symbol"]
+        )
         assert trade["side"] == original_request["side"]
         assert trade["qty"] == original_request["qty"]
         assert trade["price"] == original_request["price"]
