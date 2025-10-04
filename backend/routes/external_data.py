@@ -42,20 +42,18 @@ async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
         logger.error(f"Failed to fetch Binance data for {symbol}: {e}")
     
     # Fallback to demo data if API fails
-    candles: list[Dict[str, Any]] = []
+    candles: list[dict[str, float]] = []
     price: float = 50000.0 if 'BTC' in symbol else 3000.0 if 'ETH' in symbol else 100.0
-    
     for i in range(min(limit, 100)):
         candles.append({
-            "timestamp": f"t{i}",
+            "timestamp": float(i),
             "open": price,
             "high": price + (price * 0.01),
-            "low": price - (price * 0.01), 
+            "low": price - (price * 0.01),
             "close": price + (i % 3 - 1) * (price * 0.002),
-            "volume": 100 + i,
+            "volume": 100.0 + float(i),
         })
         price = float(candles[-1]["close"])
-
     return {"candles": candles}
 
 
