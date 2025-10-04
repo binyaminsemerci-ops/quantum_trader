@@ -34,8 +34,8 @@ describe('Settings page', () => {
     // fill required fields for default exchange (binance)
   const keyInput = await screen.findByLabelText(/Binance API Key/i, { selector: 'input' });
   const secretInput = await screen.findByLabelText(/Binance API Secret/i, { selector: 'input' });
-    fireEvent.change(keyInput, { target: { value: 'test-key' } });
-    fireEvent.change(secretInput, { target: { value: 'test-secret' } });
+    fireEvent.change(keyInput, { target: { value: 'test-key' } }); // pragma: allowlist secret
+    fireEvent.change(secretInput, { target: { value: 'test-secret' } }); // pragma: allowlist secret
 
     const saveButton = await screen.findByRole('button', { name: /save/i });
     expect(saveButton).toBeDefined();
