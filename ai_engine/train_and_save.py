@@ -52,36 +52,25 @@ class _MeanRegressor:
 
 
 async def _fetch_symbol_data(symbol: str, limit: int = 600):
-    # import the internal async route function and call it
-    from backend.routes import external_data
+    # Import the specific module directly
+    import backend.routes.external_data as external_data
 
     # external_data.binance_ohlcv is async; call with asyncio
     resp = await external_data.binance_ohlcv(symbol=symbol, limit=limit)
     candles = resp.get("candles", [])
 
-    # sentiment: try twitter client
+    # sentiment: try twitter client (free source)
     tw = await external_data.twitter_sentiment(symbol=symbol)
     sent_score = 0.0
     try:
-        sent_score = float(tw.get("sentiment", {}).get("score", 0.0))
+        sent_score = float(tw.get("score", tw.get("sentiment", {}).get("score", 0.0)))
     except Exception:
         sent_score = 0.0
 
-    # news: count
-    news = await external_data.cryptopanic_news(symbol=symbol, limit=200)
-    news_count = len(news.get("news", []))
-
-    # Expand sentiment/news into series aligned to candles
+    # No cryptopanic/news: only use free sources
     n = len(candles)
     sentiment_series = [sent_score] * n
-    news_series = [0] * n
-    if n > 0 and news_count > 0:
-        # place news events sparsely into the array
-        step = max(1, n // news_count)
-        for i in range(0, n, step):
-            if sum(news_series) >= news_count:
-                break
-            news_series[i] = 1
+    news_series = [0] * n  # No news events
 
     return candles, sentiment_series, news_series
 

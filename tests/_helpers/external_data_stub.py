@@ -9,5 +9,3 @@ async def twitter_sentiment(symbol: str) -> Dict[str, Any]:
     return {"score": 0.0, "label": "neutral", "source": "stub"}
 
 
-async def cryptopanic_news(symbol: str, limit: int = 200) -> Dict[str, Any]:
-    return {"news": []}

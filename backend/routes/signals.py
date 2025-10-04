@@ -111,7 +111,7 @@ def _generate_mock_signals(
     summary="Get Recent Trading Signals",
     description="Retrieve the most recent AI-generated trading signals"
 )
-def recent_signals(
+async def recent_signals(
     limit: Annotated[int, Query(ge=1, le=200, description="Maximum number of signals to return")] = 20,
     profile: Annotated[Literal["left", "right", "mixed"], Query(description="Signal generation profile")] = "mixed",
 ) -> List[Dict]:
@@ -130,7 +130,26 @@ def recent_signals(
     Each signal includes confidence scoring, timing information, and
     detailed metadata for informed decision making.
     """
-    return _generate_mock_signals(limit, profile)
+    try:
+        # Import the new live AI signals generator
+        from backend.routes.live_ai_signals import get_live_ai_signals
+        
+        # Get live AI signals
+        signals = await get_live_ai_signals(limit, profile)
+        
+        # If we got signals, return them
+        if signals:
+            logger.info(f"Generated {len(signals)} live AI signals")
+            return signals[:limit]
+        
+        # If no AI signals available, fall back to mock data
+        logger.warning("No AI signals generated, falling back to mock data")
+        return _generate_mock_signals(limit, profile)
+        
+    except Exception as e:
+        logger.error(f"Failed to generate AI signals: {e}")
+        # Fall back to mock data on error
+        return _generate_mock_signals(limit, profile)
 
 
 @router.get(
@@ -139,7 +158,7 @@ def recent_signals(
     summary="List Trading Signals",
     description="Retrieve paginated trading signals with filtering options"
 )
-def list_signals(
+async def list_signals(
     page: Annotated[int, Query(ge=1, description="Page number for pagination")] = 1,
     page_size: Annotated[int, Query(ge=1, le=200, description="Number of signals per page")] = 20,
     profile: Annotated[Literal["left", "right", "mixed"], Query(description="Signal generation profile")] = "mixed",
@@ -163,28 +182,59 @@ def list_signals(
     Each signal includes detailed confidence metrics and reasoning
     to support informed trading decisions.
     """
-    total_available = 500
-    all_signals = _generate_mock_signals(total_available, profile)
+    try:
+        # Get AI signals using the recent_signals logic
+        all_signals_raw = await recent_signals(limit=500, profile=profile)
+        
+        # Filter by symbol if specified
+        if symbol:
+            all_signals_raw = [s for s in all_signals_raw if s["symbol"] == symbol]
 
-    if symbol:
-        all_signals = [s for s in all_signals if s["symbol"] == symbol]
+        total = len(all_signals_raw)
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_items = all_signals_raw[start:end]
 
-    total = len(all_signals)
-    start = (page - 1) * page_size
-    end = start + page_size
-    page_items = all_signals[start:end]
+        # Convert timestamps to datetime for Pydantic model parsing
+        for it in page_items:
+            if isinstance(it["timestamp"], datetime.datetime):
+                continue
+            it["timestamp"] = datetime.datetime.fromisoformat(it["timestamp"])
 
-    # Convert timestamps to datetime for Pydantic model parsing
-    for it in page_items:
-        if isinstance(it["timestamp"], datetime.datetime):
-            continue
-        it["timestamp"] = datetime.datetime.fromisoformat(it["timestamp"])
+        # Convert dicts to Signal instances so the PaginatedSignals items list
+        # has the expected type: List[Signal]. This satisfies mypy and ensures
+        # response_model validation uses the Signal model.
+        signal_items = [Signal(**it) for it in page_items]
 
-    # Convert dicts to Signal instances so the PaginatedSignals items list
-    # has the expected type: List[Signal]. This satisfies mypy and ensures
-    # response_model validation uses the Signal model.
-    signal_items = [Signal(**it) for it in page_items]
+        return PaginatedSignals(
+            total=total, page=page, page_size=page_size, items=signal_items
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to generate paginated AI signals: {e}")
+        # Fall back to mock data on error
+        total_available = 500
+        all_signals = _generate_mock_signals(total_available, profile)
 
-    return PaginatedSignals(
-        total=total, page=page, page_size=page_size, items=signal_items
-    )
+        if symbol:
+            all_signals = [s for s in all_signals if s["symbol"] == symbol]
+
+        total = len(all_signals)
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_items = all_signals[start:end]
+
+        # Convert timestamps to datetime for Pydantic model parsing
+        for it in page_items:
+            if isinstance(it["timestamp"], datetime.datetime):
+                continue
+            it["timestamp"] = datetime.datetime.fromisoformat(it["timestamp"])
+
+        # Convert dicts to Signal instances so the PaginatedSignals items list
+        # has the expected type: List[Signal]. This satisfies mypy and ensures
+        # response_model validation uses the Signal model.
+        signal_items = [Signal(**it) for it in page_items]
+
+        return PaginatedSignals(
+            total=total, page=page, page_size=page_size, items=signal_items
+        )

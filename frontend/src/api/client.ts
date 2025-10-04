@@ -14,6 +14,18 @@ class ApiError extends Error {
   }
 }
 
+// Toast notification support
+type ToastNotification = {
+  showSuccess: (message: string) => void;
+  showError: (message: string) => void;
+};
+
+let toastNotifier: ToastNotification | null = null;
+
+export function setToastNotifier(notifier: ToastNotification): void {
+  toastNotifier = notifier;
+}
+
 async function safeJson(res: Response): Promise<unknown> {
   try {
     const text = await res.text();
