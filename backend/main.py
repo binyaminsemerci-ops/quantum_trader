@@ -10,8 +10,22 @@ from backend.routes import (
     prices,
     candles,
 )
+from backend.exceptions import add_exception_handlers
+from backend.logging_config import setup_logging
+import os
 
-app = FastAPI()
+# Setup logging
+log_level = os.getenv("LOG_LEVEL", "INFO")
+setup_logging(log_level=log_level)
+
+app = FastAPI(
+    title="Quantum Trader API",
+    description="AI-powered cryptocurrency trading platform",
+    version="1.0.0"
+)
+
+# Add exception handlers
+add_exception_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,
