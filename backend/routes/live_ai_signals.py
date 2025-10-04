@@ -4,7 +4,6 @@ Uses live market data to generate real trading signals
 """
 import asyncio
 import aiohttp
-import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Any

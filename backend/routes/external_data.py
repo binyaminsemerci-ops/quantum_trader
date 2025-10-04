@@ -1,6 +1,5 @@
-import asyncio
 import aiohttp
-from typing import Dict, Any, Mapping, Union
+from typing import Dict, Any, Union
 import logging
 
 logger = logging.getLogger(__name__)

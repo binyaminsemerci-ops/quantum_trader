@@ -16,9 +16,8 @@ import json
 from backend.routes.live_ai_signals import get_live_ai_signals
 from backend.utils.exchanges import get_exchange_client
 from backend.utils.risk import RiskManager
-from backend.database import SessionLocal
 from .market_config import (
-    get_trading_pairs, get_market_config, get_risk_config,
+    get_market_config, get_risk_config,
     get_volume_weighted_pairs, is_layer1_layer2_token,
     get_optimal_market_for_token, MARKET_CONFIGS
 )
@@ -399,7 +398,6 @@ class AutonomousTradingBot:
 
     def _should_close_position(self, position: Position, current_price: float) -> bool:
         """Determine if position should be closed"""
-        entry_price = position['entry_price']
         side = position['side']
         stop_loss = position['stop_loss']
         take_profit = position.get('take_profit')
@@ -445,7 +443,7 @@ class AutonomousTradingBot:
 
                 # Note: Real implementation would need to handle different market types
                 # For futures/margin, different API endpoints would be used
-                order_result = self.binance_client.create_order(
+                self.binance_client.create_order(
                     symbol=symbol,
                     side=side.upper(),
                     qty=qty,
