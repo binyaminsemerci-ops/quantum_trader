@@ -247,7 +247,7 @@ npm run test
 
 ```bash
 # Database Configuration
-QUANTUM_TRADER_DATABASE_URL=postgresql://user:pass@host:5432/quantum_trader
+QUANTUM_TRADER_DATABASE_URL=postgresql://user:pass@host:5432/quantum_trader  # pragma: allowlist secret
 
 # API Keys (for live trading)
 BINANCE_API_KEY=your_binance_api_key
