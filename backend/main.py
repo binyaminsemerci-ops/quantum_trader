@@ -21,8 +21,43 @@ setup_logging(log_level=log_level)
 
 app = FastAPI(
     title="Quantum Trader API",
-    description="AI-powered cryptocurrency trading platform",
-    version="1.0.0"
+    description="""
+    ## AI-Powered Cryptocurrency Trading Platform
+
+    Quantum Trader provides comprehensive cryptocurrency trading capabilities with AI-driven decision making.
+
+    ### Features
+    * **Real-time trading** - Execute trades on supported exchanges
+    * **AI signals** - ML-powered buy/sell recommendations  
+    * **Performance monitoring** - Comprehensive metrics and analytics
+    * **Risk management** - Position sizing and risk controls
+    * **Historical analysis** - Backtest strategies and analyze performance
+
+    ### Authentication
+    Most endpoints require API authentication. Set your API keys via the `/api/settings` endpoint.
+
+    ### Rate Limiting
+    API requests are monitored for performance. See `/api/metrics/*` endpoints for current usage.
+
+    ### Support
+    - View logs via structured logging system
+    - Monitor performance with built-in metrics
+    - Database migrations handled via Alembic
+    """,
+    version="1.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+    terms_of_service="https://github.com/binyaminsemerci-ops/quantum_trader/blob/main/LICENSE",
+    contact={
+        "name": "Quantum Trader Team",
+        "url": "https://github.com/binyaminsemerci-ops/quantum_trader",
+        "email": "support@quantumtrader.dev"
+    },
+    license_info={
+        "name": "MIT License",
+        "url": "https://github.com/binyaminsemerci-ops/quantum_trader/blob/main/LICENSE"
+    }
 )
 
 # Add exception handlers
