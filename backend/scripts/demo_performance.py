@@ -18,8 +18,7 @@ from performance_monitor import (
     PerformanceCollector,
     RequestMetrics,
     DatabaseMetrics,
-    performance_timer,
-    get_performance_summary
+    performance_timer
 )
 from datetime import datetime, timezone
 
@@ -108,7 +107,7 @@ async def simulate_api_requests():
 
     db_summary = collector.get_db_summary()
     if "total_queries" in db_summary:
-        print(f"\n🗃️ Database Performance:")
+        print("\n🗃️ Database Performance:")
         print(f"Total Queries: {db_summary['total_queries']}")
         print(f"Average Duration: {db_summary['avg_duration_ms']:.2f}ms")
         print(f"Slow Queries: {db_summary['slow_queries']}")

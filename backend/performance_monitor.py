@@ -19,12 +19,12 @@ import time
 import psutil
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
+from typing import Dict, Any
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, asdict
 from collections import defaultdict, deque
 
-from fastapi import Request, Response
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.event import listen
 from sqlalchemy.engine import Engine

@@ -5,7 +5,6 @@ This module provides common test utilities, mocks, and stubs used across
 the test suite to avoid code duplication and ensure consistent test behavior.
 """
 
-import asyncio
 from typing import List, Dict, Any
 
 
@@ -31,7 +30,6 @@ class TrainAndSaveStub:
         Returns:
             dict: Mock training results
         """
-        import os
         import json
         import pickle
         from pathlib import Path
