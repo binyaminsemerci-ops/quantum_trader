@@ -12,8 +12,8 @@ import logging
 
 from .autonomous_trader import get_trading_bot, start_trading_bot, stop_trading_bot
 
+# NOTE: Do not set prefix here because main.py mounts with prefix="/trading-bot".
 router = APIRouter(
-    prefix="/trading-bot",
     tags=["Trading Bot"],
     responses={
         400: {"description": "Invalid request"},
@@ -96,12 +96,38 @@ async def stop_bot() -> Dict[str, str]:
 
 @router.get("/positions")
 async def get_positions() -> Dict[str, Any]:
-    """Get current trading positions"""
+    """Get current trading positions across all enabled markets."""
     bot = get_trading_bot()
+    positions_summary: Dict[str, Any] = {}
+    total_positions = 0
+    try:
+        # New multi-market structure
+        for market, pos in bot.positions.items():  # type: ignore[attr-defined]
+            market_entries = {}
+            for symbol, p in pos.items():
+                market_entries[symbol] = {
+                    "side": p.get("side"),
+                    "qty": p.get("qty"),
+                    "entry_price": p.get("entry_price"),
+                    "confidence": p.get("confidence"),
+                    "stop_loss": p.get("stop_loss"),
+                    "take_profit": p.get("take_profit"),
+                    "entry_time": p.get("entry_time").isoformat() if p.get("entry_time") else None,
+                }
+            positions_summary[market] = market_entries
+            total_positions += len(pos)
+    except Exception:
+        # Fallback to legacy flat mapping
+        positions_summary = bot.positions  # type: ignore[assignment]
+        total_positions = len(bot.positions)  # type: ignore[arg-type]
+
     return {
-        "positions": bot.positions,
-        "count": len(bot.positions),
-        "balance": bot.balance
+        "positions": positions_summary,
+        "total_positions": total_positions,
+        "markets": list(positions_summary.keys()),
+        "balance": bot.balance,
+        "market_balances": getattr(bot, "market_balances", {}),
+        "running": bot.running,
     }
 
 
