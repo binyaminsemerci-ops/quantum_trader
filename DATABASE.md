@@ -10,7 +10,7 @@ This guide explains how to set up and manage the Quantum Trader database using P
 
 - Better concurrent access handling for real-time trading
 - Proper schema versioning with Alembic
-- Production scalability for XGBoost training workloads  
+- Production scalability for XGBoost training workloads
 - Alignment with existing CI/CD pipeline (already configured for PostgreSQL)
 - Better transaction handling and data integrity
 
