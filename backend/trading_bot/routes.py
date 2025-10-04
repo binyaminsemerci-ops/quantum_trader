@@ -24,7 +24,7 @@ router = APIRouter(
 logger = logging.getLogger(__name__)
 
 # Background task reference
-_bot_task: asyncio.Task = None
+_bot_task: Optional[asyncio.Task] = None
 
 
 @router.get("/status")
@@ -55,7 +55,7 @@ async def start_bot(dry_run: bool = True) -> Dict[str, str]:
         return {
             "status": "started",
             "message": f"Trading bot started in {mode} mode",
-            "dry_run": dry_run
+            "dry_run": str(dry_run)
         }
 
     except Exception as e:
@@ -112,7 +112,7 @@ async def get_positions() -> Dict[str, Any]:
                     "confidence": p.get("confidence"),
                     "stop_loss": p.get("stop_loss"),
                     "take_profit": p.get("take_profit"),
-                    "entry_time": p.get("entry_time").isoformat() if p.get("entry_time") else None,
+                    "entry_time": p["entry_time"].isoformat() if p.get("entry_time") is not None else None,
                 }
             positions_summary[market] = market_entries
             total_positions += len(pos)

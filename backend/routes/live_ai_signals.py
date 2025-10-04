@@ -22,7 +22,7 @@ class SimpleAITrader:
         params: Dict[str, str] = {
             "symbol": symbol,
             "interval": interval,
-            "limit": limit
+            "limit": str(limit)
         }
 
         try:
@@ -116,9 +116,11 @@ class SimpleAITrader:
 
     def calculate_rsi(self, prices: pd.Series, window: int = 14) -> pd.Series:
         """Calculate RSI indicator"""
-        delta = prices.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+        prices_numeric = pd.to_numeric(prices, errors='coerce')
+        delta = prices_numeric.diff()
+        delta_numeric = pd.to_numeric(delta, errors='coerce')
+        gain = (delta_numeric.where(delta_numeric > 0, 0)).rolling(window=window).mean()
+        loss = (-delta_numeric.where(delta_numeric < 0, 0)).rolling(window=window).mean()
         rs = gain / loss
         return 100 - (100 / (1 + rs))
 
