@@ -63,7 +63,7 @@ async def recent_prices(
 
     # Final fallback to demo data
     now = datetime.datetime.now(datetime.timezone.utc)
-    candles: List[Dict] = []
+    fallback_candles: List[Dict] = []
     base = 50000.0 if 'BTC' in symbol else 3000.0 if 'ETH' in symbol else 100.0
 
     for i in range(limit):
@@ -73,7 +73,7 @@ async def recent_prices(
         high_p = max(open_p, close_p) + (base * 0.01)
         low_p = min(open_p, close_p) - (base * 0.01)
         volume = 10 + (i % 7)
-        candles.append({
+        fallback_candles.append({
             "time": t,
             "open": round(open_p, 3),
             "high": round(high_p, 3),
@@ -81,4 +81,4 @@ async def recent_prices(
             "close": round(close_p, 3),
             "volume": volume,
         })
-    return candles
+    return fallback_candles

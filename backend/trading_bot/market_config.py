@@ -62,6 +62,8 @@ def get_trading_pairs(market_type: str = "SPOT") -> List[str]:
         raise ValueError(f"Unsupported market type: {market_type}")
 
     base_currencies = MARKET_CONFIGS[market_type]["base_currencies"]
+    if not isinstance(base_currencies, list):
+        raise TypeError(f"Expected list for base_currencies, got {type(base_currencies)}")
 
     for token in LAYER1_LAYER2_TOKENS:
         for base in base_currencies:

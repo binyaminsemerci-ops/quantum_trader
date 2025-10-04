@@ -53,8 +53,8 @@ async def get_market_data(coin_ids: List[str]) -> List[Dict[str, Any]]:
             "vs_currency": "usd",
             "ids": ",".join(coin_ids),
             "order": "market_cap_desc",
-            "per_page": 100,
-            "page": 1,
+            "per_page": "100",
+            "page": "1",
             "sparkline": "false"
         }
 
