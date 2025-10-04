@@ -110,8 +110,8 @@ def create_demo_settings():
 
         # Create demo settings (masked for security)
         demo_settings = Settings(
-            api_key="demo_api_key_12345",
-            api_secret="demo_secret_67890"
+            api_key="demo_api_key_12345",  # pragma: allowlist secret
+            api_secret="demo_secret_67890"  # pragma: allowlist secret
         )
 
         db.add(demo_settings)

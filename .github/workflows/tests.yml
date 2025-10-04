@@ -25,7 +25,9 @@ jobs:
           pip install -r backend/requirements-dev.txt
 
       - name: Create DB tables
-        run: python -c "from backend.database import Base, engine; Base.metadata.create_all(bind=engine)"
+        run: |
+          cd backend
+          python -c "from database import Base, engine; Base.metadata.create_all(bind=engine); print('Database tables created successfully')"
 
       - name: Run tests
         run: pytest -v backend/tests
