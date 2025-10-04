@@ -1,8 +1,8 @@
 export default [
   {
     ignores: [
-      "dist/**/*", 
-      "node_modules/**/*", 
+      "dist/**/*",
+      "node_modules/**/*",
       "**/*.d.ts",
       "**/*.ts",
       "**/*.tsx",
