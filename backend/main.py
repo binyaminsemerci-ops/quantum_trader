@@ -10,6 +10,7 @@ from backend.routes import (
     prices,
     candles,
 )
+from backend.trading_bot.routes import router as trading_bot_router
 from backend.exceptions import add_exception_handlers
 from backend.logging_config import setup_logging
 from backend.performance_monitor import add_monitoring_middleware
@@ -89,3 +90,4 @@ app.include_router(binance.router, prefix="/binance")
 app.include_router(signals.router, prefix="/signals")
 app.include_router(prices.router, prefix="/prices")
 app.include_router(candles.router, prefix="/candles")
+app.include_router(trading_bot_router, prefix="/trading-bot", tags=["Trading Bot"])

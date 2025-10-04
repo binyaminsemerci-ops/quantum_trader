@@ -1,0 +1,7 @@
+{
+  "training_date": "2025-10-04T18:32:46.714391",
+  "samples": 514,
+  "features": 12,
+  "model_type": "XGBClassifier",
+  "accuracy": "N/A"
+}
