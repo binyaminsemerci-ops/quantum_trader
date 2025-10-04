@@ -8,10 +8,10 @@ import json
 import numpy as np
 from ai_engine.agents.xgb_agent import make_default_agent
 from ai_engine.train_and_save import train_and_save
-from backend.database import create_training_task, update_training_task, get_db  # type: ignore[attr-defined]
+from database import create_training_task, update_training_task, get_db  # type: ignore[attr-defined]
 
 # backend.database exports ORM symbols dynamically; narrow-ignore attr-defined for now
-from backend.database import TrainingTask  # type: ignore[attr-defined]
+from database import TrainingTask  # type: ignore[attr-defined]
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
