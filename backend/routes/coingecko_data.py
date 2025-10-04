@@ -13,7 +13,7 @@ async def get_coin_price_data(coin_id: str, days: int = 7) -> Dict[str, Any]:
     try:
         url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
         params: Dict[str, Union[str, int]] = {"vs_currency": "usd", "days": days}
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params) as response:
                 if response.status == 200:
@@ -25,7 +25,7 @@ async def get_coin_price_data(coin_id: str, days: int = 7) -> Dict[str, Any]:
                     }
     except Exception as e:
         logger.error(f"Failed to fetch price data for {coin_id}: {e}")
-    
+
     return {"prices": [], "market_caps": [], "total_volumes": []}
 
 
@@ -33,7 +33,7 @@ async def get_trending_coins() -> List[Dict[str, Any]]:
     """Get trending coins from CoinGecko."""
     try:
         url = "https://api.coingecko.com/api/v3/search/trending"
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status == 200:
@@ -41,7 +41,7 @@ async def get_trending_coins() -> List[Dict[str, Any]]:
                     return data.get("coins", [])
     except Exception as e:
         logger.error(f"Failed to fetch trending coins: {e}")
-    
+
     return []
 
 
@@ -57,14 +57,14 @@ async def get_market_data(coin_ids: List[str]) -> List[Dict[str, Any]]:
             "page": 1,
             "sparkline": "false"
         }
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params) as response:
                 if response.status == 200:
                     return await response.json()
     except Exception as e:
         logger.error(f"Failed to fetch market data: {e}")
-    
+
     return []
 
 
@@ -72,7 +72,7 @@ async def get_global_market_data() -> Dict[str, Any]:
     """Get global cryptocurrency market data."""
     try:
         url = "https://api.coingecko.com/api/v3/global"
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status == 200:
@@ -80,7 +80,7 @@ async def get_global_market_data() -> Dict[str, Any]:
                     return data.get("data", {})
     except Exception as e:
         logger.error(f"Failed to fetch global market data: {e}")
-    
+
     return {}
 
 
@@ -88,7 +88,7 @@ def symbol_to_coingecko_id(symbol: str) -> str:
     """Convert trading symbol to CoinGecko coin ID."""
     symbol_map = {
         "BTCUSDT": "bitcoin",
-        "ETHUSDT": "ethereum", 
+        "ETHUSDT": "ethereum",
         "ADAUSDT": "cardano",
         "SOLUSDT": "solana",
         "DOGEUSDT": "dogecoin",
@@ -98,5 +98,5 @@ def symbol_to_coingecko_id(symbol: str) -> str:
         "AVAXUSDT": "avalanche-2",
         "ATOMUSDT": "cosmos"
     }
-    
+
     return symbol_map.get(symbol.upper(), symbol.lower().replace("usdt", ""))

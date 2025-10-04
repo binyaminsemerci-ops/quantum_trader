@@ -1,7 +1,7 @@
 """Initial schema - TradeLog and Settings tables
 
 Revision ID: 001_initial_schema
-Revises: 
+Revises:
 Create Date: 2025-10-04 13:50:00.000000
 
 """

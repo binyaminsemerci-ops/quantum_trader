@@ -32,7 +32,7 @@ def client(test_db_file):
     # Import here so that backend.database reads the env var we set above
     from backend.main import app
     from backend.database import Base, engine
-    
+
     # Create all tables for the test
     Base.metadata.create_all(bind=engine)
 

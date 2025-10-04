@@ -29,7 +29,7 @@ app = FastAPI(
 
     ### Features
     * **Real-time trading** - Execute trades on supported exchanges
-    * **AI signals** - ML-powered buy/sell recommendations  
+    * **AI signals** - ML-powered buy/sell recommendations
     * **Performance monitoring** - Comprehensive metrics and analytics
     * **Risk management** - Position sizing and risk controls
     * **Historical analysis** - Backtest strategies and analyze performance
@@ -90,4 +90,4 @@ app.include_router(binance.router, prefix="/binance")
 app.include_router(signals.router, prefix="/signals")
 app.include_router(prices.router, prefix="/prices")
 app.include_router(candles.router, prefix="/candles")
-app.include_router(trading_bot_router, prefix="/trading-bot", tags=["Trading Bot"]) 
+app.include_router(trading_bot_router, prefix="/trading-bot", tags=["Trading Bot"])
