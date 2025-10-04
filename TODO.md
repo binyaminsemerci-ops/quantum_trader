@@ -13,14 +13,14 @@ This file lists actionable follow-ups now that the repo reflects the demo snapsh
 
 ## Medium Priority
 
-- [ ] **Database story**: decide whether to keep SQLite or restore PostgreSQL + Alembic migrations; update docs accordingly and add seed data scripts for demos.
+- [x] **Database story**: decide whether to keep SQLite or restore PostgreSQL + Alembic migrations; update docs accordingly and add seed data scripts for demos.
 - [x] **Feature parity**: make sure all UI components read from the updated APIs (no more hardcoded/mocked data) and that settings persist between sessions.
 - [x] **Error boundaries**: add React error boundaries to the frontend and proper exception handling in backend routes.
 - [x] **Testing coverage**: add integration tests for the main trading workflows and extend unit test coverage.
 
 ## Low Priority
 
-- [ ] **Performance monitoring**: add metrics/logging for response times, database queries, and frontend bundle size.
+- [x] **Performance monitoring**: add metrics/logging for response times, database queries, and frontend bundle size.
 - [ ] **Documentation polish**: review all README files, add API documentation with OpenAPI, and create deployment guides.
 - [ ] **UX polish**: add notifications/toasts for key events (saving settings, executing orders), loading states, and better error messages.
 - [ ] **Security audit**: review authentication flow, add rate limiting, and ensure all user inputs are properly validated.
@@ -36,3 +36,5 @@ This file lists actionable follow-ups now that the repo reflects the demo snapsh
 - ✅ **Enhanced API client**: created type-safe frontend API client with proper error handling
 - ✅ **Integration tests**: added 13+ comprehensive workflow and error handling tests (50 total tests now pass)
 - ✅ **Logging system**: structured logging with rotation, multiple levels, and error tracking
+- ✅ **Database architecture**: implemented PostgreSQL + Alembic migrations with comprehensive setup guide and demo data seeding scripts
+- ✅ **Performance monitoring**: comprehensive metrics collection for HTTP requests, database queries, system resources with /api/metrics endpoints
