@@ -1,6 +1,5 @@
 """CoinGecko API integration for live market data and news."""
 
-import asyncio
 import aiohttp
 from typing import Dict, Any, List, Union
 import logging

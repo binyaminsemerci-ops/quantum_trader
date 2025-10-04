@@ -5,7 +5,6 @@ Provides structured logging with rotation and different levels.
 import logging
 import logging.handlers
 import os
-from datetime import datetime, timezone
 
 
 def setup_logging(log_level: str = "INFO", log_dir: str = "logs") -> None:

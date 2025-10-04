@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from sqlalchemy.exc import SQLAlchemyError
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 
 from backend.database import get_db, TradeLog
 

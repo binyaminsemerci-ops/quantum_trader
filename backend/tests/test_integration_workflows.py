@@ -2,7 +2,6 @@
 Integration tests for main trading workflows in Quantum Trader.
 Tests complete end-to-end scenarios and API interactions.
 """
-import pytest
 from fastapi.testclient import TestClient
 from backend.main import app
 
@@ -76,7 +75,8 @@ def test_settings_persistence_workflow():
     # 1. Get current settings
     get_response = client.get("/settings")
     assert get_response.status_code == 200
-    current_settings = get_response.json()
+    # Verify settings are accessible but don't need to store them
+    assert isinstance(get_response.json(), dict)
 
     # 2. Update settings
     new_settings = {

@@ -3,7 +3,7 @@ Market configuration for multi-market trading on Binance.
 Supports SPOT (USDC), FUTURES (USDC), MARGIN (USDC/USDT), CROSS-MARGIN (USDC/USDT).
 """
 
-from typing import Dict, List, Set
+from typing import Dict, List
 import logging
 
 # Layer 1 & Layer 2 tokens with high volume (top 50)

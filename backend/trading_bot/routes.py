@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional
 import asyncio
 import logging
 
-from .autonomous_trader import get_trading_bot, start_trading_bot, stop_trading_bot
+from .autonomous_trader import get_trading_bot
 
 # NOTE: Do not set prefix here because main.py mounts with prefix="/trading-bot".
 router = APIRouter(

@@ -5,9 +5,6 @@ These tests verify that performance metrics are correctly collected
 and that monitoring endpoints work as expected.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
-import json
 from datetime import datetime, timezone
 
 from backend.performance_monitor import (
@@ -15,7 +12,6 @@ from backend.performance_monitor import (
     PerformanceCollector,
     RequestMetrics,
     DatabaseMetrics,
-    performance_timer,
 )
 
 
@@ -101,7 +97,6 @@ class TestPerformanceMonitoring:
     def test_slow_request_detection(self):
         """Test that slow requests are properly detected in metrics."""
         from backend.performance_monitor import RequestMetrics
-        from datetime import datetime, timezone
 
         # Add a slow request metric
         slow_metric = RequestMetrics(
@@ -124,7 +119,6 @@ class TestPerformanceMonitoring:
     def test_endpoint_performance_grouping(self):
         """Test that endpoint performance is correctly grouped."""
         from backend.performance_monitor import RequestMetrics
-        from datetime import datetime, timezone
 
         collector.request_metrics.clear()
 
