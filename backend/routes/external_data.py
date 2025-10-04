@@ -1,6 +1,6 @@
 import asyncio
 import aiohttp
-from typing import Dict, Any
+from typing import Dict, Any, Mapping, Union
 import logging
 
 logger = logging.getLogger(__name__)
@@ -11,7 +11,8 @@ async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
     try:
         # Binance public klines endpoint
         url = "https://api.binance.com/api/v3/klines"
-        params = {
+        # Explicit param typing to satisfy type checkers (str -> str|int)
+        params: Dict[str, Union[str, int]] = {
             "symbol": symbol.upper(),
             "interval": "1m",  # 1 minute candles
             "limit": min(limit, 1000)  # Binance max is 1000
@@ -65,7 +66,7 @@ async def twitter_sentiment(symbol: str) -> Dict[str, Any]:
         coin_id = symbol.lower().replace('usdt', '').replace('btc', 'bitcoin').replace('eth', 'ethereum')
         
         url = f"https://api.coingecko.com/api/v3/coins/{coin_id}"
-        params = {"localization": "false", "tickers": "false", "market_data": "true", "community_data": "true"}
+        params: Dict[str, str] = {"localization": "false", "tickers": "false", "market_data": "true", "community_data": "true"}
         
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params) as response:

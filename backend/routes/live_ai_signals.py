@@ -18,7 +18,8 @@ class SimpleAITrader:
     async def get_binance_data(self, symbol: str, interval: str = "1h", limit: int = 50):
         """Fetch live OHLCV data from Binance"""
         url = "https://api.binance.com/api/v3/klines"
-        params = {
+        from typing import Dict
+        params: Dict[str, str] = {
             "symbol": symbol,
             "interval": interval,
             "limit": limit

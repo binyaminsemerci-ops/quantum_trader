@@ -158,34 +158,6 @@ class ExternalDataStub:
             "tweet_count": 25
         }
     
-    async def cryptopanic_news(self, symbol: str) -> Dict[str, List[Dict[str, Any]]]:
-        """
-        Mock CryptoPanic news data for testing.
-        
-        Args:
-            symbol: Trading pair symbol
-            
-        Returns:
-            Dictionary with news articles
-        """
-        return {
-            "news": [
-                {
-                    "id": "n1",
-                    "title": f"{symbol} shows strong technical indicators",
-                    "url": "https://example.com/news1",
-                    "sentiment": "positive",
-                    "published_at": "2025-10-04T12:00:00Z"
-                },
-                {
-                    "id": "n2", 
-                    "title": f"Market analysis: {symbol} outlook",
-                    "url": "https://example.com/news2",
-                    "sentiment": "neutral",
-                    "published_at": "2025-10-04T11:30:00Z"
-                }
-            ]
-        }
 
 
 # Create a global instance for easy importing

@@ -36,12 +36,12 @@ class AutonomousTradingBot:
     4. Logs all activities to database
     """
     
-    def __init__(self, 
+    def __init__(self,
                  balance: float = 10000.0,
                  risk_per_trade: float = 0.01,  # 1% risk per trade
                  min_confidence: float = 0.4,
                  dry_run: bool = True,
-                 enabled_markets: List[str] = None):
+                 enabled_markets: Optional[List[str]] = None):
         
         self.balance = balance
         self.risk_per_trade = risk_per_trade

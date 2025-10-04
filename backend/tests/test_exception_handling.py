@@ -1,10 +1,8 @@
 """
 Tests for exception handling and error boundaries in the API.
 """
-import pytest
 from fastapi.testclient import TestClient
 from backend.main import app
-
 client = TestClient(app)
 
 

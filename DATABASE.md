@@ -7,6 +7,7 @@ This guide explains how to set up and manage the Quantum Trader database using P
 **Decision**: Use PostgreSQL with Alembic migrations for production-ready schema management.
 
 **Rationale**:
+
 - Better concurrent access handling for real-time trading
 - Proper schema versioning with Alembic
 - Production scalability for XGBoost training workloads  
@@ -34,23 +35,27 @@ python scripts/seed_demo_data.py
 1. **Install PostgreSQL** (version 12+)
 
 2. **Create Database**:
+
 ```sql
 createdb quantum_trader
 ```
 
-3. **Set Environment Variables**:
+1. **Set Environment Variables**:
+
 ```bash
 export QUANTUM_TRADER_DATABASE_URL="postgresql://username:password@localhost/quantum_trader"
 ```
 
-4. **Run Migrations**:
+1. **Run Migrations**:
+
 ```bash
 cd backend
 pip install -r requirements.txt
 alembic upgrade head
 ```
 
-5. **Seed Demo Data**:
+1. **Seed Demo Data**:
+
 ```bash
 python scripts/seed_demo_data.py
 ```
@@ -71,6 +76,7 @@ python scripts/seed_demo_data.py
 Current schema includes:
 
 ### `trade_logs` table
+
 - `id` (Primary Key)
 - `symbol` (String, indexed) - Trading pair (e.g., "BTCUSDT")
 - `side` (String) - "BUY" or "SELL"
@@ -81,6 +87,7 @@ Current schema includes:
 - `timestamp` (DateTime) - When trade occurred
 
 ### `settings` table  
+
 - `id` (Primary Key)
 - `api_key` (String) - Binance API key
 - `api_secret` (String) - Binance API secret
@@ -88,22 +95,26 @@ Current schema includes:
 ## Migration Management
 
 ### Create New Migration
+
 ```bash
 alembic revision --autogenerate -m "Description of changes"
 ```
 
 ### Apply Migrations
+
 ```bash
 alembic upgrade head
 ```
 
 ### Rollback Migration
+
 ```bash
 alembic downgrade -1  # Go back one migration
 alembic downgrade base  # Reset to empty state
 ```
 
 ### Check Migration Status
+
 ```bash
 alembic current
 alembic history --verbose
@@ -114,18 +125,22 @@ alembic history --verbose
 The database connection is configured via the `QUANTUM_TRADER_DATABASE_URL` environment variable:
 
 ### PostgreSQL (Production)
+
 ```bash
 export QUANTUM_TRADER_DATABASE_URL="postgresql://user:pass@localhost:5432/quantum_trader"
 ```
 
 ### SQLite (Development)
+
 ```bash
 # Leave unset to use default SQLite file
 unset QUANTUM_TRADER_DATABASE_URL
 ```
 
 ### Docker Compose
+
 The `docker-compose.yml` already configures PostgreSQL with:
+
 - Host: `postgres` (internal Docker network)
 - Port: `5432`
 - Database: `quantum`
@@ -141,6 +156,7 @@ pytest backend/tests/
 ```
 
 For SQLite testing:
+
 ```bash
 export QUANTUM_TRADER_DATABASE_URL="sqlite:///test.db"
 pytest backend/tests/
@@ -151,16 +167,19 @@ pytest backend/tests/
 1. **Set up PostgreSQL instance** (AWS RDS, Google Cloud SQL, etc.)
 
 2. **Configure connection string** with credentials:
+
 ```bash
 export QUANTUM_TRADER_DATABASE_URL="postgresql://prod_user:prod_pass@db.example.com:5432/quantum_trader"
 ```
 
-3. **Run migrations**:
+1. **Run migrations**:
+
 ```bash
 alembic upgrade head
 ```
 
-4. **Optional: Seed with production data**:
+1. **Optional: Seed with production data**:
+
 ```bash
 python scripts/seed_demo_data.py  # Only for demos
 ```
@@ -170,15 +189,18 @@ python scripts/seed_demo_data.py  # Only for demos
 ### Common Issues
 
 **Connection Refused**:
+
 - Check PostgreSQL is running: `pg_isready`
 - Verify connection string format
 - Check firewall/network access
 
 **Permission Denied**:
+
 - Ensure database user has CREATE/ALTER privileges
 - Check authentication method in `pg_hba.conf`
 
 **Migration Conflicts**:
+
 ```bash
 # Reset migrations (DESTRUCTIVE)
 alembic downgrade base
