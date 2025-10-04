@@ -89,9 +89,9 @@ async def get_trades(
             query = query.filter(TradeLog.symbol == symbol.upper())
         if status:
             query = query.filter(TradeLog.status == status.upper())
-        if from_date:
+        if from_date is not None:
             query = query.filter(TradeLog.timestamp >= from_date)
-        if to_date:
+        if to_date is not None:
             query = query.filter(TradeLog.timestamp <= to_date)
         
         # Apply ordering and limit

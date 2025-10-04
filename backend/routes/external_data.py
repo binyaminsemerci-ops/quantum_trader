@@ -22,10 +22,10 @@ async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
             async with session.get(url, params=params) as response:
                 if response.status == 200:
                     data = await response.json()
-                    candles = []
+                    api_candles = []
                     
                     for kline in data:
-                        candles.append({
+                        api_candles.append({
                             "timestamp": int(kline[0]),  # Open time
                             "open": float(kline[1]),
                             "high": float(kline[2]), 
@@ -34,7 +34,7 @@ async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
                             "volume": float(kline[5])
                         })
                     
-                    return {"candles": candles}
+                    return {"candles": api_candles}
                 else:
                     logger.warning(f"Binance API error: {response.status}")
                     
@@ -55,6 +55,11 @@ async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
         })
         price = float(candles[-1]["close"])
     return {"candles": candles}
+
+
+def cryptopanic_news():
+    """Returns mock news data for cryptopanic API."""
+    return [{"headline": "Mock news", "source": "cryptopanic"}]
 
 
 async def twitter_sentiment(symbol: str) -> Dict[str, Any]:
