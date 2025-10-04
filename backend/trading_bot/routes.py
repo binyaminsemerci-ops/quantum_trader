@@ -6,7 +6,7 @@ REST endpoints to control the autonomous trading bot
 """
 
 from fastapi import APIRouter, HTTPException
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import asyncio
 import logging
 
@@ -133,9 +133,9 @@ async def get_positions() -> Dict[str, Any]:
 
 @router.post("/settings")
 async def update_settings(
-    risk_per_trade: float = None,
-    min_confidence: float = None,
-    balance: float = None
+    risk_per_trade: Optional[float] = None,
+    min_confidence: Optional[float] = None,
+    balance: Optional[float] = None
 ) -> Dict[str, str]:
     """Update bot settings"""
     try:
