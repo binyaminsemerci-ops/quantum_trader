@@ -1,8 +1,0 @@
-// backup of original SignalsList.jsx
-// original content preserved
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Table, Badge, Button, Spinner, Card } from 'react-bootstrap';
-import moment from 'moment';
-
-// ...original content preserved in backup

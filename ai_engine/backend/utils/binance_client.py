@@ -11,7 +11,7 @@ client = Client(API_KEY, API_SECRET)
 
 def fetch_recent_trades(symbol="BTCUSDT", limit=5):
     trades = client.get_recent_trades(symbol=symbol, limit=limit)
-    timestamp = datetime.datetime.utcnow().isoformat()
+    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
     for t in trades:
         log_trade(
             symbol,
