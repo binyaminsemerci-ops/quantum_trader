@@ -1,6 +1,6 @@
 from typing import Any, cast
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base
 
@@ -48,7 +48,7 @@ class TradeLog(Base):  # type: ignore[valid-type,misc]
     price = Column(Float)
     status = Column(String)
     reason = Column(String, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class Settings(Base):  # type: ignore[valid-type,misc]

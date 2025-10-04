@@ -1,5 +1,5 @@
 from backend.database import get_db, TradeLog
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Any
 
 
@@ -35,7 +35,7 @@ def log_trade(trade: dict[str, Any], status: str, reason: Optional[str] = None):
             status=status,
             reason=reason,
             # 🔑 Bruk datetime-objekt, ikke string
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
         db.add(log)
         db.commit()

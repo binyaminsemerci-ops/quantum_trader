@@ -53,3 +53,5 @@ package-lock.json
 run-*-logs.txt
 run-*-logs.zip
 run-*-log.txt
+/.pytest_cache/
+/.pytest_cache/
