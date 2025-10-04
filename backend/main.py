@@ -12,6 +12,7 @@ from backend.routes import (
 )
 from backend.exceptions import add_exception_handlers
 from backend.logging_config import setup_logging
+from backend.performance_monitor import add_monitoring_middleware
 import os
 
 # Setup logging
@@ -26,6 +27,9 @@ app = FastAPI(
 
 # Add exception handlers
 add_exception_handlers(app)
+
+# Add performance monitoring
+add_monitoring_middleware(app)
 
 app.add_middleware(
     CORSMiddleware,
