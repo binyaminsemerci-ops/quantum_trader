@@ -6,17 +6,7 @@ import type { Trade, StatSummary, OHLCV, ApiResponse } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-// Enhanced error handling
-class ApiError extends Error {
-  constructor(
-    message: string,
-    public status?: number,
-    public response?: Response
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
+// Enhanced error handling available when needed
 
 interface CreateTradeRequest {
   symbol: string;

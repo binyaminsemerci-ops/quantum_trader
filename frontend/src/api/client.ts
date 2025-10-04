@@ -2,17 +2,7 @@ import type { Trade, StatSummary, OHLCV, ApiResponse } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-// Enhanced error handling
-class ApiError extends Error {
-  constructor(
-    message: string,
-    public status?: number,
-    public response?: Response
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
+// Enhanced error handling available when needed
 
 // Toast notification support
 type ToastNotification = {
@@ -20,10 +10,8 @@ type ToastNotification = {
   showError: (message: string) => void;
 };
 
-let toastNotifier: ToastNotification | null = null;
-
-export function setToastNotifier(notifier: ToastNotification): void {
-  toastNotifier = notifier;
+export function setToastNotifier(_notifier: ToastNotification): void {
+  // Toast notifications can be implemented here when needed
 }
 
 async function safeJson(res: Response): Promise<unknown> {
@@ -37,20 +25,7 @@ async function safeJson(res: Response): Promise<unknown> {
   }
 }
 
-async function handleResponse<T>(res: Response, defaultValue: T): Promise<ApiResponse<T>> {
-  if (!res.ok) {
-    const errorData = await safeJson(res);
-    const errorMessage = isRecord(errorData) && typeof errorData.message === 'string'
-      ? errorData.message
-      : `HTTP ${res.status}: ${res.statusText}`;
 
-    console.error('API Error:', errorMessage, errorData);
-    return { error: errorMessage };
-  }
-
-  const payload = await safeJson(res);
-  return { data: payload as T };
-}
 
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null;
