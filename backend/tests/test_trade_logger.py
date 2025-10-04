@@ -1,11 +1,17 @@
 from backend.utils.trade_logger import log_trade
-from backend.database import get_db, TradeLog
+from backend.database import get_db, TradeLog, Base, engine
 
 
 def setup_module(module):
+    # Ensure table exists before test
+    Base.metadata.create_all(bind=engine)
     db = next(get_db())
-    db.query(TradeLog).delete()
-    db.commit()
+    try:
+        db.query(TradeLog).delete()
+        db.commit()
+    except Exception:
+        # If table doesn't exist or error occurs, continue
+        db.rollback()
 
 
 def test_trade_logs_endpoint():
