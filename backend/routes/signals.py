@@ -137,7 +137,7 @@ async def recent_signals(
     """
     try:
         # Import the new live AI signals generator
-        from backend.routes.live_ai_signals import get_live_ai_signals
+        from routes.live_ai_signals import get_live_ai_signals
 
         # Get live AI signals
         signals = await get_live_ai_signals(limit, profile)

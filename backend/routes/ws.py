@@ -1,8 +1,8 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from backend.database import get_db
-from backend.utils.pnl import calculate_pnl, calculate_pnl_per_symbol
-from backend.utils.risk import calculate_risk
-from backend.utils.analytics import calculate_analytics
+from database import get_db
+from utils.pnl import calculate_pnl, calculate_pnl_per_symbol
+from utils.risk import calculate_risk
+from utils.analytics import calculate_analytics
 import json
 import asyncio
 
