@@ -27,8 +27,8 @@ router = APIRouter(
         400: {"description": "Invalid request parameters"},
         404: {"description": "Signals not found"},
         429: {"description": "Rate limit exceeded"},
-        500: {"description": "Signal generation error"}
-    }
+        500: {"description": "Signal generation error"},
+    },
 )
 
 # module logger for Bandit-friendly error handling
@@ -38,8 +38,12 @@ logger = logging.getLogger(__name__)
 class SignalDetails(BaseModel):
     """Additional details and metadata for trading signals."""
 
-    source: str = Field(description="Signal source identifier (AI model, indicator, etc.)")
-    note: Optional[str] = Field(default=None, description="Additional signal context or reasoning")
+    source: str = Field(
+        description="Signal source identifier (AI model, indicator, etc.)"
+    )
+    note: Optional[str] = Field(
+        default=None, description="Additional signal context or reasoning"
+    )
 
 
 class Signal(BaseModel):
@@ -50,14 +54,10 @@ class Signal(BaseModel):
     symbol: str = Field(description="Trading pair symbol (e.g., BTCUSDT)")
     side: Literal["buy", "sell"] = Field(description="Recommended trading action")
     score: float = Field(
-        ge=0.0,
-        le=1.0,
-        description="Signal strength score (0.0 = weak, 1.0 = strong)"
+        ge=0.0, le=1.0, description="Signal strength score (0.0 = weak, 1.0 = strong)"
     )
     confidence: float = Field(
-        ge=0.0,
-        le=1.0,
-        description="Model confidence in signal (0.0 = low, 1.0 = high)"
+        ge=0.0, le=1.0, description="Model confidence in signal (0.0 = low, 1.0 = high)"
     )
     details: SignalDetails = Field(description="Additional signal metadata and context")
 
@@ -109,11 +109,16 @@ def _generate_mock_signals(
     "/recent",
     response_model=List[Dict],
     summary="Get Recent Trading Signals",
-    description="Retrieve the most recent AI-generated trading signals"
+    description="Retrieve the most recent AI-generated trading signals",
 )
 async def recent_signals(
-    limit: Annotated[int, Query(ge=1, le=200, description="Maximum number of signals to return")] = 20,
-    profile: Annotated[Literal["left", "right", "mixed"], Query(description="Signal generation profile")] = "mixed",
+    limit: Annotated[
+        int, Query(ge=1, le=200, description="Maximum number of signals to return")
+    ] = 20,
+    profile: Annotated[
+        Literal["left", "right", "mixed"],
+        Query(description="Signal generation profile"),
+    ] = "mixed",
 ) -> List[Dict]:
     """
     Retrieve recent AI trading signals.
@@ -156,13 +161,20 @@ async def recent_signals(
     "/",
     response_model=PaginatedSignals,
     summary="List Trading Signals",
-    description="Retrieve paginated trading signals with filtering options"
+    description="Retrieve paginated trading signals with filtering options",
 )
 async def list_signals(
     page: Annotated[int, Query(ge=1, description="Page number for pagination")] = 1,
-    page_size: Annotated[int, Query(ge=1, le=200, description="Number of signals per page")] = 20,
-    profile: Annotated[Literal["left", "right", "mixed"], Query(description="Signal generation profile")] = "mixed",
-    symbol: Optional[str] = Query(None, description="Filter signals by trading pair symbol"),
+    page_size: Annotated[
+        int, Query(ge=1, le=200, description="Number of signals per page")
+    ] = 20,
+    profile: Annotated[
+        Literal["left", "right", "mixed"],
+        Query(description="Signal generation profile"),
+    ] = "mixed",
+    symbol: Optional[str] = Query(
+        None, description="Filter signals by trading pair symbol"
+    ),
 ):
     """
     Retrieve paginated trading signals with comprehensive filtering.

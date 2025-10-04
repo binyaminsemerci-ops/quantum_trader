@@ -12,13 +12,13 @@ import sys
 import os
 
 # Add backend directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from performance_monitor import (
     PerformanceCollector,
     RequestMetrics,
     DatabaseMetrics,
-    performance_timer
+    performance_timer,
 )
 from datetime import datetime, timezone
 
@@ -43,7 +43,7 @@ async def simulate_api_requests():
             duration_ms=duration_ms,
             timestamp=datetime.now(timezone.utc).isoformat(),
             db_queries=0,
-            memory_mb=45.2
+            memory_mb=45.2,
         )
         collector.add_request_metric(metric)
 
@@ -61,7 +61,7 @@ async def simulate_api_requests():
             timestamp=datetime.now(timezone.utc).isoformat(),
             db_queries=2,
             db_time_ms=15.5,
-            memory_mb=47.1
+            memory_mb=47.1,
         )
         collector.add_request_metric(metric)
 
@@ -69,7 +69,7 @@ async def simulate_api_requests():
         db_metric = DatabaseMetrics(
             query="SELECT * FROM trade_logs ORDER BY timestamp DESC LIMIT 100",
             duration_ms=12.3,
-            timestamp=datetime.now(timezone.utc).isoformat()
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
         collector.add_db_metric(db_metric)
 
@@ -86,7 +86,7 @@ async def simulate_api_requests():
         timestamp=datetime.now(timezone.utc).isoformat(),
         db_queries=3,
         db_time_ms=45.2,
-        memory_mb=49.8
+        memory_mb=49.8,
     )
     collector.add_request_metric(slow_metric)
 
@@ -102,7 +102,7 @@ async def simulate_api_requests():
     print(f"Average DB Queries: {request_summary['avg_db_queries']:.1f}")
 
     print("\n🎯 Endpoint Performance:")
-    for endpoint, stats in request_summary['endpoint_performance'].items():
+    for endpoint, stats in request_summary["endpoint_performance"].items():
         print(f"  {endpoint}: {stats['count']} requests, avg {stats['avg_ms']:.2f}ms")
 
     db_summary = collector.get_db_summary()
@@ -138,6 +138,7 @@ def demo_system_metrics():
 
     try:
         import psutil
+
         process = psutil.Process()
 
         print(f"CPU Usage: {process.cpu_percent():.1f}%")

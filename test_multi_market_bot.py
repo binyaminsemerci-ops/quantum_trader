@@ -7,13 +7,18 @@ import asyncio
 import logging
 from backend.trading_bot.autonomous_trader import AutonomousTradingBot
 from backend.trading_bot.market_config import (
-    get_trading_pairs, get_volume_weighted_pairs,
-    is_layer1_layer2_token, get_optimal_market_for_token
+    get_trading_pairs,
+    get_volume_weighted_pairs,
+    is_layer1_layer2_token,
+    get_optimal_market_for_token,
 )
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
+
 
 async def test_multi_market_bot():
     """Test the multi-market trading bot functionality"""
@@ -43,9 +48,9 @@ async def test_multi_market_bot():
     bot = AutonomousTradingBot(
         balance=50000.0,  # $50k split across markets
         risk_per_trade=0.001,  # 0.1% risk per trade (smaller for testing)
-        min_confidence=0.5,   # Higher confidence threshold
-        dry_run=True,         # SAFE: Dry run mode
-        enabled_markets=["SPOT", "FUTURES"]  # Test with 2 markets
+        min_confidence=0.5,  # Higher confidence threshold
+        dry_run=True,  # SAFE: Dry run mode
+        enabled_markets=["SPOT", "FUTURES"],  # Test with 2 markets
     )
 
     # Display bot configuration
@@ -63,33 +68,35 @@ async def test_multi_market_bot():
     # Create mock AI signals for testing
     mock_signals = [
         {
-            'symbol': 'BTCUSDC',
-            'side': 'buy',
-            'confidence': 0.85,
-            'timestamp': '2025-10-04T19:30:00',
-            'reason': 'Strong bullish momentum detected'
+            "symbol": "BTCUSDC",
+            "side": "buy",
+            "confidence": 0.85,
+            "timestamp": "2025-10-04T19:30:00",
+            "reason": "Strong bullish momentum detected",
         },
         {
-            'symbol': 'ETHUSDC',
-            'side': 'buy',
-            'confidence': 0.72,
-            'timestamp': '2025-10-04T19:30:00',
-            'reason': 'Layer 2 scaling adoption increasing'
+            "symbol": "ETHUSDC",
+            "side": "buy",
+            "confidence": 0.72,
+            "timestamp": "2025-10-04T19:30:00",
+            "reason": "Layer 2 scaling adoption increasing",
         },
         {
-            'symbol': 'MATICUSDC',
-            'side': 'sell',
-            'confidence': 0.68,
-            'timestamp': '2025-10-04T19:30:00',
-            'reason': 'Overbought conditions on technical indicators'
-        }
+            "symbol": "MATICUSDC",
+            "side": "sell",
+            "confidence": 0.68,
+            "timestamp": "2025-10-04T19:30:00",
+            "reason": "Overbought conditions on technical indicators",
+        },
     ]
 
     # Process mock signals
     logger.info(f"\n⚡ Processing {len(mock_signals)} mock AI signals...")
 
     for signal in mock_signals:
-        logger.info(f"\n📡 Processing signal: {signal['symbol']} {signal['side']} (confidence: {signal['confidence']})")
+        logger.info(
+            f"\n📡 Processing signal: {signal['symbol']} {signal['side']} (confidence: {signal['confidence']})"
+        )
         await bot._process_signal(signal)
 
     # Display final positions
@@ -101,11 +108,14 @@ async def test_multi_market_bot():
         logger.info(f"   {market_type}: {len(positions)} positions")
 
         for symbol, position in positions.items():
-            logger.info(f"     • {symbol}: {position['side']} {position['qty']} @ ${position['entry_price']:.2f}")
+            logger.info(
+                f"     • {symbol}: {position['side']} {position['qty']} @ ${position['entry_price']:.2f}"
+            )
             total_positions += 1
 
     logger.info(f"\n✅ Test completed - Total positions opened: {total_positions}")
     logger.info("=" * 60)
+
 
 if __name__ == "__main__":
     asyncio.run(test_multi_market_bot())

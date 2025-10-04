@@ -16,7 +16,7 @@ from backend.logging_config import setup_logging
 from backend.performance_monitor import add_monitoring_middleware
 import os
 
- # Setup logging
+# Setup logging
 log_level = os.getenv("LOG_LEVEL", "INFO")
 setup_logging(log_level=log_level)
 
@@ -53,12 +53,12 @@ app = FastAPI(
     contact={
         "name": "Quantum Trader Team",
         "url": "https://github.com/binyaminsemerci-ops/quantum_trader",
-        "email": "support@quantumtrader.dev"
+        "email": "support@quantumtrader.dev",
     },
     license_info={
         "name": "MIT License",
-        "url": "https://github.com/binyaminsemerci-ops/quantum_trader/blob/main/LICENSE"
-    }
+        "url": "https://github.com/binyaminsemerci-ops/quantum_trader/blob/main/LICENSE",
+    },
 )
 
 # Add exception handlers

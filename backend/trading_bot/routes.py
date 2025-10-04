@@ -17,8 +17,8 @@ router = APIRouter(
     tags=["Trading Bot"],
     responses={
         400: {"description": "Invalid request"},
-        500: {"description": "Trading bot error"}
-    }
+        500: {"description": "Trading bot error"},
+    },
 )
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,10 @@ async def start_bot(dry_run: bool = True) -> Dict[str, str]:
         bot = get_trading_bot()
 
         if bot.running:
-            return {"status": "already_running", "message": "Trading bot is already running"}
+            return {
+                "status": "already_running",
+                "message": "Trading bot is already running",
+            }
 
         # Start bot in background
         bot.dry_run = dry_run
@@ -55,7 +58,7 @@ async def start_bot(dry_run: bool = True) -> Dict[str, str]:
         return {
             "status": "started",
             "message": f"Trading bot started in {mode} mode",
-            "dry_run": str(dry_run)
+            "dry_run": str(dry_run),
         }
 
     except Exception as e:
@@ -72,7 +75,10 @@ async def stop_bot() -> Dict[str, str]:
         bot = get_trading_bot()
 
         if not bot.running:
-            return {"status": "already_stopped", "message": "Trading bot is not running"}
+            return {
+                "status": "already_stopped",
+                "message": "Trading bot is not running",
+            }
 
         # Stop bot
         bot.stop()
@@ -112,7 +118,11 @@ async def get_positions() -> Dict[str, Any]:
                     "confidence": p.get("confidence"),
                     "stop_loss": p.get("stop_loss"),
                     "take_profit": p.get("take_profit"),
-                    "entry_time": p["entry_time"].isoformat() if p.get("entry_time") is not None else None,
+                    "entry_time": (
+                        p["entry_time"].isoformat()
+                        if p.get("entry_time") is not None
+                        else None
+                    ),
                 }
             positions_summary[market] = market_entries
             total_positions += len(pos)
@@ -135,23 +145,30 @@ async def get_positions() -> Dict[str, Any]:
 async def update_settings(
     risk_per_trade: Optional[float] = None,
     min_confidence: Optional[float] = None,
-    balance: Optional[float] = None
+    balance: Optional[float] = None,
 ) -> Dict[str, str]:
     """Update bot settings"""
     try:
         bot = get_trading_bot()
 
         if bot.running:
-            raise HTTPException(status_code=400, detail="Cannot update settings while bot is running")
+            raise HTTPException(
+                status_code=400, detail="Cannot update settings while bot is running"
+            )
 
         if risk_per_trade is not None:
             if not 0.001 <= risk_per_trade <= 0.1:  # 0.1% to 10%
-                raise HTTPException(status_code=400, detail="Risk per trade must be between 0.1% and 10%")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Risk per trade must be between 0.1% and 10%",
+                )
             bot.risk_per_trade = risk_per_trade
 
         if min_confidence is not None:
             if not 0.1 <= min_confidence <= 1.0:
-                raise HTTPException(status_code=400, detail="Min confidence must be between 0.1 and 1.0")
+                raise HTTPException(
+                    status_code=400, detail="Min confidence must be between 0.1 and 1.0"
+                )
             bot.min_confidence = min_confidence
 
         if balance is not None:

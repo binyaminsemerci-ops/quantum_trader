@@ -2,6 +2,7 @@
 Logging configuration for Quantum Trader backend.
 Provides structured logging with rotation and different levels.
 """
+
 import logging
 import logging.handlers
 import os
@@ -18,13 +19,12 @@ def setup_logging(log_level: str = "INFO", log_dir: str = "logs") -> None:
 
     # Create formatters
     detailed_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
     simple_formatter = logging.Formatter(
-        '%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%H:%M:%S'
+        "%(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
     )
 
     # Setup root logger
@@ -42,10 +42,10 @@ def setup_logging(log_level: str = "INFO", log_dir: str = "logs") -> None:
 
     # File handler with rotation
     file_handler = logging.handlers.RotatingFileHandler(
-        filename=os.path.join(log_dir, 'quantum_trader.log'),
-        maxBytes=10*1024*1024,  # 10MB
+        filename=os.path.join(log_dir, "quantum_trader.log"),
+        maxBytes=10 * 1024 * 1024,  # 10MB
         backupCount=5,
-        encoding='utf-8'
+        encoding="utf-8",
     )
     file_handler.setLevel(level)
     file_handler.setFormatter(detailed_formatter)
@@ -53,10 +53,10 @@ def setup_logging(log_level: str = "INFO", log_dir: str = "logs") -> None:
 
     # Error file handler
     error_handler = logging.handlers.RotatingFileHandler(
-        filename=os.path.join(log_dir, 'errors.log'),
-        maxBytes=5*1024*1024,  # 5MB
+        filename=os.path.join(log_dir, "errors.log"),
+        maxBytes=5 * 1024 * 1024,  # 5MB
         backupCount=3,
-        encoding='utf-8'
+        encoding="utf-8",
     )
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(detailed_formatter)

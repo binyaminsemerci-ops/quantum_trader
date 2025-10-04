@@ -23,8 +23,8 @@ router = APIRouter(
     responses={
         400: {"description": "Invalid request parameters"},
         404: {"description": "Statistics not found"},
-        500: {"description": "Statistics calculation error"}
-    }
+        500: {"description": "Statistics calculation error"},
+    },
 )
 
 
@@ -34,7 +34,9 @@ class Position(BaseModel):
     symbol: str = Field(description="Trading pair symbol")
     qty: float = Field(description="Position quantity")
     avg_price: float = Field(description="Average entry price")
-    unrealized_pnl: Optional[float] = Field(default=None, description="Unrealized profit/loss")
+    unrealized_pnl: Optional[float] = Field(
+        default=None, description="Unrealized profit/loss"
+    )
 
 
 class TradingStats(BaseModel):
@@ -51,17 +53,25 @@ class StatsOverview(BaseModel):
     pnl: float = Field(description="Total realized profit and loss")
     open_positions: List[Position] = Field(description="Currently open positions")
     since: str = Field(description="Statistics calculation start date")
-    win_rate: Optional[float] = Field(default=None, description="Percentage of winning trades")
-    avg_trade_duration: Optional[str] = Field(default=None, description="Average trade duration")
-    max_drawdown: Optional[float] = Field(default=None, description="Maximum portfolio drawdown")
-    sharpe_ratio: Optional[float] = Field(default=None, description="Risk-adjusted return ratio")
+    win_rate: Optional[float] = Field(
+        default=None, description="Percentage of winning trades"
+    )
+    avg_trade_duration: Optional[str] = Field(
+        default=None, description="Average trade duration"
+    )
+    max_drawdown: Optional[float] = Field(
+        default=None, description="Maximum portfolio drawdown"
+    )
+    sharpe_ratio: Optional[float] = Field(
+        default=None, description="Risk-adjusted return ratio"
+    )
 
 
 @router.get(
     "",
     response_model=TradingStats,
     summary="Get Basic Trading Statistics",
-    description="Retrieve basic trading performance metrics"
+    description="Retrieve basic trading performance metrics",
 )
 async def get_stats():
     """
@@ -87,7 +97,7 @@ async def get_stats():
     "/overview",
     response_model=StatsOverview,
     summary="Get Comprehensive Trading Overview",
-    description="Retrieve detailed trading performance analytics and metrics"
+    description="Retrieve detailed trading performance analytics and metrics",
 )
 async def stats_overview():
     """
@@ -117,21 +127,23 @@ async def stats_overview():
                     "symbol": "BTCUSDT",
                     "qty": 0.5,
                     "avg_price": 9500.0,
-                    "unrealized_pnl": 125.50
+                    "unrealized_pnl": 125.50,
                 },
                 {
                     "symbol": "ETHUSDT",
                     "qty": 2.0,
                     "avg_price": 1800.0,
-                    "unrealized_pnl": -45.20
-                }
+                    "unrealized_pnl": -45.20,
+                },
             ],
             "since": "2025-01-01T00:00:00Z",
             "win_rate": 68.5,
             "avg_trade_duration": "4h 23m",
             "max_drawdown": -12.3,
-            "sharpe_ratio": 1.75
+            "sharpe_ratio": 1.75,
         }
     except Exception as e:
         logger.error(f"Error retrieving stats overview: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve overview statistics")
+        raise HTTPException(
+            status_code=500, detail="Failed to retrieve overview statistics"
+        )

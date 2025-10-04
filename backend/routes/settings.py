@@ -24,8 +24,8 @@ router = APIRouter(
         401: {"description": "Authentication required"},
         403: {"description": "Access forbidden"},
         422: {"description": "Invalid input data"},
-        500: {"description": "Internal server error"}
-    }
+        500: {"description": "Internal server error"},
+    },
 )
 
 # Explicitly type SETTINGS so mypy can validate usages that import this symbol
@@ -39,30 +39,22 @@ class SettingsUpdate(BaseModel):
         None,
         min_length=1,
         max_length=100,
-        description="Exchange API key for trading operations"
+        description="Exchange API key for trading operations",
     )
     api_secret: Optional[SecretStr] = Field(
-        None,
-        description="Exchange API secret (will be securely stored)"
+        None, description="Exchange API secret (will be securely stored)"
     )
     risk_percentage: Optional[float] = Field(
-        None,
-        ge=0.1,
-        le=10.0,
-        description="Risk percentage per trade (0.1% - 10%)"
+        None, ge=0.1, le=10.0, description="Risk percentage per trade (0.1% - 10%)"
     )
     max_position_size: Optional[float] = Field(
-        None,
-        gt=0,
-        description="Maximum position size in USD"
+        None, gt=0, description="Maximum position size in USD"
     )
     trading_enabled: Optional[bool] = Field(
-        None,
-        description="Enable/disable automatic trading"
+        None, description="Enable/disable automatic trading"
     )
     notifications_enabled: Optional[bool] = Field(
-        None,
-        description="Enable/disable trading notifications"
+        None, description="Enable/disable trading notifications"
     )
 
 
@@ -71,18 +63,30 @@ class SettingsResponse(BaseModel):
 
     api_key_configured: bool = Field(description="Whether API key is configured")
     api_secret_configured: bool = Field(description="Whether API secret is configured")
-    risk_percentage: Optional[float] = Field(description="Current risk percentage per trade")
-    max_position_size: Optional[float] = Field(description="Current maximum position size")
-    trading_enabled: bool = Field(default=False, description="Trading automation status")
-    notifications_enabled: bool = Field(default=True, description="Notifications status")
+    risk_percentage: Optional[float] = Field(
+        description="Current risk percentage per trade"
+    )
+    max_position_size: Optional[float] = Field(
+        description="Current maximum position size"
+    )
+    trading_enabled: bool = Field(
+        default=False, description="Trading automation status"
+    )
+    notifications_enabled: bool = Field(
+        default=True, description="Notifications status"
+    )
 
 
 @router.get(
     "",
     summary="Get Application Settings",
-    description="Retrieve current application settings and configuration"
+    description="Retrieve current application settings and configuration",
 )
-async def get_settings(secure: bool = Query(False, description="Return only security status instead of actual values")):
+async def get_settings(
+    secure: bool = Query(
+        False, description="Return only security status instead of actual values"
+    )
+):
     """
     Retrieve current application settings.
 
@@ -103,7 +107,7 @@ async def get_settings(secure: bool = Query(False, description="Return only secu
                 "risk_percentage": SETTINGS.get("risk_percentage", 1.0),
                 "max_position_size": SETTINGS.get("max_position_size", 1000.0),
                 "trading_enabled": SETTINGS.get("trading_enabled", False),
-                "notifications_enabled": SETTINGS.get("notifications_enabled", True)
+                "notifications_enabled": SETTINGS.get("notifications_enabled", True),
             }
         else:
             # Return all settings for backward compatibility (testing/development)
@@ -119,7 +123,7 @@ async def get_settings(secure: bool = Query(False, description="Return only secu
     "",
     response_model=Dict[str, Any],
     summary="Update Application Settings",
-    description="Update application settings and trading configuration"
+    description="Update application settings and trading configuration",
 )
 async def update_settings(payload: Dict[str, Any]):
     """
@@ -140,11 +144,16 @@ async def update_settings(payload: Dict[str, Any]):
         # Validate settings before applying
         if "risk_percentage" in update_data:
             if not 0.1 <= update_data["risk_percentage"] <= 10.0:
-                raise HTTPException(status_code=422, detail="Risk percentage must be between 0.1% and 10%")
+                raise HTTPException(
+                    status_code=422,
+                    detail="Risk percentage must be between 0.1% and 10%",
+                )
 
         if "max_position_size" in update_data:
             if update_data["max_position_size"] <= 0:
-                raise HTTPException(status_code=422, detail="Maximum position size must be positive")
+                raise HTTPException(
+                    status_code=422, detail="Maximum position size must be positive"
+                )
 
         # Update settings
         SETTINGS.update(update_data)
@@ -154,7 +163,7 @@ async def update_settings(payload: Dict[str, Any]):
         return {
             "status": "success",
             "message": "Settings updated successfully",
-            "updated_fields": list(update_data.keys())
+            "updated_fields": list(update_data.keys()),
         }
 
     except HTTPException:

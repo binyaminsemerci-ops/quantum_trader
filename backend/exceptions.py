@@ -2,6 +2,7 @@
 Global exception handlers for the Quantum Trader API.
 Provides consistent error responses and logging.
 """
+
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -16,7 +17,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
     """Handle request validation errors with detailed messages."""
     logger.warning(f"Validation error on {request.url}: {exc.errors()}")
 
@@ -27,8 +30,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "message": "Invalid request data",
             "details": exc.errors(),
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "path": str(request.url)
-        }
+            "path": str(request.url),
+        },
     )
 
 
@@ -43,12 +46,14 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
             "message": exc.detail,
             "status_code": exc.status_code,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "path": str(request.url)
-        }
+            "path": str(request.url),
+        },
     )
 
 
-async def starlette_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+async def starlette_exception_handler(
+    request: Request, exc: StarletteHTTPException
+) -> JSONResponse:
     """Handle Starlette HTTP exceptions."""
     logger.info(f"Starlette HTTP {exc.status_code} on {request.url}: {exc.detail}")
 
@@ -59,8 +64,8 @@ async def starlette_exception_handler(request: Request, exc: StarletteHTTPExcept
             "message": exc.detail,
             "status_code": exc.status_code,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "path": str(request.url)
-        }
+            "path": str(request.url),
+        },
     )
 
 
@@ -78,8 +83,8 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
             "message": "An unexpected error occurred",
             "error_id": error_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "path": str(request.url)
-        }
+            "path": str(request.url),
+        },
     )
 
 
