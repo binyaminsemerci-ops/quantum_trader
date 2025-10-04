@@ -16,7 +16,7 @@ from datetime import datetime, timezone, timedelta
 # Add the backend directory to the path so we can import our modules
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from database import SessionLocal, TradeLog
+from backend.database import SessionLocal, TradeLog
 from sqlalchemy.exc import IntegrityError
 
 
@@ -97,7 +97,7 @@ def create_demo_trades():
 
 def create_demo_settings():
     """Create sample settings for demo purposes."""
-    from database import Settings
+    from backend.database import Settings
     
     db = SessionLocal()
     
