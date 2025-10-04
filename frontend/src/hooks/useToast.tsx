@@ -30,7 +30,7 @@ export function ToastProvider({ children }: { children: ReactNode }): JSX.Elemen
   const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
     const id = crypto.randomUUID();
     const newToast: Toast = { ...toast, id };
-    
+
     setToasts((prev) => [...prev, newToast]);
 
     // Auto-remove toast after duration

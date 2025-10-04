@@ -49,8 +49,8 @@ export async function fetchSettings(): Promise<ApiResponse<Settings>> {
     const response = await fetch(`${API_BASE}/settings`);
     return handleApiResponse<Settings>(response);
   } catch (error) {
-    return { 
-      error: error instanceof Error ? error.message : 'Network error occurred' 
+    return {
+      error: error instanceof Error ? error.message : 'Network error occurred'
     };
   }
 }
@@ -64,11 +64,11 @@ export async function updateSettings(settings: Partial<Settings>): Promise<ApiRe
       },
       body: JSON.stringify(settings),
     });
-    
+
     return handleApiResponse<SettingsUpdateResponse>(response);
   } catch (error) {
-    return { 
-      error: error instanceof Error ? error.message : 'Network error occurred' 
+    return {
+      error: error instanceof Error ? error.message : 'Network error occurred'
     };
   }
 }
@@ -87,11 +87,11 @@ export async function createTrade(trade: {
       },
       body: JSON.stringify(trade),
     });
-    
+
     return handleApiResponse<any>(response);
   } catch (error) {
-    return { 
-      error: error instanceof Error ? error.message : 'Network error occurred' 
+    return {
+      error: error instanceof Error ? error.message : 'Network error occurred'
     };
   }
 }

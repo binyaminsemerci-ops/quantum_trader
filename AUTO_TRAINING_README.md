@@ -22,7 +22,7 @@ cd C:\quantum_trader.\setup_simple.ps1 startup
 
 ```
 
-### Steg 2: Sjekk status  
+### Steg 2: Sjekk status
 
 ### Steg 2: Sjekk status```powershell
 
@@ -200,7 +200,7 @@ python main_train_and_backtest.py report
 
 📊 Accuracy typisk: 75-85% (høyere med mer data!)- 📈 **Bedre prediksjoner** med kontinuerlige oppdateringer
 
-🤖 Model alltid fresh med nyeste markedsdata- 🤖 **Alltid fresh model** med nyeste markedsdata  
+🤖 Model alltid fresh med nyeste markedsdata- 🤖 **Alltid fresh model** med nyeste markedsdata
 
 ```- 🔄 **Zero maintenance** - fungerer automatisk
 

@@ -137,7 +137,7 @@ graph TB
 - **Monitoring**: Custom performance metrics
 - **Testing**: pytest with 58+ comprehensive tests
 
-### Frontend  
+### Frontend
 - **Framework**: React 18 with TypeScript
 - **Build Tool**: Vite
 - **Styling**: Tailwind CSS
@@ -180,7 +180,7 @@ cd backend && pytest tests/ --cov=. --cov-report=html
 
 **Test Categories:**
 - Unit tests for core trading logic
-- Integration tests for API endpoints  
+- Integration tests for API endpoints
 - Performance monitoring tests
 - Exception handling validation
 - Database migration testing
@@ -195,7 +195,7 @@ Create `.env` files based on the examples:
 # Backend configuration
 cp backend/.env.example backend/.env
 
-# Frontend configuration  
+# Frontend configuration
 cp frontend/.env.example frontend/.env.local
 ```
 

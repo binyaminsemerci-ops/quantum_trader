@@ -21,38 +21,38 @@ export function useAsyncOperation<T extends any[], R>(
     isLoading: false,
     error: null,
   });
-  
+
   const { showSuccess, showError } = useToast();
-  
+
   const execute = useCallback(async (...args: T): Promise<R | null> => {
     setState({ isLoading: true, error: null });
-    
+
     try {
       const result = await asyncFn(...args);
-      
+
       if (options.showSuccessToast !== false && options.successMessage) {
         showSuccess(options.successMessage);
       }
-      
+
       setState({ isLoading: false, error: null });
       return result;
     } catch (error) {
       const err = error instanceof Error ? error : new Error('An unexpected error occurred');
-      
+
       if (options.showErrorToast !== false) {
         const message = options.errorMessage || err.message || 'Operation failed';
         showError(message);
       }
-      
+
       setState({ isLoading: false, error: err });
       return null;
     }
   }, [asyncFn, options, showSuccess, showError]);
-  
+
   const reset = useCallback(() => {
     setState({ isLoading: false, error: null });
   }, []);
-  
+
   return {
     ...state,
     execute,

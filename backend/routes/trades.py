@@ -35,7 +35,7 @@ router = APIRouter(
 
 class TradeCreate(BaseModel):
     """Request model for creating a new trade order."""
-    
+
     symbol: str = Field(..., min_length=1, max_length=20, description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)", example="BTCUSDT")
     side: str = Field(..., pattern="^(BUY|SELL)$", description="Trade direction: BUY or SELL", example="BUY")
     qty: float = Field(..., gt=0, description="Trade quantity (must be positive)", example=0.01)
@@ -44,7 +44,7 @@ class TradeCreate(BaseModel):
 
 class TradeResponse(BaseModel):
     """Response model for trade information."""
-    
+
     id: int = Field(..., description="Unique trade identifier")
     symbol: str = Field(..., description="Trading pair symbol")
     side: str = Field(..., description="Trade direction (BUY/SELL)")
@@ -71,19 +71,19 @@ async def get_trades(
 ):
     """
     Retrieve trading history with comprehensive filtering options.
-    
+
     This endpoint provides access to historical trades with support for:
     - Pagination via limit parameter
     - Symbol-based filtering for specific trading pairs
     - Status filtering (FILLED, CANCELLED, PARTIALLY_FILLED)
     - Date range filtering for time-based analysis
-    
+
     Returns trade data sorted by most recent first, with proper
     error handling and performance monitoring.
     """
     try:
         query = db.query(TradeLog)
-        
+
         # Apply filters
         if symbol:
             query = query.filter(TradeLog.symbol == symbol.upper())
@@ -93,18 +93,18 @@ async def get_trades(
             query = query.filter(TradeLog.timestamp >= from_date)
         if to_date is not None:
             query = query.filter(TradeLog.timestamp <= to_date)
-        
+
         # Apply ordering and limit
         trades = query.order_by(TradeLog.timestamp.desc()).limit(limit).all()
-        
+
         logger.info(f"Retrieved {len(trades)} trades from database with filters: symbol={symbol}, status={status}")
-        
+
         return [
             {
-                "id": t.id, 
-                "symbol": t.symbol, 
-                "side": t.side, 
-                "qty": t.qty, 
+                "id": t.id,
+                "symbol": t.symbol,
+                "side": t.side,
+                "qty": t.qty,
                 "price": t.price,
                 "status": t.status,
                 "reason": t.reason,
@@ -121,7 +121,7 @@ async def get_trades(
 
 
 @router.post(
-    "", 
+    "",
     status_code=201,
     response_model=TradeResponse,
     summary="Execute Trade Order",
@@ -130,13 +130,13 @@ async def get_trades(
 async def create_trade(payload: TradeCreate, db=Depends(get_db)):
     """
     Execute a new trading order.
-    
+
     This endpoint processes trade orders with:
     - Input validation for symbol, side, quantity, and price
     - Duplicate order detection
     - Real-time execution status tracking
     - Comprehensive error handling and logging
-    
+
     The trade is immediately logged to the database with a FILLED status
     for demo purposes. In production, this would integrate with exchange APIs.
     """
@@ -144,25 +144,25 @@ async def create_trade(payload: TradeCreate, db=Depends(get_db)):
         # Validate trade data
         if payload.symbol.upper() not in ["BTCUSDT", "ETHUSDT", "ADAUSDT", "DOTUSDT", "LINKUSDT"]:
             raise HTTPException(status_code=400, detail=f"Unsupported trading symbol: {payload.symbol}")
-        
+
         if payload.side.upper() not in ["BUY", "SELL"]:
             raise HTTPException(status_code=400, detail="Side must be BUY or SELL")
-            
+
         # Create trade log
         t = TradeLog(
             symbol=payload.symbol.upper(),
-            side=payload.side.upper(), 
+            side=payload.side.upper(),
             qty=payload.qty,
             price=payload.price,
             status="NEW",
         )
-        
+
         db.add(t)
         db.commit()
         db.refresh(t)
-        
+
         logger.info(f"Created new trade: {t.id} - {t.side} {t.qty} {t.symbol} @ {t.price}")
-        
+
         return {
             "id": t.id,
             "symbol": t.symbol,
@@ -173,7 +173,7 @@ async def create_trade(payload: TradeCreate, db=Depends(get_db)):
             "reason": t.reason,
             "timestamp": t.timestamp
         }
-        
+
     except HTTPException:
         raise  # Re-raise HTTP exceptions as-is
     except SQLAlchemyError as e:

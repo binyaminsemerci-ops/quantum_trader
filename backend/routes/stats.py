@@ -31,7 +31,7 @@ router = APIRouter(
 
 class Position(BaseModel):
     """Open trading position information."""
-    
+
     symbol: str = Field(description="Trading pair symbol")
     qty: float = Field(description="Position quantity")
     avg_price: float = Field(description="Average entry price")
@@ -40,14 +40,14 @@ class Position(BaseModel):
 
 class TradingStats(BaseModel):
     """Basic trading statistics response."""
-    
+
     total_trades: int = Field(description="Total number of executed trades")
     pnl: float = Field(description="Total profit and loss")
 
 
 class StatsOverview(BaseModel):
     """Comprehensive trading statistics overview."""
-    
+
     total_trades: int = Field(description="Total number of executed trades")
     pnl: float = Field(description="Total realized profit and loss")
     open_positions: List[Position] = Field(description="Currently open positions")
@@ -67,12 +67,12 @@ class StatsOverview(BaseModel):
 async def get_stats():
     """
     Retrieve basic trading statistics.
-    
+
     This endpoint provides core trading performance metrics including:
     - Total number of trades executed
-    - Overall profit and loss (PnL) 
+    - Overall profit and loss (PnL)
     - Basic performance indicators
-    
+
     The statistics are calculated in real-time from the trade database
     and provide a quick overview of trading activity and performance.
     """
@@ -93,19 +93,19 @@ async def get_stats():
 async def stats_overview():
     """
     Retrieve comprehensive trading performance overview.
-    
+
     This endpoint provides detailed trading analytics including:
     - Complete profit and loss analysis
     - Open positions with unrealized PnL
     - Performance ratios and risk metrics
     - Trade success rates and patterns
-    
+
     The overview includes advanced metrics such as:
     - Win rate and trade distribution
     - Maximum drawdown analysis
     - Sharpe ratio for risk-adjusted returns
     - Average trade duration and timing analysis
-    
+
     All metrics are calculated from historical trade data and
     provide comprehensive insight into trading performance.
     """
@@ -115,8 +115,8 @@ async def stats_overview():
             "pnl": 456.78,
             "open_positions": [
                 {
-                    "symbol": "BTCUSDT", 
-                    "qty": 0.5, 
+                    "symbol": "BTCUSDT",
+                    "qty": 0.5,
                     "avg_price": 9500.0,
                     "unrealized_pnl": 125.50
                 },

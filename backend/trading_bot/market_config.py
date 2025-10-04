@@ -11,18 +11,18 @@ LAYER1_LAYER2_TOKENS = [
     # Layer 1 Blockchains
     "BTC", "ETH", "BNB", "ADA", "SOL", "AVAX", "DOT", "ATOM", "NEAR", "ALGO",
     "XTZ", "FTM", "LUNA", "EGLD", "FLOW", "ICP", "KSM", "ONE", "ROSE", "KAVA",
-    
+
     # Layer 2 & Scaling Solutions
     "MATIC", "LRC", "OP", "ARB", "IMX", "METIS", "BOBA", "CELR",
-    
+
     # High Volume DeFi & Infrastructure
     "UNI", "AAVE", "SUSHI", "CRV", "COMP", "MKR", "YFI", "1INCH", "BAL", "SNX",
     "LINK", "GRT", "BAND", "API3", "ALPHA", "RUNE", "CAKE", "XVS",
-    
+
     # High Volume Meme & Community Tokens
     "DOGE", "SHIB", "PEPE", "FLOKI", "BONK", "WIF", "MEME",
-    
-    # Stablecoins & Wrapped Assets  
+
+    # Stablecoins & Wrapped Assets
     "WBTC", "STETH", "RETH", "FRXETH"
 ]
 
@@ -35,7 +35,7 @@ MARKET_CONFIGS = {
         "description": "Spot trading with USDC"
     },
     "FUTURES": {
-        "base_currencies": ["USDC"],  
+        "base_currencies": ["USDC"],
         "leverage": 10,  # Adjustable per trade
         "margin_enabled": True,
         "description": "USDC-M Futures trading"
@@ -49,7 +49,7 @@ MARKET_CONFIGS = {
     "CROSS_MARGIN": {
         "base_currencies": ["USDC", "USDT"],
         "leverage": 5,  # Cross margin leverage
-        "margin_enabled": True, 
+        "margin_enabled": True,
         "description": "Cross margin trading"
     }
 }
@@ -57,12 +57,12 @@ MARKET_CONFIGS = {
 def get_trading_pairs(market_type: str = "SPOT") -> List[str]:
     """Get all valid trading pairs for the specified market type."""
     pairs = []
-    
+
     if market_type not in MARKET_CONFIGS:
         raise ValueError(f"Unsupported market type: {market_type}")
-    
+
     base_currencies = MARKET_CONFIGS[market_type]["base_currencies"]
-    
+
     for token in LAYER1_LAYER2_TOKENS:
         for base in base_currencies:
             if token != base:  # Don't create USDC/USDC pairs
@@ -70,7 +70,7 @@ def get_trading_pairs(market_type: str = "SPOT") -> List[str]:
                     pairs.append(f"{token}USDC")  # Futures use USDC-M contracts
                 else:
                     pairs.append(f"{token}{base}")
-    
+
     return pairs
 
 def get_market_config(market_type: str) -> Dict:
@@ -86,17 +86,17 @@ def is_layer1_layer2_token(symbol: str) -> bool:
 def get_volume_weighted_pairs(market_type: str = "SPOT", top_n: int = 50) -> List[str]:
     """Get top N volume-weighted trading pairs for the market type."""
     all_pairs = get_trading_pairs(market_type)
-    
+
     # For now, return the first top_n pairs
     # In production, this would query Binance 24hr ticker API to get real volume data
     return all_pairs[:top_n]
 
 def get_optimal_market_for_token(token: str, strategy: str = "volume") -> str:
     """Determine optimal market type for a given token based on strategy."""
-    
+
     # High volume tokens typically better on futures for leverage
     high_volume_tokens = ["BTC", "ETH", "BNB", "SOL", "ADA", "MATIC", "DOGE", "SHIB"]
-    
+
     if strategy == "volume" and token in high_volume_tokens:
         return "FUTURES"
     elif strategy == "conservative":

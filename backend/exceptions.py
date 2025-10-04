@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Handle request validation errors with detailed messages."""
     logger.warning(f"Validation error on {request.url}: {exc.errors()}")
-    
+
     return JSONResponse(
         status_code=422,
         content={
@@ -35,7 +35,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """Handle HTTP exceptions with consistent format."""
     logger.info(f"HTTP {exc.status_code} on {request.url}: {exc.detail}")
-    
+
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -51,11 +51,11 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
 async def starlette_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     """Handle Starlette HTTP exceptions."""
     logger.info(f"Starlette HTTP {exc.status_code} on {request.url}: {exc.detail}")
-    
+
     return JSONResponse(
         status_code=exc.status_code,
         content={
-            "error": "HTTP Error", 
+            "error": "HTTP Error",
             "message": exc.detail,
             "status_code": exc.status_code,
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -67,15 +67,15 @@ async def starlette_exception_handler(request: Request, exc: StarletteHTTPExcept
 async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handle unexpected exceptions with error logging."""
     error_id = f"error_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
-    
+
     logger.error(f"Unexpected error {error_id} on {request.url}: {str(exc)}")
     logger.error(f"Traceback for {error_id}: {traceback.format_exc()}")
-    
+
     return JSONResponse(
         status_code=500,
         content={
             "error": "Internal Server Error",
-            "message": "An unexpected error occurred", 
+            "message": "An unexpected error occurred",
             "error_id": error_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "path": str(request.url)

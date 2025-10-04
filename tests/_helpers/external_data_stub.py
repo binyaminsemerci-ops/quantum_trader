@@ -9,6 +9,3 @@ async def twitter_sentiment(symbol: str) -> Dict[str, Any]:
 
 def cryptopanic_news():
     return [{"headline": "Mock news", "source": "cryptopanic"}]
-
-
-

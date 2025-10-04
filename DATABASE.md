@@ -43,7 +43,7 @@ createdb quantum_trader
 1. **Set Environment Variables**:
 
 ```bash
-export QUANTUM_TRADER_DATABASE_URL="postgresql://username:password@localhost/quantum_trader"
+export QUANTUM_TRADER_DATABASE_URL="postgresql://username:password@localhost/quantum_trader"  # pragma: allowlist secret
 ```
 
 1. **Run Migrations**:
@@ -86,7 +86,7 @@ Current schema includes:
 - `reason` (String, nullable) - Reason for trade decision
 - `timestamp` (DateTime) - When trade occurred
 
-### `settings` table  
+### `settings` table
 
 - `id` (Primary Key)
 - `api_key` (String) - Binance API key
@@ -127,7 +127,7 @@ The database connection is configured via the `QUANTUM_TRADER_DATABASE_URL` envi
 ### PostgreSQL (Production)
 
 ```bash
-export QUANTUM_TRADER_DATABASE_URL="postgresql://user:pass@localhost:5432/quantum_trader"
+export QUANTUM_TRADER_DATABASE_URL="postgresql://user:pass@localhost:5432/quantum_trader"  # pragma: allowlist secret
 ```
 
 ### SQLite (Development)
@@ -151,7 +151,7 @@ The `docker-compose.yml` already configures PostgreSQL with:
 The test suite uses a separate test database:
 
 ```bash
-export QUANTUM_TRADER_DATABASE_URL="postgresql://test_user:test_pass@localhost/quantum_trader_test"
+export QUANTUM_TRADER_DATABASE_URL="postgresql://test_user:test_pass@localhost/quantum_trader_test"  # pragma: allowlist secret
 pytest backend/tests/
 ```
 
@@ -169,7 +169,7 @@ pytest backend/tests/
 2. **Configure connection string** with credentials:
 
 ```bash
-export QUANTUM_TRADER_DATABASE_URL="postgresql://prod_user:prod_pass@db.example.com:5432/quantum_trader"
+export QUANTUM_TRADER_DATABASE_URL="postgresql://prod_user:prod_pass@db.example.com:5432/quantum_trader"  # pragma: allowlist secret
 ```
 
 1. **Run migrations**:
@@ -213,7 +213,7 @@ alembic upgrade head
 # Connect to database
 psql $QUANTUM_TRADER_DATABASE_URL
 
-# Backup database  
+# Backup database
 pg_dump $QUANTUM_TRADER_DATABASE_URL > backup.sql
 
 # Restore database
@@ -228,7 +228,7 @@ psql $QUANTUM_TRADER_DATABASE_URL -c "\dt+"
 As the system grows, consider adding:
 
 - `candles` table for OHLCV market data
-- `signals` table for AI-generated trading signals  
+- `signals` table for AI-generated trading signals
 - `model_registry` table for ML model versioning
 - `user_sessions` table for authentication
 - Proper foreign key relationships between tables
