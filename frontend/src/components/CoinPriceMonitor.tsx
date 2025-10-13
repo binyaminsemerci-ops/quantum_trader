@@ -11,16 +11,16 @@ interface CoinData {
 }
 
 const TOP_COINS: CoinData[] = [
-  { symbol: 'BTC', name: 'Bitcoin', price: 67450.00, change24h: 2.45, volume24h: 28500000000, marketCap: 1320000000000, logo: '₿' },
-  { symbol: 'ETH', name: 'Ethereum', price: 2680.50, change24h: -1.25, volume24h: 15200000000, marketCap: 322000000000, logo: 'Ξ' },
-  { symbol: 'BNB', name: 'BNB', price: 584.20, change24h: 3.15, volume24h: 1800000000, marketCap: 87500000000, logo: '🟡' },
-  { symbol: 'SOL', name: 'Solana', price: 142.80, change24h: 5.67, volume24h: 2100000000, marketCap: 67200000000, logo: '◎' },
-  { symbol: 'ADA', name: 'Cardano', price: 0.3845, change24h: -2.10, volume24h: 450000000, marketCap: 13500000000, logo: '₳' },
-  { symbol: 'MATIC', name: 'Polygon', price: 0.9234, change24h: 4.32, volume24h: 380000000, marketCap: 8900000000, logo: '⬟' },
-  { symbol: 'DOT', name: 'Polkadot', price: 4.567, change24h: -0.85, volume24h: 180000000, marketCap: 6200000000, logo: '●' },
-  { symbol: 'AVAX', name: 'Avalanche', price: 28.45, change24h: 6.78, volume24h: 520000000, marketCap: 11800000000, logo: '🔺' },
-  { symbol: 'LINK', name: 'Chainlink', price: 11.23, change24h: 2.89, volume24h: 290000000, marketCap: 6800000000, logo: '🔗' },
-  { symbol: 'UNI', name: 'Uniswap', price: 8.456, change24h: -3.45, volume24h: 150000000, marketCap: 5100000000, logo: '🦄' }
+  { symbol: 'BTC', name: 'Bitcoin', price: 42350.00, change24h: 1.85, volume24h: 18500000000, marketCap: 830000000000, logo: '₿' },
+  { symbol: 'ETH', name: 'Ethereum', price: 2745.50, change24h: 2.14, volume24h: 12200000000, marketCap: 330000000000, logo: 'Ξ' },
+  { symbol: 'BNB', name: 'BNB', price: 315.80, change24h: -0.85, volume24h: 1200000000, marketCap: 47500000000, logo: '🟡' },
+  { symbol: 'SOL', name: 'Solana', price: 96.20, change24h: -2.34, volume24h: 1800000000, marketCap: 43200000000, logo: '◎' },
+  { symbol: 'ADA', name: 'Cardano', price: 0.4125, change24h: 3.45, volume24h: 320000000, marketCap: 14500000000, logo: '₳' },
+  { symbol: 'MATIC', name: 'Polygon', price: 0.7856, change24h: -1.78, volume24h: 285000000, marketCap: 7400000000, logo: '⬟' },
+  { symbol: 'DOT', name: 'Polkadot', price: 5.234, change24h: 4.56, volume24h: 195000000, marketCap: 7100000000, logo: '●' },
+  { symbol: 'AVAX', name: 'Avalanche', price: 25.45, change24h: 2.62, volume24h: 480000000, marketCap: 10200000000, logo: '🔺' },
+  { symbol: 'LINK', name: 'Chainlink', price: 12.85, change24h: -0.94, volume24h: 340000000, marketCap: 7800000000, logo: '🔗' },
+  { symbol: 'UNI', name: 'Uniswap', price: 6.789, change24h: 1.67, volume24h: 185000000, marketCap: 4100000000, logo: '🦄' }
 ];
 
 export default function CoinPriceMonitor(): JSX.Element {
