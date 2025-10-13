@@ -74,21 +74,29 @@ async def test_train_and_save_creates_artifacts(monkeypatch, tmp_path):
 def test_make_regressor_fallback_to_randomforest(monkeypatch):
     """Test that make_regressor falls back to RandomForestRegressor when XGBoost is not available"""
     from ai_engine.train_and_save import make_regressor
-    
+
     # Mock xgboost import to fail
     import sys
-    original_xgboost = sys.modules.get('xgboost')
-    sys.modules['xgboost'] = None
-    
+
+    original_xgboost = sys.modules.get("xgboost")
+    sys.modules["xgboost"] = None
+
     try:
         regressor = make_regressor()
         # Check that we got a RandomForestRegressor
-        assert regressor.__class__.__name__ in ['RandomForestRegressor', 'DummyRegressor', '_MeanRegressor']
-        
+        assert regressor.__class__.__name__ in [
+            "RandomForestRegressor",
+            "DummyRegressor",
+            "_MeanRegressor",
+        ]
+
         # If sklearn is available, it should be RandomForest
         try:
             from sklearn.ensemble import RandomForestRegressor
-            assert isinstance(regressor, RandomForestRegressor), f"Expected RandomForestRegressor but got {type(regressor)}"
+
+            assert isinstance(
+                regressor, RandomForestRegressor
+            ), f"Expected RandomForestRegressor but got {type(regressor)}"
             assert regressor.n_estimators == 50
             assert regressor.max_depth == 5
         except ImportError:
@@ -97,19 +105,22 @@ def test_make_regressor_fallback_to_randomforest(monkeypatch):
     finally:
         # Restore xgboost module
         if original_xgboost is not None:
-            sys.modules['xgboost'] = original_xgboost
+            sys.modules["xgboost"] = original_xgboost
         else:
-            sys.modules.pop('xgboost', None)
+            sys.modules.pop("xgboost", None)
 
 
 def test_make_regressor_uses_xgboost_when_available():
     """Test that make_regressor prefers XGBoost when available"""
     from ai_engine.train_and_save import make_regressor
-    
+
     try:
         from xgboost import XGBRegressor
+
         regressor = make_regressor()
-        assert isinstance(regressor, XGBRegressor), f"Expected XGBRegressor but got {type(regressor)}"
+        assert isinstance(
+            regressor, XGBRegressor
+        ), f"Expected XGBRegressor but got {type(regressor)}"
         assert regressor.n_estimators == 50
         assert regressor.max_depth == 3
     except ImportError:
