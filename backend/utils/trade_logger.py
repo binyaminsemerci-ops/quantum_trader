@@ -1,4 +1,4 @@
-from backend.database import get_db, TradeLog
+from database import get_db, TradeLog
 from datetime import datetime, timezone
 from typing import Optional, Any
 

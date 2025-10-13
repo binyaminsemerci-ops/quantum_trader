@@ -5,8 +5,24 @@ router = APIRouter()
 
 @router.get("")
 async def get_chart():
-    # Returner en liste som testene forventer
-    return [100, 101, 102]
+    # Return chart data in format expected by frontend
+    import datetime
+    base_equity = 125000.0
+    points = []
+    current_equity = base_equity
+    
+    for i in range(20):
+        # Generate realistic equity curve with some volatility
+        current_equity += (hash(f"equity_{i}") % 1000 - 500) / 10.0  # Random walk
+        current_equity = max(current_equity, base_equity * 0.8)  # Don't drop below 80%
+        
+        timestamp = datetime.datetime.now() - datetime.timedelta(minutes=20-i)
+        points.append({
+            "timestamp": timestamp.isoformat(),
+            "equity": round(current_equity, 2)
+        })
+    
+    return points
 
 
 @router.get("/recent")
