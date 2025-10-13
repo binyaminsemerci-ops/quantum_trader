@@ -1,19 +1,7 @@
 type Trade = { date?: string; pair?: string; side?: 'BUY' | 'SELL' | string; amount?: number | string; price?: number | string };
 
-function fmtVal(v?: number | string) {
-  if (v == null || v === '') return '—';
-  if (typeof v === 'number') return v.toLocaleString();
-  return v;
-}
-
 export default function TradeTable({ trades }: { trades?: Trade[] }): JSX.Element {
-  if (!trades || trades.length === 0) {
-    return (
-      <div className="p-6 bg-white shadow rounded-lg">
-        <p className="text-gray-500">No trades available</p>
-      </div>
-    );
-  }
+  const effective = trades || [];
 
   return (
     <div className="p-6 bg-white shadow rounded-lg overflow-x-auto">
@@ -29,15 +17,13 @@ export default function TradeTable({ trades }: { trades?: Trade[] }): JSX.Elemen
           </tr>
         </thead>
         <tbody>
-          {trades.map((trade, index) => (
+          {effective.map((trade: any, index) => (
             <tr key={index} className="text-gray-700 text-center">
-              <td className="py-2 px-4 border">{trade.date}</td>
-              <td className="py-2 px-4 border">{trade.pair}</td>
-              <td className={`py-2 px-4 border font-semibold ${trade.side === 'BUY' ? 'text-green-600' : 'text-red-600'}`}>
-                {trade.side}
-              </td>
-              <td className="py-2 px-4 border">{fmtVal(trade.amount)}</td>
-              <td className="py-2 px-4 border">{fmtVal(trade.price)}</td>
+              <td className="py-2 px-4 border">{trade.timestamp || trade.date || '—'}</td>
+              <td className="py-2 px-4 border">{trade.symbol || trade.pair || '—'}</td>
+              <td className={`py-2 px-4 border font-semibold ${trade.side === 'BUY' ? 'text-green-600' : 'text-red-600'}`}>{trade.side}</td>
+              <td className="py-2 px-4 border">{trade.qty ?? trade.amount ?? '—'}</td>
+              <td className="py-2 px-4 border">{trade.price ?? '—'}</td>
             </tr>
           ))}
         </tbody>

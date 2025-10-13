@@ -13,7 +13,7 @@ import json
 import os
 
 from config.config import load_config
-from backend.utils.exchanges import _ADAPTER_REGISTRY
+from utils.exchanges import _ADAPTER_REGISTRY
 from typing import Dict
 
 
