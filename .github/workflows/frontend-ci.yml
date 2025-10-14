@@ -4,65 +4,75 @@ on:
   push:
     paths:
       - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
   pull_request:
     paths:
       - 'frontend/**'
-  workflow_dispatch: {}
+      - '.github/workflows/frontend-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
     steps:
       - uses: actions/checkout@v4
-
-      - name: Use Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend deps
-        working-directory: ./frontend
+          cache-dependency-path: './frontend/package-lock.json'
+      - name: Install
         run: npm ci
-
-      - name: Optional lint (ESLint)
-        working-directory: ./frontend
-        # Run lint if available, but do not fail the workflow on lint issues.
-        run: |
-          # POSIX: check if a lint script is present in package.json and run it
-          if npm run | grep -q "lint"; then
-            echo "Running lint (will not fail the job)"
-            npm run lint || echo "Lint failed but continuing"
-          else
-            echo "No lint script defined, skipping ESLint"
-          fi
-
       - name: Typecheck
-        working-directory: ./frontend
-        run: |
-          # Run a configured type-check script if present. If not, skip typecheck.
-          if npm run | grep -q "type-check"; then
-            npm run type-check
-          elif [ -f tsconfig.json ]; then
-            echo "tsconfig.json found but no type-check script; skipping tsc because TypeScript isn't in devDependencies. To enable, add 'typescript' to devDependencies and a 'type-check' script."
-          else
-            echo "No TypeScript configuration found; skipping typecheck"
-          fi
-
-      - name: Build (production)
-        working-directory: ./frontend
+        run: npm run typecheck
+      - name: Lint  
+        run: npm run lint
+      - name: Build
         run: npm run build
-
-      - name: List dist contents (debug)
-        working-directory: ./frontend
+      - name: Test
+        run: npm run test
+      - name: Import Files
         run: |
-          echo "=== dist listing ==="
-          ls -la dist || echo "dist directory missing"
+          import './style.css'
+          import typescriptLogo from './typescript.svg'
+          import viteLogo from '/vite.svg'
+          import { setupCounter } from './counter'
 
-      - name: Upload dist artifact
-        # Always attempt to upload dist so debugging artifacts are available
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist
+          document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
+            <div>
+              <a href="https://vitejs.dev" target="_blank">
+                <img src="${viteLogo}" class="logo" alt="Vite logo" />
+              </a>
+              <a href="https://www.typescriptlang.org/" target="_blank">
+                <img src="${typescriptLogo}" class="logo vanilla" alt="TypeScript logo" />
+              </a>
+              <h1>Vite + TypeScript</h1>
+
+              <div class="card">
+                <button id="counter" type="button"></button>
+              </div>
+              <p class="read-the-docs">
+                Click on the Vite and TypeScript logos to learn more
+              </p>
+            </div>
+          `
+
+          setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p ./tsconfig.json",
+    "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
+    "test": "vitest run --reporter=dot"
+  }
