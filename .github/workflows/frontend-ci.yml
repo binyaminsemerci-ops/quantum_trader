@@ -34,9 +34,45 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
-      - name: Lint
+      - name: Lint  
         run: npm run lint
       - name: Build
         run: npm run build
       - name: Test
-        run: npm test -- --ci --reporter=dot
+        run: npm run test
+      - name: Import Files
+        run: |
+          import './style.css'
+          import typescriptLogo from './typescript.svg'
+          import viteLogo from '/vite.svg'
+          import { setupCounter } from './counter'
+
+          document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
+            <div>
+              <a href="https://vitejs.dev" target="_blank">
+                <img src="${viteLogo}" class="logo" alt="Vite logo" />
+              </a>
+              <a href="https://www.typescriptlang.org/" target="_blank">
+                <img src="${typescriptLogo}" class="logo vanilla" alt="TypeScript logo" />
+              </a>
+              <h1>Vite + TypeScript</h1>
+
+              <div class="card">
+                <button id="counter" type="button"></button>
+              </div>
+              <p class="read-the-docs">
+                Click on the Vite and TypeScript logos to learn more
+              </p>
+            </div>
+          `
+
+          setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p ./tsconfig.json",
+    "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
+    "test": "vitest run --reporter=dot"
+  }
