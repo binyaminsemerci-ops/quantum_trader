@@ -1,7 +1,7 @@
 # backend/routes/trade_logs.py
 from fastapi import APIRouter, Query
 from typing import Annotated
-from backend.database import get_db
+from database import get_db
 
 router = APIRouter()
 

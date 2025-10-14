@@ -18,7 +18,7 @@ from sqlalchemy.exc import SQLAlchemyError
 import logging
 from datetime import datetime
 
-from backend.database import get_db, TradeLog
+from database import get_db, TradeLog
 
 logger = logging.getLogger(__name__)
 

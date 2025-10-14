@@ -4,7 +4,7 @@ import logging
 import sqlite3
 from sqlalchemy import exc as sa_exc
 
-from backend.database import get_db
+from database import get_db
 
 router = APIRouter()
 
