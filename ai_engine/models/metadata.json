@@ -1,5 +1,5 @@
 {
-  "training_date": "2025-10-14T02:11:26.258744",
+  "training_date": "2025-10-14T03:29:22.333837",
   "samples": 803,
   "features": 12,
   "model_type": "XGBClassifier",

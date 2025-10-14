@@ -74,12 +74,12 @@ npm install
 npm run dev
 ```
 
-## ?? AI Training
+## AI Training
 
 ### Windows launcher
-- Run .	rain_ai_model.bat from the repository root to bootstrap the .venv, install Python dependencies, and start training.
-- The script defaults to free data sources (Binance klines + CoinGecko sentiment). Provide extra arguments as needed—they are passed directly to 	rain_ai.py.
-- Training artifacts (xgb_model.pkl, scaler.pkl, metadata.json) are written to i_engine/models/. Re-run the batch file whenever you want to refresh the model.
+- Run `.\train_ai_model.bat` from the repository root to bootstrap the .venv, install Python dependencies, and start training.
+- The script defaults to free data sources (Binance klines + CoinGecko sentiment). Provide extra arguments as needed—they are passed directly to `train_ai.py`.
+- Training artifacts (`xgb_model.pkl`, `scaler.pkl`, `metadata.json`) are written to `ai_engine\models\`. Re-run the batch file whenever you want to refresh the model.
 
 ## 📖 Documentation
 
