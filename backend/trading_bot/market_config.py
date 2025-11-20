@@ -82,7 +82,7 @@ MARKET_CONFIGS = {
     },
     "FUTURES": {
         "base_currencies": ["USDC"],
-        "leverage": 10,  # Adjustable per trade
+        "leverage": 30,  # Aggressive leverage for all trades
         "margin_enabled": True,
         "description": "USDC-M Futures trading",
     },
@@ -171,11 +171,11 @@ RISK_CONFIGS = {
         "max_daily_trades": 20,
     },
     "FUTURES": {
-        "max_position_size": 0.02,  # 2% of portfolio per position (leveraged)
-        "stop_loss": 0.03,  # 3% stop loss (tighter due to leverage)
-        "take_profit": 0.10,  # 10% take profit
+        "max_position_size": 0.25,  # 25% of portfolio MARGIN per position (4 max positions)
+        "stop_loss": 0.03,  # 3% stop loss (margin-based with 30x leverage)
+        "take_profit": 0.10,  # 10% take profit (margin-based)
         "max_daily_trades": 15,
-        "max_leverage": 10,
+        "max_leverage": 30,
     },
     "MARGIN": {
         "max_position_size": 0.08,  # 8% of portfolio per position
