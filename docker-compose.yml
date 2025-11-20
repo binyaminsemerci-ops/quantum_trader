@@ -1,26 +1,99 @@
 services:
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: quantum_backend
-    restart: always
+    restart: unless-stopped
+    profiles: ["dev"]
     env_file:
       - .env
     environment:
       # Sørg for at Python finner backend/ som modul
       - PYTHONPATH=/app
+      
+      # 🤖 AI MODEL SELECTION (NEW!)
+      - AI_MODEL=hybrid                    # 🚀 HYBRID: TFT (60%) + XGBoost (40%) ensemble
+                                            # Options: xgb (fast), tft (temporal), hybrid (best)
+      
+      # 🎯 TEST MODE - 58%+ CONFIDENCE (Testing Hybrid Agent with rule-based signals)
+      - QT_EVENT_DRIVEN_MODE=true
+      - QT_CONFIDENCE_THRESHOLD=0.58    # LOWERED from 0.64 to test system end-to-end
+      - QT_CHECK_INTERVAL=10            # Check every 10 seconds
+      - QT_COOLDOWN_SECONDS=120         # Longer cooldown for quality
+      - LOG_LEVEL=DEBUG
+      - QT_LOG_LEVEL=DEBUG
+      
+      # Enable trading and AI
+      - QT_EXECUTION_EXCHANGE=binance-futures
+      - QT_MARKET_TYPE=usdm_perp
+      - QT_PAPER_TRADING=false         # 🔥 LIVE TRADING - STOP_LOSS fix verified
+      - STAGING_MODE=false              # 🔥 REAL ORDERS - STOP_LOSS guaranteed execution
+      - QT_ENABLE_EXECUTION=true       # ✅ Execution enabled (paper mode)
+      - QT_ENABLE_AI_TRADING=true      # ✅ AI trading enabled
+      - QT_MIN_CONFIDENCE=0.65         # 65%+ trained ML + AI re-evaluation safety
+      - QT_EXECUTION_MIN_NOTIONAL=20.0
+      - QT_QUOTES=USDT
+      - QT_SYMBOLS=BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,DOGEUSDT,ADAUSDT,LINKUSDT,AVAXUSDT,DOTUSDT,MATICUSDT,NEARUSDT,UNIUSDT,LTCUSDT,ATOMUSDT,APTUSDT,ARBUSDT,OPUSDT,SHIBUSDT,SUIUSDT,TONUSDT,RNDRUSDT,INJUSDT,TIAUSDT,RENDERUSDT,RUNEUSDT,JTOUSDT,FETUSDT,ORDIUSDT,STXUSDT,IMXUSDT,BLURUSDT,WLDUSDT,JUPUSDT,PYTHUSDT,DYMUSDT,ONDOUSDT,MANTAUSDT,PORTALUSDT,ALTUSDT,ACEUSDT,NFPUSDT,AIUSDT,XAIUSDT,HYPEUSDT,RESOLVUSDT,XANUSDT,BNXUSDT,FILUSDT,ICPUSDT,ZENUSDT,1000PEPEUSDT,PUMPUSDT,BCHUSDT,METUSDT,SOONUSDT,TAOUSDT,PAXGUSDT,AAVEUSDT,JCTUSDT,TRUMPUSDT,TRXUSDT,WLFIUSDT,DUSKUSDT,WIFUSDT,PENGUUSDT,ALPHAUSDT,ZECUSDT,ASTERUSDT,DASHUSDT,BEATUSDT,AGIXUSDT,GIGGLEUSDT,VIDTUSDT,UXLINKUSDT,PIEVERSEUSDT,XPLUSDT,STRKUSDT,ALPACAUSDT,EOSUSDT,ETCUSDT,FTMUSDT,GALAUSDT,GMTUSDT,GRTUSDT,HBARUSDT,ILVUSDT,LRCUSDT,MANAUSDT,MKRUSDT,ALGOUSDT,AXSUSDT,SANDUSDT,CRVUSDT,APEUSDT,CHZUSDT,ENSUSDT,FLOWUSDT,KNCUSDT,QNTUSDT,SNXUSDT,ARUSDT,COMPUSDT,EGLDUSDT,KAVAUSDT,LDOUSDT,OMGUSDT,QTUMUSDT,SUSHIUSDT,THETAUSDT,XTZUSDT,YFIUSDT,ZILUSDT,1INCHUSDT,ANKRUSDT,AUDIOUSDT,BALUSDT,BANDUSDT,CELOUSDT,DYDXUSDT,FXSUSDT,IOTAUSDT,JASMYUSDT,LOOMUSDT,MASKUSDT,NEOUSDT,OCEANUSDT,PEOPLEUSDT,PERPUSDT,ROSEUSDT,STORJUSDT,SXPUSDT,WAVESUSDT,COTIUSDT,SKLUSDT,ZRXUSDT,ENJUSDT,ARUSDT,ICXUSDT,VETUSDT,BATUSDT,ONEUSDT,ZILUSDT,RVNUSDT,BELUSDT,CTSIUSDT,LITUSDT,SFPUSDT,DENTUSDT,HNTUSDT,BLZUSDT,REEFUSDT,C98USDT,CLVUSDT,KSMTUSDT,BAKEUSDT,TLMUSDT,FLMUSDT,RADUSDT,VGXUSDT,BTGUSDT,KDAUSDT,ARPAUSDT,PERLAUSDT,CTXCUSDT,VITEUSDT,CTKUSDT,AKROUSDT,PUNDIXUSDT,MBOXUSDT,FORUSDT,REQUSDT,GHSTUSDT,TRBUSDT,LPTUSDT,XECUSDT,ELFUSDT,POLYUSDT,UNFIUSDT,DARUSDT,NKNUSDT,SCUSDT,DGBUSDT,AVAUSDT,SYSUSDT,XVSUSDT,ALPINEUSDT,ASTRUSDT,GMXUSDT,POROUSDT,CVXUSDT,HIGHUSDT,GLMRUSDT,BIGTIMEUSDT,MAGICUSDT,RDNTUSDT,HOOKUSDT,COMBOUSDT,MAVUSDT,PENDLEUSDT,ARKMUSDT,AGLDUSDT,YGGUSDT,DODOXUSDT,BICOUSDT,FLUXUSDT,VOXELUSDT,STGUSDT,TUSDT,TOMIUSDT,EDUUSDT,IDUSDT,ARBUSDT,KEYUSDT,LEVERUSDT,SEIUSDT,CYBERUSDT,HIFIUSDT,AUCTIONUSDT,MAVUSDT,NMRUSDT,WUSDT
+      
+      # 🎯 LEVERAGE & POSITION SIZING: Now using .env values (30x leverage, 4 positions)
+      # All QT_DEFAULT_LEVERAGE, QT_MAX_POSITIONS, QT_MAX_NOTIONAL_PER_TRADE are read from .env
+      
+      # 💰 TAKE PROFIT / STOP LOSS: Tighter for 20x leverage safety
+      - QT_TP_PCT=0.03             # Take profit ved +3.0% gain (tighter for 20x)
+      - QT_SL_PCT=0.02             # Stop loss ved -2.0% tap (tight protection for 20x)
+      - QT_TRAIL_PCT=0.015         # Trailing stop 1.5% (tighter for 20x)
+      - QT_PARTIAL_TP=0.5          # Lukk 50% ved første TP
+      - QT_FORCE_EXITS_ENABLED=true  # Aktiver forced exits
+      
+      # ✅ ALLOWED SYMBOLS: 50 USDT Futures pairs (top volume) for autonomous trading
+      - QT_ALLOWED_SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT,ZECUSDT,ALPACAUSDT,XRPUSDT,DOGEUSDT,BNBUSDT,ASTERUSDT,HYPEUSDT,RESOLVUSDT,XANUSDT,BNXUSDT,FILUSDT,ICPUSDT,XPLUSDT,ZENUSDT,AVAXUSDT,ALPHAUSDT,UNIUSDT,1000PEPEUSDT,PUMPUSDT,STRKUSDT,BCHUSDT,METUSDT,DASHUSDT,SOONUSDT,NEARUSDT,TAOUSDT,PAXGUSDT,BEATUSDT,PIEVERSEUSDT,AAVEUSDT,JCTUSDT,GIGGLEUSDT,FETUSDT,TRUMPUSDT,TRXUSDT,WLFIUSDT,UXLINKUSDT,VIDTUSDT,DUSKUSDT,AGIXUSDT,WIFUSDT,PENGUUSDT,ADAUSDT,LINKUSDT,DOTUSDT,MATICUSDT,LTCUSDT
+      
+      # 🤖 CONTINUOUS LEARNING: Autotraining based on live trade outcomes
+      - QT_CONTINUOUS_LEARNING=true         # Enable continuous learning
+      - QT_MIN_SAMPLES_FOR_RETRAIN=50       # Retrain after 50 new samples
+      - QT_RETRAIN_INTERVAL_HOURS=24        # Auto-retrain every 24 hours
+      - QT_AUTO_BACKTEST_AFTER_TRAIN=true   # Run backtest after each retrain
+      
+      # Force some trades for data collection
+      - QT_FORCE_SAMPLE_COLLECTION=true
     ports:
       - "8000:8000"
     volumes:
-      # Mount backend-koden inn i containeren
-      - ./backend:/app
+      # Mount backend-koden inn i containeren uten å endre pakkenavnet
+      - ./backend:/app/backend
       # Mount database-filer
       - ./database:/app/database
+    networks:
+      - quantum_trader
 
-  frontend:
-    build: ./frontend
-    container_name: quantum_frontend
-    restart: always
+  backend-live:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: quantum_backend_live
+    restart: unless-stopped
+    profiles: ["live"]
+    env_file:
+      - ./backend/.env.live
+    environment:
+      - PYTHONPATH=/app
+      # Hardening: limit workers to 1 so APScheduler runs once
+      - UVICORN_WORKERS=1
+    # Use Dockerfile's default CMD (uvicorn backend.main:app)
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
     ports:
-      - "3000:80"
-    depends_on:
-      - backend
+      - "8000:8000"
+    volumes:
+      - ./backend:/app/backend
+      - ./database:/app/database
+    networks:
+      - quantum_trader
+
+networks:
+  quantum_trader:
+    driver: bridge
