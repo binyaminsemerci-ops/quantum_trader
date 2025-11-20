@@ -604,6 +604,28 @@ class PositionMonitor:
                 f"{newly_protected} newly protected"
             )
             
+            # 🔥 ORPHANED ORDER CLEANUP: Cancel orders for symbols with no position
+            try:
+                all_open_orders = self.client.futures_get_open_orders()
+                if all_open_orders:
+                    open_symbols = {p['symbol'] for p in open_positions}
+                    orphaned_symbols = set()
+                    
+                    for order in all_open_orders:
+                        symbol = order['symbol']
+                        if symbol not in open_symbols:
+                            orphaned_symbols.add(symbol)
+                    
+                    if orphaned_symbols:
+                        logger.warning(f"🗑️  Found orphaned orders for {len(orphaned_symbols)} symbols with no position: {orphaned_symbols}")
+                        total_cancelled = 0
+                        for symbol in orphaned_symbols:
+                            cancelled = self._cancel_all_orders_for_symbol(symbol)
+                            total_cancelled += cancelled
+                        logger.info(f"✅ Cleaned up {total_cancelled} orphaned orders")
+            except Exception as cleanup_exc:
+                logger.warning(f"Could not clean orphaned orders: {cleanup_exc}")
+            
             return {
                 "status": "ok",
                 "positions": len(open_positions),

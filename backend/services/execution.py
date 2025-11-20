@@ -1411,6 +1411,34 @@ async def run_portfolio_rebalance(
             continue
 
         try:
+            # 🔥 COMPREHENSIVE ORDER CLEANUP for exits
+            # If this is a forced exit (closing position), cancel ALL open orders first
+            is_exit = "FORCED_EXIT" in intent.reason or abs(projected_qty) < abs(current_qty) * 0.5
+            
+            if is_exit:
+                try:
+                    # Use BinanceFuturesExecutionAdapter's client to cancel all orders
+                    if hasattr(adapter, '_client') and adapter._client:
+                        client = adapter._client
+                        open_orders = await asyncio.to_thread(client.futures_get_open_orders, symbol=intent.symbol)
+                        if open_orders:
+                            logger.info(f"🗑️  Cancelling {len(open_orders)} open orders for {intent.symbol} before exit")
+                            cancelled_count = 0
+                            for order in open_orders:
+                                try:
+                                    await asyncio.to_thread(
+                                        client.futures_cancel_order,
+                                        symbol=intent.symbol,
+                                        orderId=order['orderId']
+                                    )
+                                    logger.info(f"   ✓ Cancelled {order['type']} order {order['orderId']}")
+                                    cancelled_count += 1
+                                except Exception as cancel_e:
+                                    logger.warning(f"   ✗ Failed to cancel order {order['orderId']}: {cancel_e}")
+                            logger.info(f"✅ Cancelled {cancelled_count}/{len(open_orders)} orders for {intent.symbol}")
+                except Exception as cleanup_exc:
+                    logger.warning(f"Could not cancel orders for {intent.symbol} before exit: {cleanup_exc}")
+            
             order_id = await adapter.submit_order(intent.symbol, intent.side, intent.quantity, intent.price)
             await risk_guard.record_execution(
                 symbol=intent.symbol,
