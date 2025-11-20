@@ -269,32 +269,43 @@ class AutonomousTradingBot:
     def _calculate_position_size(
         self, price: float, confidence: float, market_type: str
     ) -> float:
-        """Calculate position size based on risk, confidence, and market type"""
+        """Calculate position size based on margin and leverage for the market type.
+        
+        For FUTURES with 30x leverage:
+        - margin = available_balance * max_position_size (e.g., 25% of balance)
+        - position_size_usd = margin * leverage (e.g., margin * 30)
+        - quantity = position_size_usd / price
+        """
         risk_config = get_risk_config(market_type)
         market_config = get_market_config(market_type)
 
         # Market balance for this specific market
         available_balance = self.market_balances[market_type]
 
-        # Risk amount = balance * max_position_size * confidence_multiplier
-        confidence_multiplier = min(confidence * 1.5, 1.0)  # Scale confidence
+        # Calculate margin to use (collateral)
+        # max_position_size is the % of balance to use as MARGIN (not position size)
         max_position_percent = risk_config["max_position_size"]
-        risk_amount = available_balance * max_position_percent * confidence_multiplier
+        confidence_multiplier = min(confidence * 1.5, 1.0)  # Scale confidence
+        margin = available_balance * max_position_percent * confidence_multiplier
 
-        # For leveraged markets, account for leverage
+        # For leveraged markets, multiply margin by leverage to get actual position size
         leverage = market_config.get("leverage", 1)
-        effective_risk = risk_amount / leverage if leverage > 1 else risk_amount
+        position_size_usd = margin * leverage
 
-        # Position size = risk_amount / (price * stop_loss_percent)
-        stop_loss_percent = risk_config["stop_loss"]
-        position_size = effective_risk / (price * stop_loss_percent)
+        # Convert USD position size to quantity
+        quantity = position_size_usd / price
 
         # Ensure minimum order size (Binance usually ~$10)
         min_notional = 10.0
-        if position_size * price < min_notional:
-            position_size = min_notional / price
+        if quantity * price < min_notional:
+            quantity = min_notional / price
 
-        return round(position_size, 6)
+        logger.info(
+            f"📏 Position sizing for {market_type}: margin=${margin:.2f}, "
+            f"leverage={leverage}x, position=${position_size_usd:.2f}, qty={quantity:.6f}"
+        )
+
+        return round(quantity, 6)
 
     def _calculate_stop_loss(self, price: float, side: str, market_type: str) -> float:
         """Calculate stop loss price based on market type"""

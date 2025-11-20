@@ -259,9 +259,18 @@ class EventDrivenExecutor:
             
             # Get account balance for position sizing
             cash = await self._adapter.get_cash_balance()
-            max_notional = self._risk_config.max_notional_per_trade or 4000.0
+            # max_notional is MARGIN, not position size
+            # With 30x leverage: $5000 margin = $150,000 position
+            max_margin_per_trade = self._risk_config.max_notional_per_trade or 5000.0
             
-            logger.info(f"💰 Cash: ${cash:.2f}, Max per trade: ${max_notional:.2f}")
+            # With max 4 positions, use 25% of cash per position (100%/4)
+            margin_from_balance = cash * 0.25
+            actual_margin = min(max_margin_per_trade, margin_from_balance)
+            
+            logger.info(
+                f"💰 Cash: ${cash:.2f}, Margin per trade: ${actual_margin:.2f} "
+                f"(max ${max_margin_per_trade:.2f}, 25% of balance = ${margin_from_balance:.2f})"
+            )
             
             # Place orders for top signals (up to available slots)
             orders_to_place = signals[:available_slots]
@@ -311,16 +320,19 @@ class EventDrivenExecutor:
                         orders_skipped += 1
                         continue
                     
-                    # Calculate quantity
-                    notional = min(max_notional, cash * 0.95)  # Use max 95% of cash per trade
-                    quantity = notional / price
+                    # Calculate quantity with leverage
+                    # actual_margin is the collateral we put up
+                    # Position size = margin * leverage
+                    leverage = 30  # 30x leverage
+                    position_size_usd = actual_margin * leverage
+                    quantity = position_size_usd / price
                     
                     # Determine side
                     side = "buy" if action == "BUY" else "sell"
                     
                     logger.info(
                         f"📤 Placing {side.upper()} order: {symbol} qty={quantity:.4f} @ ${price:.4f} "
-                        f"(notional=${notional:.2f}, conf={confidence:.2%})"
+                        f"(margin=${actual_margin:.2f}, position=${position_size_usd:.2f} @ {leverage}x, conf={confidence:.2%})"
                     )
                     
                     # Submit market order (use current price as limit for immediate fill)
