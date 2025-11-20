@@ -58,7 +58,7 @@ class AutonomousTradingBot:
         self,
         balance: float = 10000.0,
         risk_per_trade: float = 0.01,  # 1% risk per trade
-        min_confidence: float = 0.4,
+        min_confidence: float = 0.72,
         dry_run: bool = True,
         enabled_markets: Optional[List[str]] = None,
     ):
@@ -129,10 +129,25 @@ class AutonomousTradingBot:
                 logger.debug("No AI signals received")
                 return
 
-            logger.info(f"Received {len(signals)} AI signals")
+            prioritized = self._prioritize_signals(signals)
+            agent_count = sum(
+                1
+                for item in prioritized
+                if str(
+                    item.get("source")
+                    or item.get("details", {}).get("source", "")
+                ).lower()
+                == "xgbagent"
+            )
+            logger.info(
+                "Received %d AI signals (%d agent, %d fallback)",
+                len(prioritized),
+                agent_count,
+                len(prioritized) - agent_count,
+            )
 
-            # 2. Process each signal
-            for signal in signals:
+            # 2. Process each signal, prioritising model outputs first
+            for signal in prioritized:
                 await self._process_signal(signal)
 
             # 3. Check existing positions for exit conditions
@@ -302,6 +317,22 @@ class AutonomousTradingBot:
             return price * (1 + take_profit_percent)
         else:  # sell
             return price * (1 - take_profit_percent)
+
+    def _prioritize_signals(self, signals: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Return agent-produced signals first while preserving overall order."""
+
+        agent_signals: List[Dict[str, Any]] = []
+        fallback_signals: List[Dict[str, Any]] = []
+        for signal in signals:
+            source = str(
+                signal.get("source")
+                or signal.get("details", {}).get("source", "")
+            ).lower()
+            if source == "xgbagent":
+                agent_signals.append(signal)
+            else:
+                fallback_signals.append(signal)
+        return agent_signals + fallback_signals
 
     async def _get_current_price(
         self, symbol: str, market_type: str = "SPOT"
@@ -516,8 +547,29 @@ class AutonomousTradingBot:
     async def _close_position(
         self, market_type: str, symbol: str, position: Dict, current_price: float
     ):
-        """Close an open position"""
+        """Close an open position with comprehensive order cleanup"""
         try:
+            # 🔥 COMPREHENSIVE ORDER CLEANUP - Cancel ALL open orders for this symbol
+            try:
+                open_orders = self.binance_client.futures_get_open_orders(symbol=symbol)
+                cancelled_count = 0
+                
+                if open_orders:
+                    logger.info(f"🗑️  Cancelling {len(open_orders)} open orders for {symbol} before closing position")
+                    
+                    for order in open_orders:
+                        try:
+                            order_type = order.get('type', 'UNKNOWN')
+                            order_id = order.get('orderId')
+                            self.binance_client.futures_cancel_order(symbol=symbol, orderId=order_id)
+                            logger.info(f"   ✓ Cancelled {order_type} order {order_id}")
+                            cancelled_count += 1
+                        except Exception as cancel_e:
+                            logger.warning(f"   ✗ Failed to cancel order {order_id}: {cancel_e}")
+                    
+                    logger.info(f"✅ Cancelled {cancelled_count}/{len(open_orders)} orders for {symbol}")
+            except Exception as cancel_exc:
+                logger.warning(f"Could not cancel existing orders for {symbol}: {cancel_exc}")
             side = (
                 "sell" if position["side"] == "buy" else "buy"
             )  # Opposite side to close
