@@ -1,28 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
+import { useDashboardData } from '../hooks/useDashboardData';
 
 export default function RiskCards(): JSX.Element {
-  const [riskMetrics, setRiskMetrics] = useState({
-    maxDrawdown: -5.2,
-    currentDrawdown: -2.1,
-    portfolioVaR: 850.0,
-    leverage: 2.5,
-    marginUsed: 45.3,
-    riskScore: 7.2,
-    volatility: 18.5
-  });
-
-  // Mock real-time risk updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setRiskMetrics(prev => ({
-        ...prev,
-        currentDrawdown: prev.currentDrawdown + (Math.random() - 0.5) * 0.5,
-        riskScore: Math.max(1, Math.min(10, prev.riskScore + (Math.random() - 0.5) * 0.3)),
-        volatility: Math.max(5, prev.volatility + (Math.random() - 0.5) * 2)
-      }));
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
+  const { data } = useDashboardData();
+  const riskMetrics = useMemo(() => {
+    const r: any = data?.stats?.risk || {};
+    return {
+      maxDrawdown: r.max_drawdown,
+      currentDrawdown: r.current_drawdown,
+      portfolioVaR: r.max_trade_exposure,
+      leverage: r.leverage,
+      marginUsed: r.margin_used,
+      riskScore: r.risk_score,
+      volatility: r.volatility
+    };
+  }, [data]);
 
   const RiskCard = ({ 
     icon, 

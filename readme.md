@@ -199,3 +199,30 @@ Denne TODO-listen er i prioritert rekkefølge. Hver oppgave har et forslag til f
 ---
 
 Hvis du vil at jeg skal generere Sprint-1-filene (f.eks. `PriceChart.tsx`, `SignalFeed.tsx`, `frontend/src/api/prices.ts`), si fra hvilken del jeg skal starte med — jeg kan begynne med frontend PriceChart-komponenten i TSX med Recharts, eller jeg kan starte med backend adapter-tester. 🚀
+
+---
+
+## Full Reset / Rebuild (Windows)
+
+For å starte helt på nytt og sikre at styling (Tailwind/dark mode) faktisk bygger korrekt:
+
+```powershell
+./scripts/full-reset.ps1
+```
+
+Flagg:
+```powershell
+./scripts/full-reset.ps1 -PreserveVenv -PreserveDB   # Behold venv og eksisterende databaser
+./scripts/full-reset.ps1 -Fast                      # Hopper over reinstall av deps
+```
+
+Verifisering i nettleser-konsoll:
+```js
+document.documentElement.classList.add('dark')
+document.documentElement.classList.add('compact-mode')
+```
+
+Sjekk at `frontend/tailwind-debug.css` inneholder `.dark:` og `.compact-mode` (grid-gap justeringer).
+
+Hvis ikke: dobbeltsjekk at du kjører i `c:\quantum_trader\frontend` og at `tailwind.config.ts` finnes, ikke den gamle `.tsx`.
+

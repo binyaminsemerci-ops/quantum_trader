@@ -1,6 +1,6 @@
-// Render the new DashboardPage (composes PriceChart + SignalFeed)
-import DashboardPage from './pages/DashboardPage';
+// Render the professional trading dashboard
+import Dashboard from './pages/Dashboard';
 
 export default function App(): JSX.Element {
-  return <DashboardPage />;
+  return <Dashboard />;
 }

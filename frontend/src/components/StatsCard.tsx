@@ -1,48 +1,18 @@
-import { useEffect, useState } from 'react';
-
-type StatsData = {
-  totalValue: number;
-  pnl: number;
-  pnlPercent: number;
-  totalTrades: number;
-  winRate: number;
-  dailyPnl: number;
-  weeklyPnl: number;
-  monthlyPnl: number;
-  avgTrade: number;
-  bestTrade: number;
-  worstTrade: number;
-  sharpeRatio: number;
-};
+import { useMemo } from 'react';
+import { useDashboardData } from '../hooks/useDashboardData';
 
 export default function StatsCard(): JSX.Element {
-  const [stats, setStats] = useState<StatsData>({
-    totalValue: 10000,
-    pnl: 1250.50,
-    pnlPercent: 12.51,
-    totalTrades: 145,
-    winRate: 68.5,
-    dailyPnl: 85.30,
-    weeklyPnl: 345.20,
-    monthlyPnl: 1250.50,
-    avgTrade: 8.62,
-    bestTrade: 245.80,
-    worstTrade: -89.50,
-    sharpeRatio: 1.85
-  });
-
-  // Mock data loading - replace with real API call
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setStats(prev => ({
-        ...prev,
-        pnl: prev.pnl + (Math.random() - 0.5) * 10,
-        dailyPnl: prev.dailyPnl + (Math.random() - 0.5) * 5,
-        totalValue: prev.totalValue + (Math.random() - 0.5) * 50,
-      }));
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+  const { data } = useDashboardData();
+  const derived = useMemo(() => {
+    const s: any = data?.stats || {};
+    return {
+      totalValue: s.total_equity || s.portfolio_value || null,
+      pnl: s.pnl ?? null,
+      trades: s.total_trades || s.analytics?.trades_count || null,
+      winRate: s.analytics?.win_rate ?? null,
+      sharpe: s.analytics?.sharpe_ratio ?? s.sharpe_ratio ?? null
+    };
+  }, [data]);
 
   const StatItem = ({ icon, label, value, change, isPositive }: {
     icon: string;
@@ -65,8 +35,12 @@ export default function StatsCard(): JSX.Element {
       </div>
       <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">{label}</div>
       <div className="text-xl font-bold text-gray-800 dark:text-white">
-        {typeof value === 'number' && label.toLowerCase().includes('value') ? `$${value.toLocaleString()}` :
-         typeof value === 'number' && (label.toLowerCase().includes('pnl') || label.toLowerCase().includes('trade')) ? `$${value.toFixed(2)}` :
+        {typeof value === 'number' && label.toLowerCase().includes('value') ? 
+          (Math.abs(value) >= 1000000 ? `$${(value/1000000).toFixed(2)}M` : 
+           Math.abs(value) >= 1000 ? `$${(value/1000).toFixed(0)}K` : `$${value.toLocaleString()}`) :
+         typeof value === 'number' && (label.toLowerCase().includes('pnl') || label.toLowerCase().includes('trade')) ? 
+          (Math.abs(value) >= 1000000 ? `$${(value/1000000).toFixed(2)}M` :
+           Math.abs(value) >= 1000 ? `$${(value/1000).toFixed(0)}K` : `$${value.toFixed(2)}`) :
          typeof value === 'number' && label.toLowerCase().includes('rate') ? `${value.toFixed(1)}%` :
          typeof value === 'number' && label.toLowerCase().includes('ratio') ? value.toFixed(2) :
          typeof value === 'number' ? value.toLocaleString() : value}
@@ -85,54 +59,11 @@ export default function StatsCard(): JSX.Element {
       </div>
       
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        <StatItem 
-          icon="💰" 
-          label="Total Value" 
-          value={stats.totalValue} 
-          change={stats.pnlPercent}
-          isPositive={stats.pnlPercent >= 0}
-        />
-        <StatItem 
-          icon="📈" 
-          label="Total P&L" 
-          value={stats.pnl}
-          change={stats.pnlPercent}
-          isPositive={stats.pnl >= 0}
-        />
-        <StatItem 
-          icon="🎯" 
-          label="Win Rate" 
-          value={stats.winRate}
-        />
-        <StatItem 
-          icon="🔢" 
-          label="Total Trades" 
-          value={stats.totalTrades}
-        />
-        <StatItem 
-          icon="📅" 
-          label="Daily P&L" 
-          value={stats.dailyPnl}
-          isPositive={stats.dailyPnl >= 0}
-        />
-        <StatItem 
-          icon="📊" 
-          label="Weekly P&L" 
-          value={stats.weeklyPnl}
-          isPositive={stats.weeklyPnl >= 0}
-        />
-        <StatItem 
-          icon="💹" 
-          label="Avg Trade" 
-          value={stats.avgTrade}
-          isPositive={stats.avgTrade >= 0}
-        />
-        <StatItem 
-          icon="⚡" 
-          label="Sharpe Ratio" 
-          value={stats.sharpeRatio}
-          isPositive={stats.sharpeRatio >= 1}
-        />
+        {derived.totalValue != null && <StatItem icon="💰" label="Total Value" value={derived.totalValue} />}
+        {derived.pnl != null && <StatItem icon="📈" label="Total P&L" value={derived.pnl} isPositive={(derived.pnl as number) >= 0} />}
+        {derived.trades != null && <StatItem icon="🔢" label="Total Trades" value={derived.trades} />}
+        {derived.winRate != null && <StatItem icon="🎯" label="Win Rate" value={derived.winRate} />}
+        {derived.sharpe != null && <StatItem icon="⚡" label="Sharpe Ratio" value={derived.sharpe} />}
       </div>
     </div>
   );
