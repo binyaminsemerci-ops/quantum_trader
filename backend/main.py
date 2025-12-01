@@ -9,6 +9,8 @@ from routes import (
     signals,
     prices,
     candles,
+    ws,
+    trade_logs,
 )
 # from trading_bot.routes import router as trading_bot_router
 from exceptions import add_exception_handlers
@@ -81,6 +83,12 @@ async def root():
     return {"message": "Quantum Trader API is running"}
 
 
+@app.get("/health", tags=["System"], summary="Health Check")
+async def health():
+    """Lightweight health endpoint for liveness probes."""
+    return {"status": "ok"}
+
+
 # inkluder routere uten trailing slash-problemer
 app.include_router(trades.router, prefix="/trades")
 app.include_router(stats.router, prefix="/stats")
@@ -90,4 +98,23 @@ app.include_router(binance.router, prefix="/binance")
 app.include_router(signals.router, prefix="/signals")
 app.include_router(prices.router, prefix="/prices")
 app.include_router(candles.router, prefix="/candles")
+app.include_router(trade_logs.router)  # Trade logs (root level)
+app.include_router(ws.router)  # WebSocket routes (no prefix needed)
 # app.include_router(trading_bot_router, prefix="/trading-bot", tags=["Trading Bot"])
+
+
+if __name__ == "__main__":
+    # Local dev launcher: run `python backend/main.py` (from repo root) or `python main.py` inside backend dir.
+    import uvicorn, os
+    port = int(os.getenv("PORT", "8080"))  # Default moved to 8080 to avoid clashes with earlier processes
+    # Disable reload by default to prevent log file churn causing infinite reload loops.
+    reload_env = os.getenv("UVICORN_RELOAD", "0").lower()
+    reload = reload_env in {"1", "true", "yes"}
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=reload,
+        # Note: if enabling reload and you still see rapid restarts, start with CLI flag:
+        # uvicorn main:app --port 8080 --reload --reload-exclude logs --reload-exclude *.db
+    )

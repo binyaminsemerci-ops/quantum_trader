@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLivePrices } from '../services/priceService';
 
 interface PnLData {
   totalPnL: number;
@@ -27,53 +28,80 @@ interface TradePosition {
 }
 
 export default function PnLTracker(): JSX.Element {
+  const { getPrice } = useLivePrices();
+  
   const [pnlData, setPnlData] = useState<PnLData>({
-    totalPnL: 2845.67,
-    dailyPnL: 156.23,
-    weeklyPnL: 423.89,
-    monthlyPnL: 1289.45,
-    unrealizedPnL: 234.56,
-    realizedPnL: 2611.11,
-    bestDay: 567.89,
-    worstDay: -234.12,
-    winningTrades: 89,
-    losingTrades: 34,
-    avgWinSize: 67.45,
-    avgLossSize: -45.23
+    totalPnL: 15750.25,
+    dailyPnL: 420.15,
+    weeklyPnL: 2890.40,
+    monthlyPnL: 11250.75,
+    unrealizedPnL: 1285.60,
+    realizedPnL: 14464.65,
+    bestDay: 1240.85,
+    worstDay: -456.30,
+    winningTrades: 244,
+    losingTrades: 98,
+    avgWinSize: 285.75,
+    avgLossSize: -122.30
   });
 
-  const [openPositions, setOpenPositions] = useState<TradePosition[]>([
-    {
-      symbol: 'BTCUSDT',
-      side: 'long',
-      size: 0.25,
-      entryPrice: 66800.00,
-      currentPrice: 67450.00,
-      pnl: 162.50,
-      pnlPercent: 2.43,
-      duration: '2h 15m'
-    },
-    {
-      symbol: 'ETHUSDT',
-      side: 'short',
-      size: 2.0,
-      entryPrice: 2720.00,
-      currentPrice: 2680.50,
-      pnl: 79.00,
-      pnlPercent: 1.45,
-      duration: '45m'
-    },
-    {
-      symbol: 'SOLUSDT',
-      side: 'long',
-      size: 15.0,
-      entryPrice: 138.50,
-      currentPrice: 142.80,
-      pnl: 64.50,
-      pnlPercent: 3.10,
-      duration: '1h 30m'
-    }
-  ]);
+  // Generate positions with live prices
+  const generatePositions = (): TradePosition[] => {
+    const btcPrice = getPrice('BTCUSDT') || 42741.13;
+    const ethPrice = getPrice('ETHUSDT') || 2833.30;
+    const solPrice = getPrice('SOLUSDT') || 95.09;
+    const avaxPrice = getPrice('AVAXUSDT') || 25.67;
+    
+    const positions = [
+      {
+        symbol: 'BTCUSDT',
+        side: 'long' as const,
+        size: 1.25,
+        entryPrice: 41800.00,
+        currentPrice: btcPrice,
+        duration: '3h 42m'
+      },
+      {
+        symbol: 'ETHUSDT',
+        side: 'long' as const,
+        size: 8.5,
+        entryPrice: 2680.00,
+        currentPrice: ethPrice,
+        duration: '1h 58m'
+      },
+      {
+        symbol: 'SOLUSDT',
+        side: 'short' as const,
+        size: 45.0,
+        entryPrice: 98.50,
+        currentPrice: solPrice,
+        duration: '52m'
+      },
+      {
+        symbol: 'AVAXUSDT',
+        side: 'long' as const,
+        size: 25.0,
+        entryPrice: 24.80,
+        currentPrice: avaxPrice,
+        duration: '2h 18m'
+      }
+    ];
+
+    return positions.map(position => {
+      const pnl = position.side === 'long' 
+        ? (position.currentPrice - position.entryPrice) * position.size
+        : (position.entryPrice - position.currentPrice) * position.size;
+      const pnlPercent = ((position.currentPrice - position.entryPrice) / position.entryPrice) * 100 * (position.side === 'long' ? 1 : -1);
+
+      return {
+        ...position,
+        pnl,
+        pnlPercent
+      };
+    });
+  };
+
+  const [openPositions, setOpenPositions] = useState<TradePosition[]>(generatePositions());
 
   // Simulate real-time P&L updates
   useEffect(() => {
@@ -86,26 +114,12 @@ export default function PnLTracker(): JSX.Element {
         totalPnL: prev.realizedPnL + prev.unrealizedPnL
       }));
 
-      // Update open positions
-      setOpenPositions(prev => prev.map(position => {
-        const priceChange = (Math.random() - 0.5) * 0.02; // ±1% change
-        const newPrice = position.currentPrice * (1 + priceChange);
-        const newPnL = position.side === 'long' 
-          ? (newPrice - position.entryPrice) * position.size
-          : (position.entryPrice - newPrice) * position.size;
-        const newPnLPercent = ((newPrice - position.entryPrice) / position.entryPrice) * 100 * (position.side === 'long' ? 1 : -1);
-
-        return {
-          ...position,
-          currentPrice: newPrice,
-          pnl: newPnL,
-          pnlPercent: newPnLPercent
-        };
-      }));
-    }, 2500);
+      // Update positions with latest live prices
+      setOpenPositions(generatePositions());
+    }, 5000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [getPrice]);
 
   const PnLCard = ({ 
     title, 
