@@ -1,6 +1,6 @@
 // React import not required with jsx runtime
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, fireEvent, screen } from '@testing-library/react';
+import { render, fireEvent, screen, act } from '@testing-library/react';
 
 // Mock the api module
 vi.mock('../utils/api', () => {
@@ -32,15 +32,17 @@ describe('Settings page', () => {
     await screen.findByRole('button', { name: /save/i });
 
     // fill required fields for default exchange (binance)
-  const keyInput = await screen.findByLabelText(/Binance API Key/i, { selector: 'input' });
-  const secretInput = await screen.findByLabelText(/Binance API Secret/i, { selector: 'input' });
+    const keyInput = await screen.findByLabelText(/Binance API Key/i, { selector: 'input' });
+    const secretInput = await screen.findByLabelText(/Binance API Secret/i, { selector: 'input' });
     fireEvent.change(keyInput, { target: { value: 'test-key' } }); // pragma: allowlist secret
     fireEvent.change(secretInput, { target: { value: 'test-secret' } }); // pragma: allowlist secret
 
     const saveButton = await screen.findByRole('button', { name: /save/i });
     expect(saveButton).toBeDefined();
 
-    fireEvent.click(saveButton);
+    await act(async () => {
+      fireEvent.click(saveButton);
+    });
 
     expect(api.saveSettings).toHaveBeenCalled();
   });
@@ -50,7 +52,7 @@ describe('Settings page', () => {
     // Wait for the Save button to appear
     await screen.findByRole('button', { name: /save/i });
 
-  const select = await screen.findByRole('combobox');
+    const select = await screen.findByRole('combobox');
     // switch to coinbase
     fireEvent.change(select, { target: { value: 'coinbase' } });
 
