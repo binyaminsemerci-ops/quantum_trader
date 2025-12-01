@@ -9,9 +9,12 @@ This script fetches data from the internal `backend.routes.external_data` helper
 to build a dataset, adds technical + sentiment features, trains a regressor,
 and writes model and scaler artifacts to `ai_engine/models/`.
 
-The script is defensive: if xgboost or sklearn are not installed it falls back
-to a DummyRegressor and a lightweight scaler so it can run in minimal CI/dev
-environments.
+The script is defensive with multiple fallback levels:
+1. XGBRegressor (preferred, when xgboost is available)
+2. RandomForestRegressor (fallback, when sklearn is available)
+3. DummyRegressor (fallback, basic sklearn estimator)
+4. _MeanRegressor (final fallback, minimal implementation)
+This ensures training can proceed in minimal CI/dev environments.
 """
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "models")
@@ -136,11 +139,16 @@ def make_regressor():
         return XGBRegressor(n_estimators=50, max_depth=3, verbosity=0)
     except Exception:
         try:
-            from sklearn.dummy import DummyRegressor  # type: ignore[import-untyped]
+            from sklearn.ensemble import RandomForestRegressor  # type: ignore[import-untyped]
 
-            return DummyRegressor(strategy="mean")
+            return RandomForestRegressor(n_estimators=50, max_depth=5, random_state=42)
         except Exception:
-            return _MeanRegressor()
+            try:
+                from sklearn.dummy import DummyRegressor  # type: ignore[import-untyped]
+
+                return DummyRegressor(strategy="mean")
+            except Exception:
+                return _MeanRegressor()
 
 
 def save_artifacts(model, scaler, model_path, scaler_path):
