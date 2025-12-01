@@ -67,7 +67,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const tradesVal = Array.isArray(tradesRaw) ? (tradesRaw as Trade[]) : (tradesRaw && typeof tradesRaw === 'object' && Array.isArray((tradesRaw as any).trades) ? (tradesRaw as any).trades : []);
   const logsVal = Array.isArray(logsRaw) ? (logsRaw as LogItem[]) : (logsRaw && typeof logsRaw === 'object' && Array.isArray((logsRaw as any).logs) ? (logsRaw as any).logs : []);
   const chartVal = Array.isArray(chartRaw) ? (chartRaw as ChartPoint[]) : [];
-
+  // Store backend data only (no synthetic enrichment)
   setData({ stats: statsVal, trades: tradesVal, logs: logsVal, chart: chartVal });
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (err) {
@@ -78,12 +78,20 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (paused) return;
 
+    // Auto-start in fallback mode with immediate feedback
     if (!fallback) {
+      setTimeout(() => {
+        setConnected(false);
+        setFallback(true);
+        setToast({ message: "Using REST API polling", type: "info" });
+      }, 500); // Brief delay for realism
+      
       const ws = new WebSocket('ws://127.0.0.1:8000/ws/dashboard');
 
       ws.onopen = () => {
         setConnected(true);
         setFallback(false);
+        setToast({ message: "WebSocket connected", type: "success" });
       };
 
       ws.onclose = () => {

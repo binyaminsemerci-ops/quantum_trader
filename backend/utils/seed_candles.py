@@ -1,6 +1,6 @@
 import datetime
 import random
-from backend.database import get_db
+from database import get_db
 
 
 def seed_candles(symbol="BTCUSDT", days=30):
