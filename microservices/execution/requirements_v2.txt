@@ -1,0 +1,20 @@
+# Execution Service Requirements V2
+# Clean dependencies - NO monolith imports
+
+# Web framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# Redis (for EventBus)
+redis==5.2.0
+
+# Binance API
+python-binance==1.0.20
+
+# HTTP client
+httpx==0.28.1
+
+# Utilities
+python-dateutil==2.9.0.post0

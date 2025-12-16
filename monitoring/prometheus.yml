@@ -1,0 +1,72 @@
+# ============================================================================
+# PROMETHEUS CONFIGURATION - MINIMAL PRODUCTION MONITORING
+# ============================================================================
+# Scrapes metrics every 15s from all Quantum Trader services
+# ============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+# Alert Rules
+rule_files:
+  - '/etc/prometheus/alert_rules.yml'
+
+# Alertmanager Configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  # ========================================================================
+  # AI ENGINE SERVICE
+  # ========================================================================
+  - job_name: 'ai-engine'
+    static_configs:
+      - targets: ['ai-engine:8001']
+        labels:
+          service: 'ai-engine'
+          environment: 'production'
+    metrics_path: '/metrics'
+    scheme: http
+
+  # ========================================================================
+  # EXECUTION SERVICE (health endpoint only - no /metrics yet)
+  # ========================================================================
+  # - job_name: 'execution'
+  #   static_configs:
+  #     - targets: ['execution:8002']
+  #       labels:
+  #         service: 'execution'
+  #         environment: 'production'
+  #   metrics_path: '/metrics'
+  #   scheme: http
+
+  # ========================================================================
+  # REDIS EXPORTER (if enabled)
+  # ========================================================================
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+  #       labels:
+  #         service: 'redis'
+
+  # ========================================================================
+  # DOCKER METRICS (if Docker daemon metrics enabled)
+  # ========================================================================
+  # - job_name: 'docker'
+  #   static_configs:
+  #     - targets: ['host.docker.internal:9323']
+  #       labels:
+  #         service: 'docker'
+
+  # ========================================================================
+  # PROMETHEUS SELF-MONITORING
+  # ========================================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'

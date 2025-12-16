@@ -56,3 +56,5 @@ run-*-log.txt
 /.pytest_cache/
 /.pytest_cache/
 .pytest_tmp/
+data/binance_futures_training_data.csv
+blobs/

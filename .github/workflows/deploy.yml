@@ -1,0 +1,23 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/hetzner_fresh
+          chmod 600 ~/.ssh/hetzner_fresh
+          
+      - name: Deploy to VPS
+        run: |
+          chmod +x scripts/deploy.sh
+          ./scripts/deploy.sh all

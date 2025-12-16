@@ -266,7 +266,7 @@ export default function TpDetailDrawer({
                         <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
                           {entry.recommendation.reason}
                         </p>
-                        {entry.recommendation.suggested_scale_factor !== null && (
+                        {entry.recommendation.suggested_scale_factor !== null && entry.recommendation.suggested_scale_factor !== undefined && (
                           <p className="text-sm text-blue-700 dark:text-blue-300">
                             Suggested scale factor:{' '}
                             <span className="font-semibold">

@@ -1,9 +1,109 @@
-services:
-  backend-live:
-    # Do not publish backend port publicly on VPS; keep internal only
-    ports: []
+version: '3.8'
 
-  frontend-live:
-    # Expose frontend on port 80 (HTTP)
+# ============================================================================
+# QUANTUM TRADER - PRODUCTION VPS CONFIGURATION
+# ============================================================================
+# Hetzner VPS deployment med:
+#   ✅ Redis for EventBus & Cache
+#   ✅ AI Engine for ML Inference
+#   ✅ Frontend Dashboard (Next.js)
+# ============================================================================
+
+services:
+  # Redis - EventBus & Cache Backend
+  redis:
+    image: redis:7-alpine
+    container_name: quantum_redis
+    restart: unless-stopped
     ports:
-      - "80:80"
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --appendfsync everysec --maxmemory 512mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - quantum_trader
+
+  # AI Engine Service - ML Inference & Signal Generation
+  ai-engine:
+    build:
+      context: .
+      dockerfile: microservices/ai_engine/Dockerfile
+    container_name: quantum_ai_engine
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      - AI_ENGINE_MIN_SIGNAL_CONFIDENCE=0.65
+      - AI_ENGINE_ENSEMBLE_MODELS=["xgb","lgbm","nhits","patchtst"]
+      - RISK_SAFETY_SERVICE_URL=http://risk-safety:8003
+      - LOG_LEVEL=DEBUG
+      - LOG_DIR=/app/logs
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./microservices/ai_engine:/app/microservices/ai_engine:ro
+      - ./backend:/app/backend:ro
+      - ./ai_engine:/app/ai_engine:ro
+      - ./models:/app/models:rw
+      - ./logs:/app/logs:rw
+      - ./data:/app/data:rw
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get(''http://localhost:8001/health'', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Dashboard - Next.js Web Interface
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: quantum_frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - BACKEND_URL=http://ai-engine:8001
+      - NEXT_PUBLIC_API_URL=http://46.224.116.254:8001
+    ports:
+      - "3000:3000"
+    networks:
+      - quantum_trader
+    depends_on:
+      - ai-engine
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+networks:
+  quantum_trader:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local

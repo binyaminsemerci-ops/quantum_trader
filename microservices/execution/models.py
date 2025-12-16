@@ -148,21 +148,22 @@ class TradeListResponse(BaseModel):
 
 class ComponentHealth(BaseModel):
     """Health status of a component."""
-    healthy: bool
-    error: Optional[str] = None
+    name: str
+    status: str  # OK, DOWN, DEGRADED, NOT_INITIALIZED
     latency_ms: Optional[float] = None
-    details: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    message: Optional[str] = None
 
 
 class ServiceHealth(BaseModel):
     """Overall service health."""
     service: str
-    healthy: bool
-    running: bool
-    components: Dict[str, ComponentHealth]
-    active_positions: int
-    orders_last_minute: int
-    timestamp: str
+    status: str  # OK, DEGRADED, DOWN, STARTING
+    version: str
+    components: List[ComponentHealth]
+    active_trades: Optional[int] = 0
+    active_positions: Optional[int] = 0
+    mode: Optional[str] = "PAPER"
 
 
 class ExecutionMetrics(BaseModel):

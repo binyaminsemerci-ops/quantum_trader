@@ -1,0 +1,93 @@
+# ============================================================================
+# MONITORING STACK - PROMETHEUS + GRAFANA
+# ============================================================================
+# docker-compose.monitoring.yml - Minimal monitoring for production
+# Deploy med: docker compose -f docker-compose.vps.yml -f docker-compose.monitoring.yml up -d
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # ========================================================================
+  # PROMETHEUS - METRICS COLLECTION
+  # ========================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: quantum_prometheus
+    restart: unless-stopped
+    user: "0:0"  # Run as root to read config
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'  # Keep 7 days of data
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'  # Allow config reload via API
+    ports:
+      - "127.0.0.1:9090:9090"  # Internal only
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - quantum_trader
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ========================================================================
+  # GRAFANA - METRICS VISUALIZATION
+  # ========================================================================
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: quantum_grafana
+    restart: unless-stopped
+    user: "0"  # Run as root to write to volume
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-QuantumTrader2024!}
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_INSTALL_PLUGINS=redis-datasource
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    ports:
+      - "127.0.0.1:3001:3000"  # Internal only (access via nginx /grafana)
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - quantum_trader
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local

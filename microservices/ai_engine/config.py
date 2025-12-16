@@ -14,10 +14,10 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     PORT: int = 8001
     
-    # Redis (EventBus)
-    REDIS_HOST: str = "localhost"
-    REDIS_PORT: int = 6379
-    REDIS_DB: int = 0
+    # Redis (EventBus) - no prefix, read directly from env
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+    REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
+    REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
     
     # Risk-safety-service (PolicyStore)
     RISK_SAFETY_SERVICE_URL: str = "http://localhost:8003"
