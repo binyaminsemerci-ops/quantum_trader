@@ -13,7 +13,7 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from backend.safety.ess import ESS
+from backend.core.safety.ess import ESS
 from backend.core.policy_store import PolicyStore
 from backend.core.event_bus import EventBus
 from backend.core.disk_buffer import DiskBuffer

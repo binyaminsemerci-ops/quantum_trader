@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --no-cache-dir \
     fastapi uvicorn redis structlog \
     xgboost lightgbm torch numpy pandas scikit-learn \
-    aiohttp httpx python-dotenv prometheus-client \
+    aiohttp httpx python-dotenv pydantic-settings prometheus-client \
     psutil requests
 
 # Create data directories

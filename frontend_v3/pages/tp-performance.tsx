@@ -70,8 +70,8 @@ export default function TpPerformancePage() {
     let filtered = entities;
 
     // Filter by strategy
-    if (filterState.strategy !== 'all') {
-      filtered = filtered.filter((e) => e.strategy_id === filterState.strategy);
+    if (filterState.strategyId !== null) {
+      filtered = filtered.filter((e) => e.strategy_id === filterState.strategyId);
     }
 
     // Filter by symbol

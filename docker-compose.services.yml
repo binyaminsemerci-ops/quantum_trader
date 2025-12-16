@@ -1,0 +1,176 @@
+# ============================================================================
+# ADDITIONAL SERVICES - DOCKER COMPOSE EXTENSION
+# ============================================================================
+# docker-compose.services.yml - Legg til etter ai-engine er stabil
+# Deploy med: docker compose -f docker-compose.vps.yml -f docker-compose.services.yml up -d
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # ========================================================================
+  # RISK & SAFETY SERVICE (Port 8003)
+  # ========================================================================
+  # Ansvar:
+  # - Emergency Stop System (ESS)
+  # - PolicyStore (trading policies)
+  # - Risk limits enforcement
+  # - Circuit breaker logic
+  # ========================================================================
+  risk-safety:
+    build:
+      context: .
+      dockerfile: microservices/risk_safety/Dockerfile
+    container_name: quantum_risk_safety
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=INFO
+      - LOG_DIR=/app/logs
+      - SERVICE_PORT=8003
+    ports:
+      - "127.0.0.1:8003:8003"  # Internal only (nginx proxy if needed)
+    volumes:
+      - ./microservices/risk_safety:/app/microservices/risk_safety:ro
+      - ./backend:/app/backend:ro
+      - ./logs:/app/logs:rw
+      - ./data:/app/data:rw
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # ========================================================================
+  # EXECUTION SERVICE V2 (Port 8002)
+  # ========================================================================
+  # ✅ CLEAN MICROSERVICE - NO MONOLITH DEPENDENCIES
+  # 
+  # Ansvar:
+  # - Receive trade signals from EventBus (trade.intent)
+  # - Validate with RiskStub (minimal checks)
+  # - Execute orders via Binance
+  # - Publish results (execution.result)
+  # 
+  # NOT responsible for:
+  # - Complex risk management (use Risk-Safety later)
+  # - Portfolio optimization
+  # - Persistent trade storage (optional)
+  # ========================================================================
+  execution:
+    build:
+      context: .
+      dockerfile: microservices/execution/Dockerfile.v2
+    container_name: quantum_execution
+    restart: unless-stopped
+    environment:
+      - PYTHONPATH=/app
+      # EventBus (Redis)
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_PASSWORD=
+      # Execution mode: PAPER (default), TESTNET, LIVE
+      - EXECUTION_MODE=PAPER
+      # Binance credentials (only needed for TESTNET/LIVE)
+      - BINANCE_API_KEY=${BINANCE_API_KEY:-}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET:-}
+      # Risk limits
+      - MAX_POSITION_USD=1000
+      - MAX_LEVERAGE=10
+      # Rate limiting
+      - BINANCE_RATE_LIMIT_RPM=1200
+      # Logging
+      - LOG_LEVEL=INFO
+    ports:
+      - "127.0.0.1:8002:8002"  # Internal only
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+      # NO risk-safety dependency - fully independent!
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.2'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ========================================================================
+  # MARKET DATA SERVICE (Port 8004) - OPTIONAL
+  # ========================================================================
+  # Ansvar:
+  # - WebSocket connection to Binance
+  # - Market data aggregation
+  # - Kline/ticker publishing
+  # ========================================================================
+  # Uncomment if you want dedicated market data service:
+  # marketdata:
+  #   build:
+  #     context: .
+  #     dockerfile: microservices/marketdata/Dockerfile
+  #   container_name: quantum_marketdata
+  #   restart: unless-stopped
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - PYTHONPATH=/app
+  #     - REDIS_HOST=redis
+  #     - REDIS_URL=redis://redis:6379
+  #     - SERVICE_PORT=8004
+  #   ports:
+  #     - "127.0.0.1:8004:8004"
+  #   volumes:
+  #     - ./microservices/marketdata:/app/microservices/marketdata:ro
+  #     - ./backend:/app/backend:ro
+  #     - ./logs:/app/logs:rw
+  #   networks:
+  #     - quantum_trader
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.5'
+  #         memory: 512M
+
+# Override AI Engine to connect to risk-safety
+  ai-engine:
+    environment:
+      - RISK_SAFETY_SERVICE_URL=http://risk-safety:8003
+
+# Override Execution to ensure proper startup order
+  frontend:
+    depends_on:
+      - ai-engine
+      - risk-safety
+      - execution

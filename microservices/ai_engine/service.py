@@ -606,14 +606,25 @@ class AIEngineService:
         
         # Check EventBus (Redis)
         try:
-            if hasattr(self.event_bus, 'redis_client') and self.event_bus.redis_client:
-                dependencies["redis"] = await check_redis_health(self.event_bus.redis_client)
-            else:
+            if not self.event_bus:
+                # Service not started yet
                 dependencies["redis"] = DependencyHealth(
                     status=DependencyStatus.DOWN,
-                    error="Redis client not initialized"
+                    error="Service not started - event_bus not initialized"
+                )
+            elif hasattr(self.event_bus, 'redis') and self.event_bus.redis:
+                # EventBus stores Redis client as 'self.redis' (see EventBus.__init__)
+                # Use the actual Redis client for health check
+                dependencies["redis"] = await check_redis_health(self.event_bus.redis)
+            else:
+                # EventBus initialized but Redis client missing (should never happen)
+                dependencies["redis"] = DependencyHealth(
+                    status=DependencyStatus.DOWN,
+                    error="Redis client not found in EventBus"
                 )
         except Exception as e:
+            # Unexpected error during Redis health check
+            logger.error(f"[AI-ENGINE] Redis health check failed: {e}", exc_info=True)
             dependencies["redis"] = DependencyHealth(
                 status=DependencyStatus.DOWN,
                 error=str(e)
@@ -625,21 +636,29 @@ class AIEngineService:
         )
         
         # Check Risk-Safety Service
-        try:
-            if self.http_client:
-                dependencies["risk_safety_service"] = await check_http_endpoint_health(
-                    self.http_client,
-                    f"{settings.RISK_SAFETY_SERVICE_URL}/health"
-                )
-            else:
-                dependencies["risk_safety_service"] = DependencyHealth(
-                    status=DependencyStatus.NOT_APPLICABLE
-                )
-        except Exception as e:
-            dependencies["risk_safety_service"] = DependencyHealth(
-                status=DependencyStatus.DOWN,
-                error=str(e)
-            )
+        # TEMPORARY HOTFIX: Disabled while fixing Exit Brain v3 integration
+        # TODO: Re-enable after event_driven_executor Exit Brain integration complete
+        # See: AI_RISK_SAFETY_FIX_ACTION_PLAN.md - Phase 2
+        dependencies["risk_safety_service"] = DependencyHealth(
+            status=DependencyStatus.NOT_APPLICABLE,
+            details={"note": "Risk-Safety Service integration pending Exit Brain v3 fix"}
+        )
+        # Original code (to restore after fix):
+        # try:
+        #     if self.http_client:
+        #         dependencies["risk_safety_service"] = await check_http_endpoint_health(
+        #             self.http_client,
+        #             f"{settings.RISK_SAFETY_SERVICE_URL}/health"
+        #         )
+        #     else:
+        #         dependencies["risk_safety_service"] = DependencyHealth(
+        #             status=DependencyStatus.NOT_APPLICABLE
+        #         )
+        # except Exception as e:
+        #     dependencies["risk_safety_service"] = DependencyHealth(
+        #         status=DependencyStatus.DOWN,
+        #         error=str(e)
+        #     )
         
         # Service-specific metrics
         metrics = {

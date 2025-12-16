@@ -17,14 +17,14 @@ export default function TpFilterBar({
   const handleStrategyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onFilterChange({
       ...filterState,
-      strategy: e.target.value || 'all',
+      strategyId: e.target.value || null,
     });
   };
 
   const handleSymbolChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onFilterChange({
       ...filterState,
-      symbol: e.target.value || 'all',
+      symbol: e.target.value || null,
     });
   };
 
@@ -51,11 +51,11 @@ export default function TpFilterBar({
             Strategy
           </label>
           <select
-            value={filterState.strategy}
+            value={filterState.strategyId || ''}
             onChange={handleStrategyChange}
             className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            <option value="all">All Strategies</option>
+            <option value="">All Strategies</option>
             {strategies.map((strategy) => (
               <option key={strategy} value={strategy}>
                 {strategy}
@@ -70,11 +70,11 @@ export default function TpFilterBar({
             Symbol
           </label>
           <select
-            value={filterState.symbol}
+            value={filterState.symbol || ''}
             onChange={handleSymbolChange}
             className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            <option value="all">All Symbols</option>
+            <option value="">All Symbols</option>
             {symbols.map((symbol) => (
               <option key={symbol} value={symbol}>
                 {symbol}
