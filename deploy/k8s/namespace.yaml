@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: quantum-trader
+  labels:
+    name: quantum-trader
+    environment: staging
+    version: v2.0

@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+"""Check actual Binance positions and leverage settings."""
+
+import asyncio
+from backend.utils.binance_client import BinanceClient
+
+async def main():
+    client = BinanceClient()
+    await client.initialize()
+    
+    print("\n=== BINANCE API: Actual Open Positions ===")
+    positions = await client.get_open_positions()
+    print(f"Total: {len(positions)} positions\n")
+    
+    for pos in positions:
+        symbol = pos.get("symbol")
+        size = pos.get("size")
+        entry = pos.get("entry_price")
+        leverage = pos.get("leverage", "N/A")
+        pnl = pos.get("pnl", 0)
+        roi = (pnl / (size * entry / leverage)) * 100 if leverage != "N/A" and size and entry else 0
+        
+        print(f"{symbol:12} | {size:8.2f} @ ${entry:8.4f} | {leverage:2}x | PNL: ${pnl:7.2f} ({roi:+.2f}%)")
+    
+    print("\n=== Checking Leverage Settings ===")
+    for pos in positions:
+        symbol = pos["symbol"]
+        try:
+            # Get current leverage
+            info = await client.client.futures_position_information(symbol=symbol)
+            current_leverage = int(info[0].get("leverage", 0))
+            print(f"{symbol:12} | Current: {current_leverage:2}x", end="")
+            
+            if current_leverage != 10:
+                print(f" | ⚠️  Setting to 10x...", end="")
+                await client.set_leverage(symbol, 10)
+                print(" ✅ DONE")
+            else:
+                print(" | ✅ Already 10x")
+        except Exception as e:
+            print(f" | ❌ ERROR: {e}")
+    
+    await client.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())

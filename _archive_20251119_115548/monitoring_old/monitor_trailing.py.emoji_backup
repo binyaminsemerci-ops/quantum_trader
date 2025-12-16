@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""
+Monitor positions and show what trailing stop would do
+"""
+import os
+import json
+from binance.client import Client
+
+api_key = os.getenv("BINANCE_API_KEY")
+api_secret = os.getenv("BINANCE_API_SECRET")
+client = Client(api_key, api_secret)
+
+# Read trade state
+with open('/app/backend/data/trade_state.json', 'r') as f:
+    trade_state = json.load(f)
+
+print("\n🔍 Trailing Stop Analysis\n")
+print("=" * 80)
+
+for symbol, state in trade_state.items():
+    if 'ai_trail_pct' not in state:
+        continue
+    
+    trail_pct = state['ai_trail_pct']
+    side = state['side']
+    entry = state['avg_entry']
+    
+    # Get current position
+    try:
+        positions = client.futures_position_information(symbol=symbol)
+        pos = positions[0]
+        pos_amt = float(pos['positionAmt'])
+        
+        if abs(pos_amt) < 0.0001:
+            continue  # Position closed
+        
+        current_price = float(pos['markPrice'])
+        unrealized_pnl = float(pos['unRealizedProfit'])
+        pnl_pct = (unrealized_pnl / (abs(pos_amt) * entry)) * 100
+        
+        # Calculate what trailing stop would be
+        if side == "LONG":
+            # Trail from highest price seen (peak)
+            peak = state.get('peak', entry)
+            trail_stop = peak * (1 - trail_pct)
+            profit_from_entry = ((current_price - entry) / entry) * 100
+            
+            print(f"\n{symbol} LONG:")
+            print(f"  Entry: ${entry:.4f}")
+            print(f"  Current: ${current_price:.4f} ({profit_from_entry:+.2f}%)")
+            print(f"  Peak: ${peak:.4f}")
+            print(f"  🎯 Trail Stop would be: ${trail_stop:.4f} ({trail_pct*100:.1f}% below peak)")
+            
+            if current_price < trail_stop:
+                print(f"  ⚠️  TRAILING STOP WOULD EXIT! (Price below ${trail_stop:.4f})")
+            else:
+                distance = ((current_price - trail_stop) / current_price) * 100
+                print(f"  ✅ Safe: {distance:.2f}% above trail stop")
+        
+        else:  # SHORT
+            # Trail from lowest price seen (trough)
+            trough = state.get('trough', entry)
+            trail_stop = trough * (1 + trail_pct)
+            profit_from_entry = ((entry - current_price) / entry) * 100
+            
+            print(f"\n{symbol} SHORT:")
+            print(f"  Entry: ${entry:.4f}")
+            print(f"  Current: ${current_price:.4f} ({profit_from_entry:+.2f}%)")
+            print(f"  Trough: ${trough:.4f}")
+            print(f"  🎯 Trail Stop would be: ${trail_stop:.4f} ({trail_pct*100:.1f}% above trough)")
+            
+            if current_price > trail_stop:
+                print(f"  ⚠️  TRAILING STOP WOULD EXIT! (Price above ${trail_stop:.4f})")
+            else:
+                distance = ((trail_stop - current_price) / current_price) * 100
+                print(f"  ✅ Safe: {distance:.2f}% below trail stop")
+        
+        print(f"  PNL: ${unrealized_pnl:+.2f} ({pnl_pct:+.2f}%)")
+        
+    except Exception as e:
+        print(f"\n{symbol}: Error - {e}")
+
+print("\n" + "=" * 80)
+print("\n⚠️  NOTE: Trailing stops are NOT currently active!")
+print("         These are simulation values showing what WOULD happen.\n")

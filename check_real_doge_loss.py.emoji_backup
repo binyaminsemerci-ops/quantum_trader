@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Check actual DOGEUSDT entry and current loss."""
+import sys
+import os
+sys.path.insert(0, '/app')
+os.chdir('/app')
+
+from backend.database.database import get_session
+from backend.database.models import Position
+from sqlalchemy import desc
+
+session = get_session()
+
+# Get DOGEUSDT position from database
+doge_pos = session.query(Position).filter(
+    Position.symbol == 'DOGEUSDT',
+    Position.status == 'open'
+).order_by(desc(Position.opened_at)).first()
+
+if not doge_pos:
+    print("❌ Ingen åpen DOGEUSDT posisjon i database")
+    exit(1)
+
+print(f"\n🔍 DOGEUSDT POSISJON FRA DATABASE:")
+print(f"{'='*60}")
+print(f"Entry Price: ${doge_pos.entry_price:.6f}")
+print(f"Position Size: {doge_pos.position_size:.0f} DOGE")
+print(f"Side: {doge_pos.side}")
+print(f"Leverage: {doge_pos.leverage}x")
+print(f"Opened: {doge_pos.opened_at}")
+
+# Get current mark price from Binance
+from binance.client import Client
+client = Client()  # Public endpoint
+ticker = client.futures_mark_price(symbol='DOGEUSDT')
+mark_price = float(ticker['markPrice'])
+
+print(f"\n📊 NÅVÆRENDE SITUASJON:")
+print(f"Mark Price: ${mark_price:.6f}")
+
+# Calculate actual PnL for SHORT position
+if doge_pos.side == 'SHORT':
+    price_change_pct = ((mark_price - doge_pos.entry_price) / doge_pos.entry_price) * 100
+    pnl_pct = -price_change_pct * doge_pos.leverage  # Negative because SHORT
+    
+    print(f"\nPris endring: {price_change_pct:+.2f}%")
+    print(f"PnL med {doge_pos.leverage}x leverage: {pnl_pct:+.2f}%")
+    
+    # Calculate 2% stop loss price
+    sl_price = doge_pos.entry_price * 1.02  # 2% higher for SHORT
+    print(f"\n⚠️  Stop Loss burde være: ${sl_price:.6f}")
+    print(f"Avstand til SL: {((sl_price - mark_price) / mark_price * 100):.2f}%")
+    
+    if abs(pnl_pct) > 2:
+        print(f"\n🚨 KRITISK: Tap {abs(pnl_pct):.2f}% > 2% stop loss!")
+        print(f"Dette burde IKKE skje med 2% stop loss!")

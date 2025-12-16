@@ -1,0 +1,67 @@
+"""Test AI-driven dynamic TP/SL calculation system"""
+import asyncio
+from backend.services.ai_trading_engine import create_ai_trading_engine
+from ai_engine.agents.xgb_agent import make_default_agent
+from backend.database import SessionLocal
+
+
+async def test_dynamic_tpsl():
+    print("=" * 80)
+    print("[TARGET] Testing AI-Driven Dynamic TP/SL System")
+    print("=" * 80)
+    
+    # Initialize AI engine
+    agent = make_default_agent()
+    db = SessionLocal()
+    
+    try:
+        ai_engine = create_ai_trading_engine(agent=agent, db_session=db)
+        
+        # Test symbols
+        test_symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
+        test_positions = {}  # No existing positions
+        
+        print(f"\n[CHART] Fetching AI signals for {len(test_symbols)} symbols...")
+        signals = await ai_engine.get_trading_signals(test_symbols, test_positions)
+        
+        print(f"\n[OK] Generated {len(signals)} AI trading signals\n")
+        
+        # Display each signal with TP/SL details
+        for sig in signals:
+            print("-" * 80)
+            print(f"Symbol: {sig['symbol']}")
+            print(f"Action: {sig['action']}")
+            print(f"Confidence: {sig['confidence']:.2%}")
+            print(f"Score: {sig.get('score', 0):.4f}")
+            
+            # Check if AI-generated TP/SL exists
+            if 'tp_percent' in sig:
+                print(f"\n[TARGET] AI-GENERATED DYNAMIC TP/SL:")
+                print(f"  Take Profit:    {sig['tp_percent']*100:.2f}%")
+                print(f"  Stop Loss:      {sig['sl_percent']*100:.2f}%")
+                print(f"  Trailing Stop:  {sig['trail_percent']*100:.2f}%")
+                print(f"  Partial TP:     {sig['partial_tp']*100:.0f}%")
+                
+                # Explain the reasoning
+                confidence = sig['confidence']
+                if confidence > 0.8:
+                    print(f"  Reasoning: VERY HIGH confidence - wider TP, tighter SL to let winners run")
+                elif confidence > 0.6:
+                    print(f"  Reasoning: HIGH confidence - balanced risk/reward")
+                elif confidence > 0.4:
+                    print(f"  Reasoning: MEDIUM confidence - moderate targets")
+                else:
+                    print(f"  Reasoning: LOW confidence - tighter TP, wider SL for quick exit")
+            else:
+                print(f"\n[WARNING] No AI TP/SL generated (possibly HOLD signal)")
+        
+        print("\n" + "=" * 80)
+        print("[OK] AI Dynamic TP/SL Test Complete")
+        print("=" * 80)
+        
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    asyncio.run(test_dynamic_tpsl())

@@ -1,7 +1,9 @@
 import os
 import asyncio
 import pickle
-from typing import List, Optional
+import logging
+from datetime import datetime, timezone
+from typing import List, Optional, Any
 
 """Simple training harness for the XGBoost agent.
 
@@ -19,6 +21,8 @@ This ensures training can proceed in minimal CI/dev environments.
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "models")
 os.makedirs(MODEL_DIR, exist_ok=True)
+
+logger = logging.getLogger(__name__)
 
 
 class _SimpleScaler:
@@ -79,10 +83,14 @@ async def _fetch_symbol_data(symbol: str, limit: int = 600):
 
 
 def build_dataset(all_symbol_data):
-    """Given list of (symbol, candles, sentiment, news) tuples, build X,y arrays."""
+    """Given list of (symbol, candles, sentiment, news) tuples, build X,y arrays.
+
+    This implementation avoids optional helpers and computes a simple forward
+    1-step return target directly from Close prices.
+    """
     import pandas as pd  # type: ignore[import-untyped]
     import numpy as np
-    from ai_engine.feature_engineer import add_technical_indicators, add_sentiment_features, add_target  # type: ignore[import-not-found, import-untyped]
+    from ai_engine.feature_engineer import add_technical_indicators, add_sentiment_features  # type: ignore[import-not-found, import-untyped]
 
     X_list = []
     y_list = []
@@ -92,6 +100,7 @@ def build_dataset(all_symbol_data):
         df = pd.DataFrame(candles)
         # ensure expected column names
         df = df.rename(columns={c: c.capitalize() for c in df.columns})
+
         # compute technicals
         try:
             feat = add_technical_indicators(
@@ -100,18 +109,27 @@ def build_dataset(all_symbol_data):
         except Exception:
             continue
 
-        # add sentiment/news aligned series
-        feat = add_sentiment_features(
-            feat, sentiment_series=sentiment, news_counts=news, window=5
-        )
+        # add sentiment/news aligned series (optional)
+        feat = add_sentiment_features(feat, sentiment_series=sentiment, news_counts=news)
 
-        # add target (predict Return horizon=1)
-        feat_t = add_target(feat, horizon=1, threshold=0.0)
-        if feat_t.empty:
+        # compute simple forward 1-step return as target
+        if "Close" not in feat.columns:
             continue
+        close = pd.to_numeric(feat["Close"], errors="coerce")
+        forward_return = (close.shift(-1) / close - 1.0)
+        feat = feat.iloc[:-1].copy()
+        forward_return = forward_return.iloc[:-1]
 
-        y = feat_t["Return"].values
-        X = feat_t.select_dtypes(include=[float, int]).drop(columns=["Return"]).values
+        # drop non-numeric columns and rows with NaN
+        X_df = feat.select_dtypes(include=[float, int]).copy()
+        y_series = forward_return.astype(float)
+        mask = (~X_df.isna().any(axis=1)) & (~y_series.isna())
+        if mask.sum() == 0:
+            continue
+        X = X_df[mask].values
+        y = y_series[mask].values
+        if len(y) == 0 or X.size == 0:
+            continue
         X_list.append(X)
         y_list.append(y)
 
@@ -151,7 +169,7 @@ def make_regressor():
                 return _MeanRegressor()
 
 
-def save_artifacts(model, scaler, model_path, scaler_path):
+def save_artifacts(model, scaler, model_path, scaler_path, *, metadata: dict[str, Any] | None = None):
     with open(model_path, "wb") as f:
         pickle.dump(model, f)
     with open(scaler_path, "wb") as f:
@@ -166,6 +184,8 @@ def save_artifacts(model, scaler, model_path, scaler_path):
             "scaler_path": scaler_path,
             "saved_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
+        if metadata:
+            meta.update(metadata)
         meta_path = os.path.join(MODEL_DIR, "metadata.json")
         with open(meta_path, "w", encoding="utf-8") as mf:
             json.dump(meta, mf)
@@ -190,6 +210,7 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     tasks = [_fetch_symbol_data(s, limit=limit) for s in symbols]
+    logger.info("Fetching market data for symbols: %s", ", ".join(symbols))
     results = loop.run_until_complete(asyncio.gather(*tasks))
     all_symbol_data = []
     for sym, (candles, sentiment, news) in zip(symbols, results):
@@ -200,8 +221,9 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
     # synthetic dataset so training can proceed for CI/dev.
     try:
         X, y = build_dataset(all_symbol_data)
+        dataset_notes = None
     except Exception as exc:  # pragma: no cover - environment dependent
-        print("Warning: build_dataset failed, falling back to synthetic dataset:", exc)
+        logger.warning("build_dataset failed, falling back to synthetic dataset: %s", exc)
         # create a small synthetic dataset
         import numpy as _np
 
@@ -217,6 +239,7 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
             return Xs, y
 
         X, y = synthetic_dataset(samples=1000, features=16)
+        dataset_notes = f"synthetic dataset fallback used: {exc}"
 
     scaler = make_scaler()
     try:
@@ -225,20 +248,93 @@ def train_and_save(symbols: Optional[List[str]] = None, limit: int = 600):
         try:
             Xs = scaler.fit_transform(X)
         except Exception as e:
-            import logging
-
-            logging.getLogger(__name__).debug("scaler fit_transform failed: %s", e)
+            logger.debug("scaler fit_transform failed: %s", e)
             # final fallback: attempt a simple identity-like transform
             Xs = X
 
+    sample_count = int(X.shape[0]) if hasattr(X, "shape") else len(X)
+    feature_count = (
+        int(X.shape[1]) if hasattr(X, "shape") and len(getattr(X, "shape", ())) > 1 else 0
+    )
+
     reg = make_regressor()
-    reg.fit(Xs, y)
+    run_version = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    session = None
+    run_record = None
+    _complete_run = lambda *_args, **_kwargs: None  # noqa: E731
+    _fail_run = lambda *_args, **_kwargs: None  # noqa: E731
+    try:
+        from backend.database import (  # type: ignore[import-error]
+            SessionLocal,
+            start_model_run as _start_run,
+            complete_model_run as _complete_run,
+            fail_model_run as _fail_run,
+        )
+
+        session = SessionLocal()
+        run_record = _start_run(
+            session,
+            version=run_version,
+            symbol_count=len(symbols),
+            sample_count=sample_count,
+            feature_count=feature_count,
+            notes=dataset_notes,
+        )
+    except Exception as db_exc:  # pragma: no cover - optional dependency path
+        logger.debug("Model registry unavailable: %s", db_exc)
+        session = None
+        run_record = None
+
+    try:
+        reg.fit(Xs, y)
+    except Exception as train_exc:
+        logger.exception("Model training failed")
+        if session and run_record:
+            try:
+                _fail_run(session, run_record.id, metrics={"error": str(train_exc)})
+            except Exception:  # pragma: no cover - registry optional
+                logger.debug("Failed to record training failure", exc_info=True)
+        if session:
+            session.close()
+        raise
 
     model_path = os.path.join(MODEL_DIR, "xgb_model.pkl")
     scaler_path = os.path.join(MODEL_DIR, "scaler.pkl")
-    save_artifacts(reg, scaler, model_path, scaler_path)
-    print("Saved model ->", model_path)
-    print("Saved scaler ->", scaler_path)
+    metrics = {
+        "samples": int(len(y)),
+        "features": int(Xs.shape[1] if hasattr(Xs, "shape") and len(Xs.shape) > 1 else feature_count),
+    }
+    save_artifacts(
+        reg,
+        scaler,
+        model_path,
+        scaler_path,
+        metadata={
+            "version": run_version,
+            "samples": metrics["samples"],
+            "features": metrics["features"],
+            "notes": dataset_notes,
+        },
+    )
+
+    try:
+        if session and run_record:
+            _complete_run(
+                session,
+                run_record.id,
+                model_path=model_path,
+                scaler_path=scaler_path,
+                metrics=metrics,
+            )
+    except Exception as db_exc:  # pragma: no cover - optional dependency path
+        logger.debug("Failed to complete model run record: %s", db_exc)
+    finally:
+        if session:
+            session.close()
+
+    logger.info("Saved model -> %s", model_path)
+    logger.info("Saved scaler -> %s", scaler_path)
 
 
 if __name__ == "__main__":

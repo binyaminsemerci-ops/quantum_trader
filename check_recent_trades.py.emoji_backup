@@ -1,0 +1,35 @@
+"""Check recent order fills"""
+import os
+from binance.client import Client
+
+api_key = os.getenv("BINANCE_API_KEY")
+api_secret = os.getenv("BINANCE_API_SECRET")
+
+if not api_key:
+    with open(".env") as f:
+        for line in f:
+            if line.startswith("BINANCE_API_KEY="):
+                api_key = line.split("=", 1)[1].strip()
+            elif line.startswith("BINANCE_API_SECRET="):
+                api_secret = line.split("=", 1)[1].strip()
+
+client = Client(api_key, api_secret)
+
+print("\n📋 RECENT FUTURES TRADES (Last 5):")
+print("=" * 80)
+
+for symbol in ["DYMUSDT", "PORTALUSDT"]:
+    print(f"\n{symbol}:")
+    try:
+        trades = client.futures_account_trades(symbol=symbol, limit=5)
+        for trade in reversed(trades[-3:]):
+            qty = float(trade['qty'])
+            price = float(trade['price'])
+            notional = qty * price
+            
+            print(f"  {trade['side']:4s} {qty:>12.4f} @ ${price:<10.6f} = ${notional:>10.2f}")
+            print(f"       Order ID: {trade['orderId']}, Time: {trade['time']}")
+    except Exception as e:
+        print(f"  Error: {e}")
+
+print("\n" + "=" * 80)

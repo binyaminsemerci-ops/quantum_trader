@@ -1,0 +1,239 @@
+{
+  "timestamp": "2025-11-23T00:23:29.595755+00:00",
+  "overall_status": "HealthStatus.CRITICAL",
+  "subsystems": [
+    {
+      "subsystem": "SubsystemType.EVENT_DRIVEN_EXECUTOR",
+      "status": "HealthStatus.HEALTHY",
+      "last_check": "2025-11-23T00:23:32.605990+00:00",
+      "uptime_seconds": 3.010235,
+      "issues": [],
+      "metrics": {}
+    },
+    {
+      "subsystem": "SubsystemType.AI_TRADING_ENGINE",
+      "status": "HealthStatus.HEALTHY",
+      "last_check": "2025-11-23T00:23:32.605990+00:00",
+      "uptime_seconds": 3.010235,
+      "issues": [],
+      "metrics": {}
+    },
+    {
+      "subsystem": "SubsystemType.POSITION_MONITOR",
+      "status": "HealthStatus.HEALTHY",
+      "last_check": "2025-11-23T00:23:32.605990+00:00",
+      "uptime_seconds": null,
+      "issues": [],
+      "metrics": {}
+    },
+    {
+      "subsystem": "SubsystemType.TRAILING_STOP_MANAGER",
+      "status": "HealthStatus.HEALTHY",
+      "last_check": "2025-11-23T00:23:32.605990+00:00",
+      "uptime_seconds": null,
+      "issues": [],
+      "metrics": {}
+    },
+    {
+      "subsystem": "SubsystemType.RISK_GUARD",
+      "status": "HealthStatus.HEALTHY",
+      "last_check": "2025-11-23T00:23:32.605990+00:00",
+      "uptime_seconds": 3.010235,
+      "issues": [],
+      "metrics": {}
+    },
+    {
+      "subsystem": "SubsystemType.PORTFOLIO_BALANCER",
+      "status": "HealthStatus.HEALTHY",
+      "last_check": "2025-11-23T00:23:32.605990+00:00",
+      "uptime_seconds": null,
+      "issues": [],
+      "metrics": {}
+    },
+    {
+      "subsystem": "SubsystemType.MODEL_SUPERVISOR",
+      "status": "HealthStatus.HEALTHY",
+      "last_check": "2025-11-23T00:23:32.605990+00:00",
+      "uptime_seconds": null,
+      "issues": [],
+      "metrics": {}
+    },
+    {
+      "subsystem": "SubsystemType.RETRAINING_ORCHESTRATOR",
+      "status": "HealthStatus.HEALTHY",
+      "last_check": "2025-11-23T00:23:32.605990+00:00",
+      "uptime_seconds": null,
+      "issues": [],
+      "metrics": {}
+    },
+    {
+      "subsystem": "SubsystemType.POSITION_INTELLIGENCE",
+      "status": "HealthStatus.HEALTHY",
+      "last_check": "2025-11-23T00:23:32.605990+00:00",
+      "uptime_seconds": null,
+      "issues": [],
+      "metrics": {}
+    },
+    {
+      "subsystem": "SubsystemType.BINANCE_CONNECTION",
+      "status": "HealthStatus.HEALTHY",
+      "last_check": "2025-11-23T00:23:32.605990+00:00",
+      "uptime_seconds": null,
+      "issues": [],
+      "metrics": {}
+    },
+    {
+      "subsystem": "SubsystemType.DATABASE",
+      "status": "HealthStatus.CRITICAL",
+      "last_check": "2025-11-23T00:23:32.605990+00:00",
+      "uptime_seconds": null,
+      "issues": [
+        {
+          "issue_id": "database_check_error_20251123_002331",
+          "subsystem": "SubsystemType.DATABASE",
+          "severity": "IssueSeverity.CRITICAL",
+          "title": "Database check failed",
+          "description": "Exception: No module named 'database'",
+          "detected_at": "2025-11-23T00:23:31.601693+00:00",
+          "metrics": {},
+          "suggested_actions": [
+            "RecoveryAction.ALERT_ADMIN"
+          ]
+        }
+      ],
+      "metrics": {}
+    },
+    {
+      "subsystem": "SubsystemType.DATA_FEED",
+      "status": "HealthStatus.CRITICAL",
+      "last_check": "2025-11-23T00:23:32.605990+00:00",
+      "uptime_seconds": null,
+      "issues": [
+        {
+          "issue_id": "datafeed_missing_20251123_002329",
+          "subsystem": "SubsystemType.DATA_FEED",
+          "severity": "IssueSeverity.CRITICAL",
+          "title": "Data feed missing",
+          "description": "No market data file found",
+          "detected_at": "2025-11-23T00:23:29.595755+00:00",
+          "metrics": {},
+          "suggested_actions": [
+            "RecoveryAction.PAUSE_TRADING",
+            "RecoveryAction.ALERT_ADMIN"
+          ]
+        }
+      ],
+      "metrics": {}
+    },
+    {
+      "subsystem": "SubsystemType.LOGGING_SYSTEM",
+      "status": "HealthStatus.DEGRADED",
+      "last_check": "2025-11-23T00:23:32.605990+00:00",
+      "uptime_seconds": null,
+      "issues": [
+        {
+          "issue_id": "logging_stale_20251123_002330",
+          "subsystem": "SubsystemType.LOGGING_SYSTEM",
+          "severity": "IssueSeverity.WARNING",
+          "title": "Logging stale",
+          "description": "No logs written for 57649.4 minutes",
+          "detected_at": "2025-11-23T00:23:30.586629+00:00",
+          "metrics": {
+            "age_minutes": 57649.3885494
+          },
+          "suggested_actions": [
+            "RecoveryAction.RESTART_SUBSYSTEM"
+          ]
+        }
+      ],
+      "metrics": {}
+    },
+    {
+      "subsystem": "SubsystemType.SYSTEM_RESOURCES",
+      "status": "HealthStatus.HEALTHY",
+      "last_check": "2025-11-23T00:23:32.605990+00:00",
+      "uptime_seconds": null,
+      "issues": [],
+      "metrics": {}
+    }
+  ],
+  "detected_issues": [
+    {
+      "issue_id": "datafeed_missing_20251123_002329",
+      "subsystem": "SubsystemType.DATA_FEED",
+      "severity": "IssueSeverity.CRITICAL",
+      "title": "Data feed missing",
+      "description": "No market data file found",
+      "detected_at": "2025-11-23T00:23:29.595755+00:00",
+      "metrics": {},
+      "suggested_actions": [
+        "RecoveryAction.PAUSE_TRADING",
+        "RecoveryAction.ALERT_ADMIN"
+      ]
+    },
+    {
+      "issue_id": "logging_stale_20251123_002330",
+      "subsystem": "SubsystemType.LOGGING_SYSTEM",
+      "severity": "IssueSeverity.WARNING",
+      "title": "Logging stale",
+      "description": "No logs written for 57649.4 minutes",
+      "detected_at": "2025-11-23T00:23:30.586629+00:00",
+      "metrics": {
+        "age_minutes": 57649.3885494
+      },
+      "suggested_actions": [
+        "RecoveryAction.RESTART_SUBSYSTEM"
+      ]
+    },
+    {
+      "issue_id": "database_check_error_20251123_002331",
+      "subsystem": "SubsystemType.DATABASE",
+      "severity": "IssueSeverity.CRITICAL",
+      "title": "Database check failed",
+      "description": "Exception: No module named 'database'",
+      "detected_at": "2025-11-23T00:23:31.601693+00:00",
+      "metrics": {},
+      "suggested_actions": [
+        "RecoveryAction.ALERT_ADMIN"
+      ]
+    }
+  ],
+  "recovery_recommendations": [
+    {
+      "action": "RecoveryAction.PAUSE_TRADING",
+      "target_subsystem": "SubsystemType.EVENT_DRIVEN_EXECUTOR",
+      "reason": "Critical system failure detected",
+      "priority": 1,
+      "estimated_downtime_seconds": 0,
+      "requires_manual_approval": false
+    },
+    {
+      "action": "RecoveryAction.SWITCH_TO_SAFE",
+      "target_subsystem": "SubsystemType.RISK_GUARD",
+      "reason": "Reduce risk during critical failure",
+      "priority": 1,
+      "estimated_downtime_seconds": 0,
+      "requires_manual_approval": false
+    },
+    {
+      "action": "RecoveryAction.ALERT_ADMIN",
+      "target_subsystem": "SubsystemType.DATA_FEED",
+      "reason": "2 issues suggest this action",
+      "priority": 1,
+      "estimated_downtime_seconds": 0.0,
+      "requires_manual_approval": false
+    }
+  ],
+  "should_pause_trading": true,
+  "should_close_positions": true,
+  "safe_to_continue": false,
+  "summary": {
+    "total_issues": 3,
+    "critical_issues": 2,
+    "error_issues": 0,
+    "warning_issues": 1,
+    "healthy_subsystems": 11,
+    "degraded_subsystems": 1,
+    "critical_subsystems": 2
+  }
+}

@@ -1,0 +1,82 @@
+"""Analyze DYMUSDT position from Binance UI data"""
+
+print("\n" + "=" * 80)
+print("📊 DYMUSDT POSITION ANALYSIS")
+print("=" * 80)
+
+# From Binance UI
+position_amt = -50588.0  # SHORT
+entry_price = 0.078944
+mark_price = 0.078904
+liq_price = 0.078228
+breakeven = 0.101759
+leverage = 20
+margin = 197.87  # BNFCR
+pnl = 36.12  # BNFCR
+pnl_pct = 18.25  # %
+last_price = 0.07903
+size = 50588.0
+stop_loss = 0.080520  # From UI: "-- / 0.080520"
+
+print(f"\n🔴 SHORT Position:")
+print(f"   Size:        {position_amt} DYM (${abs(position_amt) * mark_price:,.2f} notional)")
+print(f"   Entry:       ${entry_price:.6f}")
+print(f"   Current:     ${mark_price:.6f}")
+print(f"   Leverage:    {leverage}x")
+
+print(f"\n💰 P&L:")
+print(f"   Unrealized:  +{pnl:.2f} BNFCR (+{pnl_pct:.2f}%)")
+print(f"   Margin:      {margin:.2f} BNFCR")
+print(f"   ROI:         +{pnl_pct:.2f}% 🚀")
+
+print(f"\n🎯 Protection Levels:")
+print(f"   Entry:       ${entry_price:.6f}")
+print(f"   Current:     ${mark_price:.6f}")
+print(f"   SL Trigger:  ${stop_loss:.6f} (set av systemet)")
+print(f"   Liquidation: ${liq_price:.6f}")
+
+# Calculate TP/SL from our system
+tp_price = entry_price * 0.97  # -3% for SHORT
+sl_price = entry_price * 1.02  # +2% for SHORT
+trail_trigger = entry_price * 0.985  # -1.5% for SHORT
+
+print(f"\n🛡️ Our System Orders (from Position Monitor):")
+print(f"   TP @ ${tp_price:.6f} (-3.0% = +3% profit)")
+print(f"      → Closes 50% (25,294 DYM)")
+print(f"   ")
+print(f"   Trailing Stop for remaining 50%")
+print(f"      → Activates at ${trail_trigger:.6f} (-1.5% = +1.5% profit)")
+print(f"   ")
+print(f"   SL @ ${sl_price:.6f} (+2.0% = -2% loss)")
+print(f"      → Emergency backup")
+
+# Current status
+current_move = ((entry_price - mark_price) / entry_price) * 100
+print(f"\n📈 Current Status:")
+print(f"   Price moved: {current_move:+.2f}% from entry")
+print(f"   Distance to TP: {((mark_price - tp_price) / mark_price * 100):.2f}%")
+print(f"   Distance to SL: {((sl_price - mark_price) / mark_price * 100):.2f}%")
+
+if current_move >= 1.5:
+    print(f"   🎯 TRAILING STOP IS ACTIVE! Following price down")
+elif current_move >= 0:
+    print(f"   ✅ In profit, approaching trailing activation")
+else:
+    print(f"   ⚠️ In loss")
+
+print(f"\n💡 What happens next:")
+print(f"-" * 80)
+if mark_price <= tp_price:
+    print(f"✅ TP TARGET REACHED!")
+    print(f"   → 50% position (25,294 DYM) will close automatically")
+    print(f"   → Locking in ~{pnl/2:.2f} BNFCR profit")
+    print(f"   → Remaining 50% continues with trailing stop")
+elif current_move >= 1.5:
+    print(f"📈 Trailing stop is ACTIVE and protecting your gains!")
+    print(f"   → Follows price down (in your favor)")
+    print(f"   → Will close if price reverses by {1.5}%")
+else:
+    print(f"🎯 Position is working towards TP at ${tp_price:.6f}")
+    print(f"   → Need price to drop {((mark_price - tp_price) / mark_price * 100):.2f}% more")
+
+print("\n" + "=" * 80)

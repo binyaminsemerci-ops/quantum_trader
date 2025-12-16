@@ -1,0 +1,109 @@
+"""
+Check if dynamic TP/SL and partial TP are working
+"""
+import os
+from dotenv import load_dotenv
+
+load_dotenv('backend/.env.live')
+
+print("\n[SEARCH] DYNAMISK TP/SL & PARTIAL TP KONFIGURASJON")
+print("=" * 80)
+
+# TP/SL Config
+tp_pct = float(os.getenv("QT_TP_PCT", "0.03"))
+sl_pct = float(os.getenv("QT_SL_PCT", "0.02"))
+trail_pct = float(os.getenv("QT_TRAIL_PCT", "0.015"))
+partial_tp = float(os.getenv("QT_PARTIAL_TP", "0.5"))
+
+print(f"\n[CHART] Environment Variables:")
+print(f"   QT_TP_PCT:        {tp_pct:.1%} ({tp_pct*100:.1f}%)")
+print(f"   QT_SL_PCT:        {sl_pct:.1%} ({sl_pct*100:.1f}%)")
+print(f"   QT_TRAIL_PCT:     {trail_pct:.1%} ({trail_pct*100:.2f}%)")
+print(f"   QT_PARTIAL_TP:    {partial_tp:.1%} ({partial_tp*100:.0f}%)")
+
+# Position Monitor Config
+monitor_interval = int(os.getenv("QT_POSITION_MONITOR_INTERVAL", "10"))
+print(f"   Monitor Interval: {monitor_interval}s")
+
+# Leverage
+leverage = int(os.getenv("QT_DEFAULT_LEVERAGE", "5"))
+print(f"   Leverage:         {leverage}x")
+
+print("\n" + "=" * 80)
+print("[CHART_UP] DYNAMISK TP/SL STRATEGI (per kode i position_monitor.py):")
+print("=" * 80)
+
+print(f"""
+Med {leverage}x leverage og partial TP aktivert:
+
+🔹 PnL < -2%:     HOLD - Advarsler hvis AI sentiment svak
+🔹 PnL -2% til 3%: HOLD - La posisjonen vandre
+🔹 PnL 3% til 6%:  
+   • SL → Breakeven
+   • TP1: 25% @ 8% margin profit
+   
+🔹 PnL 6% til 10%:
+   • SL → Lock 20% av profit
+   • TP1: 25% @ 10%
+   • TP2: 25% @ 15%
+   
+🔹 PnL 10% til 15%:
+   • SL → Lock 40% av profit
+   • TP1: 20% @ 12%
+   • TP2: 20% @ 18%
+   • TP3: 30% @ 25%
+   
+🔹 PnL 15% til 25%:
+   • SL → Lock 60% av profit
+   • TP1: 20% @ 20%
+   • TP2: 20% @ 28%
+   • TP3: 30% @ 35%
+   
+🔹 PnL > 25%:     [ROCKET] MOON MODE
+   • SL → Lock 70% av profit
+   • TP1: 15% @ 30%
+   • TP2: 15% @ 40%
+   • TP3: 20% @ 50%
+""")
+
+print("=" * 80)
+print("[OK] STATUS:")
+print("=" * 80)
+
+if partial_tp > 0:
+    print(f"[OK] Partial TP er AKTIVERT ({partial_tp*100:.0f}%)")
+else:
+    print("[WARNING] Partial TP er DEAKTIVERT")
+
+if monitor_interval > 0:
+    print(f"[OK] Position Monitor kjører hvert {monitor_interval}. sekund")
+else:
+    print("[WARNING] Position Monitor er DEAKTIVERT")
+
+if leverage >= 20:
+    print(f"[OK] Leverage er {leverage}x (AGGRESSIVT)")
+elif leverage >= 10:
+    print(f"⚙️ Leverage er {leverage}x (MODERAT)")
+else:
+    print(f"[WARNING] Leverage er bare {leverage}x (KONSERVATIVT)")
+
+print("\n" + "=" * 80)
+print("[TARGET] EKSEMPEL med $576 balanse og 30x leverage:")
+print("=" * 80)
+print(f"""
+Position: $600 margin = ${600 * leverage:,} position size
+
+Hvis prisen går opp 5%:
+   • Profit: ${600 * leverage * 0.05:,.2f} (${600 * 0.05 * leverage:,.2f})
+   • PnL%: {5 * leverage:.1f}% av margin
+   • Trigger: PnL 3-6% range
+   • Action: SL → breakeven, TP1 @ 8%
+   
+Hvis prisen går opp 10%:
+   • Profit: ${600 * leverage * 0.10:,.2f}
+   • PnL%: {10 * leverage:.1f}% av margin
+   • Trigger: PnL 10-15% range
+   • Action: Lock 40%, TP1+TP2+TP3
+""")
+
+print("\n" + "=" * 80)

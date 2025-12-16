@@ -1,0 +1,174 @@
+```
+================================================================================
+QUANTUM TRADER — UNIVERSE PERFORMANCE TIERS
+================================================================================
+
+Current Universe: 222 symbols | Data: 464 signals | Confidence: 🟡 LOW
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TIER 1: CORE SYMBOLS (Production-Ready) — 25 symbols                       │
+│ ✅ 100% allow rate | 3+ signals | High confidence                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│ MAJORS (8):                                                                 │
+│   BTCUSDT    ETHUSDT    BNBUSDT    SOLUSDT    LINKUSDT    LTCUSDT          │
+│   AVAXUSDT   MATICUSDT                                                      │
+│                                                                             │
+│ LAYER 1 PROTOCOLS (9):                                                     │
+│   RNDRUSDT   ICPUSDT    ZENUSDT    BCHUSDT    ZECUSDT    DASHUSDT          │
+│   EOSUSDT    ETCUSDT    FTMUSDT                                             │
+│                                                                             │
+│ AI / EMERGING (4):                                                          │
+│   HYPEUSDT   TAOUSDT    AGIXUSDT   GIGGLEUSDT                               │
+│                                                                             │
+│ DEFI (2):                                                                   │
+│   AAVEUSDT   PAXGUSDT                                                       │
+│                                                                             │
+│ OTHER (2):                                                                  │
+│   NEARUSDT   RESOLVUSDT                                                     │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TIER 2: EXPANSION (Moderate Confidence) — 4 symbols                        │
+│ 🟡 33-67% allow rate | 3-6 signals | Need more data                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   UNIUSDT (66.7%, 3 signals)                                                │
+│   RESOLVUSDT (66.7%, 3 signals)                                             │
+│   MAVUSDT (33.3%, 6 signals) — Most signals, mixed performance              │
+│   INJUSDT (33.3%, 3 signals)                                                │
+│   ORDIUSDT (33.3%, 3 signals)                                               │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TIER 3: NO DATA (Insufficient Signals) — 179 symbols                       │
+│ ⚪ 0-2 signals | Cannot classify | Monitor for 7-14 days                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│ Examples: XRPUSDT (0), APTUSDT (0), ATOMUSDT (0), DOTUSDT (0)...           │
+│                                                                             │
+│ Note: Many high-quality symbols may be in this tier simply due to           │
+│       short data collection period. Do NOT remove these symbols.            │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TIER 4: BLACKLIST CANDIDATES — 18 symbols                                  │
+│ ❌ 0% allow rate | 3+ signals | Risk controls rejected all                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│ CONFIRMED BLACKLIST (6 signals):                                            │
+│   ZILUSDT ❌ — Permanent blacklist                                          │
+│                                                                             │
+│ PRELIMINARY BLACKLIST (3 signals each - need confirmation):                │
+│   BLURUSDT     PYTHUSDT    DYMUSDT     PORTALUSDT  ALTUSDT    XAIUSDT      │
+│   1000PEPEUSDT PUMPUSDT    SOONUSDT    JCTUSDT     TRUMPUSDT  TRXUSDT      │
+│   WLFIUSDT     DUSKUSDT    PENGUUSDT   ALPHAUSDT   UXLINKUSDT STRKUSDT     │
+│                                                                             │
+│ ⚠️  REQUIRES INVESTIGATION:                                                 │
+│   DOGEUSDT (major coin, 0% allow, 3 signals) — Investigate before blacklist│
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+RECOMMENDED UNIVERSE CONFIGURATIONS
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ CURRENT (Explicit Mode) — RECOMMENDED FOR NOW                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Size: 222 symbols                                                           │
+│ Config: QT_SYMBOLS=BTCUSDT,ETHUSDT,BNBUSDT,...                             │
+│ Allow rate: ~53%                                                            │
+│ Signals/day: ~460                                                           │
+│                                                                             │
+│ Action: ✅ KEEP AS-IS, add ZILUSDT to blacklist                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SAFE PROFILE — Deploy after Week 2 (14 days data)                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Size: 150-180 symbols                                                       │
+│ Config: QT_UNIVERSE=custom, QT_MAX_SYMBOLS=180                              │
+│ Include: TIER 1 (25) + Top TIER 2 + validated symbols                      │
+│ Exclude: TIER 4 blacklist + unvalidated symbols                            │
+│ Expected allow rate: 65-75%                                                 │
+│ Expected signals/day: ~350-420                                              │
+│                                                                             │
+│ Use for: 💰 Mainnet / Real money trading                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ AGGRESSIVE PROFILE — Deploy anytime for testnet                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Size: 300-400 symbols                                                       │
+│ Config: QT_UNIVERSE=l1l2-top, QT_MAX_SYMBOLS=400                            │
+│ Include: TIER 1 + TIER 2 + most TIER 3                                     │
+│ Exclude: TIER 4 permanent blacklist only (ZILUSDT)                         │
+│ Expected allow rate: 45-55%                                                 │
+│ Expected signals/day: ~600-800                                              │
+│                                                                             │
+│ Use for: 🧪 Testnet / ML training / Maximum opportunity                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SCALP PROFILE — Deploy anytime for HFT                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Size: 15-50 symbols                                                         │
+│ Config: QT_UNIVERSE=megacap, QT_MAX_SYMBOLS=50                              │
+│ Include: Majors only (BTC, ETH, BNB, SOL, XRP, ADA...)                     │
+│ Exclude: None                                                               │
+│ Expected allow rate: 80-90%                                                 │
+│ Expected signals/day: ~100-150                                              │
+│                                                                             │
+│ Use for: ⚡ High-frequency / Low-latency strategies                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+DECISION TIMELINE
+================================================================================
+
+TODAY (Nov 23):
+  ✅ Keep current 222-symbol universe
+  ✅ Add ZILUSDT to permanent blacklist
+  ✅ Investigate DOGEUSDT (major with 0% allow)
+  ✅ Monitor daily metrics
+
+WEEK 1 (Nov 30):
+  📊 Re-run analysis (~3,200 signals expected)
+  🟡 Confidence: MEDIUM
+  📝 Expand blacklist if confirmed (0% allow, 20+ signals)
+
+WEEK 2 (Dec 7) — 🎯 DECISION POINT:
+  📊 Re-run analysis (~6,400 signals expected)
+  🟢 Confidence: HIGH
+  ⚖️  DECIDE: Deploy SAFE (180) or AGGRESSIVE (400) profile
+  
+  If deploying to MAINNET → Use SAFE profile
+  If staying on TESTNET → Use AGGRESSIVE or continue current
+
+MONTH 1 (Dec 23):
+  📊 Full classification (~13,000 signals)
+  🟢 Confidence: VERY HIGH
+  🎯 Optimize universe size
+  🔄 Implement dynamic symbol management
+
+================================================================================
+
+DATA CONFIDENCE LEGEND:
+  🔴 VERY LOW: < 100 signals per symbol
+  🟡 LOW:      < 1,000 signals total (CURRENT: 464)
+  🟠 MEDIUM:   1,000-5,000 signals total
+  🟢 HIGH:     5,000-10,000 signals total
+  🔵 VERY HIGH: 10,000+ signals total
+
+SYMBOL TIER LEGEND:
+  ✅ TIER 1 (CORE): Production-ready, 100% allow rate
+  🟡 TIER 2 (EXPANSION): Moderate performers, 30-70% allow
+  ⚪ TIER 3 (NO DATA): Insufficient signals, cannot classify
+  ❌ TIER 4 (BLACKLIST): Poor performers, 0% allow rate
+
+================================================================================
+```

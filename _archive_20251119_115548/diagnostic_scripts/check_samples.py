@@ -1,0 +1,23 @@
+from backend.database import SessionLocal, engine
+from backend.models.ai_training import AITrainingSample
+import os
+
+print(f"Database path: {engine.url}")
+db_path = str(engine.url).replace('sqlite:///', '')
+print(f"File exists: {os.path.exists(db_path)}")
+if os.path.exists(db_path):
+    print(f"File size: {os.path.getsize(db_path)} bytes")
+
+db = SessionLocal()
+count = db.query(AITrainingSample).count()
+print(f"\n[OK] Total samples: {count}\n")
+
+if count > 0:
+    samples = db.query(AITrainingSample).limit(5).all()
+    print("Sample details:")
+    for s in samples:
+        print(f"  - ID: {s.id}, Symbol: {s.symbol}, Timestamp: {s.timestamp}")
+else:
+    print("[WARNING] No samples found!")
+
+db.close()

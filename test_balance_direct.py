@@ -1,0 +1,28 @@
+import asyncio
+import os
+from backend.services.execution.execution import BinanceFuturesExecutionAdapter
+
+async def test_balance():
+    api_key = os.getenv('BINANCE_API_KEY', '')
+    api_secret = os.getenv('BINANCE_API_SECRET', '')
+    
+    print(f"Testing with API key: {api_key[:20]}...")
+    print(f"Secret: {api_secret[:20]}...")
+    
+    adapter = BinanceFuturesExecutionAdapter(
+        market_type='usdm_perp',
+        margin_mode='cross',
+        default_leverage=30,
+        api_key=api_key,
+        api_secret=api_secret
+    )
+    
+    print("Calling get_cash_balance()...")
+    balance = await adapter.get_cash_balance()
+    print(f"\n[OK] Balance: ${balance:.2f}")
+    
+    return balance
+
+if __name__ == "__main__":
+    result = asyncio.run(test_balance())
+    print(f"\nFinal result: ${result:.2f}")

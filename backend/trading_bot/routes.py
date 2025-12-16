@@ -27,6 +27,57 @@ logger = logging.getLogger(__name__)
 _bot_task: Optional[asyncio.Task] = None
 
 
+async def start_bot_task(dry_run: bool = True) -> Dict[str, str]:
+    """Start the trading bot in the background (shared helper)."""
+    global _bot_task
+
+    bot = get_trading_bot()
+
+    if bot.running:
+        return {
+            "status": "already_running",
+            "message": "Trading bot is already running",
+        }
+
+    bot.dry_run = dry_run
+    _bot_task = asyncio.create_task(bot.start())
+
+    mode = "DRY RUN" if dry_run else "LIVE TRADING"
+    logger.info(f"[ROCKET] Trading bot started in {mode} mode")
+
+    return {
+        "status": "started",
+        "message": f"Trading bot started in {mode} mode",
+        "dry_run": str(dry_run),
+    }
+
+
+async def stop_bot_task() -> Dict[str, str]:
+    """Stop the trading bot background task (shared helper)."""
+    global _bot_task
+
+    bot = get_trading_bot()
+
+    if not bot.running:
+        return {
+            "status": "already_stopped",
+            "message": "Trading bot is not running",
+        }
+
+    bot.stop()
+
+    if _bot_task and not _bot_task.done():
+        _bot_task.cancel()
+        try:
+            await _bot_task
+        except asyncio.CancelledError:
+            pass
+
+    logger.info("🛑 Trading bot stopped")
+
+    return {"status": "stopped", "message": "Trading bot stopped successfully"}
+
+
 @router.get("/status")
 async def get_bot_status() -> Dict[str, Any]:
     """Get current trading bot status"""
@@ -36,68 +87,22 @@ async def get_bot_status() -> Dict[str, Any]:
 
 @router.post("/start")
 async def start_bot(dry_run: bool = True) -> Dict[str, str]:
-    """Start the autonomous trading bot"""
-    global _bot_task
-
+    """Start the autonomous trading bot via API"""
     try:
-        bot = get_trading_bot()
-
-        if bot.running:
-            return {
-                "status": "already_running",
-                "message": "Trading bot is already running",
-            }
-
-        # Start bot in background
-        bot.dry_run = dry_run
-        _bot_task = asyncio.create_task(bot.start())
-
-        mode = "DRY RUN" if dry_run else "LIVE TRADING"
-        logger.info(f"🚀 Trading bot started in {mode} mode")
-
-        return {
-            "status": "started",
-            "message": f"Trading bot started in {mode} mode",
-            "dry_run": str(dry_run),
-        }
-
-    except Exception as e:
+        return await start_bot_task(dry_run=dry_run)
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Failed to start trading bot: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/stop")
 async def stop_bot() -> Dict[str, str]:
-    """Stop the autonomous trading bot"""
-    global _bot_task
-
+    """Stop the autonomous trading bot via API"""
     try:
-        bot = get_trading_bot()
-
-        if not bot.running:
-            return {
-                "status": "already_stopped",
-                "message": "Trading bot is not running",
-            }
-
-        # Stop bot
-        bot.stop()
-
-        # Cancel background task
-        if _bot_task and not _bot_task.done():
-            _bot_task.cancel()
-            try:
-                await _bot_task
-            except asyncio.CancelledError:
-                pass
-
-        logger.info("🛑 Trading bot stopped")
-
-        return {"status": "stopped", "message": "Trading bot stopped successfully"}
-
-    except Exception as e:
+        return await stop_bot_task()
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Failed to stop trading bot: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/positions")

@@ -1,0 +1,31 @@
+{
+  "name": "AGGRESSIVE_PROFILE",
+  "description": "Higher risk/reward for testnet / experimentation",
+  "use_case": "Strategy testing, model validation, paper trading",
+  "config": {
+    "base_confidence": 0.42,
+    "base_risk_pct": 1.5,
+    "daily_dd_limit": 5.0,
+    "losing_streak_limit": 6,
+    "losing_streak_risk_reduction": 0.5,
+    "max_open_positions": 10,
+    "total_exposure_limit": 20.0,
+    "extreme_vol_threshold": 0.07,
+    "high_vol_threshold": 0.05,
+    "regime_adjustments": {
+      "trending_confidence": -0.05,
+      "trending_risk": 1.1,
+      "ranging_confidence": 0.02,
+      "ranging_risk": 0.8
+    },
+    "vol_adjustments": {
+      "high_vol_risk": 0.6,
+      "high_vol_confidence": 0.03
+    },
+    "symbol_filtering": {
+      "min_winrate": 0.35,
+      "min_avg_R": 0.5,
+      "consecutive_loss_disable": 4
+    }
+  }
+}

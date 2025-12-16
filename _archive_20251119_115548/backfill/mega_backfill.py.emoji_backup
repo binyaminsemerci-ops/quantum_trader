@@ -1,0 +1,277 @@
+"""
+MEGA BACKFILL - Extended historical periods
+Fetches data from multiple time periods going back weeks/months
+Target: 20,000+ samples
+"""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
+
+import asyncio
+import aiohttp
+import json
+import numpy as np
+import pandas as pd
+from datetime import datetime, timezone, timedelta
+from backend.database import SessionLocal
+from backend.models.ai_training import AITrainingSample
+
+def calculate_indicators(df):
+    """Calculate 14 technical indicators"""
+    close = df['close']
+    high = df['high']
+    low = df['low']
+    volume = df['volume']
+    
+    df['EMA_10'] = close.ewm(span=10, adjust=False).mean()
+    df['EMA_50'] = close.ewm(span=50, adjust=False).mean()
+    
+    delta = close.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+    
+    ema_12 = close.ewm(span=12, adjust=False).mean()
+    ema_26 = close.ewm(span=26, adjust=False).mean()
+    df['MACD'] = ema_12 - ema_26
+    df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+    
+    sma_20 = close.rolling(window=20).mean()
+    std_20 = close.rolling(window=20).std()
+    df['BB_upper'] = sma_20 + (std_20 * 2)
+    df['BB_middle'] = sma_20
+    df['BB_lower'] = sma_20 - (std_20 * 2)
+    
+    high_low = high - low
+    high_close = np.abs(high - close.shift())
+    low_close = np.abs(low - close.shift())
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = ranges.max(axis=1)
+    df['ATR'] = true_range.rolling(14).mean()
+    
+    df['volume_sma_20'] = volume.rolling(window=20).mean()
+    df['price_change_pct'] = close.pct_change() * 100
+    df['high_low_range'] = high - low
+    
+    return df
+
+async def fetch_binance_historical(session, symbol, interval, start_time):
+    """Fetch historical data from specific time period"""
+    url = "https://api.binance.com/api/v3/klines"
+    params = {
+        'symbol': symbol,
+        'interval': interval,
+        'limit': 1000,
+        'startTime': int(start_time.timestamp() * 1000)
+    }
+    
+    try:
+        async with session.get(url, params=params, timeout=30) as response:
+            if response.status == 200:
+                return await response.json()
+    except:
+        pass
+    return None
+
+def determine_action_outcome(features, future_price, current_price):
+    """Determine trading action and outcome"""
+    rsi = features['RSI']
+    macd = features['MACD']
+    ema_10 = features['EMA_10']
+    ema_50 = features['EMA_50']
+    close = features['Close']
+    bb_upper = features['BB_upper']
+    bb_lower = features['BB_lower']
+    
+    pnl_pct = ((future_price - current_price) / current_price) * 100
+    
+    # Multi-strategy approach
+    if rsi < 45 and macd > 0 and ema_10 > ema_50:
+        action = "BUY"
+    elif rsi > 55 and macd < 0 and ema_10 < ema_50:
+        action = "SELL"
+    elif rsi < 35 or close < bb_lower * 1.01:
+        action = "BUY"
+    elif rsi > 65 or close > bb_upper * 0.99:
+        action = "SELL"
+    elif ema_10 > ema_50 * 1.008:
+        action = "BUY"
+    elif ema_10 < ema_50 * 0.992:
+        action = "SELL"
+    else:
+        action = "HOLD"
+        return action, "NEUTRAL", 0
+    
+    if action == "BUY":
+        outcome = "WIN" if pnl_pct > 0.15 else "LOSS" if pnl_pct < -0.15 else "NEUTRAL"
+    elif action == "SELL":
+        outcome = "WIN" if pnl_pct < -0.15 else "LOSS" if pnl_pct > 0.15 else "NEUTRAL"
+    else:
+        outcome = "NEUTRAL"
+        pnl_pct = 0
+    
+    return action, outcome, pnl_pct
+
+async def process_period(session, symbol, interval, start_time, db, period_name):
+    """Process one time period for a symbol"""
+    klines = await fetch_binance_historical(session, symbol, interval, start_time)
+    
+    if not klines or len(klines) < 100:
+        return 0
+    
+    df = pd.DataFrame(klines, columns=[
+        'timestamp', 'open', 'high', 'low', 'close', 'volume',
+        'close_time', 'quote_volume', 'trades', 'taker_buy_base',
+        'taker_buy_quote', 'ignore'
+    ])
+    
+    for col in ['open', 'high', 'low', 'close', 'volume']:
+        df[col] = pd.to_numeric(df[col])
+    
+    df = calculate_indicators(df)
+    df = df.dropna()
+    
+    if len(df) < 60:
+        return 0
+    
+    samples_created = 0
+    lookback = 15 if interval == '5m' else 20 if interval == '15m' else 10
+    
+    for i in range(50, len(df) - lookback, 7):
+        row = df.iloc[i]
+        future_row = df.iloc[i + lookback]
+        
+        features = {
+            "Close": float(row['close']),
+            "Volume": float(row['volume']),
+            "EMA_10": float(row['EMA_10']),
+            "EMA_50": float(row['EMA_50']),
+            "RSI": float(row['RSI']),
+            "MACD": float(row['MACD']),
+            "MACD_signal": float(row['MACD_signal']),
+            "BB_upper": float(row['BB_upper']),
+            "BB_middle": float(row['BB_middle']),
+            "BB_lower": float(row['BB_lower']),
+            "ATR": float(row['ATR']),
+            "volume_sma_20": float(row['volume_sma_20']),
+            "price_change_pct": float(row['price_change_pct']),
+            "high_low_range": float(row['high_low_range'])
+        }
+        
+        action, outcome, pnl_pct = determine_action_outcome(
+            features, future_row['close'], row['close']
+        )
+        
+        timestamp = datetime.fromtimestamp(row['timestamp'] / 1000, tz=timezone.utc)
+        exit_time = datetime.fromtimestamp(future_row['timestamp'] / 1000, tz=timezone.utc)
+        
+        sample = AITrainingSample(
+            symbol=symbol,
+            timestamp=timestamp,
+            predicted_action=action,
+            prediction_score=0.75,
+            prediction_confidence=0.75,
+            model_version=f"mega_{period_name}_{interval}",
+            features=json.dumps(features),
+            feature_names=json.dumps(list(features.keys())),
+            executed=True if action != "HOLD" else False,
+            execution_side=action if action != "HOLD" else None,
+            entry_price=row['close'],
+            entry_quantity=100.0,
+            entry_time=timestamp,
+            outcome_known=True,
+            exit_price=future_row['close'],
+            exit_time=exit_time,
+            realized_pnl=pnl_pct if action != "HOLD" else 0,
+            hold_duration_seconds=(exit_time - timestamp).total_seconds(),
+            target_label=pnl_pct,
+            target_class=outcome
+        )
+        
+        db.add(sample)
+        samples_created += 1
+    
+    if samples_created > 0:
+        db.commit()
+    
+    return samples_created
+
+async def main(target_samples=20000):
+    """Mega backfill - extended historical periods"""
+    
+    print("🔥🔥🔥 MEGA BACKFILL - EXTENDED PERIODS 🔥🔥🔥")
+    print("=" * 80)
+    print(f"🎯 Target: {target_samples:,} samples")
+    print("📊 Strategy: Multiple time periods (weeks back)")
+    print("💪 Covering: 50 top pairs × 3 timeframes × multiple periods")
+    print("⏱️  Time: ~3-5 minutes")
+    print("=" * 80)
+    
+    symbols = [
+        'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT',
+        'ADAUSDT', 'DOGEUSDT', 'DOTUSDT', 'MATICUSDT', 'SHIBUSDT',
+        'AVAXUSDT', 'LINKUSDT', 'UNIUSDT', 'ATOMUSDT', 'LTCUSDT',
+        'NEARUSDT', 'ALGOUSDT', 'XLMUSDT', 'FILUSDT', 'HBARUSDT',
+        'APTUSDT', 'ARBUSDT', 'OPUSDT', 'INJUSDT', 'SUIUSDT',
+        'STXUSDT', 'WLDUSDT', 'TIAUSDT', 'RENDERUSDT', 'FETUSDT',
+        'TRXUSDT', 'TONUSDT', 'BCHUSDT', 'ETCUSDT', 'AAVEUSDT',
+        'VETUSDT', 'ICPUSDT', 'IMXUSDT', 'LDOUSDT', 'FTMUSDT',
+        'SANDUSDT', 'MANAUSDT', 'AXSUSDT', 'THETAUSDT', 'EGLDUSDT',
+        'PEPEUSDT', 'MKRUSDT', 'RUNEUSDT', 'GMTUSDT', 'APEUSDT'
+    ]
+    
+    now = datetime.now(timezone.utc)
+    
+    # Multiple time periods going back
+    periods = [
+        ('recent', now - timedelta(days=3), '5m'),    # Last 3 days, 5m
+        ('week1', now - timedelta(days=7), '15m'),    # 1 week ago, 15m
+        ('week2', now - timedelta(days=14), '1h'),    # 2 weeks ago, 1h
+        ('week3', now - timedelta(days=21), '1h'),    # 3 weeks ago, 1h
+    ]
+    
+    db = SessionLocal()
+    total_samples = 0
+    
+    async with aiohttp.ClientSession() as session:
+        for period_name, start_time, interval in periods:
+            print(f"\n📅 Period: {period_name} ({interval} candles from {start_time.strftime('%Y-%m-%d')})")
+            period_samples = 0
+            
+            for i, symbol in enumerate(symbols, 1):
+                if total_samples >= target_samples:
+                    break
+                
+                count = await process_period(
+                    session, symbol, interval, start_time, db, period_name
+                )
+                
+                period_samples += count
+                total_samples += count
+                
+                if i % 10 == 0:
+                    print(f"   ✅ {i}/{len(symbols)} symbols: {period_samples:,} samples...")
+            
+            print(f"   ✅ Period complete: {period_samples:,} samples")
+            
+            if total_samples >= target_samples:
+                print(f"\n🎯 TARGET REACHED: {total_samples:,} samples!")
+                break
+    
+    db.close()
+    
+    print("\n" + "=" * 80)
+    print(f"🎉🎉🎉 MEGA BACKFILL COMPLETE! 🎉🎉🎉")
+    print(f"   Total: {total_samples:,} training samples")
+    print(f"   Periods: {len(periods)} time ranges")
+    print(f"   Symbols: {len(symbols)} pairs")
+    print(f"   Range: Multiple weeks of historical data")
+    print("=" * 80)
+    print("\n💪💪💪 AI IS NOW ELITE LEVEL!")
+    
+    return total_samples
+
+if __name__ == '__main__':
+    target = int(sys.argv[1]) if len(sys.argv) > 1 else 20000
+    asyncio.run(main(target))

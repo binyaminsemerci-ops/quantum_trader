@@ -1,0 +1,14 @@
+≡ƒÜÇ≡ƒÜÇ≡ƒÜÇ TEMPORAL FUSION TRANSFORMER TRAINING ≡ƒÜÇ≡ƒÜÇ≡ƒÜÇ
+================================================================================
+≡ƒÄ» Target: 60-75% WIN rate
+≡ƒÆÄ State-of-the-art multi-horizon prediction
+≡ƒöÑ Used by top hedge funds worldwide
+================================================================================
+
+≡ƒôª Checking PyTorch installation...
+Γ£à PyTorch 2.9.1+cpu installed
+   CUDA available: False
+
+================================================================================
+≡ƒôè LOADING TRAINING DATA
+================================================================================

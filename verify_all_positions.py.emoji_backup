@@ -1,0 +1,210 @@
+"""Comprehensive check of all positions and their TP/SL orders"""
+import os
+from binance.client import Client
+from datetime import datetime
+
+def load_env():
+    api_key = os.getenv("BINANCE_API_KEY")
+    api_secret = os.getenv("BINANCE_API_SECRET")
+    
+    if not api_key:
+        with open(".env") as f:
+            for line in f:
+                if line.startswith("BINANCE_API_KEY="):
+                    api_key = line.split("=", 1)[1].strip()
+                elif line.startswith("BINANCE_API_SECRET="):
+                    api_secret = line.split("=", 1)[1].strip()
+    
+    return api_key, api_secret
+
+api_key, api_secret = load_env()
+client = Client(api_key, api_secret)
+
+print("\n" + "=" * 100)
+print("🔍 COMPLETE POSITION & ORDER VERIFICATION")
+print("=" * 100)
+print(f"Timestamp: {datetime.now().strftime('%H:%M:%S')}")
+
+# Get config
+tp_pct = 0.03   # 3%
+sl_pct = 0.02   # 2%
+trail_pct = 0.015  # 1.5%
+partial_tp = 0.5   # 50%
+
+print(f"\n⚙️ Configuration:")
+print(f"   TP: {tp_pct*100:.1f}% | SL: {sl_pct*100:.1f}% | Trail: {trail_pct*100:.1f}% | Partial: {partial_tp*100:.0f}%")
+
+# Get all positions
+positions = client.futures_position_information()
+active_positions = [p for p in positions if float(p['positionAmt']) != 0]
+
+if not active_positions:
+    print("\n⭕ No active positions")
+    exit(0)
+
+print(f"\n📊 Found {len(active_positions)} active position(s)")
+print("=" * 100)
+
+all_orders = client.futures_get_open_orders()
+orders_by_symbol = {}
+for order in all_orders:
+    symbol = order['symbol']
+    if symbol not in orders_by_symbol:
+        orders_by_symbol[symbol] = []
+    orders_by_symbol[symbol].append(order)
+
+for idx, pos in enumerate(active_positions, 1):
+    symbol = pos['symbol']
+    amt = float(pos['positionAmt'])
+    entry = float(pos['entryPrice'])
+    current = float(pos['markPrice'])
+    unrealized_pnl = float(pos['unRealizedProfit'])
+    leverage = int(pos['leverage'])
+    
+    print(f"\n{idx}. {'🔴 SHORT' if amt < 0 else '🟢 LONG'} {symbol}")
+    print("-" * 100)
+    
+    # Position details
+    pnl_pct = 0
+    if entry > 0:
+        if amt > 0:  # LONG
+            pnl_pct = ((current - entry) / entry) * 100
+            tp_target = entry * (1 + tp_pct)
+            sl_target = entry * (1 - sl_pct)
+            trail_trigger = entry * (1 + trail_pct)
+        else:  # SHORT
+            pnl_pct = ((entry - current) / entry) * 100
+            tp_target = entry * (1 - tp_pct)
+            sl_target = entry * (1 + sl_pct)
+            trail_trigger = entry * (1 - trail_pct)
+    
+    notional = abs(amt) * current
+    
+    print(f"   Position:  {amt:>15,.1f} (${notional:>10,.2f} notional)")
+    print(f"   Entry:     ${entry:>15.6f}")
+    print(f"   Current:   ${current:>15.6f}")
+    print(f"   P&L:       ${unrealized_pnl:>15.2f} ({pnl_pct:>+7.2f}%)")
+    print(f"   Leverage:  {leverage}x")
+    
+    # Expected TP/SL levels
+    print(f"\n   📋 Expected Protection Levels:")
+    print(f"      TP Target:  ${tp_target:.6f} ({'+' if amt > 0 else '-'}{tp_pct*100:.1f}%)")
+    print(f"      SL Target:  ${sl_target:.6f} ({'-' if amt > 0 else '+'}{sl_pct*100:.1f}%)")
+    print(f"      Trail Trig: ${trail_trigger:.6f} ({'+' if amt > 0 else '-'}{trail_pct*100:.1f}%)")
+    
+    # Expected quantities
+    partial_qty = abs(amt) * partial_tp
+    remaining_qty = abs(amt) * (1 - partial_tp)
+    print(f"      Partial TP: {partial_qty:,.1f} ({partial_tp*100:.0f}%)")
+    print(f"      Trailing:   {remaining_qty:,.1f} ({(1-partial_tp)*100:.0f}%)")
+    
+    # Check actual orders
+    orders = orders_by_symbol.get(symbol, [])
+    
+    if not orders:
+        print(f"\n   ❌ NO ORDERS FOUND! Position is UNPROTECTED!")
+        continue
+    
+    print(f"\n   ✅ Active Orders ({len(orders)}):")
+    
+    has_tp = False
+    has_sl = False
+    has_trailing = False
+    tp_qty_ok = False
+    sl_ok = False
+    trailing_qty_ok = False
+    
+    for order in orders:
+        order_type = order['type']
+        side = order['side']
+        qty = float(order['origQty'])
+        stop_price = float(order.get('stopPrice', 0))
+        callback = float(order.get('callbackRate', 0))
+        
+        status = "✅"
+        notes = []
+        
+        if order_type == 'TAKE_PROFIT_MARKET':
+            has_tp = True
+            # Check quantity (should be ~50%)
+            qty_diff_pct = abs(qty - partial_qty) / partial_qty * 100 if partial_qty > 0 else 100
+            if qty_diff_pct < 5:  # Within 5%
+                tp_qty_ok = True
+                notes.append("qty OK")
+            else:
+                status = "⚠️"
+                notes.append(f"qty mismatch: {qty:.1f} vs expected {partial_qty:.1f}")
+            
+            # Check price
+            price_diff_pct = abs(stop_price - tp_target) / tp_target * 100 if tp_target > 0 else 100
+            if price_diff_pct < 1:  # Within 1%
+                notes.append("price OK")
+            else:
+                status = "⚠️"
+                notes.append(f"price off by {price_diff_pct:.1f}%")
+        
+        elif order_type == 'STOP_MARKET':
+            has_sl = True
+            # Check if it's close position or partial
+            if order.get('closePosition'):
+                sl_ok = True
+                notes.append("closePosition=True ✓")
+            else:
+                qty_check = float(order.get('origQty', 0))
+                if qty_check == 0:
+                    sl_ok = True
+                    notes.append("full position")
+            
+            # Check price
+            price_diff_pct = abs(stop_price - sl_target) / sl_target * 100 if sl_target > 0 else 100
+            if price_diff_pct < 1:
+                notes.append("price OK")
+            else:
+                status = "⚠️"
+                notes.append(f"price off by {price_diff_pct:.1f}%")
+        
+        elif order_type == 'TRAILING_STOP_MARKET':
+            has_trailing = True
+            # Check quantity (should be remaining ~50%)
+            qty_diff_pct = abs(qty - remaining_qty) / remaining_qty * 100 if remaining_qty > 0 else 100
+            if qty_diff_pct < 5:
+                trailing_qty_ok = True
+                notes.append("qty OK")
+            else:
+                status = "⚠️"
+                notes.append(f"qty mismatch: {qty:.1f} vs expected {remaining_qty:.1f}")
+            
+            # Trailing callback rate is dynamic, just note it
+            if callback > 0:
+                notes.append(f"callback {callback:.1f}%")
+        
+        note_str = " - " + ", ".join(notes) if notes else ""
+        print(f"      {status} {order_type} {side}")
+        print(f"         Qty: {qty:,.1f}{' @ $' + f'{stop_price:.6f}' if stop_price > 0 else ''}{note_str}")
+    
+    # Final verdict
+    print(f"\n   🎯 Verdict:")
+    issues = []
+    if not has_tp:
+        issues.append("Missing TP order")
+    elif not tp_qty_ok:
+        issues.append("TP quantity incorrect")
+    
+    if not has_sl:
+        issues.append("Missing SL order")
+    elif not sl_ok:
+        issues.append("SL setup incorrect")
+    
+    if not has_trailing:
+        issues.append("Missing Trailing Stop")
+    elif not trailing_qty_ok:
+        issues.append("Trailing quantity incorrect")
+    
+    if issues:
+        print(f"      ⚠️ ISSUES: {', '.join(issues)}")
+    else:
+        print(f"      ✅ ALL ORDERS CORRECTLY SET!")
+
+print("\n" + "=" * 100)
+print("✅ Verification Complete")
+print("=" * 100)

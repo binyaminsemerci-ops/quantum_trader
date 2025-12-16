@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: qt-ai-engine-pdb
+  namespace: quantum-trader
+  labels:
+    app: qt-ai-engine
+    tier: intelligence
+    epic: K8S-002
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: qt-ai-engine

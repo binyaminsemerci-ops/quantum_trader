@@ -1,0 +1,13 @@
+# Additional requirements for HTTPS, Authentication, and Caching
+# Install with: pip install -r requirements_security.txt
+
+# JWT Authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Redis for caching and rate limiting
+redis[asyncio]==5.0.1
+
+# Additional security dependencies
+python-multipart==0.0.6  # For form data in login
+cryptography==41.0.7  # For JWT

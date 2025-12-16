@@ -1,0 +1,34 @@
+"""
+Check available historical data for accelerated training
+"""
+import sqlite3
+from backend.database import SessionLocal
+from backend.models.ai_training import AITrainingSample
+
+def check_data():
+    conn = sqlite3.connect('backend/data/trades.db')
+    cursor = conn.cursor()
+    
+    print('[CHART] DATABASE TABELLER OG DATA:\n')
+    
+    # Get all tables
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    tables = cursor.fetchall()
+    
+    for table in tables:
+        table_name = table[0]
+        cursor.execute(f'SELECT COUNT(*) FROM {table_name}')
+        count = cursor.fetchone()[0]
+        print(f'{table_name}: {count} rows')
+        
+        # Show columns
+        if count > 0:
+            cursor.execute(f'PRAGMA table_info({table_name})')
+            columns = [col[1] for col in cursor.fetchall()]
+            print(f'  Kolonner: {", ".join(columns[:8])}...')
+            print()
+    
+    conn.close()
+
+if __name__ == '__main__':
+    check_data()

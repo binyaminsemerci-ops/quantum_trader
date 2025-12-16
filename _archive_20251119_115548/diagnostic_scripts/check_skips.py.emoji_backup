@@ -1,0 +1,14 @@
+from backend.database import SessionLocal
+from sqlalchemy import text
+
+s = SessionLocal()
+r = s.execute(text("SELECT symbol, side, reason, created_at FROM execution_journal WHERE status = 'skipped' ORDER BY created_at DESC LIMIT 3"))
+rows = r.fetchall()
+
+print("\n📋 SISTE 3 SKIPPED ORDERS:")
+for row in rows:
+    print(f"\n⏰ {row.created_at}")
+    print(f"   Symbol: {row.symbol} {row.side}")
+    print(f"   Reason: {row.reason}")
+
+s.close()

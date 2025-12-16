@@ -1,0 +1,72 @@
+{
+  "MATICUSDT": {
+    "symbol": "MATICUSDT",
+    "price": 0.3846,
+    "change": 0.0,
+    "change_percent": 0.0,
+    "timestamp": "2024-09-11T11:42:00"
+  },
+  "DOTUSDT": {
+    "symbol": "DOTUSDT",
+    "price": 1.865,
+    "change": 0.0,
+    "change_percent": 0.0,
+    "timestamp": "2025-12-15T18:00:00"
+  },
+  "AVAXUSDT": {
+    "symbol": "AVAXUSDT",
+    "price": 12.422,
+    "change": 0.009000000000000341,
+    "change_percent": 0.07250463224039588,
+    "timestamp": "2025-12-15T18:00:00"
+  },
+  "LINKUSDT": {
+    "symbol": "LINKUSDT",
+    "price": 12.745,
+    "change": 0.006999999999999673,
+    "change_percent": 0.054953681896684516,
+    "timestamp": "2025-12-15T18:00:00"
+  },
+  "UNIUSDT": {
+    "symbol": "UNIUSDT",
+    "price": 5.035,
+    "change": 0.001000000000000334,
+    "change_percent": 0.019864918553840566,
+    "timestamp": "2025-12-15T18:00:00"
+  },
+  "BTCUSDT": {
+    "symbol": "BTCUSDT",
+    "price": 86399.2,
+    "change": 38.59999999999127,
+    "change_percent": 0.04469630827019644,
+    "timestamp": "2025-12-15T18:00:00"
+  },
+  "ETHUSDT": {
+    "symbol": "ETHUSDT",
+    "price": 3111.19,
+    "change": 1.1900000000000546,
+    "change_percent": 0.038263665594857055,
+    "timestamp": "2025-12-14T07:42:00"
+  },
+  "BNBUSDT": {
+    "symbol": "BNBUSDT",
+    "price": 852.6,
+    "change": 0.39999999999997726,
+    "change_percent": 0.04693733865289571,
+    "timestamp": "2025-12-15T18:00:00"
+  },
+  "SOLUSDT": {
+    "symbol": "SOLUSDT",
+    "price": 126.49,
+    "change": 0.0799999999999983,
+    "change_percent": 0.06328613242623075,
+    "timestamp": "2025-12-15T18:00:00"
+  },
+  "ADAUSDT": {
+    "symbol": "ADAUSDT",
+    "price": 0.3825,
+    "change": 0.00030000000000002247,
+    "change_percent": 0.07849293563579866,
+    "timestamp": "2025-12-15T18:00:00"
+  }
+}

@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-ha-config
+  namespace: quantum-trader
+  labels:
+    app: postgres-ha
+    tier: infrastructure
+data:
+  postgresql.conf: |
+    # Basic replication config
+    wal_level = replica
+    max_wal_senders = 3
+    max_replication_slots = 3
+    hot_standby = on
+    
+    # Performance
+    shared_buffers = 256MB
+    effective_cache_size = 1GB
+    maintenance_work_mem = 64MB
+    checkpoint_completion_target = 0.9
+    wal_buffers = 16MB
+    default_statistics_target = 100
+    random_page_cost = 1.1
+    effective_io_concurrency = 200
+    work_mem = 8MB
+    min_wal_size = 1GB
+    max_wal_size = 4GB
+  
+  pg_hba.conf: |
+    # TYPE  DATABASE        USER            ADDRESS                 METHOD
+    local   all             all                                     trust
+    host    all             all             127.0.0.1/32            trust
+    host    all             all             ::1/128                 trust
+    host    all             all             10.0.0.0/8              md5
+    host    replication     all             10.0.0.0/8              md5
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-credentials
+  namespace: quantum-trader
+  labels:
+    app: postgres-ha
+    tier: infrastructure
+type: Opaque
+stringData:
+  username: postgres
+  password: CHANGE_ME_IN_PRODUCTION

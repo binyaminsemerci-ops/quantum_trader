@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+from binance.client import Client
+import os
+
+c = Client(
+    os.getenv('BINANCE_API_KEY', 'qy5g2Dxa8JyNzWI29Ub9ZBbaEWAbTjTz91OMCOWWBd7LRlrnLSO82uQFLuMWGoHb'),
+    os.getenv('BINANCE_API_SECRET', 'oIcNvT3IzlnDwrPxor8jxmCnt2f7ClmmreLsfog2R1QidbgBXNCvm0KyWcF1ebbg')
+)
+
+pos = [p for p in c.futures_position_information() if float(p['positionAmt']) != 0]
+print(f'[TARGET] Aktive posisjoner: {len(pos)}\n')
+for p in pos:
+    side = 'LONG' if float(p['positionAmt']) > 0 else 'SHORT'
+    pnl = float(p.get('unRealizedProfit', 0))
+    emoji = '[GREEN_CIRCLE]' if pnl > 0 else '[RED_CIRCLE]'
+    print(f"{emoji} {p['symbol']}: {side} {abs(float(p['positionAmt']))} @ ${p['entryPrice']} | P&L: ${pnl:.2f}")

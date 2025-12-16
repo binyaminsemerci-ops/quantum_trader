@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Check realized PNL and trade history"""
+import os
+from dotenv import load_dotenv
+from binance.client import Client
+from datetime import datetime, timedelta
+
+load_dotenv()
+
+client = Client(
+    os.getenv("BINANCE_API_KEY"),
+    os.getenv("BINANCE_API_SECRET")
+)
+
+print("💰 REALIZED PNL & TRADE HISTORY")
+print("=" * 80)
+
+# Get account info
+account = client.futures_account()
+total_wallet = float(account['totalWalletBalance'])
+total_unrealized = float(account['totalUnrealizedProfit'])
+
+# Get income history (realized PNL)
+end_time = int(datetime.now().timestamp() * 1000)
+start_time = int((datetime.now() - timedelta(days=1)).timestamp() * 1000)
+
+income = client.futures_income_history(
+    incomeType='REALIZED_PNL',
+    startTime=start_time,
+    endTime=end_time,
+    limit=100
+)
+
+print(f"📊 Last 24 Hours Trading:")
+print(f"  Total Wallet: ${total_wallet:.2f}")
+print(f"  Total Unrealized PNL: ${total_unrealized:.2f}")
+print(f"\n💸 REALIZED PNL (Last 100 trades):\n")
+
+if not income:
+    print("  No realized PNL in last 24 hours")
+else:
+    total_realized = 0.0
+    wins = 0
+    losses = 0
+    
+    for trade in income:
+        symbol = trade['symbol']
+        pnl = float(trade['income'])
+        time = datetime.fromtimestamp(trade['time'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
+        
+        emoji = "✅" if pnl > 0 else "❌"
+        total_realized += pnl
+        
+        if pnl > 0:
+            wins += 1
+        else:
+            losses += 1
+        
+        print(f"  {emoji} {symbol}: ${pnl:+.2f} at {time}")
+    
+    print("\n" + "=" * 80)
+    print(f"SUMMARY:")
+    print(f"  Total Realized PNL: ${total_realized:.2f}")
+    print(f"  Winning Trades: {wins}")
+    print(f"  Losing Trades: {losses}")
+    
+    if wins + losses > 0:
+        win_rate = (wins / (wins + losses)) * 100
+        print(f"  Win Rate: {win_rate:.1f}%")
+    
+    if losses > 0:
+        avg_win = sum(float(t['income']) for t in income if float(t['income']) > 0) / wins if wins > 0 else 0
+        avg_loss = sum(float(t['income']) for t in income if float(t['income']) < 0) / losses
+        print(f"  Average Win: ${avg_win:.2f}")
+        print(f"  Average Loss: ${avg_loss:.2f}")
+        
+        if avg_loss != 0:
+            rr_ratio = abs(avg_win / avg_loss)
+            print(f"  Risk/Reward Ratio: {rr_ratio:.2f}")
+
+print("=" * 80)

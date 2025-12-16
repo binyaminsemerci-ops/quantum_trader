@@ -1,0 +1,39 @@
+from binance.client import Client
+import os
+
+c = Client(os.getenv('BINANCE_API_KEY'), os.getenv('BINANCE_API_SECRET'))
+
+# Get all positions
+pos = c.futures_position_information()
+open_pos = [p for p in pos if float(p['positionAmt']) != 0]
+
+print('🔍 OPEN POSITIONS:')
+for p in open_pos:
+    amt = float(p['positionAmt'])
+    entry = float(p['entryPrice'])
+    mark = float(p['markPrice'])
+    pnl = float(p['unRealizedProfit'])
+    pnl_pct = (pnl / (abs(amt) * entry / float(p['leverage']))) * 100 if amt != 0 else 0
+    leverage = p['leverage']
+    side = "LONG" if amt > 0 else "SHORT"
+    
+    print(f"\n{p['symbol']}: {side} {leverage}x")
+    print(f"  Amount: {amt:.4f}, Entry: ${entry}, Mark: ${mark}")
+    print(f"  PnL: ${pnl:.2f} ({pnl_pct:+.2f}%)")
+
+# Get all open orders
+orders = c.futures_get_open_orders()
+print(f'\n📋 OPEN ORDERS ({len(orders)} total):')
+
+# Group by symbol
+from collections import defaultdict
+orders_by_symbol = defaultdict(list)
+for o in orders:
+    orders_by_symbol[o['symbol']].append(o)
+
+for symbol, symbol_orders in sorted(orders_by_symbol.items()):
+    print(f"\n{symbol}:")
+    for o in symbol_orders:
+        stop_price = float(o.get('stopPrice', o.get('price', 0)))
+        close_pos = o.get('closePosition', False)
+        print(f"  • {o['type']} {o['side']} @ ${stop_price} (closePosition={close_pos})")

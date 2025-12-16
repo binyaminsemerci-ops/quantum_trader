@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+"""
+[CHART] HYBRID AGENT LIVE MONITOR
+Continuous monitoring of Hybrid Agent performance in dry-run mode
+"""
+import os
+import sys
+import time
+import subprocess
+from datetime import datetime
+from collections import defaultdict
+
+class Colors:
+    GREEN = '\033[92m'
+    RED = '\033[91m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+
+def clear_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+def get_docker_logs(lines=500):
+    """Get recent Docker logs"""
+    try:
+        result = subprocess.run(
+            ['docker', 'logs', 'quantum_backend', '--tail', str(lines)],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        return result.stdout + result.stderr
+    except Exception as e:
+        return f"Error getting logs: {e}"
+
+def parse_ai_signals(logs):
+    """Parse AI signals from logs"""
+    signals = {
+        'tft_signals': 0,
+        'xgb_signals': 0,
+        'hybrid_signals': 0,
+        'high_confidence': 0,
+        'low_confidence': 0,
+        'buy_signals': 0,
+        'sell_signals': 0,
+        'hold_signals': 0,
+        'agreements': 0,
+        'disagreements': 0
+    }
+    
+    lines = logs.split('\n')
+    for line in lines:
+        line_lower = line.lower()
+        
+        # Count model mentions
+        if 'tft' in line_lower and 'signal' in line_lower:
+            signals['tft_signals'] += 1
+        if 'xgb' in line_lower or 'xgboost' in line_lower:
+            signals['xgb_signals'] += 1
+        if 'hybrid' in line_lower:
+            signals['hybrid_signals'] += 1
+        
+        # Count confidence levels
+        if 'confidence' in line_lower:
+            if any(x in line for x in ['0.7', '0.8', '0.9', '1.0']):
+                signals['high_confidence'] += 1
+            elif any(x in line for x in ['0.4', '0.5', '0.6']):
+                signals['low_confidence'] += 1
+        
+        # Count signal types
+        if 'buy' in line_lower and 'signal' in line_lower:
+            signals['buy_signals'] += 1
+        if 'sell' in line_lower and 'signal' in line_lower:
+            signals['sell_signals'] += 1
+        if 'hold' in line_lower and 'signal' in line_lower:
+            signals['hold_signals'] += 1
+        
+        # Count agreements/disagreements
+        if 'agree' in line_lower:
+            signals['agreements'] += 1
+        if 'disagree' in line_lower:
+            signals['disagreements'] += 1
+    
+    return signals
+
+def check_errors(logs):
+    """Check for errors in logs"""
+    errors = {
+        'feature_mismatch': 'Feature shape mismatch' in logs,
+        'pytorch_error': 'No module named' in logs and 'torch' in logs,
+        'api_error': 'API error' in logs or 'BinanceAPIException' in logs,
+        'connection_error': 'Connection' in logs and 'error' in logs.lower(),
+        'critical_errors': logs.count('ERROR')
+    }
+    return errors
+
+def display_dashboard(signals, errors, last_update):
+    """Display monitoring dashboard"""
+    clear_screen()
+    
+    print(f"{Colors.CYAN}{Colors.BOLD}{'='*80}{Colors.RESET}")
+    print(f"{Colors.CYAN}{Colors.BOLD}{'[CHART] HYBRID AGENT LIVE MONITOR'.center(80)}{Colors.RESET}")
+    print(f"{Colors.CYAN}{Colors.BOLD}{'='*80}{Colors.RESET}")
+    print(f"\n{Colors.BLUE}Last Update: {last_update}{Colors.RESET}")
+    print(f"{Colors.BLUE}Monitoring: quantum_backend container{Colors.RESET}\n")
+    
+    # Model Activity
+    print(f"{Colors.YELLOW}{Colors.BOLD}🤖 MODEL ACTIVITY{Colors.RESET}")
+    print(f"{Colors.CYAN}─{Colors.RESET}" * 40)
+    print(f"  TFT Signals:        {Colors.GREEN}{signals['tft_signals']:>3}{Colors.RESET}")
+    print(f"  XGBoost Signals:    {Colors.GREEN}{signals['xgb_signals']:>3}{Colors.RESET}")
+    print(f"  Hybrid Signals:     {Colors.GREEN}{signals['hybrid_signals']:>3}{Colors.RESET}")
+    
+    # Model Agreement
+    total_decisions = signals['agreements'] + signals['disagreements']
+    if total_decisions > 0:
+        agreement_rate = (signals['agreements'] / total_decisions) * 100
+        color = Colors.GREEN if agreement_rate > 60 else Colors.YELLOW if agreement_rate > 40 else Colors.RED
+        print(f"\n  Agreements:         {color}{signals['agreements']:>3}{Colors.RESET}")
+        print(f"  Disagreements:      {Colors.YELLOW}{signals['disagreements']:>3}{Colors.RESET}")
+        print(f"  Agreement Rate:     {color}{agreement_rate:.1f}%{Colors.RESET}")
+    
+    # Signal Distribution
+    print(f"\n{Colors.YELLOW}{Colors.BOLD}[CHART_UP] SIGNAL DISTRIBUTION{Colors.RESET}")
+    print(f"{Colors.CYAN}─{Colors.RESET}" * 40)
+    print(f"  BUY Signals:        {Colors.GREEN}{signals['buy_signals']:>3}{Colors.RESET}")
+    print(f"  SELL Signals:       {Colors.RED}{signals['sell_signals']:>3}{Colors.RESET}")
+    print(f"  HOLD Signals:       {Colors.BLUE}{signals['hold_signals']:>3}{Colors.RESET}")
+    
+    # Confidence Levels
+    print(f"\n{Colors.YELLOW}{Colors.BOLD}[TARGET] CONFIDENCE LEVELS{Colors.RESET}")
+    print(f"{Colors.CYAN}─{Colors.RESET}" * 40)
+    print(f"  High (≥0.70):       {Colors.GREEN}{signals['high_confidence']:>3}{Colors.RESET}")
+    print(f"  Low (<0.70):        {Colors.YELLOW}{signals['low_confidence']:>3}{Colors.RESET}")
+    
+    # Error Monitoring
+    print(f"\n{Colors.YELLOW}{Colors.BOLD}[WARNING]  ERROR MONITORING{Colors.RESET}")
+    print(f"{Colors.CYAN}─{Colors.RESET}" * 40)
+    
+    error_found = False
+    if errors['feature_mismatch']:
+        print(f"  {Colors.RED}❌ Feature Mismatch Error{Colors.RESET}")
+        error_found = True
+    if errors['pytorch_error']:
+        print(f"  {Colors.RED}❌ PyTorch Import Error{Colors.RESET}")
+        error_found = True
+    if errors['api_error']:
+        print(f"  {Colors.RED}❌ Binance API Error{Colors.RESET}")
+        error_found = True
+    if errors['connection_error']:
+        print(f"  {Colors.YELLOW}[WARNING]  Connection Issues{Colors.RESET}")
+        error_found = True
+    if errors['critical_errors'] > 10:
+        print(f"  {Colors.RED}❌ Multiple Errors: {errors['critical_errors']}{Colors.RESET}")
+        error_found = True
+    
+    if not error_found:
+        print(f"  {Colors.GREEN}[OK] No Critical Errors{Colors.RESET}")
+    
+    # Status Summary
+    print(f"\n{Colors.YELLOW}{Colors.BOLD}[CHART] SYSTEM STATUS{Colors.RESET}")
+    print(f"{Colors.CYAN}─{Colors.RESET}" * 40)
+    
+    if signals['hybrid_signals'] > 0:
+        status = f"{Colors.GREEN}[GREEN_CIRCLE] ACTIVE - Hybrid Agent Running{Colors.RESET}"
+    elif signals['tft_signals'] > 0 or signals['xgb_signals'] > 0:
+        status = f"{Colors.YELLOW}🟡 PARTIAL - Single Model Active{Colors.RESET}"
+    else:
+        status = f"{Colors.RED}[RED_CIRCLE] IDLE - No Signals Detected{Colors.RESET}"
+    
+    print(f"  Status: {status}")
+    
+    # Instructions
+    print(f"\n{Colors.CYAN}{'─'*80}{Colors.RESET}")
+    print(f"{Colors.BLUE}Press Ctrl+C to stop monitoring{Colors.RESET}")
+    print(f"{Colors.CYAN}{'─'*80}{Colors.RESET}\n")
+
+def monitor_continuous(update_interval=10):
+    """Monitor continuously with periodic updates"""
+    print(f"{Colors.CYAN}Starting continuous monitoring...{Colors.RESET}")
+    print(f"{Colors.BLUE}Update interval: {update_interval} seconds{Colors.RESET}\n")
+    time.sleep(2)
+    
+    try:
+        while True:
+            logs = get_docker_logs(lines=500)
+            signals = parse_ai_signals(logs)
+            errors = check_errors(logs)
+            last_update = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            display_dashboard(signals, errors, last_update)
+            
+            time.sleep(update_interval)
+    
+    except KeyboardInterrupt:
+        print(f"\n\n{Colors.YELLOW}Monitoring stopped by user{Colors.RESET}\n")
+        sys.exit(0)
+    except Exception as e:
+        print(f"\n{Colors.RED}Error during monitoring: {e}{Colors.RESET}\n")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Monitor Hybrid Agent performance')
+    parser.add_argument('-i', '--interval', type=int, default=10, help='Update interval in seconds (default: 10)')
+    
+    args = parser.parse_args()
+    
+    monitor_continuous(update_interval=args.interval)

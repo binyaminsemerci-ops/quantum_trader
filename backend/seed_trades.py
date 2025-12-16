@@ -30,7 +30,7 @@ def seed_trades():
 
     conn.commit()
     conn.close()
-    print("✅ Trades testdata lagt inn!")
+    print("[OK] Trades testdata lagt inn!")
 
 
 def seed_stats():
@@ -50,7 +50,7 @@ def seed_stats():
 
     conn.commit()
     conn.close()
-    print("✅ Stats testdata lagt inn!")
+    print("[OK] Stats testdata lagt inn!")
 
 
 if __name__ == "__main__":

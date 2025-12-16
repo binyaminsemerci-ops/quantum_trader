@@ -1,0 +1,192 @@
+"""
+Activate Live Trading with Hybrid Agent
+========================================
+
+Safely enable live trading after verification checks
+"""
+import sys
+import requests
+from pathlib import Path
+
+def check_prerequisites():
+    """Check if system is ready for live trading"""
+    print("\n" + "="*70)
+    print("🔍 PRE-FLIGHT CHECKS FOR LIVE TRADING")
+    print("="*70 + "\n")
+    
+    checks_passed = []
+    checks_failed = []
+    
+    # 1. Check Hybrid Agent
+    try:
+        response = requests.get("http://localhost:8000/api/test/hybrid/health", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            if data['mode'] == 'hybrid' and data['tft_loaded'] and data['xgb_loaded']:
+                checks_passed.append("✅ Hybrid Agent: ACTIVE (TFT + XGBoost)")
+            else:
+                checks_failed.append("❌ Hybrid Agent: Not fully loaded")
+        else:
+            checks_failed.append("❌ Hybrid Agent: Health check failed")
+    except Exception as e:
+        checks_failed.append(f"❌ Hybrid Agent: Cannot connect ({e})")
+    
+    # 2. Check Backend
+    try:
+        response = requests.get("http://localhost:8000/health", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 'healthy':
+                checks_passed.append("✅ Backend: HEALTHY")
+            else:
+                checks_failed.append("❌ Backend: Unhealthy")
+        else:
+            checks_failed.append("❌ Backend: Not responding")
+    except Exception as e:
+        checks_failed.append(f"❌ Backend: Cannot connect ({e})")
+    
+    # 3. Check .env file
+    env_path = Path(".env")
+    if env_path.exists():
+        checks_passed.append("✅ .env file: EXISTS")
+        
+        # Check for API keys (check both formats)
+        env_content = env_path.read_text()
+        has_api_key = "BINANCE_API_KEY" in env_content or "BINANCE_FUTURES_API_KEY" in env_content
+        has_secret = "BINANCE_API_SECRET" in env_content or "BINANCE_FUTURES_SECRET_KEY" in env_content
+        
+        if has_api_key and has_secret:
+            checks_passed.append("✅ API Keys: CONFIGURED")
+        else:
+            checks_failed.append("❌ API Keys: NOT FOUND in .env")
+    else:
+        checks_failed.append("❌ .env file: NOT FOUND")
+    
+    # 4. Check TFT model
+    tft_model = Path("ai_engine/models/tft_model.pth")
+    if tft_model.exists():
+        size_mb = tft_model.stat().st_size / (1024 * 1024)
+        checks_passed.append(f"✅ TFT Model: EXISTS ({size_mb:.1f} MB)")
+    else:
+        checks_failed.append("❌ TFT Model: NOT FOUND")
+    
+    # 5. Check XGBoost model
+    xgb_model = Path("ai_engine/models/xgb_model.pkl")
+    if xgb_model.exists():
+        checks_passed.append("✅ XGBoost Model: EXISTS")
+    else:
+        checks_failed.append("❌ XGBoost Model: NOT FOUND")
+    
+    # Print results
+    print("PASSED CHECKS:")
+    for check in checks_passed:
+        print(f"  {check}")
+    
+    if checks_failed:
+        print("\nFAILED CHECKS:")
+        for check in checks_failed:
+            print(f"  {check}")
+    
+    print("\n" + "="*70)
+    
+    return len(checks_failed) == 0
+
+
+def show_live_trading_warning():
+    """Show warning before enabling live trading"""
+    print("\n" + "⚠️ "*35)
+    print("                  ⚠️  LIVE TRADING WARNING ⚠️")
+    print("⚠️ "*35 + "\n")
+    
+    print("You are about to enable LIVE TRADING with REAL MONEY.")
+    print("\nCurrent Configuration:")
+    print("  • AI Model: HYBRID (TFT 60% + XGBoost 40%)")
+    print("  • Leverage: 20x")
+    print("  • Max per trade: $4000")
+    print("  • Max positions: 4")
+    print("  • Stop Loss: 2%")
+    print("  • Take Profit: 3%")
+    print("\nRisks:")
+    print("  ⚠️  Real money will be used")
+    print("  ⚠️  You can lose money")
+    print("  ⚠️  High leverage = high risk")
+    print("  ⚠️  AI predictions are not guaranteed")
+    print("\nSafeguards:")
+    print("  ✅ Stop loss at -2%")
+    print("  ✅ Max 4 positions ($16,000 total)")
+    print("  ✅ Confidence threshold: 65%")
+    print("  ✅ Event-driven mode (not continuous)")
+    print("\n" + "="*70 + "\n")
+
+
+def confirm_live_trading():
+    """Ask user to confirm live trading activation"""
+    show_live_trading_warning()
+    
+    response = input("Type 'ENABLE LIVE TRADING' to continue (or anything else to cancel): ")
+    
+    return response.strip() == "ENABLE LIVE TRADING"
+
+
+def show_activation_instructions():
+    """Show instructions to enable live trading"""
+    print("\n" + "="*70)
+    print("📝 HOW TO ENABLE LIVE TRADING")
+    print("="*70 + "\n")
+    
+    print("1. Edit docker-compose.yml:")
+    print("   Line 30: QT_PAPER_TRADING=true → QT_PAPER_TRADING=false")
+    print("   Line 31: STAGING_MODE=true → STAGING_MODE=false")
+    print("")
+    print("2. Restart backend:")
+    print("   docker-compose restart backend")
+    print("")
+    print("3. Verify live mode:")
+    print("   curl http://localhost:8000/health")
+    print("   (Check that paper_trading=false)")
+    print("")
+    print("4. Monitor trades:")
+    print("   python scripts/monitor_tft_signals.py")
+    print("   docker logs -f quantum_backend")
+    print("")
+    print("5. Emergency stop:")
+    print("   docker-compose stop backend")
+    print("   python close_all_positions.py")
+    print("\n" + "="*70 + "\n")
+
+
+def main():
+    print("\n╔════════════════════════════════════════════════════════════════════╗")
+    print("║           🚀 LIVE TRADING ACTIVATION WIZARD 🚀                    ║")
+    print("╚════════════════════════════════════════════════════════════════════╝")
+    
+    # Run pre-flight checks
+    if not check_prerequisites():
+        print("\n❌ PRE-FLIGHT CHECKS FAILED")
+        print("   Please fix the issues above before enabling live trading.\n")
+        return False
+    
+    print("\n✅ ALL PRE-FLIGHT CHECKS PASSED\n")
+    
+    # Ask for confirmation
+    if not confirm_live_trading():
+        print("\n❌ Live trading activation CANCELLED by user")
+        print("   System remains in paper trading mode.\n")
+        return False
+    
+    print("\n✅ USER CONFIRMED LIVE TRADING ACTIVATION\n")
+    
+    # Show instructions
+    show_activation_instructions()
+    
+    print("💡 Recommendation:")
+    print("   Start with 1 position to test, then gradually increase.")
+    print("   Monitor closely for the first 24 hours.")
+    print("   Have stop-loss and take-profit set correctly.\n")
+    
+    return True
+
+
+if __name__ == "__main__":
+    success = main()
+    sys.exit(0 if success else 1)

@@ -24,6 +24,7 @@ pip install -r backend/requirements-dev.txt
 ```
 
 ## Why dev-only for some packages
+
 We intentionally keep some packages (for example `SQLAlchemy-Utils`) in
 `backend/requirements-dev.txt` rather than runtime requirements. This avoids
 installing developer-only tooling in CI/runtime, reduces the attack surface,
@@ -34,6 +35,7 @@ installs only specific test/lint/security tools so runtime environments stay
 minimal.
 
 ## Check for accidental dev-only installs
+
 A small script is provided to help detect if any dev-only packages are
 present in your runtime environment (useful for pre-commit checks or local
 validation):
@@ -47,6 +49,7 @@ your runtime environment. CI runs this script and emits a non-blocking warning
 if any dev-only packages are detected.
 
 ## Enable local git pre-commit hook (optional)
+
 To enable the included local git hook that prevents commits when dev-only
 packages are present in your runtime environment:
 
@@ -59,6 +62,7 @@ After that, the `.githooks/pre-commit` script will run on each commit and abort
 the commit if dev-only packages are detected.
 
 ## Makefile target
+
 You can also run the check locally via the Makefile target from the repo root:
 
 ```pwsh
@@ -66,6 +70,7 @@ make -C backend check-dev-deps
 ```
 
 ## Windows / PowerShell notes
+
 Windows developers can use PowerShell to set up and run the same tools:
 
 ```powershell
@@ -81,15 +86,18 @@ python backend/scripts/check_dev_deps_in_runtime.py
 ```
 
 ## Repair helper
+
 If the check finds dev-only packages installed at runtime, you can run the
 repair helper to uninstall them (it will prompt for confirmation):
 
 POSIX:
+
 ```bash
 ./scripts/repair-dev-deps.sh
 ```
 
 PowerShell:
+
 ```powershell
 .\scripts\repair-dev-deps.ps1
 ```
@@ -97,14 +105,38 @@ PowerShell:
 Both scripts support a dry-run mode to preview what would be uninstalled:
 
 POSIX:
+
 ```bash
 ./scripts/repair-dev-deps.sh --dry-run
 ```
 
 PowerShell:
+
 ```powershell
 .\scripts\repair-dev-deps.ps1 -DryRun
 ```
+
+## Autopilot & dashboard warm-up
+
+Set the following environment variables (or place them in `backend/.env`) to
+control the automated startup behaviours introduced for the dev profile:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `QT_AUTOPILOT_AUTOSTART` | `false` | When `true`, the dry-run trading bot starts automatically during backend startup (scheduled mode only). |
+| `QT_AUTOPILOT_DRY_RUN` | `true` | Keeps the autostarted bot in paper-trading mode so no live orders fire. Set to `false` only when you intentionally want live trades. |
+| `QT_PRICE_WARM_ENABLED` | `true` | If enabled, the backend warms the price cache for the symbols listed in `QT_PRICE_WARM_SYMBOLS` right after launch so the dashboard shows live numbers immediately. |
+| `QT_PRICE_WARM_SYMBOLS` | `BTCUSDT,ETHUSDT,...` | Comma-separated list of symbols to warm. |
+
+These behaviours run asynchronously during startup and shut down cleanly when
+the backend stops, so local develop/test loops stay fast.
+
+## Operational scripts
+
+- `python backend/scripts/data_pipeline.py --help` — inspect ingestion/feature pipeline flags. The script writes raw payloads and feature matrices under `artifacts/datasets/` and surfaces Prometheus metrics (`qt_pipeline_raw_rows_total`, `qt_pipeline_raw_ingest_duration_seconds`, `qt_pipeline_feature_rows_total`).
+- `python backend/scripts/alembic_dry_run.py --help` — validate Alembic upgrades against SQLite snapshots while generating offline SQL for change review. The helper restores the previous `QUANTUM_TRADER_DATABASE_URL` once it finishes.
+- `python backend/scripts/adapter_smoke.py` — quick adapter import/initialisation smoke test that exercises `spot_balance()` without requiring live credentials; useful after dependency bumps touching exchange clients.
+- See `backend/scripts/README.md` for additional usage notes and guardrails.
 
 ## Using an isolated linters virtualenv locally
 
@@ -154,6 +186,7 @@ Notes:
   python backend/scripts/alembic_dry_run.py --snapshot backups/staging/trades.db `
       --sql-output artifacts/alembic-upgrade-staging.sql
   ```
+
 - Start the backend with staging secrets mounted; tail logs for successful
   scheduler bootstrap and absence of stack traces.
 
@@ -283,6 +316,15 @@ used to tune or disable the scheduler:
 - `QT_EXECUTION_BINANCE_TESTNET` — set to `1` to route Binance orders and
   account snapshots to the Binance Spot Testnet; defaults to `0` (production
   endpoints).
+- Futures mode automatically normalises symbols to supported quotes (USDM
+  contracts are settled in USDT). If you set `QT_EXECUTION_QUOTE_ASSET=USDC`
+  the adapter transparently routes orders to the matching USDT perpetual
+  contract so unsupported quotes no longer fail at submission time.
+- Forced exits (hard stop, take-profit, trailing stop) now ship with sane
+  defaults even if the corresponding env vars are omitted: 3% SL, 5% TP, 2%
+  trailing give-back, full-size TP. Override them via `QT_SL_PCT`, `QT_TP_PCT`,
+  `QT_TRAIL_PCT` or disable entirely with `QT_FORCE_EXITS_ENABLED=0` if the
+  strategy manages exits independently.
 
 #### Testnet smoke checklist (staging)
 
@@ -354,6 +396,7 @@ All `/risk` endpoints require the `X-Admin-Token` header matching the value of
   # Repeat with token to receive the snapshot
   curl http://localhost:8000/risk -H "X-Admin-Token: $env:QT_ADMIN_TOKEN"
   ```
+
 - Audit entries for these routes, along with `/settings` updates, are written to
   the path configured via `QT_ADMIN_AUDIT_PATH` (default
   `backend/data/admin_audit.log`). Use this log when reconciling operator
@@ -364,6 +407,15 @@ header once they are promoted from the TODO backlog. When that happens, update
 the table above and keep token handling consistent across the API surface. See
 `docs/admin_token_usage.md` for the living reference.
 
+## Telemetry quick reference
+
+- `qt_api_request_total` / `qt_api_request_duration_seconds` — HTTP volume and latency broken down by route, method, status.
+- `qt_cache_hits_total` — cache hit/miss/write counts for filesystem caches (`backend/utils/cache.py`).
+- `qt_model_inference_duration_seconds` — wraps inference paths plus the feature pipeline via `track_model_inference`.
+- `qt_pipeline_raw_rows_total`, `qt_pipeline_feature_rows_total`, `qt_pipeline_raw_ingest_duration_seconds` — ingestion + feature generation throughput when `data_pipeline.py` runs.
+- `qt_admin_events_total` — admin guard actions grouped by event/category/severity.
+- `qt_risk_denials_total` / `qt_risk_daily_loss` — risk guard enforcement firehose and rolling loss gauge.
+
 ### Risk guard state persistence
 
 - `QT_RISK_STATE_DB` — path to the SQLite file used to persist risk guard state
@@ -371,6 +423,9 @@ the table above and keep token handling consistent across the API surface. See
   backend package directory.
 - `QT_ADMIN_TOKEN` — shared secret for the risk admin API. Omit only in local
   throwaway environments; use a strong random string elsewhere.
+- `QT_FORCE_EXITS_ENABLED` — keep at the default (`1`) to enforce the SL/TP
+  guardrails described above. Set to `0` only when you explicitly want to run
+  without automated forced exits.
 
 When verifying a deployment (staging or production), run the application and
 inspect the scheduler endpoint:
@@ -386,6 +441,7 @@ the `errors` payload for the affected symbols before promoting the release.
 Additional staging/production readiness guidance lives in `docs/ai_production_checklist.md`
 and `docs/staging_deployment_guide.md`. Review those documents before enabling
 automated trading workflows outside of local development.
+
 - `--system-site-packages` lets tools in the linters venv import your
   runtime packages without reinstalling them, which prevents false
   "import not found" errors in mypy while keeping the linters' own deps

@@ -1,0 +1,60 @@
+{
+  "timestamp": "2025-12-05T16:45:31.340990",
+  "tests": [
+    {
+      "test": "concurrent_health_checks",
+      "passed": true,
+      "total_requests": 100,
+      "successful": 100,
+      "failed": 0,
+      "min_ms": 6257.885694503784,
+      "max_ms": 6294.409990310669,
+      "avg_ms": 6282.881000041962,
+      "median_ms": 6285.111427307129,
+      "p95_ms": 6293.873310089111,
+      "errors": []
+    },
+    {
+      "test": "dashboard_stress_test",
+      "passed": true,
+      "total_requests": 100,
+      "successful": 100,
+      "failed": 0,
+      "min_ms": 110.30697822570801,
+      "max_ms": 13769.647359848022,
+      "avg_ms": 3788.3817052841187,
+      "median_ms": 666.3388013839722,
+      "p95_ms": 13761.215448379517
+    },
+    {
+      "test": "sustained_load",
+      "passed": true,
+      "duration_seconds": 61.605485677719116,
+      "total_requests": 2130,
+      "successful": 2110,
+      "failed": 20,
+      "requests_per_second": 34.574843077170286,
+      "avg_ms": 82.26450212758864,
+      "p95_ms": 87.44001388549805
+    },
+    {
+      "test": "memory_leak_detection",
+      "passed": false,
+      "error": "Insufficient data"
+    },
+    {
+      "test": "rate_limiting",
+      "passed": true,
+      "total_requests": 200,
+      "successful_200": 200,
+      "rate_limited_429": 0,
+      "rate_limiting_active": false
+    }
+  ],
+  "summary": {
+    "total_tests": 5,
+    "passed": 4,
+    "failed": 1,
+    "pass_rate": 80.0
+  }
+}

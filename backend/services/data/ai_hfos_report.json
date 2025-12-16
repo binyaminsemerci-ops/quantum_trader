@@ -1,0 +1,184 @@
+{
+  "timestamp": "2025-11-23T00:55:33.360263+00:00",
+  "system_risk_mode": "NORMAL",
+  "system_health": "HEALTHY",
+  "global_directives": {
+    "allow_new_trades": true,
+    "allow_new_positions": true,
+    "enforce_defensive_exits": false,
+    "reduce_global_risk": false,
+    "pause_entire_symbols": [],
+    "adjust_confidence_threshold": null,
+    "scale_position_sizes": 1.0,
+    "max_daily_dd_override": null,
+    "force_exit_symbols": []
+  },
+  "universe_directives": {
+    "universe_mode": "NORMAL",
+    "blacklist_symbols": [],
+    "whitelist_symbols": [],
+    "promote_categories": [],
+    "demote_categories": [],
+    "emergency_brake_override": null
+  },
+  "execution_directives": {
+    "order_type_preference": "SMART",
+    "max_slippage_bps": 15.0,
+    "max_spread_bps": 25.0,
+    "reduce_urgency": false,
+    "enforce_limit_orders": false,
+    "execution_delay_seconds": 0
+  },
+  "portfolio_directives": {
+    "reduce_exposure_pct": 0.0,
+    "max_position_count": null,
+    "max_leverage": null,
+    "reduce_correlated_positions": false,
+    "avoid_expansion_symbols": false,
+    "concentration_limit_pct": 30.0
+  },
+  "model_directives": {
+    "ensemble_weight_adjustments": {},
+    "models_to_retrain": [],
+    "models_to_disable": [],
+    "confidence_threshold_override": null,
+    "use_conservative_predictions": false
+  },
+  "emergency_actions": [],
+  "amplification_opportunities": [
+    {
+      "symbol": "BTCUSDT",
+      "action": "extend_hold",
+      "expected_r_increase": 1.0,
+      "confidence": 65.0,
+      "priority": 2,
+      "rationale": "Trend still strong at 2.5R, switch to trend-following exit"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "action": "extend_hold",
+      "expected_r_increase": 1.0,
+      "confidence": 65.0,
+      "priority": 2,
+      "rationale": "Trend still strong at 1.8R, switch to trend-following exit"
+    }
+  ],
+  "priority_notes": [
+    "System Risk Mode: NORMAL",
+    "System Health: HEALTHY",
+    "\ud83d\udfe2 Normal operations - All systems aligned"
+  ],
+  "subsystem_states": {
+    "universe_os": {
+      "name": "Universe OS",
+      "status": "ACTIVE",
+      "health_score": 70.0,
+      "last_updated": "2025-11-23T00:55:33.360263+00:00",
+      "metrics": {
+        "symbol_count": 0,
+        "blacklist_count": 0
+      },
+      "issues": [
+        "Low symbol count: 0"
+      ],
+      "performance_score": 70.0
+    },
+    "risk_os": {
+      "name": "Risk OS",
+      "status": "ACTIVE",
+      "health_score": 100.0,
+      "last_updated": "2025-11-23T00:55:33.360263+00:00",
+      "metrics": {
+        "emergency_brake": false,
+        "daily_dd_pct": 0.0,
+        "open_dd_pct": 0.0
+      },
+      "issues": [],
+      "performance_score": 100.0
+    },
+    "position_intelligence": {
+      "name": "Position Intelligence Layer",
+      "status": "ACTIVE",
+      "health_score": 100.0,
+      "last_updated": "2025-11-23T00:55:33.360263+00:00",
+      "metrics": {
+        "position_count": 0,
+        "toxic_count": 0,
+        "winner_count": 0
+      },
+      "issues": [],
+      "performance_score": 100.0
+    },
+    "execution_layer": {
+      "name": "Execution Layer",
+      "status": "ACTIVE",
+      "health_score": 100.0,
+      "last_updated": "2025-11-23T00:55:33.360263+00:00",
+      "metrics": {
+        "avg_slippage_bps": 0.0,
+        "avg_spread_bps": 0.0,
+        "fill_rate": 1.0
+      },
+      "issues": [],
+      "performance_score": 100.0
+    },
+    "model_supervisor": {
+      "name": "Model Supervisor",
+      "status": "ACTIVE",
+      "health_score": 0.0,
+      "last_updated": "2025-11-23T00:55:33.360263+00:00",
+      "metrics": {
+        "ensemble_accuracy": 0.0,
+        "degraded_models": []
+      },
+      "issues": [
+        "Low ensemble accuracy: 0.0%"
+      ],
+      "performance_score": 0.0
+    },
+    "self_healing": {
+      "name": "Self-Healing System",
+      "status": "ACTIVE",
+      "health_score": 100.0,
+      "last_updated": "2025-11-23T00:55:33.360263+00:00",
+      "metrics": {
+        "overall_status": "critical",
+        "critical_subsystems": 0,
+        "degraded_subsystems": 0,
+        "total_subsystems": 0
+      },
+      "issues": [],
+      "performance_score": 100.0
+    },
+    "profit_amplification": {
+      "name": "Profit Amplification Layer",
+      "status": "ACTIVE",
+      "health_score": 100.0,
+      "last_updated": "2025-11-23T00:55:33.360263+00:00",
+      "metrics": {
+        "candidates_found": 2,
+        "recommendations": 2,
+        "avg_score": 0.0
+      },
+      "issues": [],
+      "performance_score": 100.0
+    },
+    "orchestrator": {
+      "name": "Orchestrator Policy",
+      "status": "ACTIVE",
+      "health_score": 70.0,
+      "last_updated": "2025-11-23T00:55:33.360263+00:00",
+      "metrics": {
+        "regime": "UNKNOWN",
+        "risk_profile": "NORMAL",
+        "exit_mode": "FAST_TP"
+      },
+      "issues": [
+        "Unknown regime"
+      ],
+      "performance_score": 70.0
+    }
+  },
+  "detected_conflicts": [],
+  "summary": "AI-HFOS Coordination Summary:\n- System Risk Mode: NORMAL\n- System Health: HEALTHY\n- New Trades Allowed: Yes\n- Position Size Scaling: 100.0%\n- Amplification Opportunities: 2 identified\n\ud83d\udfe2 Normal operations - System aligned"
+}

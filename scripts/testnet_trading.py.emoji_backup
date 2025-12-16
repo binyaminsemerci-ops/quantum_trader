@@ -1,0 +1,665 @@
+"""
+Binance Futures Testnet Trading with Ensemble AI
+REAL trading on testnet (not dry-run) with cross margin and leverage
+
+This runs 24/7 with live market data and executes real orders on testnet.
+"""
+import asyncio
+import sys
+import time
+import pickle
+from pathlib import Path
+from datetime import datetime, timezone
+from typing import Dict, Any, Optional
+import pandas as pd
+import numpy as np
+from binance.client import Client as BinanceClient
+from binance.enums import *
+import logging
+from dotenv import load_dotenv
+
+# Load environment variables FIRST
+load_dotenv()
+
+# Add project root
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from config.config import load_config
+from ai_engine.ensemble_manager import EnsembleManager
+from ai_engine.feature_engineer import compute_all_indicators
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/testnet_trading.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+
+class TestnetTrader:
+    """Binance Futures Testnet Trader with AI Ensemble."""
+    
+    def __init__(self, testnet_api_key: str, testnet_secret_key: str):
+        """Initialize testnet trader."""
+        # Testnet client (CRITICAL: use testnet URLs)
+        self.client = BinanceClient(
+            api_key=testnet_api_key,
+            api_secret=testnet_secret_key,
+            testnet=True  # This uses testnet.binancefuture.com
+        )
+        
+        # AI ensemble with FUTURES models (22 features) - use ai_engine/models path
+        self.ensemble = EnsembleManager(
+            xgb_model_path="ai_engine/models/xgboost_model.pkl",
+            xgb_scaler_path="ai_engine/models/xgboost_scaler.pkl",
+            min_consensus=2  # Accept 2/4 models (XGB+LightGBM) since N-HiTS/PatchTST need more history
+        )
+        
+        # Load feature names from futures model training (in root models/)
+        with open("models/xgboost_features.pkl", "rb") as f:
+            self.feature_names = pickle.load(f)
+            logger.info(f"📊 Loaded {len(self.feature_names)} futures features")
+        
+        # Trading config
+        self.leverage = 10  # 10x leverage (conservative for testnet)
+        self.position_size_pct = 0.02  # 2% of balance per trade
+        self.max_positions = 5  # Max concurrent positions
+        self.min_confidence = 0.50  # 50% minimum (lowered for testnet testing)
+        
+        # State tracking
+        self.positions = {}  # symbol -> position info
+        self.trade_history = []
+        self.last_signal_time = {}  # symbol -> timestamp
+        
+        logger.info("=" * 80)
+        logger.info("🚀 TESTNET TRADER INITIALIZED")
+        logger.info("=" * 80)
+        logger.info(f"  Leverage: {self.leverage}x")
+        logger.info(f"  Position size: {self.position_size_pct * 100}%")
+        logger.info(f"  Max positions: {self.max_positions}")
+        logger.info(f"  Min confidence: {self.min_confidence}")
+    
+    
+    def setup_futures_account(self):
+        """Setup futures account with cross margin."""
+        try:
+            # Set margin type to CROSS
+            logger.info("⚙️  Setting up futures account...")
+            
+            # Get account info
+            account = self.client.futures_account()
+            balance = float(account['totalWalletBalance'])
+            available = float(account['availableBalance'])
+            
+            logger.info(f"  Total balance: ${balance:,.2f} USDT")
+            logger.info(f"  Available: ${available:,.2f} USDT")
+            
+            # Set leverage for each symbol (will do this per trade)
+            logger.info(f"  Default leverage: {self.leverage}x (cross margin)")
+            
+            return True
+        
+        except Exception as e:
+            logger.error(f"❌ Failed to setup futures account: {e}")
+            return False
+    
+    
+    def get_tradeable_symbols(self, min_volume_usdt: float = 5_000_000) -> list:
+        """Get liquid USDT-M perpetual futures that are TRADING on testnet."""
+        try:
+            # Get exchange info to check symbol status
+            exchange_info = self.client.futures_exchange_info()
+            
+            # Get 24h tickers for volume
+            tickers = self.client.futures_ticker()
+            ticker_dict = {t['symbol']: float(t.get('quoteVolume', 0)) for t in tickers}
+            
+            symbols = []
+            for symbol_info in exchange_info['symbols']:
+                symbol = symbol_info['symbol']
+                
+                # Check if symbol is TRADING (not BREAK, PRE_TRADING, etc.)
+                status = symbol_info.get('status', 'UNKNOWN')
+                if status != 'TRADING':
+                    continue
+                
+                # Only USDT perpetuals
+                if not symbol.endswith('USDT'):
+                    continue
+                
+                # Check volume
+                volume = ticker_dict.get(symbol, 0)
+                if volume >= min_volume_usdt:
+                    symbols.append(symbol)
+            
+            symbols.sort()
+            logger.info(f"📊 Found {len(symbols)} tradeable symbols (${min_volume_usdt/1e6:.0f}M+ volume, TRADING status)")
+            
+            return symbols[:50]  # Top 50 for manageable monitoring
+        
+        except Exception as e:
+            logger.error(f"Failed to get symbols: {e}")
+            return ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT']
+    
+    
+    def get_market_data(self, symbol: str, limit: int = 120) -> Optional[pd.DataFrame]:
+        """Fetch recent market data for AI prediction."""
+        try:
+            # Get 1h klines
+            klines = self.client.futures_klines(
+                symbol=symbol,
+                interval='1h',  # String format
+                limit=limit
+            )
+            
+            if not klines:
+                return None
+            
+            df = pd.DataFrame(klines, columns=[
+                'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                'close_time', 'quote_volume', 'trades', 'taker_buy_base',
+                'taker_buy_quote', 'ignore'
+            ])
+            
+            # Convert types
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            for col in ['open', 'high', 'low', 'close', 'volume']:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+            # Compute features
+            df = compute_all_indicators(df)
+            
+            return df
+        
+        except Exception as e:
+            logger.error(f"Failed to get market data for {symbol}: {e}")
+            return None
+    
+    
+    def get_ai_signal(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """Get AI ensemble prediction with FUTURES features (22 total)."""
+        try:
+            # Get market data
+            df = self.get_market_data(symbol)
+            if df is None or len(df) < 50:
+                return None
+            
+            # Get futures-specific data
+            try:
+                # Funding rate (single value + history for derivatives)
+                funding_data = self.client.futures_funding_rate(symbol=symbol, limit=3)
+                funding_rate = float(funding_data[0]['fundingRate']) if funding_data else 0.0
+                funding_rates = [float(f['fundingRate']) for f in funding_data] if len(funding_data) >= 3 else [funding_rate]*3
+                
+                # Open interest (current + history for change)
+                oi_data = self.client.futures_open_interest(symbol=symbol)
+                open_interest = float(oi_data['openInterest']) if oi_data else 0.0
+                
+                # Long/short ratio - testnet doesn't support this API, use placeholders
+                long_short_ratio = 1.0  # Neutral default
+                longAccount = 0.5  # 50% each side
+                shortAccount = 0.5
+                
+            except Exception as e:
+                logger.debug(f"Failed to get futures data for {symbol}: {e}")
+                funding_rate = 0.0
+                funding_rates = [0.0, 0.0, 0.0]
+                open_interest = 0.0
+                long_short_ratio = 1.0
+                longAccount = 0.5
+                shortAccount = 0.5
+            
+            # Calculate derived features
+            latest = df.iloc[-1]
+            prev = df.iloc[-2] if len(df) > 1 else latest
+            prev_oi = open_interest * 0.98  # Estimate (no history on testnet)
+            
+            # Momentum features
+            momentum_10 = float((df['close'].iloc[-1] / df['close'].iloc[-10] - 1) if len(df) >= 10 else 0)
+            momentum_20 = float((df['close'].iloc[-1] / df['close'].iloc[-20] - 1) if len(df) >= 20 else 0)
+            
+            # Funding rate derivatives
+            funding_rate_change = float(funding_rates[0] - funding_rates[1]) if len(funding_rates) >= 2 else 0.0
+            funding_rate_ma_3 = float(np.mean(funding_rates))
+            funding_extreme = 1.0 if abs(funding_rate) > 0.0005 else 0.0
+            
+            # Open interest derivatives
+            oi_change = float((open_interest - prev_oi) / prev_oi) if prev_oi > 0 else 0.0
+            oi_momentum = float(oi_change)  # Same as change on testnet
+            price_change = float((latest['close'] - prev['close']) / prev['close']) if float(prev['close']) > 0 else 0.0
+            oi_price_divergence = float(oi_change - price_change)
+            
+            # Long/short ratio derivatives
+            long_short_extreme = 1.0 if abs(long_short_ratio - 1.0) > 0.5 else 0.0
+            sentiment_shift = 0.0  # No history on testnet
+            
+            # Build feature dict in EXACT order from xgboost_features.pkl
+            features = {
+                'open': float(latest['open']),
+                'high': float(latest['high']),
+                'low': float(latest['low']),
+                'close': float(latest['close']),
+                'volume': float(latest['volume']),
+                'rsi_14': float(latest.get('rsi_14', 50)),
+                'bb_position': float(latest.get('bb_position', 0.5)),
+                'momentum_10': momentum_10,
+                'momentum_20': momentum_20,
+                'funding_rate': funding_rate,
+                'funding_rate_change': funding_rate_change,
+                'funding_rate_ma_3': funding_rate_ma_3,
+                'funding_extreme': funding_extreme,
+                'open_interest': open_interest,
+                'open_interest_change': oi_change,
+                'oi_momentum': oi_momentum,
+                'oi_price_divergence': oi_price_divergence,
+                'long_short_ratio': long_short_ratio,
+                'long_short_extreme': long_short_extreme,
+                'sentiment_shift': sentiment_shift,
+                'longAccount': longAccount,
+                'shortAccount': shortAccount
+            }
+            
+            # Get ensemble prediction
+            action, confidence, info = self.ensemble.predict(symbol, features)
+            
+            # Map BUY/SELL to LONG/SHORT for futures
+            if action == 'BUY':
+                action = 'LONG'
+            elif action == 'SELL':
+                action = 'SHORT'
+            
+            return {
+                'symbol': symbol,
+                'action': action,
+                'confidence': confidence,
+                'price': float(latest['close']),
+                'models': info.get('models', {}),
+                'features': features
+            }
+        
+        except Exception as e:
+            logger.error(f"Failed to get AI signal for {symbol}: {e}")
+            return None
+    
+    
+    def calculate_position_size(self, symbol: str) -> float:
+        """Calculate position size based on account balance."""
+        try:
+            account = self.client.futures_account()
+            available = float(account['availableBalance'])
+            
+            # Use percentage of available balance
+            position_value = available * self.position_size_pct
+            
+            # Get current price
+            ticker = self.client.futures_symbol_ticker(symbol=symbol)
+            price = float(ticker['price'])
+            
+            # Calculate quantity (accounting for leverage)
+            quantity = (position_value * self.leverage) / price
+            
+            # Get symbol precision
+            exchange_info = self.client.futures_exchange_info()
+            symbol_info = next((s for s in exchange_info['symbols'] if s['symbol'] == symbol), None)
+            
+            if symbol_info:
+                # Round to step size
+                filters = {f['filterType']: f for f in symbol_info['filters']}
+                if 'LOT_SIZE' in filters:
+                    step_size = float(filters['LOT_SIZE']['stepSize'])
+                    quantity = round(quantity / step_size) * step_size
+            
+            return quantity
+        
+        except Exception as e:
+            logger.error(f"Failed to calculate position size for {symbol}: {e}")
+            return 0.0
+    
+    
+    def open_position(self, signal: Dict[str, Any]) -> bool:
+        """Open a new futures position."""
+        try:
+            symbol = signal['symbol']
+            action = signal['action']
+            confidence = signal['confidence']
+            price = signal['price']
+            
+            if action == 'HOLD':
+                return False
+            
+            # Check if already in position
+            if symbol in self.positions:
+                logger.info(f"  ⏭️  {symbol}: Already in position")
+                return False
+            
+            # Check max positions
+            if len(self.positions) >= self.max_positions:
+                logger.info(f"  ⏭️  Max positions ({self.max_positions}) reached")
+                return False
+            
+            # Calculate position size
+            quantity = self.calculate_position_size(symbol)
+            if quantity <= 0:
+                logger.warning(f"  ⚠️  {symbol}: Invalid quantity {quantity}")
+                return False
+            
+            # Set leverage
+            self.client.futures_change_leverage(symbol=symbol, leverage=self.leverage)
+            
+            # Determine side
+            side = SIDE_BUY if action == 'LONG' else SIDE_SELL
+            
+            # Calculate dynamic TP/SL based on confidence and volatility
+            volatility = signal['features'].get('volatility_20', 0.02)
+            
+            # Confidence-based adjustments
+            if confidence > 0.8:
+                # High confidence - let winners run, tighter SL
+                tp_pct = max(0.02, volatility * 2.5)  # 2% minimum
+                sl_pct = max(0.015, volatility * 1.5)  # 1.5% minimum
+                partial_tp_pct = 0.5  # Take 50% at first TP
+            elif confidence > 0.65:
+                # Medium confidence - normal levels
+                tp_pct = max(0.018, volatility * 2.0)  # 1.8% minimum
+                sl_pct = max(0.018, volatility * 1.8)  # 1.8% minimum
+                partial_tp_pct = 0.6  # Take 60% at first TP
+            else:
+                # Lower confidence - quick profit, wider SL
+                tp_pct = max(0.015, volatility * 1.5)  # 1.5% minimum
+                sl_pct = max(0.02, volatility * 2.0)  # 2% minimum
+                partial_tp_pct = 0.75  # Take 75% at first TP
+            
+            # Cap at reasonable levels
+            tp_pct = min(tp_pct, 0.03)  # Max 3%
+            sl_pct = min(sl_pct, 0.035)  # Max 3.5%
+            
+            if action == 'LONG':
+                tp_price = price * (1 + tp_pct)
+                sl_price = price * (1 - sl_pct)
+                partial_tp_price = price * (1 + tp_pct * 0.5)  # Halfway to TP
+            else:  # SHORT
+                tp_price = price * (1 - tp_pct)
+                sl_price = price * (1 + sl_pct)
+                partial_tp_price = price * (1 - tp_pct * 0.5)  # Halfway to TP
+            
+            # Calculate partial quantity
+            partial_quantity = quantity * partial_tp_pct
+            remaining_quantity = quantity - partial_quantity
+            
+            # Place market order
+            logger.info(f"\n🎯 OPENING POSITION:")
+            logger.info(f"  Symbol: {symbol}")
+            logger.info(f"  Side: {action} ({side})")
+            logger.info(f"  Quantity: {quantity}")
+            logger.info(f"  Entry: ${price:,.4f}")
+            logger.info(f"  Partial TP (50%): ${partial_tp_price:,.4f} (+{tp_pct*50:.1f}%)")
+            logger.info(f"  Full TP: ${tp_price:,.4f} (+{tp_pct*100:.1f}%)")
+            logger.info(f"  SL: ${sl_price:,.4f} (-{sl_pct*100:.1f}%)")
+            logger.info(f"  Confidence: {confidence:.2%}")
+            logger.info(f"  Leverage: {self.leverage}x")
+            
+            order = self.client.futures_create_order(
+                symbol=symbol,
+                side=side,
+                type=ORDER_TYPE_MARKET,
+                quantity=quantity
+            )
+            
+            # Place PARTIAL TP order (50% of position at halfway point)
+            tp_side = SIDE_SELL if action == 'LONG' else SIDE_BUY
+            
+            partial_tp_order = self.client.futures_create_order(
+                symbol=symbol,
+                side=tp_side,
+                type=FUTURE_ORDER_TYPE_TAKE_PROFIT_MARKET,
+                stopPrice=partial_tp_price,
+                quantity=partial_quantity
+            )
+            
+            # Place FULL TP order (remaining 50% at final TP)
+            full_tp_order = self.client.futures_create_order(
+                symbol=symbol,
+                side=tp_side,
+                type=FUTURE_ORDER_TYPE_TAKE_PROFIT_MARKET,
+                stopPrice=tp_price,
+                quantity=remaining_quantity
+            )
+            
+            # Place SL order (for full position)
+            sl_order = self.client.futures_create_order(
+                symbol=symbol,
+                side=tp_side,
+                type=FUTURE_ORDER_TYPE_STOP_MARKET,
+                stopPrice=sl_price,
+                closePosition=True
+            )
+            
+            logger.info(f"✅ Position opened successfully!")
+            logger.info(f"  Partial TP order: {partial_quantity} @ ${partial_tp_price:,.4f}")
+            logger.info(f"  Full TP order: {remaining_quantity} @ ${tp_price:,.4f}")
+            logger.info(f"  SL order: Full position @ ${sl_price:,.4f}")
+            
+            # Track position
+            self.positions[symbol] = {
+                'action': action,
+                'entry_price': price,
+                'quantity': quantity,
+                'partial_tp_price': partial_tp_price,
+                'tp_price': tp_price,
+                'sl_price': sl_price,
+                'confidence': confidence,
+                'entry_time': datetime.now(timezone.utc),
+                'order_id': order['orderId'],
+                'partial_tp_order_id': partial_tp_order['orderId'],
+                'full_tp_order_id': full_tp_order['orderId'],
+                'sl_order_id': sl_order['orderId']
+            }
+            
+            return True
+        
+        except Exception as e:
+            logger.error(f"❌ Failed to open position for {symbol}: {e}")
+            return False
+    
+    
+    def check_positions(self):
+        """Monitor and log open positions."""
+        try:
+            positions = self.client.futures_position_information()
+            
+            active_positions = [p for p in positions if float(p['positionAmt']) != 0]
+            
+            if not active_positions:
+                return
+            
+            logger.info(f"\n📊 ACTIVE POSITIONS ({len(active_positions)}):")
+            
+            for pos in active_positions:
+                symbol = pos['symbol']
+                entry_price = float(pos['entryPrice'])
+                current_price = float(pos['markPrice'])
+                quantity = float(pos['positionAmt'])
+                unrealized_pnl = float(pos['unRealizedProfit'])
+                
+                pnl_pct = (unrealized_pnl / (abs(quantity) * entry_price)) * 100 if entry_price > 0 else 0
+                
+                side = 'LONG' if quantity > 0 else 'SHORT'
+                pnl_emoji = '🟢' if unrealized_pnl > 0 else '🔴'
+                
+                logger.info(f"  {pnl_emoji} {symbol:12} | {side:5} | Entry: ${entry_price:,.4f} | Current: ${current_price:,.4f} | P&L: ${unrealized_pnl:+,.2f} ({pnl_pct:+.2f}%)")
+        
+        except Exception as e:
+            logger.error(f"Failed to check positions: {e}")
+    
+    
+    def import_existing_positions(self):
+        """Import existing positions on account at startup."""
+        try:
+            logger.info("\n🔄 Importing existing positions...")
+            
+            positions = self.client.futures_position_information()
+            active_positions = [p for p in positions if float(p['positionAmt']) != 0]
+            
+            for pos in active_positions:
+                symbol = pos['symbol']
+                entry_price = float(pos['entryPrice'])
+                quantity = abs(float(pos['positionAmt']))
+                action = 'LONG' if float(pos['positionAmt']) > 0 else 'SHORT'
+                
+                # Get open orders for this symbol
+                open_orders = self.client.futures_get_open_orders(symbol=symbol)
+                
+                # Track position (without TP/SL order IDs since we didn't create them)
+                self.positions[symbol] = {
+                    'action': action,
+                    'entry_price': entry_price,
+                    'quantity': quantity,
+                    'partial_tp_price': None,
+                    'tp_price': None,
+                    'sl_price': None,
+                    'confidence': 0.0,  # Unknown
+                    'entry_time': datetime.now(timezone.utc),
+                    'order_id': None,
+                    'imported': True  # Mark as imported
+                }
+                
+                logger.info(f"  📥 Imported {action} position: {symbol} @ ${entry_price:,.4f} (qty: {quantity})")
+                
+                if open_orders:
+                    logger.info(f"    Found {len(open_orders)} open orders for {symbol}")
+            
+            if not active_positions:
+                logger.info("  No existing positions to import")
+            else:
+                logger.info(f"  ✅ Imported {len(active_positions)} position(s)")
+        
+        except Exception as e:
+            logger.error(f"Failed to import positions: {e}")
+    
+    
+    async def trading_loop(self):
+        """Main trading loop."""
+        logger.info("\n🔄 STARTING TESTNET TRADING LOOP...")
+        
+        # Setup account
+        if not self.setup_futures_account():
+            logger.error("❌ Failed to setup account, exiting")
+            return
+        
+        # Import existing positions
+        self.import_existing_positions()
+        
+        # Get tradeable symbols
+        symbols = self.get_tradeable_symbols()
+        
+        logger.info(f"\n👀 Monitoring {len(symbols)} symbols:")
+        logger.info(f"  {', '.join(symbols[:10])}...")
+        
+        iteration = 0
+        
+        while True:
+            try:
+                iteration += 1
+                current_time = datetime.now(timezone.utc)
+                
+                logger.info(f"\n{'='*80}")
+                logger.info(f"🔍 ITERATION #{iteration} - {current_time.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+                logger.info(f"{'='*80}")
+                
+                # Check existing positions
+                self.check_positions()
+                
+                # Scan for new opportunities
+                if len(self.positions) < self.max_positions:
+                    logger.info(f"\n🎯 SCANNING FOR SIGNALS ({len(self.positions)}/{self.max_positions} positions)...")
+                    
+                    signals_found = 0
+                    for symbol in symbols:
+                        # Skip if already in position
+                        if symbol in self.positions:
+                            continue
+                        
+                        # Rate limiting
+                        if symbol in self.last_signal_time:
+                            time_since = (current_time - self.last_signal_time[symbol]).total_seconds()
+                            if time_since < 3600:  # Wait 1h between signals for same symbol
+                                continue
+                        
+                        # Get AI signal
+                        signal = self.get_ai_signal(symbol)
+                        
+                        # Debug: Log signal even if HOLD
+                        if signal:
+                            if signal['action'] == 'HOLD':
+                                logger.debug(f"{symbol}: HOLD (conf: {signal['confidence']:.2%})")
+                            elif signal['confidence'] < self.min_confidence:
+                                logger.info(f"⚠️ {symbol}: {signal['action']} but confidence {signal['confidence']:.2%} < {self.min_confidence:.0%}")
+                        
+                        if signal and signal['action'] != 'HOLD' and signal['confidence'] >= self.min_confidence:
+                            logger.info(f"\n🚨 SIGNAL DETECTED: {symbol}")
+                            logger.info(f"  Action: {signal['action']}")
+                            logger.info(f"  Confidence: {signal['confidence']:.2%}")
+                            logger.info(f"  Models: {signal['models']}")
+                            
+                            # Try to open position
+                            if self.open_position(signal):
+                                signals_found += 1
+                                self.last_signal_time[symbol] = current_time
+                                
+                                if len(self.positions) >= self.max_positions:
+                                    break
+                        
+                        # Small delay between API calls
+                        await asyncio.sleep(0.5)
+                    
+                    if signals_found == 0:
+                        logger.info("  No actionable signals found")
+                else:
+                    logger.info(f"\n⏸️  Max positions reached ({self.max_positions}), waiting for exits...")
+                
+                # Wait before next iteration (5 minutes)
+                logger.info(f"\n⏱️  Next scan in 5 minutes...")
+                await asyncio.sleep(300)
+            
+            except KeyboardInterrupt:
+                logger.info("\n\n⛔ Interrupted by user")
+                break
+            
+            except Exception as e:
+                logger.error(f"❌ Error in trading loop: {e}")
+                logger.info("⏱️  Waiting 60s before retry...")
+                await asyncio.sleep(60)
+        
+        logger.info("\n" + "="*80)
+        logger.info("🛑 TESTNET TRADING STOPPED")
+        logger.info("="*80)
+
+
+def main():
+    """Main entry point."""
+    import os
+    
+    # Read testnet keys from environment variables (set in .env)
+    testnet_api_key = os.getenv('BINANCE_TESTNET_API_KEY')
+    testnet_secret = os.getenv('BINANCE_TESTNET_SECRET_KEY')
+    
+    if not testnet_api_key or not testnet_secret:
+        logger.error("❌ Testnet API keys not found in environment!")
+        logger.error("Please set in .env file:")
+        logger.error("  BINANCE_TESTNET_API_KEY=your_key")
+        logger.error("  BINANCE_TESTNET_SECRET_KEY=your_secret")
+        logger.error("\nGet testnet keys from: https://testnet.binancefuture.com")
+        return
+    
+    # Create trader
+    trader = TestnetTrader(testnet_api_key, testnet_secret)
+    
+    # Run trading loop
+    asyncio.run(trader.trading_loop())
+
+
+if __name__ == "__main__":
+    main()

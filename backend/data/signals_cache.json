@@ -1,0 +1,16 @@
+{
+  "mixed": [
+    {
+      "id": "ai_MATICUSDT_1764971869",
+      "symbol": "MATICUSDT",
+      "action": "BUY",
+      "type": "BUY",
+      "confidence": 0.3,
+      "price": 0.3794,
+      "timestamp": "2025-12-05T21:43:49.589852",
+      "reason": "RSI: 55.7, Uptrend",
+      "source": "Live AI Analysis",
+      "model": "technical"
+    }
+  ]
+}

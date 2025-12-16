@@ -1,0 +1,272 @@
+# Unified Logging Configuration
+# SPRINT 3 - Module E: Structured Logging
+#
+# Provides consistent JSON logging across all microservices
+
+version: 1
+disable_existing_loggers: false
+
+# =============================================================================
+# FORMATTERS
+# =============================================================================
+
+formatters:
+  # JSON formatter for production
+  json:
+    (): pythonjsonlogger.jsonlogger.JsonFormatter
+    format: "%(asctime)s %(name)s %(levelname)s %(message)s %(correlation_id)s %(service)s %(module)s %(funcName)s %(lineno)d"
+    timestamp: true
+    
+  # Human-readable formatter for development
+  detailed:
+    format: "[%(asctime)s] %(levelname)-8s [%(name)s.%(funcName)s:%(lineno)d] %(message)s"
+    datefmt: "%Y-%m-%d %H:%M:%S"
+  
+  # Simple formatter for console
+  simple:
+    format: "%(levelname)-8s %(name)s - %(message)s"
+
+# =============================================================================
+# FILTERS
+# =============================================================================
+
+filters:
+  # Add correlation ID to all log records
+  correlation_id:
+    (): infra.logging.filters.CorrelationIdFilter
+  
+  # Add service name to all log records
+  service_name:
+    (): infra.logging.filters.ServiceNameFilter
+  
+  # Mask sensitive fields (API keys, passwords, tokens)
+  sensitive_data:
+    (): infra.logging.filters.SensitiveDataFilter
+    fields:
+      - api_key
+      - apiKey
+      - password
+      - secret
+      - token
+      - authorization
+
+# =============================================================================
+# HANDLERS
+# =============================================================================
+
+handlers:
+  # Console output (development)
+  console:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: simple
+    stream: ext://sys.stdout
+    filters:
+      - correlation_id
+      - service_name
+      - sensitive_data
+  
+  # File output with rotation (production)
+  file:
+    class: logging.handlers.RotatingFileHandler
+    level: INFO
+    formatter: json
+    filename: /var/log/quantum_trader/app.log
+    maxBytes: 104857600  # 100MB
+    backupCount: 10
+    filters:
+      - correlation_id
+      - service_name
+      - sensitive_data
+  
+  # Error-only file (critical issues)
+  error_file:
+    class: logging.handlers.RotatingFileHandler
+    level: ERROR
+    formatter: json
+    filename: /var/log/quantum_trader/error.log
+    maxBytes: 52428800  # 50MB
+    backupCount: 5
+    filters:
+      - correlation_id
+      - service_name
+      - sensitive_data
+  
+  # Async handler for high-throughput (optional)
+  async_file:
+    class: concurrent_log_handler.ConcurrentRotatingFileHandler
+    level: INFO
+    formatter: json
+    filename: /var/log/quantum_trader/async.log
+    maxBytes: 104857600
+    backupCount: 10
+    filters:
+      - correlation_id
+      - service_name
+      - sensitive_data
+
+# =============================================================================
+# LOGGERS
+# =============================================================================
+
+loggers:
+  # AI Engine Service
+  ai_engine:
+    level: INFO
+    handlers:
+      - file
+      - error_file
+    propagate: false
+  
+  # Execution Service
+  execution:
+    level: INFO
+    handlers:
+      - file
+      - error_file
+    propagate: false
+  
+  # Risk & Safety Service
+  risk_safety:
+    level: INFO
+    handlers:
+      - file
+      - error_file
+    propagate: false
+  
+  # Portfolio Intelligence Service
+  portfolio_intelligence:
+    level: INFO
+    handlers:
+      - file
+      - error_file
+    propagate: false
+  
+  # Monitoring & Health Service
+  monitoring_health:
+    level: INFO
+    handlers:
+      - file
+      - error_file
+    propagate: false
+  
+  # RL Training Service
+  rl_training:
+    level: INFO
+    handlers:
+      - file
+      - error_file
+    propagate: false
+  
+  # EventBus
+  eventbus:
+    level: INFO
+    handlers:
+      - file
+      - error_file
+    propagate: false
+  
+  # Third-party libraries
+  httpx:
+    level: WARNING
+    handlers:
+      - file
+    propagate: false
+  
+  redis:
+    level: WARNING
+    handlers:
+      - file
+    propagate: false
+  
+  uvicorn:
+    level: INFO
+    handlers:
+      - console
+      - file
+    propagate: false
+  
+  uvicorn.access:
+    level: INFO
+    handlers:
+      - file
+    propagate: false
+  
+  uvicorn.error:
+    level: ERROR
+    handlers:
+      - error_file
+    propagate: false
+
+# =============================================================================
+# ROOT LOGGER
+# =============================================================================
+
+root:
+  level: INFO
+  handlers:
+    - console
+    - file
+    - error_file
+
+# =============================================================================
+# ENVIRONMENT-SPECIFIC OVERRIDES
+# =============================================================================
+
+# Development: Use human-readable console output
+# export LOG_ENV=development
+
+# Production: Use JSON file output
+# export LOG_ENV=production
+
+# Testing: Suppress most logs
+# export LOG_ENV=testing
+
+# =============================================================================
+# LOG LEVELS
+# =============================================================================
+
+# DEBUG: Detailed diagnostic information
+# INFO: Confirmation that things are working as expected
+# WARNING: Something unexpected happened, but app continues
+# ERROR: A serious problem occurred, functionality affected
+# CRITICAL: System failure, application cannot continue
+
+# =============================================================================
+# USAGE EXAMPLE
+# =============================================================================
+
+# import logging
+# import logging.config
+# import yaml
+# 
+# # Load config
+# with open("infra/logging/logging_config.yml", "r") as f:
+#     config = yaml.safe_load(f)
+#     logging.config.dictConfig(config)
+# 
+# # Get logger
+# logger = logging.getLogger("ai_engine")
+# 
+# # Log with correlation ID
+# logger.info("Processing signal", extra={"correlation_id": "abc-123"})
+# logger.error("Trade execution failed", extra={"symbol": "BTCUSDT"})
+
+# =============================================================================
+# JSON LOG OUTPUT EXAMPLE
+# =============================================================================
+
+# {
+#   "asctime": "2025-12-04T12:34:56.789Z",
+#   "name": "ai_engine",
+#   "levelname": "INFO",
+#   "message": "Processing signal for BTCUSDT",
+#   "correlation_id": "abc-123",
+#   "service": "ai-engine-service",
+#   "module": "ensemble_strategy",
+#   "funcName": "generate_signal",
+#   "lineno": 142,
+#   "symbol": "BTCUSDT",
+#   "signal_type": "long",
+#   "confidence": 0.87
+# }

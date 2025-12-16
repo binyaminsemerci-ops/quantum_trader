@@ -2,6 +2,8 @@
 from httpx import AsyncClient, ASGITransport
 from backend.main import app
 
+ADMIN_HEADERS = {"X-Admin-Token": "test-admin-token"}
+
 # This test file intentionally contains test-only literal credentials and
 # other strings that look like secrets. Mark the file for detect-secrets
 # allowlisting so pre-commit won't block these harmless test fixtures.
@@ -30,7 +32,10 @@ async def test_stats_endpoint():
 async def test_trades_endpoint():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        response = await ac.get("/trades")
+        unauthorized = await ac.get("/trades")
+        assert unauthorized.status_code == 401
+
+        response = await ac.get("/trades", headers=ADMIN_HEADERS)
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
@@ -51,9 +56,9 @@ async def test_settings_roundtrip():
         # The following values are test-only literals and are intentionally
         # present in the test. Use innocuous keys to avoid detect-secrets.
         payload = {"k": "dummy", "s": "dummy"}
-        post_resp = await ac.post("/settings", json=payload)
+        post_resp = await ac.post("/settings", json=payload, headers=ADMIN_HEADERS)
         assert post_resp.status_code == 200
 
-        get_resp = await ac.get("/settings")
+        get_resp = await ac.get("/settings", headers=ADMIN_HEADERS)
         assert get_resp.status_code == 200
         assert get_resp.json()["k"] == "dummy"

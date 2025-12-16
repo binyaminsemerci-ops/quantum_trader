@@ -1,0 +1,438 @@
+"""Exit Policy Engine - ATR-based exit management with trailing stops."""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from enum import Enum
+from typing import Optional
+
+from backend.config.risk_management import ExitPolicyConfig
+
+logger = logging.getLogger(__name__)
+
+
+class ExitSignal(str, Enum):
+    """Types of exit signals."""
+    STOP_LOSS = "STOP_LOSS"           # Hit stop loss
+    TAKE_PROFIT = "TAKE_PROFIT"       # Hit take profit
+    PARTIAL_TP = "PARTIAL_TP"         # Partial take profit
+    BREAKEVEN = "BREAKEVEN"           # Move to breakeven
+    TRAILING = "TRAILING"             # Trailing stop triggered
+    TIME_EXIT = "TIME_EXIT"           # Time-based exit
+    MANUAL = "MANUAL"                 # Manual close
+
+
+@dataclass
+class ExitLevels:
+    """Calculated exit price levels."""
+    entry_price: float
+    stop_loss: float
+    take_profit: float
+    sl_distance_pct: float     # SL distance as %
+    tp_distance_pct: float     # TP distance as %
+    r_multiple: float          # Risk:Reward ratio
+    
+    # Dynamic levels (updated as trade progresses)
+    current_sl: float          # Current SL (may be trailed)
+    breakeven_price: Optional[float] = None
+    partial_tp_price: Optional[float] = None
+    trailing_distance_pct: Optional[float] = None
+
+
+@dataclass
+class ExitDecision:
+    """Decision about exiting a position."""
+    should_exit: bool
+    exit_signal: Optional[ExitSignal]
+    exit_price: Optional[float]
+    exit_quantity: Optional[float]  # None = full position
+    reason: str
+    new_sl: Optional[float] = None  # Updated SL if not exiting
+    move_to_breakeven: bool = False
+
+
+class ExitPolicyEngine:
+    """
+    ATR-based exit management with dynamic adjustments.
+    
+    Features:
+    - Initial SL/TP at ATR multiples (k1=1.5, k2=3.75)
+    - Breakeven at +1R
+    - Partial TP at +2R (50% position)
+    - Trailing stop after partial TP
+    - Time-based exit if no progress
+    - Exit mode override (TREND_FOLLOW, FAST_TP, DEFENSIVE_TRAIL)
+    """
+    
+    # Exit mode configurations
+    EXIT_MODE_CONFIGS = {
+        "TREND_FOLLOW": {
+            "sl_multiplier": 1.5,
+            "tp_multiplier": 2.0,  # REDUCED from 4.5 to 2.0 for 30x leverage (faster profit taking)
+            "trailing_distance_atr": 0.8,  # Tighter trailing (reduced from 1.2)
+            "enable_partial_tp": True,
+            "enable_trailing": True,
+            "enable_breakeven": True,
+            "trend_trail_strength": 0.8,  # Tighter protection (reduced from 1.2)
+            "description": "Balanced: 2x ATR TP, tight trailing, 30x leverage optimized"
+        },
+        "FAST_TP": {
+            "sl_multiplier": 1.5,
+            "tp_multiplier": 1.5,  # REDUCED from 2.5 to 1.5 - VERY fast exits for high leverage
+            "trailing_distance_atr": 0.6,  # Tighter (reduced from 0.8)
+            "enable_partial_tp": False,  # No partial, take full TP
+            "enable_trailing": True,  # ENABLED trailing (was False)
+            "enable_breakeven": True,
+            "trend_trail_strength": 0.6,  # Tighter (reduced from 0.8)
+            "description": "SCALP MODE: 1.5x ATR TP, very fast exits, high leverage"
+        },
+        "DEFENSIVE_TRAIL": {
+            "sl_multiplier": 1.2,  # Tighter initial SL
+            "tp_multiplier": 3.0,
+            "trailing_distance_atr": 0.6,  # Very tight trailing
+            "enable_partial_tp": True,
+            "enable_trailing": True,  # Aggressive trailing
+            "enable_breakeven": True,
+            "trend_trail_strength": 0.6,  # Protect profits aggressively
+            "description": "Tight stops, aggressive trailing, survival mode"
+        }
+    }
+    
+    def __init__(self, config: ExitPolicyConfig, default_exit_mode: str = "TREND_FOLLOW"):
+        self.config = config
+        self.default_exit_mode = default_exit_mode
+        logger.info("[OK] ExitPolicyEngine initialized")
+        logger.info(f"   SL: {config.sl_multiplier}x ATR, TP: {config.tp_multiplier}x ATR")
+        logger.info(f"   Breakeven at +{config.breakeven_at_r}R")
+        logger.info(f"   Partial TP: {config.partial_tp_percent:.0%} at +{config.partial_tp_at_r}R")
+        logger.info(f"   Trailing: {config.trailing_distance_atr}x ATR from +{config.trailing_start_r}R")
+        logger.info(f"   Default Exit Mode: {default_exit_mode}")
+    
+    def calculate_initial_exit_levels(
+        self,
+        symbol: str,
+        entry_price: float,
+        atr: float,
+        action: str,  # "LONG" or "SHORT"
+        exit_mode: Optional[str] = None,
+        regime_tag: Optional[str] = None,
+    ) -> ExitLevels:
+        """
+        Calculate initial stop loss and take profit levels using ATR.
+        
+        Args:
+            symbol: Trading pair
+            entry_price: Entry price
+            atr: Average True Range (14 periods)
+            action: "LONG" or "SHORT"
+            exit_mode: Exit strategy ("TREND_FOLLOW", "FAST_TP", "DEFENSIVE_TRAIL")
+            regime_tag: Market regime for logging context
+        
+        Returns:
+            ExitLevels with SL/TP prices
+        """
+        # Select exit mode configuration
+        exit_mode = exit_mode or self.default_exit_mode
+        if exit_mode not in self.EXIT_MODE_CONFIGS:
+            logger.warning(f"[WARNING] Unknown exit_mode '{exit_mode}', using default '{self.default_exit_mode}'")
+            exit_mode = self.default_exit_mode
+        
+        mode_config = self.EXIT_MODE_CONFIGS[exit_mode]
+        
+        # Override config values based on exit mode
+        sl_multiplier = mode_config["sl_multiplier"]
+        tp_multiplier = mode_config["tp_multiplier"]
+        trailing_distance_atr = mode_config["trailing_distance_atr"]
+        enable_partial_tp = mode_config["enable_partial_tp"]
+        enable_trailing = mode_config["enable_trailing"]
+        enable_breakeven = mode_config["enable_breakeven"]
+        
+        logger.info(
+            f"[TARGET] Exit Mode: {exit_mode} - {mode_config['description']}" +
+            (f" (Regime: {regime_tag})" if regime_tag else "")
+        )
+        
+        # Calculate distances
+        sl_distance = atr * sl_multiplier
+        tp_distance = atr * tp_multiplier
+        
+        # Safety check: prevent division by zero if ATR is invalid
+        if sl_distance <= 0 or tp_distance <= 0:
+            logger.warning(
+                f"[WARNING] {symbol} Invalid ATR/distance: ATR={atr:.6f}, "
+                f"sl_distance={sl_distance:.6f}, tp_distance={tp_distance:.6f}. "
+                f"Using fallback 1% SL / 2% TP"
+            )
+            sl_distance = entry_price * 0.01  # 1% fallback
+            tp_distance = entry_price * 0.02  # 2% fallback (2:1 R:R)
+        
+        # For LONG: SL below entry, TP above
+        # For SHORT: SL above entry, TP below
+        if action == "LONG":
+            stop_loss = entry_price - sl_distance
+            take_profit = entry_price + tp_distance
+        else:  # SHORT
+            stop_loss = entry_price + sl_distance
+            take_profit = entry_price - tp_distance
+        
+        sl_distance_pct = sl_distance / entry_price
+        tp_distance_pct = tp_distance / entry_price
+        r_multiple = tp_distance / sl_distance
+        
+        # Calculate intermediate levels
+        breakeven_price = None
+        partial_tp_price = None
+        
+        if enable_breakeven and self.config.enable_breakeven:
+            # Breakeven at +1R: move SL to entry + small offset
+            offset = entry_price * self.config.breakeven_offset_pct
+            if action == "LONG":
+                breakeven_price = entry_price + offset
+            else:
+                breakeven_price = entry_price - offset
+        
+        if enable_partial_tp and self.config.enable_partial_tp:
+            # Partial TP at +2R
+            partial_tp_distance = sl_distance * self.config.partial_tp_at_r
+            if action == "LONG":
+                partial_tp_price = entry_price + partial_tp_distance
+            else:
+                partial_tp_price = entry_price - partial_tp_distance
+        
+        logger.info(
+            f"[TARGET] {symbol} {action} Exit Levels (Mode: {exit_mode}):\n"
+            f"   Entry: ${entry_price:.4f} | ATR: ${atr:.4f}\n"
+            f"   SL: ${stop_loss:.4f} (-{sl_distance_pct:.2%}, {sl_multiplier:.1f}x ATR)\n"
+            f"   TP: ${take_profit:.4f} (+{tp_distance_pct:.2%}, {tp_multiplier:.1f}x ATR)\n"
+            f"   R:R = {r_multiple:.2f} | Trail: {trailing_distance_atr:.1f}x ATR\n"
+            + (f"   Breakeven: ${breakeven_price:.4f}\n" if breakeven_price else "")
+            + (f"   Partial TP: ${partial_tp_price:.4f}\n" if partial_tp_price else "")
+            + f"   Strategy: {mode_config['description']}"
+        )
+        
+        return ExitLevels(
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            sl_distance_pct=sl_distance_pct,
+            tp_distance_pct=tp_distance_pct,
+            r_multiple=r_multiple,
+            current_sl=stop_loss,
+            breakeven_price=breakeven_price,
+            partial_tp_price=partial_tp_price,
+            trailing_distance_pct=atr * trailing_distance_atr / entry_price if enable_trailing and self.config.enable_trailing else None,
+        )
+    
+    def evaluate_exit(
+        self,
+        symbol: str,
+        action: str,
+        current_price: float,
+        exit_levels: ExitLevels,
+        quantity: float,
+        entry_time: datetime,
+        highest_price: float,  # MFE tracking
+        lowest_price: float,   # MAE tracking
+        has_partial_exit: bool = False,
+    ) -> ExitDecision:
+        """
+        Evaluate if position should be exited or SL adjusted.
+        
+        Args:
+            symbol: Trading pair
+            action: "LONG" or "SHORT"
+            current_price: Current market price
+            exit_levels: Current exit levels
+            quantity: Current position quantity
+            entry_time: When position was opened
+            highest_price: Highest price reached (for LONG)
+            lowest_price: Lowest price reached (for SHORT)
+            has_partial_exit: Has partial TP been taken already?
+        
+        Returns:
+            ExitDecision with action to take
+        """
+        # Calculate current R-multiple (profit in units of risk)
+        if action == "LONG":
+            pnl = current_price - exit_levels.entry_price
+            max_favorable = highest_price - exit_levels.entry_price
+            peak_price = highest_price
+        else:  # SHORT
+            pnl = exit_levels.entry_price - current_price
+            max_favorable = exit_levels.entry_price - lowest_price
+            peak_price = lowest_price
+        
+        risk_amount = abs(exit_levels.entry_price - exit_levels.stop_loss)
+        current_r = pnl / risk_amount if risk_amount > 0 else 0
+        max_r = max_favorable / risk_amount if risk_amount > 0 else 0
+        
+        # Check 1: Stop Loss Hit
+        if action == "LONG" and current_price <= exit_levels.current_sl:
+            logger.warning(
+                f"🛑 {symbol} LONG Stop Loss Hit: "
+                f"Price ${current_price:.4f} <= SL ${exit_levels.current_sl:.4f} "
+                f"({current_r:.2f}R)"
+            )
+            return ExitDecision(
+                should_exit=True,
+                exit_signal=ExitSignal.STOP_LOSS,
+                exit_price=exit_levels.current_sl,
+                exit_quantity=None,  # Full exit
+                reason=f"Stop loss hit at ${exit_levels.current_sl:.4f} ({current_r:.2f}R)",
+            )
+        
+        if action == "SHORT" and current_price >= exit_levels.current_sl:
+            logger.warning(
+                f"🛑 {symbol} SHORT Stop Loss Hit: "
+                f"Price ${current_price:.4f} >= SL ${exit_levels.current_sl:.4f} "
+                f"({current_r:.2f}R)"
+            )
+            return ExitDecision(
+                should_exit=True,
+                exit_signal=ExitSignal.STOP_LOSS,
+                exit_price=exit_levels.current_sl,
+                exit_quantity=None,
+                reason=f"Stop loss hit at ${exit_levels.current_sl:.4f} ({current_r:.2f}R)",
+            )
+        
+        # Check 2: Take Profit Hit
+        if action == "LONG" and current_price >= exit_levels.take_profit:
+            logger.info(
+                f"🎉 {symbol} LONG Take Profit Hit: "
+                f"Price ${current_price:.4f} >= TP ${exit_levels.take_profit:.4f} "
+                f"({current_r:.2f}R)"
+            )
+            return ExitDecision(
+                should_exit=True,
+                exit_signal=ExitSignal.TAKE_PROFIT,
+                exit_price=exit_levels.take_profit,
+                exit_quantity=None,
+                reason=f"Take profit hit at ${exit_levels.take_profit:.4f} ({current_r:.2f}R)",
+            )
+        
+        if action == "SHORT" and current_price <= exit_levels.take_profit:
+            logger.info(
+                f"🎉 {symbol} SHORT Take Profit Hit: "
+                f"Price ${current_price:.4f} <= TP ${exit_levels.take_profit:.4f} "
+                f"({current_r:.2f}R)"
+            )
+            return ExitDecision(
+                should_exit=True,
+                exit_signal=ExitSignal.TAKE_PROFIT,
+                exit_price=exit_levels.take_profit,
+                exit_quantity=None,
+                reason=f"Take profit hit at ${exit_levels.take_profit:.4f} ({current_r:.2f}R)",
+            )
+        
+        # Check 3: Partial Take Profit
+        if (
+            self.config.enable_partial_tp
+            and not has_partial_exit
+            and exit_levels.partial_tp_price is not None
+            and current_r >= self.config.partial_tp_at_r
+        ):
+            partial_qty = quantity * self.config.partial_tp_percent
+            logger.info(
+                f"[MONEY] {symbol} Partial TP Triggered at +{current_r:.2f}R: "
+                f"Closing {partial_qty:.4f} ({self.config.partial_tp_percent:.0%})"
+            )
+            return ExitDecision(
+                should_exit=True,
+                exit_signal=ExitSignal.PARTIAL_TP,
+                exit_price=current_price,
+                exit_quantity=partial_qty,
+                reason=f"Partial TP at +{current_r:.2f}R, closing {self.config.partial_tp_percent:.0%}",
+            )
+        
+        # Check 4: Move to Breakeven
+        if (
+            self.config.enable_breakeven
+            and exit_levels.current_sl != exit_levels.breakeven_price
+            and current_r >= self.config.breakeven_at_r
+            and exit_levels.breakeven_price is not None
+        ):
+            logger.info(
+                f"🔒 {symbol} Moving SL to Breakeven at +{current_r:.2f}R: "
+                f"${exit_levels.current_sl:.4f} → ${exit_levels.breakeven_price:.4f}"
+            )
+            return ExitDecision(
+                should_exit=False,
+                exit_signal=ExitSignal.BREAKEVEN,
+                exit_price=None,
+                exit_quantity=None,
+                reason=f"Moving to breakeven at +{current_r:.2f}R",
+                new_sl=exit_levels.breakeven_price,
+                move_to_breakeven=True,
+            )
+        
+        # Check 5: Trailing Stop (after partial TP)
+        if (
+            self.config.enable_trailing
+            and has_partial_exit
+            and current_r >= self.config.trailing_start_r
+            and exit_levels.trailing_distance_pct is not None
+        ):
+            # Trail from peak price
+            if action == "LONG":
+                new_sl = peak_price * (1 - exit_levels.trailing_distance_pct)
+                # Only move SL up, never down
+                if new_sl > exit_levels.current_sl:
+                    logger.info(
+                        f"[CHART_UP] {symbol} Trailing SL Up: "
+                        f"${exit_levels.current_sl:.4f} → ${new_sl:.4f} "
+                        f"(Peak: ${peak_price:.4f})"
+                    )
+                    return ExitDecision(
+                        should_exit=False,
+                        exit_signal=ExitSignal.TRAILING,
+                        exit_price=None,
+                        exit_quantity=None,
+                        reason=f"Trailing SL from peak ${peak_price:.4f}",
+                        new_sl=new_sl,
+                    )
+            else:  # SHORT
+                new_sl = peak_price * (1 + exit_levels.trailing_distance_pct)
+                # Only move SL down, never up
+                if new_sl < exit_levels.current_sl:
+                    logger.info(
+                        f"📉 {symbol} Trailing SL Down: "
+                        f"${exit_levels.current_sl:.4f} → ${new_sl:.4f} "
+                        f"(Peak: ${peak_price:.4f})"
+                    )
+                    return ExitDecision(
+                        should_exit=False,
+                        exit_signal=ExitSignal.TRAILING,
+                        exit_price=None,
+                        exit_quantity=None,
+                        reason=f"Trailing SL from peak ${peak_price:.4f}",
+                        new_sl=new_sl,
+                    )
+        
+        # Check 6: Time-based Exit
+        if self.config.enable_time_exit:
+            time_in_trade = datetime.now(timezone.utc) - entry_time
+            max_duration = timedelta(hours=self.config.max_hours_no_progress)
+            
+            if time_in_trade > max_duration and current_r < 0.5:
+                logger.warning(
+                    f"⏰ {symbol} Time Exit: "
+                    f"{time_in_trade.total_seconds() / 3600:.1f}h with no progress ({current_r:.2f}R)"
+                )
+                return ExitDecision(
+                    should_exit=True,
+                    exit_signal=ExitSignal.TIME_EXIT,
+                    exit_price=current_price,
+                    exit_quantity=None,
+                    reason=f"No progress after {time_in_trade.total_seconds() / 3600:.1f}h",
+                )
+        
+        # No exit signal - hold position
+        return ExitDecision(
+            should_exit=False,
+            exit_signal=None,
+            exit_price=None,
+            exit_quantity=None,
+            reason=f"Holding at {current_r:.2f}R (Max: {max_r:.2f}R)",
+        )

@@ -4,6 +4,7 @@ httpx
 fastapi
 anyio
 coverage
+prometheus-client==0.21.0
 # Optional dev tooling
 SQLAlchemy-Utils>=0.41,<0.43
 types-requests

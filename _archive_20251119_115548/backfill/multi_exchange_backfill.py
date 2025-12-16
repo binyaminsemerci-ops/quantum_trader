@@ -1,0 +1,339 @@
+"""
+MULTI-EXCHANGE FUTURES BACKFILL
+Henter data fra Bybit og OKX i tillegg til Binance
+Target: 150,000+ NYE futures samples fra forskjellige exchanges
+"""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
+
+import asyncio
+import aiohttp
+import json
+import numpy as np
+import pandas as pd
+from datetime import datetime, timezone, timedelta
+from backend.database import SessionLocal
+from backend.models.ai_training import AITrainingSample
+
+def calculate_indicators(df):
+    """Calculate 14 technical indicators"""
+    close = df['close']
+    high = df['high']
+    low = df['low']
+    volume = df['volume']
+    
+    df['EMA_10'] = close.ewm(span=10, adjust=False).mean()
+    df['EMA_50'] = close.ewm(span=50, adjust=False).mean()
+    
+    delta = close.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+    
+    ema_12 = close.ewm(span=12, adjust=False).mean()
+    ema_26 = close.ewm(span=26, adjust=False).mean()
+    df['MACD'] = ema_12 - ema_26
+    df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+    
+    sma_20 = close.rolling(window=20).mean()
+    std_20 = close.rolling(window=20).std()
+    df['BB_upper'] = sma_20 + (std_20 * 2)
+    df['BB_middle'] = sma_20
+    df['BB_lower'] = sma_20 - (std_20 * 2)
+    
+    high_low = high - low
+    high_close = np.abs(high - close.shift())
+    low_close = np.abs(low - close.shift())
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = ranges.max(axis=1)
+    df['ATR'] = true_range.rolling(14).mean()
+    
+    df['volume_sma_20'] = volume.rolling(window=20).mean()
+    df['price_change_pct'] = close.pct_change() * 100
+    df['high_low_range'] = high - low
+    
+    return df
+
+async def fetch_bybit_klines(session, symbol, interval='5', limit=1000, start_time=None):
+    """Fetch Bybit futures klines"""
+    url = "https://api.bybit.com/v5/market/kline"
+    
+    # Bybit interval format: 1 3 5 15 30 60 120 240 D W M
+    interval_map = {'1m': '1', '3m': '3', '5m': '5', '15m': '15', '30m': '30', 
+                   '1h': '60', '2h': '120', '4h': '240'}
+    bybit_interval = interval_map.get(interval, '5')
+    
+    params = {
+        'category': 'linear',  # USDT perpetuals
+        'symbol': symbol,
+        'interval': bybit_interval,
+        'limit': min(limit, 1000)
+    }
+    if start_time:
+        params['start'] = int(start_time.timestamp() * 1000)
+    
+    try:
+        async with session.get(url, params=params, timeout=30) as response:
+            if response.status == 200:
+                data = await response.json()
+                if data.get('retCode') == 0:
+                    klines = data.get('result', {}).get('list', [])
+                    # Bybit format: [startTime, open, high, low, close, volume, turnover]
+                    return [[k[0], k[1], k[2], k[3], k[4], k[5]] for k in klines]
+    except:
+        pass
+    return None
+
+async def fetch_okx_klines(session, symbol, interval='5m', limit=300, start_time=None):
+    """Fetch OKX futures klines"""
+    url = "https://www.okx.com/api/v5/market/candles"
+    
+    # OKX uses inst-id format like BTC-USDT-SWAP
+    okx_symbol = symbol.replace('USDT', '-USDT-SWAP')
+    
+    params = {
+        'instId': okx_symbol,
+        'bar': interval,
+        'limit': min(limit, 300)  # OKX max 300
+    }
+    if start_time:
+        params['after'] = str(int(start_time.timestamp() * 1000))
+    
+    try:
+        async with session.get(url, params=params, timeout=30) as response:
+            if response.status == 200:
+                data = await response.json()
+                if data.get('code') == '0':
+                    klines = data.get('data', [])
+                    # OKX format: [ts, open, high, low, close, volume, ...]
+                    return [[k[0], k[1], k[2], k[3], k[4], k[5]] for k in klines]
+    except:
+        pass
+    return None
+
+def determine_action_outcome(features, future_price, current_price):
+    """ULTRA aggressive futures strategy"""
+    rsi = features['RSI']
+    macd = features['MACD']
+    ema_10 = features['EMA_10']
+    ema_50 = features['EMA_50']
+    close = features['Close']
+    bb_upper = features['BB_upper']
+    bb_lower = features['BB_lower']
+    
+    pnl_pct = ((future_price - current_price) / current_price) * 100
+    
+    if rsi < 47 and ema_10 > ema_50 * 0.997:
+        action = "BUY"
+    elif rsi > 53 and ema_10 < ema_50 * 1.003:
+        action = "SELL"
+    elif macd > 0 and close < bb_upper * 0.99:
+        action = "BUY"
+    elif macd < 0 and close > bb_lower * 1.01:
+        action = "SELL"
+    elif rsi < 33:
+        action = "BUY"
+    elif rsi > 67:
+        action = "SELL"
+    else:
+        action = "HOLD"
+        return action, "NEUTRAL", 0
+    
+    if action == "BUY":
+        outcome = "WIN" if pnl_pct > 0.05 else "LOSS" if pnl_pct < -0.05 else "NEUTRAL"
+    elif action == "SELL":
+        outcome = "WIN" if pnl_pct < -0.05 else "LOSS" if pnl_pct > 0.05 else "NEUTRAL"
+    else:
+        outcome = "NEUTRAL"
+        pnl_pct = 0
+    
+    return action, outcome, pnl_pct
+
+async def process_exchange_symbol(session, exchange, symbol, interval, start_time, db, source_name, max_samples=250):
+    """Process one symbol from specific exchange"""
+    
+    # Fetch klines based on exchange
+    if exchange == 'bybit':
+        klines = await fetch_bybit_klines(session, symbol, interval, 1000, start_time)
+    elif exchange == 'okx':
+        klines = await fetch_okx_klines(session, symbol, interval, 300, start_time)
+    else:
+        return 0
+    
+    if not klines or len(klines) < 100:
+        return 0
+    
+    # Convert to DataFrame
+    df = pd.DataFrame(klines, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    
+    for col in ['timestamp', 'open', 'high', 'low', 'close', 'volume']:
+        df[col] = pd.to_numeric(df[col])
+    
+    df = calculate_indicators(df)
+    df = df.dropna()
+    
+    if len(df) < 60:
+        return 0
+    
+    samples_created = 0
+    lookback = 10 if interval in ['1m', '3m', '5m'] else 12
+    step = 4 if interval in ['1m', '3m', '5m'] else 5
+    
+    for i in range(50, len(df) - lookback, step):
+        if samples_created >= max_samples:
+            break
+        
+        row = df.iloc[i]
+        future_row = df.iloc[i + lookback]
+        
+        features = {
+            "Close": float(row['close']),
+            "Volume": float(row['volume']),
+            "EMA_10": float(row['EMA_10']),
+            "EMA_50": float(row['EMA_50']),
+            "RSI": float(row['RSI']),
+            "MACD": float(row['MACD']),
+            "MACD_signal": float(row['MACD_signal']),
+            "BB_upper": float(row['BB_upper']),
+            "BB_middle": float(row['BB_middle']),
+            "BB_lower": float(row['BB_lower']),
+            "ATR": float(row['ATR']),
+            "volume_sma_20": float(row['volume_sma_20']),
+            "price_change_pct": float(row['price_change_pct']),
+            "high_low_range": float(row['high_low_range'])
+        }
+        
+        action, outcome, pnl_pct = determine_action_outcome(
+            features, future_row['close'], row['close']
+        )
+        
+        timestamp = datetime.fromtimestamp(row['timestamp'] / 1000, tz=timezone.utc)
+        exit_time = datetime.fromtimestamp(future_row['timestamp'] / 1000, tz=timezone.utc)
+        
+        sample = AITrainingSample(
+            symbol=symbol,
+            timestamp=timestamp,
+            predicted_action=action,
+            prediction_score=0.75,
+            prediction_confidence=0.75,
+            model_version=source_name,
+            features=json.dumps(features),
+            feature_names=json.dumps(list(features.keys())),
+            executed=True if action != "HOLD" else False,
+            execution_side=action if action != "HOLD" else None,
+            entry_price=row['close'],
+            entry_quantity=100.0,
+            entry_time=timestamp,
+            outcome_known=True,
+            exit_price=future_row['close'],
+            exit_time=exit_time,
+            realized_pnl=pnl_pct if action != "HOLD" else 0,
+            hold_duration_seconds=(exit_time - timestamp).total_seconds(),
+            target_label=pnl_pct,
+            target_class=outcome
+        )
+        
+        db.add(sample)
+        samples_created += 1
+    
+    if samples_created > 0:
+        db.commit()
+    
+    return samples_created
+
+async def main(target_samples=150000):
+    """Multi-exchange futures backfill"""
+    
+    print("🌍🌍🌍 MULTI-EXCHANGE FUTURES BACKFILL 🌍🌍🌍")
+    print("=" * 80)
+    print(f"[TARGET] Target: {target_samples:,} samples from multiple exchanges")
+    print("[CHART] Exchanges: Bybit + OKX")
+    print("💎 Cross-exchange diversity for better AI")
+    print("=" * 80)
+    
+    # Top futures pairs (simplified symbols)
+    symbols = [
+        'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT',
+        'ADAUSDT', 'DOGEUSDT', 'DOTUSDT', 'MATICUSDT', 'AVAXUSDT',
+        'LINKUSDT', 'ATOMUSDT', 'LTCUSDT', 'NEARUSDT', 'APTUSDT',
+        'ARBUSDT', 'OPUSDT', 'SUIUSDT', 'TRXUSDT', 'TONUSDT',
+        'BCHUSDT', 'ETCUSDT', 'AAVEUSDT', 'FTMUSDT', 'PEPEUSDT',
+        'INJUSDT', 'WLDUSDT', 'TIAUSDT', 'RENDERUSDT', 'FETUSDT'
+    ]
+    
+    now = datetime.now(timezone.utc)
+    
+    # Configs: (exchange, source_name, start_time, interval, max_samples)
+    configs = [
+        # BYBIT - Recent high frequency
+        ('bybit', 'bybit_5m_recent', now - timedelta(days=5), '5m', 250),
+        ('bybit', 'bybit_15m_week1', now - timedelta(days=12), '15m', 220),
+        ('bybit', 'bybit_1h_week2', now - timedelta(days=20), '1h', 200),
+        ('bybit', 'bybit_4h_month1', now - timedelta(days=35), '4h', 180),
+        
+        # OKX - Medium term
+        ('okx', 'okx_5m_recent', now - timedelta(days=6), '5m', 240),
+        ('okx', 'okx_15m_week1', now - timedelta(days=14), '15m', 210),
+        ('okx', 'okx_1h_week3', now - timedelta(days=25), '1h', 190),
+        ('okx', 'okx_4h_month2', now - timedelta(days=45), '4h', 170),
+    ]
+    
+    db = SessionLocal()
+    total_samples = 0
+    
+    async with aiohttp.ClientSession() as session:
+        for exchange, source_name, start_time, interval, max_samples in configs:
+            if total_samples >= target_samples:
+                break
+            
+            print(f"\n🔥 {source_name.upper()}")
+            print(f"   Exchange: {exchange.upper()}, Interval: {interval}")
+            print(f"   Period: {(now-start_time).days} days back")
+            
+            config_samples = 0
+            valid_symbols = 0
+            
+            for i in range(0, len(symbols), 10):
+                if total_samples >= target_samples:
+                    break
+                
+                batch = symbols[i:i+10]
+                tasks = [
+                    process_exchange_symbol(session, exchange, sym, interval, 
+                                          start_time, db, source_name, max_samples)
+                    for sym in batch
+                ]
+                
+                results = await asyncio.gather(*tasks)
+                
+                for count in results:
+                    if count > 0:
+                        valid_symbols += 1
+                        config_samples += count
+                        total_samples += count
+                
+                print(f"   [OK] {min(i+10, len(symbols))}/{len(symbols)} symbols: {config_samples:,} samples...")
+                
+                if total_samples >= target_samples:
+                    print(f"\n[TARGET] TARGET REACHED!")
+                    break
+            
+            print(f"   [OK] {source_name}: {config_samples:,} samples from {valid_symbols} pairs")
+    
+    db.close()
+    
+    print("\n" + "=" * 80)
+    print(f"🌍🌍🌍 MULTI-EXCHANGE BACKFILL COMPLETE! 🌍🌍🌍")
+    print(f"   Total NEW samples: {total_samples:,}")
+    print(f"   Exchanges: Bybit + OKX")
+    print(f"   Cross-exchange diversity achieved!")
+    print(f"   AI now has MULTI-EXCHANGE knowledge!")
+    print("=" * 80)
+    
+    return total_samples
+
+if __name__ == '__main__':
+    target = int(sys.argv[1]) if len(sys.argv) > 1 else 150000
+    asyncio.run(main(target))

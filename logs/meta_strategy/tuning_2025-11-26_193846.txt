@@ -1,0 +1,12 @@
+================================================================================
+  META-STRATEGY PARAMETER TUNER
+================================================================================
+
+Current Configuration:
+   Epsilon: 0.10
+   Alpha:   0.20
+   Total Updates: 0
+   Q-Table Size: 13
+
+ΓÜá∩╕Å  Too few updates (< 10) - wait for more trading activity
+   Run this script after at least 10 trades complete

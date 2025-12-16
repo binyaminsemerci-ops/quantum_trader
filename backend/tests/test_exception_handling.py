@@ -5,7 +5,10 @@ Tests for exception handling and error boundaries in the API.
 from fastapi.testclient import TestClient
 from backend.main import app
 
+ADMIN_HEADERS = {"X-Admin-Token": "test-admin-token"}
+
 client = TestClient(app)
+client.headers.update(ADMIN_HEADERS)
 
 
 def test_validation_error_handling():
@@ -46,8 +49,8 @@ def test_invalid_json_handling():
     """Test handling of invalid JSON in request body."""
     response = client.post(
         "/trades",
-        data="invalid json",  # Not JSON
-        headers={"content-type": "application/json"},
+        content="invalid json",  # Not JSON
+        headers={**ADMIN_HEADERS, "content-type": "application/json"},
     )
 
     assert response.status_code == 422

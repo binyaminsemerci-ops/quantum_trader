@@ -1,0 +1,222 @@
+{
+  "analysis_metadata": {
+    "generated_at": "2025-11-23T00:00:00Z",
+    "data_confidence": "LOW",
+    "total_signals_analyzed": 464,
+    "recommendation": "Continue current universe for 7-14 more days",
+    "next_review_date": "2025-11-30T00:00:00Z"
+  },
+  
+  "current_universe": {
+    "mode": "explicit",
+    "symbol_count": 222,
+    "qt_max_symbols": 222,
+    "coverage_pct": 81.1,
+    "avg_signals_per_symbol": 2.6
+  },
+  
+  "classifications": {
+    "CORE": {
+      "description": "High-quality symbols with 100% allow rate (production-ready)",
+      "count": 25,
+      "confidence": "PRELIMINARY",
+      "symbols": [
+        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "LINKUSDT", "LTCUSDT", 
+        "AVAXUSDT", "MATICUSDT", "RNDRUSDT", "HYPEUSDT", "ICPUSDT", 
+        "ZENUSDT", "BCHUSDT", "TAOUSDT", "PAXGUSDT", "AAVEUSDT", "ZECUSDT", 
+        "DASHUSDT", "AGIXUSDT", "GIGGLEUSDT", "EOSUSDT", "ETCUSDT", "FTMUSDT",
+        "NEARUSDT", "RESOLVUSDT"
+      ]
+    },
+    
+    "EXPANSION": {
+      "description": "Moderate performers, suitable for aggressive profiles",
+      "count": 4,
+      "confidence": "PRELIMINARY",
+      "symbols": [
+        "UNIUSDT", "MAVUSDT", "INJUSDT", "ORDIUSDT"
+      ]
+    },
+    
+    "BLACKLIST": {
+      "description": "Poor performers with 0% allow rate",
+      "count": 18,
+      "confidence": "PRELIMINARY",
+      "symbols": [
+        "ZILUSDT", "BLURUSDT", "PYTHUSDT", "DYMUSDT", "PORTALUSDT", 
+        "ALTUSDT", "XAIUSDT", "1000PEPEUSDT", "PUMPUSDT", "SOONUSDT", 
+        "JCTUSDT", "TRUMPUSDT", "TRXUSDT", "WLFIUSDT", "DUSKUSDT", 
+        "PENGUUSDT", "ALPHAUSDT", "UXLINKUSDT", "STRKUSDT"
+      ]
+    },
+    
+    "PERMANENT_BLACKLIST": {
+      "description": "Confirmed blacklist (highest confidence)",
+      "count": 1,
+      "confidence": "HIGH",
+      "symbols": [
+        "ZILUSDT"
+      ]
+    },
+    
+    "REQUIRES_INVESTIGATION": {
+      "description": "Major coins with unusual poor performance",
+      "count": 1,
+      "confidence": "HIGH",
+      "symbols": [
+        "DOGEUSDT"
+      ],
+      "notes": "Major coin showing 0% allow rate - investigate before blacklisting"
+    },
+    
+    "NO_DATA": {
+      "description": "Insufficient signals for classification",
+      "count": 174,
+      "confidence": "N/A",
+      "note": "Need 7-14 more days of data"
+    }
+  },
+  
+  "profiles": {
+    "SAFE": {
+      "name": "Safe Profile",
+      "description": "Conservative - Real money / Mainnet deployment",
+      "when_to_use": "After 14 days of data, for production trading",
+      "recommended_size": 180,
+      "include_categories": ["CORE", "TOP_EXPANSION"],
+      "exclude_categories": ["BLACKLIST", "NO_DATA", "REQUIRES_INVESTIGATION"],
+      "estimated_allow_rate": 0.70,
+      "estimated_signals_per_day": 350,
+      
+      "deployment_config": {
+        "QT_UNIVERSE": "custom",
+        "QT_MAX_SYMBOLS": 180
+      },
+      
+      "whitelist_strategy": "Include all CORE (25) + top 75 EXPANSION symbols after 14-day validation + 80 symbols from current universe with good preliminary metrics",
+      "blacklist_strategy": "Exclude PERMANENT_BLACKLIST + symbols with 0% allow rate after 20+ signals"
+    },
+    
+    "AGGRESSIVE": {
+      "name": "Aggressive Profile",
+      "description": "Maximum diversity - Testnet / Training",
+      "when_to_use": "Anytime for ML training and testing",
+      "recommended_size": 400,
+      "include_categories": ["CORE", "EXPANSION", "CONDITIONAL", "NO_DATA"],
+      "exclude_categories": ["PERMANENT_BLACKLIST"],
+      "estimated_allow_rate": 0.50,
+      "estimated_signals_per_day": 600,
+      
+      "deployment_config": {
+        "QT_UNIVERSE": "l1l2-top",
+        "QT_MAX_SYMBOLS": 400
+      },
+      
+      "whitelist_strategy": "Include all symbols except PERMANENT_BLACKLIST",
+      "blacklist_strategy": "Exclude only ZILUSDT"
+    },
+    
+    "SCALP": {
+      "name": "Scalp Profile",
+      "description": "Ultra-high frequency - Majors only",
+      "when_to_use": "High-frequency strategies, low latency requirements",
+      "recommended_size": 50,
+      "include_categories": ["MAJORS"],
+      "exclude_categories": ["ALL_NON_MAJORS"],
+      "estimated_allow_rate": 0.85,
+      "estimated_signals_per_day": 120,
+      
+      "deployment_config": {
+        "QT_UNIVERSE": "megacap",
+        "QT_MAX_SYMBOLS": 50
+      },
+      
+      "whitelist": [
+        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT",
+        "AVAXUSDT", "DOGEUSDT", "LINKUSDT", "DOTUSDT", "MATICUSDT", 
+        "UNIUSDT", "LTCUSDT", "ATOMUSDT", "TRXUSDT"
+      ],
+      "blacklist": []
+    }
+  },
+  
+  "deployment_recommendations": {
+    "immediate": {
+      "action": "NO CHANGES",
+      "config": "Keep current 222-symbol explicit mode",
+      "add_blacklist": ["ZILUSDT"],
+      "investigate": ["DOGEUSDT"]
+    },
+    
+    "week_1": {
+      "action": "RE-RUN ANALYSIS",
+      "expected_signals": 3200,
+      "confidence": "MEDIUM",
+      "decision": "Expand blacklist if symbols have 0% allow with 20+ signals"
+    },
+    
+    "week_2": {
+      "action": "DECISION POINT",
+      "expected_signals": 6400,
+      "confidence": "HIGH",
+      "options": {
+        "mainnet": "Deploy SAFE profile (180 symbols)",
+        "testnet": "Deploy AGGRESSIVE profile (400 symbols) OR continue current",
+        "scalp": "Deploy SCALP profile (50 symbols)"
+      }
+    },
+    
+    "month_1": {
+      "action": "FULL CLASSIFICATION",
+      "expected_signals": 13000,
+      "confidence": "VERY_HIGH",
+      "task": "Complete symbol classification, optimize universe size"
+    }
+  },
+  
+  "risk_warnings": [
+    "DO NOT make universe changes based on current 464 signals",
+    "DO NOT blacklist major coins without investigation (DOGEUSDT)",
+    "DO NOT remove symbols with no data yet (42 symbols)",
+    "DO validate all changes in paper trading first (7-day test period)",
+    "WAIT for Week 2 milestone (6,400+ signals) before major changes"
+  ],
+  
+  "monitoring": {
+    "daily_kpis": [
+      "Signal generation rate (target: ~460/day)",
+      "Overall allow rate (target: 45-60%)",
+      "Major coins allow rate (should be > 80%)"
+    ],
+    
+    "weekly_kpis": [
+      "Run universe analyzer",
+      "Review blacklist candidates (0% allow, 20+ signals)",
+      "Review CORE performance (should maintain > 80% allow)",
+      "Update classifications based on new data"
+    ],
+    
+    "biweekly_decisions": [
+      "Full universe classification",
+      "Performance comparison (current vs recommended)",
+      "Deploy SAFE profile if going to mainnet"
+    ]
+  },
+  
+  "commands": {
+    "check_universe": "curl -s http://localhost:8000/universe | ConvertFrom-Json",
+    "analyze_distribution": "docker exec quantum_backend python /app/analyze_signal_distribution.py",
+    "run_full_analysis": "docker exec quantum_backend python /app/universe_analyzer.py",
+    "copy_results": "docker cp quantum_backend:/app/data/analysis/universe_analysis_*.json ./",
+    "check_recent_signals": "docker logs quantum_backend --since 1h | grep 'TRADE_ALLOWED\\|TRADE_BLOCKED' | wc -l"
+  },
+  
+  "files_generated": [
+    "UNIVERSE_ANALYSIS_REPORT.md",
+    "UNIVERSE_ANALYSIS_SUMMARY.md",
+    "UNIVERSE_DEPLOYMENT_CONFIG.json",
+    "universe_analysis_latest.json",
+    "analyze_signal_distribution.py",
+    "universe_analyzer.py"
+  ]
+}

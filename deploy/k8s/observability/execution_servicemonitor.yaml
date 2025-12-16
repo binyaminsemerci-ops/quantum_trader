@@ -1,0 +1,29 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: execution-service
+  namespace: quantum-trader
+  labels:
+    app: execution-service
+    tier: execution
+    epic: OBS-001
+spec:
+  selector:
+    matchLabels:
+      app: execution-service
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 15s
+    scrapeTimeout: 10s
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - action: replace
+      targetLabel: service
+      replacement: execution-service
+  namespaceSelector:
+    matchNames:
+    - quantum-trader

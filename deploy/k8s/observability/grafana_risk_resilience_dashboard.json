@@ -1,0 +1,158 @@
+{
+  "dashboard": {
+    "title": "Risk & Resilience Dashboard",
+    "tags": ["risk", "resilience", "stress-testing", "epic-stress-dash-001"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "panels": [
+      {
+        "id": 1,
+        "title": "RiskGate v3 Decisions (Count by Decision)",
+        "type": "timeseries",
+        "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "sum by (decision) (risk_gate_decisions_total)",
+            "legendFormat": "{{decision}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        },
+        "description": "Total RiskGate v3 decisions: allow, block, scale_down"
+      },
+      {
+        "id": 2,
+        "title": "RiskGate Decisions by Reason (Top 5)",
+        "type": "bargauge",
+        "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "topk(5, sum by (reason) (risk_gate_decisions_total))",
+            "legendFormat": "{{reason}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "orientation": "horizontal",
+          "displayMode": "gradient"
+        },
+        "description": "Top 5 most common block/scale reasons"
+      },
+      {
+        "id": 3,
+        "title": "ESS Triggers Over Time (Rate 5m)",
+        "type": "timeseries",
+        "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "sum by (source) (rate(ess_triggers_total[5m]))",
+            "legendFormat": "{{source}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        },
+        "description": "ESS activation rate by trigger source (global_risk, manual, exchange_outage, drawdown)"
+      },
+      {
+        "id": 4,
+        "title": "ESS Triggers (Total Count)",
+        "type": "stat",
+        "gridPos": { "x": 12, "y": 8, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "sum(ess_triggers_total)",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "textMode": "value_and_name"
+        },
+        "description": "Total ESS activations (critical safety metric)"
+      },
+      {
+        "id": 5,
+        "title": "Exchange Failovers (Primary → Selected)",
+        "type": "table",
+        "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "sum by (primary, selected) (exchange_failover_events_total)",
+            "format": "table",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showHeader": true
+        },
+        "description": "Exchange failover events: which primary → selected exchange pairs"
+      },
+      {
+        "id": 6,
+        "title": "Exchange Failover Rate (5m)",
+        "type": "timeseries",
+        "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "sum by (primary) (rate(exchange_failover_events_total[5m]))",
+            "legendFormat": "{{primary}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        },
+        "description": "Failover rate by primary exchange (spike = exchange issues)"
+      },
+      {
+        "id": 7,
+        "title": "Stress Scenarios (Success vs Failure)",
+        "type": "timeseries",
+        "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "sum by (scenario, success) (stress_scenario_runs_total)",
+            "legendFormat": "{{scenario}} ({{success}})",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        },
+        "description": "Stress scenario execution history: success (true) vs failure (false)"
+      },
+      {
+        "id": 8,
+        "title": "Stress Scenarios Success Rate (%)",
+        "type": "bargauge",
+        "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "100 * sum by (scenario) (stress_scenario_runs_total{success=\"true\"}) / sum by (scenario) (stress_scenario_runs_total)",
+            "legendFormat": "{{scenario}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "orientation": "horizontal",
+          "displayMode": "gradient",
+          "minVizWidth": 0,
+          "minVizHeight": 10
+        },
+        "description": "Success rate % for each stress scenario"
+      }
+    ],
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    }
+  },
+  "overwrite": true
+}

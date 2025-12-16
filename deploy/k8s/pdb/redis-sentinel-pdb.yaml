@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: redis-sentinel-pdb
+  namespace: quantum-trader
+  labels:
+    app: redis-sentinel
+    tier: infrastructure
+    epic: K8S-002
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: redis-sentinel

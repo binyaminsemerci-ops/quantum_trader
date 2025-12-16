@@ -1,0 +1,57 @@
+"""Check current Binance Futures positions"""
+import os
+from dotenv import load_dotenv
+from binance.client import Client
+
+load_dotenv()
+
+api_key = os.getenv("BINANCE_API_KEY")
+api_secret = os.getenv("BINANCE_API_SECRET")
+
+if not api_key or not api_secret:
+    print("❌ Missing API credentials in .env file")
+    exit(1)
+
+client = Client(api_key, api_secret)
+
+print("\n📊 CURRENT BINANCE FUTURES POSITIONS")
+print("=" * 80)
+
+# Get all positions
+positions = client.futures_position_information()
+
+active_positions = [p for p in positions if float(p['positionAmt']) != 0]
+
+if not active_positions:
+    print("✅ No active positions")
+else:
+    print(f"\n🎯 Found {len(active_positions)} active position(s):\n")
+    
+    total_pnl = 0
+    for pos in active_positions:
+        symbol = pos['symbol']
+        amt = float(pos['positionAmt'])
+        entry = float(pos['entryPrice'])
+        mark = float(pos['markPrice'])
+        pnl = float(pos['unRealizedProfit'])
+        leverage = int(pos.get('leverage', 30))
+        
+        side = "LONG" if amt > 0 else "SHORT"
+        margin = abs(amt * entry) / leverage
+        pnl_pct = (pnl / margin * 100) if margin > 0 else 0
+        
+        total_pnl += pnl
+        
+        print(f"Symbol:   {symbol}")
+        print(f"Side:     {side}")
+        print(f"Size:     {abs(amt):.4f}")
+        print(f"Leverage: {leverage}x")
+        print(f"Entry:    ${entry:.4f}")
+        print(f"Mark:     ${mark:.4f}")
+        print(f"Margin:   ${margin:.2f}")
+        print(f"PnL:      ${pnl:+.2f} ({pnl_pct:+.2f}%)")
+        print("-" * 80)
+    
+    print(f"\n💰 Total Unrealized PnL: ${total_pnl:+.2f}")
+
+print("=" * 80)

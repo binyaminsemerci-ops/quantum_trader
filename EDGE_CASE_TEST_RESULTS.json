@@ -1,0 +1,130 @@
+{
+  "timestamp": "2025-12-05T22:53:14.394061",
+  "tests": [
+    {
+      "test": "Edge: Empty POST body",
+      "passed": false,
+      "details": "",
+      "error": "",
+      "timestamp": "2025-12-05T22:53:24.705862"
+    },
+    {
+      "test": "Edge: Malformed JSON",
+      "passed": false,
+      "details": "",
+      "error": "",
+      "timestamp": "2025-12-05T22:53:34.718617"
+    },
+    {
+      "test": "Edge: Invalid symbol format",
+      "passed": false,
+      "details": "",
+      "error": "",
+      "timestamp": "2025-12-05T22:53:44.737208"
+    },
+    {
+      "test": "Timeout handling",
+      "passed": true,
+      "details": "System correctly raises timeout exception",
+      "error": "",
+      "timestamp": "2025-12-05T22:53:44.981997"
+    },
+    {
+      "test": "404: /api/nonexistent",
+      "passed": false,
+      "details": "",
+      "error": "",
+      "timestamp": "2025-12-05T22:53:55.261219"
+    },
+    {
+      "test": "404: /api/signals/invalid/endpoint",
+      "passed": false,
+      "details": "",
+      "error": "",
+      "timestamp": "2025-12-05T22:54:05.267369"
+    },
+    {
+      "test": "404: /completely/random/path",
+      "passed": true,
+      "details": "Returns 404 as expected",
+      "error": "",
+      "timestamp": "2025-12-05T22:54:14.871734"
+    },
+    {
+      "test": "404: /api/../../../etc/passwd",
+      "passed": true,
+      "details": "Returns 404 as expected",
+      "error": "",
+      "timestamp": "2025-12-05T22:54:14.920673"
+    },
+    {
+      "test": "Concurrent reads",
+      "passed": true,
+      "details": "All 20 concurrent reads successful",
+      "error": "",
+      "timestamp": "2025-12-05T22:54:17.574386"
+    },
+    {
+      "test": "Large response",
+      "passed": true,
+      "details": "Handled 14,341 bytes successfully",
+      "error": "",
+      "timestamp": "2025-12-05T22:54:18.186980"
+    },
+    {
+      "test": "Special char: symbol",
+      "passed": true,
+      "details": "Status 200 (safe)",
+      "error": "",
+      "timestamp": "2025-12-05T22:54:18.767574"
+    },
+    {
+      "test": "Special char: symbol",
+      "passed": true,
+      "details": "Status 200 (safe)",
+      "error": "",
+      "timestamp": "2025-12-05T22:54:19.102520"
+    },
+    {
+      "test": "Special char: limit",
+      "passed": true,
+      "details": "Status 200 (safe)",
+      "error": "",
+      "timestamp": "2025-12-05T22:54:19.468304"
+    },
+    {
+      "test": "Special char: symbol",
+      "passed": true,
+      "details": "Status 200 (safe)",
+      "error": "",
+      "timestamp": "2025-12-05T22:54:19.798213"
+    },
+    {
+      "test": "Graceful degradation",
+      "passed": true,
+      "details": "Health endpoint provides component status: False",
+      "error": "",
+      "timestamp": "2025-12-05T22:54:20.390829"
+    },
+    {
+      "test": "Rate limit recovery",
+      "passed": true,
+      "details": "System responsive: 50/50 requests succeeded",
+      "error": "",
+      "timestamp": "2025-12-05T22:54:20.717376"
+    },
+    {
+      "test": "Error format",
+      "passed": true,
+      "details": "404 returns JSON with error info: True",
+      "error": "",
+      "timestamp": "2025-12-05T22:54:20.961719"
+    }
+  ],
+  "summary": {
+    "total_tests": 9,
+    "passed": 7,
+    "failed": 2,
+    "pass_rate": 77.77777777777779
+  }
+}

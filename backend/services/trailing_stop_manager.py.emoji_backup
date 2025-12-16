@@ -1,0 +1,301 @@
+"""
+Trailing Stop Manager
+Automatically updates stop losses as positions become profitable
+"""
+import os
+import json
+import asyncio
+import logging
+from pathlib import Path
+from typing import Dict, Optional
+from binance.client import Client
+
+logger = logging.getLogger(__name__)
+
+
+class TrailingStopManager:
+    """
+    Manages trailing stops for all positions
+    
+    Features:
+    - Updates peak/trough as price moves
+    - Moves SL order on Binance when trailing activates
+    - Respects AI-generated trail percentages
+    - Only trails in profit direction (never loosens SL)
+    """
+    
+    def __init__(
+        self,
+        trade_state_path: str = "/app/backend/data/trade_state.json",
+        check_interval: int = 10,  # Check every 10 seconds
+        min_profit_to_activate: float = 0.005  # Must be 0.5% in profit to activate trail
+    ):
+        self.trade_state_path = Path(trade_state_path)
+        self.check_interval = check_interval
+        self.min_profit_to_activate = min_profit_to_activate
+        
+        # Binance client - with testnet support
+        use_testnet = os.getenv("USE_BINANCE_TESTNET", "false").lower() == "true"
+        
+        if use_testnet:
+            api_key = os.getenv("BINANCE_TESTNET_API_KEY")
+            api_secret = os.getenv("BINANCE_TESTNET_SECRET_KEY")
+            if not api_key or not api_secret:
+                raise ValueError("Missing Binance TESTNET credentials")
+            print(f"🧪 TRAILING STOP: Using testnet API")
+            self.client = Client(api_key, api_secret, testnet=True)
+            self.client.API_URL = 'https://testnet.binancefuture.com'
+        else:
+            api_key = os.getenv("BINANCE_API_KEY")
+            api_secret = os.getenv("BINANCE_API_SECRET")
+            if not api_key or not api_secret:
+                raise ValueError("Missing Binance credentials")
+            print(f"🔴 TRAILING STOP: Using live API")
+            self.client = Client(api_key, api_secret)
+        
+        # Cache for exchange info
+        self._precision_cache: Dict[str, int] = {}
+        
+        logger.info("🔄 Trailing Stop Manager initialized")
+    
+    def _load_trade_state(self) -> Dict:
+        """Load trade state from JSON file"""
+        if not self.trade_state_path.exists():
+            return {}
+        try:
+            return json.loads(self.trade_state_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.error(f"Failed to load trade state: {e}")
+            return {}
+    
+    def _save_trade_state(self, state: Dict) -> None:
+        """Save trade state to JSON file"""
+        try:
+            self.trade_state_path.write_text(
+                json.dumps(state, ensure_ascii=False, indent=2),
+                encoding="utf-8"
+            )
+        except Exception as e:
+            logger.error(f"Failed to save trade state: {e}")
+    
+    def _get_precision(self, symbol: str) -> int:
+        """Get price precision for symbol"""
+        if symbol in self._precision_cache:
+            return self._precision_cache[symbol]
+        
+        try:
+            exchange_info = self.client.futures_exchange_info()
+            symbol_info = next((s for s in exchange_info['symbols'] if s['symbol'] == symbol), None)
+            if symbol_info:
+                filters = {f['filterType']: f for f in symbol_info['filters']}
+                if 'PRICE_FILTER' in filters:
+                    tick_size = float(filters['PRICE_FILTER']['tickSize'])
+                    if tick_size >= 1:
+                        precision = 0
+                    else:
+                        precision = len(str(tick_size).split('.')[-1])
+                    self._precision_cache[symbol] = precision
+                    return precision
+        except Exception as e:
+            logger.warning(f"Could not get precision for {symbol}: {e}")
+        
+        return 5  # Default precision
+    
+    async def _update_stop_loss_on_binance(
+        self,
+        symbol: str,
+        side: str,
+        new_sl_price: float
+    ) -> bool:
+        """
+        Update SL order on Binance
+        
+        Process:
+        1. Cancel existing SL orders
+        2. Place new SL order at new price
+        """
+        try:
+            # Cancel existing SL orders
+            open_orders = await asyncio.to_thread(
+                self.client.futures_get_open_orders,
+                symbol=symbol
+            )
+            
+            for order in open_orders:
+                if order['type'] in ['STOP_MARKET', 'STOP_LOSS']:
+                    await asyncio.to_thread(
+                        self.client.futures_cancel_order,
+                        symbol=symbol,
+                        orderId=order['orderId']
+                    )
+                    logger.info(f"🗑️  Cancelled old SL order {order['orderId']} for {symbol}")
+            
+            # Place new SL order
+            sl_side = 'SELL' if side == 'LONG' else 'BUY'
+            precision = self._get_precision(symbol)
+            sl_price_rounded = round(new_sl_price, precision)
+            
+            new_order = await asyncio.to_thread(
+                self.client.futures_create_order,
+                symbol=symbol,
+                side=sl_side,
+                type='STOP_MARKET',
+                stopPrice=sl_price_rounded,
+                closePosition=True,
+                workingType='MARK_PRICE'
+            )
+            
+            logger.info(
+                f"✅ Trailing SL updated for {symbol}: ${sl_price_rounded} "
+                f"(order {new_order['orderId']})"
+            )
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to update SL for {symbol}: {e}")
+            return False
+    
+    async def _process_position(self, symbol: str, state: Dict, trade_states: Dict) -> None:
+        """Process a single position for trailing stop"""
+        
+        # Skip if no trail percentage set
+        if 'ai_trail_pct' not in state:
+            return
+        
+        trail_pct = state['ai_trail_pct']
+        side = state['side']
+        entry = state['avg_entry']
+        
+        try:
+            # Get current position from Binance
+            positions = await asyncio.to_thread(
+                self.client.futures_position_information,
+                symbol=symbol
+            )
+            
+            if not positions:
+                return
+            
+            pos = positions[0]
+            pos_amt = float(pos['positionAmt'])
+            
+            # Skip if position closed
+            if abs(pos_amt) < 0.0001:
+                return
+            
+            current_price = float(pos['markPrice'])
+            unrealized_pnl = float(pos['unRealizedProfit'])
+            position_value = abs(pos_amt) * entry
+            pnl_pct = (unrealized_pnl / position_value) if position_value > 0 else 0
+            
+            # Check if position is profitable enough to activate trailing
+            if pnl_pct < self.min_profit_to_activate:
+                return
+            
+            # Update peak/trough
+            updated = False
+            
+            if side == "LONG":
+                old_peak = state.get('peak', entry)
+                if current_price > old_peak:
+                    state['peak'] = current_price
+                    updated = True
+                    logger.info(f"📈 {symbol} new peak: ${current_price:.6f} (was ${old_peak:.6f})")
+                
+                # Calculate trailing stop from peak
+                peak = state['peak']
+                new_sl = peak * (1 - trail_pct)
+                
+                # Only update if new SL is higher than entry (tightening stop)
+                if new_sl > entry:
+                    # Check if we should update Binance SL
+                    old_sl = state.get('trail_sl', entry)
+                    if new_sl > old_sl * 1.001:  # Only update if >0.1% improvement
+                        success = await self._update_stop_loss_on_binance(symbol, side, new_sl)
+                        if success:
+                            state['trail_sl'] = new_sl
+                            updated = True
+                            logger.info(
+                                f"🎯 {symbol} LONG trailing: Peak=${peak:.6f}, "
+                                f"SL=${new_sl:.6f} ({trail_pct*100:.1f}% trail)"
+                            )
+            
+            else:  # SHORT
+                old_trough = state.get('trough', entry)
+                if current_price < old_trough:
+                    state['trough'] = current_price
+                    updated = True
+                    logger.info(f"📉 {symbol} new trough: ${current_price:.6f} (was ${old_trough:.6f})")
+                
+                # Calculate trailing stop from trough
+                trough = state['trough']
+                new_sl = trough * (1 + trail_pct)
+                
+                # Only update if new SL is lower than entry (tightening stop)
+                if new_sl < entry:
+                    # Check if we should update Binance SL
+                    old_sl = state.get('trail_sl', entry)
+                    if new_sl < old_sl * 0.999:  # Only update if >0.1% improvement
+                        success = await self._update_stop_loss_on_binance(symbol, side, new_sl)
+                        if success:
+                            state['trail_sl'] = new_sl
+                            updated = True
+                            logger.info(
+                                f"🎯 {symbol} SHORT trailing: Trough=${trough:.6f}, "
+                                f"SL=${new_sl:.6f} ({trail_pct*100:.1f}% trail)"
+                            )
+            
+            # Save updated state if changed
+            if updated:
+                trade_states[symbol] = state
+                self._save_trade_state(trade_states)
+        
+        except Exception as e:
+            logger.error(f"Error processing {symbol}: {e}")
+    
+    async def monitor_loop(self) -> None:
+        """Main monitoring loop"""
+        logger.info(f"🔄 Starting trailing stop monitor (interval: {self.check_interval}s)")
+        
+        while True:
+            try:
+                # Load current trade states
+                trade_states = self._load_trade_state()
+                
+                if not trade_states:
+                    await asyncio.sleep(self.check_interval)
+                    continue
+                
+                # Process each position
+                tasks = []
+                for symbol, state in trade_states.items():
+                    if isinstance(state, dict) and 'side' in state:
+                        task = self._process_position(symbol, state, trade_states)
+                        tasks.append(task)
+                
+                if tasks:
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                
+            except Exception as e:
+                logger.error(f"Error in trailing stop monitor: {e}")
+            
+            await asyncio.sleep(self.check_interval)
+    
+    def run(self) -> None:
+        """Run the trailing stop manager"""
+        asyncio.run(self.monitor_loop())
+
+
+def main():
+    """Entry point for standalone execution"""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    manager = TrailingStopManager()
+    manager.run()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,286 @@
+{
+  "timestamp": "2025-12-05T22:54:25.403464",
+  "benchmarks": [
+    {
+      "name": "Health Check",
+      "endpoint": "/health/live",
+      "iterations": 50,
+      "successful": 50,
+      "errors": 0,
+      "min_ms": 1.474142074584961,
+      "max_ms": 474.3483066558838,
+      "mean_ms": 11.414895057678223,
+      "median_ms": 2.08890438079834,
+      "p95_ms": 2.6082992553710938,
+      "p99_ms": 474.3483066558838,
+      "stdev_ms": 66.80558713240454
+    },
+    {
+      "name": "Risk Health",
+      "endpoint": "/health/risk",
+      "iterations": 50,
+      "successful": 50,
+      "errors": 0,
+      "min_ms": 1.5263557434082031,
+      "max_ms": 38.52248191833496,
+      "mean_ms": 4.699978828430176,
+      "median_ms": 2.100229263305664,
+      "p95_ms": 16.74365997314453,
+      "p99_ms": 38.52248191833496,
+      "stdev_ms": 7.243496341297027
+    },
+    {
+      "name": "Dashboard Trading",
+      "endpoint": "/api/dashboard/trading",
+      "iterations": 50,
+      "successful": 48,
+      "errors": 2,
+      "min_ms": 328.1233310699463,
+      "max_ms": 16341.095685958862,
+      "mean_ms": 722.0509002606074,
+      "median_ms": 341.2163257598877,
+      "p95_ms": 823.5175609588623,
+      "p99_ms": 16341.095685958862,
+      "stdev_ms": 2306.74670156173
+    },
+    {
+      "name": "Dashboard Risk",
+      "endpoint": "/api/dashboard/risk",
+      "iterations": 50,
+      "successful": 50,
+      "errors": 0,
+      "min_ms": 1.527547836303711,
+      "max_ms": 19.81830596923828,
+      "mean_ms": 2.8202056884765625,
+      "median_ms": 2.112150192260742,
+      "p95_ms": 8.198022842407227,
+      "p99_ms": 19.81830596923828,
+      "stdev_ms": 3.1823484223160254
+    },
+    {
+      "name": "Dashboard Overview",
+      "endpoint": "/api/dashboard/overview",
+      "iterations": 50,
+      "successful": 50,
+      "errors": 0,
+      "min_ms": 19.220590591430664,
+      "max_ms": 49.323320388793945,
+      "mean_ms": 23.676586151123047,
+      "median_ms": 21.10445499420166,
+      "p95_ms": 41.82314872741699,
+      "p99_ms": 49.323320388793945,
+      "stdev_ms": 6.613188267656243
+    },
+    {
+      "name": "AI Signals Latest",
+      "endpoint": "/api/ai/signals/latest",
+      "iterations": 50,
+      "successful": 50,
+      "errors": 0,
+      "min_ms": 291.14699363708496,
+      "max_ms": 1117.6729202270508,
+      "mean_ms": 370.7060766220093,
+      "median_ms": 304.40211296081543,
+      "p95_ms": 996.5076446533203,
+      "p99_ms": 1117.6729202270508,
+      "stdev_ms": 201.92073220522022
+    },
+    {
+      "name": "System Metrics",
+      "endpoint": "/api/metrics/system",
+      "iterations": 50,
+      "successful": 50,
+      "errors": 0,
+      "min_ms": 4.225254058837891,
+      "max_ms": 35.23850440979004,
+      "mean_ms": 6.843376159667969,
+      "median_ms": 4.897713661193848,
+      "p95_ms": 22.248506546020508,
+      "p99_ms": 35.23850440979004,
+      "stdev_ms": 6.165383516699963
+    },
+    {
+      "name": "Trade History",
+      "endpoint": "/api/trades",
+      "iterations": 50,
+      "successful": 50,
+      "errors": 0,
+      "min_ms": 3.1156539916992188,
+      "max_ms": 5.641460418701172,
+      "mean_ms": 3.8196372985839844,
+      "median_ms": 3.723740577697754,
+      "p95_ms": 4.794836044311523,
+      "p99_ms": 5.641460418701172,
+      "stdev_ms": 0.5705769801006442
+    },
+    {
+      "name": "Concurrent Throughput",
+      "results": [
+        {
+          "concurrency": 1,
+          "total_requests": 10,
+          "successful": 10,
+          "duration_seconds": 0.021094083786010742,
+          "throughput_rps": 474.06657247810114
+        },
+        {
+          "concurrency": 5,
+          "total_requests": 50,
+          "successful": 50,
+          "duration_seconds": 0.08225393295288086,
+          "throughput_rps": 607.8736688328628
+        },
+        {
+          "concurrency": 10,
+          "total_requests": 100,
+          "successful": 100,
+          "duration_seconds": 0.18750405311584473,
+          "throughput_rps": 533.3218047196957
+        },
+        {
+          "concurrency": 25,
+          "total_requests": 250,
+          "successful": 250,
+          "duration_seconds": 0.9937899112701416,
+          "throughput_rps": 251.56222373044656
+        },
+        {
+          "concurrency": 50,
+          "total_requests": 500,
+          "successful": 100,
+          "duration_seconds": 34.185381174087524,
+          "throughput_rps": 2.9252269995397877
+        }
+      ]
+    },
+    {
+      "name": "Cached Signals",
+      "endpoint": "/api/ai/signals/latest",
+      "iterations": 10,
+      "successful": 10,
+      "errors": 0,
+      "min_ms": 292.8314208984375,
+      "max_ms": 48183.36224555969,
+      "mean_ms": 5138.892221450806,
+      "median_ms": 296.90778255462646,
+      "p95_ms": 48183.36224555969,
+      "p99_ms": 48183.36224555969,
+      "stdev_ms": 15125.107839521643
+    },
+    {
+      "name": "Small Data (Health)",
+      "endpoint": "/health/live",
+      "iterations": 100,
+      "successful": 100,
+      "errors": 0,
+      "min_ms": 1.1553764343261719,
+      "max_ms": 32.75012969970703,
+      "mean_ms": 2.4426698684692383,
+      "median_ms": 1.7615556716918945,
+      "p95_ms": 3.1807422637939453,
+      "p99_ms": 32.75012969970703,
+      "stdev_ms": 3.5892423484707265
+    },
+    {
+      "name": "Medium Data (Dashboard)",
+      "endpoint": "/api/dashboard/overview",
+      "iterations": 50,
+      "successful": 50,
+      "errors": 0,
+      "min_ms": 16.127586364746094,
+      "max_ms": 43.419837951660156,
+      "mean_ms": 22.827305793762207,
+      "median_ms": 19.91128921508789,
+      "p95_ms": 38.99860382080078,
+      "p99_ms": 43.419837951660156,
+      "stdev_ms": 6.565944830599867
+    },
+    {
+      "name": "Large Data (Trading)",
+      "endpoint": "/api/dashboard/trading",
+      "iterations": 30,
+      "successful": 30,
+      "errors": 0,
+      "min_ms": 328.7174701690674,
+      "max_ms": 1284.3575477600098,
+      "mean_ms": 400.6139357884725,
+      "median_ms": 339.34199810028076,
+      "p95_ms": 793.3509349822998,
+      "p99_ms": 1284.3575477600098,
+      "stdev_ms": 188.94014296393058
+    },
+    {
+      "name": "Cold Start vs Warm Cache",
+      "cold_start_ms": 385.5597972869873,
+      "warm_cache_ms": 343.99938583374023,
+      "avg_warm_ms": 450.2918243408203,
+      "speedup": 0.8562442763676781
+    }
+  ],
+  "summary": {
+    "average_p95_ms": 4244.611183802287,
+    "overall_grade": "NEEDS OPTIMIZATION",
+    "grades": [
+      {
+        "endpoint": "Health Check",
+        "p95_ms": 2.6082992553710938,
+        "grade": "A+"
+      },
+      {
+        "endpoint": "Risk Health",
+        "p95_ms": 16.74365997314453,
+        "grade": "A+"
+      },
+      {
+        "endpoint": "Dashboard Trading",
+        "p95_ms": 823.5175609588623,
+        "grade": "C"
+      },
+      {
+        "endpoint": "Dashboard Risk",
+        "p95_ms": 8.198022842407227,
+        "grade": "A+"
+      },
+      {
+        "endpoint": "Dashboard Overview",
+        "p95_ms": 41.82314872741699,
+        "grade": "A+"
+      },
+      {
+        "endpoint": "AI Signals Latest",
+        "p95_ms": 996.5076446533203,
+        "grade": "C"
+      },
+      {
+        "endpoint": "System Metrics",
+        "p95_ms": 22.248506546020508,
+        "grade": "A+"
+      },
+      {
+        "endpoint": "Trade History",
+        "p95_ms": 4.794836044311523,
+        "grade": "A+"
+      },
+      {
+        "endpoint": "Cached Signals",
+        "p95_ms": 48183.36224555969,
+        "grade": "D"
+      },
+      {
+        "endpoint": "Small Data (Health)",
+        "p95_ms": 3.1807422637939453,
+        "grade": "A+"
+      },
+      {
+        "endpoint": "Medium Data (Dashboard)",
+        "p95_ms": 38.99860382080078,
+        "grade": "A+"
+      },
+      {
+        "endpoint": "Large Data (Trading)",
+        "p95_ms": 793.3509349822998,
+        "grade": "C"
+      }
+    ]
+  }
+}

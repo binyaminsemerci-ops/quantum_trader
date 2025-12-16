@@ -19,7 +19,7 @@ def init_db():
 
     conn.commit()
     conn.close()
-    print("✅ Database initialisert!")
+    print("[OK] Database initialisert!")
 
 
 if __name__ == "__main__":

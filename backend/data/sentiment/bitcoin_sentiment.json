@@ -1,0 +1,11 @@
+{
+  "symbol": "BTCUSDT",
+  "payload": {
+    "score": 0.747,
+    "label": "positive",
+    "source": "coingecko",
+    "sentiment_votes_up_percentage": 64.26,
+    "market_cap_rank": 1
+  },
+  "fetched_at": "2025-12-15T16:50:42.471576+00:00"
+}

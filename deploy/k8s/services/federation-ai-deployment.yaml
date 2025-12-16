@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: federation-ai
+  namespace: quantum-trader
+  labels:
+    app: federation-ai-service
+    component: federation-ai
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: federation-ai-service
+  template:
+    metadata:
+      labels:
+        app: federation-ai-service
+        component: federation-ai
+        tier: backend
+    spec:
+      containers:
+      - name: federation-ai
+        image: ghcr.io/quantum-trader/federation-ai:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8007
+          name: http
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: quantum-trader-config
+        - secretRef:
+            name: exchange-secrets
+        env:
+        - name: SERVICE_NAME
+          value: "federation-ai"
+        - name: SERVICE_PORT
+          value: "8007"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8007
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8007
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: logs
+        persistentVolumeClaim:
+          claimName: logs-pvc
+      - name: data
+        persistentVolumeClaim:
+          claimName: data-pvc

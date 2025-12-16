@@ -1,0 +1,11 @@
+{
+  "q_table": {},
+  "outcomes": [],
+  "metadata": {
+    "learning_rate": 0.15,
+    "exploration_rate": 0.1,
+    "recent_win_rate": 0.5,
+    "total_updates": 0,
+    "last_updated": "2025-11-28T18:42:48.766092+00:00"
+  }
+}

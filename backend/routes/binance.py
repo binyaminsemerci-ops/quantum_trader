@@ -1,4 +1,6 @@
 from fastapi import APIRouter
+import os
+import requests
 
 router = APIRouter()
 
@@ -15,4 +17,74 @@ async def spot_balance():
 
 @router.get("/futures-balance")
 async def futures_balance():
-    return {"asset": "BTC", "balance": 0.5}
+    """
+    Return actual USDT/USDC balance from Binance Futures account using live API key/secret.
+    """
+    import time
+    import hmac
+    import hashlib
+    import traceback
+    
+    try:
+        api_key = os.getenv("BINANCE_API_KEY")
+        api_secret = os.getenv("BINANCE_API_SECRET")
+        
+        if not api_key or not api_secret:
+            return {"error": "Missing BINANCE_API_KEY or BINANCE_API_SECRET"}
+        
+        base_url = "https://fapi.binance.com"
+        endpoint = "/fapi/v2/account"
+        timestamp = int(time.time() * 1000)
+        query_string = f"timestamp={timestamp}"
+        signature = hmac.new(api_secret.encode(), query_string.encode(), hashlib.sha256).hexdigest()
+        url = f"{base_url}{endpoint}?{query_string}&signature={signature}"
+        headers = {"X-MBX-APIKEY": api_key}
+        
+        resp = requests.get(url, headers=headers, timeout=10)
+        
+        # Check HTTP status
+        if resp.status_code != 200:
+            return {
+                "error": f"Binance API error: {resp.status_code}",
+                "response": resp.text
+            }
+        
+        data = resp.json()
+        
+        # Check if Binance returned an error
+        if "code" in data and "msg" in data:
+            return {
+                "error": f"Binance error {data['code']}: {data['msg']}",
+                "full_response": data
+            }
+        
+        # Parse and return USDT/USDC balances
+        assets = data.get("assets", [])
+        usdt = next((a for a in assets if a.get("asset") == "USDT"), None)
+        usdc = next((a for a in assets if a.get("asset") == "USDC"), None)
+        
+        result = {}
+        if usdt:
+            result["USDT"] = {
+                "walletBalance": float(usdt.get("walletBalance", 0)),
+                "availableBalance": float(usdt.get("availableBalance", 0)),
+                "crossUnPnl": float(usdt.get("crossUnPnl", 0))
+            }
+        if usdc:
+            result["USDC"] = {
+                "walletBalance": float(usdc.get("walletBalance", 0)),
+                "availableBalance": float(usdc.get("availableBalance", 0)),
+                "crossUnPnl": float(usdc.get("crossUnPnl", 0))
+            }
+        
+        if not result:
+            result["message"] = "No USDT/USDC found in Futures account"
+            result["all_assets"] = [a.get("asset") for a in assets if float(a.get("walletBalance", 0)) > 0]
+        
+        return result
+        
+    except Exception as e:
+        return {
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }

@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Live AI monitor - shows when AI checks for signals."""
+import time
+import subprocess
+from datetime import datetime
+
+print("\n" + "=" * 70)
+print("🤖 LIVE AI MONITOR - VENTER PÅ 70%+ CONFIDENCE SIGNAL")
+print("=" * 70)
+print("\n⚙️  KONFIGURASJON:")
+print("   • Event-Driven: ✅ Aktiv")
+print("   • Check Interval: 10 sekunder")
+print("   • Min Confidence: 70%")
+print("   • Symbols: 36")
+print("   • Cooldown: 120s mellom trades")
+print("   • 20x leverage, $1600 per trade")
+print("\n📊 MONITORING...")
+print("   (Trykk Ctrl+C for å stoppe)\n")
+
+last_check_time = None
+
+try:
+    # Start docker logs follow process
+    process = subprocess.Popen(
+        ["docker", "logs", "quantum_backend", "--tail", "0", "--follow"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1
+    )
+    
+    for line in iter(process.stdout.readline, ''):
+        if not line:
+            continue
+            
+        current_time = datetime.now().strftime("%H:%M:%S")
+        
+        # Parse JSON log
+        try:
+            import json
+            log = json.loads(line)
+            msg = log.get('message', '')
+            
+            # AI is checking signals
+            if 'No strong signals' in msg or 'Best BUY' in msg or 'Best SELL' in msg:
+                if last_check_time != current_time:
+                    print(f"⏰ {current_time} | 🔍 AI sjekker signaler...")
+                    if 'Best BUY' in msg or 'Best SELL' in msg:
+                        print(f"   📊 {msg}")
+                    last_check_time = current_time
+            
+            # Strong signal found!
+            elif 'Strong signals' in msg:
+                print(f"\n🎯 {current_time} | ⚡ STRONG SIGNAL FUNNET!")
+                print(f"   {msg}\n")
+            
+            # Position opened
+            elif 'order' in msg.lower() and 'filled' in msg.lower():
+                print(f"\n✅ {current_time} | 📈 POSISJON ÅPNET!")
+                print(f"   {msg}\n")
+            
+            # TP/SL set
+            elif 'TP/SL' in msg or 'TP order' in msg or 'SL order' in msg:
+                print(f"🛡️  {current_time} | {msg}")
+            
+            # Position Monitor check
+            elif 'Position check' in msg:
+                print(f"🔍 {current_time} | Position Monitor: {msg}")
+                
+        except json.JSONDecodeError:
+            # Not JSON, skip
+            continue
+        except KeyboardInterrupt:
+            print("\n\n⏹️  Monitoring stoppet av bruker")
+            break
+        except Exception as e:
+            # Ignore parsing errors
+            continue
+    
+    process.stdout.close()
+    process.wait()
+    
+except KeyboardInterrupt:
+    print("\n\n⏹️  Monitoring stoppet")
+except Exception as e:
+    print(f"\n❌ Error: {e}")
+
+print("\n" + "=" * 70)
+print("🔍 For manuell sjekk:")
+print("   python check_ai_status.py")
+print("=" * 70 + "\n")

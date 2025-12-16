@@ -1,0 +1,12 @@
+{
+  "policy": "defensive_exit",
+  "timestamp": "2025-11-23T00:42:33.044169+00:00",
+  "allow_new_positions": false,
+  "allow_exits": true,
+  "force_close_risky": true,
+  "max_leverage": 10.0,
+  "position_size_multiplier": null,
+  "stop_loss_multiplier": null,
+  "reason": "Critical issues detected - 0 critical subsystems",
+  "affected_subsystems": []
+}

@@ -1,0 +1,100 @@
+"""Demo script for RegimeDetector usage."""
+
+from backend.services.regime_detector import (
+    RegimeDetector,
+    RegimeIndicators,
+    detect_regime,
+)
+
+
+def main():
+    """Demonstrate RegimeDetector usage."""
+    print("=" * 60)
+    print("REGIME DETECTOR - USAGE DEMO")
+    print("=" * 60)
+    
+    # Initialize detector
+    detector = RegimeDetector()
+    print("\n✅ RegimeDetector initialized with default config\n")
+    
+    # Example 1: BTC in normal conditions
+    print("📊 Example 1: BTC Normal Market")
+    print("-" * 60)
+    indicators = RegimeIndicators(
+        price=50000.0,
+        atr=600.0,
+        ema_200=48000.0,
+        adx=28.0
+    )
+    
+    result = detector.detect_regime(indicators)
+    print(f"Price: ${indicators.price:,.2f}")
+    print(f"ATR: ${indicators.atr:.2f} ({result.atr_ratio:.2%})")
+    print(f"EMA200: ${indicators.ema_200:,.2f}")
+    print(f"ADX: {indicators.adx}")
+    print(f"\n✅ REGIME: {result.regime.value}")
+    print(f"   Volatility: {result.volatility_regime.value}")
+    print(f"   Trend: {result.trend_regime}")
+    
+    # Get suggested parameters
+    params = detector.get_regime_parameters(result.regime)
+    print(f"\n📋 Suggested Parameters:")
+    print(f"   Risk Multiplier: {params['risk_multiplier']:.2f}x")
+    print(f"   SL Multiplier: {params['sl_multiplier']:.2f}x")
+    print(f"   TP Multiplier: {params['tp_multiplier']:.2f}x")
+    print(f"   Min Confidence Adj: {params['min_confidence_adj']:+.2f}")
+    
+    # Example 2: BTC flash crash (extreme volatility)
+    print("\n\n📊 Example 2: BTC Flash Crash")
+    print("-" * 60)
+    result2 = detect_regime(
+        price=42000.0,
+        atr=3500.0,
+        ema_200=52000.0,
+        adx=60.0
+    )
+    
+    print(f"Price: ${42000:,.2f}")
+    print(f"ATR: ${3500:.2f} ({result2.atr_ratio:.2%})")
+    print(f"EMA200: ${52000:,.2f}")
+    print(f"ADX: 60.0")
+    print(f"\n⚠️  REGIME: {result2.regime.value}")
+    print(f"   Volatility: {result2.volatility_regime.value}")
+    print(f"   Trend: {result2.trend_regime}")
+    
+    params2 = detector.get_regime_parameters(result2.regime)
+    print(f"\n📋 Suggested Parameters:")
+    print(f"   Risk Multiplier: {params2['risk_multiplier']:.2f}x (REDUCE RISK!)")
+    print(f"   SL Multiplier: {params2['sl_multiplier']:.2f}x (WIDER STOPS!)")
+    print(f"   Min Confidence Adj: {params2['min_confidence_adj']:+.2f} (HIGHER BAR!)")
+    print(f"   Max Position Adj: {params2['max_position_adj']:+d} positions")
+    
+    # Example 3: Altcoin low volatility
+    print("\n\n📊 Example 3: Altcoin Consolidation")
+    print("-" * 60)
+    result3 = detect_regime(
+        price=1.50,
+        atr=0.005,
+        adx=15.0
+    )
+    
+    print(f"Price: ${1.50:.2f}")
+    print(f"ATR: ${0.005:.4f} ({result3.atr_ratio:.2%})")
+    print(f"ADX: 15.0")
+    print(f"\n✅ REGIME: {result3.regime.value}")
+    print(f"   Volatility: {result3.volatility_regime.value}")
+    print(f"   Trend: {result3.trend_regime}")
+    
+    params3 = detector.get_regime_parameters(result3.regime)
+    print(f"\n📋 Suggested Parameters:")
+    print(f"   Risk Multiplier: {params3['risk_multiplier']:.2f}x (MORE AGGRESSIVE)")
+    print(f"   SL Multiplier: {params3['sl_multiplier']:.2f}x (TIGHTER STOPS)")
+    print(f"   Min Confidence Adj: {params3['min_confidence_adj']:+.2f} (LOWER BAR)")
+    
+    print("\n" + "=" * 60)
+    print("DEMO COMPLETE")
+    print("=" * 60)
+
+
+if __name__ == "__main__":
+    main()

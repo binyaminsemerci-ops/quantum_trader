@@ -11,10 +11,17 @@ All settings are validated and securely stored with proper
 error handling and performance monitoring integration.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, SecretStr
 from typing import Any, Optional, Dict
 import logging
+
+try:
+    from backend.utils.admin_auth import require_admin_token
+    from backend.utils.admin_events import AdminEvent, record_admin_event
+except ImportError:  # pragma: no cover - fallback for package-relative imports
+    from utils.admin_auth import require_admin_token  # type: ignore
+    from utils.admin_events import AdminEvent, record_admin_event  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +37,29 @@ router = APIRouter(
 
 # Explicitly type SETTINGS so mypy can validate usages that import this symbol
 SETTINGS: dict[str, Any] = {}
+
+# Supported exchanges for API key management
+SUPPORTED_EXCHANGES = {
+    "binance": "Binance",
+    "bybit": "Bybit", 
+    "coinbase": "Coinbase",
+    "okx": "OKX",
+    "kraken": "Kraken",
+    "kucoin": "KuCoin",
+    "gate": "Gate.io",
+    "mexc": "MEXC",
+}
+
+
+def validate_exchange_key(exchange: str) -> str:
+    """Validate and normalize exchange name."""
+    exchange_lower = exchange.lower()
+    if exchange_lower not in SUPPORTED_EXCHANGES:
+        raise ValueError(
+            f"Unsupported exchange: {exchange}. "
+            f"Supported: {', '.join(SUPPORTED_EXCHANGES.keys())}"
+        )
+    return exchange_lower
 
 
 class SettingsUpdate(BaseModel):
@@ -83,9 +113,11 @@ class SettingsResponse(BaseModel):
     description="Retrieve current application settings and configuration",
 )
 async def get_settings(
+    request: Request,
     secure: bool = Query(
         False, description="Return only security status instead of actual values"
-    )
+    ),
+    _admin_token: Optional[str] = Depends(require_admin_token),
 ):
     """
     Retrieve current application settings.
@@ -101,7 +133,7 @@ async def get_settings(
     try:
         if secure:
             # Return secure configuration status without sensitive data
-            return {
+            payload = {
                 "api_key_configured": bool(SETTINGS.get("api_key")),
                 "api_secret_configured": bool(SETTINGS.get("api_secret")),
                 "risk_percentage": SETTINGS.get("risk_percentage", 1.0),
@@ -109,14 +141,65 @@ async def get_settings(
                 "trading_enabled": SETTINGS.get("trading_enabled", False),
                 "notifications_enabled": SETTINGS.get("notifications_enabled", True),
             }
+            record_admin_event(
+                AdminEvent.SETTINGS_READ,
+                request=request,
+                success=True,
+                details={
+                    "secure": True,
+                    "returned_fields": list(payload.keys()),
+                },
+            )
+            return payload
         else:
             # Return all settings for backward compatibility (testing/development)
             # In production, API secrets should be masked or excluded
-            return dict(SETTINGS)
+            payload = dict(SETTINGS)
+            record_admin_event(
+                AdminEvent.SETTINGS_READ,
+                request=request,
+                success=True,
+                details={
+                    "secure": False,
+                    "returned_fields": list(payload.keys()),
+                },
+            )
+            return payload
 
     except Exception as e:
         logger.error(f"Error retrieving settings: {str(e)}")
+        record_admin_event(
+            AdminEvent.SETTINGS_READ,
+            request=request,
+            success=False,
+            details={
+                "error": "internal_error",
+                "message": str(e),
+                "secure": secure,
+            },
+        )
         raise HTTPException(status_code=500, detail="Failed to retrieve settings")
+
+
+@router.get(
+    "/exchanges",
+    summary="Get Supported Exchanges",
+    description="List all supported cryptocurrency exchanges for API integration",
+)
+async def get_supported_exchanges():
+    """
+    Retrieve list of supported cryptocurrency exchanges.
+    
+    Returns exchange identifiers and display names for all platforms
+    that can be configured with API keys for trading.
+    """
+    return {
+        "exchanges": [
+            {"id": key, "name": value} 
+            for key, value in SUPPORTED_EXCHANGES.items()
+        ],
+        "total": len(SUPPORTED_EXCHANGES),
+    }
 
 
 @router.post(
@@ -125,7 +208,11 @@ async def get_settings(
     summary="Update Application Settings",
     description="Update application settings and trading configuration",
 )
-async def update_settings(payload: Dict[str, Any]):
+async def update_settings(
+    request: Request,
+    payload: Dict[str, Any],
+    _admin_token: Optional[str] = Depends(require_admin_token),
+):
     """
     Update application settings and configuration.
 
@@ -137,9 +224,22 @@ async def update_settings(payload: Dict[str, Any]):
     Only provided fields will be updated, existing settings remain unchanged.
     API secrets are securely handled and never logged or exposed.
     """
+    update_data: Dict[str, Any] = {}
+
     try:
         # Accept any key-value pairs for backward compatibility
         update_data = {k: v for k, v in payload.items() if v is not None}
+
+        # Validate exchange-specific keys (e.g., BYBIT_API_KEY, BINANCE_API_SECRET)
+        for key in update_data.keys():
+            if "_API_KEY" in key or "_API_SECRET" in key:
+                exchange = key.replace("_API_KEY", "").replace("_API_SECRET", "").lower()
+                try:
+                    validate_exchange_key(exchange)
+                    logger.info(f"Accepting {SUPPORTED_EXCHANGES[exchange]} credentials")
+                except ValueError as e:
+                    logger.warning(f"Exchange validation warning: {e}")
+                    # Don't block update for unknown exchanges (backward compatibility)
 
         # Validate settings before applying
         if "risk_percentage" in update_data:
@@ -160,14 +260,41 @@ async def update_settings(payload: Dict[str, Any]):
 
         logger.info(f"Settings updated: {list(update_data.keys())}")
 
+        record_admin_event(
+            AdminEvent.SETTINGS_UPDATE,
+            request=request,
+            success=True,
+            details={"updated_fields": list(update_data.keys())},
+        )
+
         return {
             "status": "success",
             "message": "Settings updated successfully",
             "updated_fields": list(update_data.keys()),
         }
 
-    except HTTPException:
-        raise  # Re-raise HTTP exceptions as-is
+    except HTTPException as exc:
+        record_admin_event(
+            AdminEvent.SETTINGS_UPDATE,
+            request=request,
+            success=False,
+            details={
+                "status_code": exc.status_code,
+                "detail": exc.detail,
+                "attempted_fields": list(update_data.keys()),
+            },
+        )
+        raise
     except Exception as e:
         logger.error(f"Error updating settings: {str(e)}")
+        record_admin_event(
+            AdminEvent.SETTINGS_UPDATE,
+            request=request,
+            success=False,
+            details={
+                "status_code": 500,
+                "error": "internal_error",
+                "attempted_fields": list(update_data.keys()),
+            },
+        )
         raise HTTPException(status_code=500, detail="Failed to update settings")

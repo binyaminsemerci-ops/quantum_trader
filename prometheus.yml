@@ -1,0 +1,22 @@
+# Prometheus configuration for Strategy Generator AI
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'quantum-trader-sg-ai'
+
+scrape_configs:
+  - job_name: 'strategy_generator'
+    static_configs:
+      - targets: ['metrics:9090']
+        labels:
+          service: 'strategy-generator'
+          environment: 'production'
+
+  - job_name: 'quantum_backend'
+    static_configs:
+      - targets: ['backend:8000']
+        labels:
+          service: 'trading-backend'
+          environment: 'production'

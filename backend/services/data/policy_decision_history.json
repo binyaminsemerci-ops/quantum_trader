@@ -1,0 +1,26 @@
+[
+  {
+    "policy": "allow_all",
+    "timestamp": "2025-11-23T00:42:33.035257+00:00",
+    "allow_new_positions": true,
+    "reason": "System healthy - normal operation"
+  },
+  {
+    "policy": "no_new_trades",
+    "timestamp": "2025-11-23T00:42:33.038158+00:00",
+    "allow_new_positions": false,
+    "reason": "System degraded - 0 subsystems affected"
+  },
+  {
+    "policy": "safe_risk_profile",
+    "timestamp": "2025-11-23T00:42:33.038158+00:00",
+    "allow_new_positions": true,
+    "reason": "System under stress - reducing risk exposure"
+  },
+  {
+    "policy": "defensive_exit",
+    "timestamp": "2025-11-23T00:42:33.044169+00:00",
+    "allow_new_positions": false,
+    "reason": "Critical issues detected - 0 critical subsystems"
+  }
+]

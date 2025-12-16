@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Protocol, Type
 import logging
 import datetime
-from config.config import DEFAULT_EXCHANGE
+from backend.config import DEFAULT_EXCHANGE
 
 
 class ExchangeClient(Protocol):
@@ -41,10 +41,31 @@ class _BinanceAdapter:
         self._client = None
         try:
             from binance.client import Client  # type: ignore
+            import os
 
-            if api_key and api_secret:
+            # Check if testnet mode is enabled
+            use_testnet = os.getenv("USE_BINANCE_TESTNET", "false").lower() == "true"
+            print(f"[SEARCH] _BinanceAdapter init: USE_BINANCE_TESTNET={use_testnet}, api_key={bool(api_key)}, api_secret={bool(api_secret)}")
+            
+            if use_testnet:
+                # Use testnet keys if testnet mode is enabled
+                testnet_key = os.getenv("BINANCE_TESTNET_API_KEY")
+                testnet_secret = os.getenv("BINANCE_TESTNET_SECRET_KEY")
+                print(f"[SEARCH] Testnet keys found: key={bool(testnet_key)}, secret={bool(testnet_secret)}")
+                if testnet_key and testnet_secret:
+                    print("[TEST_TUBE] TESTNET MODE: Creating Binance client with testnet=True")
+                    self._client = Client(testnet_key, testnet_secret, testnet=True)  # type: ignore
+                    # Set testnet URL explicitly
+                    self._client.API_URL = 'https://testnet.binancefuture.com'
+                    print(f"[TEST_TUBE] TESTNET MODE: API_URL set to {self._client.API_URL}")
+                else:
+                    print("[WARNING] TESTNET mode enabled but no testnet keys found")
+                    self._client = None
+            elif api_key and api_secret:
+                print("[RED_CIRCLE] LIVE MODE: Creating Binance client with production API")
                 self._client = Client(api_key, api_secret)  # type: ignore
         except Exception as e:
+            print(f"❌ Binance client init failed: {e}")
             logging.getLogger(__name__).debug("binance client init failed: %s", e)
             self._client = None
 

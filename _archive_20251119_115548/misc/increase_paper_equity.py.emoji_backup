@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""
+Increase paper trading equity by adding virtual USDC balance.
+This simulates depositing more funds into the paper trading account.
+"""
+import os
+import sys
+from pathlib import Path
+
+# Add backend to path
+sys.path.insert(0, str(Path(__file__).parent / "backend"))
+
+from backend.database import SessionLocal
+from sqlalchemy import text
+from datetime import datetime, timezone
+
+def increase_paper_equity(target_equity: float = 1000.0):
+    """
+    Increase paper trading equity to target amount.
+    
+    Args:
+        target_equity: Target total equity in USDC (default 1000.0)
+    """
+    session = SessionLocal()
+    
+    try:
+        # Get current positions
+        result = session.execute(
+            text("""
+                SELECT symbol, quantity, notional
+                FROM portfolio_positions
+                WHERE quantity != 0
+                ORDER BY updated_at DESC
+            """)
+        )
+        positions = result.fetchall()
+        
+        print(f"\n📊 Current Positions:")
+        current_equity = 0.0
+        for pos in positions:
+            current_equity += abs(pos.notional)
+            print(f"  {pos.symbol}: {pos.quantity} (notional={pos.notional:.2f} USDC)")
+        
+        print(f"\n💰 Current Equity: {current_equity:.2f} USDC")
+        print(f"🎯 Target Equity: {target_equity:.2f} USDC")
+        
+        if current_equity >= target_equity:
+            print(f"✅ Already at or above target equity!")
+            return
+        
+        # Calculate how much USDC to add
+        usdc_to_add = target_equity - current_equity
+        
+        print(f"\n💵 Adding {usdc_to_add:.2f} USDC to paper account...")
+        
+        # Add virtual USDC position (free cash)
+        session.execute(
+            text("""
+                INSERT INTO portfolio_positions (symbol, quantity, notional, updated_at)
+                VALUES ('USDC_CASH', :quantity, :quantity, :now)
+                ON CONFLICT (symbol) 
+                DO UPDATE SET 
+                    quantity = portfolio_positions.quantity + :quantity,
+                    notional = portfolio_positions.notional + :quantity,
+                    updated_at = :now
+            """),
+            {
+                "quantity": usdc_to_add,
+                "now": datetime.now(timezone.utc)
+            }
+        )
+        session.commit()
+        
+        print(f"✅ Successfully added {usdc_to_add:.2f} USDC!")
+        print(f"🎉 New total equity: {target_equity:.2f} USDC")
+        
+        # Verify
+        result = session.execute(
+            text("SELECT SUM(ABS(notional)) FROM portfolio_positions WHERE quantity != 0")
+        )
+        new_equity = result.scalar() or 0.0
+        print(f"✓ Verified equity: {new_equity:.2f} USDC")
+        
+    except Exception as e:
+        session.rollback()
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        session.close()
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Increase paper trading equity")
+    parser.add_argument(
+        "--target",
+        type=float,
+        default=1000.0,
+        help="Target total equity in USDC (default: 1000.0)"
+    )
+    args = parser.parse_args()
+    
+    print("🏦 Paper Trading Equity Manager")
+    print("=" * 50)
+    increase_paper_equity(args.target)

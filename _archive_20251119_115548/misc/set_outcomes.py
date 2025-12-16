@@ -1,0 +1,18 @@
+from backend.database import SessionLocal
+from backend.models.ai_training import AITrainingSample
+
+db = SessionLocal()
+
+# Oppdater alle samples til outcome_known=True for testing
+samples = db.query(AITrainingSample).all()
+print(f"Fant {len(samples)} samples")
+
+for s in samples:
+    s.outcome_known = True
+    s.pnl_pct = 0.5  # Simulert profit (0.5%)
+    print(f"  Oppdatert sample {s.id}: outcome_known=True, pnl_pct=0.5%")
+
+db.commit()
+print(f"\n[OK] Oppdatert {len(samples)} samples til outcome_known=True")
+
+db.close()

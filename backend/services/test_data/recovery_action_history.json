@@ -1,0 +1,11 @@
+[
+  {
+    "action": "disable_module",
+    "subsystem": "ai_model",
+    "timestamp": "2025-11-23T00:43:40.142157+00:00",
+    "success": true,
+    "message": "Action succeeded",
+    "duration_ms": 1.676,
+    "error": null
+  }
+]

@@ -1,0 +1,536 @@
+# ============================================================================
+# QUANTUM TRADER - PROMPT 10 GO-LIVE CONFIGURATION
+# ============================================================================
+# 
+# This configuration file defines production-ready settings for launching
+# the Quantum Trader system with conservative limits and safety controls.
+#
+# PHASES:
+# - Phase 1 (Week 1-2): Conservative launch with limited symbols/positions
+# - Phase 2 (Week 3-4): Gradual expansion with monitoring
+# - Phase 3 (Month 2+): Full production mode
+#
+# CURRENT PHASE: 1 (Conservative Launch)
+# ============================================================================
+
+---
+system:
+  name: "Quantum Trader"
+  version: "1.0.0-rc1"
+  environment: "production"  # development | staging | production
+  launch_date: "2025-12-04"
+  phase: 1  # 1=Conservative, 2=Expansion, 3=Full Production
+
+# ============================================================================
+# TRADING CONFIGURATION
+# ============================================================================
+trading:
+  # Trading mode: limited (conservative) or full (unrestricted)
+  mode: "limited"
+  
+  # Enable/disable trading (master switch)
+  enabled: true
+  
+  # Paper trading mode (false = live trading with real money)
+  paper_trading: false
+  
+  # Testnet mode (false = production Binance)
+  testnet: false
+  
+  # Trading hours (UTC) - null for 24/7
+  trading_hours:
+    start: null  # "08:00" for 8 AM UTC
+    end: null    # "22:00" for 10 PM UTC
+  
+  # Minimum time between orders (seconds) - prevents rapid firing
+  order_cooldown_sec: 10
+  
+  # Signal processing interval (seconds)
+  signal_check_interval: 10
+
+# ============================================================================
+# SYMBOL WHITELIST & POSITION LIMITS
+# ============================================================================
+symbols:
+  # Phase 1: Start with liquid majors only
+  whitelist:
+    - "BTCUSDT"   # Bitcoin - highest liquidity
+    - "ETHUSDT"   # Ethereum - stable, liquid
+    - "BNBUSDT"   # Binance Coin - low spread
+  
+  # Maximum concurrent positions (across all symbols)
+  max_concurrent: 3
+  
+  # Blacklist (never trade these)
+  blacklist:
+    - "LUNAUSDT"  # Volatile/risky
+    - "USTCUSDT"  # Stablecoin (no trading needed)
+  
+  # Minimum 24h volume (USDT) to consider trading
+  min_24h_volume: 100000000  # 100M USDT
+
+# ============================================================================
+# RISK MANAGEMENT
+# ============================================================================
+risk:
+  # Maximum daily drawdown percentage (ESS trigger threshold)
+  max_daily_drawdown_pct: 3.0  # Conservative for Phase 1
+  
+  # Maximum position size (USDT notional)
+  max_position_usd: 1000  # $1K per position (conservative)
+  
+  # Maximum leverage per trade
+  max_leverage: 30.0
+  
+  # Maximum total exposure (% of capital)
+  max_exposure_pct: 200.0  # 2x leverage across portfolio
+  
+  # Minimum confidence threshold for signals (0-1)
+  min_confidence: 0.60  # Higher than default 0.45 (Phase 1)
+  
+  # Position sizing strategy: fixed | kelly | volatility_adjusted
+  position_sizing: "kelly"
+  
+  # Kelly fraction (if using kelly sizing)
+  kelly_fraction: 0.25  # Conservative 25% of Kelly
+  
+  # Stop loss configuration
+  stop_loss:
+    enabled: true
+    default_pct: 2.0  # 2% stop loss
+    trailing: false   # Disable trailing SL for Phase 1
+  
+  # Take profit configuration
+  take_profit:
+    enabled: true
+    default_pct: 4.0  # 4% take profit (2:1 R:R)
+    partial_exit: false  # Disable partial exits for Phase 1
+
+# ============================================================================
+# EMERGENCY STOP SYSTEM (ESS)
+# ============================================================================
+ess:
+  # Enable ESS (ALWAYS true for production)
+  enabled: true
+  
+  # Maximum daily drawdown before ESS trips (%)
+  max_daily_drawdown_pct: 3.0
+  
+  # Maximum open loss across all positions (%)
+  max_open_loss_pct: 8.0
+  
+  # Maximum consecutive losses before ESS trip
+  max_consecutive_losses: 5
+  
+  # Cooldown period after ESS reset (minutes)
+  cooldown_minutes: 15
+  
+  # Auto-reset ESS after cooldown (false = manual reset required)
+  auto_reset: false
+  
+  # Notification settings
+  notifications:
+    on_trip: true
+    on_reset: true
+    channels:
+      - "slack"
+      - "email"
+
+# ============================================================================
+# BINANCE EXCHANGE CONFIGURATION
+# ============================================================================
+binance:
+  # Exchange type
+  exchange: "binance-futures"
+  
+  # Market type: usdm_perp (USD-M perpetuals) or coinm_perp (COIN-M)
+  market_type: "usdm_perp"
+  
+  # Use testnet (false = LIVE PRODUCTION MODE)
+  testnet: false
+  
+  # API credentials (use environment variables for security)
+  api_key: "${BINANCE_API_KEY}"
+  api_secret: "${BINANCE_API_SECRET}"
+  
+  # Rate limiting
+  rate_limit:
+    requests_per_minute: 1200
+    burst_capacity: 50
+    order_rate_limit: 50  # orders per 10 seconds
+  
+  # Execution settings
+  execution:
+    order_type: "LIMIT"  # LIMIT or MARKET
+    time_in_force: "GTC"  # GTC (Good Till Cancel)
+    reduce_only: false
+    post_only: false
+  
+  # Retry policy
+  retry:
+    max_attempts: 3
+    base_delay_sec: 1.0
+    exponential_backoff: true
+  
+  # WebSocket settings
+  websocket:
+    auto_reconnect: true
+    ping_interval: 30
+    ping_timeout: 10
+
+# ============================================================================
+# INFRASTRUCTURE & CONNECTIONS
+# ============================================================================
+infrastructure:
+  # Backend service
+  backend:
+    host: "0.0.0.0"
+    port: 8000
+    workers: 4
+    reload: false  # Never true in production
+  
+  # AI Engine service
+  ai_engine:
+    host: "0.0.0.0"
+    port: 8001
+    workers: 2
+  
+  # Redis (EventBus)
+  redis:
+    url: "${REDIS_URL}"  # Default: redis://localhost:6379
+    db: 0
+    max_connections: 50
+    socket_timeout: 5
+    socket_keepalive: true
+    
+    # DiskBuffer fallback
+    disk_buffer:
+      enabled: true
+      path: "./data/disk_buffer"
+      max_events: 10000
+  
+  # PostgreSQL Database
+  database:
+    url: "${DATABASE_URL}"  # Default: sqlite:///data/quantum_trader.db
+    pool_size: 10
+    max_overflow: 20
+    echo: false  # SQL logging (false in production)
+  
+  # Dashboard (React frontend)
+  dashboard:
+    host: "0.0.0.0"
+    port: 3000
+    api_base_url: "http://localhost:8000"
+
+# ============================================================================
+# POLICY & GOVERNANCE
+# ============================================================================
+policy:
+  # Active risk mode: CONSERVATIVE | NORMAL | AGGRESSIVE
+  active_mode: "CONSERVATIVE"
+  
+  # Confidence threshold for signal acceptance
+  confidence_threshold: 0.60  # Phase 1 conservative
+  
+  # Policy refresh interval (seconds)
+  refresh_interval: 300  # 5 minutes
+  
+  # Policy cache TTL (seconds)
+  cache_ttl: 600  # 10 minutes (triggers auto-refresh)
+  
+  # PolicyStore backup
+  backup:
+    enabled: true
+    interval_hours: 6
+    retention_days: 30
+    path: "./backups/policy"
+
+# ============================================================================
+# AI ENGINE & MODEL ENSEMBLE
+# ============================================================================
+ai_engine:
+  # Ensemble voting strategy: unanimous | majority | weighted
+  ensemble_strategy: "majority"
+  
+  # Models enabled (4-model ensemble)
+  models:
+    xgb:
+      enabled: true
+      weight: 1.0
+    lgbm:
+      enabled: true
+      weight: 1.0
+    patchtst:
+      enabled: true
+      weight: 1.2  # Slightly higher (best performer)
+    nhits:
+      enabled: true
+      weight: 1.0
+  
+  # Minimum model agreement for signal (0-1)
+  min_agreement: 0.75  # 3 of 4 models must agree
+  
+  # Model retraining schedule
+  retraining:
+    enabled: false  # Manual only for Phase 1
+    interval_days: 7
+    min_samples: 1000
+  
+  # Fallback mode when AI unavailable
+  fallback:
+    enabled: true
+    use_heuristic_signals: true
+
+# ============================================================================
+# MONITORING & ALERTING
+# ============================================================================
+monitoring:
+  # Health check interval (seconds)
+  health_check_interval: 60
+  
+  # Sanity check schedule (cron format: "0 */4 * * *" = every 4 hours)
+  sanity_check_cron: "0 */1 * * *"  # Every hour (Phase 1)
+  
+  # Logging configuration
+  logging:
+    level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL
+    format: "json"  # json | text
+    output: "both"  # console | file | both
+    file_path: "./logs/quantum_trader.log"
+    rotation: "daily"
+    retention_days: 90
+  
+  # Alerting thresholds
+  alerts:
+    # ESS alerts
+    ess_trip:
+      enabled: true
+      severity: "critical"
+      channels: ["slack", "email", "sms"]
+    
+    # Drawdown alerts
+    daily_drawdown:
+      enabled: true
+      threshold_pct: 2.5  # Alert at 2.5% (before 3% ESS trip)
+      severity: "warning"
+      channels: ["slack", "email"]
+    
+    # API errors
+    api_errors:
+      enabled: true
+      threshold_per_hour: 10
+      severity: "warning"
+      channels: ["slack"]
+    
+    # Redis connectivity
+    redis_down:
+      enabled: true
+      severity: "critical"
+      channels: ["slack", "email", "sms"]
+    
+    # Position limit warnings
+    position_limit:
+      enabled: true
+      threshold_pct: 80  # Alert at 80% of max positions
+      severity: "info"
+      channels: ["slack"]
+  
+  # Metrics export
+  metrics:
+    enabled: true
+    exporter: "prometheus"  # prometheus | datadog | cloudwatch
+    port: 9090
+    path: "/metrics"
+
+# ============================================================================
+# NOTIFICATION CHANNELS
+# ============================================================================
+notifications:
+  # Slack integration
+  slack:
+    enabled: true
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channel: "#quantum-trader-alerts"
+    username: "Quantum Trader Bot"
+  
+  # Email alerts
+  email:
+    enabled: true
+    smtp_host: "${SMTP_HOST}"
+    smtp_port: 587
+    smtp_user: "${SMTP_USER}"
+    smtp_password: "${SMTP_PASSWORD}"
+    from_address: "alerts@quantumtrader.ai"
+    to_addresses:
+      - "${ALERT_EMAIL_1}"
+      - "${ALERT_EMAIL_2}"
+  
+  # SMS alerts (Twilio)
+  sms:
+    enabled: false  # Optional
+    twilio_account_sid: "${TWILIO_ACCOUNT_SID}"
+    twilio_auth_token: "${TWILIO_AUTH_TOKEN}"
+    from_number: "${TWILIO_FROM_NUMBER}"
+    to_numbers:
+      - "${ALERT_PHONE_1}"
+
+# ============================================================================
+# FEATURE FLAGS
+# ============================================================================
+features:
+  # Signal flood throttling (Patch #3)
+  signal_throttling:
+    enabled: true
+    max_queue_size: 100
+    max_per_cycle: 10
+  
+  # WebSocket event batching (Patch #6)
+  ws_event_batching:
+    enabled: true
+    batch_size: 10
+    batch_interval_ms: 100
+    max_rate_per_sec: 50
+  
+  # Partial fill retry (Patch #9)
+  partial_fill_retry:
+    enabled: true
+    min_fill_pct: 0.90  # Retry if < 90% filled
+  
+  # Portfolio decimal precision (Patch #5)
+  decimal_precision:
+    enabled: true
+    decimal_places: 2  # USDT precision
+  
+  # PolicyStore auto-refresh (Patch #8)
+  policy_auto_refresh:
+    enabled: true
+    age_threshold_sec: 600  # 10 minutes
+
+# ============================================================================
+# PERFORMANCE TUNING
+# ============================================================================
+performance:
+  # Event processing
+  event_processing:
+    batch_size: 100
+    max_workers: 4
+    queue_size: 1000
+  
+  # Database connection pooling
+  db_pool:
+    min_size: 5
+    max_size: 20
+    timeout_sec: 30
+  
+  # Redis connection pooling
+  redis_pool:
+    min_size: 10
+    max_size: 50
+    timeout_sec: 5
+  
+  # Async task limits
+  async_tasks:
+    max_concurrent_orders: 10
+    max_concurrent_signals: 50
+
+# ============================================================================
+# BACKUP & DISASTER RECOVERY
+# ============================================================================
+backup:
+  # Database backups
+  database:
+    enabled: true
+    interval_hours: 6
+    retention_days: 30
+    path: "./backups/database"
+  
+  # Policy configuration backups
+  policy:
+    enabled: true
+    interval_hours: 6
+    retention_days: 30
+    path: "./backups/policy"
+  
+  # Trade history export
+  trade_history:
+    enabled: true
+    interval_hours: 24
+    retention_days: 365
+    format: "csv"  # csv | json | parquet
+    path: "./backups/trades"
+
+# ============================================================================
+# COMPLIANCE & AUDIT
+# ============================================================================
+compliance:
+  # Audit logging
+  audit_log:
+    enabled: true
+    path: "./logs/audit.log"
+    retention_days: 365
+  
+  # Trade reconciliation
+  reconciliation:
+    enabled: true
+    interval_hours: 24
+  
+  # Regulatory reporting
+  reporting:
+    enabled: false  # Enable if required
+    jurisdiction: "US"  # US | EU | APAC
+
+# ============================================================================
+# ENVIRONMENT VARIABLES REQUIRED
+# ============================================================================
+# 
+# The following environment variables must be set before launching:
+#
+# BINANCE_API_KEY           - Binance API key
+# BINANCE_API_SECRET        - Binance API secret
+# REDIS_URL                 - Redis connection URL (default: redis://localhost:6379)
+# DATABASE_URL              - Database connection URL (default: sqlite:///data/quantum_trader.db)
+# SLACK_WEBHOOK_URL         - Slack webhook for alerts
+# SMTP_HOST                 - SMTP server for email alerts
+# SMTP_USER                 - SMTP username
+# SMTP_PASSWORD             - SMTP password
+# ALERT_EMAIL_1             - Primary alert email
+# ALERT_EMAIL_2             - Secondary alert email (optional)
+#
+# Example .env file:
+# -------------------
+# BINANCE_API_KEY=your_api_key_here
+# BINANCE_API_SECRET=your_api_secret_here
+# REDIS_URL=redis://localhost:6379
+# DATABASE_URL=sqlite:///data/quantum_trader.db
+# SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+# SMTP_HOST=smtp.gmail.com
+# SMTP_USER=your-email@gmail.com
+# SMTP_PASSWORD=your-app-password
+# ALERT_EMAIL_1=admin@yourcompany.com
+# ALERT_EMAIL_2=backup@yourcompany.com
+#
+# ============================================================================
+
+# ============================================================================
+# LAUNCH CHECKLIST
+# ============================================================================
+# 
+# Before starting production trading:
+# 
+# [ ] 1. Set all environment variables in .env file
+# [ ] 2. Verify Binance API keys have correct permissions (Futures Trading enabled)
+# [ ] 3. Run system sanity check: python backend/tools/system_sanity_check.py
+# [ ] 4. Verify ESS is ARMED: check /api/ess/status
+# [ ] 5. Test manual ESS reset flow
+# [ ] 6. Confirm Redis is operational
+# [ ] 7. Confirm PostgreSQL is operational (or SQLite file exists)
+# [ ] 8. Verify PolicyStore loaded correct configuration
+# [ ] 9. Test Slack/Email alert channels
+# [ ] 10. Start backend: docker-compose --profile dev up -d backend
+# [ ] 11. Monitor logs for 5 minutes (check for errors)
+# [ ] 12. Place small test order manually via API
+# [ ] 13. Verify order appears in Binance and dashboard
+# [ ] 14. Enable trading: POST /api/trading/enable
+# [ ] 15. Monitor for first 24 hours continuously
+# 
+# ============================================================================

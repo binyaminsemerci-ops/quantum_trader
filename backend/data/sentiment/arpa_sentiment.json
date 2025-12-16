@@ -1,0 +1,11 @@
+{
+  "symbol": "ARPAUSDT",
+  "payload": {
+    "score": 0.35,
+    "label": "negative",
+    "source": "coingecko",
+    "sentiment_votes_up_percentage": 50,
+    "market_cap_rank": 1326
+  },
+  "fetched_at": "2025-11-19T12:12:52.183401+00:00"
+}

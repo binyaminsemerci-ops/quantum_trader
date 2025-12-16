@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rl-training
+  namespace: quantum-trader
+  labels:
+    app: rl-training-service
+    component: rl-training
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rl-training-service
+  template:
+    metadata:
+      labels:
+        app: rl-training-service
+        component: rl-training
+        tier: backend
+    spec:
+      containers:
+      - name: rl-training
+        image: ghcr.io/quantum-trader/rl-training:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8006
+          name: http
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: quantum-trader-config
+        - secretRef:
+            name: exchange-secrets
+        env:
+        - name: SERVICE_NAME
+          value: "rl-training"
+        - name: SERVICE_PORT
+          value: "8006"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8006
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8006
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: models
+          mountPath: /app/models
+        - name: logs
+          mountPath: /app/logs
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: models
+        persistentVolumeClaim:
+          claimName: models-pvc
+      - name: logs
+        persistentVolumeClaim:
+          claimName: logs-pvc
+      - name: data
+        persistentVolumeClaim:
+          claimName: data-pvc

@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Check TP/SL orders for current positions"""
+import os
+from dotenv import load_dotenv
+from binance.client import Client
+
+load_dotenv()
+
+client = Client(
+    os.getenv("BINANCE_API_KEY"),
+    os.getenv("BINANCE_API_SECRET")
+)
+
+print("[TARGET] CHECKING TP/SL ORDERS")
+print("=" * 80)
+
+# Get all open orders
+open_orders = client.futures_get_open_orders()
+
+if not open_orders:
+    print("❌ No TP/SL orders found!")
+    print("\n[WARNING]  This means positions are UNPROTECTED!")
+else:
+    print(f"Found {len(open_orders)} open orders:\n")
+    
+    for order in open_orders:
+        symbol = order['symbol']
+        side = order['side']
+        order_type = order['type']
+        qty = float(order['origQty'])
+        stop_price = float(order.get('stopPrice', 0))
+        price = float(order.get('price', 0))
+        
+        print(f"{symbol} {order_type} {side}")
+        print(f"  Quantity: {qty}")
+        if stop_price > 0:
+            print(f"  Stop Price: ${stop_price:.4f}")
+        if price > 0:
+            print(f"  Limit Price: ${price:.4f}")
+        print()
+
+print("=" * 80)
+
+# Get positions to compare
+positions = client.futures_position_information()
+open_positions = [p for p in positions if float(p['positionAmt']) != 0]
+
+print(f"\n[CHART] Open Positions: {len(open_positions)}")
+for pos in open_positions:
+    symbol = pos['symbol']
+    qty = float(pos['positionAmt'])
+    entry = float(pos['entryPrice'])
+    mark = float(pos['markPrice'])
+    
+    side = "LONG" if qty > 0 else "SHORT"
+    
+    # Calculate expected TP/SL with 15% TP and 10% SL margin
+    leverage = 30
+    if side == "LONG":
+        tp_price = entry * (1 + 0.15 / leverage)  # 15% margin = 0.5% price
+        sl_price = entry * (1 - 0.10 / leverage)  # 10% margin = 0.33% price
+    else:
+        tp_price = entry * (1 - 0.15 / leverage)  # 15% margin = 0.5% price
+        sl_price = entry * (1 + 0.10 / leverage)  # 10% margin = 0.33% price
+    
+    print(f"\n{symbol} {side}")
+    print(f"  Entry: ${entry:.4f}")
+    print(f"  Current: ${mark:.4f}")
+    print(f"  Expected TP: ${tp_price:.4f} (15% margin = {abs(tp_price-entry)/entry*100:.2f}% price)")
+    print(f"  Expected SL: ${sl_price:.4f} (10% margin = {abs(sl_price-entry)/entry*100:.2f}% price)")
+
+print("\n" + "=" * 80)

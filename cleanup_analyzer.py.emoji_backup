@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""
+🧹 SYSTEM CLEANUP ANALYZER
+Identifiserer ubrukte filer som kan slettes
+"""
+import os
+from pathlib import Path
+
+# Root directory
+ROOT = Path(r"c:\quantum_trader")
+
+# Kategorier av filer
+CATEGORIES = {
+    "temporary_fixes": [
+        "fix_*.py", "emergency_*.py", "force_*.py", "auto_set_tpsl.py",
+        "set_tpsl_*.py", "docker_force_leverage.py"
+    ],
+    "diagnostic_scripts": [
+        "check_*.py", "diagnose_*.py", "verify_*.py", "test_*.py",
+        "show_*.py", "query*.py", "demo_integration.py"
+    ],
+    "close_position_scripts": [
+        "close_*.py"
+    ],
+    "monitoring_scripts": [
+        "monitor_*.py", "monitor_*.ps1", "live_ai_monitor.py",
+        "watch_ai_live.py", "trading_status_summary.py"
+    ],
+    "training_scripts": [
+        "train_*.py", "retrain_*.py", "continuous_training*.py",
+        "main_train_and_backtest.py", "optimize_win_rate.py"
+    ],
+    "backfill_scripts": [
+        "*backfill*.py", "generate_historical_samples.py", 
+        "bootstrap_training_data.py", "regenerate_dataset.py"
+    ],
+    "documentation_old": [
+        "*_COMPLETE.md", "*_STATUS.md", "*_REPORT*.md", "*_FIX*.md",
+        "*_IMPLEMENTATION*.md", "*_PLAN*.md", "PULL_REQUEST*.md",
+        "SESSION_SUMMARY*.md", "TEAM_NOTIFICATION.md", "WHERE_DID*.md"
+    ],
+    "batch_files": [
+        "*.bat", "*.ps1"
+    ],
+    "temporary_data": [
+        "*.log", "*.txt", "tmp_*.json", "run*.json", 
+        "health_dump.json", "temp_*.json", "query"
+    ],
+    "test_files_root": [
+        "test_*.py", "conftest.py"
+    ]
+}
+
+# Filer som SKAL BEHOLDES (viktige for produksjon)
+KEEP_FILES = {
+    "ai_dashboard.py",  # Nylig laget dashboard
+    "quick_check.py",  # Rask position check
+    "check_ai_status.py",  # AI status
+    "docker-compose.yml",
+    "docker-compose.vps.yml",
+    ".env",
+    ".env.example",
+    ".gitignore",
+    ".dockerignore",
+    "requirements.txt",
+    "README.md",
+    "README_NEW.md",
+    "ARCHITECTURE.md",
+    "API.md",
+    "DATABASE.md"
+}
+
+# Directories som skal ignoreres
+IGNORE_DIRS = {
+    ".git", ".venv", "__pycache__", ".mypy_cache", ".pytest_cache",
+    ".ruff_cache", "node_modules", "blobs", "artifacts_*",
+    "catboost_info", ".github", ".githooks", "xgboost",
+    "backend", "frontend", "ai_engine", "config", "database",
+    "data", "logs", "tests", "docs", "scripts", "tools",
+    "migrations", "quantum_trader", "qt-agent-ui", "manifests",
+    ".pytest_tmp"
+}
+
+def should_ignore_dir(path: Path) -> bool:
+    """Sjekk om directory skal ignoreres"""
+    for ignore in IGNORE_DIRS:
+        if ignore.endswith("*"):
+            if path.name.startswith(ignore[:-1]):
+                return True
+        elif path.name == ignore:
+            return True
+    return False
+
+def categorize_files():
+    """Kategoriser alle filer i root directory"""
+    results = {cat: [] for cat in CATEGORIES}
+    results["keep"] = []
+    results["unknown"] = []
+    
+    # Scan root directory only
+    for item in ROOT.iterdir():
+        if item.is_dir() and should_ignore_dir(item):
+            continue
+        
+        if not item.is_file():
+            continue
+        
+        filename = item.name
+        
+        # Sjekk om filen skal beholdes
+        if filename in KEEP_FILES:
+            results["keep"].append(filename)
+            continue
+        
+        # Kategoriser basert på pattern
+        categorized = False
+        for category, patterns in CATEGORIES.items():
+            for pattern in patterns:
+                import fnmatch
+                if fnmatch.fnmatch(filename, pattern):
+                    results[category].append(filename)
+                    categorized = True
+                    break
+            if categorized:
+                break
+        
+        if not categorized:
+            # Spesielle tilfeller
+            if filename.endswith((".db", ".db-journal")):
+                results["temporary_data"].append(filename)
+            elif filename in ["sitecustomize.py", "mypy.ini", "pytest.ini",
+                            ".bandit", ".secrets.baseline", ".pre-commit-config.yaml"]:
+                results["keep"].append(filename)
+            else:
+                results["unknown"].append(filename)
+    
+    return results
+
+def print_results(results):
+    """Print resultater i pene kategorier"""
+    print("=" * 80)
+    print("🧹 SYSTEM CLEANUP ANALYSIS")
+    print("=" * 80)
+    print()
+    
+    # Tell totals
+    total_to_remove = sum(len(files) for cat, files in results.items() 
+                          if cat not in ["keep", "unknown"])
+    total_keep = len(results["keep"])
+    total_unknown = len(results["unknown"])
+    
+    print(f"📊 SUMMARY:")
+    print(f"   • Files to REMOVE: {total_to_remove}")
+    print(f"   • Files to KEEP: {total_keep}")
+    print(f"   • Unknown files: {total_unknown}")
+    print()
+    
+    # Print hver kategori
+    for category, files in results.items():
+        if not files or category in ["keep", "unknown"]:
+            continue
+        
+        print(f"\n📁 {category.upper().replace('_', ' ')} ({len(files)} files):")
+        print("-" * 80)
+        for f in sorted(files)[:10]:  # Vis første 10
+            print(f"   • {f}")
+        if len(files) > 10:
+            print(f"   ... og {len(files) - 10} flere")
+    
+    if results["unknown"]:
+        print(f"\n❓ UNKNOWN FILES ({len(results['unknown'])} files):")
+        print("-" * 80)
+        for f in sorted(results["unknown"])[:15]:
+            print(f"   • {f}")
+        if len(results["unknown"]) > 15:
+            print(f"   ... og {len(results['unknown']) - 15} flere")
+    
+    print("\n" + "=" * 80)
+    print("✅ Analysis complete!")
+    print("=" * 80)
+
+if __name__ == "__main__":
+    results = categorize_files()
+    print_results(results)

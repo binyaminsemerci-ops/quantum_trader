@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+"""Test end-to-end agent integration with trading bot signal prioritization"""
+
+import sys
+import os
+sys.path.insert(0, r"c:\quantum_trader")
+
+import asyncio
+from backend.routes.live_ai_signals import get_live_ai_signals
+from backend.trading_bot.autonomous_trader import AutonomousTradingBot
+
+
+async def test_signal_generation():
+    """Test that signals are generated with proper metadata"""
+    print("\n=== Testing Signal Generation ===")
+    
+    signals = await get_live_ai_signals(limit=5, profile="mixed")
+    
+    print(f"✓ Generated {len(signals)} signals")
+    
+    if signals:
+        for i, sig in enumerate(signals[:3], 1):
+            source = sig.get("source", "unknown")
+            model = sig.get("model", "unknown")
+            symbol = sig.get("symbol")
+            side = sig.get("side")
+            confidence = sig.get("confidence", 0)
+            
+            print(f"  [{i}] {symbol}: {side.upper()} (confidence={confidence:.2f}, source={source}, model={model})")
+    
+    return signals
+
+
+async def test_bot_prioritization():
+    """Test that trading bot correctly prioritizes agent signals"""
+    print("\n=== Testing Bot Signal Prioritization ===")
+    
+    # Create test signals with mixed sources
+    test_signals = [
+        {
+            "symbol": "BTCUSDT",
+            "side": "buy",
+            "confidence": 0.5,
+            "source": "LiveAIHeuristic",
+            "details": {"source": "LiveAIHeuristic"},
+        },
+        {
+            "symbol": "ETHUSDT",
+            "side": "sell",
+            "confidence": 0.8,
+            "source": "XGBAgent",
+            "details": {"source": "XGBAgent"},
+        },
+        {
+            "symbol": "BNBUSDT",
+            "side": "buy",
+            "confidence": 0.6,
+            "source": "LiveAIHeuristic",
+            "details": {"source": "LiveAIHeuristic"},
+        },
+    ]
+    
+    bot = AutonomousTradingBot(dry_run=True)
+    prioritized = bot._prioritize_signals(test_signals)
+    
+    print(f"✓ Original order: {[s['symbol'] for s in test_signals]}")
+    print(f"✓ Prioritized order: {[s['symbol'] for s in prioritized]}")
+    
+    # Verify agent signals come first
+    agent_first = prioritized[0].get("source") == "XGBAgent"
+    
+    if agent_first:
+        print("✓ Agent signals correctly prioritized!")
+    else:
+        print("✗ Agent signals NOT prioritized correctly")
+        return False
+    
+    return True
+
+
+async def test_metadata_flow():
+    """Test that metadata flows through to API responses"""
+    print("\n=== Testing Metadata Flow ===")
+    
+    from backend.main import _normalise_signals
+    
+    raw_signals = [
+        {
+            "id": "test1",
+            "symbol": "BTCUSDT",
+            "side": "buy",
+            "confidence": 0.75,
+            "price": 50000.0,
+            "timestamp": "2025-11-14T10:00:00",
+            "source": "XGBAgent",
+            "model": "ensemble",
+            "details": {"source": "XGBAgent", "note": "ML prediction"},
+        }
+    ]
+    
+    normalized = _normalise_signals(raw_signals, limit=10)
+    
+    if normalized:
+        sig = normalized[0]
+        has_source = "source" in sig
+        has_model = "model" in sig
+        
+        print(f"✓ Normalized signal keys: {list(sig.keys())}")
+        print(f"✓ Source field present: {has_source} (value: {sig.get('source')})")
+        print(f"✓ Model field present: {has_model} (value: {sig.get('model')})")
+        
+        return has_source and has_model
+    
+    return False
+
+
+async def main():
+    print("=" * 60)
+    print("QUANTUM TRADER AI INTEGRATION TEST")
+    print("=" * 60)
+    
+    results = []
+    
+    # Test 1: Signal Generation
+    try:
+        signals = await test_signal_generation()
+        results.append(("Signal Generation", len(signals) > 0))
+    except Exception as e:
+        print(f"✗ Signal generation failed: {e}")
+        results.append(("Signal Generation", False))
+    
+    # Test 2: Bot Prioritization
+    try:
+        prioritization_ok = await test_bot_prioritization()
+        results.append(("Bot Prioritization", prioritization_ok))
+    except Exception as e:
+        print(f"✗ Bot prioritization failed: {e}")
+        results.append(("Bot Prioritization", False))
+    
+    # Test 3: Metadata Flow
+    try:
+        metadata_ok = await test_metadata_flow()
+        results.append(("Metadata Flow", metadata_ok))
+    except Exception as e:
+        print(f"✗ Metadata flow failed: {e}")
+        results.append(("Metadata Flow", False))
+    
+    # Summary
+    print("\n" + "=" * 60)
+    print("TEST SUMMARY")
+    print("=" * 60)
+    
+    for test_name, passed in results:
+        status = "✓ PASS" if passed else "✗ FAIL"
+        print(f"{status}: {test_name}")
+    
+    total = len(results)
+    passed = sum(1 for _, p in results if p)
+    
+    print(f"\nOverall: {passed}/{total} tests passed")
+    
+    if passed == total:
+        print("\n🎉 All integration tests passed!")
+        return 0
+    else:
+        print(f"\n[WARNING]  {total - passed} test(s) failed")
+        return 1
+
+
+if __name__ == "__main__":
+    exit_code = asyncio.run(main())
+    sys.exit(exit_code)

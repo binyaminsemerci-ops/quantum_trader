@@ -1,0 +1,16 @@
+{
+  "test_timestamp": "2025-11-23T00:23:32.610912+00:00",
+  "overall_status": "critical",
+  "summary": {
+    "total_issues": 3,
+    "critical_issues": 2,
+    "error_issues": 0,
+    "warning_issues": 1,
+    "healthy_subsystems": 11,
+    "degraded_subsystems": 1,
+    "critical_subsystems": 2
+  },
+  "issues_count": 3,
+  "recommendations_count": 3,
+  "safe_to_continue": false
+}

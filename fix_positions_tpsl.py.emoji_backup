@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""
+Verify and fix TP/SL for all positions
+Ensures proper perpetual profit taking with STOP_LOSS orders
+"""
+import sys
+import os
+
+# Add backend to path
+sys.path.insert(0, '/app')
+os.chdir('/app')
+
+try:
+    from backend.services.position_monitor import PositionMonitor
+    from backend.config import config
+    import asyncio
+    
+    async def fix_positions():
+        print("\n" + "="*80)
+        print("🔧 VERIFYING AND FIXING TP/SL FOR ALL POSITIONS")
+        print("="*80 + "\n")
+        
+        monitor = PositionMonitor()
+        
+        # Force a position check
+        print("🔍 Checking all positions...")
+        await monitor.check_positions()
+        
+        print("\n" + "="*80)
+        print("✅ Position check completed!")
+        print("="*80 + "\n")
+    
+    asyncio.run(fix_positions())
+    
+except Exception as e:
+    print(f"❌ Error: {e}")
+    import traceback
+    traceback.print_exc()

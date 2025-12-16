@@ -1,0 +1,51 @@
+"""Close all small positions (<$500) to free slots for $4000 trades"""
+import asyncio
+import os
+from binance.client import Client
+
+async def close_all_small_positions():
+    api_key = os.getenv("BINANCE_API_KEY")
+    api_secret = os.getenv("BINANCE_API_SECRET")
+    
+    if not api_key or not api_secret:
+        print("❌ Missing API credentials")
+        return
+    
+    client = Client(api_key, api_secret)
+    
+    try:
+        positions = client.futures_position_information()
+        
+        closed = 0
+        for pos in positions:
+            qty = float(pos['positionAmt'])
+            if qty == 0:
+                continue
+            
+            symbol = pos['symbol']
+            entry_price = float(pos['entryPrice'])
+            notional = abs(qty * entry_price)
+            
+            # Close positions under $500
+            if notional < 500:
+                print(f"\n🔄 Closing {symbol}: notional=${notional:.2f}")
+                
+                side = 'SELL' if qty > 0 else 'BUY'
+                order = client.futures_create_order(
+                    symbol=symbol,
+                    side=side,
+                    type='MARKET',
+                    quantity=abs(qty),
+                    reduceOnly=True
+                )
+                
+                print(f"[OK] Closed {symbol} - Order ID: {order['orderId']}")
+                closed += 1
+        
+        print(f"\n[OK] Closed {closed} small positions")
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(close_all_small_positions())

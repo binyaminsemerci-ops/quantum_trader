@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-11-22T23:49:45.332753+00:00",
+  "total_positions": 0,
+  "strong_trend_count": 0,
+  "slow_grinder_count": 0,
+  "stalling_count": 0,
+  "reversal_risk_count": 0,
+  "toxic_count": 0,
+  "insufficient_data_count": 0,
+  "calm_count": 0,
+  "stressed_count": 0,
+  "critical_count": 0,
+  "total_unrealized_pnl": 0.0,
+  "total_current_R": 0.0,
+  "avg_time_in_trade_hours": 0.0,
+  "avg_momentum_score": 0.0,
+  "positions_needing_attention": [],
+  "positions_to_scale_in": [],
+  "positions_to_scale_out": [],
+  "positions_to_exit": [],
+  "focus_risk_reduction": [],
+  "focus_profit_maximization": []
+}

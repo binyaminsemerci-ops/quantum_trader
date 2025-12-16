@@ -2,10 +2,12 @@ name: Frontend CI
 
 on:
   push:
+    branches: [ main ]
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'
   pull_request:
+    branches: [ main ]
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'
@@ -18,61 +20,95 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  quality:
+    name: Lint, Typecheck, Unit (coverage) & Build
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./frontend
+        working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
           cache: 'npm'
-          cache-dependency-path: './frontend/package-lock.json'
-      - name: Install
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
         run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
       - name: Typecheck
         run: npm run typecheck
-      - name: Lint  
-        run: npm run lint
-      - name: Build
+
+      - name: Unit tests (coverage)
+        run: npm test -- --coverage
+        env:
+          CI: 'true'
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: frontend/coverage/
+
+      - name: Build (production)
         run: npm run build
-      - name: Test
-        run: npm run test
-      - name: Import Files
-        run: |
-          import './style.css'
-          import typescriptLogo from './typescript.svg'
-          import viteLogo from '/vite.svg'
-          import { setupCounter } from './counter'
 
-          document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-            <div>
-              <a href="https://vitejs.dev" target="_blank">
-                <img src="${viteLogo}" class="logo" alt="Vite logo" />
-              </a>
-              <a href="https://www.typescriptlang.org/" target="_blank">
-                <img src="${typescriptLogo}" class="logo vanilla" alt="TypeScript logo" />
-              </a>
-              <h1>Vite + TypeScript</h1>
+      - name: Upload production build
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
 
-              <div class="card">
-                <button id="counter" type="button"></button>
-              </div>
-              <p class="read-the-docs">
-                Click on the Vite and TypeScript logos to learn more
-              </p>
-            </div>
-          `
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    needs: quality
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-          setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p ./tsconfig.json",
-    "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
-    "test": "vitest run --reporter=dot"
-  }
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        uses: microsoft/playwright-github-action@v1
+        with:
+          with-deps: true
+
+      - name: Run Playwright tests (trace on first retry)
+        run: npm run e2e -- --trace on-first-retry
+        env:
+          CI: 'true'
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+
+      - name: Upload Playwright test-results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: frontend/test-results/

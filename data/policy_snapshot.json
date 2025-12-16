@@ -1,0 +1,72 @@
+{
+  "active_mode": "NORMAL",
+  "modes": {
+    "AGGRESSIVE_SMALL_ACCOUNT": {
+      "max_leverage": 7.0,
+      "max_risk_pct_per_trade": 0.03,
+      "max_daily_drawdown": 0.06,
+      "max_positions": 15,
+      "global_min_confidence": 0.45,
+      "scaling_factor": 1.5,
+      "position_size_cap": 300.0,
+      "enable_rl": true,
+      "enable_meta_strategy": true,
+      "enable_pal": true,
+      "enable_pba": true,
+      "enable_clm": true,
+      "enable_retraining": true,
+      "enable_dynamic_tpsl": true
+    },
+    "NORMAL": {
+      "max_leverage": 5.0,
+      "max_risk_pct_per_trade": 0.015,
+      "max_daily_drawdown": 0.05,
+      "max_positions": 30,
+      "global_min_confidence": 0.5,
+      "scaling_factor": 1.0,
+      "position_size_cap": 1000.0,
+      "enable_rl": true,
+      "enable_meta_strategy": true,
+      "enable_pal": true,
+      "enable_pba": true,
+      "enable_clm": true,
+      "enable_retraining": true,
+      "enable_dynamic_tpsl": true
+    },
+    "DEFENSIVE": {
+      "max_leverage": 3.0,
+      "max_risk_pct_per_trade": 0.0075,
+      "max_daily_drawdown": 0.03,
+      "max_positions": 10,
+      "global_min_confidence": 0.6,
+      "scaling_factor": 0.7,
+      "position_size_cap": 500.0,
+      "enable_rl": true,
+      "enable_meta_strategy": true,
+      "enable_pal": true,
+      "enable_pba": true,
+      "enable_clm": false,
+      "enable_retraining": false,
+      "enable_dynamic_tpsl": true
+    }
+  },
+  "rl_v3_live": {
+    "enabled": true,
+    "mode": "PRIMARY",
+    "min_confidence": 0.6,
+    "max_trades_per_hour": 10,
+    "max_size_pct": 0.15,
+    "max_margin_alloc_pct": 0.25,
+    "liq_buffer_pct": 0.20,
+    "max_loss_per_trade_pct": 0.02,
+    "check_open_positions": true,
+    "promotion_requires_ack": true
+  },
+  "last_updated": "2025-12-13 23:00:00.000000",
+  "updated_by": "production_patch_v3_live",
+  "version": 28,
+  "emergency_mode": false,
+  "allow_new_trades": true,
+  "emergency_reason": null,
+  "emergency_activated_at": null
+}

@@ -1,0 +1,25 @@
+from backend.database import SessionLocal
+from backend.models.ai_training import AITrainingSample
+import json
+
+db = SessionLocal()
+samples = db.query(AITrainingSample).all()
+
+print(f"Total samples: {len(samples)}\n")
+
+for s in samples[:2]:
+    print(f"Sample {s.id}:")
+    print(f"  Symbol: {s.symbol}")
+    print(f"  Timestamp: {s.timestamp}")
+    print(f"  Outcome known: {s.outcome_known}")
+    print(f"  PnL: {s.pnl_pct}%")
+    print(f"  Features: {s.features}")
+    if s.features:
+        features_dict = json.loads(s.features)
+        print(f"  Features count: {len(features_dict)}")
+        print(f"  Features keys: {list(features_dict.keys())[:5]}")
+    else:
+        print(f"  ⚠️ NO FEATURES!")
+    print()
+
+db.close()

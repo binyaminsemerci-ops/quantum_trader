@@ -1,0 +1,34 @@
+import sqlite3
+from datetime import datetime, timedelta
+
+conn = sqlite3.connect('backend/data/trades.db')
+cur = conn.cursor()
+
+# Get logs from last 2 minutes
+two_min_ago = (datetime.utcnow() - timedelta(minutes=2)).isoformat()
+logs = cur.execute(
+    'SELECT timestamp, message FROM execution_journal WHERE timestamp > ? ORDER BY timestamp DESC LIMIT 20',
+    (two_min_ago,)
+).fetchall()
+
+print("\n=== LOGS FROM LAST 2 MINUTES ===\n")
+if logs:
+    for ts, msg in logs:
+        print(f"{ts}: {msg}")
+else:
+    print("❌ No logs in last 2 minutes - system may not be running!")
+
+# Check if event-driven executor is logging
+print("\n=== CHECKING FOR EVENT-DRIVEN ACTIVITY ===\n")
+recent_event_logs = cur.execute(
+    'SELECT timestamp, message FROM execution_journal WHERE message LIKE "%event-driven%" OR message LIKE "%_check_and_execute%" ORDER BY timestamp DESC LIMIT 5'
+).fetchall()
+
+if recent_event_logs:
+    print("[OK] Event-driven executor IS logging:")
+    for ts, msg in recent_event_logs:
+        print(f"  {ts}: {msg[:150]}")
+else:
+    print("❌ No event-driven executor logs found!")
+
+conn.close()

@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""Analyze NEARUSDT position and TP/SL."""
+import os
+import sys
+sys.path.insert(0, '/app')
+from binance.client import Client
+
+client = Client(os.getenv('BINANCE_API_KEY'), os.getenv('BINANCE_API_SECRET'))
+
+# Get NEARUSDT position
+positions = client.futures_position_information(symbol='NEARUSDT')
+pos = [p for p in positions if float(p['positionAmt']) != 0]
+
+if not pos:
+    print("❌ Ingen NEARUSDT posisjon funnet i Binance API")
+    exit(0)
+
+pos = pos[0]
+amt = float(pos['positionAmt'])
+entry = float(pos['entryPrice'])
+mark = float(pos['markPrice'])
+pnl = float(pos['unRealizedProfit'])
+
+print(f"\n🔍 NEARUSDT POSISJON ANALYSE\n{'='*60}")
+print(f"Side: {'LONG' if amt > 0 else 'SHORT'}")
+print(f"Size: {abs(amt)} NEAR")
+print(f"Entry Price: ${entry:.4f}")
+print(f"Mark Price: ${mark:.4f}")
+print(f"Unrealized PnL: ${pnl:.2f}")
+
+# Calculate price movement
+price_change = ((mark - entry) / entry) * 100
+print(f"\n📊 Pris bevegelse: {price_change:+.2f}%")
+
+# With 20x leverage
+leverage = 20
+margin_impact = price_change * leverage
+print(f"Med {leverage}x leverage: {margin_impact:+.2f}% margin impact")
+
+# Expected TP/SL prices for SHORT
+sl_price_expected = entry * 1.02  # 2% above entry
+tp_price_expected = entry * 0.97  # 3% below entry
+
+print(f"\n🎯 FORVENTET TP/SL (basert på QT_SL_PCT=0.02, QT_TP_PCT=0.03):")
+print(f"Stop Loss burde være: ${sl_price_expected:.4f} (+2% fra entry)")
+print(f"Take Profit burde være: ${tp_price_expected:.4f} (-3% fra entry)")
+
+# Check actual orders
+orders = client.futures_get_open_orders(symbol='NEARUSDT')
+print(f"\n📋 FAKTISKE ORDERS ({len(orders)}):")
+
+stop_loss_orders = []
+take_profit_orders = []
+trailing_orders = []
+
+for order in orders:
+    order_type = order['type']
+    stop_price = float(order.get('stopPrice', 0))
+    
+    if order_type == 'STOP_MARKET' and order.get('closePosition'):
+        stop_loss_orders.append(stop_price)
+        print(f"   🛑 STOP_MARKET (SL): ${stop_price:.4f}")
+    elif order_type == 'TAKE_PROFIT_MARKET':
+        take_profit_orders.append(stop_price)
+        print(f"   ✅ TAKE_PROFIT: ${stop_price:.4f}")
+    elif order_type == 'TRAILING_STOP_MARKET':
+        trailing_orders.append(stop_price)
+        print(f"   📈 TRAILING_STOP: ${stop_price:.4f}")
+
+# Analysis
+print(f"\n⚠️  PROBLEM ANALYSE:")
+
+if not stop_loss_orders:
+    print(f"❌ INGEN STOP_MARKET ORDER! Posisjonen er ubeskyttet!")
+else:
+    sl_actual = stop_loss_orders[0]
+    sl_distance_pct = ((sl_actual - entry) / entry) * 100
+    print(f"✅ Stop Loss finnes: ${sl_actual:.4f}")
+    print(f"   Distance fra entry: {sl_distance_pct:+.2f}%")
+    
+    if sl_distance_pct > 2.5:
+        print(f"   🚨 PROBLEM: SL er {sl_distance_pct:.2f}% over entry (burde være ~2%)")
+        print(f"   Med 20x leverage betyr dette {sl_distance_pct * 20:.0f}% margin tap før SL trigger!")
+    
+    # Check if current price already passed SL
+    if mark >= sl_actual:
+        print(f"   🚨 KRITISK: Mark price ${mark:.4f} er ALLEREDE over SL ${sl_actual:.4f}!")
+        print(f"   Stop loss burde ha trigget!")
+
+# Current status
+print(f"\n📉 NÅVÆRENDE STATUS:")
+print(f"Mark price: ${mark:.4f}")
+print(f"Må stige til: ${stop_loss_orders[0] if stop_loss_orders else 'INGEN SL':.4f} for SL trigger")
+distance_to_sl = ((stop_loss_orders[0] - mark) / mark * 100) if stop_loss_orders else 0
+print(f"Distance til SL: {distance_to_sl:+.2f}%")
+
+# Recommendation
+if pnl < 0 and abs(pnl) > 50:  # More than $50 loss
+    print(f"\n🚨 ANBEFALING: Med ${pnl:.2f} tap ({(pnl/(abs(amt)*entry/leverage))*100:.1f}% av margin)")
+    print(f"Vurder å lukke posisjonen manuelt ELLER sett en tettere stop loss!")

@@ -30,6 +30,14 @@ AI Engine
 └── Training Pipeline         # Automatisk retrening av modeller
 ```
 
+## 🤖 Signal Pipeline
+
+1. `backend/routes/live_ai_signals.py` forsøker først å bruke `XGBAgent.scan_top_by_volume_from_api(...)` til å generere signaler basert på modellene i `ai_engine/models/`.
+2. Hvert ML-signal enriches med sanntidspriser fra Binance før de sendes videre til API-klienter og den autonome trading-boten.
+3. Hvis XGBAgent midlertidig er utilgjengelig (mangler modell, nettverk, etc.), faller systemet tilbake til den eksisterende `SimpleAITrader`-heuristikken slik at signalstrømmen aldri stopper helt.
+
+Dette betyr at både frontend, `/signals/*`-endepunktene og `AutonomousTradingBot` nå følger de samme ML-baserte signalene uten ekstra konfigurasjon.
+
 ## 🛠️ Installasjon og Oppsett
 
 ### 1. Forutsetninger
@@ -189,25 +197,25 @@ python test_ai_trading_integration.py
 
 ### Vanlige Problemer
 
-**Backend starter ikke**
+### Backend starter ikke
 
 - Sjekk at alle avhengigheter er installert
 - Verifiser at port 8001 er ledig
 - Sjekk backend/logs/ for feilmeldinger
 
-**AI Service ikke tilgjengelig**
+### AI Service ikke tilgjengelig
 
 - Sjekk at `ai_auto_trading_service.py` finnes i rot katalogen
 - Verifiser at XGBAgent kan lastes
 - Sjekk at treningsdata finnes
 
-**Ingen AI signaler genereres**
+### Ingen AI signaler genereres
 
 - Verifiser markedsdata tilkobling
 - Sjekk AI modell konfigurasjon
 - Kontroller minimum tillitsnivå innstillinger
 
-**Frontend viser ikke AI data**
+### Frontend viser ikke AI data
 
 - Sjekk WebSocket tilkobling i browser DevTools
 - Verifiser backend API endepunkt tilgjengelighet

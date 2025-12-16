@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: quantum-trader-config
+  namespace: quantum-trader
+  labels:
+    app: quantum-trader
+    component: config
+data:
+  # Environment
+  ENVIRONMENT: "staging"
+  LOG_LEVEL: "INFO"
+  QT_LOG_LEVEL: "INFO"
+  PYTHONPATH: "/app"
+  PYTHONUNBUFFERED: "1"
+  
+  # Service Discovery
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+  
+  # Internal Service URLs
+  RISK_SAFETY_SERVICE_URL: "http://risk-safety-service:8003"
+  EXECUTION_SERVICE_URL: "http://execution-service:8002"
+  AI_ENGINE_SERVICE_URL: "http://ai-engine-service:8001"
+  FEDERATION_AI_SERVICE_URL: "http://federation-ai-service:8007"
+  MONITORING_SERVICE_URL: "http://monitoring-service:8005"
+  PORTFOLIO_SERVICE_URL: "http://portfolio-service:8004"
+  
+  # Trading Configuration
+  QT_EXECUTION_EXCHANGE: "binance-futures"
+  QT_MARKET_TYPE: "usdm_perp"
+  QT_QUOTES: "USDT"
+  DEFAULT_QUOTE: "USDT"
+  QT_EVENT_DRIVEN_MODE: "true"
+  QT_ENABLE_EXECUTION: "true"
+  QT_ENABLE_AI_TRADING: "true"
+  
+  # AI Model Configuration
+  AI_MODEL: "hybrid"
+  QT_CONFIDENCE_THRESHOLD: "0.45"
+  QT_MIN_CONFIDENCE: "0.65"
+  AI_ENGINE_MIN_SIGNAL_CONFIDENCE: "0.65"
+  
+  # Position Sizing & Risk Management
+  RM_MAX_POSITION_USD: "2000"
+  RM_MIN_POSITION_USD: "100"
+  RM_MAX_LEVERAGE: "30.0"
+  RM_RISK_PER_TRADE_PCT: "0.10"
+  RM_MIN_RISK_PCT: "0.01"
+  RM_MAX_RISK_PCT: "0.05"
+  RM_MAX_EXPOSURE_PCT: "2.00"
+  RM_MAX_CONCURRENT_TRADES: "20"
+  
+  # Continuous Learning
+  QT_CONTINUOUS_LEARNING: "true"
+  QT_MIN_SAMPLES_FOR_RETRAIN: "50"
+  QT_RETRAIN_INTERVAL_HOURS: "24"
+  QT_AUTO_BACKTEST_AFTER_TRAIN: "true"
+  
+  # Universe Selection
+  QT_UNIVERSE: "l1l2-top"
+  QT_MAX_SYMBOLS: "50"
+  
+  # Monitoring & Health
+  QT_MODEL_SUPERVISOR_INTERVAL: "300"
+  QT_PORTFOLIO_BALANCER_INTERVAL: "60"
+  QT_CHECK_INTERVAL: "10"
+  QT_COOLDOWN_SECONDS: "120"

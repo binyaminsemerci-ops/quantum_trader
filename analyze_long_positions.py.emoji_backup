@@ -1,0 +1,184 @@
+"""Analyze APTUSDT and SOLUSDT positions from Binance UI"""
+
+print("\n" + "=" * 100)
+print("📊 POSITION ANALYSIS - APTUSDT & SOLUSDT")
+print("=" * 100)
+
+# Configuration
+tp_pct = 0.03
+sl_pct = 0.02
+trail_pct = 0.015
+partial_tp = 0.5
+leverage = 20
+
+print(f"\n⚙️ System Config: TP={tp_pct*100:.1f}% | SL={sl_pct*100:.1f}% | Trail={trail_pct*100:.1f}% | Partial={partial_tp*100:.0f}%\n")
+
+# ========================================
+# APTUSDT Analysis
+# ========================================
+print("=" * 100)
+print("1️⃣ APTUSDT LONG")
+print("=" * 100)
+
+apt_size = 1228.9
+apt_entry = 2.87548
+apt_mark = 2.87691
+apt_liq = 2.85980
+apt_margin = 175.72  # BNFCR
+apt_pnl = -19.88  # BNFCR
+apt_pnl_pct = -11.31
+apt_last = 2.8739
+apt_sl_ui = 2.81800
+
+notional_apt = apt_size * apt_entry
+
+print(f"\n🟢 Position Details:")
+print(f"   Size:        {apt_size:>12,.1f} APT")
+print(f"   Entry:       ${apt_entry:>12.6f}")
+print(f"   Mark Price:  ${apt_mark:>12.6f}")
+print(f"   Last Price:  ${apt_last:>12.6f}")
+print(f"   Notional:    ${notional_apt:>12,.2f}")
+print(f"   Leverage:    {leverage}x")
+
+print(f"\n💰 P&L Status:")
+print(f"   Margin:      {apt_margin:>12,.2f} BNFCR")
+print(f"   Unrealized:  {apt_pnl:>12,.2f} BNFCR ({apt_pnl_pct:>+7.2f}%)")
+
+# Calculate price movement
+price_move_apt = ((apt_mark - apt_entry) / apt_entry) * 100
+print(f"   Price Move:  {price_move_apt:>12,.2f}% from entry")
+
+# Expected TP/SL
+apt_tp = apt_entry * (1 + tp_pct)
+apt_sl = apt_entry * (1 - sl_pct)
+apt_trail = apt_entry * (1 + trail_pct)
+
+print(f"\n🎯 Expected Protection (Our System):")
+print(f"   TP Target:   ${apt_tp:>12.6f} (+{tp_pct*100:.1f}%)")
+print(f"      → Closes {apt_size * partial_tp:>8,.1f} APT (50%)")
+print(f"   SL Target:   ${apt_sl:>12.6f} (-{sl_pct*100:.1f}%)")
+print(f"      → Full position")
+print(f"   Trail Trig:  ${apt_trail:>12.6f} (+{trail_pct*100:.1f}%)")
+print(f"      → For remaining {apt_size * (1-partial_tp):>8,.1f} APT (50%)")
+
+print(f"\n🔍 Binance UI Shows:")
+print(f"   SL Visible:  ${apt_sl_ui:>12.6f}")
+print(f"   Liquidation: ${apt_liq:>12.6f}")
+
+# Distance to levels
+dist_to_tp = ((apt_tp - apt_mark) / apt_mark) * 100
+dist_to_sl = ((apt_mark - apt_sl) / apt_mark) * 100
+dist_to_liq = ((apt_mark - apt_liq) / apt_mark) * 100
+
+print(f"\n📏 Distance from Current Price:")
+print(f"   To TP:       {dist_to_tp:>+8.2f}% (${apt_tp - apt_mark:>+10.6f})")
+print(f"   To SL:       {dist_to_sl:>+8.2f}% (${apt_sl - apt_mark:>+10.6f})")
+print(f"   To Liq:      {dist_to_liq:>+8.2f}% (${apt_liq - apt_mark:>+10.6f})")
+
+print(f"\n⚠️ Status:")
+if price_move_apt >= trail_pct * 100:
+    print(f"   📈 Trailing stop should be ACTIVE!")
+elif price_move_apt >= 0:
+    print(f"   ✅ In profit, watching for trailing activation at +{trail_pct*100:.1f}%")
+else:
+    print(f"   ⚠️ Currently in loss ({price_move_apt:+.2f}%)")
+    print(f"   ⚠️ Will hit SL if price drops to ${apt_sl:.6f} ({dist_to_sl:.2f}% more)")
+
+# ========================================
+# SOLUSDT Analysis
+# ========================================
+print("\n" + "=" * 100)
+print("2️⃣ SOLUSDT LONG")
+print("=" * 100)
+
+sol_size = 20.67
+sol_entry = 138.1700
+sol_mark = 138.2390
+sol_liq = 137.1200
+sol_margin = 141.71  # BNFCR
+sol_pnl = -22.11  # BNFCR
+sol_pnl_pct = -15.60
+sol_last = 138.17
+sol_sl_ui = 135.4100
+
+notional_sol = sol_size * sol_entry
+
+print(f"\n🟢 Position Details:")
+print(f"   Size:        {sol_size:>12,.2f} SOL")
+print(f"   Entry:       ${sol_entry:>12.4f}")
+print(f"   Mark Price:  ${sol_mark:>12.4f}")
+print(f"   Last Price:  ${sol_last:>12.4f}")
+print(f"   Notional:    ${notional_sol:>12,.2f}")
+print(f"   Leverage:    {leverage}x")
+
+print(f"\n💰 P&L Status:")
+print(f"   Margin:      {sol_margin:>12,.2f} BNFCR")
+print(f"   Unrealized:  {sol_pnl:>12,.2f} BNFCR ({sol_pnl_pct:>+7.2f}%)")
+
+# Calculate price movement
+price_move_sol = ((sol_mark - sol_entry) / sol_entry) * 100
+print(f"   Price Move:  {price_move_sol:>12,.2f}% from entry")
+
+# Expected TP/SL
+sol_tp = sol_entry * (1 + tp_pct)
+sol_sl = sol_entry * (1 - sl_pct)
+sol_trail = sol_entry * (1 + trail_pct)
+
+print(f"\n🎯 Expected Protection (Our System):")
+print(f"   TP Target:   ${sol_tp:>12.4f} (+{tp_pct*100:.1f}%)")
+print(f"      → Closes {sol_size * partial_tp:>8,.2f} SOL (50%)")
+print(f"   SL Target:   ${sol_sl:>12.4f} (-{sl_pct*100:.1f}%)")
+print(f"      → Full position")
+print(f"   Trail Trig:  ${sol_trail:>12.4f} (+{trail_pct*100:.1f}%)")
+print(f"      → For remaining {sol_size * (1-partial_tp):>8,.2f} SOL (50%)")
+
+print(f"\n🔍 Binance UI Shows:")
+print(f"   SL Visible:  ${sol_sl_ui:>12.4f}")
+print(f"   Liquidation: ${sol_liq:>12.4f}")
+
+# Distance to levels
+dist_to_tp_sol = ((sol_tp - sol_mark) / sol_mark) * 100
+dist_to_sl_sol = ((sol_mark - sol_sl) / sol_mark) * 100
+dist_to_liq_sol = ((sol_mark - sol_liq) / sol_mark) * 100
+
+print(f"\n📏 Distance from Current Price:")
+print(f"   To TP:       {dist_to_tp_sol:>+8.2f}% (${sol_tp - sol_mark:>+10.4f})")
+print(f"   To SL:       {dist_to_sl_sol:>+8.2f}% (${sol_sl - sol_mark:>+10.4f})")
+print(f"   To Liq:      {dist_to_liq_sol:>+8.2f}% (${sol_liq - sol_mark:>+10.4f})")
+
+print(f"\n⚠️ Status:")
+if price_move_sol >= trail_pct * 100:
+    print(f"   📈 Trailing stop should be ACTIVE!")
+elif price_move_sol >= 0:
+    print(f"   ✅ In profit, watching for trailing activation at +{trail_pct*100:.1f}%")
+else:
+    print(f"   ⚠️ Currently in loss ({price_move_sol:+.2f}%)")
+    print(f"   ⚠️ Will hit SL if price drops to ${sol_sl:.4f} ({dist_to_sl_sol:.2f}% more)")
+
+# ========================================
+# Summary
+# ========================================
+print("\n" + "=" * 100)
+print("📋 SUMMARY")
+print("=" * 100)
+
+total_margin = apt_margin + sol_margin
+total_pnl = apt_pnl + sol_pnl
+total_pnl_pct = (total_pnl / total_margin) * 100
+
+print(f"\n💼 Combined Long Positions:")
+print(f"   Total Margin:     {total_margin:>10,.2f} BNFCR")
+print(f"   Total Unrealized: {total_pnl:>10,.2f} BNFCR ({total_pnl_pct:>+7.2f}%)")
+
+print(f"\n🎯 Both positions have:")
+print(f"   ✅ Partial TP orders set (50% each)")
+print(f"   ✅ Trailing stop orders (remaining 50%)")
+print(f"   ✅ Stop loss backup (full position)")
+
+print(f"\n⚠️ Current Situation:")
+print(f"   - Both positions slightly in loss due to mark/entry price difference")
+print(f"   - APTUSDT: {price_move_apt:+.2f}% from entry")
+print(f"   - SOLUSDT: {price_move_sol:+.2f}% from entry")
+print(f"   - Need prices to rise {dist_to_tp:.2f}% (APT) and {dist_to_tp_sol:.2f}% (SOL) to hit TP")
+
+print("\n" + "=" * 100)

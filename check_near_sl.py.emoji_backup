@@ -1,0 +1,26 @@
+from binance.client import Client
+import os
+
+c = Client(os.getenv('BINANCE_API_KEY'), os.getenv('BINANCE_API_SECRET'))
+
+# Get NEARUSDT position
+pos = c.futures_position_information(symbol='NEARUSDT')[0]
+amt = float(pos['positionAmt'])
+entry = float(pos['entryPrice'])
+mark = float(pos['markPrice'])
+
+print(f"\n🔍 NEARUSDT SHORT ANALYSIS")
+print(f"Entry: ${entry:.4f}")
+print(f"Mark:  ${mark:.4f}")
+print(f"Movement: {((mark-entry)/entry)*100:+.3f}%")
+print(f"\n🎯 REQUIRED SL (0.1% above entry for 2% margin loss on 20x):")
+print(f"SL Price: ${entry * 1.001:.4f}")
+print(f"\n⚠️  PROBLEM:")
+if mark > entry * 1.001:
+    print(f"❌ Mark price (${mark:.4f}) is ABOVE SL price (${entry*1.001:.4f})!")
+    print(f"   SL order would trigger IMMEDIATELY - that's why Binance rejects it!")
+    print(f"\n💡 SOLUTION:")
+    print(f"   Need to set SL at current mark + small buffer:")
+    print(f"   Suggested SL: ${mark * 1.002:.4f} (+0.2% from mark)")
+else:
+    print(f"✅ Mark price is below SL - order should work")

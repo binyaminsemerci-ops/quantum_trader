@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""Set 20x leverage on all symbols and fix JCTUSDT TP/SL."""
+import os
+from binance.client import Client
+from dotenv import load_dotenv
+
+load_dotenv()
+
+client = Client(os.getenv('BINANCE_API_KEY'), os.getenv('BINANCE_API_SECRET'))
+
+LEVERAGE = 20
+
+print("\n" + "=" * 70)
+print(f"⚡ SETTING {LEVERAGE}x LEVERAGE ON ALL SYMBOLS")
+print("=" * 70)
+
+# Get all positions (including 0)
+positions = client.futures_position_information()
+
+symbols_set = set()
+for p in positions[:20]:  # Set on first 20 symbols
+    symbol = p['symbol']
+    if symbol not in symbols_set:
+        try:
+            client.futures_change_leverage(symbol=symbol, leverage=LEVERAGE)
+            print(f"   [OK] {symbol}: {LEVERAGE}x")
+            symbols_set.add(symbol)
+        except Exception as e:
+            if 'No need to change leverage' in str(e):
+                print(f"   ℹ️  {symbol}: Already {LEVERAGE}x")
+            else:
+                print(f"   [WARNING]  {symbol}: {e}")
+
+print("\n" + "=" * 70)
+print("[SHIELD]  FIXING JCTUSDT TP/SL (proper price precision)")
+print("=" * 70)
+
+# Get JCTUSDT position
+positions = [p for p in client.futures_position_information() if p['symbol'] == 'JCTUSDT' and float(p['positionAmt']) != 0]
+
+if not positions:
+    print("   [WARNING]  No JCTUSDT position found")
+else:
+    p = positions[0]
+    amt = float(p['positionAmt'])
+    entry_price = float(p['entryPrice'])
+    
+    print(f"\n   Position: {amt}")
+    print(f"   Entry: ${entry_price:.8f}")
+    
+    # Get proper price precision
+    exchange_info = client.futures_exchange_info()
+    symbol_info = next((s for s in exchange_info['symbols'] if s['symbol'] == 'JCTUSDT'), None)
+    
+    price_filter = next((f for f in symbol_info['filters'] if f['filterType'] == 'PRICE_FILTER'), None)
+    tick_size = float(price_filter['tickSize'])
+    
+    # Calculate precision properly
+    tick_str = f"{tick_size:.10f}".rstrip('0')
+    if '.' in tick_str:
+        price_precision = len(tick_str.split('.')[-1])
+    else:
+        price_precision = 0
+    
+    print(f"   Tick Size: {tick_size}")
+    print(f"   Price Precision: {price_precision} decimals")
+    
+    # 20x leverage settings: tighter stops
+    TP_PCT = 0.03  # 3%
+    SL_PCT = 0.02  # 2%
+    TRAIL_PCT = 0.015  # 1.5%
+    PARTIAL_TP = 0.5
+    
+    # Calculate TP/SL with proper precision
+    if amt > 0:  # LONG
+        tp_price = round(entry_price * (1 + TP_PCT), price_precision)
+        sl_price = round(entry_price * (1 - SL_PCT), price_precision)
+        side = 'SELL'
+    else:  # SHORT
+        tp_price = round(entry_price * (1 - TP_PCT), price_precision)
+        sl_price = round(entry_price * (1 + SL_PCT), price_precision)
+        side = 'BUY'
+    
+    print(f"\n   TP: ${tp_price:.8f} (+{TP_PCT*100:.1f}%)")
+    print(f"   SL: ${sl_price:.8f} (-{SL_PCT*100:.1f}%)")
+    
+    # Get quantity precision
+    qty_filter = next((f for f in symbol_info['filters'] if f['filterType'] == 'LOT_SIZE'), None)
+    step_size = float(qty_filter['stepSize'])
+    
+    def round_qty(qty, step):
+        if step >= 1:
+            return int(qty)
+        step_str = f"{step:.10f}".rstrip('0')
+        if '.' in step_str:
+            precision = len(step_str.split('.')[-1])
+        else:
+            precision = 0
+        return round(qty, precision)
+    
+    partial_qty = round_qty(abs(amt) * PARTIAL_TP, step_size)
+    remaining_qty = round_qty(abs(amt) - partial_qty, step_size)
+    
+    print(f"   Partial: {partial_qty}")
+    print(f"   Trailing: {remaining_qty}")
+    
+    # Cancel existing orders
+    try:
+        open_orders = client.futures_get_open_orders(symbol='JCTUSDT')
+        for order in open_orders:
+            client.futures_cancel_order(symbol='JCTUSDT', orderId=order['orderId'])
+            print(f"   🗑️  Cancelled: {order['type']}")
+    except:
+        pass
+    
+    try:
+        # 1. Partial TP
+        tp_order = client.futures_create_order(
+            symbol='JCTUSDT',
+            side=side,
+            type='TAKE_PROFIT_MARKET',
+            stopPrice=tp_price,
+            quantity=partial_qty,
+            workingType='MARK_PRICE',
+            reduceOnly=True
+        )
+        print(f"   [OK] TP: {partial_qty} @ ${tp_price:.8f}")
+        
+        # 2. Trailing stop
+        trail_order = client.futures_create_order(
+            symbol='JCTUSDT',
+            side=side,
+            type='TRAILING_STOP_MARKET',
+            quantity=remaining_qty,
+            callbackRate=TRAIL_PCT * 100,
+            workingType='MARK_PRICE',
+            reduceOnly=True
+        )
+        print(f"   [OK] Trailing: {remaining_qty} @ {TRAIL_PCT*100:.1f}%")
+        
+        # 3. Stop loss
+        sl_order = client.futures_create_order(
+            symbol='JCTUSDT',
+            side=side,
+            type='STOP_MARKET',
+            stopPrice=sl_price,
+            closePosition=True,
+            workingType='MARK_PRICE'
+        )
+        print(f"   [OK] SL: Full @ ${sl_price:.8f}")
+        
+    except Exception as e:
+        print(f"   ❌ Error: {e}")
+
+print("\n" + "=" * 70)
+print("[OK] 20x LEVERAGE ACTIVATED + TP/SL SET!")
+print("=" * 70 + "\n")

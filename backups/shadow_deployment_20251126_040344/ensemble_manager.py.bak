@@ -1,0 +1,259 @@
+"""
+ENSEMBLE MANAGER - Smart 4-Model Voting System
+Combines: XGBoost + LightGBM + N-HiTS + PatchTST
+
+Key features:
+- Weighted voting (30% N-HiTS, 25% XGB, 25% LGBM, 20% PatchTST)
+- Consensus checking (requires 3/4 agreement for strong signals)
+- Confidence aggregation
+- Market regime adaptation
+"""
+from typing import Dict, Tuple, List, Optional, Any
+import logging
+import numpy as np
+
+from ai_engine.agents.xgb_agent import XGBAgent
+from ai_engine.agents.lgbm_agent import LightGBMAgent
+from ai_engine.agents.nhits_agent import NHiTSAgent
+from ai_engine.agents.patchtst_agent import PatchTSTAgent
+
+logger = logging.getLogger(__name__)
+
+
+class EnsembleManager:
+    """
+    Manages 4-model ensemble for trading decisions.
+    
+    Ensemble composition:
+    - XGBoost (25%): Tree-based, feature interactions
+    - LightGBM (25%): Fast tree-based, sparse features
+    - N-HiTS (30%): Multi-rate temporal, best for volatility
+    - PatchTST (20%): Transformer, long-range dependencies
+    """
+    
+    def __init__(
+        self,
+        weights: Optional[Dict[str, float]] = None,
+        min_consensus: int = 3,  # Require 3/4 models to agree
+        xgb_model_path: Optional[str] = None,
+        xgb_scaler_path: Optional[str] = None
+    ):
+        """
+        Initialize ensemble.
+        
+        Args:
+            weights: Model weights (default: XGB=25%, LGBM=25%, NHITS=30%, PatchTST=20%)
+            min_consensus: Minimum models that must agree for high confidence
+            xgb_model_path: Optional custom path for XGBoost model (e.g., futures model)
+            xgb_scaler_path: Optional custom path for XGBoost scaler
+        """
+        # Default weights
+        if weights is None:
+            self.weights = {
+                'xgboost': 0.25,
+                'lightgbm': 0.25,
+                'nhits': 0.30,
+                'patchtst': 0.20
+            }
+        else:
+            self.weights = weights
+        
+        self.min_consensus = min_consensus
+        
+        # Initialize agents (disable their own ensemble loading - we handle it here)
+        logger.info("=" * 60)
+        logger.info("[TARGET] INITIALIZING 4-MODEL ENSEMBLE")
+        logger.info("=" * 60)
+        
+        self.xgb_agent = XGBAgent(
+            use_ensemble=False,
+            model_path=xgb_model_path,
+            scaler_path=xgb_scaler_path
+        )
+        logger.info(f"[OK] XGBoost agent loaded (weight: {self.weights['xgboost']*100}%)")
+        
+        self.lgbm_agent = LightGBMAgent()
+        logger.info(f"[OK] LightGBM agent loaded (weight: {self.weights['lightgbm']*100}%)")
+        
+        self.nhits_agent = NHiTSAgent()
+        self.nhits_agent._ensure_model_loaded()  # Force load
+        logger.info(f"[OK] N-HiTS agent loaded (weight: {self.weights['nhits']*100}%)")
+        
+        self.patchtst_agent = PatchTSTAgent()
+        self.patchtst_agent._ensure_model_loaded()  # Force load
+        logger.info(f"[OK] PatchTST agent loaded (weight: {self.weights['patchtst']*100}%)")
+        
+        logger.info("=" * 60)
+        logger.info(f"[TARGET] Ensemble ready! Min consensus: {min_consensus}/4 models")
+        logger.info("=" * 60)
+    
+    def predict(
+        self,
+        symbol: str,
+        features: Dict[str, float]
+    ) -> Tuple[str, float, Dict[str, Any]]:
+        """
+        Get ensemble prediction with smart voting.
+        
+        Args:
+            symbol: Trading pair
+            features: Technical indicators
+        
+        Returns:
+            (action, confidence, info_dict)
+        """
+        # Get predictions from all models
+        predictions = {}
+        
+        try:
+            predictions['xgboost'] = self.xgb_agent.predict(symbol, features)
+        except Exception as e:
+            logger.warning(f"XGBoost prediction failed: {e}")
+            predictions['xgboost'] = ('HOLD', 0.50, 'xgb_error')
+        
+        try:
+            predictions['lightgbm'] = self.lgbm_agent.predict(symbol, features)
+        except Exception as e:
+            logger.warning(f"LightGBM prediction failed: {e}")
+            predictions['lightgbm'] = ('HOLD', 0.50, 'lgbm_error')
+        
+        try:
+            predictions['nhits'] = self.nhits_agent.predict(symbol, features)
+        except Exception as e:
+            logger.warning(f"N-HiTS prediction failed: {e}")
+            predictions['nhits'] = ('HOLD', 0.50, 'nhits_error')
+        
+        try:
+            predictions['patchtst'] = self.patchtst_agent.predict(symbol, features)
+        except Exception as e:
+            logger.warning(f"PatchTST prediction failed: {e}")
+            predictions['patchtst'] = ('HOLD', 0.50, 'patchtst_error')
+        
+        # Aggregate with smart voting
+        action, confidence, info = self._aggregate_predictions(predictions, features)
+        
+        # DEBUG: Log predictions with any signal
+        if action != 'HOLD' or confidence > 0.50:
+            logger.info(
+                f"[CHART] ENSEMBLE {symbol}: {action} {confidence:.2%} | "
+                f"XGB:{predictions['xgboost'][0]}/{predictions['xgboost'][1]:.2f} "
+                f"LGBM:{predictions['lightgbm'][0]}/{predictions['lightgbm'][1]:.2f} "
+                f"NH:{predictions['nhits'][0]}/{predictions['nhits'][1]:.2f} "
+                f"PT:{predictions['patchtst'][0]}/{predictions['patchtst'][1]:.2f}"
+            )
+        
+        return action, confidence, info
+    
+    def _aggregate_predictions(
+        self,
+        predictions: Dict[str, Tuple[str, float, str]],
+        features: Dict[str, float]
+    ) -> Tuple[str, float, Dict[str, Any]]:
+        """
+        Smart aggregation with consensus checking.
+        
+        Logic:
+        1. Calculate weighted votes for each action
+        2. Check consensus (how many models agree?)
+        3. If high consensus (3-4 models) → High confidence
+        4. If split (2-2) → HOLD with low confidence
+        5. Adjust for market volatility
+        """
+        # Vote counts
+        votes = {'BUY': 0.0, 'SELL': 0.0, 'HOLD': 0.0}
+        confidences = {'BUY': [], 'SELL': [], 'HOLD': []}
+        model_actions = []
+        
+        # Collect weighted votes (EXCLUDE insufficient_history models)
+        for model_name, (action, conf, model_info) in predictions.items():
+            # Skip models without enough data
+            if isinstance(model_info, str) and 'insufficient' in model_info.lower():
+                logger.info(f"[SKIP] Skipping {model_name} - {model_info}")  # Changed to INFO
+                continue
+            
+            weight = self.weights[model_name]
+            votes[action] += weight
+            confidences[action].append(conf)
+            model_actions.append(action)
+        
+        # If no valid models, return HOLD
+        if not model_actions:
+            return ('HOLD', 0.50, {'consensus': 'no_valid_models', 'models': predictions})
+        
+        # Get winning action
+        winning_action = max(votes, key=votes.get)
+        
+        # Check consensus
+        consensus_count = model_actions.count(winning_action)
+        
+        # Calculate ensemble confidence
+        if confidences[winning_action]:
+            base_confidence = np.mean(confidences[winning_action])
+        else:
+            base_confidence = 0.50
+        
+        # Adjust confidence based on consensus
+        if consensus_count >= 4:  # All agree
+            confidence_multiplier = 1.2
+            consensus_str = "unanimous"
+        elif consensus_count >= 3:  # Strong consensus
+            confidence_multiplier = 1.1
+            consensus_str = "strong"
+        elif consensus_count == 2:  # Split - but acceptable if min_consensus=2
+            confidence_multiplier = 1.0  # Don't penalize if we accept 2/4 consensus
+            consensus_str = "split"
+        else:  # Weak (1 model)
+            confidence_multiplier = 0.6
+            consensus_str = "weak"
+        
+        final_confidence = min(0.95, base_confidence * confidence_multiplier)
+        
+        # REMOVED: Don't force HOLD anymore - let the models decide!
+        # Old logic forced HOLD when consensus_count == 2 and confidence < 0.65
+        # Now we trust XGB+LightGBM consensus
+        
+        # Volatility adjustment - DISABLED for testnet debugging
+        # volatility = features.get('volatility_20', 0.02)
+        # if volatility > 0.08:  # Very high volatility (was 0.05, now more lenient)
+        #     # Increase confidence requirement slightly
+        #     if final_confidence < 0.70:
+        #         winning_action = 'HOLD'
+        #         final_confidence = 0.55
+        #         consensus_str = f"{consensus_str}_high_vol"
+        
+        # Build info dict with model details
+        model_details = {
+            k: {'action': v[0], 'confidence': v[1], 'model': v[2]}
+            for k, v in predictions.items()
+        }
+        
+        info = {
+            'consensus': consensus_str,
+            'consensus_count': consensus_count,
+            'models': model_details,
+            'votes': votes
+        }
+        
+        return winning_action, final_confidence, info
+    
+    def get_model_status(self) -> Dict[str, bool]:
+        """Check which models are loaded."""
+        return {
+            'xgboost': self.xgb_agent.model is not None,
+            'lightgbm': self.lgbm_agent.model is not None,
+            'nhits': self.nhits_agent.model is not None,
+            'patchtst': self.patchtst_agent.model is not None
+        }
+    
+    def get_individual_predictions(
+        self,
+        symbol: str,
+        features: Dict[str, float]
+    ) -> Dict[str, Tuple[str, float, str]]:
+        """Get predictions from each model individually (for debugging)."""
+        return {
+            'xgboost': self.xgb_agent.predict(symbol, features),
+            'lightgbm': self.lgbm_agent.predict(symbol, features),
+            'nhits': self.nhits_agent.predict(symbol, features),
+            'patchtst': self.patchtst_agent.predict(symbol, features)
+        }

@@ -1,0 +1,9 @@
+services:
+  backend-live:
+    # Do not publish backend port publicly on VPS; keep internal only
+    ports: []
+
+  frontend-live:
+    # Expose frontend on port 80 (HTTP)
+    ports:
+      - "80:80"

@@ -1,0 +1,40 @@
+{
+  "generated_at": "2025-11-22T23:39:30.755961+00:00",
+  "universe_health": {
+    "timestamp": "2025-11-22T23:39:30.755451+00:00",
+    "universe_size": 218,
+    "daily_pnl": 0.0,
+    "cumulative_R": 0.0,
+    "rolling_winrate": 0.0,
+    "rolling_avg_R": 0.0,
+    "rolling_slippage": 0.0,
+    "rolling_spread": 0.0,
+    "drawdown": 0.0,
+    "max_drawdown": 0.0,
+    "trade_frequency": 0.0,
+    "regime_tag": "UNKNOWN",
+    "regime_performance": 0.0,
+    "vol_level": "UNKNOWN",
+    "vol_performance": 0.0,
+    "overall_health": "MODERATE",
+    "health_score": 0.5,
+    "alerts": [
+      {
+        "severity": "WARNING",
+        "message": "Low rolling winrate: 0.0%",
+        "metric": "winrate",
+        "value": 0.0
+      }
+    ],
+    "recommended_global_action": "NORMAL"
+  },
+  "emergency_brake": {
+    "triggered": false,
+    "severity": "INFO",
+    "reason": "",
+    "recommended_action": "NORMAL",
+    "affected_symbols": [],
+    "duration_hours": 0,
+    "timestamp": "2025-11-22T23:39:30.755900+00:00"
+  }
+}

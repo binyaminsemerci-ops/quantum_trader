@@ -1,5 +1,11 @@
+import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
+
 from backend.main import app
+
+
+ADMIN_HEADERS = {"X-Admin-Token": "test-admin-token"}
 
 
 client = TestClient(app)
@@ -50,7 +56,10 @@ def test_candles_slash_variants():
 
 
 def test_trades_recent():
-    r = client.get("/trades/recent?limit=5")
+    unauthorized = client.get("/trades/recent?limit=5")
+    assert unauthorized.status_code == 401
+
+    r = client.get("/trades/recent?limit=5", headers=ADMIN_HEADERS)
     assert r.status_code == 200
     data = r.json()
     assert isinstance(data, list)
@@ -65,3 +74,18 @@ def test_stats_overview():
     data = r.json()
     assert isinstance(data, dict)
     assert "total_trades" in data and "pnl" in data and "open_positions" in data
+
+
+def test_dashboard_ws_requires_admin_token():
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/ws/dashboard"):
+            pass
+
+
+def test_dashboard_ws_streams_payload():
+    with client.websocket_connect("/ws/dashboard", headers=ADMIN_HEADERS) as websocket:
+        message = websocket.receive_json()
+        assert "stats" in message
+        assert "trades" in message
+        assert "logs" in message
+        websocket.close()

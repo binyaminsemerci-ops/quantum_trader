@@ -6,7 +6,10 @@ Tests complete end-to-end scenarios and API interactions.
 from fastapi.testclient import TestClient
 from backend.main import app
 
+ADMIN_HEADERS = {"X-Admin-Token": "test-admin-token"}
+
 client = TestClient(app)
+client.headers.update(ADMIN_HEADERS)
 
 
 def test_complete_trading_workflow():
@@ -82,7 +85,7 @@ def test_settings_persistence_workflow():
         "default_symbol": "ETHUSDT",
     }
 
-    update_response = client.post("/settings", json=new_settings)
+    update_response = client.post("/settings", json=new_settings, headers=ADMIN_HEADERS)
     assert update_response.status_code == 200
 
     # 3. Verify settings were saved

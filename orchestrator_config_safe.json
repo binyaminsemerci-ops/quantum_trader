@@ -1,0 +1,31 @@
+{
+  "name": "SAFE_PROFILE",
+  "description": "Conservative settings for mainnet / real capital",
+  "use_case": "Production trading with real money",
+  "config": {
+    "base_confidence": 0.45,
+    "base_risk_pct": 0.8,
+    "daily_dd_limit": 3.0,
+    "losing_streak_limit": 4,
+    "losing_streak_risk_reduction": 0.4,
+    "max_open_positions": 6,
+    "total_exposure_limit": 12.0,
+    "extreme_vol_threshold": 0.05,
+    "high_vol_threshold": 0.035,
+    "regime_adjustments": {
+      "trending_confidence": -0.03,
+      "trending_risk": 1.0,
+      "ranging_confidence": 0.03,
+      "ranging_risk": 0.8
+    },
+    "vol_adjustments": {
+      "high_vol_risk": 0.5,
+      "high_vol_confidence": 0.05
+    },
+    "symbol_filtering": {
+      "min_winrate": 0.4,
+      "min_avg_R": 0.7,
+      "consecutive_loss_disable": 3
+    }
+  }
+}

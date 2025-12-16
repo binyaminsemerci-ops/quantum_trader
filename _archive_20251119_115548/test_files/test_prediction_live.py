@@ -1,0 +1,39 @@
+"""Test predict_for_symbol with real data"""
+import asyncio
+import sys
+sys.path.insert(0, '/app')
+
+from ai_engine.agents.xgb_agent import XGBAgent
+from backend.routes.external_data import binance_ohlcv
+
+async def test_prediction():
+    agent = XGBAgent()
+    
+    # Get real OHLCV data for BTCUSDT
+    resp = await binance_ohlcv('BTCUSDT', limit=100)
+    candles = resp.get('candles', [])
+    
+    if candles:
+        print(f'[OK] Got {len(candles)} candles for BTCUSDT')
+        
+        # Test prediction
+        result = agent.predict_for_symbol(candles)
+        
+        print(f'\n[CHART] PREDICTION RESULT:')
+        print(f'   Action: {result.get("action")}')
+        print(f'   Score: {result.get("score")}')
+        print(f'   Confidence: {result.get("confidence")}')
+        print(f'   Model: {result.get("model")}')
+        print(f'   Has features: {"features" in result}')
+        
+        if "features" in result:
+            feats = result["features"]
+            print(f'\n[CHART_UP] FEATURES:')
+            print(f'   RSI: {feats.get("RSI_14", "N/A")}')
+            print(f'   EMA_10: {feats.get("EMA_10", "N/A")}')
+            print(f'   EMA_50: {feats.get("EMA_50", "N/A")}')
+            print(f'   Close: {feats.get("Close", "N/A")}')
+    else:
+        print('❌ No candles received')
+
+asyncio.run(test_prediction())

@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""Check when JCTUSDT and ICPUSDT positions were opened."""
+import os
+from binance.client import Client
+from dotenv import load_dotenv
+from datetime import datetime
+
+load_dotenv()
+
+client = Client(os.getenv('BINANCE_API_KEY'), os.getenv('BINANCE_API_SECRET'))
+
+# Get position info
+positions = client.futures_position_information()
+
+for p in positions:
+    if p['symbol'] in ['JCTUSDT', 'ICPUSDT']:
+        amt = float(p['positionAmt'])
+        if amt != 0:
+            print(f"\n{p['symbol']}:")
+            print(f"  Amount: {amt}")
+            print(f"  Entry: ${float(p['entryPrice'])}")
+            print(f"  Update Time: {datetime.fromtimestamp(int(p['updateTime'])/1000)}")
+            print(f"  P&L: ${float(p['unRealizedProfit']):.2f}")
+
+# Check database for execution history
+print("\n" + "=" * 60)
+print("📜 Checking database for execution history...")
+print("=" * 60)
+
+import sqlite3
+try:
+    conn = sqlite3.connect('backend/data/trades.db')
+    cursor = conn.cursor()
+    
+    # Check execution_journal table
+    cursor.execute("""
+        SELECT symbol, side, quantity, status, reason, created_at 
+        FROM execution_journal 
+        WHERE symbol IN ('JCTUSDT', 'ICPUSDT')
+        ORDER BY created_at DESC 
+        LIMIT 10
+    """)
+    
+    results = cursor.fetchall()
+    if results:
+        print("\n[CLIPBOARD] Recent trades in database:")
+        for row in results:
+            print(f"  {row[0]} {row[1]} {row[2]} - Status: {row[3]} - {row[5]}")
+    else:
+        print("\n[WARNING]  No execution records found in database!")
+        print("   → Positions may have been opened BEFORE backend restart")
+        print("   → TP/SL only set for NEW trades, not existing ones!")
+    
+    conn.close()
+except Exception as e:
+    print(f"\n❌ Could not read database: {e}")
+
+print("\n💡 KONKLUSJON:")
+print("   De 2 posisjonene ble åpnet FØR du stengte taperne.")
+print("   Backend setter bare TP/SL på NYE posisjoner.")
+print("   For EKSISTERENDE posisjoner må du bruke auto_set_tpsl.py!")
