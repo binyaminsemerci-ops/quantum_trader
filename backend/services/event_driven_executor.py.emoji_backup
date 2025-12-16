@@ -1,0 +1,1046 @@
+"""
+Event-driven execution engine: AI continuously monitors market and trades
+when it detects strong signals, without fixed time intervals.
+"""
+import asyncio
+import json
+import logging
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Dict, List, Optional
+
+from backend.services.ai_trading_engine import AITradingEngine
+from backend.services.execution import run_portfolio_rebalance, build_execution_adapter
+from backend.config.execution import load_execution_config
+from backend.config.risk import load_risk_config
+from backend.database import SessionLocal
+
+# 🎯 RISK MANAGEMENT INTEGRATION
+from backend.config.risk_management import load_risk_management_config, ConsensusType
+from backend.services.risk_management import (
+    TradeLifecycleManager,
+    SignalQuality,
+    MarketConditions,
+)
+from backend.services.market_data_helpers import (
+    fetch_market_conditions,
+    get_consensus_type,
+    normalize_action,
+)
+
+# 🎯 QUANT MODULES INTEGRATION
+from backend.services.regime_detector import RegimeDetector, RegimeConfig
+from backend.services.cost_model import CostModel, CostConfig, estimate_trade_cost
+from backend.services.symbol_performance import (
+    SymbolPerformanceManager,
+    SymbolPerformanceConfig,
+    TradeResult,
+)
+from backend.services.exit_policy_regime_config import get_exit_params
+from backend.services.logging_extensions import (
+    enrich_trade_entry,
+    enrich_trade_exit,
+    format_trade_log_message,
+)
+from backend.services.orchestrator_policy import (
+    OrchestratorPolicy,
+    OrchestratorConfig,
+    create_risk_state,
+    create_symbol_performance,
+    create_cost_metrics,
+)
+from backend.services.policy_observer import PolicyObserver
+from backend.services.orchestrator_config import (
+    OrchestratorIntegrationConfig,
+    OrchestratorMode
+)
+
+logger = logging.getLogger(__name__)
+
+# 🎯 CRITICAL: Shared TP/SL storage path for position_monitor
+TPSL_STORAGE_PATH = Path("/app/tmp/quantum_tpsl.json")
+
+# Create directory if not exists
+TPSL_STORAGE_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+
+class EventDrivenExecutor:
+    """
+    Continuously monitors market signals and executes trades when AI
+    detects high-confidence opportunities, regardless of time.
+    """
+
+    def __init__(
+        self,
+        ai_engine: AITradingEngine,
+        symbols: List[str],
+        confidence_threshold: float = 0.45,  # Lowered from 0.72 for testnet with 2/4 models
+        check_interval_seconds: int = 30,
+        cooldown_seconds: int = 300,
+    ):
+        self.ai_engine = ai_engine
+        self.symbols = symbols
+        self.confidence_threshold = confidence_threshold
+        self.check_interval = check_interval_seconds
+        self.cooldown = cooldown_seconds
+        
+        # OPTIMIZATION: Enable direct execution to bypass slow rebalancing
+        self._direct_execute = os.getenv("QT_EVENT_DIRECT_EXECUTE", "1") == "1"
+        
+        self._running = False
+        self._task: Optional[asyncio.Task] = None
+        self._last_rebalance_time: Optional[datetime] = None
+        
+        # Load risk config for position sizing
+        self._risk_config = load_risk_config()
+        self._execution_config = load_execution_config()
+        self._adapter = None
+        
+        # 🎯 RISK MANAGEMENT: Initialize TradeLifecycleManager
+        self._rm_config = load_risk_management_config()
+        self._trade_manager = TradeLifecycleManager(self._rm_config)
+        logger.info("✅ Risk Management layer initialized")
+        
+        # 🎯 QUANT MODULES: Initialize advanced quantitative trading modules
+        self.regime_detector = RegimeDetector(
+            config=RegimeConfig(
+                atr_ratio_low=0.005,
+                atr_ratio_normal=0.015,
+                atr_ratio_high=0.03,
+                adx_trending=25.0,
+                adx_strong_trend=40.0,
+                range_width_threshold=0.02,
+                ema_alignment_pct=0.02
+            )
+        )
+        
+        self.cost_model = CostModel(
+            config=CostConfig(
+                maker_fee_rate=0.0002,  # 0.02%
+                taker_fee_rate=0.0004,  # 0.04%
+                base_slippage_bps=2.0,
+                volatility_slippage_factor=50.0,
+                funding_rate_per_8h=0.0001
+            )
+        )
+        
+        self.symbol_perf = SymbolPerformanceManager(
+            config=SymbolPerformanceConfig(
+                min_trades_for_adjustment=5,
+                poor_winrate_threshold=0.30,
+                good_winrate_threshold=0.55,
+                poor_avg_R_threshold=0.0,
+                good_avg_R_threshold=1.5,
+                poor_risk_multiplier=0.5,
+                good_risk_multiplier=1.0,
+                disable_after_losses=10,
+                reenable_after_wins=3,
+                persistence_file="data/symbol_performance.json"
+            )
+        )
+        
+        # 🎯 ORCHESTRATOR: Top-level policy engine that unifies all subsystems
+        self.orchestrator = OrchestratorPolicy(
+            config=OrchestratorConfig(
+                base_confidence=0.45,  # Testnet baseline
+                base_risk_pct=1.0,
+                daily_dd_limit=5.0,  # 5% daily DD limit for testnet
+                losing_streak_limit=5,
+                max_open_positions=8,
+                total_exposure_limit=20.0,  # 20% max exposure
+                policy_update_interval_sec=60
+            )
+        )
+        
+        # 🎯 ORCHESTRATOR INTEGRATION CONFIG: LIVE MODE - Step 1 (Signal Filtering)
+        self.orch_config = OrchestratorIntegrationConfig.create_live_mode_gradual()
+        
+        # 🎯 POLICY OBSERVER: Logs what policy would do without enforcement
+        self.policy_observer = PolicyObserver(
+            log_dir=self.orch_config.observation_log_dir
+        )
+        
+        logger.info("✅ Quant modules initialized: RegimeDetector, CostModel, SymbolPerformanceManager, OrchestratorPolicy")
+        logger.info(f"✅ {self.orch_config.get_summary()}")
+        
+        # 🎯 CRITICAL: Store Dynamic TP/SL per symbol for position_monitor
+        # Format: {symbol: {"tp_percent": 0.06, "sl_percent": 0.08, ...}}
+        self._symbol_tpsl = {}
+        
+        logger.info(
+            "Event-driven executor initialized: %d symbols, confidence >= %.2f, "
+            "check every %ds, cooldown %ds",
+            len(symbols), confidence_threshold, check_interval_seconds, cooldown_seconds
+        )
+
+    async def start(self):
+        """Start the event-driven monitoring loop as a background task."""
+        if self._running:
+            logger.warning("Event-driven executor already running")
+            return
+        
+        self._running = True
+        # Create background task and immediately add it to a set to prevent garbage collection
+        # This is the recommended asyncio pattern for long-lived background tasks
+        loop = asyncio.get_running_loop()
+        self._task = loop.create_task(self._monitor_loop(), name="event-driven-monitor")
+        logger.info("Event-driven trading mode active - monitoring market continuously")
+
+    async def stop(self):
+        """Stop the monitoring loop."""
+        if not self._running:
+            return
+        
+        self._running = False
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+        logger.info("EventDrivenExecutor stopped")
+
+    async def _monitor_loop(self):
+        """Main loop: continuously check market and execute on strong signals."""
+        logger.info("Monitoring loop started")
+        try:
+            while self._running:
+                try:
+                    logger.info("Checking %d symbols for signals >= %.2f threshold", len(self.symbols), self.confidence_threshold)
+                    await self._check_and_execute()
+                    logger.info("Check complete, sleeping %d seconds", self.check_interval)
+                except asyncio.CancelledError:
+                    logger.info("Monitoring loop cancelled")
+                    raise  # Re-raise to exit properly
+                except Exception as e:
+                    logger.error("Error in event-driven monitoring: %s", e, exc_info=True)
+                
+                # Wait before next check
+                try:
+                    await asyncio.sleep(self.check_interval)
+                except asyncio.CancelledError:
+                    logger.info("Sleep cancelled, exiting loop")
+                    raise  # Re-raise to exit properly
+        except asyncio.CancelledError:
+            logger.info("Monitor loop task cancelled")
+        except Exception as e:
+            logger.error("FATAL error in monitor loop: %s", e, exc_info=True)
+        finally:
+            logger.info("Monitoring loop ended")
+
+    async def _check_and_execute(self):
+        """
+        Check AI signals and trigger portfolio rebalancing if strong signals detected.
+        """
+        logger.info("🔍 _check_and_execute() started")
+        now = datetime.now(timezone.utc)
+        
+        # Enforce cooldown between rebalances
+        if self._last_rebalance_time:
+            time_since_last = (now - self._last_rebalance_time).total_seconds()
+            if time_since_last < self.cooldown:
+                logger.info("⏸️ Still in cooldown (%ds left)", self.cooldown - time_since_last)
+                return
+        
+        # Get AI signals for all symbols
+        logger.info("📡 Calling get_trading_signals for %d symbols", len(self.symbols))
+        try:
+            # get_trading_signals expects (symbols, current_positions)
+            # For monitoring, we pass empty positions since we check portfolio during rebalance
+            signals_list = await self.ai_engine.get_trading_signals(self.symbols, {})
+            logger.info("Got %d AI signals from engine", len(signals_list))
+        except Exception as e:
+            logger.error("Failed to get AI signals: %s", e, exc_info=True)
+            return
+        
+        # 🎯 ORCHESTRATOR: Update trading policy based on all subsystems
+        # In OBSERVATION MODE: compute policy but DON'T enforce it
+        policy = None
+        regime_tag = "TRENDING"  # Will be refined per-symbol later
+        vol_level = "NORMAL"     # Will be refined per-symbol later
+        risk_state = None
+        symbol_perf_list = []
+        cost_metrics = None
+        
+        if self.orch_config.enable_orchestrator:
+            try:
+                # Collect risk state
+                risk_state = create_risk_state(
+                    daily_pnl_pct=0.0,  # TODO: Integrate with actual PnL tracker
+                    current_drawdown_pct=0.0,  # TODO: Integrate with actual DD tracker
+                    losing_streak=0,  # TODO: Integrate with TradeLifecycleManager
+                    open_trades_count=0,  # TODO: Track actual positions
+                    total_exposure_pct=0.0  # TODO: Calculate from current positions
+                )
+                
+                # Collect symbol performance data
+                symbol_perf_list = []
+                for sym in self.symbols:
+                    stats = self.symbol_perf.get_stats(sym)
+                    # Check if stats is valid before accessing attributes
+                    if stats and hasattr(stats, 'trade_count') and stats.trade_count >= 3:
+                        # Determine performance tag
+                        if stats.win_rate < 0.35 or stats.avg_R < 0.5:
+                            tag = "BAD"
+                        elif stats.win_rate > 0.55 and stats.avg_R > 1.2:
+                            tag = "GOOD"
+                        else:
+                            tag = "NEUTRAL"
+                        
+                        symbol_perf_list.append(create_symbol_performance(
+                            symbol=sym,
+                            winrate=stats.win_rate,
+                            avg_R=stats.avg_R,
+                            cumulative_pnl=stats.total_pnl,
+                            performance_tag=tag
+                        ))
+                
+                # Estimate current market costs (simplified for now)
+                cost_metrics = create_cost_metrics(
+                    spread_level="NORMAL",  # TODO: Calculate from recent spreads
+                    slippage_level="NORMAL"  # TODO: Calculate from recent slippage
+                )
+                
+                # Update policy
+                policy = self.orchestrator.update_policy(
+                    regime_tag=regime_tag,
+                    vol_level=vol_level,
+                    risk_state=risk_state,
+                    symbol_performance=symbol_perf_list,
+                    cost_metrics=cost_metrics
+                )
+                
+                # 🎯 FULL LIVE MODE: Pass policy to TradeLifecycleManager for ALL controls
+                if (self.orch_config.use_for_risk_sizing or 
+                    self.orch_config.use_for_exit_mode or 
+                    self.orch_config.use_for_position_limits):
+                    
+                    try:
+                        self._trade_manager.set_policy(policy)
+                        log_parts = []
+                        if self.orch_config.use_for_risk_sizing:
+                            log_parts.append(f"max_risk_pct={policy.max_risk_pct:.2%}")
+                            log_parts.append(f"risk_profile={policy.risk_profile}")
+                        if self.orch_config.use_for_exit_mode:
+                            log_parts.append(f"exit_mode={policy.exit_mode}")
+                        if self.orch_config.use_for_position_limits:
+                            log_parts.append(f"position_limits=ENFORCED")
+                        logger.info(f"🎯 Policy passed to TradeManager: {', '.join(log_parts)}")
+                    except Exception as e:
+                        logger.error(f"⚠️ Failed to set policy on TradeManager: {e}", exc_info=True)
+                        # Continue with fallback defaults
+                
+                # 🎯 FULL LIVE MODE: Enhanced policy logging with all subsystems
+                if self.orch_config.is_live_mode():
+                    logger.info(f"🔴 FULL LIVE MODE - Policy ENFORCED: {policy.note}")
+                    control_parts = [
+                        f"allow_trades={policy.allow_new_trades}",
+                        f"min_conf={policy.min_confidence:.2f}",
+                        f"blocked_symbols={len(policy.disallowed_symbols)}",
+                        f"risk_pct={policy.max_risk_pct:.2%}"
+                    ]
+                    if self.orch_config.use_for_exit_mode:
+                        control_parts.append(f"exit_mode={policy.exit_mode}")
+                    if self.orch_config.use_for_position_limits:
+                        control_parts.append(f"position_limits=ACTIVE")
+                    logger.info(f"📋 Policy Controls: {', '.join(control_parts)}")
+                    
+                    # 🚨 Highlight if trading is PAUSED
+                    if not policy.allow_new_trades:
+                        logger.warning(
+                            f"⚠️ TRADING PAUSED: {policy.note}\n"
+                            f"   Reason: {policy.risk_profile}\n"
+                            f"   Regime: {regime_tag} | Vol: {vol_level}"
+                        )
+                else:
+                    # OBSERVE MODE: Log policy but DON'T enforce it
+                    logger.info(f"👁️ OBSERVE MODE - Policy computed but NOT enforced: {policy.note}")
+                
+            except Exception as e:
+                logger.error(f"⚠️ Orchestrator policy update failed: {e}", exc_info=True)
+                policy = None
+                
+                # 🛡️ SAFETY FALLBACK: Create safe default policy if orchestrator fails
+                logger.warning("🛡️ Using SAFE FALLBACK policy due to orchestrator failure")
+                from backend.services.orchestrator_policy import TradingPolicy
+                policy = TradingPolicy(
+                    allow_new_trades=True,  # Allow trading but with conservative settings
+                    min_confidence=0.65,     # Higher threshold for safety
+                    max_risk_pct=0.01,       # Conservative 1% risk
+                    allowed_symbols=[],      # Empty = allow all
+                    disallowed_symbols=[],   # Empty = block none
+                    exit_mode="DEFENSIVE_TRAIL",  # Most conservative exit
+                    risk_profile="FALLBACK",
+                    note="FALLBACK: Orchestrator failed, using safe defaults"
+                )
+        
+        # 🎯 DETERMINE EFFECTIVE SETTINGS based on mode and config
+        effective_confidence = self.confidence_threshold  # Default: 0.45
+        actual_trading_allowed = True  # Default: allowed
+        
+        # 🛡️ SAFETY CHECK: Ensure policy exists before applying
+        if policy is None:
+            logger.warning(
+                "⚠️ No policy available - using system defaults\n"
+                "   confidence_threshold=0.45\n"
+                "   trading_allowed=True\n"
+                "   risk_controls=DEFAULT"
+            )
+        
+        # Apply policy overrides if in LIVE mode AND policy exists
+        elif policy and self.orch_config.is_live_mode():
+            # Step 1: Confidence threshold enforcement
+            if self.orch_config.use_for_confidence_threshold:
+                effective_confidence = policy.min_confidence
+                logger.info(
+                    f"✅ Policy confidence active: {effective_confidence:.2f} "
+                    f"(default: {self.confidence_threshold:.2f})"
+                )
+            
+            # Step 4: Trading gate enforcement - BLOCK NEW TRADES IN DANGEROUS CONDITIONS
+            if self.orch_config.use_for_trading_gate:
+                actual_trading_allowed = policy.allow_new_trades
+                if not actual_trading_allowed:
+                    # 🚨 CRITICAL: Trading is SHUT DOWN
+                    logger.warning(
+                        f"🚨 TRADE SHUTDOWN ACTIVE 🚨\n"
+                        f"   Reason: {policy.note}\n"
+                        f"   Risk Profile: {policy.risk_profile}\n"
+                        f"   Regime: {regime_tag} | Vol: {vol_level}\n"
+                        f"   🛑 NO NEW TRADES - Exits only\n"
+                        f"   ⏳ Will check for recovery in next cycle"
+                    )
+                else:
+                    logger.debug("✅ Trading gate: OPEN (new trades allowed)")
+            
+            # Step 5: Position limits enforcement
+            if self.orch_config.use_for_position_limits:
+                logger.debug("✅ Position limits: ACTIVE (per-symbol caps enforced)")
+        
+        # 🛑 EARLY EXIT: If trading gate is closed, skip signal processing entirely
+        if not actual_trading_allowed:
+            logger.info(
+                "⏭️ Skipping signal processing - trading gate CLOSED\n"
+                "   ✅ Existing positions continue to be monitored\n"
+                "   ✅ Exits will be processed normally\n"
+                "   🚫 New entries BLOCKED"
+            )
+            # Continue loop (return will skip to next iteration after cooldown)
+            return
+        
+        # Check for high-confidence signals
+        strong_signals = []
+        for signal in signals_list:
+            symbol = signal.get("symbol", "")
+            confidence = abs(signal.get("confidence", 0.0))
+            action = signal.get("action", "HOLD")
+            model = signal.get("model", "unknown")
+            
+            # 🎯 EXTRACT DYNAMIC TP/SL FROM AI SIGNAL - KRITISK!
+            tp_percent = signal.get("tp_percent", 0.06)      # Fallback: 6%
+            sl_percent = signal.get("sl_percent", 0.08)      # Fallback: 8%
+            trail_percent = signal.get("trail_percent", 0.02) # Fallback: 2%
+            partial_tp = signal.get("partial_tp", 0.5)       # Fallback: 50%
+            
+            # Skip HOLD actions
+            if action == "HOLD":
+                continue
+            
+            # 🔴 LIVE MODE: ENFORCE POLICY-BASED SYMBOL FILTERING (Step 1)
+            if policy and self.orch_config.is_live_mode() and self.orch_config.use_for_signal_filter:
+                # Block disallowed symbols
+                if symbol in policy.disallowed_symbols:
+                    logger.info(
+                        f"🚫 BLOCKED by policy: {symbol} {action} (conf={confidence:.2f}) - "
+                        f"Symbol in disallowed list"
+                    )
+                    if self.orch_config.log_all_signals:
+                        self.policy_observer.log_signal_decision(
+                            signal=signal,
+                            policy=policy,
+                            decision="BLOCKED_BY_POLICY_FILTER",
+                            reason=f"Symbol in policy.disallowed_symbols"
+                        )
+                    continue
+                
+                # Enforce allowed_symbols if specified (non-empty)
+                if policy.allowed_symbols and symbol not in policy.allowed_symbols:
+                    logger.info(
+                        f"🚫 BLOCKED by policy: {symbol} {action} (conf={confidence:.2f}) - "
+                        f"Symbol not in allowed list"
+                    )
+                    if self.orch_config.log_all_signals:
+                        self.policy_observer.log_signal_decision(
+                            signal=signal,
+                            policy=policy,
+                            decision="BLOCKED_BY_POLICY_FILTER",
+                            reason=f"Symbol not in policy.allowed_symbols"
+                        )
+                    continue
+            
+            # 👁️ OBSERVATION MODE: Log what policy WOULD do (but don't enforce)
+            elif policy and self.orch_config.is_observe_mode() and self.orch_config.log_all_signals:
+                would_block_symbol = symbol in policy.disallowed_symbols
+                would_block_confidence = confidence < policy.min_confidence
+                would_block_trading = not policy.allow_new_trades
+                
+                if would_block_symbol or would_block_confidence or would_block_trading:
+                    # Policy would block, but we're in observe mode so we don't enforce
+                    self.policy_observer.log_signal_decision(
+                        signal=signal,
+                        policy=policy,
+                        decision="PROCEEDING_DESPITE_POLICY",
+                        reason=f"OBSERVE mode: would block (symbol={would_block_symbol}, conf={would_block_confidence}, gate={would_block_trading})"
+                    )
+            
+            # 🎯 SYMBOL PERFORMANCE FILTER: Skip disabled symbols (THIS IS STILL ENFORCED)
+            if not self.symbol_perf.should_trade_symbol(symbol):
+                stats = self.symbol_perf.get_stats(symbol)
+                logger.debug(
+                    f"⏭️ Skipping disabled symbol {symbol} "
+                    f"(WR={stats.win_rate:.1%}, consecutive_losses={stats.consecutive_losses})"
+                )
+                if policy and self.orch_config.log_all_signals:
+                    self.policy_observer.log_signal_decision(
+                        signal=signal,
+                        policy=policy,
+                        decision="BLOCKED_BY_SYMBOL_PERF",
+                        reason=f"SymbolPerformanceManager disabled (WR={stats.win_rate:.1%})"
+                    )
+                continue
+            
+            # ✅ CONFIDENCE FILTER: Apply effective_confidence (policy-controlled in LIVE mode)
+            if confidence >= effective_confidence:
+                # Store FULL signal with TP/SL data + risk modifier
+                risk_modifier = self.symbol_perf.get_risk_modifier(symbol)
+                strong_signals.append({
+                    "symbol": symbol,
+                    "action": action,
+                    "confidence": confidence,
+                    "model": model,
+                    "tp_percent": tp_percent,
+                    "sl_percent": sl_percent,
+                    "trail_percent": trail_percent,
+                    "partial_tp": partial_tp,
+                    "risk_modifier": risk_modifier  # 0.5 for poor performers, 1.0 for normal
+                })
+                
+                # Log successful signal
+                if policy and self.orch_config.log_all_signals:
+                    policy_enforced = self.orch_config.is_live_mode() and self.orch_config.use_for_confidence_threshold
+                    self.policy_observer.log_signal_decision(
+                        signal=signal,
+                        policy=policy,
+                        decision="TRADE_ALLOWED",
+                        reason=f"Passed all filters (conf={confidence:.2f} >= {effective_confidence:.2f}) [Policy {'ENFORCED' if policy_enforced else 'NOT enforced'}]"
+                    )
+            else:
+                # 🔴 BLOCKED BY CONFIDENCE (policy-controlled in LIVE mode)
+                policy_enforced = (
+                    policy and 
+                    self.orch_config.is_live_mode() and 
+                    self.orch_config.use_for_confidence_threshold
+                )
+                
+                if policy_enforced:
+                    logger.info(
+                        f"🚫 BLOCKED by policy: {symbol} {action} (conf={confidence:.2f}) - "
+                        f"Below min_confidence={policy.min_confidence:.2f}"
+                    )
+                
+                if policy and self.orch_config.log_all_signals:
+                    self.policy_observer.log_signal_decision(
+                        signal=signal,
+                        policy=policy,
+                        decision="BLOCKED_BY_POLICY_FILTER" if policy_enforced else "BLOCKED_BY_CONFIDENCE",
+                        reason=f"Confidence {confidence:.2f} < threshold {effective_confidence:.2f} [Policy {'ENFORCED' if policy_enforced else 'NOT enforced'}]"
+                    )
+        
+        logger.info("Found %d high-confidence signals (>= %.2f)", len(strong_signals), effective_confidence)
+        
+        # 👁️ OBSERVATION: Log complete policy observation
+        if policy and self.orch_config.enable_orchestrator:
+            try:
+                self.policy_observer.log_policy_update(
+                    policy=policy,
+                    regime_tag=regime_tag,
+                    vol_level=vol_level,
+                    risk_state=risk_state,
+                    symbol_performance=symbol_perf_list,
+                    cost_metrics=cost_metrics,
+                    signals_before_filter=signals_list,
+                    actual_confidence_used=effective_confidence,
+                    actual_trading_allowed=actual_trading_allowed
+                )
+            except Exception as e:
+                logger.error(f"Failed to log policy observation: {e}", exc_info=True)
+        
+        if not strong_signals:
+            # Provide a quick snapshot of the best BUY/SELL confidences observed
+            best_buy = 0.0
+            best_sell = 0.0
+            for s in signals_list:
+                act = s.get("action", "HOLD")
+                conf = abs(float(s.get("confidence", 0.0)))
+                if act == "BUY":
+                    best_buy = max(best_buy, conf)
+                elif act == "SELL":
+                    best_sell = max(best_sell, conf)
+            logger.debug(
+                "No strong signals (thr=%.2f). Best BUY=%.2f, SELL=%.2f across %d symbols",
+                self.confidence_threshold, best_buy, best_sell, len(signals_list)
+            )
+            return
+        
+        # Sort by confidence (highest first) and take top opportunities
+        strong_signals.sort(key=lambda x: x["confidence"], reverse=True)
+        
+        # Limit to top 5 simultaneous positions to manage risk
+        max_positions = 5
+        top_signals = strong_signals[:max_positions]
+        
+        if len(strong_signals) > max_positions:
+            logger.info(
+                "📊 Found %d strong signals, selecting top %d by confidence",
+                len(strong_signals), max_positions
+            )
+        
+        # Strong signals detected - execute orders
+        logger.info(
+            "🎯 Strong signals: %s",
+            ", ".join(f"{s['symbol']}={s['action']}({s['confidence']:.2f},{s['model']})" for s in top_signals)
+        )
+        
+        # OPTIMIZATION: Use direct execution for faster order placement
+        if self._direct_execute:
+            logger.info("⚡ Direct execution mode - placing orders immediately")
+            result = await self._execute_signals_direct(top_signals)
+        else:
+            # Fallback to traditional rebalancing (slower)
+            logger.info("🔄 Using portfolio rebalancing (legacy mode)")
+            with SessionLocal() as db:
+                result = await run_portfolio_rebalance(db)
+        
+        # Log raw result for debugging
+        logger.info("🔍 Execution result: %s", result)
+        
+        # Check for success (status can be "ok" or "success")
+        status = result.get("status", "")
+        if status in ("ok", "success"):
+            # ✅ ALWAYS update cooldown, even if no orders submitted
+            self._last_rebalance_time = now
+            num_orders = result.get("orders_submitted", 0)
+            orders_planned = result.get("orders_planned", 0)
+            orders_skipped = result.get("orders_skipped", 0)
+            orders_failed = result.get("orders_failed", 0)
+            
+            if num_orders > 0:
+                logger.info(
+                    "✅ Execution complete: planned=%d submitted=%d skipped=%d failed=%d",
+                    orders_planned, num_orders, orders_skipped, orders_failed
+                )
+            elif orders_skipped > 0:
+                logger.warning(
+                    "⚠️ All orders skipped (planned=%d skipped=%d) - will retry in %ds",
+                    orders_planned, orders_skipped, self.cooldown
+                )
+            else:
+                logger.info("ℹ️ No orders to execute")
+        else:
+            error_msg = result.get("error", status or "unknown")
+            logger.warning("⚠️ Execution failed: status=%s error=%s", status, error_msg)
+
+    async def _execute_signals_direct(self, signals: List[tuple]) -> Dict[str, any]:
+        """
+        FAST PATH: Execute orders directly from signals without portfolio rebalancing.
+        
+        Args:
+            signals: List of (symbol, action, confidence) tuples
+            
+        Returns:
+            Dict with execution results
+        """
+        if self._adapter is None:
+            self._adapter = build_execution_adapter(self._execution_config)
+        
+        try:
+            # Get current positions to check available slots
+            raw_positions = await self._adapter.get_positions()
+            positions = {sym.upper(): abs(float(qty)) for sym, qty in raw_positions.items() if float(qty) != 0}
+            open_positions = len(positions)
+            max_positions = int(os.getenv("QT_MAX_POSITIONS", "4"))
+            available_slots = max(0, max_positions - open_positions)
+            
+            logger.info(f"💼 Current positions: {open_positions}/{max_positions}, available: {available_slots}")
+            
+            if available_slots == 0:
+                logger.warning("⚠️ Max positions reached, skipping new orders")
+                return {
+                    "status": "ok",
+                    "orders_planned": len(signals),
+                    "orders_submitted": 0,
+                    "orders_skipped": len(signals),
+                    "orders_failed": 0,
+                    "reason": "max_positions_reached"
+                }
+            
+            # Get account balance for position sizing
+            cash = await self._adapter.get_cash_balance()
+            # max_notional is MARGIN, not position size
+            # With 30x leverage: $5000 margin = $150,000 position
+            max_margin_per_trade = self._risk_config.max_notional_per_trade or 5000.0
+            
+            # 🎯 TESTNET MODE: Use 10% of balance per trade (not 25%)
+            # This allows opening positions even with small balance
+            margin_pct = 0.10 if cash < 100 else 0.25  # 10% if balance < $100, else 25%
+            margin_from_balance = cash * margin_pct
+            actual_margin = min(max_margin_per_trade, margin_from_balance)
+            
+            logger.info(
+                f"💰 Cash: ${cash:.2f}, Margin per trade: ${actual_margin:.2f} "
+                f"({margin_pct*100:.0f}% of balance, max ${max_margin_per_trade:.2f})"
+            )
+            
+            # Place orders for top signals (up to available slots)
+            orders_to_place = signals[:available_slots]
+            orders_submitted = 0
+            orders_failed = 0
+            orders_skipped = 0
+            
+            for signal_dict in orders_to_place:
+                # Extract signal data
+                symbol = signal_dict["symbol"]
+                action = signal_dict["action"]
+                confidence = signal_dict["confidence"]
+                model = signal_dict["model"]
+                risk_modifier = signal_dict.get("risk_modifier", 1.0)
+                
+                # 🎯 EXTRACT DYNAMIC TP/SL - DETTE ER KRITISK!
+                tp_percent = signal_dict["tp_percent"]
+                sl_percent = signal_dict["sl_percent"]
+                trail_percent = signal_dict["trail_percent"]
+                partial_tp = signal_dict["partial_tp"]
+                
+                try:
+                    # 🎯 RISK MANAGEMENT: Fetch market conditions
+                    market_data = await fetch_market_conditions(symbol, self._adapter, lookback=200)
+                    if not market_data:
+                        logger.warning(f"⚠️ Could not fetch market conditions for {symbol}, skipping")
+                        orders_skipped += 1
+                        continue
+                    
+                    price = market_data['price']
+                    
+                    # 🎯 REGIME DETECTION: Detect current market regime
+                    # Skip regime detection for now - market_data doesn't contain ADX
+                    regime = None
+                    # try:
+                    #     # Convert market_data dict to MarketConditions object
+                    #     market_conditions_obj = MarketConditions(
+                    #         price=market_data['price'],
+                    #         atr=market_data['atr'],
+                    #         ema_200=market_data['ema_200'],
+                    #         volume_24h=market_data['volume_24h'],
+                    #         spread_bps=market_data['spread_bps'],
+                    #         timestamp=datetime.now(timezone.utc)
+                    #     )
+                    #     regime = self.regime_detector.detect_regime(market_conditions_obj)
+                    #     logger.info(
+                    #         f"📊 {symbol} Market Regime: {regime.regime} "
+                    #         f"(VOL={regime.volatility_regime}, TREND={regime.trend_regime}, "
+                    #         f"ATR={regime.atr_current:.2f}, ADX={regime.adx:.2f})"
+                    #     )
+                    # except Exception as e:
+                    #     logger.warning(f"⚠️ Could not detect regime for {symbol}: {e}")
+                    #     regime = None
+                    
+                    # 🎯 EXIT POLICY: Get regime-specific exit parameters
+                    if regime:
+                        try:
+                            exit_params = get_exit_params(regime.regime)
+                            logger.info(
+                                f"🎯 Using {regime.regime} exit params: "
+                                f"k1_SL={exit_params.k1_SL}, k2_TP={exit_params.k2_TP}, "
+                                f"R:R={exit_params.k2_TP/exit_params.k1_SL:.2f}, "
+                                f"BE@{exit_params.breakeven_R}R, max={exit_params.max_duration_hours}h"
+                            )
+                        except Exception as e:
+                            logger.warning(f"⚠️ Could not get exit params for {regime.regime}: {e}")
+                            exit_params = None
+                    else:
+                        exit_params = None
+                    
+                    # Build SignalQuality for risk evaluation
+                    # Extract model votes properly - model might be a dict with ensemble data
+                    if isinstance(model, dict):
+                        # If model is ensemble metadata, extract individual votes
+                        model_votes_dict = {}
+                        if 'models' in model:
+                            for model_name, vote_data in model.get('models', {}).items():
+                                if isinstance(vote_data, dict) and 'action' in vote_data:
+                                    model_votes_dict[model_name] = normalize_action(vote_data['action'])
+                        else:
+                            # Use consensus as single vote
+                            model_votes_dict['ensemble'] = normalize_action(action)
+                    else:
+                        # Simple case: single model name
+                        model_votes_dict = {str(model): normalize_action(action)}
+                    
+                    signal_quality = SignalQuality(
+                        consensus_type=ConsensusType.STRONG,  # Assume strong since passed confidence threshold
+                        confidence=confidence,
+                        model_votes=model_votes_dict,
+                        signal_strength=confidence
+                    )
+                    
+                    # Build MarketConditions
+                    market_conditions = MarketConditions(
+                        price=price,
+                        atr=market_data['atr'],
+                        ema_200=market_data['ema_200'],
+                        volume_24h=market_data['volume_24h'],
+                        spread_bps=market_data['spread_bps'],
+                        timestamp=datetime.now(timezone.utc)
+                    )
+                    
+                    # 🎯 EVALUATE THROUGH RISK MANAGEMENT LAYER
+                    decision = self._trade_manager.evaluate_new_signal(
+                        symbol=symbol,
+                        action=normalize_action(action),
+                        signal_quality=signal_quality,
+                        market_conditions=market_conditions,
+                        current_equity=cash
+                    )
+                    
+                    if not decision.approved:
+                        logger.warning(
+                            f"❌ {symbol} {action} REJECTED by risk management: {decision.rejection_reason}"
+                        )
+                        orders_skipped += 1
+                        continue
+                    
+                    # Apply risk_modifier from symbol performance
+                    quantity = decision.quantity * risk_modifier
+                    
+                    if risk_modifier < 1.0:
+                        logger.info(
+                            f"⚠️ {symbol} risk reduced to {risk_modifier:.1%} due to poor performance "
+                            f"(Original qty: {decision.quantity:.4f} → Adjusted: {quantity:.4f})"
+                        )
+                    
+                    # 🎯 COST MODEL: Estimate realistic costs
+                    try:
+                        cost_estimate = estimate_trade_cost(
+                            entry_price=price,
+                            exit_price=decision.take_profit,  # Optimistic case
+                            size=quantity,
+                            atr=market_data['atr'],
+                            is_maker=False  # Conservative estimate (taker fees)
+                        )
+                        logger.info(
+                            f"💰 {symbol} Cost estimate: "
+                            f"Total=${cost_estimate.total_cost:.2f} "
+                            f"({cost_estimate.total_cost_pct:.2%}), "
+                            f"Cost in R: {cost_estimate.cost_in_R:.3f}R"
+                        )
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not estimate costs: {e}")
+                        cost_estimate = None
+                    
+                    logger.info(
+                        f"✅ {symbol} {action} APPROVED by risk management: "
+                        f"Quantity={quantity:.4f} @ ${price:.4f}, "
+                        f"SL=${decision.stop_loss:.4f}, TP=${decision.take_profit:.4f}"
+                    )
+                    
+                    # Note: Liquidity check now done by TradeOpportunityFilter
+                    # Check if we already have this position
+                    if symbol.upper() in positions:
+                        logger.info(f"⏭️ Already have {symbol} position, skipping")
+                        orders_skipped += 1
+                        continue
+                    
+                    # 🎯 Round quantity to exchange step size
+                    try:
+                        exchange_info = await self._adapter.get_exchange_info()
+                        symbol_info = next((s for s in exchange_info.get('symbols', []) if s['symbol'] == symbol), None)
+                        
+                        if symbol_info:
+                            # Get quantity precision (stepSize)
+                            step_size = 0.001  # Default
+                            for filter_item in symbol_info.get('filters', []):
+                                if filter_item['filterType'] == 'LOT_SIZE':
+                                    step_size = float(filter_item.get('stepSize', 0.001))
+                                    break
+                            
+                            # Round down to step size
+                            from decimal import Decimal, ROUND_DOWN
+                            quantity = float(Decimal(str(quantity)).quantize(Decimal(str(step_size)), rounding=ROUND_DOWN))
+                            
+                            logger.debug(f"📊 {symbol}: step_size={step_size}, rounded_qty={quantity}")
+                        
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not round quantity for {symbol}: {e}")
+                    
+                    # Determine side
+                    side = "buy" if normalize_action(action) == "LONG" else "sell"
+                    
+                    position_size_usd = quantity * price
+                    
+                    # 🎯 LOGGING EXTENSIONS: Enrich trade entry data
+                    try:
+                        enriched_entry = enrich_trade_entry(
+                            symbol=symbol,
+                            action=action,
+                            entry_price=price,
+                            quantity=quantity,
+                            stop_loss=decision.stop_loss,
+                            take_profit=decision.take_profit,
+                            atr=market_data['atr'],
+                            confidence=confidence,
+                            consensus="STRONG" if confidence >= 0.7 else "MODERATE",
+                            regime=regime.regime if regime else None
+                        )
+                        log_message = format_trade_log_message(enriched_entry, "ENTRY")
+                        logger.info(log_message)
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not enrich trade entry: {e}")
+                        logger.info(
+                            f"📤 Placing {side.upper()} order: {symbol} qty={quantity:.4f} @ ${price:.4f} "
+                            f"(position=${position_size_usd:.2f}, conf={confidence:.2%})"
+                        )
+                    
+                    # 🎯 STORE DYNAMIC TP/SL + Risk-adjusted levels
+                    self._symbol_tpsl[symbol] = {
+                        "tp_percent": tp_percent,
+                        "sl_percent": sl_percent,
+                        "trail_percent": trail_percent,
+                        "partial_tp": partial_tp,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "confidence": confidence,
+                        # Add risk-adjusted TP/SL prices from ExitPolicyEngine
+                        "entry_price": price,
+                        "stop_loss_price": decision.stop_loss,
+                        "take_profit_price": decision.take_profit,
+                    }
+                    
+                    # Save to file for position_monitor to read
+                    try:
+                        with open(TPSL_STORAGE_PATH, 'w') as f:
+                            json.dump(self._symbol_tpsl, f)
+                    except Exception as e:
+                        logger.warning(f"Could not save TP/SL to file: {e}")
+                    
+                    logger.info(
+                        f"🎯 Stored Dynamic TP/SL for {symbol}: "
+                        f"Entry=${price:.4f}, "
+                        f"SL=${decision.stop_loss:.4f} (-{((price - decision.stop_loss) / price * 100):.1f}%), "
+                        f"TP=${decision.take_profit:.4f} (+{((decision.take_profit - price) / price * 100):.1f}%)"
+                    )
+                    
+                    # Submit market order
+                    order_id = await self._adapter.submit_order(
+                        symbol=symbol,
+                        side=side,
+                        quantity=quantity,
+                        price=price  # Market-like execution with current price
+                    )
+                    
+                    logger.info(f"✅ Order placed: {symbol} {side.upper()} - ID: {order_id}")
+                    
+                    # 🎯 REGISTER TRADE WITH LIFECYCLE MANAGER
+                    try:
+                        trade = self._trade_manager.open_trade(
+                            trade_id=order_id,
+                            decision=decision,
+                            signal_quality=signal_quality,
+                            market_conditions=market_conditions,
+                            actual_entry_price=price
+                        )
+                        logger.info(f"📝 Trade registered with lifecycle manager: {order_id}")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to register trade with lifecycle manager: {e}")
+                    
+                    orders_submitted += 1
+                    
+                except Exception as e:
+                    logger.error(f"❌ Failed to place order for {symbol}: {e}", exc_info=True)
+                    orders_failed += 1
+            
+            return {
+                "status": "ok",
+                "orders_planned": len(orders_to_place),
+                "orders_submitted": orders_submitted,
+                "orders_skipped": orders_skipped,
+                "orders_failed": orders_failed
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Direct execution failed: {e}", exc_info=True)
+            return {
+                "status": "error",
+                "error": str(e),
+                "orders_planned": 0,
+                "orders_submitted": 0,
+                "orders_skipped": 0,
+                "orders_failed": 0
+            }
+
+
+# Global instance (initialized at startup)
+_executor: Optional[EventDrivenExecutor] = None
+
+
+async def start_event_driven_executor(
+    ai_engine: AITradingEngine,
+    symbols: List[str],
+    confidence_threshold: float = 0.65,
+    check_interval: int = 30,
+    cooldown: int = 300,
+) -> "EventDrivenExecutor":
+    """Start the global event-driven executor. Returns executor instance.
+    
+    IMPORTANT: The executor starts a background task. The caller MUST keep
+    a reference to executor._task to prevent garbage collection!
+    """
+    global _executor
+    
+    if _executor is not None:
+        logger.warning("Event-driven executor already running")
+        return _executor
+    
+    _executor = EventDrivenExecutor(
+        ai_engine=ai_engine,
+        symbols=symbols,
+        confidence_threshold=confidence_threshold,
+        check_interval_seconds=check_interval,
+        cooldown_seconds=cooldown,
+    )
+    
+    await _executor.start()
+    
+    # ⚠️ CRITICAL: Verify task was created and is running
+    if _executor._task is None or _executor._task.done():
+        logger.error("❌ CRITICAL: Event-driven executor task failed to start!")
+        raise RuntimeError("Event-driven executor task not running")
+    else:
+        logger.info("✅ Event-driven executor task confirmed running: %s", _executor._task.get_name())
+    
+    return _executor
+
+
+async def stop_event_driven_executor():
+    """Stop the global event-driven executor."""
+    global _executor
+    
+    if _executor is None:
+        return
+    
+    await _executor.stop()
+    _executor = None
+
+
+def is_event_driven_active() -> bool:
+    """Check if event-driven executor is running."""
+    return _executor is not None and _executor._running

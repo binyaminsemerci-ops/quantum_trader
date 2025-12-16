@@ -1,0 +1,76 @@
+"""Check Binance account balance before live trading"""
+from backend.config import load_config
+from binance.client import Client
+
+cfg = load_config()
+
+try:
+    client = Client(cfg.binance_api_key, cfg.binance_api_secret)
+    account = client.get_account()
+    
+    print('[OK] Binance API Connected!')
+    print('=' * 80)
+    print(f'Can Trade: {account["canTrade"]}')
+    print(f'Can Withdraw: {account["canWithdraw"]}')
+    print(f'Can Deposit: {account["canDeposit"]}')
+    print()
+    
+    # Show all non-zero balances
+    balances = [b for b in account['balances'] if float(b['free']) > 0 or float(b['locked']) > 0]
+    print(f'[MONEY] ACCOUNT BALANCES:')
+    print('=' * 80)
+    
+    total_usdt = 0
+    for bal in balances:
+        free = float(bal['free'])
+        locked = float(bal['locked'])
+        total = free + locked
+        
+        if total > 0.001:
+            print(f'{bal["asset"]:8s}: {free:15.8f} free + {locked:15.8f} locked = {total:15.8f}')
+            
+            # Calculate USDT equivalent for major coins
+            if bal['asset'] == 'USDT':
+                total_usdt += total
+            elif bal['asset'] == 'USDC':
+                total_usdt += total
+            elif bal['asset'] == 'BTC' and total > 0:
+                try:
+                    btc_price = float(client.get_symbol_ticker(symbol='BTCUSDT')['price'])
+                    total_usdt += total * btc_price
+                    print(f'         ~${total * btc_price:.2f} USDT')
+                except:
+                    pass
+            elif bal['asset'] == 'ETH' and total > 0:
+                try:
+                    eth_price = float(client.get_symbol_ticker(symbol='ETHUSDT')['price'])
+                    total_usdt += total * eth_price
+                    print(f'         ~${total * eth_price:.2f} USDT')
+                except:
+                    pass
+    
+    print()
+    print('=' * 80)
+    print(f'[CHART] ESTIMATED TOTAL: ~${total_usdt:.2f} USDT equivalent')
+    print('=' * 80)
+    
+    # Check specific USDT balance
+    usdt = next((b for b in account['balances'] if b['asset'] == 'USDT'), None)
+    if usdt:
+        usdt_free = float(usdt['free'])
+        if usdt_free >= 50:
+            print(f'\n[OK] Sufficient USDT for trading: ${usdt_free:.2f}')
+            print(f'   Can place up to {int(usdt_free / 50)} trades at $50 each')
+        elif usdt_free >= 11:
+            print(f'\n[WARNING]  Limited USDT: ${usdt_free:.2f}')
+            print(f'   Recommend minimum $50 for safe trading')
+        else:
+            print(f'\n❌ Insufficient USDT: ${usdt_free:.2f}')
+            print(f'   Need at least $11 for minimum notional')
+    else:
+        print('\n❌ No USDT balance found!')
+        
+except Exception as e:
+    print(f'❌ Binance API Error: {e}')
+    import traceback
+    traceback.print_exc()

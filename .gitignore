@@ -55,3 +55,4 @@ run-*-logs.zip
 run-*-log.txt
 /.pytest_cache/
 /.pytest_cache/
+.pytest_tmp/

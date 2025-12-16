@@ -1,0 +1,11 @@
+{
+  "symbol": "DASHUSDT",
+  "payload": {
+    "score": 0.588,
+    "label": "neutral",
+    "source": "coingecko",
+    "sentiment_votes_up_percentage": 84.0,
+    "market_cap_rank": 110
+  },
+  "fetched_at": "2025-11-19T12:01:17.225819+00:00"
+}

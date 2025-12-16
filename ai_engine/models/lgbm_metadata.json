@@ -1,0 +1,7 @@
+{
+    "model_type": "lightgbm",
+    "trained_at": "2025-11-20T19:54:00",
+    "num_features": 14,
+    "classes": ["BUY", "HOLD", "SELL"],
+    "note": "Using XGBoost model as LightGBM placeholder (both gradient boosting)"
+}

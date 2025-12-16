@@ -1,0 +1,18 @@
+# Risk & Safety Service Dependencies
+
+# FastAPI framework
+fastapi==0.115.12
+uvicorn[standard]==0.34.0
+pydantic==2.10.5
+pydantic-settings==2.7.1
+
+# Redis
+redis==5.2.1
+hiredis==3.1.0
+
+# Async support
+asyncio==3.4.3
+aiofiles==24.1.0
+
+# Logging
+python-json-logger==3.2.1

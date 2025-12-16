@@ -1,0 +1,77 @@
+# Prometheus Configuration for Quantum Trader v3.0
+# ==================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    cluster: 'quantum_trader_v3'
+    environment: 'production'
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Scrape configurations
+scrape_configs:
+  
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+  
+  # AI Service
+  - job_name: 'ai-service'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['ai-service:8001']
+        labels:
+          service: 'ai-service'
+          component: 'microservice'
+    metrics_path: '/metrics'
+  
+  # Exec-Risk Service
+  - job_name: 'exec-risk-service'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['exec-risk-service:8002']
+        labels:
+          service: 'exec-risk-service'
+          component: 'microservice'
+    metrics_path: '/metrics'
+  
+  # Analytics-OS Service
+  - job_name: 'analytics-os-service'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['analytics-os-service:8003']
+        labels:
+          service: 'analytics-os-service'
+          component: 'microservice'
+    metrics_path: '/metrics'
+  
+  # Redis Exporter (optional - requires redis_exporter container)
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+  #       labels:
+  #         service: 'redis'
+  #         component: 'infrastructure'
+  
+  # PostgreSQL Exporter (optional - requires postgres_exporter container)
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+  #       labels:
+  #         service: 'postgres'
+  #         component: 'infrastructure'
+
+# Recording rules
+# rule_files:
+#   - 'rules/*.yml'

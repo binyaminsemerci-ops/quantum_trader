@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+"""Quick check of Binance Futures positions"""
+import os
+from binance.um_futures import UMFutures
+
+api_key = os.getenv('BINANCE_FUTURES_API_KEY')
+api_secret = os.getenv('BINANCE_FUTURES_API_SECRET')
+
+client = UMFutures(key=api_key, secret=api_secret)
+all_positions = client.get_position_risk()
+open_positions = [p for p in all_positions if float(p['positionAmt']) != 0]
+
+print(f"\n📊 BINANCE FUTURES POSITIONS: {len(open_positions)}")
+for p in open_positions:
+    pnl = float(p['unrealizedProfit'])
+    notional = float(p['notional'])
+    print(f"  {p['symbol']}: {p['positionAmt']} @ ${float(p['entryPrice']):.4f}")
+    print(f"    Leverage: {p['leverage']}x | Notional: ${abs(notional):.2f} | PnL: ${pnl:.2f}")
+    
+total_pnl = sum(float(p['unrealizedProfit']) for p in open_positions)
+print(f"\n💰 Total Unrealized P&L: ${total_pnl:.2f}")

@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""Check USDC balance on Binance Futures"""
+import os
+from dotenv import load_dotenv
+from binance.client import Client
+
+load_dotenv()
+
+client = Client(
+    os.getenv("BINANCE_API_KEY"),
+    os.getenv("BINANCE_API_SECRET")
+)
+
+print("[MONEY] BINANCE FUTURES USDC BALANCE")
+print("=" * 80)
+
+account = client.futures_account()
+
+# Find USDC balance
+usdc_balance = None
+for asset_info in account['assets']:
+    if asset_info['asset'] == 'USDC':
+        usdc_balance = asset_info
+        break
+
+if usdc_balance:
+    wallet = float(usdc_balance['walletBalance'])
+    available = float(usdc_balance['availableBalance'])
+    unrealized_pnl = float(usdc_balance.get('unrealizedProfit', 0))
+    
+    print(f"USDC Balance:")
+    print(f"  Wallet Balance: ${wallet:.2f}")
+    print(f"  Available Balance: ${available:.2f}")
+    print(f"  Unrealized PnL: ${unrealized_pnl:.2f}")
+    print(f"  Total Equity: ${wallet + unrealized_pnl:.2f}")
+else:
+    print("❌ No USDC balance found")
+
+print("=" * 80)
+
+# Show all positions
+print("\n[CHART] CURRENT POSITIONS:")
+positions = client.futures_position_information()
+open_positions = [p for p in positions if float(p['positionAmt']) != 0]
+
+if open_positions:
+    for pos in open_positions:
+        symbol = pos['symbol']
+        qty = float(pos['positionAmt'])
+        entry = float(pos['entryPrice'])
+        mark = float(pos['markPrice'])
+        upnl = float(pos['unRealizedProfit'])
+        leverage = pos['leverage']
+        
+        print(f"  {symbol}: {qty:.4f} @ ${entry:.4f} (Leverage: {leverage}x, uPnL: ${upnl:.2f})")
+else:
+    print("  No open positions")
+
+print("=" * 80)

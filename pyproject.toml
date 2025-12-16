@@ -1,0 +1,58 @@
+# Test Configuration
+# ==================
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Test markers
+markers = [
+    "unit: Unit tests (fast, isolated)",
+    "integration: Integration tests (slower, multiple modules)",
+    "scenario: Scenario tests (IB compliance scenarios)",
+    "slow: Slow tests (skip by default)",
+    "asyncio: Async tests",
+]
+
+# Async support
+asyncio_mode = "auto"
+
+# Coverage settings
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--color=yes",
+]
+
+# Parallel execution (optional)
+# addopts = ["-n", "auto"]  # Requires pytest-xdist
+
+[tool.coverage.run]
+source = ["backend"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+precision = 2
+show_missing = true
+skip_covered = false

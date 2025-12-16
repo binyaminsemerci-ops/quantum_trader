@@ -11,7 +11,32 @@ Prosjektet inkluderer plan for Binance-integrasjon, AI-modell, trading-motor og 
 - ✅ Backend kjører i Docker (`17/17 tester passerer`).
 - ✅ Frontend bygger med Vite + React.
 - ✅ API-endepunkter for stats, trades, settings osv. er på plass.
-- 🔄 Neste steg: Binance API-wrapper + AI baseline.
+- ✅ **XGBoost ML-integrasjon komplett** - Agent genererer live handelssignaler med metadata
+- ✅ **Signal-prioritering** - ML-prediksjoner prioriteres over tekniske indikatorer
+- 🔄 Neste steg: Binance API-wrapper optimalisering + real-time streaming
+
+---
+
+## 🤖 XGBoost ML Integration
+
+Quantum Trader bruker nå machine learning aktivt for å generere handelssignaler:
+
+- **XGBoost Agent** - 80.5% accuracy på 921 samples
+- **Ensemble Support** - 5 modeller (XGBoost, LightGBM, RandomForest, GradientBoost, MLP)
+- **Metadata Tracking** - Alle signaler merket med kilde (`XGBAgent` vs `LiveAIHeuristic`)
+- **Graceful Fallback** - Heuristikk brukes når agent ikke genererer signaler
+
+### Quick Test
+
+```powershell
+# Test signal-generering
+python demo_integration.py
+
+# Kjør integrasjonstester
+pytest backend/tests/test_xgb_integration_demo.py -v
+```
+
+📚 **Full dokumentasjon:** Se [XGBOOST_INTEGRATION.md](XGBOOST_INTEGRATION.md)
 
 ---
 

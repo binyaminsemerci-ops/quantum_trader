@@ -1,0 +1,165 @@
+"""
+Database Health Monitor - Real-time connection health tracking
+
+Monitors database connection health and provides alerts when issues occur.
+"""
+
+import logging
+import time
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
+
+
+class DatabaseHealthMonitor:
+    """
+    Real-time database health monitoring.
+    
+    Tracks:
+    - Connection failures
+    - Query timeouts
+    - Connection pool exhaustion
+    - Transaction errors
+    """
+    
+    def __init__(self):
+        self.total_queries = 0
+        self.failed_queries = 0
+        self.total_connections = 0
+        self.failed_connections = 0
+        self.last_successful_query = None
+        self.last_failed_query = None
+        self.connection_errors = []
+        self.max_error_history = 100
+        
+    def record_query_success(self) -> None:
+        """Record a successful query."""
+        self.total_queries += 1
+        self.last_successful_query = datetime.now(timezone.utc)
+        
+    def record_query_failure(self, error: str) -> None:
+        """Record a failed query."""
+        self.total_queries += 1
+        self.failed_queries += 1
+        self.last_failed_query = datetime.now(timezone.utc)
+        
+        # Keep limited error history
+        self.connection_errors.append({
+            "timestamp": self.last_failed_query,
+            "error": str(error),
+        })
+        if len(self.connection_errors) > self.max_error_history:
+            self.connection_errors.pop(0)
+        
+        # Log warning if failure rate is high
+        if self.total_queries > 10:
+            failure_rate = self.failed_queries / self.total_queries
+            if failure_rate > 0.1:  # More than 10% failures
+                logger.warning(
+                    f"⚠️ High database query failure rate: {failure_rate:.1%} "
+                    f"({self.failed_queries}/{self.total_queries})"
+                )
+        
+    def record_connection_success(self) -> None:
+        """Record a successful connection."""
+        self.total_connections += 1
+        
+    def record_connection_failure(self, error: str) -> None:
+        """Record a failed connection."""
+        self.total_connections += 1
+        self.failed_connections += 1
+        
+        logger.error(f"❌ Database connection failed: {error}")
+        
+        # Alert on repeated connection failures
+        if self.failed_connections >= 3:
+            logger.critical(
+                f"🚨 CRITICAL: {self.failed_connections} consecutive database "
+                f"connection failures!"
+            )
+        
+    def get_health_status(self) -> Dict[str, Any]:
+        """Get current health status."""
+        if self.total_queries == 0:
+            query_success_rate = 1.0
+        else:
+            query_success_rate = (self.total_queries - self.failed_queries) / self.total_queries
+        
+        if self.total_connections == 0:
+            connection_success_rate = 1.0
+        else:
+            connection_success_rate = (
+                self.total_connections - self.failed_connections
+            ) / self.total_connections
+        
+        # Determine overall health
+        if query_success_rate >= 0.95 and connection_success_rate >= 0.95:
+            health = "healthy"
+        elif query_success_rate >= 0.8 and connection_success_rate >= 0.8:
+            health = "degraded"
+        else:
+            health = "unhealthy"
+        
+        return {
+            "health": health,
+            "query_success_rate": query_success_rate,
+            "connection_success_rate": connection_success_rate,
+            "total_queries": self.total_queries,
+            "failed_queries": self.failed_queries,
+            "total_connections": self.total_connections,
+            "failed_connections": self.failed_connections,
+            "last_successful_query": (
+                self.last_successful_query.isoformat()
+                if self.last_successful_query
+                else None
+            ),
+            "last_failed_query": (
+                self.last_failed_query.isoformat()
+                if self.last_failed_query
+                else None
+            ),
+            "recent_errors": self.connection_errors[-10:],  # Last 10 errors
+        }
+    
+    def reset_stats(self) -> None:
+        """Reset statistics (useful for testing or periodic resets)."""
+        self.total_queries = 0
+        self.failed_queries = 0
+        self.total_connections = 0
+        self.failed_connections = 0
+        self.connection_errors.clear()
+
+
+# Global health monitor instance
+_health_monitor = DatabaseHealthMonitor()
+
+
+def get_health_monitor() -> DatabaseHealthMonitor:
+    """Get the global health monitor instance."""
+    return _health_monitor
+
+
+def record_query_success() -> None:
+    """Convenience function to record query success."""
+    _health_monitor.record_query_success()
+
+
+def record_query_failure(error: Exception) -> None:
+    """Convenience function to record query failure."""
+    _health_monitor.record_query_failure(str(error))
+
+
+def record_connection_success() -> None:
+    """Convenience function to record connection success."""
+    _health_monitor.record_connection_success()
+
+
+def record_connection_failure(error: Exception) -> None:
+    """Convenience function to record connection failure."""
+    _health_monitor.record_connection_failure(str(error))
+
+
+def get_database_health() -> Dict[str, Any]:
+    """Get current database health status."""
+    return _health_monitor.get_health_status()

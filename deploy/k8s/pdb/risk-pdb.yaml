@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: qt-risk-pdb
+  namespace: quantum-trader
+  labels:
+    app: qt-risk
+    tier: safety
+    epic: K8S-002
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: qt-risk

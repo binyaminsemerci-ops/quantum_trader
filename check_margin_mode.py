@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""Check margin mode and free up USDC for trading"""
+import os
+from dotenv import load_dotenv
+from binance.client import Client
+
+load_dotenv()
+
+client = Client(
+    os.getenv("BINANCE_API_KEY"),
+    os.getenv("BINANCE_API_SECRET")
+)
+
+print("[SEARCH] CHECKING BINANCE FUTURES ACCOUNT")
+print("=" * 80)
+
+# Get account info
+account = client.futures_account()
+
+# Check USDC
+usdc = [a for a in account['assets'] if a['asset'] == 'USDC'][0]
+print(f"[MONEY] USDC:")
+print(f"  Wallet Balance: ${float(usdc['walletBalance']):.2f}")
+print(f"  Available Balance: ${float(usdc['availableBalance']):.2f}")
+print(f"  Initial Margin: ${float(usdc.get('initialMargin', 0)):.2f}")
+print(f"  Maint Margin: ${float(usdc.get('maintMargin', 0)):.2f}")
+print(f"  Cross Wallet Balance: ${float(usdc.get('crossWalletBalance', 0)):.2f}")
+
+# Check if multi-assets mode is enabled
+print(f"\n⚙️ Account Settings:")
+print(f"  Multi-Assets Mode: {account.get('multiAssetsMargin', False)}")
+
+# Check open orders
+open_orders = client.futures_get_open_orders()
+if open_orders:
+    print(f"\n[CLIPBOARD] Open Orders: {len(open_orders)}")
+    for order in open_orders[:5]:
+        print(f"  {order['symbol']}: {order['side']} {order['origQty']} @ {order['price']}")
+else:
+    print(f"\n[OK] No open orders")
+
+# Check positions
+positions = client.futures_position_information()
+open_pos = [p for p in positions if float(p['positionAmt']) != 0]
+if open_pos:
+    print(f"\n[CHART] Open Positions: {len(open_pos)}")
+    for pos in open_pos:
+        print(f"  {pos['symbol']}: {pos['positionAmt']} (Margin: ${float(pos['initialMargin']):.2f})")
+else:
+    print(f"\n[OK] No open positions")
+
+print("=" * 80)
+
+# Solution
+if float(usdc['availableBalance']) == 0:
+    print("\n[WARNING] PROBLEM: $0.00 USDC available despite having $965.36 wallet balance")
+    print("\n💡 SOLUTIONS:")
+    print("  1. Check if you have open orders locking margin → Cancel them")
+    print("  2. Transfer USDC from Spot to Futures wallet if needed")
+    print("  3. Enable Multi-Assets Margin mode to use USDC as collateral")
+    print("  4. Check if margin is locked in positions")

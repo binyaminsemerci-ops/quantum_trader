@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""
+Close BTCUSDT position to free up margin for new trades.
+"""
+import asyncio
+import os
+from dotenv import load_dotenv
+from backend.services.execution.execution import BinanceFuturesExecutionAdapter
+from backend.config.config import load_config
+
+load_dotenv()
+
+async def main():
+    cfg = load_config()
+    
+    adapter = BinanceFuturesExecutionAdapter(
+        api_key=cfg.binance_api_key,
+        api_secret=cfg.binance_api_secret,
+        quote_asset="USDT",
+        market_type="usdm_perp",
+        default_leverage=30,
+        margin_mode="cross",
+    )
+    
+    if not adapter.ready:
+        print("❌ Adapter not ready (missing API keys)")
+        return
+    
+    # Get current BTCUSDT position
+    positions = await adapter.get_positions()
+    btc_qty = positions.get("BTCUSDT", 0)
+    
+    if btc_qty == 0:
+        print("[OK] No BTCUSDT position to close")
+        return
+    
+    print(f"[CHART] Current BTCUSDT position: {btc_qty}")
+    
+    # Get current price
+    ticker = await adapter.get_ticker("BTCUSDT")
+    price = ticker.get("last", 0)
+    print(f"[MONEY] Current BTC price: ${price:,.2f}")
+    
+    # Close position with market order (opposite side)
+    side = "sell" if btc_qty > 0 else "buy"
+    quantity = abs(btc_qty)
+    
+    print(f"🔄 Closing position: {side.upper()} {quantity} BTCUSDT @ market")
+    
+    try:
+        order_id = await adapter.submit_order(
+            symbol="BTCUSDT",
+            side=side,
+            quantity=quantity,
+            price=price  # Market order
+        )
+        print(f"[OK] Position closed! Order ID: {order_id}")
+        
+        # Check balance after
+        await asyncio.sleep(2)
+        balance = await adapter.get_cash_balance()
+        print(f"💵 New available balance: ${balance:.2f}")
+        
+    except Exception as e:
+        print(f"❌ Failed to close position: {e}")
+    
+    await adapter.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())

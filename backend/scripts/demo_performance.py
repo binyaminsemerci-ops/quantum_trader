@@ -28,7 +28,7 @@ async def simulate_api_requests():
 
     collector = PerformanceCollector()
 
-    print("🚀 Starting performance monitoring demo...\n")
+    print("[ROCKET] Starting performance monitoring demo...\n")
 
     # Simulate fast requests
     for i in range(5):
@@ -91,7 +91,7 @@ async def simulate_api_requests():
     collector.add_request_metric(slow_metric)
 
     # Print collected metrics
-    print("📊 Performance Summary:")
+    print("[CHART] Performance Summary:")
     print("=" * 50)
 
     request_summary = collector.get_request_summary()
@@ -101,7 +101,7 @@ async def simulate_api_requests():
     print(f"Slow Requests: {request_summary['slow_requests']}")
     print(f"Average DB Queries: {request_summary['avg_db_queries']:.1f}")
 
-    print("\n🎯 Endpoint Performance:")
+    print("\n[TARGET] Endpoint Performance:")
     for endpoint, stats in request_summary["endpoint_performance"].items():
         print(f"  {endpoint}: {stats['count']} requests, avg {stats['avg_ms']:.2f}ms")
 
@@ -153,14 +153,14 @@ def demo_system_metrics():
 
 async def main():
     """Run the complete performance monitoring demo."""
-    print("🔍 Quantum Trader Performance Monitoring Demo")
+    print("[SEARCH] Quantum Trader Performance Monitoring Demo")
     print("=" * 50)
 
     await simulate_api_requests()
     await demo_performance_timer()
     demo_system_metrics()
 
-    print("\n✅ Demo completed! Performance monitoring is working correctly.")
+    print("\n[OK] Demo completed! Performance monitoring is working correctly.")
     print("\n💡 In production, these metrics would be:")
     print("   • Logged to structured log files")
     print("   • Exposed via /api/metrics/* endpoints")

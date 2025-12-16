@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rl-training-service
+  namespace: quantum-trader
+  labels:
+    app: rl-training-service
+    component: rl-training
+    tier: backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8006
+    targetPort: 8006
+    protocol: TCP
+    name: http
+  selector:
+    app: rl-training-service

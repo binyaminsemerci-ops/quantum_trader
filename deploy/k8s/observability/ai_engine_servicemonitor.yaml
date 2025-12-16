@@ -1,0 +1,29 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ai-engine
+  namespace: quantum-trader
+  labels:
+    app: ai-engine
+    tier: intelligence
+    epic: OBS-001
+spec:
+  selector:
+    matchLabels:
+      app: ai-engine
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 15s
+    scrapeTimeout: 10s
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - action: replace
+      targetLabel: service
+      replacement: ai-engine
+  namespaceSelector:
+    matchNames:
+    - quantum-trader

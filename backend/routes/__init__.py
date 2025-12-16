@@ -9,7 +9,13 @@ registered predictably. This avoids import-order issues where tests may import
 # Import submodules to ensure their top-level router objects and handlers are
 # created when the package is imported. Keep the list explicit so linters
 # and tooling can see what's exported.
-from . import trades, stats, chart, settings, binance, signals, prices, candles
+from . import trades, stats, chart, settings, binance, signals, prices, candles, risk, ai, ws, liquidity, scheduler, trading_profile
+
+try:
+    from . import opportunity_routes
+    OPPORTUNITY_ROUTES_AVAILABLE = True
+except ImportError:
+    OPPORTUNITY_ROUTES_AVAILABLE = False
 
 __all__ = [
     "trades",
@@ -20,4 +26,13 @@ __all__ = [
     "signals",
     "prices",
     "candles",
+    "risk",
+    "ai",
+    "ws",
+    "liquidity",
+    "scheduler",
+    "trading_profile",
 ]
+
+if OPPORTUNITY_ROUTES_AVAILABLE:
+    __all__.append("opportunity_routes")

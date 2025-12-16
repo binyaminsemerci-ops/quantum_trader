@@ -1,0 +1,292 @@
+"""
+DATA AGGREGATOR BACKFILL
+Henter aggregert markedsdata fra CoinGecko og CryptoCompare
+Target: 50,000+ samples fra data aggregators
+"""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
+
+import asyncio
+import aiohttp
+import json
+import numpy as np
+import pandas as pd
+from datetime import datetime, timezone, timedelta
+from backend.database import SessionLocal
+from backend.models.ai_training import AITrainingSample
+import time
+
+def calculate_indicators(df):
+    """Calculate 14 technical indicators"""
+    close = df['close']
+    high = df['high']
+    low = df['low']
+    volume = df['volume']
+    
+    df['EMA_10'] = close.ewm(span=10, adjust=False).mean()
+    df['EMA_50'] = close.ewm(span=50, adjust=False).mean()
+    
+    delta = close.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+    
+    ema_12 = close.ewm(span=12, adjust=False).mean()
+    ema_26 = close.ewm(span=26, adjust=False).mean()
+    df['MACD'] = ema_12 - ema_26
+    df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+    
+    sma_20 = close.rolling(window=20).mean()
+    std_20 = close.rolling(window=20).std()
+    df['BB_upper'] = sma_20 + (std_20 * 2)
+    df['BB_middle'] = sma_20
+    df['BB_lower'] = sma_20 - (std_20 * 2)
+    
+    high_low = high - low
+    high_close = np.abs(high - close.shift())
+    low_close = np.abs(low - close.shift())
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = ranges.max(axis=1)
+    df['ATR'] = true_range.rolling(14).mean()
+    
+    df['volume_sma_20'] = volume.rolling(window=20).mean()
+    df['price_change_pct'] = close.pct_change() * 100
+    df['high_low_range'] = high - low
+    
+    return df
+
+async def fetch_coingecko_ohlc(session, coin_id, days=90):
+    """Fetch CoinGecko OHLC data (aggregated from 600+ exchanges)"""
+    url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
+    params = {'vs_currency': 'usd', 'days': days}
+    
+    try:
+        async with session.get(url, params=params, timeout=30) as response:
+            if response.status == 200:
+                data = await response.json()
+                # Format: [timestamp, open, high, low, close]
+                return data
+            await asyncio.sleep(1.5)  # Rate limit
+    except:
+        pass
+    return None
+
+def determine_action_outcome(features, future_price, current_price):
+    """Aggressive action determination"""
+    rsi = features['RSI']
+    macd = features['MACD']
+    ema_10 = features['EMA_10']
+    ema_50 = features['EMA_50']
+    close = features['Close']
+    bb_upper = features['BB_upper']
+    bb_lower = features['BB_lower']
+    
+    pnl_pct = ((future_price - current_price) / current_price) * 100
+    
+    if rsi < 46 and ema_10 > ema_50 * 0.995:
+        action = "BUY"
+    elif rsi > 54 and ema_10 < ema_50 * 1.005:
+        action = "SELL"
+    elif macd > 0 and close < bb_upper * 0.98:
+        action = "BUY"
+    elif macd < 0 and close > bb_lower * 1.02:
+        action = "SELL"
+    elif rsi < 32:
+        action = "BUY"
+    elif rsi > 68:
+        action = "SELL"
+    else:
+        action = "HOLD"
+        return action, "NEUTRAL", 0
+    
+    if action == "BUY":
+        outcome = "WIN" if pnl_pct > 0.08 else "LOSS" if pnl_pct < -0.08 else "NEUTRAL"
+    elif action == "SELL":
+        outcome = "WIN" if pnl_pct < -0.08 else "LOSS" if pnl_pct > 0.08 else "NEUTRAL"
+    else:
+        outcome = "NEUTRAL"
+        pnl_pct = 0
+    
+    return action, outcome, pnl_pct
+
+async def process_coingecko_coin(session, coin_id, symbol, days, db, source_name, max_samples=300):
+    """Process one CoinGecko coin"""
+    
+    ohlc_data = await fetch_coingecko_ohlc(session, coin_id, days)
+    
+    if not ohlc_data or len(ohlc_data) < 100:
+        return 0
+    
+    # Convert to DataFrame
+    df = pd.DataFrame(ohlc_data, columns=['timestamp', 'open', 'high', 'low', 'close'])
+    df['volume'] = df['close'] * 1000000  # Estimate volume
+    
+    for col in ['timestamp', 'open', 'high', 'low', 'close', 'volume']:
+        df[col] = pd.to_numeric(df[col])
+    
+    df = calculate_indicators(df)
+    df = df.dropna()
+    
+    if len(df) < 60:
+        return 0
+    
+    samples_created = 0
+    lookback = 10
+    step = 3  # Aggressive sampling
+    
+    for i in range(50, len(df) - lookback, step):
+        if samples_created >= max_samples:
+            break
+        
+        row = df.iloc[i]
+        future_row = df.iloc[i + lookback]
+        
+        features = {
+            "Close": float(row['close']),
+            "Volume": float(row['volume']),
+            "EMA_10": float(row['EMA_10']),
+            "EMA_50": float(row['EMA_50']),
+            "RSI": float(row['RSI']),
+            "MACD": float(row['MACD']),
+            "MACD_signal": float(row['MACD_signal']),
+            "BB_upper": float(row['BB_upper']),
+            "BB_middle": float(row['BB_middle']),
+            "BB_lower": float(row['BB_lower']),
+            "ATR": float(row['ATR']),
+            "volume_sma_20": float(row['volume_sma_20']),
+            "price_change_pct": float(row['price_change_pct']),
+            "high_low_range": float(row['high_low_range'])
+        }
+        
+        action, outcome, pnl_pct = determine_action_outcome(
+            features, future_row['close'], row['close']
+        )
+        
+        timestamp = datetime.fromtimestamp(row['timestamp'] / 1000, tz=timezone.utc)
+        exit_time = datetime.fromtimestamp(future_row['timestamp'] / 1000, tz=timezone.utc)
+        
+        sample = AITrainingSample(
+            symbol=symbol,
+            timestamp=timestamp,
+            predicted_action=action,
+            prediction_score=0.75,
+            prediction_confidence=0.75,
+            model_version=source_name,
+            features=json.dumps(features),
+            feature_names=json.dumps(list(features.keys())),
+            executed=True if action != "HOLD" else False,
+            execution_side=action if action != "HOLD" else None,
+            entry_price=row['close'],
+            entry_quantity=100.0,
+            entry_time=timestamp,
+            outcome_known=True,
+            exit_price=future_row['close'],
+            exit_time=exit_time,
+            realized_pnl=pnl_pct if action != "HOLD" else 0,
+            hold_duration_seconds=(exit_time - timestamp).total_seconds(),
+            target_label=pnl_pct,
+            target_class=outcome
+        )
+        
+        db.add(sample)
+        samples_created += 1
+    
+    if samples_created > 0:
+        db.commit()
+    
+    return samples_created
+
+async def main(target_samples=50000):
+    """Aggregator backfill from CoinGecko"""
+    
+    print("💎💎💎 DATA AGGREGATOR BACKFILL - COINGECKO 💎💎💎")
+    print("=" * 80)
+    print(f"🎯 Target: {target_samples:,} samples")
+    print("📊 Source: CoinGecko API (aggregated from 600+ exchanges)")
+    print("🌍 Global market data diversity")
+    print("=" * 80)
+    
+    # CoinGecko coin IDs (top 30)
+    coins = [
+        ('bitcoin', 'BTCUSDT'),
+        ('ethereum', 'ETHUSDT'),
+        ('binancecoin', 'BNBUSDT'),
+        ('solana', 'SOLUSDT'),
+        ('ripple', 'XRPUSDT'),
+        ('cardano', 'ADAUSDT'),
+        ('dogecoin', 'DOGEUSDT'),
+        ('polkadot', 'DOTUSDT'),
+        ('polygon', 'MATICUSDT'),
+        ('avalanche-2', 'AVAXUSDT'),
+        ('chainlink', 'LINKUSDT'),
+        ('uniswap', 'UNIUSDT'),
+        ('cosmos', 'ATOMUSDT'),
+        ('litecoin', 'LTCUSDT'),
+        ('near', 'NEARUSDT'),
+        ('algorand', 'ALGOUSDT'),
+        ('stellar', 'XLMUSDT'),
+        ('filecoin', 'FILUSDT'),
+        ('aptos', 'APTUSDT'),
+        ('arbitrum', 'ARBUSDT'),
+        ('optimism', 'OPUSDT'),
+        ('sui', 'SUIUSDT'),
+        ('tron', 'TRXUSDT'),
+        ('the-open-network', 'TONUSDT'),
+        ('bitcoin-cash', 'BCHUSDT'),
+    ]
+    
+    # Different time periods
+    configs = [
+        ('coingecko_90d', 90, 300),
+        ('coingecko_60d', 60, 280),
+        ('coingecko_30d', 30, 260),
+    ]
+    
+    db = SessionLocal()
+    total_samples = 0
+    
+    async with aiohttp.ClientSession() as session:
+        for source_name, days, max_samples in configs:
+            if total_samples >= target_samples:
+                break
+            
+            print(f"\n💎 {source_name.upper()} ({days} days back)")
+            config_samples = 0
+            valid_coins = 0
+            
+            for i, (coin_id, symbol) in enumerate(coins, 1):
+                if total_samples >= target_samples:
+                    break
+                
+                count = await process_coingecko_coin(
+                    session, coin_id, symbol, days, db, source_name, max_samples
+                )
+                
+                if count > 0:
+                    valid_coins += 1
+                    config_samples += count
+                    total_samples += count
+                    print(f"   ✅ {i}/{len(coins)} {symbol}: {count} samples (total: {config_samples:,})...")
+                
+                if total_samples >= target_samples:
+                    print(f"\n🎯 TARGET REACHED!")
+                    break
+            
+            print(f"   ✅ Period complete: {config_samples:,} samples from {valid_coins} coins")
+    
+    db.close()
+    
+    print("\n" + "=" * 80)
+    print(f"💎💎💎 COINGECKO BACKFILL COMPLETE! 💎💎💎")
+    print(f"   Total samples: {total_samples:,}")
+    print(f"   Data: Aggregated from 600+ exchanges globally")
+    print(f"   AI now has CROSS-EXCHANGE consensus knowledge!")
+    print("=" * 80)
+    
+    return total_samples
+
+if __name__ == '__main__':
+    target = int(sys.argv[1]) if len(sys.argv) > 1 else 50000
+    asyncio.run(main(target))

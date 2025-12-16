@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Test and temp files
+*.log
+*.tmp
+temp/
+tmp/
+test-results/
+
+# Node modules (if any frontend stuff)
+node_modules/
+qt-agent-ui/node_modules/
+frontend/node_modules/
+
+# Database files (mount separately)
+*.db
+*.db-shm
+*.db-wal
+
+# Docs and markdown
+*.md
+docs/
+README*
+TODO*
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore

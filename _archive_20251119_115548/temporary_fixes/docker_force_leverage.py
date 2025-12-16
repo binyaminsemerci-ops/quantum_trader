@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""Force all positions to 10x leverage - run inside Docker container."""
+
+from binance.client import Client
+import os
+
+client = Client(os.environ['BINANCE_API_KEY'], os.environ['BINANCE_API_SECRET'])
+positions = client.futures_position_information()
+open_pos = [p for p in positions if float(p['positionAmt']) != 0]
+
+print(f'\n=== {len(open_pos)} Open Positions on Binance ===\n')
+for p in open_pos:
+    symbol = p['symbol']
+    size = float(p['positionAmt'])
+    entry = float(p['entryPrice'])
+    leverage = int(p.get('leverage', 1))  # Default to 1 if not present
+    pnl = float(p['unRealizedProfit'])
+    print(f'{symbol:12} | {abs(size):8.2f} @ ${entry:8.4f} | {leverage:2}x | PNL: ${pnl:+7.2f}')
+    
+    if leverage != 10:
+        print(f'  -> Setting {symbol} to 10x...', end='', flush=True)
+        try:
+            client.futures_change_leverage(symbol=symbol, leverage=10)
+            print(' DONE')
+        except Exception as e:
+            print(f' ERROR: {e}')
+
+print('\n=== Verifying Leverage ===\n')
+positions = client.futures_position_information()
+open_pos = [p for p in positions if float(p['positionAmt']) != 0]
+all_10x = True
+for p in open_pos:
+    lev = int(p.get('leverage', 1))  # Default to 1 if not present
+    status = '[OK]' if lev == 10 else '❌'
+    if lev != 10:
+        all_10x = False
+    print(f'{status} {p["symbol"]:12} | {lev:2}x')
+
+if all_10x:
+    print('\n[OK] ALL POSITIONS AT 10x LEVERAGE\n')
+else:
+    print('\n❌ SOME POSITIONS NOT AT 10x\n')

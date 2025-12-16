@@ -1,0 +1,175 @@
+"""
+Profile Comparison - Side-by-side comparison of SAFE vs AGGRESSIVE profiles
+"""
+
+from backend.services.orchestrator_config import load_profile
+
+def format_pct(val, decimals=1):
+    """Format as percentage"""
+    return f"{val*100:.{decimals}f}%"
+
+def compare_profiles():
+    print("\n" + "="*100)
+    print("[TARGET] ORCHESTRATOR PROFILE COMPARISON: SAFE vs AGGRESSIVE")
+    print("="*100 + "\n")
+    
+    safe = load_profile("SAFE")
+    aggressive = load_profile("AGGRESSIVE")
+    
+    # Core parameters
+    print("[CHART] CORE PARAMETERS")
+    print("-" * 100)
+    print(f"{'Parameter':<35} {'SAFE':>20} {'AGGRESSIVE':>20} {'Difference':>20}")
+    print("-" * 100)
+    
+    core_params = [
+        ("Base Confidence", "base_confidence", format_pct),
+        ("Base Risk Per Trade", "base_risk_pct", lambda x: f"{x}%"),
+        ("Daily DD Limit", "daily_dd_limit", lambda x: f"{x}%"),
+        ("Losing Streak Limit", "losing_streak_limit", lambda x: f"{x} trades"),
+        ("Max Open Positions", "max_open_positions", str),
+        ("Total Exposure Limit", "total_exposure_limit", lambda x: f"{x}%"),
+        ("Extreme Vol Threshold", "extreme_vol_threshold", format_pct),
+        ("High Vol Threshold", "high_vol_threshold", format_pct),
+        ("High Spread BPS", "high_spread_bps", lambda x: f"{x} BPS"),
+        ("High Slippage BPS", "high_slippage_bps", lambda x: f"{x} BPS"),
+    ]
+    
+    for name, key, formatter in core_params:
+        safe_val = formatter(safe[key])
+        agg_val = formatter(aggressive[key])
+        
+        # Calculate difference
+        if isinstance(safe[key], (int, float)):
+            diff_val = aggressive[key] - safe[key]
+            if key.endswith("_pct") or "threshold" in key:
+                diff = f"{diff_val:+.1%}" if diff_val != 0 else "Same"
+            else:
+                diff = f"{diff_val:+.2f}" if diff_val != 0 else "Same"
+        else:
+            diff = "N/A"
+        
+        print(f"{name:<35} {safe_val:>20} {agg_val:>20} {diff:>20}")
+    
+    print()
+    
+    # Risk multipliers
+    print("⚖️  RISK MULTIPLIERS")
+    print("-" * 100)
+    print(f"{'Regime':<35} {'SAFE':>20} {'AGGRESSIVE':>20} {'AGG/SAFE Ratio':>20}")
+    print("-" * 100)
+    
+    for regime in ["BULL", "BEAR", "HIGH_VOL", "CHOP", "NORMAL"]:
+        safe_mult = safe["risk_multipliers"][regime]
+        agg_mult = aggressive["risk_multipliers"][regime]
+        ratio = agg_mult / safe_mult if safe_mult > 0 else 0
+        print(f"{regime:<35} {safe_mult:>19.2f}x {agg_mult:>19.2f}x {ratio:>19.2f}x")
+    
+    print()
+    
+    # Confidence adjustments
+    print("🎲 CONFIDENCE ADJUSTMENTS")
+    print("-" * 100)
+    print(f"{'Regime':<35} {'SAFE Min Conf':>20} {'AGG Min Conf':>20} {'More Trades for':>20}")
+    print("-" * 100)
+    
+    base_safe = safe["base_confidence"]
+    base_agg = aggressive["base_confidence"]
+    
+    for regime in ["BULL", "BEAR", "HIGH_VOL", "CHOP", "NORMAL"]:
+        safe_adj = safe["confidence_adjustments"][regime]
+        agg_adj = aggressive["confidence_adjustments"][regime]
+        
+        safe_min = base_safe + safe_adj
+        agg_min = base_agg + agg_adj
+        
+        diff_pct = (safe_min - agg_min) * 100
+        winner = "AGGRESSIVE" if agg_min < safe_min else "SAFE" if agg_min > safe_min else "Same"
+        
+        print(f"{regime:<35} {format_pct(safe_min):>20} {format_pct(agg_min):>20} {winner:>20}")
+    
+    print()
+    
+    # Symbol thresholds
+    print("[CHART_UP] SYMBOL PERFORMANCE THRESHOLDS")
+    print("-" * 100)
+    print(f"{'Metric':<35} {'SAFE':>20} {'AGGRESSIVE':>20} {'More Symbols':>20}")
+    print("-" * 100)
+    
+    safe_spt = safe["symbol_performance_thresholds"]
+    agg_spt = aggressive["symbol_performance_thresholds"]
+    
+    print(f"{'Min Win Rate':<35} {format_pct(safe_spt['min_winrate']):>20} {format_pct(agg_spt['min_winrate']):>20} {'AGGRESSIVE':>20}")
+    print(f"{'Min Avg R-Multiple':<35} {safe_spt['min_avg_R']:>20.2f} {agg_spt['min_avg_R']:>20.2f} {'AGGRESSIVE':>20}")
+    print(f"{'Bad Streak Limit':<35} {safe_spt['bad_streak_limit']:>19} losses {agg_spt['bad_streak_limit']:>19} losses {'AGGRESSIVE':>20}")
+    
+    print()
+    
+    # Exit modes
+    print("🚪 EXIT MODE BIAS")
+    print("-" * 100)
+    print(f"{'Regime':<35} {'SAFE':>20} {'AGGRESSIVE':>20} {'Notes':>20}")
+    print("-" * 100)
+    
+    for regime in ["BULL", "BEAR", "HIGH_VOL", "CHOP"]:
+        safe_mode = safe["exit_mode_bias"][regime]
+        agg_mode = aggressive["exit_mode_bias"][regime]
+        notes = "Same" if safe_mode == agg_mode else "Different"
+        print(f"{regime:<35} {safe_mode:>20} {agg_mode:>20} {notes:>20}")
+    
+    print()
+    
+    # Recovery settings
+    print("🔄 RECOVERY SETTINGS")
+    print("-" * 100)
+    print(f"{'Setting':<35} {'SAFE':>20} {'AGGRESSIVE':>20} {'Faster Recovery':>20}")
+    print("-" * 100)
+    
+    print(f"{'Recovery Multiplier':<35} {safe['recovery_multiplier']:>19.2f}x {aggressive['recovery_multiplier']:>19.2f}x {'AGGRESSIVE':>20}")
+    print(f"{'Recovery After Streak':<35} {safe['recovery_after_streak']:>19} wins {aggressive['recovery_after_streak']:>19} wins {'AGGRESSIVE':>20}")
+    
+    print()
+    
+    # Cost sensitivity
+    print("💸 COST SENSITIVITY")
+    print("-" * 100)
+    print(f"{'Setting':<35} {'SAFE':>20} {'AGGRESSIVE':>20} {'More Tolerant':>20}")
+    print("-" * 100)
+    
+    print(f"{'Sensitivity Level':<35} {safe['cost_sensitivity']:>20} {aggressive['cost_sensitivity']:>20} {'AGGRESSIVE':>20}")
+    print(f"{'Max Cost in R':<35} {safe['max_cost_in_R']:>19.2f}R {aggressive['max_cost_in_R']:>19.2f}R {'AGGRESSIVE':>20}")
+    
+    print()
+    
+    # Summary
+    print("="*100)
+    print("[CLIPBOARD] SUMMARY")
+    print("="*100)
+    print()
+    print("[SHIELD]  SAFE PROFILE:")
+    print("   ✓ Conservative (0.8% base risk vs 1.2%)")
+    print("   ✓ Higher confidence thresholds (55% vs 45%)")
+    print("   ✓ Stricter symbol quality (45% WR vs 35%)")
+    print("   ✓ Lower drawdown tolerance (2.5% vs 4.5%)")
+    print("   ✓ Fewer concurrent positions (5 vs 10)")
+    print("   ✓ Fast exits in adverse conditions (DEFENSIVE_TRAIL, FAST_TP)")
+    print("   ✓ Slow recovery (1.1x over 2 wins)")
+    print()
+    print("⚡ AGGRESSIVE PROFILE:")
+    print("   ✓ Growth-oriented (1.2% base risk)")
+    print("   ✓ Lower confidence = MORE TRADES (~20% more)")
+    print("   ✓ Relaxed symbol quality (35% WR acceptable)")
+    print("   ✓ Higher drawdown tolerance (4.5%)")
+    print("   ✓ More concurrent positions (10)")
+    print("   ✓ Trend-following everywhere (capture big moves)")
+    print("   ✓ Fast recovery (1.3x after 1 win)")
+    print()
+    print("💡 RECOMMENDATION:")
+    print("   - Use SAFE for REAL CAPITAL")
+    print("   - Use AGGRESSIVE for TESTNET / EXPERIMENTATION")
+    print("   - Switch with: $env:ORCH_PROFILE='SAFE' or 'AGGRESSIVE'")
+    print("   - Restart backend after switching: docker-compose restart backend")
+    print()
+
+if __name__ == "__main__":
+    compare_profiles()

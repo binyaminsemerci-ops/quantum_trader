@@ -1,0 +1,321 @@
+{
+  "timestamp": "2025-11-22T13:32:09.060819",
+  "current_config": {
+    "base_confidence": 0.5,
+    "base_risk_pct": 1.0,
+    "daily_dd_limit": 3.0,
+    "losing_streak_limit": 5,
+    "max_open_positions": 8,
+    "total_exposure_limit": 15.0,
+    "extreme_vol_threshold": 0.06,
+    "high_vol_threshold": 0.04,
+    "high_spread_bps": 10.0,
+    "high_slippage_bps": 8.0
+  },
+  "analysis_summary": {
+    "policy_strengths": [
+      "\u2705 Multi-layered risk protection (DD limit, losing streak, exposure)",
+      "\u2705 Regime-aware adjustments (TRENDING vs RANGING)",
+      "\u2705 Volatility-based scaling (reduces risk in HIGH/EXTREME vol)",
+      "\u2705 Symbol performance filtering (blocks BAD performers)",
+      "\u2705 Cost-aware entry filtering (adjusts for high spreads/slippage)",
+      "\u2705 Position limit enforcement (max 8 concurrent)",
+      "\u2705 Policy stability mechanism (prevents oscillation)"
+    ],
+    "potential_improvements": [
+      "\u26a0\ufe0f Base confidence 0.50 may be too conservative (missing good trades)",
+      "\u26a0\ufe0f Daily DD limit 3% is strict (good for safety, but limits recovery)",
+      "\u26a0\ufe0f Losing streak limit 5 triggers 70% risk reduction (very defensive)",
+      "\u26a0\ufe0f RANGING mode adds +0.05 to confidence (may filter too many signals)",
+      "\u26a0\ufe0f No dynamic adjustment based on recent win rate trends",
+      "\u26a0\ufe0f Symbol blacklist is reactive (doesn't proactively avoid known issues)"
+    ],
+    "data_limitations": [
+      "\u274c No observation logs available yet (just switched from OBSERVE to LIVE)",
+      "\u274c Need 24-48 hours of LIVE data to validate filtering effectiveness",
+      "\u274c Cannot measure actual blocked_winning_trades vs blocked_losing_trades yet",
+      "\u274c Symbol performance in SymbolPerformanceManager may be outdated"
+    ]
+  },
+  "confidence_analysis": {
+    "current_base": 0.5,
+    "regime_adjustments": {
+      "TRENDING + NORMAL_VOL": "-0.03 \u2192 0.47 (more aggressive)",
+      "RANGING": "+0.05 \u2192 0.55 (more defensive)",
+      "HIGH_VOL": "+0.03 \u2192 0.53 (defensive)",
+      "EXTREME_VOL": "NO_TRADES (full stop)"
+    },
+    "issues_identified": [
+      "Base 0.50 is high - typical profitable range is 0.42-0.48",
+      "RANGING +0.05 may over-filter (reaching 0.55 is very strict)",
+      "TRENDING -0.03 is good, but could go lower (-0.05 to 0.45)",
+      "No adjustment for recent win rate (should lower threshold after wins)"
+    ],
+    "recommendations": {
+      "base_confidence": {
+        "current": 0.5,
+        "safe_suggested": 0.45,
+        "aggressive_suggested": 0.42,
+        "reasoning": "Industry standard 0.45 balances quality vs quantity"
+      },
+      "trending_adjustment": {
+        "current": -0.03,
+        "safe_suggested": -0.03,
+        "aggressive_suggested": -0.05,
+        "reasoning": "Trending regimes support lower threshold"
+      },
+      "ranging_adjustment": {
+        "current": 0.05,
+        "safe_suggested": 0.03,
+        "aggressive_suggested": 0.02,
+        "reasoning": "Current +0.05 too strict, missing scalp opportunities"
+      },
+      "high_vol_adjustment": {
+        "current": 0.03,
+        "safe_suggested": 0.05,
+        "aggressive_suggested": 0.03,
+        "reasoning": "Safe profile should be more defensive in high vol"
+      }
+    }
+  },
+  "risk_limits_analysis": {
+    "daily_dd_limit": {
+      "current": 3.0,
+      "analysis": "Very conservative - stops trading quickly on bad days",
+      "safe_suggested": 3.0,
+      "aggressive_suggested": 5.0,
+      "reasoning": "3% good for live capital, 5% allows more recovery attempts"
+    },
+    "losing_streak_limit": {
+      "current": 5,
+      "current_action": "Reduce risk to 30%, raise confidence +0.05",
+      "analysis": "5 losses triggers severe restriction (70% reduction)",
+      "safe_suggested": 4,
+      "aggressive_suggested": 6,
+      "safe_action": "Reduce to 40% risk, +0.05 confidence",
+      "aggressive_action": "Reduce to 50% risk, +0.03 confidence",
+      "reasoning": "30% is too harsh, 40-50% allows recovery"
+    },
+    "max_open_positions": {
+      "current": 8,
+      "analysis": "Reasonable for diversification vs focus",
+      "safe_suggested": 6,
+      "aggressive_suggested": 10,
+      "reasoning": "6 reduces correlation risk, 10 increases opportunity"
+    },
+    "total_exposure_limit": {
+      "current": 15.0,
+      "analysis": "Conservative total portfolio exposure",
+      "safe_suggested": 12.0,
+      "aggressive_suggested": 20.0,
+      "reasoning": "12% safer for mainnet, 20% captures more opportunities"
+    },
+    "base_risk_pct": {
+      "current": 1.0,
+      "analysis": "Per-trade risk allocation",
+      "safe_suggested": 0.8,
+      "aggressive_suggested": 1.5,
+      "reasoning": "0.8% very safe for mainnet, 1.5% for testnet exploration"
+    }
+  },
+  "symbol_recommendations": {
+    "filtering_logic": {
+      "current": "SymbolPerformanceManager tracks per-symbol stats",
+      "criteria": "BAD if winrate < 35% OR avg_R < 0.5",
+      "action": "Add to policy.disallowed_symbols",
+      "issue": "Reactive only - doesn't proactively avoid problematic pairs"
+    },
+    "recommended_blacklist_candidates": {
+      "high_volatility_outliers": [
+        "Known for sudden gaps: Check exchange-specific issues",
+        "Low liquidity pairs: Often have high slippage"
+      ],
+      "problematic_pairs": [
+        "Pairs with frequent API errors",
+        "Coins with delisting rumors",
+        "Extremely low volume pairs"
+      ],
+      "implementation": "Maintain PERMANENT_BLACKLIST in config"
+    },
+    "recommended_whitelist_candidates": {
+      "high_quality_majors": [
+        "BTCUSDT - Most liquid, best spread",
+        "ETHUSDT - High volume, predictable",
+        "BNBUSDT - Exchange native, good liquidity"
+      ],
+      "proven_performers": [
+        "Symbols with winrate > 60% over 30+ trades",
+        "Symbols with avg_R > 2.0",
+        "Symbols with consistent profitability"
+      ],
+      "implementation": "Priority scoring: whitelist gets risk boost"
+    },
+    "dynamic_filtering": {
+      "current": "Symbol disabled after consecutive losses",
+      "suggested": "Graduated cooldown: 1h \u2192 4h \u2192 24h \u2192 permanent",
+      "reasoning": "Allows recovery from temporary issues"
+    }
+  },
+  "regime_recommendations": {
+    "trending_regime": {
+      "current_policy": {
+        "entry_mode": "AGGRESSIVE",
+        "exit_mode": "TREND_FOLLOW",
+        "confidence_adj": -0.03,
+        "risk_adj": "1.0x (no change)"
+      },
+      "analysis": "Good for capturing trends, confidence reduction appropriate",
+      "suggested_enhancements": {
+        "confidence_adj": -0.05,
+        "risk_adj": "1.1x (increase 10%)",
+        "reasoning": "Trending is our best regime - exploit it more"
+      },
+      "exit_optimization": {
+        "current": "TREND_FOLLOW (let winners run)",
+        "validation_needed": "Measure if trailing stops are too tight/loose"
+      }
+    },
+    "ranging_regime": {
+      "current_policy": {
+        "entry_mode": "DEFENSIVE",
+        "exit_mode": "FAST_TP",
+        "confidence_adj": 0.05,
+        "risk_adj": "0.7x (reduce 30%)"
+      },
+      "analysis": "Very defensive - may miss range-bound scalps",
+      "suggested_enhancements": {
+        "confidence_adj": "+0.02 (not +0.05)",
+        "risk_adj": "0.8x (reduce 20%, not 30%)",
+        "reasoning": "RANGING is profitable with tight TP, don't over-filter"
+      },
+      "exit_optimization": {
+        "current": "FAST_TP (take profits quickly)",
+        "suggestion": "Good approach - validate TP targets are optimal"
+      }
+    },
+    "volatility_interaction": {
+      "current": "Separate vol adjustments stack with regime",
+      "example": "RANGING + HIGH_VOL \u2192 0.5x * 0.7x = 0.35x risk",
+      "issue": "Stacking may be too severe",
+      "suggestion": "Use max(reductions) not multiply: max(0.5, 0.7) = 0.7x"
+    }
+  },
+  "proposed_configs": {
+    "profiles": {
+      "current": {
+        "name": "CURRENT_PROFILE",
+        "description": "Currently active configuration",
+        "config": {
+          "base_confidence": 0.5,
+          "base_risk_pct": 1.0,
+          "daily_dd_limit": 3.0,
+          "losing_streak_limit": 5,
+          "max_open_positions": 8,
+          "total_exposure_limit": 15.0,
+          "extreme_vol_threshold": 0.06,
+          "high_vol_threshold": 0.04,
+          "high_spread_bps": 10.0,
+          "high_slippage_bps": 8.0
+        }
+      },
+      "safe": {
+        "name": "SAFE_PROFILE",
+        "description": "Conservative settings for mainnet / real capital",
+        "use_case": "Production trading with real money",
+        "config": {
+          "base_confidence": 0.45,
+          "base_risk_pct": 0.8,
+          "daily_dd_limit": 3.0,
+          "losing_streak_limit": 4,
+          "losing_streak_risk_reduction": 0.4,
+          "max_open_positions": 6,
+          "total_exposure_limit": 12.0,
+          "extreme_vol_threshold": 0.05,
+          "high_vol_threshold": 0.035,
+          "regime_adjustments": {
+            "trending_confidence": -0.03,
+            "trending_risk": 1.0,
+            "ranging_confidence": 0.03,
+            "ranging_risk": 0.8
+          },
+          "vol_adjustments": {
+            "high_vol_risk": 0.5,
+            "high_vol_confidence": 0.05
+          },
+          "symbol_filtering": {
+            "min_winrate": 0.4,
+            "min_avg_R": 0.7,
+            "consecutive_loss_disable": 3
+          }
+        }
+      },
+      "aggressive": {
+        "name": "AGGRESSIVE_PROFILE",
+        "description": "Higher risk/reward for testnet / experimentation",
+        "use_case": "Strategy testing, model validation, paper trading",
+        "config": {
+          "base_confidence": 0.42,
+          "base_risk_pct": 1.5,
+          "daily_dd_limit": 5.0,
+          "losing_streak_limit": 6,
+          "losing_streak_risk_reduction": 0.5,
+          "max_open_positions": 10,
+          "total_exposure_limit": 20.0,
+          "extreme_vol_threshold": 0.07,
+          "high_vol_threshold": 0.05,
+          "regime_adjustments": {
+            "trending_confidence": -0.05,
+            "trending_risk": 1.1,
+            "ranging_confidence": 0.02,
+            "ranging_risk": 0.8
+          },
+          "vol_adjustments": {
+            "high_vol_risk": 0.6,
+            "high_vol_confidence": 0.03
+          },
+          "symbol_filtering": {
+            "min_winrate": 0.35,
+            "min_avg_R": 0.5,
+            "consecutive_loss_disable": 4
+          }
+        }
+      }
+    },
+    "deployment_recommendations": {
+      "testnet": {
+        "profile": "AGGRESSIVE",
+        "reasoning": "Test limits, gather data on filtering effectiveness",
+        "duration": "7-14 days",
+        "validation": "Track sharpe, max_dd, win_rate, trade_frequency"
+      },
+      "mainnet": {
+        "profile": "SAFE",
+        "reasoning": "Protect capital, conservative filtering",
+        "phased_rollout": [
+          "Phase 1: SAFE profile, signal filtering only (current)",
+          "Phase 2: After 48h, add risk sizing if signals look good",
+          "Phase 3: After 7d, add position limits",
+          "Phase 4: After 14d, consider AGGRESSIVE if performance strong"
+        ]
+      }
+    },
+    "monitoring_kpis": {
+      "effectiveness": [
+        "blocked_losing_trades / total_blocked (want >60%)",
+        "blocked_winning_trades / total_blocked (want <30%)",
+        "policy_active_time / total_time (want <80% NO_TRADES)"
+      ],
+      "performance": [
+        "sharpe_ratio (want >1.5)",
+        "max_drawdown (want <5%)",
+        "win_rate (want >50%)",
+        "profit_factor (want >1.8)"
+      ],
+      "filtering": [
+        "signals_per_day (want 10-30)",
+        "trades_executed_per_day (want 5-15)",
+        "filter_rate (signals_blocked/signals_total, want 30-60%)"
+      ]
+    }
+  }
+}

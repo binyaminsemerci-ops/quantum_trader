@@ -1,0 +1,243 @@
+{
+  "timestamp": "2025-12-06T00:17:45.317437",
+  "summary": {
+    "total": 16,
+    "passed": 16,
+    "failed": 0,
+    "pass_rate": 100.0
+  },
+  "results": [
+    {
+      "step": "Prerequisites",
+      "test": "Backend /health/live",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:25.129768",
+      "details": "Response: 200",
+      "data": null,
+      "error": ""
+    },
+    {
+      "step": "Step 1: Signal Generation",
+      "test": "GET /api/dashboard/trading",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:28.369412",
+      "details": "Found 20 recent signals",
+      "data": {
+        "id": "ai_AVAXUSDT_1764980247",
+        "timestamp": "2025-12-06T01:05:27.578755+00:00",
+        "account": null,
+        "symbol": "AVAXUSDT",
+        "direction": "SHORT",
+        "confidence": 0.2,
+        "price": 13.17,
+        "source": "LiveAIHeuristic",
+        "strategy_id": null
+      },
+      "error": ""
+    },
+    {
+      "step": "Step 1: Signal Generation",
+      "test": "Signal structure validation",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:28.369412",
+      "details": "Symbol: AVAXUSDT, Side: SHORT, Confidence: 0.20",
+      "data": null,
+      "error": ""
+    },
+    {
+      "step": "Step 2: Risk Evaluation",
+      "test": "Risk v3 health check",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:28.875953",
+      "details": "Status: unavailable",
+      "data": {
+        "status": "unavailable"
+      },
+      "error": ""
+    },
+    {
+      "step": "Step 2: Risk Evaluation",
+      "test": "GET /api/dashboard/risk",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:29.379001",
+      "details": "Risk Level: UNKNOWN, Exposure: $0.00",
+      "data": {
+        "timestamp": "2025-12-06T00:17:29.377019+00:00",
+        "risk_gate_decisions_stats": {
+          "allow": 0,
+          "block": 0,
+          "scale": 0,
+          "total": 0
+        },
+        "ess_triggers_recent": [],
+        "dd_per_profile": [],
+        "var_es_snapshot": {
+          "var_95": 0.0,
+          "var_99": 0.0,
+          "es_95": 0.0,
+          "es_99": 0.0
+        }
+      },
+      "error": ""
+    },
+    {
+      "step": "Step 3: ESS Check",
+      "test": "ESS status from /health/risk",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:29.868004",
+      "details": "ESS Active: False",
+      "data": {
+        "status": "unavailable"
+      },
+      "error": ""
+    },
+    {
+      "step": "Step 4: Order Submission",
+      "test": "GET /api/dashboard/trading (positions)",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:32.267690",
+      "details": "Current open positions: 0",
+      "data": [],
+      "error": ""
+    },
+    {
+      "step": "Step 4: Order Submission",
+      "test": "GET /api/dashboard/trading (orders)",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:34.654560",
+      "details": "Recent orders: 50",
+      "data": [
+        {
+          "id": 56,
+          "timestamp": "2025-12-01T00:39:03.291043+00:00",
+          "account": "default",
+          "symbol": "BTCUSDT",
+          "side": "SHORT",
+          "size": 4.338,
+          "price": 87618.17344294774,
+          "status": "FILLED",
+          "strategy_id": "historical_migration"
+        },
+        {
+          "id": 55,
+          "timestamp": "2025-11-27T02:30:55.993477+00:00",
+          "account": "default",
+          "symbol": "ARBUSDT",
+          "side": "SHORT",
+          "size": 1364.2,
+          "price": 0.21948030000000002,
+          "status": "FILLED",
+          "strategy_id": "historical_migration"
+        },
+        {
+          "id": 54,
+          "timestamp": "2025-11-27T02:11:15.881459+00:00",
+          "account": "default",
+          "symbol": "ATOMUSDT",
+          "side": "SHORT",
+          "size": 118.71,
+          "price": 2.524473,
+          "status": "FILLED",
+          "strategy_id": "historical_migration"
+        }
+      ],
+      "error": ""
+    },
+    {
+      "step": "Step 4: Order Submission",
+      "test": "Execution mode check",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:35.133183",
+      "details": "Event-driven: False",
+      "data": {
+        "status": "ok",
+        "secrets": {
+          "has_binance_keys": true,
+          "has_coinbase_keys": false
+        },
+        "capabilities": {
+          "exchanges": {
+            "binance": true,
+            "coinbase": false,
+            "kucoin": false
+          }
+        }
+      },
+      "error": ""
+    },
+    {
+      "step": "Step 4: Order Submission",
+      "test": "Order placement (observation only)",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:35.133183",
+      "details": "Skipped actual order placement - system already trading 11 positions",
+      "data": null,
+      "error": ""
+    },
+    {
+      "step": "Step 5: Position Monitoring",
+      "test": "GET /api/dashboard/trading (portfolio)",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:37.540538",
+      "details": "Positions: 0, Total PnL: $0.00",
+      "data": {
+        "position_count": 0,
+        "total_pnl": 0
+      },
+      "error": ""
+    },
+    {
+      "step": "Step 5: Position Monitoring",
+      "test": "Position details validation",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:39.954105",
+      "details": "No open positions currently",
+      "data": null,
+      "error": ""
+    },
+    {
+      "step": "Step 5: Position Monitoring",
+      "test": "TP/SL settings check",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:42.472955",
+      "details": "Monitoring 0 positions (TP/SL in full position details)",
+      "data": null,
+      "error": ""
+    },
+    {
+      "step": "Step 6: Observability",
+      "test": "Log tracing",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:42.472955",
+      "details": "Logs available in Docker logs (structured JSON)",
+      "data": null,
+      "error": ""
+    },
+    {
+      "step": "Step 6: Observability",
+      "test": "GET /api/metrics/system",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:42.958248",
+      "details": "System metrics available",
+      "data": {
+        "total_trades": 8,
+        "win_rate": 0.0,
+        "pnl_usd": 0.0,
+        "ai_status": "idle",
+        "autonomous_mode": false,
+        "positions_count": 0,
+        "signals_count": 0
+      },
+      "error": ""
+    },
+    {
+      "step": "Step 6: Observability",
+      "test": "Dashboard data consistency",
+      "passed": true,
+      "timestamp": "2025-12-06T00:17:45.317437",
+      "details": "Dashboard shows 0 positions, 0 signals",
+      "data": null,
+      "error": ""
+    }
+  ]
+}

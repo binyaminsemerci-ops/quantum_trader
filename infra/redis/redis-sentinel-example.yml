@@ -1,0 +1,154 @@
+# Redis Sentinel Configuration Example
+# SPRINT 3 - Module A: Redis HA
+# 
+# This is a 3-node Sentinel configuration for high availability.
+# Redis Sentinel provides automatic failover when master goes down.
+
+version: '3.8'
+
+services:
+  # ========================================================================
+  # REDIS MASTER NODE
+  # ========================================================================
+  redis-master:
+    image: redis:7-alpine
+    container_name: quantum_redis_master
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_master_data:/data
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-quantumtrader2025}
+    networks:
+      - quantum_trader
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-quantumtrader2025}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ========================================================================
+  # REDIS REPLICA 1
+  # ========================================================================
+  redis-replica-1:
+    image: redis:7-alpine
+    container_name: quantum_redis_replica1
+    restart: always
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_replica1_data:/data
+    command: >
+      redis-server
+      --appendonly yes
+      --replicaof redis-master 6379
+      --masterauth ${REDIS_PASSWORD:-quantumtrader2025}
+      --requirepass ${REDIS_PASSWORD:-quantumtrader2025}
+    networks:
+      - quantum_trader
+    depends_on:
+      - redis-master
+
+  # ========================================================================
+  # REDIS REPLICA 2
+  # ========================================================================
+  redis-replica-2:
+    image: redis:7-alpine
+    container_name: quantum_redis_replica2
+    restart: always
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_replica2_data:/data
+    command: >
+      redis-server
+      --appendonly yes
+      --replicaof redis-master 6379
+      --masterauth ${REDIS_PASSWORD:-quantumtrader2025}
+      --requirepass ${REDIS_PASSWORD:-quantumtrader2025}
+    networks:
+      - quantum_trader
+    depends_on:
+      - redis-master
+
+  # ========================================================================
+  # REDIS SENTINEL 1
+  # ========================================================================
+  redis-sentinel-1:
+    image: redis:7-alpine
+    container_name: quantum_sentinel1
+    restart: always
+    ports:
+      - "26379:26379"
+    volumes:
+      - ./infra/redis/sentinel.conf:/usr/local/etc/redis/sentinel.conf
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    networks:
+      - quantum_trader
+    depends_on:
+      - redis-master
+
+  # ========================================================================
+  # REDIS SENTINEL 2
+  # ========================================================================
+  redis-sentinel-2:
+    image: redis:7-alpine
+    container_name: quantum_sentinel2
+    restart: always
+    ports:
+      - "26380:26379"
+    volumes:
+      - ./infra/redis/sentinel.conf:/usr/local/etc/redis/sentinel.conf
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    networks:
+      - quantum_trader
+    depends_on:
+      - redis-master
+
+  # ========================================================================
+  # REDIS SENTINEL 3
+  # ========================================================================
+  redis-sentinel-3:
+    image: redis:7-alpine
+    container_name: quantum_sentinel3
+    restart: always
+    ports:
+      - "26381:26379"
+    volumes:
+      - ./infra/redis/sentinel.conf:/usr/local/etc/redis/sentinel.conf
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    networks:
+      - quantum_trader
+    depends_on:
+      - redis-master
+
+networks:
+  quantum_trader:
+    external: true
+
+volumes:
+  redis_master_data:
+  redis_replica1_data:
+  redis_replica2_data:
+
+# ========================================================================
+# ENVIRONMENT VARIABLES NEEDED
+# ========================================================================
+# REDIS_PASSWORD=quantumtrader2025
+# REDIS_SENTINEL_HOSTS=redis-sentinel-1:26379,redis-sentinel-2:26380,redis-sentinel-3:26381
+# REDIS_MASTER_NAME=mymaster
+
+# ========================================================================
+# USAGE
+# ========================================================================
+# 1. Create sentinel.conf (see sentinel.conf.example)
+# 2. Update all microservices to use Sentinel discovery
+# 3. Start: docker-compose -f redis-sentinel.yml up -d
+# 4. Verify: docker-compose -f redis-sentinel.yml ps
+# 5. Test failover: docker stop quantum_redis_master

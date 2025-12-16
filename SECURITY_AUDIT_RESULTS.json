@@ -1,0 +1,76 @@
+{
+  "timestamp": "2025-12-05T22:58:13.215794",
+  "security_checks": [
+    {
+      "check": "API Key Exposure",
+      "passed": true,
+      "severity": "CRITICAL",
+      "details": "No API keys found in responses",
+      "recommendation": "",
+      "timestamp": "2025-12-05T22:58:13.515796"
+    },
+    {
+      "check": "SQL Injection Protection",
+      "passed": true,
+      "severity": "CRITICAL",
+      "details": "No SQL injection vulnerabilities detected",
+      "recommendation": "",
+      "timestamp": "2025-12-05T22:58:15.142700"
+    },
+    {
+      "check": "XSS Protection",
+      "passed": true,
+      "severity": "HIGH",
+      "details": "No XSS vulnerabilities detected",
+      "recommendation": "",
+      "timestamp": "2025-12-05T22:58:16.445183"
+    },
+    {
+      "check": "CORS Configuration",
+      "passed": true,
+      "severity": "LOW",
+      "details": "No CORS headers found (may be disabled)",
+      "recommendation": "",
+      "timestamp": "2025-12-05T22:58:16.674851"
+    },
+    {
+      "check": "HTTPS Usage",
+      "passed": false,
+      "severity": "HIGH",
+      "details": "Using HTTP (insecure)",
+      "recommendation": "Enable HTTPS for production deployment",
+      "timestamp": "2025-12-05T22:58:16.674851"
+    },
+    {
+      "check": "Rate Limiting",
+      "passed": false,
+      "severity": "MEDIUM",
+      "details": "No rate limiting detected",
+      "recommendation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-12-05T22:58:17.077524"
+    },
+    {
+      "check": "Error Message Disclosure",
+      "passed": true,
+      "severity": "MEDIUM",
+      "details": "Error messages don't disclose sensitive info",
+      "recommendation": "",
+      "timestamp": "2025-12-05T22:58:17.362066"
+    },
+    {
+      "check": "Authentication Endpoints",
+      "passed": false,
+      "severity": "HIGH",
+      "details": "No authentication detected",
+      "recommendation": "Implement authentication for sensitive endpoints",
+      "timestamp": "2025-12-05T22:58:17.962059"
+    }
+  ],
+  "summary": {
+    "total_checks": 8,
+    "passed": 5,
+    "failed": 3,
+    "critical_failed": 0,
+    "high_failed": 2
+  }
+}

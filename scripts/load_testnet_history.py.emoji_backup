@@ -1,0 +1,125 @@
+"""
+Load historical kline data from Binance Testnet to build model history.
+N-HiTS and PatchTST need 120 timesteps of 1-minute data.
+"""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import asyncio
+from datetime import datetime, timezone, timedelta
+from binance.client import Client
+import pandas as pd
+from database.timescale_manager import TimeScaleManager
+from config.config import load_config
+import logging
+import os
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+async def load_history_for_symbol(client: Client, ts_manager: TimeScaleManager, symbol: str):
+    """Load last 2 hours of 1-minute klines for a symbol."""
+    try:
+        # Get last 120 1-minute candles (2 hours)
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(hours=2)
+        
+        logger.info(f"Loading {symbol} history from {start_time} to {end_time}")
+        
+        klines = client.futures_klines(
+            symbol=symbol,
+            interval='1m',
+            startTime=int(start_time.timestamp() * 1000),
+            endTime=int(end_time.timestamp() * 1000),
+            limit=120
+        )
+        
+        if not klines:
+            logger.warning(f"No klines found for {symbol}")
+            return 0
+        
+        # Convert to dataframe
+        df = pd.DataFrame(klines, columns=[
+            'timestamp', 'open', 'high', 'low', 'close', 'volume',
+            'close_time', 'quote_volume', 'trades', 'taker_buy_base',
+            'taker_buy_quote', 'ignore'
+        ])
+        
+        # Convert types
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = df[col].astype(float)
+        
+        # Insert into timescaledb
+        count = 0
+        for _, row in df.iterrows():
+            ts_manager.insert_kline(
+                symbol=symbol,
+                interval='1m',
+                timestamp=row['timestamp'],
+                open=row['open'],
+                high=row['high'],
+                low=row['low'],
+                close=row['close'],
+                volume=row['volume']
+            )
+            count += 1
+        
+        logger.info(f"✅ {symbol}: Loaded {count} candles")
+        return count
+        
+    except Exception as e:
+        logger.error(f"Failed to load {symbol}: {e}")
+        return 0
+
+
+async def main():
+    """Load history for top symbols."""
+    # Get testnet API keys
+    testnet_api_key = os.getenv('BINANCE_TESTNET_API_KEY')
+    testnet_secret = os.getenv('BINANCE_TESTNET_SECRET_KEY')
+    
+    if not testnet_api_key or not testnet_secret:
+        logger.error("Testnet API keys not found in environment!")
+        return
+    
+    # Initialize client
+    client = Client(
+        api_key=testnet_api_key,
+        api_secret=testnet_secret,
+        testnet=True
+    )
+    
+    # Initialize TimeScale manager
+    ts_manager = TimeScaleManager()
+    
+    # Top 50 symbols by volume
+    symbols = [
+        'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT',
+        'DOGEUSDT', 'ADAUSDT', 'LINKUSDT', 'AVAXUSDT', 'DOTUSDT',
+        'MATICUSDT', 'NEARUSDT', 'UNIUSDT', 'LTCUSDT', 'ATOMUSDT',
+        'APTUSDT', 'ARBUSDT', 'OPUSDT', 'SHIBUSDT', 'SUIUSDT',
+        'TONUSDT', 'RNDRUSDT', 'INJUSDT', 'TIAUSDT', 'RENDERUSDT',
+        'RUNEUSDT', 'JTOUSDT', 'FETUSDT', 'ORDIUSDT', 'STXUSDT',
+        'IMXUSDT', 'BLURUSDT', 'WLDUSDT', 'JUPUSDT', 'PYTHUSDT',
+        'DYMUSDT', 'ONDOUSDT', 'MANTAUSDT', 'PORTALUSDT', 'ALTUSDT',
+        'ACEUSDT', 'NFPUSDT', 'AIUSDT', 'XAIUSDT', 'HYPEUSDT',
+        'RESOLVUSDT', 'XANUSDT', 'BNXUSDT', 'FILUSDT', 'ICPUSDT'
+    ]
+    
+    logger.info(f"Loading history for {len(symbols)} symbols...")
+    
+    total_candles = 0
+    for symbol in symbols:
+        count = await load_history_for_symbol(client, ts_manager, symbol)
+        total_candles += count
+        await asyncio.sleep(0.1)  # Rate limiting
+    
+    logger.info(f"\n✅ DONE! Loaded {total_candles} total candles")
+    logger.info("N-HiTS and PatchTST models now have history to work with!")
+
+
+if __name__ == '__main__':
+    asyncio.run(main())

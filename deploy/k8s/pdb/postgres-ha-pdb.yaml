@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: postgres-ha-pdb
+  namespace: quantum-trader
+  labels:
+    app: postgres-ha
+    tier: infrastructure
+    epic: K8S-002
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: postgres-ha

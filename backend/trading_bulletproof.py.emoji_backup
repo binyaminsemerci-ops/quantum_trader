@@ -1,0 +1,532 @@
+"""
+Trading Execution Bulletproofing Module
+
+Handles all trading execution operations with comprehensive risk checks and error handling.
+Never crashes the application due to trading errors.
+
+Features:
+- Order validation before submission
+- Risk checks (position size, max loss, etc.)
+- Balance verification
+- Duplicate order prevention
+- Execution history tracking
+- Emergency stop mechanisms
+"""
+
+import logging
+from typing import Any, Dict, Optional, List
+from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+from enum import Enum
+import asyncio
+
+logger = logging.getLogger(__name__)
+
+
+class OrderSide(Enum):
+    """Order side"""
+    BUY = "BUY"
+    SELL = "SELL"
+
+
+class OrderType(Enum):
+    """Order type"""
+    MARKET = "MARKET"
+    LIMIT = "LIMIT"
+    STOP_LOSS = "STOP_LOSS"
+    TAKE_PROFIT = "TAKE_PROFIT"
+
+
+class OrderStatus(Enum):
+    """Order status"""
+    PENDING = "PENDING"
+    VALIDATED = "VALIDATED"
+    SUBMITTED = "SUBMITTED"
+    FILLED = "FILLED"
+    REJECTED = "REJECTED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+@dataclass
+class Order:
+    """Trading order"""
+    symbol: str
+    side: OrderSide
+    order_type: OrderType
+    quantity: float
+    price: Optional[float] = None
+    stop_price: Optional[float] = None
+    
+    # Metadata
+    order_id: Optional[str] = None
+    status: OrderStatus = OrderStatus.PENDING
+    created_at: datetime = field(default_factory=datetime.now)
+    submitted_at: Optional[datetime] = None
+    filled_at: Optional[datetime] = None
+    
+    # Risk checks
+    estimated_cost: float = 0.0
+    risk_score: float = 0.0
+    validation_errors: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ExecutionStats:
+    """Track execution statistics"""
+    total_orders: int = 0
+    validated_orders: int = 0
+    rejected_orders: int = 0
+    submitted_orders: int = 0
+    filled_orders: int = 0
+    failed_orders: int = 0
+    
+    total_volume: float = 0.0
+    total_fees: float = 0.0
+    
+    last_order_time: Optional[datetime] = None
+    last_error: Optional[str] = None
+    last_error_time: Optional[datetime] = None
+    
+    # Risk tracking
+    total_risk_denials: int = 0
+    emergency_stops: int = 0
+    
+    def success_rate(self) -> float:
+        """Calculate order success rate"""
+        if self.total_orders == 0:
+            return 1.0
+        return self.filled_orders / self.total_orders
+
+
+@dataclass
+class RiskLimits:
+    """Risk limits configuration"""
+    max_position_size_usd: float = 10000.0
+    max_position_size_pct: float = 0.10  # 10% of portfolio
+    max_daily_loss_usd: float = 1000.0
+    max_daily_loss_pct: float = 0.05  # 5% of portfolio
+    max_orders_per_minute: int = 10
+    max_orders_per_symbol: int = 5
+    min_order_size_usd: float = 10.0
+    max_order_size_usd: float = 100000.0
+    
+    # Emergency stop
+    emergency_stop_enabled: bool = False
+    emergency_stop_reason: Optional[str] = None
+
+
+class BulletproofExecutionEngine:
+    """
+    Bulletproof trading execution engine
+    
+    Never crashes due to:
+    - Invalid orders
+    - Insufficient balance
+    - Exchange errors
+    - Rate limits
+    - Risk violations
+    - Duplicate submissions
+    """
+    
+    def __init__(
+        self,
+        exchange_client: Any,
+        risk_limits: Optional[RiskLimits] = None
+    ):
+        self.exchange = exchange_client
+        self.risk_limits = risk_limits or RiskLimits()
+        self.stats = ExecutionStats()
+        
+        # Order tracking
+        self.pending_orders: Dict[str, Order] = {}
+        self.order_history: List[Order] = []
+        
+        # Rate limiting
+        self.order_times: List[datetime] = []
+        self.symbol_order_counts: Dict[str, int] = {}
+        
+        # Daily tracking
+        self.daily_loss: float = 0.0
+        self.daily_reset_time = datetime.now().date()
+        
+        logger.info("Trading execution bulletproofing initialized")
+    
+    def _check_emergency_stop(self) -> bool:
+        """
+        Check if emergency stop is active
+        
+        Returns:
+            True if stopped, False if ok to proceed
+        """
+        if self.risk_limits.emergency_stop_enabled:
+            logger.error(
+                f"EMERGENCY STOP ACTIVE: {self.risk_limits.emergency_stop_reason}"
+            )
+            self.stats.emergency_stops += 1
+            return True
+        return False
+    
+    def _reset_daily_limits_if_needed(self):
+        """Reset daily limits at start of new day"""
+        today = datetime.now().date()
+        
+        if today > self.daily_reset_time:
+            logger.info(f"Resetting daily limits (previous loss: ${self.daily_loss:.2f})")
+            self.daily_loss = 0.0
+            self.daily_reset_time = today
+    
+    def _check_rate_limits(self, symbol: str) -> Optional[str]:
+        """
+        Check if order would violate rate limits
+        
+        Returns:
+            Error message if violated, None if ok
+        """
+        now = datetime.now()
+        
+        # Remove old order times (> 1 minute ago)
+        self.order_times = [
+            t for t in self.order_times
+            if (now - t).total_seconds() < 60
+        ]
+        
+        # Check orders per minute
+        if len(self.order_times) >= self.risk_limits.max_orders_per_minute:
+            return f"Rate limit exceeded: {len(self.order_times)} orders in last minute (max: {self.risk_limits.max_orders_per_minute})"
+        
+        # Check orders per symbol
+        symbol_count = self.symbol_order_counts.get(symbol, 0)
+        if symbol_count >= self.risk_limits.max_orders_per_symbol:
+            return f"Symbol rate limit exceeded: {symbol_count} pending orders for {symbol} (max: {self.risk_limits.max_orders_per_symbol})"
+        
+        return None
+    
+    def _validate_order_size(self, order: Order) -> Optional[str]:
+        """
+        Validate order size is within limits
+        
+        Returns:
+            Error message if invalid, None if ok
+        """
+        # Estimate cost
+        if order.order_type == OrderType.MARKET:
+            # For market orders, use current price estimate
+            # In production, fetch from exchange
+            estimated_price = order.price or 0
+        else:
+            estimated_price = order.price or 0
+        
+        estimated_cost = order.quantity * estimated_price
+        order.estimated_cost = estimated_cost
+        
+        # Check minimum size
+        if estimated_cost < self.risk_limits.min_order_size_usd:
+            return f"Order too small: ${estimated_cost:.2f} < ${self.risk_limits.min_order_size_usd:.2f}"
+        
+        # Check maximum size
+        if estimated_cost > self.risk_limits.max_order_size_usd:
+            return f"Order too large: ${estimated_cost:.2f} > ${self.risk_limits.max_order_size_usd:.2f}"
+        
+        # Check position size limits
+        if estimated_cost > self.risk_limits.max_position_size_usd:
+            return f"Position size exceeded: ${estimated_cost:.2f} > ${self.risk_limits.max_position_size_usd:.2f}"
+        
+        return None
+    
+    def _check_daily_loss_limit(self, order: Order) -> Optional[str]:
+        """
+        Check if order would violate daily loss limits
+        
+        Returns:
+            Error message if violated, None if ok
+        """
+        self._reset_daily_limits_if_needed()
+        
+        # For sell orders, potential to realize loss
+        if order.side == OrderSide.SELL:
+            # In production, calculate actual P&L from position
+            # For now, just track cumulative
+            pass
+        
+        # Check absolute daily loss
+        if self.daily_loss >= self.risk_limits.max_daily_loss_usd:
+            return f"Daily loss limit reached: ${self.daily_loss:.2f} >= ${self.risk_limits.max_daily_loss_usd:.2f}"
+        
+        return None
+    
+    def _check_balance(self, order: Order) -> Optional[str]:
+        """
+        Check if sufficient balance for order
+        
+        Returns:
+            Error message if insufficient, None if ok
+        """
+        try:
+            # In production, fetch actual balance from exchange
+            # For now, assume balance check passes
+            # balance = self.exchange.get_balance(base_asset)
+            
+            if order.estimated_cost <= 0:
+                return "Unable to estimate order cost"
+            
+            # Placeholder: In real implementation, check actual balance
+            # if balance < order.estimated_cost:
+            #     return f"Insufficient balance: need ${order.estimated_cost:.2f}, have ${balance:.2f}"
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Balance check failed: {e}")
+            return f"Balance check error: {str(e)}"
+    
+    def _check_duplicate_order(self, order: Order) -> Optional[str]:
+        """
+        Check if order is duplicate of pending order
+        
+        Returns:
+            Error message if duplicate, None if ok
+        """
+        for pending_order in self.pending_orders.values():
+            if (
+                pending_order.symbol == order.symbol
+                and pending_order.side == order.side
+                and abs(pending_order.quantity - order.quantity) < 0.001
+                and pending_order.status in [OrderStatus.PENDING, OrderStatus.VALIDATED, OrderStatus.SUBMITTED]
+            ):
+                return f"Duplicate order detected: {pending_order.order_id}"
+        
+        return None
+    
+    def validate_order(self, order: Order) -> bool:
+        """
+        Comprehensive order validation
+        
+        Args:
+            order: Order to validate
+            
+        Returns:
+            True if valid, False if rejected
+        """
+        self.stats.total_orders += 1
+        order.validation_errors = []
+        
+        try:
+            # Emergency stop check
+            if self._check_emergency_stop():
+                order.validation_errors.append("Emergency stop active")
+                order.status = OrderStatus.REJECTED
+                self.stats.rejected_orders += 1
+                return False
+            
+            # Basic validation
+            if not order.symbol:
+                order.validation_errors.append("Symbol is required")
+            
+            if order.quantity <= 0:
+                order.validation_errors.append(f"Invalid quantity: {order.quantity}")
+            
+            if order.order_type == OrderType.LIMIT and (not order.price or order.price <= 0):
+                order.validation_errors.append("Limit orders require valid price")
+            
+            if order.order_type == OrderType.STOP_LOSS and (not order.stop_price or order.stop_price <= 0):
+                order.validation_errors.append("Stop loss orders require valid stop price")
+            
+            # Rate limit checks
+            rate_error = self._check_rate_limits(order.symbol)
+            if rate_error:
+                order.validation_errors.append(rate_error)
+            
+            # Size validation
+            size_error = self._validate_order_size(order)
+            if size_error:
+                order.validation_errors.append(size_error)
+            
+            # Daily loss limit
+            loss_error = self._check_daily_loss_limit(order)
+            if loss_error:
+                order.validation_errors.append(loss_error)
+                self.stats.total_risk_denials += 1
+            
+            # Balance check
+            balance_error = self._check_balance(order)
+            if balance_error:
+                order.validation_errors.append(balance_error)
+            
+            # Duplicate check
+            dup_error = self._check_duplicate_order(order)
+            if dup_error:
+                order.validation_errors.append(dup_error)
+            
+            # Result
+            if order.validation_errors:
+                order.status = OrderStatus.REJECTED
+                self.stats.rejected_orders += 1
+                logger.warning(
+                    f"Order REJECTED: {order.symbol} {order.side.value} {order.quantity} - "
+                    f"Errors: {', '.join(order.validation_errors)}"
+                )
+                return False
+            
+            order.status = OrderStatus.VALIDATED
+            self.stats.validated_orders += 1
+            logger.info(
+                f"Order VALIDATED: {order.symbol} {order.side.value} {order.quantity} "
+                f"(estimated: ${order.estimated_cost:.2f})"
+            )
+            return True
+            
+        except Exception as e:
+            logger.error(f"Order validation crashed: {e}")
+            order.validation_errors.append(f"Validation error: {str(e)}")
+            order.status = OrderStatus.REJECTED
+            self.stats.rejected_orders += 1
+            self.stats.last_error = str(e)
+            self.stats.last_error_time = datetime.now()
+            return False
+    
+    async def submit_order(self, order: Order) -> bool:
+        """
+        Submit validated order to exchange
+        
+        Args:
+            order: Validated order to submit
+            
+        Returns:
+            True if submitted successfully, False otherwise
+        """
+        # Validate first
+        if order.status != OrderStatus.VALIDATED:
+            if not self.validate_order(order):
+                return False
+        
+        try:
+            # Track order
+            order.order_id = f"{order.symbol}_{order.side.value}_{datetime.now().timestamp()}"
+            order.submitted_at = datetime.now()
+            
+            # Submit to exchange (in production)
+            # response = await self.exchange.submit_order(order)
+            # order.order_id = response['order_id']
+            
+            # For now, simulate submission
+            await asyncio.sleep(0.1)  # Simulate network delay
+            
+            # Update tracking
+            self.pending_orders[order.order_id] = order
+            self.order_history.append(order)
+            self.order_times.append(datetime.now())
+            self.symbol_order_counts[order.symbol] = self.symbol_order_counts.get(order.symbol, 0) + 1
+            
+            order.status = OrderStatus.SUBMITTED
+            self.stats.submitted_orders += 1
+            self.stats.last_order_time = datetime.now()
+            
+            logger.info(
+                f"Order SUBMITTED: {order.order_id} - "
+                f"{order.symbol} {order.side.value} {order.quantity}"
+            )
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Order submission failed: {e}")
+            order.status = OrderStatus.FAILED
+            order.validation_errors.append(f"Submission error: {str(e)}")
+            self.stats.failed_orders += 1
+            self.stats.last_error = str(e)
+            self.stats.last_error_time = datetime.now()
+            return False
+    
+    def trigger_emergency_stop(self, reason: str):
+        """
+        Trigger emergency stop - all orders will be rejected
+        
+        Args:
+            reason: Reason for emergency stop
+        """
+        self.risk_limits.emergency_stop_enabled = True
+        self.risk_limits.emergency_stop_reason = reason
+        logger.critical(f"🚨 EMERGENCY STOP TRIGGERED: {reason}")
+    
+    def clear_emergency_stop(self):
+        """Clear emergency stop"""
+        self.risk_limits.emergency_stop_enabled = False
+        self.risk_limits.emergency_stop_reason = None
+        logger.info("Emergency stop cleared")
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get execution statistics"""
+        return {
+            'orders': {
+                'total': self.stats.total_orders,
+                'validated': self.stats.validated_orders,
+                'rejected': self.stats.rejected_orders,
+                'submitted': self.stats.submitted_orders,
+                'filled': self.stats.filled_orders,
+                'failed': self.stats.failed_orders,
+                'success_rate': self.stats.success_rate()
+            },
+            'risk': {
+                'denials': self.stats.total_risk_denials,
+                'emergency_stops': self.stats.emergency_stops,
+                'daily_loss': self.daily_loss,
+                'emergency_stop_active': self.risk_limits.emergency_stop_enabled
+            },
+            'volume': {
+                'total_volume': self.stats.total_volume,
+                'total_fees': self.stats.total_fees
+            },
+            'pending_orders': len(self.pending_orders),
+            'last_order_time': self.stats.last_order_time.isoformat() if self.stats.last_order_time else None,
+            'last_error': self.stats.last_error,
+            'last_error_time': self.stats.last_error_time.isoformat() if self.stats.last_error_time else None
+        }
+
+
+# Singleton instance
+_execution_engine: Optional[BulletproofExecutionEngine] = None
+
+
+def get_execution_engine(exchange_client: Any = None) -> BulletproofExecutionEngine:
+    """Get singleton execution engine"""
+    global _execution_engine
+    
+    if _execution_engine is None:
+        if exchange_client is None:
+            raise ValueError("Must provide exchange_client for first initialization")
+        _execution_engine = BulletproofExecutionEngine(exchange_client)
+    
+    return _execution_engine
+
+
+def create_order(
+    symbol: str,
+    side: str,
+    order_type: str,
+    quantity: float,
+    price: Optional[float] = None,
+    stop_price: Optional[float] = None
+) -> Order:
+    """
+    Convenience function to create order
+    
+    Args:
+        symbol: Trading symbol (e.g. "BTCUSDT")
+        side: "BUY" or "SELL"
+        order_type: "MARKET", "LIMIT", "STOP_LOSS", "TAKE_PROFIT"
+        quantity: Order quantity
+        price: Price (for LIMIT orders)
+        stop_price: Stop price (for STOP_LOSS orders)
+        
+    Returns:
+        Order object
+    """
+    return Order(
+        symbol=symbol,
+        side=OrderSide(side),
+        order_type=OrderType(order_type),
+        quantity=quantity,
+        price=price,
+        stop_price=stop_price
+    )

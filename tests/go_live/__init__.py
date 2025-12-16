@@ -1,0 +1,1 @@
+"""GO-LIVE activation tests."""

@@ -1,0 +1,81 @@
+"""Test risk management integration."""
+
+import asyncio
+from datetime import datetime, timezone
+
+from backend.config.risk_management import load_risk_management_config, ConsensusType
+from backend.services.risk_management import (
+    TradeLifecycleManager,
+    SignalQuality,
+    MarketConditions,
+)
+
+
+async def test_integration():
+    """Test basic risk management flow."""
+    print("[TEST_TUBE] Testing Risk Management Integration\\n")
+    
+    # Load config
+    config = load_risk_management_config()
+    print(f"[OK] Config loaded:")
+    print(f"   Min confidence: {config.trade_filter.min_confidence:.0%}")
+    print(f"   Risk per trade: {config.position_sizing.risk_per_trade_pct:.2%}")
+    print(f"   SL multiplier: {config.exit_policy.sl_multiplier}x ATR")
+    print(f"   TP multiplier: {config.exit_policy.tp_multiplier}x ATR\\n")
+    
+    # Initialize manager
+    manager = TradeLifecycleManager(config)
+    print("[OK] TradeLifecycleManager initialized\\n")
+    
+    # Test signal evaluation
+    signal_quality = SignalQuality(
+        consensus_type=ConsensusType.STRONG,
+        confidence=0.75,
+        model_votes={"XGBoost": "LONG", "LightGBM": "LONG", "N-HiTS": "LONG", "PatchTST": "HOLD"},
+        signal_strength=0.82
+    )
+    
+    market_conditions = MarketConditions(
+        price=50000.0,
+        atr=1500.0,
+        ema_200=48000.0,
+        volume_24h=5_000_000_000,
+        spread_bps=10,
+        timestamp=datetime.now(timezone.utc)
+    )
+    
+    print("[SEARCH] Evaluating test signal:")
+    print(f"   Symbol: BTCUSDT")
+    print(f"   Action: LONG")
+    print(f"   Consensus: STRONG")
+    print(f"   Confidence: {signal_quality.confidence:.0%}")
+    print(f"   Price: ${market_conditions.price:,.2f}")
+    print(f"   ATR: ${market_conditions.atr:,.2f}")
+    print(f"   EMA200: ${market_conditions.ema_200:,.2f}\\n")
+    
+    decision = manager.evaluate_new_signal(
+        symbol="BTCUSDT",
+        action="LONG",
+        signal_quality=signal_quality,
+        market_conditions=market_conditions,
+        current_equity=10000.0
+    )
+    
+    if decision.approved:
+        print(f"[OK][OK][OK] TRADE APPROVED [OK][OK][OK]")
+        print(f"   Quantity: {decision.quantity:.4f} BTC")
+        print(f"   Entry: ${decision.entry_price:,.2f}")
+        print(f"   Stop Loss: ${decision.stop_loss:,.2f}")
+        print(f"   Take Profit: ${decision.take_profit:,.2f}")
+        print(f"   Position Size: ${decision.position_size.notional_usd:,.2f}")
+        print(f"   Risk: ${decision.position_size.risk_usd:.2f} ({decision.position_size.risk_pct:.2%})")
+        print(f"   Leverage: {decision.position_size.leverage_used:.1f}x")
+    else:
+        print(f"❌ TRADE REJECTED")
+        print(f"   Reason: {decision.rejection_reason}")
+    
+    print("\\n🎉 Integration test complete!")
+
+
+if __name__ == "__main__":
+    asyncio.run(test_integration())

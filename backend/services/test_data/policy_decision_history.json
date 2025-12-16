@@ -1,0 +1,8 @@
+[
+  {
+    "policy": "no_new_trades",
+    "timestamp": "2025-11-23T00:43:40.144879+00:00",
+    "allow_new_positions": false,
+    "reason": "System degraded - 4 subsystems affected"
+  }
+]

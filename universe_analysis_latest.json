@@ -1,0 +1,2318 @@
+{
+  "analysis_timestamp": "2025-11-22T23:03:49.395104Z",
+  "source_universe": {
+    "mode": "explicit",
+    "symbol_count": 222,
+    "generated_at": "2025-11-22T22:58:05.787973+00:00"
+  },
+  "classifications": {
+    "CORE": [],
+    "EXPANSION": [],
+    "CONDITIONAL": [],
+    "BLACKLIST": [
+      "MAVUSDT",
+      "ZILUSDT"
+    ],
+    "NO_DATA": [
+      "1000PEPEUSDT",
+      "1INCHUSDT",
+      "AAVEUSDT",
+      "ACEUSDT",
+      "ADAUSDT",
+      "AGIXUSDT",
+      "AGLDUSDT",
+      "AIUSDT",
+      "AKROUSDT",
+      "ALGOUSDT",
+      "ALPACAUSDT",
+      "ALPHAUSDT",
+      "ALPINEUSDT",
+      "ALTUSDT",
+      "ANKRUSDT",
+      "APEUSDT",
+      "APTUSDT",
+      "ARBUSDT",
+      "ARKMUSDT",
+      "ARPAUSDT",
+      "ARUSDT",
+      "ASTERUSDT",
+      "ASTRUSDT",
+      "ATOMUSDT",
+      "AUCTIONUSDT",
+      "AUDIOUSDT",
+      "AVAUSDT",
+      "AVAXUSDT",
+      "AXSUSDT",
+      "BAKEUSDT",
+      "BALUSDT",
+      "BANDUSDT",
+      "BATUSDT",
+      "BCHUSDT",
+      "BEATUSDT",
+      "BELUSDT",
+      "BICOUSDT",
+      "BIGTIMEUSDT",
+      "BLURUSDT",
+      "BLZUSDT",
+      "BNBUSDT",
+      "BNXUSDT",
+      "BTCUSDT",
+      "BTGUSDT",
+      "C98USDT",
+      "CELOUSDT",
+      "CHZUSDT",
+      "CLVUSDT",
+      "COMBOUSDT",
+      "COMPUSDT",
+      "COTIUSDT",
+      "CRVUSDT",
+      "CTKUSDT",
+      "CTSIUSDT",
+      "CTXCUSDT",
+      "CVXUSDT",
+      "CYBERUSDT",
+      "DARUSDT",
+      "DASHUSDT",
+      "DENTUSDT",
+      "DGBUSDT",
+      "DODOXUSDT",
+      "DOGEUSDT",
+      "DOTUSDT",
+      "DUSKUSDT",
+      "DYDXUSDT",
+      "DYMUSDT",
+      "EDUUSDT",
+      "EGLDUSDT",
+      "ELFUSDT",
+      "ENJUSDT",
+      "ENSUSDT",
+      "EOSUSDT",
+      "ETCUSDT",
+      "ETHUSDT",
+      "FETUSDT",
+      "FILUSDT",
+      "FLMUSDT",
+      "FLOWUSDT",
+      "FLUXUSDT",
+      "FORUSDT",
+      "FTMUSDT",
+      "FXSUSDT",
+      "GALAUSDT",
+      "GHSTUSDT",
+      "GIGGLEUSDT",
+      "GLMRUSDT",
+      "GMTUSDT",
+      "GMXUSDT",
+      "GRTUSDT",
+      "HBARUSDT",
+      "HIFIUSDT",
+      "HIGHUSDT",
+      "HNTUSDT",
+      "HOOKUSDT",
+      "HYPEUSDT",
+      "ICPUSDT",
+      "ICXUSDT",
+      "IDUSDT",
+      "ILVUSDT",
+      "IMXUSDT",
+      "INJUSDT",
+      "IOTAUSDT",
+      "JASMYUSDT",
+      "JCTUSDT",
+      "JTOUSDT",
+      "JUPUSDT",
+      "KAVAUSDT",
+      "KDAUSDT",
+      "KEYUSDT",
+      "KNCUSDT",
+      "KSMTUSDT",
+      "LDOUSDT",
+      "LEVERUSDT",
+      "LINKUSDT",
+      "LITUSDT",
+      "LOOMUSDT",
+      "LPTUSDT",
+      "LRCUSDT",
+      "LTCUSDT",
+      "MAGICUSDT",
+      "MANAUSDT",
+      "MANTAUSDT",
+      "MASKUSDT",
+      "MATICUSDT",
+      "MBOXUSDT",
+      "METUSDT",
+      "MKRUSDT",
+      "NEARUSDT",
+      "NEOUSDT",
+      "NFPUSDT",
+      "NKNUSDT",
+      "NMRUSDT",
+      "OCEANUSDT",
+      "OMGUSDT",
+      "ONDOUSDT",
+      "ONEUSDT",
+      "OPUSDT",
+      "ORDIUSDT",
+      "PAXGUSDT",
+      "PENDLEUSDT",
+      "PENGUUSDT",
+      "PEOPLEUSDT",
+      "PERLAUSDT",
+      "PERPUSDT",
+      "PIEVERSEUSDT",
+      "POLYUSDT",
+      "POROUSDT",
+      "PORTALUSDT",
+      "PUMPUSDT",
+      "PUNDIXUSDT",
+      "PYTHUSDT",
+      "QNTUSDT",
+      "QTUMUSDT",
+      "RADUSDT",
+      "RDNTUSDT",
+      "REEFUSDT",
+      "RENDERUSDT",
+      "REQUSDT",
+      "RESOLVUSDT",
+      "RNDRUSDT",
+      "ROSEUSDT",
+      "RUNEUSDT",
+      "RVNUSDT",
+      "SANDUSDT",
+      "SCUSDT",
+      "SEIUSDT",
+      "SFPUSDT",
+      "SHIBUSDT",
+      "SKLUSDT",
+      "SNXUSDT",
+      "SOLUSDT",
+      "SOONUSDT",
+      "STGUSDT",
+      "STORJUSDT",
+      "STRKUSDT",
+      "STXUSDT",
+      "SUIUSDT",
+      "SUSHIUSDT",
+      "SXPUSDT",
+      "SYSUSDT",
+      "TAOUSDT",
+      "THETAUSDT",
+      "TIAUSDT",
+      "TLMUSDT",
+      "TOMIUSDT",
+      "TONUSDT",
+      "TRBUSDT",
+      "TRUMPUSDT",
+      "TRXUSDT",
+      "TUSDT",
+      "UNFIUSDT",
+      "UNIUSDT",
+      "UXLINKUSDT",
+      "VETUSDT",
+      "VGXUSDT",
+      "VIDTUSDT",
+      "VITEUSDT",
+      "VOXELUSDT",
+      "WAVESUSDT",
+      "WIFUSDT",
+      "WLDUSDT",
+      "WLFIUSDT",
+      "WUSDT",
+      "XAIUSDT",
+      "XANUSDT",
+      "XECUSDT",
+      "XPLUSDT",
+      "XRPUSDT",
+      "XTZUSDT",
+      "XVSUSDT",
+      "YFIUSDT",
+      "YGGUSDT",
+      "ZECUSDT",
+      "ZENUSDT",
+      "ZRXUSDT"
+    ]
+  },
+  "profiles": {
+    "SAFE": {
+      "description": "Real money / Mainnet - Conservative, high-quality symbols",
+      "max_symbols": 0,
+      "include_categories": [
+        "CORE",
+        "EXPANSION"
+      ],
+      "exclude_categories": [
+        "BLACKLIST",
+        "CONDITIONAL",
+        "NO_DATA"
+      ],
+      "whitelist": [],
+      "blacklist": [
+        "MAVUSDT",
+        "ZILUSDT"
+      ],
+      "priority_majors": [
+        "ADAUSDT",
+        "ATOMUSDT",
+        "AVAXUSDT",
+        "BNBUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "DOTUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "MATICUSDT",
+        "SOLUSDT",
+        "TRXUSDT",
+        "UNIUSDT",
+        "XRPUSDT"
+      ]
+    },
+    "AGGRESSIVE": {
+      "description": "Testnet / High risk - Maximum diversity",
+      "max_symbols": 220,
+      "include_categories": [
+        "CORE",
+        "EXPANSION",
+        "CONDITIONAL"
+      ],
+      "exclude_categories": [
+        "BLACKLIST"
+      ],
+      "whitelist": [],
+      "blacklist": [
+        "MAVUSDT",
+        "ZILUSDT"
+      ],
+      "priority_majors": [
+        "ADAUSDT",
+        "ATOMUSDT",
+        "AVAXUSDT",
+        "BNBUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "DOTUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "MATICUSDT",
+        "SOLUSDT",
+        "TRXUSDT",
+        "UNIUSDT",
+        "XRPUSDT"
+      ]
+    },
+    "SCALP": {
+      "description": "Ultra-high frequency - Majors only",
+      "max_symbols": 15,
+      "include_categories": [
+        "CORE"
+      ],
+      "exclude_categories": [
+        "EXPANSION",
+        "CONDITIONAL",
+        "BLACKLIST",
+        "NO_DATA"
+      ],
+      "whitelist": [
+        "ADAUSDT",
+        "ATOMUSDT",
+        "AVAXUSDT",
+        "BNBUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "DOTUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "MATICUSDT",
+        "SOLUSDT",
+        "TRXUSDT",
+        "UNIUSDT",
+        "XRPUSDT"
+      ],
+      "blacklist": [],
+      "priority_majors": [
+        "ADAUSDT",
+        "ATOMUSDT",
+        "AVAXUSDT",
+        "BNBUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "DOTUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "MATICUSDT",
+        "SOLUSDT",
+        "TRXUSDT",
+        "UNIUSDT",
+        "XRPUSDT"
+      ]
+    }
+  },
+  "symbol_details": {
+    "BTCUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5322,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": true
+    },
+    "ETHUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4903,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": true
+    },
+    "BNBUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5274,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": true
+    },
+    "SOLUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5336,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": true
+    },
+    "XRPUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": true
+    },
+    "DOGEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2731,
+      "stability_score": 0.2661,
+      "total_signals": 3,
+      "is_major": true
+    },
+    "ADAUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3028,
+      "stability_score": 0.3028,
+      "total_signals": 1,
+      "is_major": true
+    },
+    "LINKUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5439,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": true
+    },
+    "AVAXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4704,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": true
+    },
+    "DOTUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.3967,
+      "stability_score": 0.0,
+      "total_signals": 1,
+      "is_major": true
+    },
+    "MATICUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5382,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": true
+    },
+    "NEARUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4948,
+      "stability_score": 0.0,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "UNIUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.6667,
+      "avg_confidence": 0.3995,
+      "stability_score": 0.1163,
+      "total_signals": 3,
+      "is_major": true
+    },
+    "LTCUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.553,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": true
+    },
+    "ATOMUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2938,
+      "stability_score": 0.2722,
+      "total_signals": 2,
+      "is_major": true
+    },
+    "APTUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "ARBUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2749,
+      "stability_score": 0.2716,
+      "total_signals": 4,
+      "is_major": false
+    },
+    "OPUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.275,
+      "stability_score": 0.275,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "SHIBUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "SUIUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2968,
+      "stability_score": 0.2779,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "TONUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "RNDRUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4899,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "INJUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.3333,
+      "avg_confidence": 0.3474,
+      "stability_score": 0.2147,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "TIAUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "RENDERUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "RUNEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2703,
+      "stability_score": 0.2703,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "JTOUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3702,
+      "stability_score": 0.3702,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "FETUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "ORDIUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.3333,
+      "avg_confidence": 0.3594,
+      "stability_score": 0.2252,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "STXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2975,
+      "stability_score": 0.2964,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "IMXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2482,
+      "stability_score": 0.2482,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "BLURUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2973,
+      "stability_score": 0.2797,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "WLDUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2951,
+      "stability_score": 0.2951,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "JUPUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3474,
+      "stability_score": 0.3474,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "PYTHUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3235,
+      "stability_score": 0.3029,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "DYMUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2451,
+      "stability_score": 0.238,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ONDOUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2906,
+      "stability_score": 0.2906,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "MANTAUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2498,
+      "stability_score": 0.2417,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "PORTALUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2769,
+      "stability_score": 0.2731,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ALTUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2629,
+      "stability_score": 0.2509,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ACEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "NFPUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2579,
+      "stability_score": 0.2579,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "AIUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2462,
+      "stability_score": 0.2441,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "XAIUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2473,
+      "stability_score": 0.2436,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "HYPEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4848,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "RESOLVUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.6667,
+      "avg_confidence": 0.3981,
+      "stability_score": 0.1216,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "XANUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2164,
+      "stability_score": 0.2153,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "BNXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "FILUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3442,
+      "stability_score": 0.3442,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "ICPUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4729,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ZENUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4828,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "1000PEPEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2645,
+      "stability_score": 0.2485,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "PUMPUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3192,
+      "stability_score": 0.3192,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "BCHUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4785,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "METUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2584,
+      "stability_score": 0.2378,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "SOONUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2587,
+      "stability_score": 0.2437,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "TAOUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.518,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "PAXGUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4416,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "AAVEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5087,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "JCTUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2514,
+      "stability_score": 0.2497,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "TRUMPUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3048,
+      "stability_score": 0.2978,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "TRXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.333,
+      "stability_score": 0.3238,
+      "total_signals": 3,
+      "is_major": true
+    },
+    "WLFIUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3358,
+      "stability_score": 0.331,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "DUSKUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3452,
+      "stability_score": 0.3398,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "WIFUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3671,
+      "stability_score": 0.3671,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "PENGUUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2543,
+      "stability_score": 0.2474,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ALPHAUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.321,
+      "stability_score": 0.3068,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ZECUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5144,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ASTERUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "DASHUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4765,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "BEATUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3147,
+      "stability_score": 0.3147,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "AGIXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5211,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "GIGGLEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4807,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "VIDTUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "UXLINKUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3192,
+      "stability_score": 0.3192,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "PIEVERSEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "XPLUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3272,
+      "stability_score": 0.3052,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "STRKUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2694,
+      "stability_score": 0.2558,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ALPACAUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "EOSUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5046,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ETCUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4782,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "FTMUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5046,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "GALAUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.6667,
+      "avg_confidence": 0.3629,
+      "stability_score": 0.1118,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "GMTUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2701,
+      "stability_score": 0.2641,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "GRTUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2663,
+      "stability_score": 0.2601,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "HBARUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2566,
+      "stability_score": 0.2563,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "ILVUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.3333,
+      "avg_confidence": 0.3828,
+      "stability_score": 0.2345,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "LRCUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3366,
+      "stability_score": 0.3243,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "MANAUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "MKRUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4866,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ALGOUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3024,
+      "stability_score": 0.2897,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "AXSUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2631,
+      "stability_score": 0.2631,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "SANDUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2554,
+      "stability_score": 0.243,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "CRVUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2702,
+      "stability_score": 0.2688,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "APEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2107,
+      "stability_score": 0.2107,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "CHZUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2825,
+      "stability_score": 0.2723,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ENSUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.6667,
+      "avg_confidence": 0.4622,
+      "stability_score": 0.1397,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "FLOWUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2694,
+      "stability_score": 0.2677,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "KNCUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3018,
+      "stability_score": 0.3001,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "QNTUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.6667,
+      "avg_confidence": 0.3641,
+      "stability_score": 0.1096,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "SNXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3737,
+      "stability_score": 0.3737,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "ARUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3027,
+      "stability_score": 0.3027,
+      "total_signals": 4,
+      "is_major": false
+    },
+    "COMPUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4731,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "EGLDUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4469,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "KAVAUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2673,
+      "stability_score": 0.2583,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "LDOUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3014,
+      "stability_score": 0.3014,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "OMGUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "QTUMUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "SUSHIUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2802,
+      "stability_score": 0.2758,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "THETAUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "XTZUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3225,
+      "stability_score": 0.3225,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "YFIUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5224,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ZILUSDT": {
+      "category": "BLACKLIST",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2813,
+      "stability_score": 0.2723,
+      "total_signals": 6,
+      "is_major": false
+    },
+    "1INCHUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2498,
+      "stability_score": 0.2417,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "ANKRUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3239,
+      "stability_score": 0.2999,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "AUDIOUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5181,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "BALUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "BANDUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3,
+      "stability_score": 0.3,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "CELOUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2645,
+      "stability_score": 0.2605,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "DYDXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2598,
+      "stability_score": 0.253,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "FXSUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2496,
+      "stability_score": 0.2462,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "IOTAUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2714,
+      "stability_score": 0.2552,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "JASMYUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.6667,
+      "avg_confidence": 0.3792,
+      "stability_score": 0.117,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "LOOMUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "MASKUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3251,
+      "stability_score": 0.3132,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "NEOUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2821,
+      "stability_score": 0.2749,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "OCEANUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5046,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "PEOPLEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3197,
+      "stability_score": 0.3138,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "PERPUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3192,
+      "stability_score": 0.3192,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ROSEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2791,
+      "stability_score": 0.2582,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "STORJUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2819,
+      "stability_score": 0.2651,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "SXPUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.3333,
+      "avg_confidence": 0.2809,
+      "stability_score": 0.1664,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "WAVESUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4954,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "COTIUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2709,
+      "stability_score": 0.2623,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "SKLUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2721,
+      "stability_score": 0.2616,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ZRXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2917,
+      "stability_score": 0.2823,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ENJUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3101,
+      "stability_score": 0.2958,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ICXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3024,
+      "stability_score": 0.2827,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "VETUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.27,
+      "stability_score": 0.2678,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "BATUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2561,
+      "stability_score": 0.2453,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ONEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3047,
+      "stability_score": 0.288,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "RVNUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.3333,
+      "avg_confidence": 0.3371,
+      "stability_score": 0.2028,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "BELUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3095,
+      "stability_score": 0.2997,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "CTSIUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2454,
+      "stability_score": 0.2454,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "LITUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "SFPUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "DENTUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.6667,
+      "avg_confidence": 0.3886,
+      "stability_score": 0.1261,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "HNTUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4954,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "BLZUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3612,
+      "stability_score": 0.3612,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "REEFUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3192,
+      "stability_score": 0.3192,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "C98USDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3173,
+      "stability_score": 0.2998,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "CLVUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "KSMTUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "BAKEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3192,
+      "stability_score": 0.3192,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "TLMUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3192,
+      "stability_score": 0.3192,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "FLMUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3192,
+      "stability_score": 0.3192,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "RADUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4954,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "VGXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "BTGUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "KDAUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3192,
+      "stability_score": 0.3192,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ARPAUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2912,
+      "stability_score": 0.2818,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "PERLAUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "CTXCUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "VITEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "CTKUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5046,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "AKROUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3056,
+      "stability_score": 0.3056,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "PUNDIXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2891,
+      "stability_score": 0.2891,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "MBOXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2826,
+      "stability_score": 0.2767,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "FORUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "REQUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "GHSTUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2123,
+      "stability_score": 0.2123,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "TRBUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.3333,
+      "avg_confidence": 0.3713,
+      "stability_score": 0.2397,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "LPTUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2656,
+      "stability_score": 0.2524,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "XECUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "ELFUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "POLYUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "UNFIUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4749,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "DARUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3192,
+      "stability_score": 0.3192,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "NKNUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2687,
+      "stability_score": 0.2678,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "SCUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3734,
+      "stability_score": 0.3734,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "DGBUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5294,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "AVAUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "SYSUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2774,
+      "stability_score": 0.2625,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "XVSUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2825,
+      "stability_score": 0.2806,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "ALPINEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2707,
+      "stability_score": 0.2707,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "ASTRUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2199,
+      "stability_score": 0.2175,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "GMXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.5,
+      "avg_confidence": 0.4218,
+      "stability_score": 0.1886,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "POROUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "CVXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3192,
+      "stability_score": 0.3192,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "HIGHUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.268,
+      "stability_score": 0.268,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "GLMRUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.5028,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "BIGTIMEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3096,
+      "stability_score": 0.2962,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "MAGICUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4537,
+      "stability_score": 0.0,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "RDNTUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2819,
+      "stability_score": 0.2778,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "HOOKUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.6667,
+      "avg_confidence": 0.3486,
+      "stability_score": 0.1091,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "COMBOUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "MAVUSDT": {
+      "category": "BLACKLIST",
+      "trust_score": 0.0,
+      "allow_rate": 0.3333,
+      "avg_confidence": 0.3321,
+      "stability_score": 0.2055,
+      "total_signals": 6,
+      "is_major": false
+    },
+    "PENDLEUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.284,
+      "stability_score": 0.2706,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "ARKMUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2657,
+      "stability_score": 0.2657,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "AGLDUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4398,
+      "stability_score": 0.0,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "YGGUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3033,
+      "stability_score": 0.2933,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "DODOXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2938,
+      "stability_score": 0.2789,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "BICOUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.3333,
+      "avg_confidence": 0.3148,
+      "stability_score": 0.1904,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "FLUXUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.3333,
+      "avg_confidence": 0.3332,
+      "stability_score": 0.2051,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "VOXELUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2686,
+      "stability_score": 0.261,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "STGUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2496,
+      "stability_score": 0.2496,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "TUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2637,
+      "stability_score": 0.2552,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "TOMIUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "EDUUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3154,
+      "stability_score": 0.3154,
+      "total_signals": 1,
+      "is_major": false
+    },
+    "IDUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.263,
+      "stability_score": 0.2544,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "KEYUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3192,
+      "stability_score": 0.3192,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "LEVERUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3192,
+      "stability_score": 0.3192,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "SEIUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3309,
+      "stability_score": 0.3255,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "CYBERUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0,
+      "allow_rate": 0,
+      "avg_confidence": 0,
+      "stability_score": 0,
+      "total_signals": 0,
+      "is_major": false
+    },
+    "HIFIUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.3192,
+      "stability_score": 0.3192,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "AUCTIONUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.5,
+      "avg_confidence": 0.3212,
+      "stability_score": 0.1455,
+      "total_signals": 2,
+      "is_major": false
+    },
+    "NMRUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 1.0,
+      "avg_confidence": 0.4328,
+      "stability_score": 0.0,
+      "total_signals": 3,
+      "is_major": false
+    },
+    "WUSDT": {
+      "category": "NO_DATA",
+      "trust_score": 0.0,
+      "allow_rate": 0.0,
+      "avg_confidence": 0.2666,
+      "stability_score": 0.2666,
+      "total_signals": 2,
+      "is_major": false
+    }
+  }
+}

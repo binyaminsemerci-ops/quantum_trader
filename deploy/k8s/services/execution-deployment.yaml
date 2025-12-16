@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: execution
+  namespace: quantum-trader
+  labels:
+    app: execution-service
+    component: execution
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: execution-service
+  template:
+    metadata:
+      labels:
+        app: execution-service
+        component: execution
+        tier: backend
+    spec:
+      containers:
+      - name: execution
+        image: ghcr.io/quantum-trader/execution:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8002
+          name: http
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: quantum-trader-config
+        - secretRef:
+            name: exchange-secrets
+        env:
+        - name: SERVICE_NAME
+          value: "execution"
+        - name: SERVICE_PORT
+          value: "8002"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8002
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8002
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: logs
+        persistentVolumeClaim:
+          claimName: logs-pvc
+      - name: data
+        persistentVolumeClaim:
+          claimName: data-pvc

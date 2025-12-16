@@ -1,0 +1,218 @@
+{
+  "timestamp": "2025-11-23T00:43:40.032543+00:00",
+  "overall_status": "critical",
+  "current_safety_policy": "no_new_trades",
+  "subsystem_health": {
+    "data_feed": {
+      "subsystem": "data_feed",
+      "status": "degraded",
+      "timestamp": "2025-11-23T00:43:40.032543+00:00",
+      "response_time_ms": null,
+      "error_count": 1,
+      "details": {
+        "error": "Universe snapshot missing"
+      }
+    },
+    "exchange_connection": {
+      "subsystem": "exchange_connection",
+      "status": "unknown",
+      "timestamp": "2025-11-23T00:43:40.033057+00:00",
+      "response_time_ms": 0.0,
+      "error_count": 0,
+      "details": {
+        "note": "No recent trades file"
+      }
+    },
+    "ai_model": {
+      "subsystem": "ai_model",
+      "status": "critical",
+      "timestamp": "2025-11-23T00:43:40.033057+00:00",
+      "response_time_ms": 0.0,
+      "error_count": 0,
+      "details": {
+        "existing_models": [],
+        "total": 0
+      }
+    },
+    "event_executor": {
+      "subsystem": "event_executor",
+      "status": "unknown",
+      "timestamp": "2025-11-23T00:43:40.033057+00:00",
+      "response_time_ms": 0.0,
+      "error_count": 0,
+      "details": {}
+    },
+    "orchestrator": {
+      "subsystem": "orchestrator",
+      "status": "unknown",
+      "timestamp": "2025-11-23T00:43:40.033057+00:00",
+      "response_time_ms": 0.0,
+      "error_count": 0,
+      "details": {
+        "note": "State file not found (subsystem may not be initialized)"
+      }
+    },
+    "portfolio_balancer": {
+      "subsystem": "portfolio_balancer",
+      "status": "unknown",
+      "timestamp": "2025-11-23T00:43:40.033057+00:00",
+      "response_time_ms": 0.0,
+      "error_count": 0,
+      "details": {
+        "note": "State file not found (subsystem may not be initialized)"
+      }
+    },
+    "model_supervisor": {
+      "subsystem": "model_supervisor",
+      "status": "unknown",
+      "timestamp": "2025-11-23T00:43:40.033057+00:00",
+      "response_time_ms": 0.528,
+      "error_count": 0,
+      "details": {
+        "note": "State file not found (subsystem may not be initialized)"
+      }
+    },
+    "retraining_orchestrator": {
+      "subsystem": "retraining_orchestrator",
+      "status": "unknown",
+      "timestamp": "2025-11-23T00:43:40.033585+00:00",
+      "response_time_ms": 0.0,
+      "error_count": 0,
+      "details": {
+        "note": "State file not found (subsystem may not be initialized)"
+      }
+    },
+    "position_monitor": {
+      "subsystem": "position_monitor",
+      "status": "unknown",
+      "timestamp": "2025-11-23T00:43:40.033585+00:00",
+      "response_time_ms": 0.0,
+      "error_count": 0,
+      "details": {
+        "note": "State file not found (subsystem may not be initialized)"
+      }
+    },
+    "risk_guard": {
+      "subsystem": "risk_guard",
+      "status": "unknown",
+      "timestamp": "2025-11-23T00:43:40.033585+00:00",
+      "response_time_ms": 0.0,
+      "error_count": 0,
+      "details": {
+        "note": "State file not found (subsystem may not be initialized)"
+      }
+    },
+    "database": {
+      "subsystem": "database",
+      "status": "critical",
+      "timestamp": "2025-11-23T00:43:40.033585+00:00",
+      "response_time_ms": 0.0,
+      "error_count": 0,
+      "details": {
+        "error": "Database file missing"
+      }
+    },
+    "universe_os": {
+      "subsystem": "universe_os",
+      "status": "unknown",
+      "timestamp": "2025-11-23T00:43:40.033585+00:00",
+      "response_time_ms": 0.0,
+      "error_count": 0,
+      "details": {
+        "note": "State file not found (subsystem may not be initialized)"
+      }
+    },
+    "logging": {
+      "subsystem": "logging",
+      "status": "degraded",
+      "timestamp": "2025-11-23T00:43:40.033585+00:00",
+      "response_time_ms": 0.544,
+      "error_count": 0,
+      "details": {
+        "warning": "No log files found"
+      }
+    }
+  },
+  "detected_issues": [
+    {
+      "issue_id": "data_feed_20251123_004340",
+      "subsystem": "data_feed",
+      "severity": "medium",
+      "description": "data_feed performance degraded",
+      "impacts_trading": false
+    },
+    {
+      "issue_id": "ai_model_20251123_004340",
+      "subsystem": "ai_model",
+      "severity": "critical",
+      "description": "ai_model is critical",
+      "impacts_trading": false
+    },
+    {
+      "issue_id": "database_20251123_004340",
+      "subsystem": "database",
+      "severity": "critical",
+      "description": "database is critical",
+      "impacts_trading": false
+    },
+    {
+      "issue_id": "logging_20251123_004340",
+      "subsystem": "logging",
+      "severity": "medium",
+      "description": "logging performance degraded",
+      "impacts_trading": false
+    },
+    {
+      "issue_id": "memory_high_20251123_004340",
+      "subsystem": "event_executor",
+      "severity": "high",
+      "description": "Memory usage critically high: 92.6%",
+      "impacts_trading": true
+    }
+  ],
+  "recovery_recommendations": [
+    {
+      "recommendation_id": "rec_2_ai_model_20251123_004340",
+      "action": "disable_module",
+      "priority": 1,
+      "description": "Disable ai_model module",
+      "can_auto_execute": true
+    },
+    {
+      "recommendation_id": "rec_3_database_20251123_004340",
+      "action": "restart_subsystem",
+      "priority": 1,
+      "description": "Restart database subsystem",
+      "can_auto_execute": true
+    },
+    {
+      "recommendation_id": "rec_1_data_feed_20251123_004340",
+      "action": "reload_config",
+      "priority": 2,
+      "description": "Reload configuration files",
+      "can_auto_execute": false
+    },
+    {
+      "recommendation_id": "rec_4_logging_20251123_004340",
+      "action": "reload_config",
+      "priority": 2,
+      "description": "Reload configuration files",
+      "can_auto_execute": false
+    },
+    {
+      "recommendation_id": "rec_5_memory_high_20251123_004340",
+      "action": "switch_to_safe_profile",
+      "priority": 2,
+      "description": "Switch to SAFE risk profile",
+      "can_auto_execute": true
+    }
+  ],
+  "trading_should_continue": false,
+  "requires_immediate_action": true,
+  "summary": {
+    "healthy": 0,
+    "degraded": 2,
+    "critical": 2,
+    "failed": 0
+  }
+}

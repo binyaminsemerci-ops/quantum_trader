@@ -186,12 +186,12 @@ DEFAULT_TREND_PROFILE = TPProfile(
 DEFAULT_RANGE_PROFILE = TPProfile(
     name="RANGE_DEFAULT",
     tp_legs=[
-        TPProfileLeg(r_multiple=0.3, size_fraction=0.30, kind=TPKind.SOFT),   # TP1: 30% at 0.3R (quick profit)
-        TPProfileLeg(r_multiple=0.6, size_fraction=0.40, kind=TPKind.HARD),   # TP2: 40% at 0.6R (main exit)
-        TPProfileLeg(r_multiple=1.0, size_fraction=0.30, kind=TPKind.HARD),   # TP3: 30% at 1R (stretch)
+        TPProfileLeg(r_multiple=0.2, size_fraction=0.35, kind=TPKind.SOFT),   # TP1: 35% at 0.2R (very quick profit)
+        TPProfileLeg(r_multiple=0.4, size_fraction=0.35, kind=TPKind.HARD),   # TP2: 35% at 0.4R (core exit)
+        TPProfileLeg(r_multiple=0.7, size_fraction=0.30, kind=TPKind.HARD),   # TP3: 30% at 0.7R (final exit)
     ],
     trailing=None,  # No trailing in range mode (quick exits)
-    description="Range/Scalp: Quick exits, minimal trailing"
+    description="Range/Scalp: Very quick exits, lock profits early in consolidation"
 )
 
 DEFAULT_VOLATILE_PROFILE = TPProfile(
@@ -212,12 +212,12 @@ DEFAULT_VOLATILE_PROFILE = TPProfile(
 DEFAULT_CHOP_PROFILE = TPProfile(
     name="CHOP_DEFAULT",
     tp_legs=[
-        TPProfileLeg(r_multiple=0.25, size_fraction=0.40, kind=TPKind.SOFT),  # TP1: 40% at 0.25R (very quick)
-        TPProfileLeg(r_multiple=0.5, size_fraction=0.40, kind=TPKind.HARD),   # TP2: 40% at 0.5R
-        TPProfileLeg(r_multiple=0.75, size_fraction=0.20, kind=TPKind.HARD),  # TP3: 20% at 0.75R
+        TPProfileLeg(r_multiple=0.15, size_fraction=0.40, kind=TPKind.SOFT),  # TP1: 40% at 0.15R (extremely quick)
+        TPProfileLeg(r_multiple=0.35, size_fraction=0.40, kind=TPKind.HARD),  # TP2: 40% at 0.35R
+        TPProfileLeg(r_multiple=0.6, size_fraction=0.20, kind=TPKind.HARD),   # TP3: 20% at 0.6R
     ],
     trailing=None,  # No trailing in choppy market
-    description="Chop: Very quick exits, avoid prolonged exposure"
+    description="Chop: Extremely quick exits, avoid prolonged exposure to whipsaws"
 )
 
 DEFAULT_NORMAL_PROFILE = TPProfile(
@@ -235,6 +235,20 @@ DEFAULT_NORMAL_PROFILE = TPProfile(
     description="Normal: Balanced TP ladder with moderate trailing"
 )
 
+CHALLENGE_100_PROFILE = TPProfile(
+    name="CHALLENGE_100",
+    tp_legs=[
+        TPProfileLeg(r_multiple=1.0, size_fraction=0.30, kind=TPKind.HARD),   # TP1: 30% at +1R
+        # Remaining 70% is runner (managed by CHALLENGE_100 logic in executor)
+    ],
+    trailing=TrailingProfile(
+        callback_pct=0.02,  # 2% trailing for runner (will be overridden by 2*ATR logic)
+        activation_r=1.0,   # Start trailing immediately after TP1
+        tightening_curve=[]
+    ),
+    description="$100 Challenge: Small losses, big winners - TP1 30% @ +1R, then runner with 2*ATR trailing"
+)
+
 # Global profile registry
 PROFILE_REGISTRY: Dict[str, TPProfile] = {
     "TREND_DEFAULT": DEFAULT_TREND_PROFILE,
@@ -242,9 +256,12 @@ PROFILE_REGISTRY: Dict[str, TPProfile] = {
     "VOLATILE_DEFAULT": DEFAULT_VOLATILE_PROFILE,
     "CHOP_DEFAULT": DEFAULT_CHOP_PROFILE,
     "NORMAL_DEFAULT": DEFAULT_NORMAL_PROFILE,
+    "CHALLENGE_100": CHALLENGE_100_PROFILE,
 }
 
 # Profile mappings: (symbol, strategy_id, regime) -> profile_name
+# NOTE: CHALLENGE_100 profile is selected dynamically via get_tp_and_trailing_profile()
+# based on EXIT_BRAIN_PROFILE env flag, not via static mapping
 PROFILE_MAPPINGS: List[tuple[TPProfileMapping, str]] = [
     # Regime-specific defaults (apply to all symbols/strategies)
     (TPProfileMapping(symbol="*", strategy_id="*", regime=MarketRegime.TREND), "TREND_DEFAULT"),
@@ -273,6 +290,10 @@ def get_tp_and_trailing_profile(
     """
     Get TP and trailing profiles for given context.
     
+    **CHALLENGE_100 Profile Override:**
+    If EXIT_BRAIN_PROFILE=CHALLENGE_100, returns CHALLENGE_100 profile
+    regardless of regime. This takes precedence over all other mappings.
+    
     Fallback hierarchy (most specific to least specific):
     1. (symbol, strategy_id, regime)
     2. (symbol, strategy_id, ANY)
@@ -289,7 +310,18 @@ def get_tp_and_trailing_profile(
     Returns:
         (TPProfile, TrailingProfile or None)
     """
-    # Find all matching mappings
+    # PRIORITY 1: Check if CHALLENGE_100 profile is active (env flag)
+    from backend.config.exit_mode import is_challenge_100_profile
+    
+    if is_challenge_100_profile():
+        profile = CHALLENGE_100_PROFILE
+        logger.info(
+            f"[TP PROFILES] Using CHALLENGE_100 profile for {symbol} "
+            f"(EXIT_BRAIN_PROFILE=CHALLENGE_100, ignoring regime={regime.value})"
+        )
+        return profile, profile.trailing
+    
+    # PRIORITY 2: Find all matching mappings
     candidates = []
     for mapping, profile_name in PROFILE_MAPPINGS:
         if mapping.matches(symbol, strategy_id, regime):

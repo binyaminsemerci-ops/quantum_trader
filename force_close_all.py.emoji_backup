@@ -1,0 +1,45 @@
+"""Force close all Binance Futures positions"""
+import os
+from dotenv import load_dotenv
+from binance.client import Client
+
+load_dotenv()
+
+api_key = os.getenv("BINANCE_API_KEY")
+api_secret = os.getenv("BINANCE_API_SECRET")
+
+client = Client(api_key, api_secret)
+
+print("\n🛑 FORCE CLOSING ALL POSITIONS...")
+print("=" * 80)
+
+# Get all positions
+positions = client.futures_position_information()
+active_positions = [p for p in positions if float(p['positionAmt']) != 0]
+
+if not active_positions:
+    print("✅ No active positions")
+else:
+    print(f"Found {len(active_positions)} position(s) to close\n")
+    
+    for pos in active_positions:
+        symbol = pos['symbol']
+        amt = float(pos['positionAmt'])
+        side = 'SELL' if amt > 0 else 'BUY'  # Opposite side to close
+        qty = abs(amt)
+        
+        try:
+            # Close position with market order
+            order = client.futures_create_order(
+                symbol=symbol,
+                side=side,
+                type='MARKET',
+                quantity=qty,
+                reduceOnly=True
+            )
+            print(f"✅ Closed {symbol} {side} {qty}")
+        except Exception as e:
+            print(f"❌ Failed to close {symbol}: {e}")
+
+print("\n" + "=" * 80)
+print("✅ All positions closed!")

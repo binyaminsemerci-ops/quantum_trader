@@ -10,4 +10,4 @@ app.include_router(chart.router, prefix="/api/chart", tags=["Chart"])
 
 @app.get("/")
 def root():
-    return {"message": "Quantum Trader API is running 🚀"}
+    return {"message": "Quantum Trader API is running [ROCKET]"}

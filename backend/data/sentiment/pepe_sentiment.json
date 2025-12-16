@@ -1,0 +1,11 @@
+{
+  "symbol": "PEPEUSDT",
+  "payload": {
+    "score": 0.602,
+    "label": "positive",
+    "source": "coingecko",
+    "sentiment_votes_up_percentage": 69.7,
+    "market_cap_rank": 62
+  },
+  "fetched_at": "2025-11-18T10:58:19.964982+00:00"
+}

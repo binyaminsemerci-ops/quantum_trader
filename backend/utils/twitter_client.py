@@ -4,17 +4,33 @@ Environment variables supported:
 - X_BEARER_TOKEN: preferred (App-only bearer token for v2 endpoints)
 - X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET: optional OAuth1
 
-This client is intentionally small and resilient: when no credentials are
-configured it returns a neutral sentiment. It provides a simple `sentiment_for_symbol`
-method that queries recent public tweets mentioning the symbol and computes a
-very small heuristic sentiment score.
+Resilience goals:
+- If credentials missing: returns neutral sentiment (mock mode)
+- If the legacy ``config.config`` import fails (e.g. path issues when running
+    from a subdirectory) we fall back to ``from config import load_config``.
+- As a last resort we provide a tiny shim returning an object with a
+    ``x_bearer_token`` attribute so downstream code continues without crashes.
 """
 
 from typing import Optional, Dict, Any
-from config.config import load_config  # type: ignore[import-not-found, import-untyped]
+try:  # Primary import style used throughout the codebase
+    from config.config import load_config  # type: ignore[import-not-found, import-untyped]
+except ModuleNotFoundError:  # pragma: no cover - fallback when running in isolated cwd
+    try:
+        from config import load_config  # type: ignore[import-not-found, import-untyped]
+    except ModuleNotFoundError:  # Final fallback: define a shim
+        def load_config():  # type: ignore[return-type]
+            class _Shim:  # minimal surface expected by caller
+                x_bearer_token: Optional[str] = None
+            return _Shim()
 import time
 import requests  # type: ignore[import-untyped]
 import warnings
+
+try:
+    from backend.utils.telemetry import record_cache_hit, record_cache_miss, record_cache_write
+except ModuleNotFoundError:  # pragma: no cover - fallback for package-relative imports
+    from utils.telemetry import record_cache_hit, record_cache_miss, record_cache_write  # type: ignore
 
 # Small in-process cache to avoid repeated API calls during short tests
 _CACHE: Dict[str, Any] = {}
@@ -31,6 +47,8 @@ class TwitterClient:
     """
 
     def __init__(self):
+        # load_config may come from one of several fallbacks; all expose
+        # x_bearer_token (or None) to indicate mock mode.
         cfg = load_config()
         self.bearer = cfg.x_bearer_token
         # Optionally support OAuth1 env vars in the future
@@ -40,15 +58,19 @@ class TwitterClient:
     def _cached(self, key: str, ttl: int = 30) -> Optional[Any]:
         e = _CACHE.get(key)
         if not e:
+            record_cache_miss("twitter_recent_search")
             return None
         ts, val = e
         if time.time() - ts > ttl:
             del _CACHE[key]
+            record_cache_miss("twitter_recent_search")
             return None
+        record_cache_hit("twitter_recent_search")
         return val
 
     def _set_cache(self, key: str, val: Any) -> None:
         _CACHE[key] = (time.time(), val)
+        record_cache_write("twitter_recent_search")
 
     def _request_with_retries(
         self,

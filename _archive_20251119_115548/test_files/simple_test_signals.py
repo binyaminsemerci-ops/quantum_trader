@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+"""Simple signal test using requests library"""
+
+import requests
+import json
+
+def test_signals():
+    print("\n" + "="*80)
+    print("TESTING LIVE AI SIGNAL GENERATION")
+    print("="*80)
+    
+    url = "http://localhost:8000/api/ai/signals/latest"
+    params = {"limit": 10, "profile": "mixed"}
+    
+    print(f"\nFetching from: {url}")
+    print(f"Parameters: {params}\n")
+    
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        
+        if response.status_code == 200:
+            signals = response.json()
+            
+            print(f"[OK] Received {len(signals)} signals:\n")
+            print("-" * 90)
+            print(f"{'#':<4} {'Symbol':<10} {'Action':<6} {'Conf':<8} {'Price':<12} {'Source':<18} {'Model':<15}")
+            print("-" * 90)
+            
+            for i, sig in enumerate(signals, 1):
+                symbol = sig.get("symbol", "N/A")
+                action = sig.get("type", "HOLD")
+                confidence = sig.get("confidence", 0.0)
+                source = sig.get("source", "unknown")
+                model = sig.get("model", "unknown")
+                price = sig.get("price", 0.0)
+                
+                print(f"{i:<4} {symbol:<10} {action:<6} {confidence:<8.4f} ${price:<11.2f} {source:<18} {model:<15}")
+            
+            print("-" * 90)
+            
+            # Count by source
+            sources = {}
+            models = {}
+            actions = {}
+            
+            for sig in signals:
+                src = sig.get("source", "unknown")
+                mod = sig.get("model", "unknown")
+                act = sig.get("type", "HOLD")
+                
+                sources[src] = sources.get(src, 0) + 1
+                models[mod] = models.get(mod, 0) + 1
+                actions[act] = actions.get(act, 0) + 1
+            
+            print("\n[CHART] SIGNAL BREAKDOWN:")
+            print("\nBy Source:")
+            for src, count in sorted(sources.items()):
+                pct = (count / len(signals)) * 100
+                print(f"   {src:<18} {count:>3} ({pct:>5.1f}%)")
+            
+            print("\nBy Model:")
+            for mod, count in sorted(models.items()):
+                pct = (count / len(signals)) * 100
+                print(f"   {mod:<18} {count:>3} ({pct:>5.1f}%)")
+            
+            print("\nBy Action:")
+            for act, count in sorted(actions.items()):
+                pct = (count / len(signals)) * 100
+                print(f"   {act:<18} {count:>3} ({pct:>5.1f}%)")
+            
+            # Check for agent signals
+            agent_count = sources.get("XGBAgent", 0)
+            if agent_count > 0:
+                print(f"\n[OK] XGBoost agent is generating {agent_count} signal(s)!")
+                print("   The ML model integration is working!")
+            else:
+                print(f"\n[WARNING]  No XGBAgent signals detected (all from {list(sources.keys())})")
+                print("   Market may be neutral or threshold too high")
+            
+            return True
+        else:
+            print(f"❌ Error: HTTP {response.status_code}")
+            print(response.text[:500])
+            return False
+            
+    except requests.ConnectionError:
+        print("❌ Could not connect to backend at http://localhost:8000")
+        print("\n💡 Start backend: python -m uvicorn backend.main:app --port 8000")
+        return False
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+    finally:
+        print("\n" + "="*80)
+
+if __name__ == "__main__":
+    test_signals()

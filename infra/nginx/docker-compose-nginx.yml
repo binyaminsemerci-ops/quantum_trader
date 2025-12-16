@@ -1,0 +1,108 @@
+# Docker Compose - NGINX Gateway
+# SPRINT 3 - Module C: API Gateway
+
+services:
+  # ============================================================================
+  # NGINX API GATEWAY
+  # ============================================================================
+  
+  nginx-gateway:
+    image: nginx:1.25-alpine
+    container_name: quantum_nginx_gateway
+    restart: always
+    
+    ports:
+      - "80:80"
+      - "443:443"  # For future HTTPS support
+    
+    volumes:
+      # Configuration
+      - ./infra/nginx/nginx.conf.example:/etc/nginx/nginx.conf:ro
+      
+      # Logs
+      - ./logs/nginx:/var/log/nginx
+      
+      # SSL certificates (for production)
+      # - ./infra/nginx/ssl:/etc/nginx/ssl:ro
+    
+    networks:
+      - quantum_trader
+    
+    depends_on:
+      - ai-engine-service
+      - execution-service
+      - risk-safety-service
+      - monitoring-health-service
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    
+    environment:
+      - NGINX_ENTRYPOINT_QUIET_LOGS=1
+    
+    labels:
+      - "com.quantum_trader.service=nginx-gateway"
+      - "com.quantum_trader.description=API Gateway and reverse proxy"
+
+networks:
+  quantum_trader:
+    name: quantum_trader
+    driver: bridge
+
+# ============================================================================
+# USAGE
+# ============================================================================
+
+# Start gateway:
+# docker-compose -f infra/nginx/docker-compose-nginx.yml up -d
+
+# View logs:
+# docker logs -f quantum_nginx_gateway
+
+# Test health:
+# curl http://localhost/api/health/system
+
+# Test routing:
+# curl http://localhost/api/ai/health
+# curl http://localhost/api/execution/health
+# curl http://localhost/api/risk/health
+# curl http://localhost/api/portfolio/health
+
+# Test rate limiting:
+# for i in {1..150}; do curl http://localhost/api/health; done
+
+# Stop gateway:
+# docker-compose -f infra/nginx/docker-compose-nginx.yml down
+
+# ============================================================================
+# PRODUCTION CONSIDERATIONS
+# ============================================================================
+
+# 1. HTTPS/SSL:
+#    - Obtain SSL certificate (Let's Encrypt, AWS ACM, etc.)
+#    - Update nginx.conf to listen on port 443
+#    - Mount certificates in volumes
+
+# 2. Multiple Instances:
+#    - Scale NGINX for redundancy:
+#      docker-compose up -d --scale nginx-gateway=2
+#    - Use external load balancer (AWS ALB, Azure Load Balancer)
+
+# 3. Monitoring:
+#    - Export NGINX metrics to Prometheus
+#    - Use nginx-prometheus-exporter sidecar
+#    - Monitor access logs with ELK stack
+
+# 4. Security:
+#    - Enable ModSecurity WAF
+#    - Configure IP whitelisting for admin endpoints
+#    - Use API keys/JWT tokens for authentication
+
+# 5. Performance:
+#    - Tune worker_processes and worker_connections
+#    - Enable HTTP/2
+#    - Optimize buffer sizes based on traffic

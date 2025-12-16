@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""
+Real-time signal monitor - viser AI confidence levels og venter på >=0.70 signals
+"""
+import asyncio
+import os
+from datetime import datetime
+from binance.client import Client
+
+# Load from .env
+from dotenv import load_dotenv
+load_dotenv()
+
+api_key = os.getenv("BINANCE_API_KEY")
+api_secret = os.getenv("BINANCE_API_SECRET")
+
+async def monitor_signals():
+    """Monitor backend logs for high-confidence signals"""
+    print(f"\n{'='*80}")
+    print(f"🔍 SIGNAL MONITOR - Venter på >=0.70 confidence signals")
+    print(f"{'='*80}\n")
+    
+    import subprocess
+    
+    last_check_time = datetime.now()
+    signal_count = 0
+    check_number = 0
+    
+    while True:
+        check_number += 1
+        current_time = datetime.now().strftime("%H:%M:%S")
+        
+        # Get last 100 lines from backend
+        result = subprocess.run(
+            ["docker", "logs", "quantum_backend", "--tail", "100"],
+            capture_output=True,
+            text=True
+        )
+        
+        logs = result.stdout + result.stderr
+        
+        # Check for signals
+        found_signal_check = False
+        high_confidence_signals = []
+        medium_confidence_signals = []
+        
+        for line in logs.split('\n'):
+            # Check if executor is running
+            if "Checking 222 symbols for signals" in line:
+                found_signal_check = True
+            
+            # Look for high confidence BUY/SELL
+            if "TP/SL for BUY:" in line or "TP/SL for SELL:" in line:
+                if "confidence=0." in line:
+                    # Extract confidence
+                    try:
+                        conf_str = line.split("confidence=")[1].split()[0]
+                        conf = float(conf_str)
+                        
+                        action = "BUY" if "BUY:" in line else "SELL"
+                        
+                        if conf >= 0.70:
+                            high_confidence_signals.append((action, conf))
+                        elif conf >= 0.65:
+                            medium_confidence_signals.append((action, conf))
+                    except:
+                        pass
+            
+            # Check for executed trades
+            if "Found 0 high-confidence signals" in line:
+                signal_count = 0
+            elif "high-confidence signals" in line and "Found" in line:
+                try:
+                    signal_count = int(line.split("Found ")[1].split()[0])
+                except:
+                    pass
+        
+        # Display status
+        print(f"\r[{current_time}] Check #{check_number} | ", end="")
+        
+        if high_confidence_signals:
+            print(f"🎯 HIGH QUALITY SIGNALS: {len(high_confidence_signals)} (>=0.70)", end="")
+            for action, conf in high_confidence_signals[:3]:
+                print(f" | {action} {conf:.2f}", end="")
+        elif medium_confidence_signals:
+            print(f"⚠️  Medium signals: {len(medium_confidence_signals)} (0.65-0.69)", end="")
+            top_3 = sorted(medium_confidence_signals, key=lambda x: x[1], reverse=True)[:3]
+            for action, conf in top_3:
+                print(f" | {action} {conf:.2f}", end="")
+        else:
+            print(f"⏳ Ingen signaler >=0.65 (venter...)", end="")
+        
+        if signal_count > 0:
+            print(f" | ✅ {signal_count} EXECUTED", end="")
+        
+        print(" " * 20, end="", flush=True)  # Clear rest of line
+        
+        # Wait 10 seconds
+        await asyncio.sleep(10)
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(monitor_signals())
+    except KeyboardInterrupt:
+        print("\n\n✅ Monitor stopped")

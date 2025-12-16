@@ -13,6 +13,11 @@ import requests  # type: ignore[import-untyped]
 import time
 import warnings
 
+try:
+    from backend.utils.telemetry import record_cache_hit, record_cache_miss, record_cache_write
+except ModuleNotFoundError:  # pragma: no cover - fallback for package-relative imports
+    from utils.telemetry import record_cache_hit, record_cache_miss, record_cache_write  # type: ignore
+
 _CACHE: Dict[str, Any] = {}
 
 
@@ -32,15 +37,19 @@ class CryptoPanicClient:
     def _cached(self, key: str, ttl: int = 60) -> Optional[Any]:
         v = _CACHE.get(key)
         if not v:
+            record_cache_miss("cryptopanic_posts")
             return None
         ts, val = v
         if time.time() - ts > ttl:
             del _CACHE[key]
+            record_cache_miss("cryptopanic_posts")
             return None
+        record_cache_hit("cryptopanic_posts")
         return val
 
     def _set_cache(self, key: str, val: Any) -> None:
         _CACHE[key] = (time.time(), val)
+        record_cache_write("cryptopanic_posts")
 
     def _request_with_retries(
         self, url: str, params: dict, max_attempts: int = 3, timeout: int = 6

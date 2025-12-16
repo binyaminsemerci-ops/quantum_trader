@@ -1,0 +1,110 @@
+{
+  "BTCUSDT": {
+    "symbol": "BTCUSDT",
+    "trade_count": 36,
+    "wins": 19,
+    "losses": 17,
+    "total_R": 19.0,
+    "total_pnl": 925.0,
+    "consecutive_losses": 0,
+    "consecutive_wins": 11,
+    "is_enabled": true,
+    "last_updated": "2025-11-22T11:46:24.258138+00:00"
+  },
+  "ETHUSDT": {
+    "symbol": "ETHUSDT",
+    "trade_count": 15,
+    "wins": 5,
+    "losses": 10,
+    "total_R": -0.7999999999999998,
+    "total_pnl": -40.0,
+    "consecutive_losses": 1,
+    "consecutive_wins": 0,
+    "is_enabled": true,
+    "last_updated": "2025-11-22T11:17:56.242328+00:00"
+  },
+  "SOLUSDT": {
+    "symbol": "SOLUSDT",
+    "trade_count": 21,
+    "wins": 13,
+    "losses": 8,
+    "total_R": 25.5,
+    "total_pnl": 1275.0,
+    "consecutive_losses": 0,
+    "consecutive_wins": 1,
+    "is_enabled": true,
+    "last_updated": "2025-11-22T11:36:57.534918+00:00"
+  },
+  "ADAUSDT": {
+    "symbol": "ADAUSDT",
+    "trade_count": 10,
+    "wins": 5,
+    "losses": 5,
+    "total_R": 2.5,
+    "total_pnl": 125.0,
+    "consecutive_losses": 1,
+    "consecutive_wins": 0,
+    "is_enabled": true,
+    "last_updated": "2025-11-22T11:17:56.140180+00:00"
+  },
+  "BADUSDT": {
+    "symbol": "BADUSDT",
+    "trade_count": 3,
+    "wins": 0,
+    "losses": 3,
+    "total_R": -3.0,
+    "total_pnl": -150.0,
+    "consecutive_losses": 3,
+    "consecutive_wins": 0,
+    "is_enabled": false,
+    "last_updated": "2025-11-22T11:17:56.215017+00:00"
+  },
+  "BADALT": {
+    "symbol": "BADALT",
+    "trade_count": 10,
+    "wins": 2,
+    "losses": 8,
+    "total_R": -7.6000000000000005,
+    "total_pnl": -380.0,
+    "consecutive_losses": 8,
+    "consecutive_wins": 0,
+    "is_enabled": true,
+    "last_updated": "2025-11-22T11:17:56.276055+00:00"
+  },
+  "GOODCOIN": {
+    "symbol": "GOODCOIN",
+    "trade_count": 10,
+    "wins": 6,
+    "losses": 4,
+    "total_R": 5.600000000000001,
+    "total_pnl": 280.0,
+    "consecutive_losses": 4,
+    "consecutive_wins": 0,
+    "is_enabled": true,
+    "last_updated": "2025-11-22T11:17:56.292366+00:00"
+  },
+  "APTUSDT": {
+    "symbol": "APTUSDT",
+    "trade_count": 40,
+    "wins": 0,
+    "losses": 40,
+    "total_R": -40.0,
+    "total_pnl": -2000.0,
+    "consecutive_losses": 40,
+    "consecutive_wins": 0,
+    "is_enabled": false,
+    "last_updated": "2025-11-22T11:46:24.286396+00:00"
+  },
+  "TESTUSDT": {
+    "symbol": "TESTUSDT",
+    "trade_count": 15,
+    "wins": 0,
+    "losses": 15,
+    "total_R": -15.0,
+    "total_pnl": -750.0,
+    "consecutive_losses": 15,
+    "consecutive_wins": 0,
+    "is_enabled": false,
+    "last_updated": "2025-11-22T11:46:24.266499+00:00"
+  }
+}

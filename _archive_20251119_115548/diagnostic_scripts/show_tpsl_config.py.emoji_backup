@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""Display current TP/SL and trailing stop configuration."""
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+print("\n" + "=" * 70)
+print("🎯 CURRENT TP/SL & TRAILING STOP CONFIGURATION")
+print("=" * 70)
+
+# Read from .env
+tp_pct = float(os.getenv('QT_TP_PCT', '0.04'))
+sl_pct = float(os.getenv('QT_SL_PCT', '0.03'))
+trail_pct = float(os.getenv('QT_TRAIL_PCT', '0.02'))
+partial_tp = float(os.getenv('QT_PARTIAL_TP', '0.5'))
+trailing_enabled = os.getenv('QT_TRAILING_STOP_ENABLED', 'true').lower() == 'true'
+trailing_interval = int(os.getenv('QT_TRAILING_CHECK_INTERVAL', '10'))
+trailing_min_profit = float(os.getenv('QT_TRAILING_MIN_PROFIT', '0.005'))
+
+print("\n📈 TAKE PROFIT (TP):")
+print(f"   Target: {tp_pct * 100:.1f}% gain")
+print(f"   På $800 posisjon: ${800 * tp_pct:.2f} profit per trade")
+print(f"   Partial Exit: {partial_tp * 100:.0f}% av posisjon ved TP")
+print(f"   → Lukker {partial_tp * 100:.0f}% ved +{tp_pct * 100:.1f}%, resten får trailing stop")
+
+print("\n📉 STOP LOSS (SL):")
+print(f"   Max Loss: {sl_pct * 100:.1f}% drawdown")
+print(f"   På $800 posisjon: -${800 * sl_pct:.2f} max tap per trade")
+print(f"   → Hard stop triggers automatisk ved -{sl_pct * 100:.1f}%")
+
+print("\n🎯 TRAILING STOP:")
+print(f"   Status: {'✅ ENABLED' if trailing_enabled else '❌ DISABLED'}")
+print(f"   Trail Distance: {trail_pct * 100:.1f}% fra peak")
+print(f"   Check Interval: {trailing_interval}s")
+print(f"   Min Profit to Activate: {trailing_min_profit * 100:.2f}%")
+print(f"   → Følger prisen opp, stopper ved {trail_pct * 100:.1f}% fall fra topp")
+
+print("\n💡 HYBRID STRATEGI:")
+print(f"   1️⃣  Position opens: Full size ($800)")
+print(f"   2️⃣  Price hits +{tp_pct * 100:.1f}%: Sell {partial_tp * 100:.0f}% → Lock profit ${800 * partial_tp * tp_pct:.2f}")
+print(f"   3️⃣  Remaining {(1-partial_tp) * 100:.0f}%: Trailing stop {trail_pct * 100:.1f}% → Let winners run!")
+print(f"   4️⃣  If price drops -{sl_pct * 100:.1f}%: Full stop loss → Max loss -${800 * sl_pct:.2f}")
+
+print("\n🎲 EXAMPLE SCENARIOS:")
+print(f"\n   Scenario A - Quick Win:")
+print(f"   • Entry: $1.00, Size: $800")
+print(f"   • Price → $1.04 (+{tp_pct * 100:.1f}%)")
+print(f"   • Action: Sell {partial_tp * 100:.0f}% = ${800 * partial_tp * tp_pct:.2f} profit")
+print(f"   • Remaining {(1-partial_tp) * 100:.0f}%: Continue with trailing stop")
+
+print(f"\n   Scenario B - Runner:")
+print(f"   • After partial exit at +{tp_pct * 100:.1f}%")
+print(f"   • Price continues to $1.10 (+10%)")
+print(f"   • Trailing stop: Protects at $1.078 (1.10 - {trail_pct * 100:.1f}%)")
+print(f"   • Total profit if triggered: ${800 * partial_tp * tp_pct + 400 * 0.078:.2f}")
+
+print(f"\n   Scenario C - Stop Loss:")
+print(f"   • Entry: $1.00, Size: $800")
+print(f"   • Price → $0.97 (-{sl_pct * 100:.1f}%)")
+print(f"   • Action: Full position closed → Loss: -${800 * sl_pct:.2f}")
+
+print("\n" + "=" * 70)
+print("⚙️  CONFIG FILES: .env + docker-compose.yml")
+print("🤖 AI Confidence: 70%+ only (strict quality mode)")
+print("=" * 70 + "\n")

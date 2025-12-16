@@ -1,43 +1,214 @@
+from __future__ import annotations
+
 import aiohttp
-from typing import Dict, Any, Union
+import asyncio
 import logging
+from collections import deque
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Deque, Dict, Optional, Union
+
+try:
+    from utils.cache import load_json, save_json  # type: ignore
+except ModuleNotFoundError:
+    from backend.utils.cache import load_json, save_json
+
+# Import bulletproof API client
+try:
+    from backend.api_bulletproof import get_binance_client, get_coingecko_client
+except ImportError:
+    from api_bulletproof import get_binance_client, get_coingecko_client
 
 logger = logging.getLogger(__name__)
 
 
-async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
-    """Fetch real OHLCV candles from Binance public API (no auth required)."""
+class AsyncRateLimiter:
+    """Simple cooperative rate limiter for async code."""
+
+    def __init__(self, max_calls: int, period: float) -> None:
+        self._max_calls = max_calls
+        self._period = period
+        self._timestamps: Deque[float] = deque()
+        self._lock = asyncio.Lock()
+
+    async def acquire(self) -> None:
+        async with self._lock:
+            loop = asyncio.get_event_loop()
+            now = loop.time()
+            cutoff = now - self._period
+            while self._timestamps and self._timestamps[0] <= cutoff:
+                self._timestamps.popleft()
+            if len(self._timestamps) >= self._max_calls:
+                sleep_for = self._timestamps[0] + self._period - now
+                await asyncio.sleep(max(sleep_for, 0))
+                await self.acquire()
+                return
+            self._timestamps.append(now)
+
+
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+BINANCE_CACHE_DIR = DATA_DIR / "price_history"
+COINGECKO_CACHE_DIR = DATA_DIR / "sentiment"
+BINANCE_RATE_LIMITER = AsyncRateLimiter(max_calls=90, period=60.0)
+COINGECKO_RATE_LIMITER = AsyncRateLimiter(max_calls=45, period=60.0)
+BINANCE_CACHE_TTL = timedelta(seconds=45)
+COINGECKO_CACHE_TTL = timedelta(minutes=5)
+
+
+def _load_cache(path: Path) -> Optional[Dict[str, Any]]:
+    payload = load_json(path)
+    if isinstance(payload, dict):
+        return payload
+    return None
+
+
+def _cache_fresh(payload: Optional[Dict[str, Any]], ttl: timedelta) -> bool:
+    if not payload:
+        return False
+    fetched_at = payload.get("fetched_at")
+    if not isinstance(fetched_at, str):
+        return False
     try:
-        # Binance public klines endpoint
-        url = "https://api.binance.com/api/v3/klines"
-        # Explicit param typing to satisfy type checkers (str -> str|int)
+        fetched_dt = datetime.fromisoformat(fetched_at)
+    except ValueError:
+        return False
+    if fetched_dt.tzinfo is None:
+        fetched_dt = fetched_dt.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - fetched_dt <= ttl
+
+
+def _dedupe_candles(candles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[int] = set()
+    deduped: list[dict[str, Any]] = []
+    for candle in sorted(candles, key=lambda item: item.get("timestamp", 0)):
+        ts = int(candle.get("timestamp", 0))
+        if ts in seen:
+            continue
+        seen.add(ts)
+        deduped.append(candle)
+    return deduped
+
+
+async def binance_symbol_exists(symbol: str) -> bool:
+    """Return True if Binance reports the symbol exists and is trading.
+
+    Uses the public exchangeInfo endpoint; caches are not persisted here because
+    this is typically called at startup only.
+    """
+    import aiohttp
+
+    url = "https://api.binance.com/api/v3/exchangeInfo"
+    params = {"symbol": symbol.upper()}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params) as resp:
+                if resp.status != 200:
+                    return False
+                data = await resp.json()
+                syms = data.get("symbols") or []
+                if not syms:
+                    return False
+                info = syms[0]
+                return str(info.get("status", "")).upper() == "TRADING"
+    except Exception:
+        return False
+
+
+async def filter_existing_usdc_symbols(symbols: list[str]) -> list[str]:
+    """Filter to symbols that exist on Binance. Intended for USDC symbols.
+
+    This prevents noisy 400 responses for non-existent USDC markets.
+    """
+    out: list[str] = []
+    for s in symbols:
+        try:
+            await BINANCE_RATE_LIMITER.acquire()
+            if await binance_symbol_exists(s):
+                out.append(s)
+        except Exception:
+            # Skip on error; keep behavior conservative
+            continue
+    return out
+
+
+async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
+    """Fetch real OHLCV candles from Binance FUTURES API (USDC/USDT perpetual contracts)."""
+    symbol = symbol.upper()
+    
+    # Support both USDC and USDT futures contracts
+    if not (symbol.endswith("USDC") or symbol.endswith("USDT")):
+        # Default to USDC if no quote specified
+        base_asset = symbol[:-4] if len(symbol) > 4 else symbol
+        symbol = base_asset + "USDC"
+        logger.debug("Converting to futures symbol: %s", symbol)
+    
+    cache_path = BINANCE_CACHE_DIR / f"{symbol}_futures_1m.json"
+    cached_payload = _load_cache(cache_path)
+    if _cache_fresh(cached_payload, BINANCE_CACHE_TTL):
+        candles = cached_payload.get("candles", []) if cached_payload else []
+        return {"candles": candles[-limit:]}
+
+    # Get bulletproof API client
+    client = get_binance_client()
+    
+    try:
+        # Prepare params for FUTURES API
         params: Dict[str, Union[str, int]] = {
-            "symbol": symbol.upper(),
+            "symbol": symbol,
             "interval": "1m",  # 1 minute candles
-            "limit": min(limit, 1000),  # Binance max is 1000
+            "limit": min(limit, 1500),  # Futures allows up to 1500
         }
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    api_candles = []
+        async def _request(sym: str) -> Optional[list[dict[str, float]]]:
+            """Internal request helper with bulletproof client - FUTURES API"""
+            _params = dict(params)
+            _params["symbol"] = sym
+            
+            # Use FUTURES API endpoint instead of spot
+            data = await client.get("/fapi/v1/klines", params=_params, fallback=None)
+            
+            if data:
+                api_candles: list[dict[str, float]] = []
+                for kline in data:
+                    api_candles.append(
+                        {
+                            "timestamp": int(kline[0]),  # Open time
+                            "open": float(kline[1]),
+                            "high": float(kline[2]),
+                            "low": float(kline[3]),
+                            "close": float(kline[4]),
+                            "volume": float(kline[5]),
+                        }
+                    )
+                return api_candles
+            else:
+                if sym.endswith("USDC"):
+                    logger.debug("Binance API returned no data for %s (likely no USDC market)", sym)
+                return None
 
-                    for kline in data:
-                        api_candles.append(
-                            {
-                                "timestamp": int(kline[0]),  # Open time
-                                "open": float(kline[1]),
-                                "high": float(kline[2]),
-                                "low": float(kline[3]),
-                                "close": float(kline[4]),
-                                "volume": float(kline[5]),
-                            }
-                        )
+        # Try the requested symbol (already converted to USDT above)
+        api_candles = await _request(symbol)
 
-                    return {"candles": api_candles}
-                else:
-                    logger.warning(f"Binance API error: {response.status}")
+        # No fallback needed - we already enforce USDT futures symbols
+        if not api_candles:
+            logger.warning("No futures data available for %s", symbol)
+
+        if api_candles is not None:
+            merged = api_candles
+            if cached_payload and isinstance(cached_payload.get("candles"), list):
+                merged = cached_payload["candles"] + api_candles
+            deduped = _dedupe_candles(merged)
+            trimmed = deduped[-2000:]
+            save_json(
+                cache_path,
+                {
+                    "symbol": symbol,
+                    "interval": "1m",
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "candles": trimmed,
+                },
+            )
+            return {"candles": trimmed[-limit:]}
 
     except Exception as e:
         logger.error(f"Failed to fetch Binance data for {symbol}: {e}")
@@ -57,6 +228,8 @@ async def binance_ohlcv(symbol: str, limit: int = 600) -> Dict[str, Any]:
             }
         )
         price = float(candles[-1]["close"])
+    if cached_payload and isinstance(cached_payload.get("candles"), list):
+        return {"candles": cached_payload["candles"][-limit:]}
     return {"candles": candles}
 
 
@@ -67,6 +240,9 @@ def cryptopanic_news():
 
 async def twitter_sentiment(symbol: str) -> Dict[str, Any]:
     """Get sentiment data from CoinGecko's sentiment indicators (free API)."""
+    # Get bulletproof API client
+    client = get_coingecko_client()
+    
     try:
         # CoinGecko has sentiment data without requiring API keys
         coin_id = (
@@ -76,7 +252,6 @@ async def twitter_sentiment(symbol: str) -> Dict[str, Any]:
             .replace("eth", "ethereum")
         )
 
-        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}"
         params: Dict[str, str] = {
             "localization": "false",
             "tickers": "false",
@@ -84,36 +259,60 @@ async def twitter_sentiment(symbol: str) -> Dict[str, Any]:
             "community_data": "true",
         }
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params) as response:
-                if response.status == 200:
-                    data = await response.json()
+        cache_path = COINGECKO_CACHE_DIR / f"{coin_id}_sentiment.json"
+        cached_payload = _load_cache(cache_path)
+        if _cache_fresh(cached_payload, COINGECKO_CACHE_TTL):
+            return cached_payload.get("payload", {})
 
-                    # Extract sentiment metrics from CoinGecko
-                    sentiment_votes_up = data.get("sentiment_votes_up_percentage", 50)
-                    market_cap_rank = data.get("market_cap_rank", 100)
+        # Use bulletproof client
+        data = await client.get(
+            f"/api/v3/coins/{coin_id}",
+            params=params,
+            fallback=None
+        )
+        
+        if data:
+            # Extract sentiment metrics from CoinGecko
+            sentiment_votes_up = data.get("sentiment_votes_up_percentage")
+            if sentiment_votes_up is None:
+                sentiment_votes_up = 50
+            market_cap_rank = data.get("market_cap_rank")
+            if market_cap_rank is None:
+                market_cap_rank = 100
 
-                    # Calculate sentiment score (0-1 scale)
-                    sentiment_score = (sentiment_votes_up / 100.0) * 0.7 + (
-                        1.0 - min(market_cap_rank / 100.0, 1.0)
-                    ) * 0.3
+            # Calculate sentiment score (0-1 scale)
+            sentiment_score = (sentiment_votes_up / 100.0) * 0.7 + (
+                1.0 - min(market_cap_rank / 100.0, 1.0)
+            ) * 0.3
 
-                    label = (
-                        "positive"
-                        if sentiment_score > 0.6
-                        else "negative" if sentiment_score < 0.4 else "neutral"
-                    )
+            label = (
+                "positive"
+                if sentiment_score > 0.6
+                else "negative" if sentiment_score < 0.4 else "neutral"
+            )
 
-                    return {
-                        "score": round(sentiment_score, 3),
-                        "label": label,
-                        "source": "coingecko",
-                        "sentiment_votes_up_percentage": sentiment_votes_up,
-                        "market_cap_rank": market_cap_rank,
-                    }
+            payload = {
+                "score": round(sentiment_score, 3),
+                "label": label,
+                "source": "coingecko",
+                "sentiment_votes_up_percentage": sentiment_votes_up,
+                "market_cap_rank": market_cap_rank,
+            }
+            save_json(
+                cache_path,
+                {
+                    "symbol": symbol.upper(),
+                    "payload": payload,
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            return payload
 
     except Exception as e:
         logger.error(f"Failed to fetch sentiment for {symbol}: {e}")
+
+    if cached_payload and isinstance(cached_payload.get("payload"), dict):
+        return cached_payload["payload"]
 
     # Fallback sentiment
     return {"score": 0.5, "label": "neutral", "source": "fallback"}

@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+import os
+import json
+from binance.client import Client
+
+client = Client(os.getenv("BINANCE_API_KEY"), os.getenv("BINANCE_API_SECRET"))
+
+symbol = "DOGEUSDT"
+
+# Get position
+pos = client.futures_position_information(symbol=symbol)[0]
+size = float(pos['positionAmt'])
+entry = float(pos['entryPrice'])
+mark = float(pos['markPrice'])
+
+print(f"[CHART] {symbol} {'LONG' if size > 0 else 'SHORT'}:")
+print(f"  Size: {size}")
+print(f"  Entry: ${entry:.6f}")
+print(f"  Current: ${mark:.6f}")
+
+# Check open orders
+orders = client.futures_get_open_orders(symbol=symbol)
+print(f"  Open orders: {len(orders)}")
+for o in orders:
+    print(f"    {o['type']} @ ${float(o.get('stopPrice', o.get('price', 0))):.6f}")
+
+# Get precision
+exchange_info = client.futures_exchange_info()
+symbol_info = next((s for s in exchange_info['symbols'] if s['symbol'] == symbol), None)
+filters = {f['filterType']: f for f in symbol_info['filters']}
+tick_size = float(filters['PRICE_FILTER']['tickSize'])
+precision = len(str(tick_size).split('.')[-1])
+
+print(f"\nPrecision: {precision}")
+
+# Calculate TP/SL
+if size > 0:  # LONG
+    tp_pct = 0.076
+    sl_pct = 0.03
+    tp_price = round(entry * (1 + tp_pct), precision)
+    sl_price = round(entry * (1 - sl_pct), precision)
+    tp_side = 'SELL'
+    sl_side = 'SELL'
+else:  # SHORT
+    tp_pct = 0.076
+    sl_pct = 0.03
+    tp_price = round(entry * (1 - tp_pct), precision)
+    sl_price = round(entry * (1 + sl_pct), precision)
+    tp_side = 'BUY'
+    sl_side = 'BUY'
+
+print(f"\n[CHART] TP/SL (from entry ${entry:.6f}):")
+print(f"  TP: ${tp_price:.6f} ({'SHORT' if size < 0 else 'LONG'} {tp_pct*100:.1f}%)")
+print(f"  SL: ${sl_price:.6f} ({'SHORT' if size < 0 else 'LONG'} {sl_pct*100:.1f}%)")
+
+# Check if SL would trigger
+if size > 0 and mark < sl_price:
+    print(f"\n[WARNING]  WARNING: Price ${mark:.6f} below SL ${sl_price:.6f}!")
+    sl_price = round(mark * 0.99, precision)
+    print(f"   Adjusted SL to: ${sl_price:.6f}")
+elif size < 0 and mark > sl_price:
+    print(f"\n[WARNING]  WARNING: Price ${mark:.6f} above SL ${sl_price:.6f}!")
+    sl_price = round(mark * 1.01, precision)
+    print(f"   Adjusted SL to: ${sl_price:.6f}")
+
+# Place orders
+try:
+    tp_order = client.futures_create_order(
+        symbol=symbol,
+        side=tp_side,
+        type='TAKE_PROFIT_MARKET',
+        stopPrice=tp_price,
+        closePosition=True,
+        workingType='MARK_PRICE'
+    )
+    print(f"\n[OK] TP order: {tp_order['orderId']} @ ${tp_price:.6f}")
+except Exception as e:
+    print(f"\n❌ TP failed: {e}")
+
+try:
+    sl_order = client.futures_create_order(
+        symbol=symbol,
+        side=sl_side,
+        type='STOP_MARKET',
+        stopPrice=sl_price,
+        closePosition=True,
+        workingType='MARK_PRICE'
+    )
+    print(f"[OK] SL order: {sl_order['orderId']} @ ${sl_price:.6f}")
+except Exception as e:
+    print(f"❌ SL failed: {e}")
+
+# Update trade state
+trade_state_path = '/app/backend/data/trade_state.json'
+with open(trade_state_path, 'r') as f:
+    trade_state = json.load(f)
+
+if symbol in trade_state:
+    trade_state[symbol]['avg_entry'] = entry
+    if size > 0:
+        trade_state[symbol]['peak'] = entry
+    else:
+        trade_state[symbol]['trough'] = entry
+    
+    with open(trade_state_path, 'w') as f:
+        json.dump(trade_state, f, indent=2)
+    
+    print(f"[OK] Trade state updated")
+else:
+    print(f"[WARNING]  {symbol} not in trade state")

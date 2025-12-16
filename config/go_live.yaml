@@ -1,0 +1,19 @@
+environment: production
+activation_enabled: true
+required_preflight: true
+allowed_profiles:
+- micro
+default_profile: micro
+require_testnet_history: true
+min_testnet_trades: 3
+require_risk_state: OK
+require_ess_inactive: true
+require_exchanges_healthy: true
+max_account_risk_percent: 2.0
+require_metrics_endpoint: true
+require_dashboard_imported: true
+last_activation_timestamp: '2025-12-04T23:58:22.742909+00:00'
+last_activation_operator: User-DashboardV3
+activation_count: 2
+last_rollback_timestamp: null
+last_rollback_reason: null

@@ -1,0 +1,214 @@
+"""
+[ALERT] EMERGENCY FIXES - Critical System Issues
+Run this script to address urgent issues detected in system health check
+"""
+import asyncio
+import logging
+from datetime import datetime, timezone
+from binance.um_futures import UMFutures
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Initialize Binance client
+api_key = os.getenv("BINANCE_API_KEY")
+api_secret = os.getenv("BINANCE_SECRET_KEY")
+client = UMFutures(key=api_key, secret=api_secret)
+
+
+def get_current_positions():
+    """Fetch current open positions"""
+    try:
+        positions = client.get_position_risk()
+        open_positions = [p for p in positions if float(p['positionAmt']) != 0]
+        return open_positions
+    except Exception as e:
+        logger.error(f"Error fetching positions: {e}")
+        return []
+
+
+def close_smallest_position(positions):
+    """Close the position with smallest notional value"""
+    if not positions:
+        logger.warning("No positions to close")
+        return False
+    
+    # Sort by absolute notional value
+    sorted_positions = sorted(positions, key=lambda x: abs(float(x['notional'])))
+    smallest = sorted_positions[0]
+    
+    symbol = smallest['symbol']
+    position_amt = float(smallest['positionAmt'])
+    
+    logger.info(f"Closing smallest position: {symbol} (notional: ${float(smallest['notional']):.2f})")
+    
+    try:
+        # Close position with market order
+        side = 'SELL' if position_amt > 0 else 'BUY'
+        quantity = abs(position_amt)
+        
+        logger.info(f"Placing {side} order for {quantity} {symbol}")
+        
+        order = client.new_order(
+            symbol=symbol,
+            side=side,
+            type='MARKET',
+            quantity=quantity,
+            reduceOnly=True
+        )
+        
+        logger.info(f"[OK] Successfully closed {symbol}: {order}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to close {symbol}: {e}")
+        return False
+
+
+def check_position_count():
+    """Check if we're over position limit"""
+    positions = get_current_positions()
+    position_count = len(positions)
+    max_positions = 8
+    
+    logger.info(f"Current positions: {position_count}/{max_positions}")
+    
+    if position_count > max_positions:
+        logger.warning(f"[WARNING] OVER LIMIT: {position_count} positions (max {max_positions})")
+        return positions, True
+    else:
+        logger.info(f"[OK] Within limit: {position_count} positions")
+        return positions, False
+
+
+def display_positions(positions):
+    """Display current positions in readable format"""
+    if not positions:
+        logger.info("No open positions")
+        return
+    
+    logger.info("\n" + "="*80)
+    logger.info("CURRENT POSITIONS")
+    logger.info("="*80)
+    
+    total_notional = 0
+    short_count = 0
+    long_count = 0
+    
+    for pos in sorted(positions, key=lambda x: abs(float(x['notional'])), reverse=True):
+        symbol = pos['symbol']
+        qty = float(pos['positionAmt'])
+        notional = float(pos['notional'])
+        leverage = pos['leverage']
+        entry_price = float(pos['entryPrice'])
+        unrealized_pnl = float(pos['unRealizedProfit'])
+        
+        side = "LONG" if qty > 0 else "SHORT"
+        if qty > 0:
+            long_count += 1
+        else:
+            short_count += 1
+        
+        total_notional += abs(notional)
+        
+        pnl_str = f"${unrealized_pnl:+.2f}"
+        if unrealized_pnl > 0:
+            pnl_str = f"[OK] {pnl_str}"
+        elif unrealized_pnl < 0:
+            pnl_str = f"❌ {pnl_str}"
+        
+        logger.info(
+            f"{symbol:15s} | {side:5s} | {leverage:2s}x | "
+            f"${abs(notional):8.2f} | Entry: ${entry_price:10.6f} | "
+            f"P&L: {pnl_str}"
+        )
+    
+    logger.info("="*80)
+    logger.info(f"Total Positions: {len(positions)} (Long: {long_count}, Short: {short_count})")
+    logger.info(f"Total Notional: ${total_notional:.2f}")
+    logger.info(f"Direction Bias: {short_count/(short_count+long_count)*100:.1f}% SHORT, {long_count/(short_count+long_count)*100:.1f}% LONG")
+    logger.info("="*80 + "\n")
+
+
+def main():
+    """Main execution"""
+    logger.info("[SEARCH] EMERGENCY SYSTEM CHECK - Starting...")
+    logger.info(f"Timestamp: {datetime.now(timezone.utc)}")
+    logger.info("")
+    
+    # Step 1: Check positions
+    positions, over_limit = check_position_count()
+    
+    # Step 2: Display current state
+    display_positions(positions)
+    
+    # Step 3: Fix if needed
+    if over_limit:
+        logger.warning("[WARNING] ACTION REQUIRED: Too many positions")
+        logger.info("🔧 Closing smallest position to comply with limit...")
+        
+        success = close_smallest_position(positions)
+        
+        if success:
+            logger.info("[OK] Position closed successfully")
+            logger.info("Waiting 5 seconds and re-checking...")
+            import time
+            time.sleep(5)
+            
+            # Re-check
+            new_positions, still_over = check_position_count()
+            display_positions(new_positions)
+            
+            if still_over:
+                logger.warning("[WARNING] Still over limit, run script again")
+            else:
+                logger.info("[OK] Position count now within limits!")
+        else:
+            logger.error("❌ Failed to close position, manual intervention required")
+    else:
+        logger.info("[OK] No action needed - position count within limits")
+    
+    # Step 4: Additional checks
+    logger.info("\n[CHART] ADDITIONAL CHECKS")
+    logger.info("="*80)
+    
+    # Check direction bias
+    if positions:
+        short_count = sum(1 for p in positions if float(p['positionAmt']) < 0)
+        long_count = len(positions) - short_count
+        total = len(positions)
+        
+        short_pct = (short_count / total * 100) if total > 0 else 0
+        long_pct = (long_count / total * 100) if total > 0 else 0
+        
+        if short_pct > 65 or long_pct > 65:
+            logger.warning(f"[WARNING] DIRECTION BIAS: {short_pct:.0f}% SHORT, {long_pct:.0f}% LONG")
+            logger.warning("   Consider balancing positions (target: 40-60% in each direction)")
+        else:
+            logger.info(f"[OK] Direction balance OK: {short_pct:.0f}% SHORT, {long_pct:.0f}% LONG")
+    
+    # Check total exposure
+    if positions:
+        total_notional = sum(abs(float(p['notional'])) for p in positions)
+        max_exposure = 2000.0
+        
+        if total_notional > max_exposure:
+            logger.warning(f"[WARNING] EXPOSURE WARNING: ${total_notional:.2f} exceeds ${max_exposure:.2f} limit")
+        else:
+            logger.info(f"[OK] Exposure OK: ${total_notional:.2f} / ${max_exposure:.2f}")
+    
+    logger.info("="*80)
+    logger.info("\n[CHECKERED_FLAG] Emergency check complete!")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info("\n[WARNING] Script interrupted by user")
+    except Exception as e:
+        logger.error(f"❌ Unexpected error: {e}", exc_info=True)

@@ -1,8 +1,42 @@
 import os
 import shutil
+import warnings
+
 import pytest
 
 from fastapi.testclient import TestClient
+
+
+# Suppress noisy third-party DeprecationWarnings from websockets during tests
+warnings.filterwarnings(
+    "ignore",
+    category=DeprecationWarning,
+    module="websockets",
+)
+warnings.filterwarnings(
+    "ignore",
+    category=DeprecationWarning,
+    module="binance.ws.websocket_api",
+)
+warnings.filterwarnings(
+    "ignore",
+    category=DeprecationWarning,
+    module="websockets.legacy",
+)
+
+# Ensure admin-protected endpoints are gated during tests
+os.environ.setdefault("QT_ADMIN_TOKEN", "test-admin-token")
+
+
+@pytest.fixture
+def audit_log_file(tmp_path, monkeypatch):
+    from backend.utils.audit import reset_admin_audit_logger  # type: ignore
+
+    log_path = tmp_path / "admin_audit.log"
+    monkeypatch.setenv("QT_ADMIN_AUDIT_PATH", str(log_path))
+    reset_admin_audit_logger()
+    yield log_path
+    reset_admin_audit_logger()
 
 
 @pytest.fixture
@@ -15,6 +49,8 @@ def test_db_file(tmp_path):
 
     # Export env var so backend.database picks it up
     os.environ["QUANTUM_TRADER_DATABASE_URL"] = db_url
+    risk_state_path = tmpdir / "risk_state.db"
+    os.environ["QT_RISK_STATE_DB"] = str(risk_state_path)
 
     yield str(db_path)
 

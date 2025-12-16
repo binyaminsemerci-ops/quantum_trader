@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+"""Check and set leverage using futures_leverage_bracket endpoint."""
+
+from binance.client import Client
+import os
+
+client = Client(os.environ['BINANCE_API_KEY'], os.environ['BINANCE_API_SECRET'])
+
+# Get all open positions
+positions = client.futures_position_information()
+open_pos = [p for p in positions if float(p['positionAmt']) != 0]
+symbols = [p['symbol'] for p in open_pos]
+
+print(f'\n=== Checking Leverage for {len(symbols)} Positions ===\n')
+
+for symbol in symbols:
+    # Get leverage bracket info (includes current leverage)
+    try:
+        brackets = client.futures_leverage_bracket(symbol=symbol)
+        
+        # Also get position mode and leverage
+        pos_info = client.futures_position_information(symbol=symbol)[0]
+        size = float(pos_info['positionAmt'])
+        entry = float(pos_info['entryPrice'])
+        pnl = float(pos_info['unRealizedProfit'])
+        
+        # Get current leverage from account info
+        account = client.futures_account()
+        position_detail = [p for p in account['positions'] if p['symbol'] == symbol][0]
+        current_lev = int(position_detail.get('leverage', 1))
+        
+        print(f'{symbol:12} | {abs(size):8.2f} @ ${entry:8.4f} | Currently: {current_lev:2}x | PNL: ${pnl:+7.2f}')
+        
+        if current_lev != 10:
+            print(f'  🔧 Changing leverage to 10x...', end='', flush=True)
+            result = client.futures_change_leverage(symbol=symbol, leverage=10)
+            new_lev = result.get('leverage', '?')
+            print(f' [OK] Set to {new_lev}x')
+        else:
+            print(f'  [OK] Already at 10x')
+            
+    except Exception as e:
+        print(f'{symbol:12} | ❌ ERROR: {e}')
+
+print('\n=== Final Verification ===\n')
+account = client.futures_account()
+for symbol in symbols:
+    pos = [p for p in account['positions'] if p['symbol'] == symbol][0]
+    lev = int(pos.get('leverage', 1))
+    status = '[OK]' if lev == 10 else '❌'
+    print(f'{status} {symbol:12} | {lev:2}x')
+
+print()

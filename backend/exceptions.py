@@ -12,8 +12,6 @@ from typing import Any
 import traceback
 from datetime import datetime, timezone
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

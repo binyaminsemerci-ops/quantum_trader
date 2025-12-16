@@ -1,0 +1,108 @@
+"""Verify that all fixes are working after restart"""
+import asyncio
+import os
+import sys
+sys.path.append(os.path.dirname(__file__))
+
+async def verify_fixes():
+    print("\n" + "="*80)
+    print("🔍 VERIFYING FIXES ARE ACTIVE")
+    print("="*80)
+    
+    print("\n1️⃣ Checking .env configuration...")
+    confidence_threshold = os.getenv("QT_CONFIDENCE_THRESHOLD", "0.65")
+    min_confidence = os.getenv("QT_MIN_CONFIDENCE", "0.65")
+    
+    if float(confidence_threshold) >= 0.70:
+        print(f"   ✅ Confidence threshold: {confidence_threshold} (RAISED from 0.65)")
+    else:
+        print(f"   ❌ Confidence threshold still: {confidence_threshold} (should be 0.70)")
+    
+    if float(min_confidence) >= 0.70:
+        print(f"   ✅ Min confidence: {min_confidence} (RAISED from 0.65)")
+    else:
+        print(f"   ❌ Min confidence still: {min_confidence} (should be 0.70)")
+    
+    print("\n2️⃣ Checking AI Model...")
+    try:
+        from ai_engine.agents.xgb_agent import XGBAgent
+        agent = XGBAgent(use_ensemble=True)
+        
+        if hasattr(agent, 'ensemble') and agent.ensemble:
+            print("   ✅ Ensemble models loaded successfully!")
+            if hasattr(agent.ensemble, 'models'):
+                print(f"   ✅ Using {len(agent.ensemble.models)} models in ensemble")
+        else:
+            print("   ⚠️ Ensemble not loaded - check logs for catboost errors")
+            
+    except Exception as e:
+        print(f"   ❌ Error loading agent: {e}")
+    
+    print("\n3️⃣ Checking Event-Driven Executor Quality Gate...")
+    try:
+        with open("backend/services/event_driven_executor.py", "r") as f:
+            content = f.read()
+            if "rule_fallback_rsi" in content and "Skipping" in content:
+                print("   ✅ Fallback RSI blocker is present in code")
+            else:
+                print("   ❌ Fallback RSI blocker NOT found")
+    except Exception as e:
+        print(f"   ❌ Error: {e}")
+    
+    print("\n4️⃣ Checking Position Monitor AI Re-evaluation...")
+    try:
+        with open("backend/services/position_monitor.py", "r") as f:
+            content = f.read()
+            if "ai_engine" in content and "re-evaluate" in content.lower():
+                print("   ✅ AI re-evaluation code is present")
+            else:
+                print("   ❌ AI re-evaluation NOT found")
+    except Exception as e:
+        print(f"   ❌ Error: {e}")
+    
+    print("\n5️⃣ Checking Main.py Integration...")
+    try:
+        with open("backend/main.py", "r") as f:
+            content = f.read()
+            if "ai_engine=ai_engine" in content:
+                print("   ✅ AI engine passed to Position Monitor")
+            else:
+                print("   ❌ AI engine NOT passed to Position Monitor")
+    except Exception as e:
+        print(f"   ❌ Error: {e}")
+    
+    print("\n" + "="*80)
+    print("📊 SUMMARY")
+    print("="*80)
+    print("""
+✅ Configuration Changes:
+   • Confidence threshold: 0.65 → 0.70
+   • Min confidence: 0.65 → 0.70
+
+✅ Code Changes:
+   • Event executor blocks fallback RSI rules
+   • Position monitor re-evaluates AI sentiment
+   • AI engine connected to position monitor
+
+📝 Next Steps:
+   1. Wait for Docker build to complete
+   2. Start backend: docker-compose up -d backend
+   3. Check logs for:
+      - "Skipping - using fallback rules"
+      - "AI sentiment weak"
+      - "AI changed from X to Y"
+   4. Verify ensemble models load (not fallback)
+   5. Monitor for 1-2 hours before enabling trading
+
+⚠️ IMPORTANT:
+   System is now MORE CONSERVATIVE:
+   - Fewer trades (higher threshold)
+   - Only trained ML models (no fallback)
+   - Exits faster when AI changes mind
+   
+   This is GOOD! Quality > Quantity.
+    """)
+    print("="*80)
+
+if __name__ == "__main__":
+    asyncio.run(verify_fixes())

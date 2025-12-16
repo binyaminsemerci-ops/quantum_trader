@@ -1,0 +1,17 @@
+{
+  "policy": "no_new_trades",
+  "timestamp": "2025-11-23T00:43:40.144879+00:00",
+  "allow_new_positions": false,
+  "allow_exits": true,
+  "force_close_risky": false,
+  "max_leverage": null,
+  "position_size_multiplier": null,
+  "stop_loss_multiplier": null,
+  "reason": "System degraded - 4 subsystems affected",
+  "affected_subsystems": [
+    "data_feed",
+    "ai_model",
+    "database",
+    "logging"
+  ]
+}

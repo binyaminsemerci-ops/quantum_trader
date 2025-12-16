@@ -1,0 +1,41 @@
+"""Set leverage to 10x for all open positions"""
+import asyncio
+from backend.services.execution import build_execution_adapter
+from backend.config.execution import load_execution_config
+
+async def set_leverage():
+    config = load_execution_config()
+    adapter = build_execution_adapter(config)
+    
+    # Get all open positions
+    positions = await adapter.get_positions()
+    
+    print(f"\n🔧 Setting 10x leverage for {len(positions)} positions...\n")
+    
+    success_count = 0
+    for symbol in positions.keys():
+        try:
+            # Set leverage to 10x
+            result = await adapter._signed_request("POST", "/fapi/v1/leverage", {
+                "symbol": symbol,
+                "leverage": 10
+            })
+            print(f"✅ {symbol}: Leverage set to 10x")
+            success_count += 1
+        except Exception as e:
+            print(f"❌ {symbol}: Failed - {e}")
+    
+    print(f"\n✅ Successfully set 10x leverage on {success_count}/{len(positions)} positions")
+    
+    # Verify by checking account
+    print("\n📊 Verifying leverage settings...\n")
+    account_data = await adapter._signed_request('GET', '/fapi/v2/account')
+    
+    for pos in account_data.get('positions', []):
+        if abs(float(pos.get('positionAmt', 0))) > 0:
+            symbol = pos['symbol']
+            leverage = pos.get('leverage', 'N/A')
+            notional = abs(float(pos.get('notional', 0)))
+            print(f"  {symbol}: {leverage}x leverage | Notional: ${notional:.2f}")
+
+asyncio.run(set_leverage())

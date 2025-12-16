@@ -11,46 +11,125 @@ services:
     environment:
       # Sørg for at Python finner backend/ som modul
       - PYTHONPATH=/app
+      - QT_ADMIN_TOKEN=${QT_ADMIN_TOKEN:-dev-admin}
+      
+      # 🔐 BINANCE TESTNET API CREDENTIALS
+      - BINANCE_API_KEY=xOPqaf2iSKt4gVuScoebb3wDBm0R9gw0qSPtpHYnJNzcahTSL58b4QZcC4dsJ5eX
+      - BINANCE_API_SECRET=hwyeOL1BHBMv5jLmCEemg2OQNUb8dUAyHgamOftcS9oFDfc605SX1IZs294zvNmZ
+      - BINANCE_TESTNET=true
+      - BINANCE_USE_TESTNET=true
+      - EXCHANGE_MODE=binance_testnet
+      - BYBIT_ENABLED=false
       
       # 🤖 AI MODEL SELECTION (NEW!)
       - AI_MODEL=hybrid                    # 🚀 HYBRID: TFT (60%) + XGBoost (40%) ensemble
                                             # Options: xgb (fast), tft (temporal), hybrid (best)
       
-      # 🎯 TEST MODE - 58%+ CONFIDENCE (Testing Hybrid Agent with rule-based signals)
+      # 🎯 SIGNAL QUALITY SETTINGS (RAISED FOR BETTER TRADES - 2025-12-08)
       - QT_EVENT_DRIVEN_MODE=true
-      - QT_CONFIDENCE_THRESHOLD=0.58    # LOWERED from 0.64 to test system end-to-end
+      - QT_CONFIDENCE_THRESHOLD=0.70    # RAISED: Only strong consensus signals (was 0.45)
+      - QT_SIGNAL_QUEUE_MAX=20          # REDUCED: Keep only best 20 signals (was 100)
       - QT_CHECK_INTERVAL=10            # Check every 10 seconds
       - QT_COOLDOWN_SECONDS=120         # Longer cooldown for quality
       - LOG_LEVEL=DEBUG
       - QT_LOG_LEVEL=DEBUG
       
+      # 🔧 ORCHESTRATOR POLICY CONFIDENCE THRESHOLDS (LOWERED FOR MORE TRADES)
+      - QT_POLICY_MIN_CONF_TRENDING=0.18    # 18% for trending (was 32%)
+      - QT_POLICY_MIN_CONF_RANGING=0.22     # 22% for ranging (was 40%)
+      - QT_POLICY_MIN_CONF_NORMAL=0.20      # 20% for normal (was 38%)
+      
       # Enable trading and AI
       - QT_EXECUTION_EXCHANGE=binance-futures
       - QT_MARKET_TYPE=usdm_perp
-      - QT_PAPER_TRADING=false         # 🔥 LIVE TRADING - STOP_LOSS fix verified
+      - QT_PAPER_TRADING=true          # Paper trading on mainnet symbols
+      
+      # 💰 AI-DRIVEN POSITION SIZING ($14K BALANCE)
+      - RM_MAX_POSITION_USD=2000        # Max $2,000 margin (14% of $14K for 7+ positions)
+      - RM_MIN_POSITION_USD=100         # Min $100 margin
+      - RM_MAX_LEVERAGE=30.0            # 30x leverage (safer for multiple positions)
+      
+      # 🚀 RL V3 LIVE ORCHESTRATOR (PRODUCTION MODE)
+      - RL_V3_MODE=PRIMARY              # PRIMARY: Active trading, SHADOW: Metrics only
+      - RM_RISK_PER_TRADE_PCT=0.10      # 10% base risk per trade (was 2%)
+      - RM_MIN_RISK_PCT=0.01            # 1% minimum risk
+      - RM_MAX_RISK_PCT=0.05            # 5% maximum risk per position
+      - RM_MAX_EXPOSURE_PCT=2.00        # 200% max total exposure (with leverage)
+      - RM_HIGH_CONF_MULT=1.5          # 1.5x size for confidence >= 0.85
+      - RM_LOW_CONF_MULT=0.5           # 0.5x size for confidence < 0.60
+      - RM_SIGNAL_QUALITY_ADJ=true     # Enable AI confidence-based scaling
+      - RM_MAX_CONCURRENT_TRADES=20    # Max 20 concurrent positions (testnet: more for AI training)
+      - RM_MAX_DAILY_DD_PCT=0.15        # 15% max daily drawdown (increased for testnet)
+      - RM_MAX_WEEKLY_DD_PCT=0.25       # 25% max weekly drawdown
       - STAGING_MODE=false              # 🔥 REAL ORDERS - STOP_LOSS guaranteed execution
       - QT_ENABLE_EXECUTION=true       # ✅ Execution enabled (paper mode)
       - QT_ENABLE_AI_TRADING=true      # ✅ AI trading enabled
       - QT_MIN_CONFIDENCE=0.65         # 65%+ trained ML + AI re-evaluation safety
       - QT_EXECUTION_MIN_NOTIONAL=20.0
-      - QT_QUOTES=USDT
-      - QT_SYMBOLS=BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,DOGEUSDT,ADAUSDT,LINKUSDT,AVAXUSDT,DOTUSDT,MATICUSDT,NEARUSDT,UNIUSDT,LTCUSDT,ATOMUSDT,APTUSDT,ARBUSDT,OPUSDT,SHIBUSDT,SUIUSDT,TONUSDT,RNDRUSDT,INJUSDT,TIAUSDT,RENDERUSDT,RUNEUSDT,JTOUSDT,FETUSDT,ORDIUSDT,STXUSDT,IMXUSDT,BLURUSDT,WLDUSDT,JUPUSDT,PYTHUSDT,DYMUSDT,ONDOUSDT,MANTAUSDT,PORTALUSDT,ALTUSDT,ACEUSDT,NFPUSDT,AIUSDT,XAIUSDT,HYPEUSDT,RESOLVUSDT,XANUSDT,BNXUSDT,FILUSDT,ICPUSDT,ZENUSDT,1000PEPEUSDT,PUMPUSDT,BCHUSDT,METUSDT,SOONUSDT,TAOUSDT,PAXGUSDT,AAVEUSDT,JCTUSDT,TRUMPUSDT,TRXUSDT,WLFIUSDT,DUSKUSDT,WIFUSDT,PENGUUSDT,ALPHAUSDT,ZECUSDT,ASTERUSDT,DASHUSDT,BEATUSDT,AGIXUSDT,GIGGLEUSDT,VIDTUSDT,UXLINKUSDT,PIEVERSEUSDT,XPLUSDT,STRKUSDT,ALPACAUSDT,EOSUSDT,ETCUSDT,FTMUSDT,GALAUSDT,GMTUSDT,GRTUSDT,HBARUSDT,ILVUSDT,LRCUSDT,MANAUSDT,MKRUSDT,ALGOUSDT,AXSUSDT,SANDUSDT,CRVUSDT,APEUSDT,CHZUSDT,ENSUSDT,FLOWUSDT,KNCUSDT,QNTUSDT,SNXUSDT,ARUSDT,COMPUSDT,EGLDUSDT,KAVAUSDT,LDOUSDT,OMGUSDT,QTUMUSDT,SUSHIUSDT,THETAUSDT,XTZUSDT,YFIUSDT,ZILUSDT,1INCHUSDT,ANKRUSDT,AUDIOUSDT,BALUSDT,BANDUSDT,CELOUSDT,DYDXUSDT,FXSUSDT,IOTAUSDT,JASMYUSDT,LOOMUSDT,MASKUSDT,NEOUSDT,OCEANUSDT,PEOPLEUSDT,PERPUSDT,ROSEUSDT,STORJUSDT,SXPUSDT,WAVESUSDT,COTIUSDT,SKLUSDT,ZRXUSDT,ENJUSDT,ARUSDT,ICXUSDT,VETUSDT,BATUSDT,ONEUSDT,ZILUSDT,RVNUSDT,BELUSDT,CTSIUSDT,LITUSDT,SFPUSDT,DENTUSDT,HNTUSDT,BLZUSDT,REEFUSDT,C98USDT,CLVUSDT,KSMTUSDT,BAKEUSDT,TLMUSDT,FLMUSDT,RADUSDT,VGXUSDT,BTGUSDT,KDAUSDT,ARPAUSDT,PERLAUSDT,CTXCUSDT,VITEUSDT,CTKUSDT,AKROUSDT,PUNDIXUSDT,MBOXUSDT,FORUSDT,REQUSDT,GHSTUSDT,TRBUSDT,LPTUSDT,XECUSDT,ELFUSDT,POLYUSDT,UNFIUSDT,DARUSDT,NKNUSDT,SCUSDT,DGBUSDT,AVAUSDT,SYSUSDT,XVSUSDT,ALPINEUSDT,ASTRUSDT,GMXUSDT,POROUSDT,CVXUSDT,HIGHUSDT,GLMRUSDT,BIGTIMEUSDT,MAGICUSDT,RDNTUSDT,HOOKUSDT,COMBOUSDT,MAVUSDT,PENDLEUSDT,ARKMUSDT,AGLDUSDT,YGGUSDT,DODOXUSDT,BICOUSDT,FLUXUSDT,VOXELUSDT,STGUSDT,TUSDT,TOMIUSDT,EDUUSDT,IDUSDT,ARBUSDT,KEYUSDT,LEVERUSDT,SEIUSDT,CYBERUSDT,HIFIUSDT,AUCTIONUSDT,MAVUSDT,NMRUSDT,WUSDT
+      - QT_QUOTES=USDT                 # Use USDT (not USDC) for testnet compatibility
+      - DEFAULT_QUOTE=USDT              # Universe selection uses USDT pairs
+      
+      # 🎯 DYNAMIC UNIVERSE SELECTION: Layer1 + Layer2 + Megacap sorted by 24h volume
+      # Use QT_UNIVERSE instead of hardcoded QT_SYMBOLS for better diversification
+      - QT_UNIVERSE=l1l2-top           # "l1l2-top" = Layer1/Layer2 coins by volume
+                    # "megacap" = Only top 20-30 major coins
+                    # "all-usdt" = All available USDT pairs
+      - QT_MAX_SYMBOLS=100              # Max symbols to trade (top 100 by volume)
+      # QT_SYMBOLS not set - using dynamic universe instead
       
       # 🎯 LEVERAGE & POSITION SIZING: Now using .env values (30x leverage, 4 positions)
       # All QT_DEFAULT_LEVERAGE, QT_MAX_POSITIONS, QT_MAX_NOTIONAL_PER_TRADE are read from .env
       
-      # 💰 TAKE PROFIT / STOP LOSS: Tighter for 20x leverage safety
-      - QT_TP_PCT=0.03             # Take profit ved +3.0% gain (tighter for 20x)
-      - QT_SL_PCT=0.02             # Stop loss ved -2.0% tap (tight protection for 20x)
-      - QT_TRAIL_PCT=0.015         # Trailing stop 1.5% (tighter for 20x)
-      - QT_PARTIAL_TP=0.5          # Lukk 50% ved første TP
+      # 💰 TAKE PROFIT / STOP LOSS: Use Exit Policy Engine (ATR-based) instead of AI Dynamic TP/SL
+      # QT_TP_PCT, QT_SL_PCT, QT_TRAIL_PCT, QT_PARTIAL_TP all from .env
+      - QT_USE_AI_DYNAMIC_TPSL=true  # ✅ ENABLE AI Dynamic TP/SL - volatility and confidence-based exits
       - QT_FORCE_EXITS_ENABLED=true  # Aktiver forced exits
+      
+      # 🛑 MODEL SUPERVISOR: Bias detection and model performance tracking
+      - QT_MODEL_SUPERVISOR_MODE=ENFORCED          # ENFORCED=block biased trades, OBSERVE=log only
+      - QT_MODEL_SUPERVISOR_BIAS_THRESHOLD=0.70    # Block if >70% SHORT or LONG bias
+      - QT_MODEL_SUPERVISOR_MIN_SAMPLES=20         # Need 20 signals to detect bias
+      
+      # 🎲 RL POSITION SIZING: Increased exploration for aggressive sizing
+      - RL_SIZING_EPSILON=0.50                     # 50% exploration (was 10%)
+      - RL_SIZING_ALPHA=0.15                       # Learning rate
+      - RL_SIZING_DISCOUNT=0.95                    # Discount factor
+      
+      # 🚀 RL V3 ACTIVATION - Advanced reinforcement learning position sizing
+      - QT_RL_V3_ENABLED=true                      # Enable RL v3 PPO agent
+      - QT_RL_V3_SHADOW_MODE=false                 # Disable shadow mode = LIVE TRADING with RL v3!
+      - QT_RL_V3_TRAINING_ENABLED=true             # Enable live training
+      - QT_RL_V3_CHECKPOINT_DIR=/app/models/rl_v3  # Model checkpoint directory
+      - QT_RL_V3_UPDATE_INTERVAL=100               # Update policy every 100 steps
+      
+      # 🧠 EXIT BRAIN V3: Unified TP/SL/Trailing orchestrator
+      - EXIT_BRAIN_V3_ENABLED=true                 # ✅ ENABLED: Exit Brain v3 active (unified TP/SL orchestration)
       
       # ✅ ALLOWED SYMBOLS: 50 USDT Futures pairs (top volume) for autonomous trading
       - QT_ALLOWED_SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT,ZECUSDT,ALPACAUSDT,XRPUSDT,DOGEUSDT,BNBUSDT,ASTERUSDT,HYPEUSDT,RESOLVUSDT,XANUSDT,BNXUSDT,FILUSDT,ICPUSDT,XPLUSDT,ZENUSDT,AVAXUSDT,ALPHAUSDT,UNIUSDT,1000PEPEUSDT,PUMPUSDT,STRKUSDT,BCHUSDT,METUSDT,DASHUSDT,SOONUSDT,NEARUSDT,TAOUSDT,PAXGUSDT,BEATUSDT,PIEVERSEUSDT,AAVEUSDT,JCTUSDT,GIGGLEUSDT,FETUSDT,TRUMPUSDT,TRXUSDT,WLFIUSDT,UXLINKUSDT,VIDTUSDT,DUSKUSDT,AGIXUSDT,WIFUSDT,PENGUUSDT,ADAUSDT,LINKUSDT,DOTUSDT,MATICUSDT,LTCUSDT
       
       # 🤖 CONTINUOUS LEARNING: Autotraining based on live trade outcomes
       - QT_CONTINUOUS_LEARNING=true         # Enable continuous learning
+      - QT_MIN_SAMPLES_FOR_RETRAIN=50       # Retrain after 50 new samples
+      - QT_RETRAIN_INTERVAL_HOURS=24        # Auto-retrain every 24 hours
+      - QT_AUTO_BACKTEST_AFTER_TRAIN=true   # Run backtest after each retrain
+      
+      # 🎓 CLM (Continuous Learning Manager) - Central ML/AI orchestrator
+      - QT_CLM_ENABLED=true                 # ✅ ACTIVATE CLM for XGBoost/LightGBM/N-HiTS/PatchTST
+      - QT_CLM_RETRAIN_HOURS=168            # Weekly scheduled retraining (168h = 7 days)
+      - QT_CLM_DRIFT_HOURS=24               # Drift check every 24 hours
+      - QT_CLM_PERF_HOURS=6                 # Performance check every 6 hours
+      - QT_CLM_DRIFT_THRESHOLD=0.05         # Trigger retraining if drift score > 0.05
+      - QT_CLM_SHADOW_MIN=100               # Min 100 predictions before shadow promotion
+      - QT_CLM_AUTO_RETRAIN=true            # Auto-trigger retraining on drift/performance
+      - QT_CLM_AUTO_PROMOTE=true            # Auto-promote shadow models if better
+      
+      # 🔍 AI MONITORING & MANAGEMENT: Model Supervisor, Portfolio Balancer
+      - QT_MODEL_SUPERVISOR_INTERVAL=300    # Check AI bias every 5 min
+      - QT_BIAS_THRESHOLD=0.65              # Alert if >65% short or long bias
+      - QT_PORTFOLIO_BALANCER_INTERVAL=60   # Balance portfolio every 1 min
+      - QT_MAX_CORRELATION=0.7              # Max 0.7 correlation between positions
+      
       - QT_MIN_SAMPLES_FOR_RETRAIN=50       # Retrain after 50 new samples
       - QT_RETRAIN_INTERVAL_HOURS=24        # Auto-retrain every 24 hours
       - QT_AUTO_BACKTEST_AFTER_TRAIN=true   # Run backtest after each retrain
@@ -62,8 +141,15 @@ services:
     volumes:
       # Mount backend-koden inn i containeren uten å endre pakkenavnet
       - ./backend:/app/backend
+      # Mount AI engine
+      - ./ai_engine:/app/ai_engine
+      # Mount models
+      - ./models:/app/models
       # Mount database-filer
       - ./database:/app/database
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     networks:
       - quantum_trader
 
@@ -94,6 +180,329 @@ services:
     networks:
       - quantum_trader
 
+  # Strategy Generator AI - Continuous Evolution
+  strategy_generator:
+    build:
+      context: .
+      dockerfile: backend/research/Dockerfile.strategy_generator
+    container_name: quantum_strategy_generator
+    restart: unless-stopped
+    profiles: ["strategy-gen"]
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=INFO
+      # Strategy generation config
+      - GENERATION_INTERVAL_HOURS=24     # Run new generation every 24 hours
+      - POPULATION_SIZE=20               # 20 strategies per generation
+      - MUTATION_RATE=0.3                # 30% mutation rate
+      - CROSSOVER_RATE=0.4               # 40% crossover rate
+    volumes:
+      - ./backend:/app/backend
+      - ./ai_engine:/app/ai_engine
+      - ./backend/data:/app/backend/data  # Persist database
+    networks:
+      - quantum_trader
+
+  # Shadow Testing & Deployment Service
+  shadow_tester:
+    build:
+      context: .
+      dockerfile: backend/research/Dockerfile.strategy_generator
+    container_name: quantum_shadow_tester
+    restart: unless-stopped
+    profiles: ["strategy-gen"]
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=INFO
+      # Shadow testing config
+      - SHADOW_INTERVAL_MINUTES=15       # Test every 15 minutes
+      - DEPLOYMENT_INTERVAL_HOURS=1      # Check deployments every hour
+    command: ["python", "-m", "backend.research.shadow_runner"]
+    volumes:
+      - ./backend:/app/backend
+      - ./ai_engine:/app/ai_engine
+      - ./backend/data:/app/backend/data  # Persist database
+    networks:
+      - quantum_trader
+    depends_on:
+      - strategy_generator
+
+  # Prometheus Metrics Service
+  metrics:
+    build:
+      context: .
+      dockerfile: backend/research/Dockerfile.strategy_generator
+    container_name: quantum_metrics
+    restart: unless-stopped
+    profiles: ["strategy-gen"]
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=INFO
+      - METRICS_PORT=9090
+      - METRICS_UPDATE_INTERVAL=60
+    command: ["python", "-m", "backend.research.metrics_server"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./backend:/app/backend
+      - ./ai_engine:/app/ai_engine
+      - ./backend/data:/app/backend/data
+    networks:
+      - quantum_trader
+
+  testnet:
+    build:
+      context: .
+      dockerfile: Dockerfile.testnet
+    container_name: quantum_testnet
+    restart: unless-stopped
+    profiles: ["testnet"]
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./scripts:/app/scripts
+      - ./ai_engine:/app/ai_engine
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./models:/app/models
+      - .env:/app/.env
+    networks:
+      - quantum_trader
+
+  # Dashboard V3.0 - Next.js Frontend (EPIC: DASHBOARD-V3-001)
+  frontend:
+    image: node:20-alpine
+    container_name: quantum_frontend_v3
+    restart: unless-stopped
+    profiles: ["dev"]
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+    networks:
+      - quantum_trader
+    depends_on:
+      - backend
+  
+  # Legacy UI (qt-agent-ui) - Keep for reference
+  frontend-legacy:
+    image: node:20-alpine
+    container_name: quantum_frontend_legacy
+    restart: unless-stopped
+    profiles: ["legacy-ui"]
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./qt-agent-ui:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    networks:
+      - quantum_trader
+    depends_on:
+      - backend
+
+  # Redis - Architecture v2 EventBus & PolicyStore Backend
+  redis:
+    image: redis:7-alpine
+    container_name: quantum_redis
+    restart: unless-stopped
+    profiles: ["dev", "live", "testnet", "microservices"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --appendfsync everysec
+    networks:
+      - quantum_trader
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ========================================================================
+  # SPRINT 2: MICROSERVICES ARCHITECTURE (7 Services)
+  # ========================================================================
+  
+  # Service #1: Risk & Safety Management (PolicyStore + ESS)
+  risk-safety:
+    build:
+      context: ./microservices/risk_safety
+      dockerfile: Dockerfile
+    container_name: quantum_risk_safety
+    restart: unless-stopped
+    profiles: ["microservices"]
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./microservices/risk_safety:/app
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8003/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Service #2: Execution & Position Monitoring
+  execution:
+    build:
+      context: .
+      dockerfile: microservices/execution/Dockerfile
+    container_name: quantum_execution
+    restart: unless-stopped
+    profiles: ["microservices"]
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RISK_SAFETY_SERVICE_URL=http://risk-safety:8003
+      - USE_BINANCE_TESTNET=true
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./microservices/execution:/app/microservices/execution
+      - ./backend:/app/backend  # Temporary: Copy backend modules until fully extracted
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+      risk-safety:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8002/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Service #3: Portfolio Intelligence (Aggregator + PnL + Exposure)
+  portfolio-intelligence:
+    build:
+      context: .
+      dockerfile: microservices/portfolio_intelligence/Dockerfile
+    container_name: quantum_portfolio_intelligence
+    restart: unless-stopped
+    profiles: ["microservices", "dev"]
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      
+      # 🔐 BINANCE TESTNET API CREDENTIALS (with PORTFOLIO_ prefix for Pydantic)
+      - PORTFOLIO_BINANCE_API_KEY=xOPqaf2iSKt4gVuScoebb3wDBm0R9gw0qSPtpHYnJNzcahTSL58b4QZcC4dsJ5eX
+      - PORTFOLIO_BINANCE_API_SECRET=hwyeOL1BHBMv5jLmCEemg2OQNUb8dUAyHgamOftcS9oFDfc605SX1IZs294zvNmZ
+      - PORTFOLIO_USE_TESTNET=true
+      
+      # Also set without prefix as fallback
+      - BINANCE_API_KEY=xOPqaf2iSKt4gVuScoebb3wDBm0R9gw0qSPtpHYnJNzcahTSL58b4QZcC4dsJ5eX
+      - BINANCE_API_SECRET=hwyeOL1BHBMv5jLmCEemg2OQNUb8dUAyHgamOftcS9oFDfc605SX1IZs294zvNmZ
+      - BINANCE_TESTNET=true
+      - USE_TESTNET=true
+      
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      - PORTFOLIO_REDIS_HOST=redis
+      - RISK_SAFETY_SERVICE_URL=http://risk-safety:8003
+      - TRADE_STORE_TYPE=sqlite
+      - TRADE_STORE_DB_PATH=/app/data/trades.db
+    ports:
+      - "8004:8004"
+    volumes:
+      - ./microservices/portfolio_intelligence:/app/microservices/portfolio_intelligence
+      - ./backend:/app/backend  # Shared backend modules
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8004/')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Service #4: AI Engine (Ensemble + Meta-Strategy + RL Sizing)
+  ai-engine:
+    build:
+      context: .
+      dockerfile: microservices/ai_engine/Dockerfile
+    container_name: quantum_ai_engine
+    restart: unless-stopped
+    profiles: ["microservices"]
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RISK_SAFETY_SERVICE_URL=http://risk-safety:8003
+      - AI_ENGINE_MIN_SIGNAL_CONFIDENCE=0.65
+      - AI_ENGINE_ENSEMBLE_MODELS=["xgb","lgbm","nhits","patchtst"]
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./microservices/ai_engine:/app/microservices/ai_engine
+      - ./backend:/app/backend  # Shared backend modules
+      - ./ai_engine:/app/ai_engine  # AI models and agents
+      - ./models:/app/models  # Model files
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+      risk-safety:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
 networks:
   quantum_trader:
     driver: bridge
+
+volumes:
+  redis_data:
+    driver: local

@@ -1,0 +1,11 @@
+{
+  "timestamp": "2025-11-21T06:06:22.949183",
+  "epoch": 30,
+  "train_loss": 0.5991420742993157,
+  "val_loss": 0.7061046169138925,
+  "accuracy": 70.08991008991009,
+  "num_params": 620955,
+  "sequence_length": 120,
+  "patch_len": 12,
+  "d_model": 128
+}

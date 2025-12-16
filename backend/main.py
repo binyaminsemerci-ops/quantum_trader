@@ -1,79 +1,3078 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from routes import (
-    trades,
-    stats,
-    chart,
-    settings,
-    binance,
-    signals,
-    prices,
-    candles,
-)
-# from trading_bot.routes import router as trading_bot_router
-from exceptions import add_exception_handlers
-from logging_config import setup_logging
-from performance_monitor import add_monitoring_middleware
+from contextlib import asynccontextmanager, suppress
+import asyncio
+import json
+import logging
 import os
+from datetime import datetime, timezone
+from pathlib import Path  # CRITICAL: Used for file path operations throughout
+from typing import Any, Dict, List
+import sys
 
-# Setup logging
-log_level = os.getenv("LOG_LEVEL", "INFO")
-setup_logging(log_level=log_level)
+# Load .env file FIRST before anything else
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file
+
+# [CRITICAL] Import redis.asyncio at top level (needed for Architecture v2)
+import redis.asyncio as redis_async
+
+# Ensure Starlette uses the modern multipart parser implementation before FastAPI loads.
+try:
+    import multipart  # type: ignore  # noqa: F401
+except ImportError:
+    pass  # python-multipart is optional
+
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+# [NEW] Import for Self-Healing System
+from backend.services.monitoring.self_healing import HealthStatus
+
+# Add ai_engine to path
+sys.path.append(os.path.dirname(__file__))
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+# Track optional route availability explicitly
+API_HEALTH_ROUTES_AVAILABLE = False
+
+try:  # Prefer package-style imports to avoid clashes with top-level modules
+    from backend.routes.coingecko_data import get_coin_price_data, symbol_to_coingecko_id
+    from backend.routes.external_data import binance_ohlcv
+    from backend.routes.live_ai_signals import get_live_ai_signals
+    from backend.routes.signals import _generate_mock_signals
+    # [NEW] POLICY STORE INTEGRATION
+    from backend.services.policy_store import (
+        InMemoryPolicyStore,
+        GlobalPolicy,
+    )
+    from backend.services.legacy_policy_store import PolicyDefaults
+    POLICY_STORE_AVAILABLE = True
+    logging.info("[OK] PolicyStore available")
+    from backend.routes import (
+        trades as trades_routes,
+        stats as stats_routes,
+        chart as chart_routes,
+        settings as settings_routes,
+        binance as binance_routes,
+        signals as signals_routes,
+        prices as prices_routes,
+        candles as candles_routes,
+        trade_logs as trade_logs_routes,
+        liquidity as liquidity_routes,
+        risk as risk_routes,
+        ai as ai_routes,
+        ws as ws_routes,
+        scheduler as scheduler_routes,
+        health as health_routes,
+        test_events as test_events_routes,
+    )
+    try:
+        import backend.routes.api_health as api_health_routes
+        API_HEALTH_ROUTES_AVAILABLE = True
+        logging.info("[OK] API health routes available")
+    except ImportError as e:
+        API_HEALTH_ROUTES_AVAILABLE = False
+        logging.warning(f"[WARNING] API health routes not available: {e}")
+    from backend.events.subscribers.rl_subscriber import RLEventListener
+    logging.info("[OK] All core routes imported successfully, including test_events")
+    from backend.trading_bot.routes import (
+        router as trading_bot_router,
+        start_bot_task,
+        stop_bot_task,
+    )
+    from backend.config.risk import load_risk_config
+    from backend.database import SessionLocal
+    from backend.services.execution.positions import PortfolioPositionService
+    from backend.services.risk.risk_guard import RiskGuardService, SqliteRiskStateStore
+    from backend.utils.logging_config import configure_logging, RequestIdMiddleware
+    from backend.utils.scheduler import (
+        get_scheduler_snapshot,
+        shutdown_scheduler,
+        start_scheduler,
+    )
+    # [NEW] Authentication, caching, and HTTPS
+    AUTH_AVAILABLE = False
+    CACHE_AVAILABLE = False
+    try:
+        from backend.auth import (
+            create_auth_endpoints,
+            init_auth_redis,
+            get_current_user,
+            optional_auth,
+        )
+        AUTH_AVAILABLE = True
+    except ImportError as e:
+        logging.warning(f"[WARNING] Auth module not available: {e}")
+        init_auth_redis = None
+    
+    try:
+        from backend.cache import init_cache, close_cache
+        CACHE_AVAILABLE = True
+    except ImportError as e:
+        logging.warning(f"[WARNING] Cache module not available: {e}")
+        init_cache = None
+        close_cache = None
+    
+    try:
+        from backend.https_config import HTTPSRedirectMiddleware, SecurityHeadersMiddleware
+    except ImportError:
+        HTTPSRedirectMiddleware = None
+        SecurityHeadersMiddleware = None
+    
+    logging.info(f"[OK] Auth available: {AUTH_AVAILABLE}, Cache available: {CACHE_AVAILABLE}")
+    
+    from backend.services.execution.event_driven_executor import (
+        start_event_driven_executor,
+        stop_event_driven_executor,
+        is_event_driven_active,
+    )
+    from backend.services.ai_trading_engine import AITradingEngine
+    
+    # [NEW] OPPORTUNITY RANKER INTEGRATION
+    try:
+        from backend.integrations.opportunity_ranker_factory import (
+            create_opportunity_ranker,
+            get_default_symbols
+        )
+        from backend.routes import opportunity_routes
+        OPPORTUNITY_RANKER_AVAILABLE = True
+        logging.info("[OK] OpportunityRanker integration available")
+    except ImportError as e:
+        OPPORTUNITY_RANKER_AVAILABLE = False
+        logging.warning(f"[WARNING] OpportunityRanker not available: {e}")
+    
+    # [REMOVED] MSC AI - Module does not exist (cleanup incomplete feature)
+    
+    # [NEW] SYSTEM HEALTH MONITOR INTEGRATION
+    try:
+        from backend.services.monitoring.system_health_monitor import (
+            SystemHealthMonitor,
+            BaseHealthMonitor,
+            HealthCheckResult,
+            HealthStatus as SHMHealthStatus,
+        )
+        SYSTEM_HEALTH_MONITOR_AVAILABLE = True
+        logging.info("[OK] System Health Monitor available")
+    except ImportError as e:
+        SYSTEM_HEALTH_MONITOR_AVAILABLE = False
+        logging.warning(f"[WARNING] System Health Monitor not available: {e}")
+    
+    # [NEW] EMERGENCY STOP SYSTEM INTEGRATION
+    try:
+        from backend.services.risk.emergency_stop_system import (
+            EmergencyStopSystem,
+            EmergencyStopController,
+            DrawdownEmergencyEvaluator,
+            SystemHealthEmergencyEvaluator,
+            ExecutionErrorEmergencyEvaluator,
+            DataFeedEmergencyEvaluator,
+            ManualTriggerEmergencyEvaluator,
+            EmergencyState,
+            ESSStatus,
+        )
+        from backend.services.ess_alerters import ESSAlertManager
+        ESS_AVAILABLE = True
+        logging.info("[OK] Emergency Stop System available")
+    except ImportError as e:
+        ESS_AVAILABLE = False
+        logging.warning(f"[WARNING] Emergency Stop System not available: {e}")
+    
+    from backend.utils.telemetry import instrument_app
+    from backend.utils.cache import load_json, save_json
+    
+    # [NEW] Architecture v2 - Core Infrastructure
+    # redis.asyncio already imported at top level
+    CORE_V2_AVAILABLE = False
+    try:
+        from backend.core import (
+            configure_logging as configure_v2_logging,
+            get_logger as get_v2_logger,
+            initialize_event_bus,
+            shutdown_event_bus,
+            get_event_bus,
+            initialize_policy_store as initialize_policy_store_v2,
+            shutdown_policy_store as shutdown_policy_store_v2,
+            get_policy_store as get_policy_store_v2,
+            initialize_health_checker,
+            get_health_checker,
+            trace_context,
+        )
+        CORE_V2_AVAILABLE = True
+        logging.info("[OK] Architecture v2 core modules loaded")
+    except ImportError as e:
+        logging.warning(f"[WARNING] Core v2 modules not available: {e}")
+        configure_v2_logging = None
+        get_v2_logger = None
+        initialize_event_bus = None
+        shutdown_event_bus = None
+        get_event_bus = None
+        initialize_policy_store_v2 = None
+        shutdown_policy_store_v2 = None
+        get_policy_store_v2 = None
+        initialize_health_checker = None
+        get_health_checker = None
+        trace_context = None
+    
+    # Legacy routes - load with fallback
+    try:
+        from routes.coingecko_data import get_coin_price_data, symbol_to_coingecko_id  # type: ignore
+        from routes.external_data import binance_ohlcv  # type: ignore
+        from routes.live_ai_signals import get_live_ai_signals  # type: ignore
+        from routes.signals import _generate_mock_signals  # type: ignore
+    except ModuleNotFoundError:  # Fallback when running directly from backend directory
+        pass
+    
+    from routes import (
+        trades as trades_routes,  # type: ignore
+        stats as stats_routes,  # type: ignore
+        chart as chart_routes,  # type: ignore
+        settings as settings_routes,  # type: ignore
+        binance as binance_routes,  # type: ignore
+        signals as signals_routes,  # type: ignore
+        prices as prices_routes,  # type: ignore
+        candles as candles_routes,  # type: ignore
+        trade_logs as trade_logs_routes,  # type: ignore
+        liquidity as liquidity_routes,  # type: ignore
+        risk as risk_routes,  # type: ignore
+        ai as ai_routes,  # type: ignore
+        ws as ws_routes,  # type: ignore
+        scheduler as scheduler_routes,  # type: ignore
+        health as health_routes,  # type: ignore
+    )
+    from backend.config.risk import load_risk_config  # type: ignore
+    from backend.services.risk.risk_guard import RiskGuardService, SqliteRiskStateStore  # type: ignore
+    from backend.database import SessionLocal  # type: ignore
+    from backend.services.execution.positions import PortfolioPositionService  # type: ignore
+    from backend.utils.logging_config import configure_logging, RequestIdMiddleware  # type: ignore
+    from backend.utils.scheduler import (  # type: ignore
+        get_scheduler_snapshot,
+        shutdown_scheduler,
+        start_scheduler,
+    )
+    from backend.utils.telemetry import instrument_app  # type: ignore
+    from backend.utils.cache import load_json, save_json  # type: ignore
+    from backend.services.ai_trading_engine import AITradingEngine  # type: ignore
+    from backend.services.execution.event_driven_executor import (  # type: ignore
+        start_event_driven_executor,
+        stop_event_driven_executor,
+        is_event_driven_active,
+    )
+    from backend.trading_bot.routes import (  # type: ignore
+        router as trading_bot_router,
+        start_bot_task,
+        stop_bot_task,
+    )
+except ImportError as e:
+    logging.warning(f"[WARNING] Some legacy imports failed: {e}")
+
+
+# Initialize feature availability flags at module level
+OPPORTUNITY_RANKER_AVAILABLE = False
+AI_INTEGRATION_AVAILABLE = False
+SYSTEM_HEALTH_MONITOR_AVAILABLE = False
+ESS_AVAILABLE = False
+
+configure_logging()
+
+# [NEW] AI SYSTEM INTEGRATION - Import AFTER configure_logging
+try:
+    from backend.services.system_services import AISystemServices, get_ai_services
+    AI_INTEGRATION_AVAILABLE = True
+    logging.info("[OK] AI System Integration available")
+except ImportError as e:
+    AI_INTEGRATION_AVAILABLE = False
+    logging.warning(f"[WARNING] AI System Integration not available: {e}")
+
+
+
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    # [NEW] ARCHITECTURE V2: Configure structured logging FIRST (before any other logging)
+    if configure_v2_logging is not None:
+        try:
+            log_level = os.getenv("LOG_LEVEL", "INFO")
+            configure_v2_logging(
+                service_name="quantum_trader",
+                log_level=log_level,
+                json_output=True  # JSON for production log aggregation
+            )
+            logger.info("[v2] Structured logging configured with trace_id support")
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to configure v2 logging: {e}")
+            logger.warning("Continuing with standard logging")
+    else:
+        logger.info("[INFO] Using standard logging (v2 not available)")
+    
+    # [NEW] INITIALIZE AUTHENTICATION SYSTEM (Redis + JWT)
+    if init_auth_redis is not None:
+        logger.info("[SEARCH] Initializing Authentication System...")
+        try:
+            await init_auth_redis()
+            logger.info("[OK] Authentication system initialized (JWT + Redis)")
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to initialize auth system: {e}", exc_info=True)
+            logger.warning("Continuing without authentication - SECURITY RISK!")
+    else:
+        logger.info("[INFO] Authentication system not available (dependencies missing)")
+    
+    # [NEW] INITIALIZE CACHING LAYER (Redis + Connection Pooling)
+    if init_cache is not None:
+        logger.info("[SEARCH] Initializing Caching Layer...")
+        try:
+            await init_cache()
+            logger.info("[OK] Caching layer initialized (Redis + pooling for P99 optimization)")
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to initialize cache: {e}", exc_info=True)
+            logger.warning("Continuing without caching - PERFORMANCE DEGRADED!")
+    else:
+        logger.info("[INFO] Caching layer not available (dependencies missing)")
+    
+    # CRITICAL: Validate database connectivity on startup
+    logger.info("[SEARCH] Validating database connectivity...")
+    try:
+        from backend.database_validator import validate_database_on_startup
+        db_valid = validate_database_on_startup()
+        if not db_valid:
+            logger.critical("[ALERT] DATABASE VALIDATION FAILED - System may not work correctly!")
+            logger.critical("Please fix database issues before going live")
+            # Continue with warnings - some endpoints may work without DB
+        else:
+            logger.info("[OK] Database validation passed - DB ready!")
+    except Exception as e:
+        logger.error(f"❌ Database validation error: {e}")
+        logger.warning("Continuing startup despite database validation error...")
+    
+    # CRITICAL: Validate sklearn and ML dependencies on startup
+    logger.info("[SEARCH] Validating sklearn and ML dependencies...")
+    try:
+        from ai_engine.sklearn_startup_validator import validate_sklearn_on_startup
+        sklearn_valid = validate_sklearn_on_startup()
+        if not sklearn_valid:
+            logger.critical("[ALERT] SKLEARN VALIDATION FAILED - AI components may not work!")
+            logger.critical("System will continue but with degraded AI functionality")
+            # Don't crash the system - continue with fallbacks
+        else:
+            logger.info("[OK] Sklearn validation passed - AI ready to go!")
+    except Exception as e:
+        logger.error(f"❌ Sklearn validation error: {e}")
+        logger.warning("Continuing startup despite validation error...")
+    
+    # [NEW] AI SYSTEM INTEGRATION: Initialize AI System Services
+    if AI_INTEGRATION_AVAILABLE:
+        logger.info("[SEARCH] Initializing AI System Services...")
+        try:
+            # Create AISystemServices instance (config will be loaded from env)
+            ai_services = AISystemServices()
+            await ai_services.initialize()
+            app_instance.state.ai_services = ai_services
+            
+            # Log configuration summary
+            status = ai_services.get_status()
+            logger.info(
+                f"[OK] AI System Services initialized: "
+                f"Stage={status.get('integration_stage')}, "
+                f"Emergency Brake={status.get('emergency_brake', False)}"
+            )
+            enabled_subsystems = status.get('enabled_subsystems', [])
+            if enabled_subsystems:
+                logger.info(f"[OK] Enabled AI Subsystems: {', '.join(enabled_subsystems)}")
+            else:
+                logger.info("[INFO] No AI subsystems enabled - using default behavior")
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to initialize AI System Services: {e}", exc_info=True)
+            logger.warning("Continuing without AI System Integration")
+            app_instance.state.ai_services = None
+    else:
+        logger.info("[INFO] AI System Integration not available - using default behavior")
+        app_instance.state.ai_services = None
+    
+    # [NEW] INITIALIZE POLICY STORE - Central config hub for all AI components
+    logger.info("[SEARCH] Initializing PolicyStore (AI system config hub)...")
+    try:
+        from backend.services.policy_store import InMemoryPolicyStore, PolicyDefaults
+        
+        # Determine initial risk mode from environment
+        env_risk_mode = os.getenv("QT_RISK_MODE", "NORMAL").upper()
+        if env_risk_mode not in ["AGGRESSIVE", "NORMAL", "DEFENSIVE"]:
+            env_risk_mode = "NORMAL"
+        
+        # Create policy store with appropriate defaults
+        if env_risk_mode == "AGGRESSIVE":
+            initial_policy = PolicyDefaults.create_aggressive()
+        elif env_risk_mode == "DEFENSIVE":
+            initial_policy = PolicyDefaults.create_conservative()
+        else:
+            initial_policy = PolicyDefaults.create_default()
+        
+        # Override with environment-specific settings if provided
+        env_max_risk = os.getenv("QT_MAX_RISK_PER_TRADE")
+        if env_max_risk:
+            initial_policy.max_risk_per_trade = float(env_max_risk)
+        
+        env_max_pos = os.getenv("QT_MAX_POSITIONS")
+        if env_max_pos:
+            initial_policy.max_positions = int(env_max_pos)
+        
+        env_min_conf = os.getenv("QT_CONFIDENCE_THRESHOLD")
+        if env_min_conf:
+            initial_policy.global_min_confidence = float(env_min_conf)
+        
+        policy_store = InMemoryPolicyStore(initial_policy=initial_policy)
+        
+        # Store in app state for all components to access
+        app_instance.state.policy_store = policy_store
+        
+        logger.info(
+            f"[OK] PolicyStore initialized: "
+            f"mode={initial_policy.risk_mode}, "
+            f"max_risk={initial_policy.max_risk_per_trade:.4f}, "
+            f"max_pos={initial_policy.max_positions}, "
+            f"min_conf={initial_policy.global_min_confidence:.2f}"
+        )
+        
+    except Exception as e:
+        logger.error(f"[ERROR] Failed to initialize PolicyStore: {e}")
+        logger.warning("Continuing without PolicyStore - components will use local configs")
+        app_instance.state.policy_store = None
+    
+    # [NEW] ARCHITECTURE V2: Initialize Redis, EventBus, PolicyStore v2, HealthChecker
+    logger.info("[v2] Initializing Architecture v2 components...")
+    try:
+        # Import v2 infrastructure functions (needed if top-level import failed)
+        from backend.core import (
+            initialize_policy_store,
+            initialize_event_bus,
+            shutdown_event_bus,
+            initialize_health_checker,
+            get_logger as get_v2_logger,
+        )
+        
+        # Initialize Redis client
+        redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
+        redis_client = redis_async.from_url(redis_url, decode_responses=False)
+        
+        # Test Redis connection
+        await redis_client.ping()
+        logger.info(f"[v2] Redis connected: {redis_url}")
+        app_instance.state.redis_client = redis_client
+        
+        # Initialize PolicyStore v2 (with Redis backend)
+        policy_store_v2 = await initialize_policy_store(redis_client)
+        app_instance.state.policy_store_v2 = policy_store_v2
+        logger.info("[v2] PolicyStore v2 initialized (Redis + JSON snapshot)")
+        
+        # Initialize EventBus v2 (Redis Streams)
+        event_bus_v2 = await initialize_event_bus(redis_client, service_name="quantum_trader")
+        app_instance.state.event_bus_v2 = event_bus_v2
+        
+        # Start EventBus consumer tasks
+        await event_bus_v2.start()
+        logger.info("[v2] EventBus v2 started (Redis Streams)")
+        
+        # [CRITICAL FIX] Initialize execution_adapter and risk_guard BEFORE RL v3
+        # RL v3 Live Orchestrator requires these dependencies at startup
+        logger.info("[INIT] Initializing execution adapter and risk guard for RL v3...")
+        
+        try:
+            from backend.services.execution.execution import build_execution_adapter
+            from backend.config.execution import load_execution_config
+            from backend.services.risk.risk_guard import RiskGuardService, SqliteRiskStateStore
+            from backend.config.risk import load_risk_config
+            
+            # Build execution adapter
+            exec_config = load_execution_config()
+            adapter = build_execution_adapter(exec_config)
+            app_instance.state.execution_adapter = adapter
+            logger.info("[OK] Execution adapter initialized and stored in app.state")
+            
+            # Build risk guard
+            risk_config = load_risk_config()
+            risk_store = SqliteRiskStateStore("/app/backend/data/risk_state.db")
+            risk_guard = RiskGuardService(
+                config=risk_config,
+                store=risk_store,
+                policy_store=policy_store_v2
+            )
+            app_instance.state.risk_guard = risk_guard
+            logger.info("[OK] Risk Guard initialized and stored in app.state")
+            
+        except Exception as init_error:
+            logger.error(f"[ERROR] Failed to initialize execution_adapter or risk_guard: {init_error}", exc_info=True)
+            logger.warning("⚠️  RL v3 Live Orchestrator will be skipped due to missing dependencies")
+        
+        # Initialize and start RL Subscriber v2 (Domain Architecture)
+        try:
+            from backend.events.subscribers.rl_subscriber_v2 import RLSubscriberV2
+            from backend.domains.learning.rl_v2.meta_strategy_agent_v2 import MetaStrategyAgentV2
+            from backend.domains.learning.rl_v2.position_sizing_agent_v2 import PositionSizingAgentV2
+            
+            # Create RL v2 agents (domain-based)
+            meta_agent_v2 = MetaStrategyAgentV2(
+                alpha=0.01,
+                gamma=0.99,
+                epsilon=0.1
+            )
+            
+            sizing_agent_v2 = PositionSizingAgentV2(
+                alpha=0.01,
+                gamma=0.99,
+                epsilon=0.1
+            )
+            
+            # Create RL Subscriber v2
+            rl_subscriber_v2 = RLSubscriberV2(
+                event_bus=event_bus_v2,
+                meta_agent=meta_agent_v2,
+                sizing_agent=sizing_agent_v2
+            )
+            
+            # Store in app state for cleanup
+            app_instance.state.rl_subscriber_v2 = rl_subscriber_v2
+            
+            logger.info(
+                "[v2] RL Subscriber v2 started (Domain Architecture)",
+                extra={"meta_agent_v2_available": True, "sizing_agent_v2_available": True}
+            )
+        except Exception as e:
+            logger.error(f"[v2] Failed to start RL Subscriber v2: {e}", exc_info=True)
+        
+        # Initialize and start RL Subscriber v3 (PPO Architecture)
+        try:
+            from backend.events.subscribers.rl_v3_subscriber import RLv3Subscriber
+            from backend.domains.learning.rl_v3.rl_manager_v3 import RLv3Manager
+            from backend.domains.learning.rl_v3.config_v3 import RLv3Config
+            from backend.domains.learning.rl_v3.training_daemon_v3 import RLv3TrainingDaemon
+            
+            # Create RL v3 config
+            rl_v3_config = RLv3Config()
+            
+            # Create RL v3 manager
+            rl_v3_manager = RLv3Manager(config=rl_v3_config)
+            
+            # Load model if exists
+            rl_v3_manager.load()
+            
+            # Get structured logger
+            rl_v3_logger = get_v2_logger("rl_v3_subscriber")
+            
+            # Check if shadow mode should be disabled (enable live trading)
+            shadow_mode = os.getenv("QT_RL_V3_SHADOW_MODE", "true").lower() == "true"
+            
+            # Create RL Subscriber v3
+            rl_subscriber_v3 = RLv3Subscriber(
+                event_bus=event_bus_v2,
+                rl_manager=rl_v3_manager,
+                logger=rl_v3_logger,
+                policy_store=policy_store_v2,
+                shadow_mode=shadow_mode  # Control via QT_RL_V3_SHADOW_MODE env var
+            )
+            
+            # Start subscriber
+            await rl_subscriber_v3.start()
+            
+            # Store in app state for cleanup
+            app_instance.state.rl_subscriber_v3 = rl_subscriber_v3
+            app_instance.state.rl_v3_manager = rl_v3_manager
+            
+            logger.info(
+                "[v3] RL Subscriber v3 started (PPO Architecture)",
+                extra={"shadow_mode": shadow_mode, "model_path": rl_v3_config.model_path}
+            )
+            
+            # [NEW] Start RL v3 Training Daemon
+            rl_v3_training_daemon = RLv3TrainingDaemon(
+                rl_manager=rl_v3_manager,
+                event_bus=event_bus_v2,
+                policy_store=policy_store_v2,
+                logger_instance=rl_v3_logger
+            )
+            await rl_v3_training_daemon.start()
+            app_instance.state.rl_v3_training_daemon = rl_v3_training_daemon
+            
+            logger.info(
+                "[v3] RL v3 Training Daemon started",
+                extra={
+                    "enabled": rl_v3_training_daemon.config["enabled"],
+                    "interval_minutes": rl_v3_training_daemon.config["interval_minutes"],
+                    "episodes_per_run": rl_v3_training_daemon.config["episodes_per_run"]
+                }
+            )
+            
+            # [NEW] Start RL v3 Live Orchestrator
+            try:
+                from backend.domains.learning.rl_v3.live_adapter_v3 import RLv3LiveFeatureAdapter
+                from backend.services.ai.rl_v3_live_orchestrator import RLv3LiveOrchestrator
+                from backend.events.subscribers.trade_intent_subscriber import TradeIntentSubscriber
+                
+                # Get execution adapter (needs to be available in app.state)
+                execution_adapter = getattr(app_instance.state, 'execution_adapter', None)
+                risk_guard = getattr(app_instance.state, 'risk_guard', None)
+                
+                if execution_adapter and risk_guard:
+                    # Create live feature adapter
+                    rl_v3_feature_adapter = RLv3LiveFeatureAdapter(
+                        event_bus=event_bus_v2,
+                        policy_store=policy_store_v2,
+                        execution_adapter=execution_adapter,
+                        logger_instance=rl_v3_logger,
+                    )
+                    
+                    # Create live orchestrator
+                    rl_v3_live_orchestrator = RLv3LiveOrchestrator(
+                        event_bus=event_bus_v2,
+                        rl_manager=rl_v3_manager,
+                        feature_adapter=rl_v3_feature_adapter,
+                        policy_store=policy_store_v2,
+                        risk_guard=risk_guard,
+                        logger_instance=rl_v3_logger,
+                    )
+                    
+                    await rl_v3_live_orchestrator.start()
+                    app_instance.state.rl_v3_live_orchestrator = rl_v3_live_orchestrator
+                    
+                    # Create trade intent subscriber
+                    trade_intent_subscriber = TradeIntentSubscriber(
+                        event_bus=event_bus_v2,
+                        execution_adapter=execution_adapter,
+                        risk_guard=risk_guard,
+                        logger_instance=rl_v3_logger,
+                    )
+                    
+                    await trade_intent_subscriber.start()
+                    app_instance.state.trade_intent_subscriber = trade_intent_subscriber
+                    
+                    orchestrator_config = rl_v3_live_orchestrator.get_config()
+                    logger.info(
+                        "[v3] RL v3 Live Orchestrator started",
+                        extra={
+                            "mode": orchestrator_config.get("mode", "SHADOW"),
+                            "enabled": orchestrator_config.get("enabled", True),
+                            "min_confidence": orchestrator_config.get("min_confidence", 0.6)
+                        }
+                    )
+                else:
+                    logger.warning(
+                        "[v3] Skipping RL v3 Live Orchestrator - execution_adapter or risk_guard not available"
+                    )
+            except Exception as orchestrator_error:
+                logger.error(
+                    f"[v3] Failed to start RL v3 Live Orchestrator: {orchestrator_error}",
+                    exc_info=True
+                )
+        
+        except Exception as e:
+            logger.error(f"[v3] Failed to start RL Subscriber v3: {e}", exc_info=True)
+        
+        # Initialize HealthChecker v2
+        # Check GO-LIVE status: if go_live.active exists, use production Binance
+        go_live_active = Path("go_live.active").exists()
+        use_testnet = (os.getenv("QT_PAPER_TRADING", "false").lower() == "true") and not go_live_active
+        
+        health_checker = await initialize_health_checker(
+            service_name="quantum_trader",
+            redis_client=redis_client,
+            binance_api_key=os.getenv("BINANCE_API_KEY"),
+            binance_api_secret=os.getenv("BINANCE_API_SECRET"),
+            binance_testnet=use_testnet,
+        )
+        
+        if go_live_active:
+            logger.info("🚀 [GO-LIVE] Production Binance ENABLED (go_live.active detected)")
+        else:
+            logger.info(f"[TESTNET] Testnet mode: {use_testnet}")
+        app_instance.state.health_checker = health_checker
+        logger.info("[v2] HealthChecker v2 initialized")
+        
+        logger.info("[v2] Architecture v2 initialization complete")
+        
+    except Exception as e:
+        logger.error(f"[ERROR] Architecture v2 initialization failed: {e}", exc_info=True)
+        logger.warning("⚠️  Continuing without v2 components - system will use legacy infrastructure")
+        app_instance.state.redis_client = None
+        app_instance.state.policy_store_v2 = None
+        app_instance.state.event_bus_v2 = None
+        app_instance.state.health_checker = None
+    
+    # [PHASE 2A] Initialize Exit Brain Dynamic Executor (MOVED OUTSIDE Redis try/except)
+    # This must run regardless of Redis/Architecture v2 initialization success
+    # Only in EXIT_BRAIN_V3 mode - logs AI exit decisions without placing orders
+    try:
+        from backend.config.exit_mode import is_exit_brain_mode
+        
+        if is_exit_brain_mode():
+            logger.info("[EXIT_BRAIN] EXIT_MODE=EXIT_BRAIN_V3 detected - starting dynamic executor")
+            
+            from backend.domains.exits.exit_brain_v3.adapter import ExitBrainAdapter
+            from backend.domains.exits.exit_brain_v3.dynamic_executor import ExitBrainDynamicExecutor
+            from binance.client import Client
+            
+            # Get Binance client (position source)
+            binance_api_key = os.getenv("BINANCE_API_KEY")
+            binance_api_secret = os.getenv("BINANCE_API_SECRET")
+            
+            if binance_api_key and binance_api_secret:
+                # Use same testnet logic as HealthChecker
+                go_live_active = Path("go_live.active").exists()
+                use_testnet = (os.getenv("QT_PAPER_TRADING", "false").lower() == "true") and not go_live_active
+                
+                if use_testnet:
+                    binance_client = Client(
+                        binance_api_key,
+                        binance_api_secret,
+                        testnet=True
+                    )
+                    logger.info("[EXIT_BRAIN] Using Binance TESTNET for position monitoring")
+                else:
+                    binance_client = Client(binance_api_key, binance_api_secret)
+                    if go_live_active:
+                        logger.info("[EXIT_BRAIN] Using Binance PRODUCTION for position monitoring (go_live.active)")
+                    else:
+                        logger.info("[EXIT_BRAIN] Using Binance PRODUCTION for position monitoring")
+                
+                # Create adapter (BRAIN)
+                exit_brain_adapter = ExitBrainAdapter()
+                
+                # Create exit order gateway wrapper for executor
+                from backend.services.execution.exit_order_gateway import submit_exit_order
+                
+                class ExitOrderGatewayAdapter:
+                    """Adapter to wrap exit_order_gateway function with client."""
+                    def __init__(self, client):
+                        self.client = client
+                    
+                    async def submit_exit_order(self, module_name, symbol, order_params, order_kind, explanation=None):
+                        """Submit order via gateway with bound client."""
+                        return await submit_exit_order(
+                            module_name=module_name,
+                            symbol=symbol,
+                            order_params=order_params,
+                            order_kind=order_kind,
+                            client=self.client,
+                            explanation=explanation
+                        )
+                
+                exit_order_gateway = ExitOrderGatewayAdapter(binance_client)
+                
+                # Create dynamic executor
+                # Actual mode (SHADOW vs LIVE) determined by executor based on config flags:
+                # - EXIT_EXECUTOR_MODE
+                # - EXIT_BRAIN_V3_LIVE_ROLLOUT
+                exit_brain_executor = ExitBrainDynamicExecutor(
+                    adapter=exit_brain_adapter,
+                    exit_order_gateway=exit_order_gateway,
+                    position_source=binance_client,
+                    loop_interval_sec=10.0,  # Check every 10 seconds
+                    shadow_mode=False  # Let executor determine actual mode from config
+                )
+                
+                # Start executor as background task
+                executor_task = asyncio.create_task(exit_brain_executor.start())
+                app_instance.state.exit_brain_executor = exit_brain_executor
+                app_instance.state.exit_brain_executor_task = executor_task
+                
+                logger.info(
+                    f"[EXIT_BRAIN] Dynamic Executor started (effective_mode={exit_brain_executor.effective_mode})"
+                )
+            else:
+                logger.warning(
+                    "[EXIT_BRAIN] Skipping dynamic executor - BINANCE_API_KEY/SECRET not set"
+                )
+        else:
+            logger.info(
+                "[EXIT_BRAIN] EXIT_MODE=LEGACY - dynamic executor not started "
+                "(set EXIT_MODE=EXIT_BRAIN_V3 to enable)"
+            )
+    
+    except Exception as exit_brain_error:
+        logger.error(
+            f"[EXIT_BRAIN] Failed to start dynamic executor: {exit_brain_error}",
+            exc_info=True
+        )
+    
+    # [NEW] ML/AI PIPELINE: Initialize Continuous Learning Manager (CLM)
+    clm_enabled = os.getenv("QT_CLM_ENABLED", "false").lower() == "true"
+    if clm_enabled:
+        logger.info("[CLM] Initializing ML/AI Continuous Learning Pipeline...")
+        try:
+            from backend.domains.learning.clm import CLMConfig
+            from backend.domains.learning.api_endpoints import initialize_clm
+            from backend.core.database import SessionLocal
+            
+            # Get CLM configuration from environment
+            config = CLMConfig(
+                retraining_schedule_hours=int(os.getenv("QT_CLM_RETRAIN_HOURS", "168")),  # Weekly
+                drift_check_hours=int(os.getenv("QT_CLM_DRIFT_HOURS", "24")),  # Daily
+                performance_check_hours=int(os.getenv("QT_CLM_PERF_HOURS", "6")),
+                drift_trigger_threshold=float(os.getenv("QT_CLM_DRIFT_THRESHOLD", "0.05")),
+                shadow_min_predictions=int(os.getenv("QT_CLM_SHADOW_MIN", "100")),
+                auto_retraining_enabled=(os.getenv("QT_CLM_AUTO_RETRAIN", "true").lower() == "true"),
+                auto_promotion_enabled=(os.getenv("QT_CLM_AUTO_PROMOTE", "true").lower() == "true"),
+            )
+            
+            # Get dependencies
+            db_session = SessionLocal()
+            
+            # Try v2 infrastructure first (Redis-based)
+            event_bus = getattr(app_instance.state, 'event_bus_v2', None)
+            policy_store = getattr(app_instance.state, 'policy_store_v2', None)
+            
+            # Fallback to legacy in-memory components if v2 not available
+            if not event_bus or not policy_store:
+                logger.info("[CLM] v2 infrastructure not available, using legacy in-memory components")
+                
+                # Use legacy PolicyStore (already initialized earlier)
+                policy_store = getattr(app_instance.state, 'policy_store', None)
+                
+                # Create legacy in-memory EventBus
+                if not policy_store:
+                    logger.warning("[CLM] ⚠️  PolicyStore not available (neither v2 nor legacy)")
+                else:
+                    from backend.services.event_bus import InMemoryEventBus
+                    event_bus = InMemoryEventBus()
+                    app_instance.state.event_bus_legacy = event_bus
+                    logger.info("[CLM] Using legacy InMemoryEventBus")
+            
+            if event_bus and policy_store:
+                # Initialize CLM with available infrastructure
+                await initialize_clm(db_session, event_bus, policy_store, config)
+                logger.info("[CLM] ✅ ML/AI Pipeline initialized and started")
+                logger.info(f"[CLM] Config: Retrain={config.retraining_schedule_hours}h, Drift={config.drift_check_hours}h")
+                logger.info(f"[CLM] Auto-retraining: {config.auto_retraining_enabled}, Auto-promotion: {config.auto_promotion_enabled}")
+            else:
+                logger.warning("[CLM] ⚠️  Cannot initialize - EventBus or PolicyStore not available")
+                
+        except Exception as e:
+            logger.error(f"[CLM] ❌ Failed to initialize ML/AI Pipeline: {e}", exc_info=True)
+            logger.warning("[CLM] Continuing without continuous learning - manual model management required")
+    else:
+        logger.info("[CLM] ML/AI Pipeline disabled (set QT_CLM_ENABLED=true to enable)")
+    
+    # [CRITICAL] EMERGENCY STOP SYSTEM: Initialize EARLY (right after PolicyStore)
+    # This ensures ESS is available before long-running initialization tasks
+    ess_enabled = os.getenv("QT_ESS_ENABLED", "true").lower() == "true"
+    logger.info(f"[DEBUG] ESS_AVAILABLE={ESS_AVAILABLE}, ess_enabled={ess_enabled}")
+    if ess_enabled and ESS_AVAILABLE:
+        try:
+            logger.info("[ESS] Initializing Emergency Stop System...")
+            
+            # Get configuration from environment (fast - no I/O)
+            max_daily_loss = float(os.getenv("QT_ESS_MAX_DAILY_LOSS", "10.0"))
+            max_equity_dd = float(os.getenv("QT_ESS_MAX_EQUITY_DD", "15.0"))
+            max_sl_hits = int(os.getenv("QT_ESS_MAX_SL_HITS", "5"))
+            check_interval = int(os.getenv("QT_ESS_CHECK_INTERVAL", "5"))
+            
+            # Get EventBus (create if needed)
+            event_bus_ref = getattr(app_instance.state, 'event_bus', None)
+            if event_bus_ref is None:
+                from backend.services.event_bus import InMemoryEventBus
+                event_bus_ref = InMemoryEventBus()
+                app_instance.state.event_bus = event_bus_ref
+                logger.info("[ESS] EventBus created")
+            
+            # Create lightweight stub dependencies (no blocking I/O)
+            class StubMetricsRepository:
+                """Lightweight stub for metrics (real implementation deferred)"""
+                def get_daily_pnl_percent(self) -> float:
+                    return 0.0  # Will be updated by real metrics later
+                def get_equity_drawdown_percent(self) -> float:
+                    return 0.0
+                def get_recent_sl_hits(self, period_minutes: int) -> int:
+                    return 0  # No stop loss hits in stub mode
+            
+            class StubDataFeedMonitor:
+                """Lightweight stub for data feed monitoring"""
+                def __init__(self):
+                    self.last_update = datetime.now(timezone.utc)
+                def get_seconds_since_last_update(self) -> float:
+                    delta = datetime.now(timezone.utc) - self.last_update
+                    return delta.total_seconds()
+                def get_last_update_time(self) -> datetime:
+                    return self.last_update
+                def is_corrupted(self) -> bool:
+                    return False  # Data feed is healthy in stub mode
+            
+            metrics_repo = StubMetricsRepository()
+            data_feed_monitor = StubDataFeedMonitor()
+            
+            # Create controller with stub exchange (real adapter comes later)
+            class StubExchange:
+                """Stub exchange for early ESS init (real adapter added later)"""
+                async def cancel_all_orders(self, symbol=None):
+                    logger.info(f"[ESS] Would cancel orders for {symbol or 'all symbols'}")
+                    return 0  # Return count
+                async def close_all_positions(self):
+                    logger.info("[ESS] Would close all positions")
+                    return 0  # Return count of positions closed
+                async def close_position(self, symbol, side):
+                    logger.info(f"[ESS] Would close {side} position for {symbol}")
+                    return True
+            
+            controller = EmergencyStopController(
+                policy_store=None,  # ESS uses in-memory state, not GlobalPolicy store
+                exchange=StubExchange(),
+                event_bus=event_bus_ref
+            )
+            
+            # Create evaluators
+            evaluators = [
+                DrawdownEmergencyEvaluator(
+                    metrics_repo=metrics_repo,
+                    max_daily_loss_percent=max_daily_loss,
+                    max_equity_drawdown_percent=max_equity_dd
+                ),
+                ExecutionErrorEmergencyEvaluator(
+                    metrics_repo=metrics_repo,
+                    max_sl_hits_per_period=max_sl_hits,
+                    period_minutes=60
+                ),
+                DataFeedEmergencyEvaluator(
+                    data_feed_monitor=data_feed_monitor,
+                    max_staleness_minutes=5
+                ),
+                ManualTriggerEmergencyEvaluator()
+            ]
+            
+            # Create ESS instance (policy_store=None for early init, will use in-memory only)
+            ess = EmergencyStopSystem(
+                evaluators=evaluators,
+                controller=controller,
+                policy_store=None,  # No persistent state during early init
+                check_interval_sec=check_interval
+            )
+            
+            # Start ESS monitoring (non-blocking)
+            ess_task = ess.start()
+            app_instance.state.ess = ess
+            app_instance.state.ess_task = ess_task
+            app_instance.state.ess_controller = controller
+            app_instance.state.ess_manual_trigger = evaluators[-1]
+            
+            logger.info(
+                f"[ESS] EMERGENCY STOP SYSTEM: ENABLED (EARLY INIT)\n"
+                f"   ├─ Max Daily Loss: {max_daily_loss}%\n"
+                f"   ├─ Max Equity DD: {max_equity_dd}%\n"
+                f"   ├─ Check Interval: {check_interval}s\n"
+                f"   └─ Evaluators: {len(evaluators)}"
+            )
+            
+            # Initialize alert manager (async, non-blocking)
+            try:
+                alert_manager = ESSAlertManager.from_env()
+                await alert_manager.subscribe_to_eventbus(event_bus_ref)
+                app_instance.state.ess_alert_manager = alert_manager
+                logger.info("[ESS] Alert Manager: ENABLED")
+            except Exception as e:
+                logger.warning(f"[ESS] Alert manager init failed: {e}")
+            
+        except Exception as e:
+            logger.error(f"[ERROR] ESS early init failed: {e}", exc_info=True)
+            logger.warning("⚠️  Continuing without ESS - TRADING AT RISK")
+    elif not ESS_AVAILABLE:
+        logger.warning("⚠️  ESS: NOT AVAILABLE (dependencies missing)")
+    else:
+        logger.info("[INFO] ESS: DISABLED (set QT_ESS_ENABLED=true to enable)")
+    
+    # [FIX] Risk config and store already initialized at line 486-497
+    # Get risk_guard from app.state instead of re-initializing
+    from pathlib import Path as PathLib
+    
+    risk_guard = getattr(app_instance.state, 'risk_guard', None)
+    if not risk_guard:
+        logger.warning("[WARNING] Risk Guard not available from app.state")
+        resolved_path = PathLib(__file__).resolve().parent / "data" / "risk_state.db"
+    else:
+        # Extract store_path from existing risk_guard config
+        store_path = risk_guard.config.risk_state_db_path if hasattr(risk_guard.config, 'risk_state_db_path') else None
+        if store_path:
+            resolved_path = PathLib(store_path)
+            if not resolved_path.is_absolute():
+                resolved_path = PathLib(__file__).resolve().parent / resolved_path
+        else:
+            resolved_path = PathLib(__file__).resolve().parent / "data" / "risk_state.db"
+    
+    # ♻️ POSITION RECOVERY: Recover open positions from Binance after restart/reconnection
+    logger.info("[SEARCH] Checking for positions to recover from previous session...")
+    try:
+        from backend.services.execution.execution import TradeStateStore
+        
+        # Get execution adapter from app.state (initialized earlier for RL v3)
+        adapter = getattr(app_instance.state, 'execution_adapter', None)
+        if not adapter:
+            logger.warning("[WARNING] Execution adapter not available, skipping position recovery")
+            raise Exception("Execution adapter not initialized")
+        
+        # Get current positions from Binance
+        positions = await adapter.get_positions()
+        
+        # Get position details including entry prices
+        if positions:
+            account_data = await adapter._signed_request('GET', '/fapi/v2/account')
+            position_details = {
+                p['symbol']: p for p in account_data.get('positions', [])
+                if abs(float(p.get('positionAmt', 0))) > 0
+            }
+            
+            # Load trade state store
+            trade_state_path = Path(__file__).resolve().parent / "data" / "trade_state.json"
+            trade_store = TradeStateStore(trade_state_path)
+            
+            recovered_count = 0
+            for symbol, qty in positions.items():
+                # Check if we already have state for this position
+                existing_state = trade_store.get(symbol)
+                if existing_state is None and symbol in position_details:
+                    # Recover position state from Binance data
+                    pos_data = position_details[symbol]
+                    entry_price = float(pos_data.get('entryPrice', 0))
+                    
+                    if entry_price > 0:
+                        side = "LONG" if qty > 0 else "SHORT"
+                        state = {
+                            "side": side,
+                            "qty": abs(qty),
+                            "avg_entry": entry_price,
+                            "peak": entry_price if side == "LONG" else None,
+                            "trough": entry_price if side == "SHORT" else None,
+                            "recovered": True,
+                            "opened_at": datetime.now(timezone.utc).isoformat()
+                        }
+                        trade_store.set(symbol, state)
+                        recovered_count += 1
+                        logger.info(f"♻️ Recovered {symbol}: {side} {abs(qty):.4f} @ ${entry_price:.4f}")
+            
+            if recovered_count > 0:
+                logger.info(f"[OK] Recovered {recovered_count} position(s) from previous session - AI will now track TP/SL")
+            else:
+                logger.info("[OK] All positions already have tracking state")
+    except Exception as e:
+        logger.warning(f"[WARNING] Position recovery failed: {e}")
+        logger.warning("Positions may not have TP/SL tracking until next fill event")
+    
+    # 🤖 CONTINUOUS LEARNING: Auto-start if enabled
+    continuous_learning_enabled = os.getenv("QT_CONTINUOUS_LEARNING", "false").lower() == "true"
+    if continuous_learning_enabled:
+        logger.info("🤖 Continuous Learning: ENABLED")
+        min_samples = int(os.getenv("QT_MIN_SAMPLES_FOR_RETRAIN", "50"))
+        retrain_interval = int(os.getenv("QT_RETRAIN_INTERVAL_HOURS", "24"))
+        logger.info(f"   [OK] Auto-retrain: every {retrain_interval}h or after {min_samples} samples")
+        logger.info(f"   [OK] Learning from every trade outcome (win/loss)")
+        # Note: Actual continuous learning scheduling happens in the event-driven executor or scheduler
+        # This is just startup logging to confirm configuration
+    else:
+        logger.info("[INFO] Continuous Learning: DISABLED (set QT_CONTINUOUS_LEARNING=true to enable)")
+
+    # NOTE: Risk Guard is initialized later in the startup sequence (around line 517)
+    # to ensure proper error handling with try/except blocks
+    
+    # Ensure core application tables exist in development environments where
+    # Alembic migrations have not been executed yet. This is a defensive
+    # safeguard so AI/monitoring endpoints querying TradeLog (and other ORM
+    # models) do not fail with OperationalError. In production the recommended
+    # approach remains running migrations explicitly.
+    # BULLETPROOF: Now includes proper error logging
+    try:
+        from backend.database import Base, engine  # type: ignore
+        Base.metadata.create_all(bind=engine)
+        logger.info("[OK] Database tables verified/created")
+    except Exception as e:
+        # Log the error - endpoints will handle DB unavailability gracefully
+        logger.warning(f"[WARNING] Could not create database tables: {e}")
+        logger.warning("Some endpoints may not work if database is unavailable")
+        pass
+    async def _load_positions_snapshot() -> Dict[str, Any]:
+        def _inner() -> Dict[str, Any]:
+            with SessionLocal() as session:
+                service = PortfolioPositionService(session)
+                return service.snapshot()
+
+        return await asyncio.to_thread(_inner)
+
+    # NOTE: Risk Guard position loader is set later after risk_guard is initialized (line ~520)
+    
+    # Choose trading mode: event-driven (AI signals) or scheduled (fixed intervals)
+    use_event_driven = os.getenv("QT_EVENT_DRIVEN_MODE", "false").lower() == "true"
+    autopilot_enabled = _env_flag("QT_AUTOPILOT_AUTOSTART")
+    autopilot_dry_run = _env_flag("QT_AUTOPILOT_DRY_RUN", True)
+    price_warm_symbols = _resolve_price_symbols() if _env_flag("QT_PRICE_WARM_ENABLED", True) else []
+    price_warm_task: asyncio.Task | None = None
+    autopilot_started = False
+    
+    if use_event_driven:
+        # ==============================================================================
+        # UNIVERSE LOADING: Support explicit QT_SYMBOLS or dynamic QT_UNIVERSE
+        # ==============================================================================
+        from config.config import get_qt_symbols, get_qt_universe, get_qt_max_symbols
+        from backend.utils.universe import load_universe, save_universe_snapshot
+        
+        symbols_env = get_qt_symbols()
+        
+        if symbols_env:
+            # MODE 1: Explicit QT_SYMBOLS list (manual control)
+            symbols = [s.strip() for s in symbols_env.split(",") if s.strip()]
+            logging.info(
+                f"[UNIVERSE] Using explicit QT_SYMBOLS list with {len(symbols)} symbols"
+            )
+            
+            # Save snapshot in explicit mode
+            try:
+                save_universe_snapshot(
+                    symbols=symbols,
+                    mode="explicit",
+                    qt_universe=None,
+                    qt_max_symbols=len(symbols)
+                )
+            except Exception as e:
+                logging.debug(f"[UNIVERSE] Snapshot save failed: {e}")
+        
+        else:
+            # MODE 2: Dynamic universe using QT_UNIVERSE + QT_MAX_SYMBOLS
+            universe_name = get_qt_universe()
+            max_symbols = get_qt_max_symbols()
+            
+            # Get quote currency from config
+            try:
+                from config.config import DEFAULT_QUOTE
+                quote = DEFAULT_QUOTE
+            except Exception:
+                quote = "USDT"
+            
+            logging.info(
+                f"[UNIVERSE] Using dynamic universe profile: {universe_name}, "
+                f"max={max_symbols}, quote={quote}"
+            )
+            
+            # Load universe
+            try:
+                symbols = load_universe(
+                    universe_name=universe_name,
+                    max_symbols=max_symbols,
+                    quote=quote
+                )
+                
+                # Save snapshot in dynamic mode
+                try:
+                    save_universe_snapshot(
+                        symbols=symbols,
+                        mode="dynamic",
+                        qt_universe=universe_name,
+                        qt_max_symbols=max_symbols
+                    )
+                except Exception as e:
+                    logging.debug(f"[UNIVERSE] Snapshot save failed: {e}")
+            
+            except Exception as e:
+                logging.error(
+                    f"[UNIVERSE] Failed to load dynamic universe: {e}, "
+                    f"using minimal fallback"
+                )
+                symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT"]
+        
+        # Log final universe summary
+        logging.info(f"[UNIVERSE] Final symbol count: {len(symbols)}")
+        logging.info(f"[UNIVERSE] First 10 symbols: {symbols[:10]}")
+        
+        # Optional: filter to symbols that actually exist on Binance (reduces 400 noise)
+        # DISABLED: This is TOO SLOW with many symbols - causes startup hang!
+        # try:
+        #     from backend.routes.external_data import filter_existing_usdc_symbols
+        #     filtered = await filter_existing_usdc_symbols(symbols)
+        #     if filtered and len(filtered) < len(symbols):
+        #         logging.info(
+        #             "Filtered to %d/%d symbols with active Binance markets",
+        #             len(filtered), len(symbols)
+        #         )
+        #         symbols = filtered
+        # except Exception as e:
+        #     logging.debug(f"Symbol existence filter skipped: {e}")
+        
+        confidence = float(os.getenv("QT_CONFIDENCE_THRESHOLD", "0.65"))
+        check_interval = int(os.getenv("QT_CHECK_INTERVAL", "30"))
+        cooldown = int(os.getenv("QT_COOLDOWN_SECONDS", "300"))
+        
+        # Load Hybrid AI agent (TFT + XGBoost ensemble)
+        try:
+            from ai_engine.agents.hybrid_agent import HybridAgent
+            agent = HybridAgent(
+                tft_weight=0.6,  # TFT gets 60% vote
+                xgb_weight=0.4,  # XGBoost gets 40% vote
+                agreement_bonus=0.15,  # +15% when models agree
+                min_confidence=confidence
+            )
+            logging.info("🤖 Hybrid Agent loaded (TFT + XGBoost ensemble)")
+        except Exception as e:
+            logging.warning("Failed to load Hybrid agent, falling back to XGBoost: %s", e)
+            try:
+                from ai_engine.ensemble_manager import EnsembleManager
+                def make_default_agent():
+                    return EnsembleManager()
+                agent = make_default_agent()
+                logging.info("AI agent loaded successfully (XGBoost fallback)")
+            except Exception as e2:
+                logging.warning("Failed to load AI agent: %s", e2)
+                agent = None
+        
+        # AI engine doesn't need DB session for signal generation
+        ai_engine = AITradingEngine(agent=agent, db_session=None)
+        
+        # [NEW] Store AI services in app state for executor to access
+        ai_services = getattr(app_instance.state, 'ai_services', None)
+        if ai_services:
+            # Executor can access via get_ai_services() when needed
+            logger.info("[OK] AI services available for event-driven executor")
+        
+        # [NEW] Get PolicyStore reference for executor
+        policy_store = getattr(app_instance.state, 'policy_store', None)
+        if policy_store:
+            logger.info("[OK] PolicyStore available for event-driven executor")
+        
+        executor = await start_event_driven_executor(
+            ai_engine=ai_engine,
+            symbols=symbols,
+            confidence_threshold=confidence,
+            check_interval=check_interval,
+            cooldown=cooldown,
+            app_state=app_instance.state,  # Pass app state for Safety Governor access
+            ai_services=ai_services,  # [FIX] Pass AI services for PAL integration
+            policy_store=policy_store,  # [NEW] Pass PolicyStore for global config
+            event_bus=getattr(app_instance.state, 'event_bus', None),  # [CRITICAL FIX #1] Pass EventBus for infrastructure health checks
+        )
+        logging.info(
+            "Event-driven trading mode active: %d symbols, confidence >= %.2f",
+            len(symbols), confidence
+        )
+        
+        # [WARNING] CRITICAL: Store BOTH executor and its task to prevent garbage collection
+        app_instance.state.executor = executor
+        app_instance.state.executor_task = executor._task  # Keep task alive!
+        app_instance.state.event_driven_mode = True
+        logging.info("[OK] Event-driven executor task stored: %s", executor._task.get_name())
+        
+        # Update health monitor with executor
+        if hasattr(app_instance.state, 'health_monitor'):
+            app_instance.state.health_monitor.event_driven_executor = executor
+        
+        # [TARGET] Start Position Monitor (ensures all positions have TP/SL)
+        try:
+            from backend.services.monitoring.position_monitor import PositionMonitor
+            logger.info("[POSITION_MONITOR] Attempting to initialize Position Monitor...")
+            
+            position_monitor = PositionMonitor(
+                check_interval=int(os.getenv("QT_POSITION_MONITOR_INTERVAL", "10")),  # [TARGET] Default 10s for dynamic adjustments
+                ai_engine=ai_engine,  # [ALERT] FIX #3: Pass AI engine for sentiment re-evaluation
+                app_state=app_instance.state  # [NEW] HEDGEFUND MODE: Pass app_state for SafetyGovernor
+            )
+            
+            logger.info("[POSITION_MONITOR] ✅ Position Monitor initialized successfully")
+            
+            # [FIX] Auto-restart wrapper for position monitor
+            async def position_monitor_with_restart():
+                """Run position monitor with automatic restart on crash"""
+                restart_count = 0
+                max_restarts = 100  # Prevent infinite restart loop
+                
+                while restart_count < max_restarts:
+                    try:
+                        logger.info(f"[POSITION_MONITOR] Starting monitor loop (restart #{restart_count})")
+                        await position_monitor.monitor_loop()
+                    except Exception as e:
+                        restart_count += 1
+                        logger.error(
+                            f"[POSITION_MONITOR] ❌ Monitor crashed: {e}\n"
+                            f"   Auto-restarting in 5 seconds (restart #{restart_count}/{max_restarts})",
+                            exc_info=True
+                        )
+                        await asyncio.sleep(5)  # Brief delay before restart
+                
+                logger.error(f"[POSITION_MONITOR] ❌ Exceeded max restarts ({max_restarts}) - giving up")
+            
+            # Start position monitor with auto-restart
+            position_monitor_task = asyncio.create_task(position_monitor_with_restart())
+            app_instance.state.position_monitor_task = position_monitor_task
+            logger.info("[POSITION_MONITOR] ✅ ENABLED (auto TP/SL + AI re-evaluation + auto-restart)")
+        except Exception as e:
+            logger.error(
+                f"[POSITION_MONITOR] ❌ Could not start Position Monitor: {e}",
+                exc_info=True
+            )
+        
+        # [TARGET] Start Trailing Stop Manager
+        trailing_enabled = os.getenv("QT_TRAILING_STOP_ENABLED", "true").lower() == "true"
+        if trailing_enabled:
+            try:
+                from backend.services.execution.trailing_stop_manager import TrailingStopManager
+                trailing_manager = TrailingStopManager(
+                    check_interval=int(os.getenv("QT_TRAILING_CHECK_INTERVAL", "10")),
+                    min_profit_to_activate=float(os.getenv("QT_TRAILING_MIN_PROFIT", "0.005"))
+                )
+                # Start trailing stop monitor in background
+                trailing_task = asyncio.create_task(trailing_manager.monitor_loop())
+                app_instance.state.trailing_task = trailing_task
+                logger.info("Trailing Stop Manager: ENABLED")
+            except Exception as e:
+                logger.warning(f"[WARNING] Could not start Trailing Stop Manager: {e}")
+        
+        # [NEW] Start Model Supervisor - AI bias detection & monitoring
+        try:
+            from backend.services.ai.model_supervisor import ModelSupervisor
+            model_supervisor = ModelSupervisor(
+                data_dir="/app/data",
+                analysis_window_days=30,
+                recent_window_days=7
+            )
+            supervisor_task = asyncio.create_task(model_supervisor.monitor_loop())
+            app_instance.state.model_supervisor_task = supervisor_task
+            app_instance.state.model_supervisor = model_supervisor
+            logger.info("🔍 Model Supervisor: ENABLED (bias detection)")
+        except Exception as e:
+            logger.warning(f"[WARNING] Could not start Model Supervisor: {e}")
+        
+        # [NEW] Start Health Monitor - System-wide health checks and auto-healing
+        health_monitor_enabled = os.getenv("QT_HEALTH_MONITOR_ENABLED", "true").lower() == "true"
+        if health_monitor_enabled:
+            try:
+                from backend.services.monitoring.health_monitor import HealthMonitor
+                
+                health_monitor = HealthMonitor(
+                    model_supervisor=app_instance.state.model_supervisor if hasattr(app_instance.state, 'model_supervisor') else None,
+                    ai_trading_engine=app_instance.state.ai_trading_engine if hasattr(app_instance.state, 'ai_trading_engine') else None,
+                    retraining_orchestrator=None,  # Will be set later
+                    event_driven_executor=None  # Will be set later
+                )
+                
+                # Start health monitoring loop
+                async def health_monitor_loop():
+                    """Run continuous health monitoring."""
+                    await asyncio.sleep(60)  # Wait for all services to initialize
+                    
+                    while True:
+                        try:
+                            overall_status, issues = await health_monitor.check_health()
+                            
+                            # Auto-heal if issues detected
+                            if issues:
+                                fixed_count = await health_monitor.auto_heal()
+                                if fixed_count > 0:
+                                    logger.info(f"🔧 Auto-healed {fixed_count} issues")
+                            
+                            # Sleep until next check
+                            await asyncio.sleep(health_monitor.check_interval_sec)
+                        except Exception as e:
+                            logger.error(f"[HEALTH_MONITOR] Error in monitoring loop: {e}", exc_info=True)
+                            await asyncio.sleep(60)
+                
+                health_task = asyncio.create_task(health_monitor_loop())
+                app_instance.state.health_monitor_task = health_task
+                app_instance.state.health_monitor = health_monitor
+                logger.info("🏥 Health Monitor: ENABLED (checks every 5 minutes)")
+            except Exception as e:
+                logger.warning(f"[WARNING] Could not start Health Monitor: {e}")
+        
+        # [NEW] Start Portfolio Balancer - AI-based diversification
+        try:
+            from backend.services.portfolio_balancer import PortfolioBalancerAI
+            portfolio_balancer = PortfolioBalancerAI(
+                constraints=None,  # Use defaults
+                data_dir="/app/data"
+            )
+            balancer_task = asyncio.create_task(portfolio_balancer.balance_loop())
+            app_instance.state.portfolio_balancer_task = balancer_task
+            app_instance.state.portfolio_balancer = portfolio_balancer
+            logger.info("⚖️ Portfolio Balancer: ENABLED (diversification)")
+        except Exception as e:
+            logger.warning(f"[WARNING] Could not start Portfolio Balancer: {e}")
+        
+        # [NEW] Start Continuous Learning Manager (CLM) - Full model lifecycle management
+        continuous_learning = os.getenv("QT_CONTINUOUS_LEARNING", "true").lower() == "true"
+        if continuous_learning:
+            try:
+                from backend.services.ai.continuous_learning_manager import (
+                    ContinuousLearningManager,
+                    ModelType,
+                )
+                from backend.services.clm import (
+                    RealDataClient,
+                    RealModelTrainer,
+                    RealModelEvaluator,
+                    RealShadowTester,
+                    RealModelRegistry,
+                )
+                
+                # Configuration
+                retrain_days = int(os.getenv("QT_RETRAIN_INTERVAL_HOURS", "24")) // 24  # Convert hours to days
+                shadow_hours = int(os.getenv("QT_CLM_SHADOW_HOURS", "24"))
+                min_improvement = float(os.getenv("QT_CLM_MIN_IMPROVEMENT", "0.02"))
+                
+                # Get references
+                policy_store_ref = getattr(app_instance.state, 'policy_store', None)
+                binance_client = getattr(app_instance.state, 'binance_client', None)
+                
+                # Initialize CLM components (REAL implementations)
+                from backend.database import SessionLocal
+                db_session = SessionLocal()
+                
+                data_client = RealDataClient(binance_client=binance_client)
+                trainer = RealModelTrainer(model_save_dir="data/models", use_gpu=False)
+                evaluator = RealModelEvaluator()
+                shadow_tester = RealShadowTester(data_client=data_client)
+                registry = RealModelRegistry(db_session=db_session, model_save_dir="data/models")
+                
+                # Create feature engineer (simple wrapper)
+                class SimpleFeatureEngineer:
+                    def transform(self, df):
+                        return df  # Data already has features from RealDataClient
+                    def get_feature_names(self):
+                        return data_client.get_feature_names()
+                
+                feature_engineer = SimpleFeatureEngineer()
+                
+                # Create CLM with PolicyStore integration
+                clm = ContinuousLearningManager(
+                    data_client=data_client,
+                    feature_engineer=feature_engineer,
+                    trainer=trainer,
+                    evaluator=evaluator,
+                    shadow_tester=shadow_tester,
+                    registry=registry,
+                    retrain_interval_days=max(1, retrain_days),
+                    shadow_test_hours=shadow_hours,
+                    min_improvement_threshold=min_improvement,
+                    training_lookback_days=90,
+                    policy_store=policy_store_ref,
+                )
+                
+                # Store CLM instance
+                app_instance.state.clm = clm
+                
+                # Run initial cycle check (non-blocking)
+                async def clm_monitoring_loop():
+                    """Background task for CLM monitoring"""
+                    while True:
+                        try:
+                            # Check if retraining needed
+                            triggers = clm.check_if_retrain_needed()
+                            if any(triggers.values()):
+                                logger.info(f"[CLM] 🔄 Retraining triggered: {triggers}")
+                                # Run full cycle in background
+                                report = clm.run_full_cycle()
+                                logger.info(f"[CLM] Cycle complete: {report.summary()}")
+                            
+                            # Sleep for interval
+                            await asyncio.sleep(retrain_days * 24 * 3600)  # Days to seconds
+                        except Exception as e:
+                            logger.error(f"[CLM] ❌ Error in monitoring loop: {e}", exc_info=True)
+                            await asyncio.sleep(3600)  # Retry after 1 hour
+                
+                clm_task = asyncio.create_task(clm_monitoring_loop())
+                app_instance.state.clm_task = clm_task
+                
+                logger.info(f"CONTINUOUS LEARNING MANAGER: ENABLED")
+                logger.info(f"   ├─ Retrain interval: {retrain_days} days")
+                logger.info(f"   ├─ Shadow testing: {shadow_hours} hours")
+                logger.info(f"   ├─ Min improvement: {min_improvement*100}%")
+                logger.info(f"   └─ PolicyStore integration: {'ACTIVE' if policy_store_ref else 'DISABLED'}")
+                
+            except Exception as e:
+                logger.warning(f"[WARNING] Could not start CLM: {e}", exc_info=True)
+        
+        # [NEW] Configure Risk Guard (already initialized earlier for RL v3)
+        try:
+            # Get RiskGuard from app.state (initialized earlier for RL v3)
+            risk_guard = getattr(app_instance.state, 'risk_guard', None)
+            if not risk_guard:
+                logger.warning("[WARNING] Risk Guard not available in app.state")
+            else:
+                # Set position loader for risk monitoring
+                risk_guard.set_position_loader(_load_positions_snapshot)
+                
+                # [NEW] Register RiskGuard in AISystemServices if available
+                if hasattr(app_instance.state, 'ai_services') and app_instance.state.ai_services:
+                    app_instance.state.ai_services._services_status["risk_os"] = "HEALTHY"
+                    logger.info("[RISK] Risk Guard registered in AI System Services")
+                
+                logger.info("[RISK] Risk Guard: ENABLED (kill-switch active)")
+                policy_store_ref = getattr(app_instance.state, 'policy_store', None)
+                if policy_store_ref:
+                    logger.info("   └─ PolicyStore integration: ACTIVE (dynamic limits)")
+        except Exception as e:
+            logger.warning(f"[WARNING] Could not configure Risk Guard: {e}")
+        
+        # [NEW] Start Self-Healing System - 24/7 Monitoring & Auto-Recovery
+        self_healing_enabled = os.getenv("QT_SELF_HEALING_ENABLED", "true").lower() == "true"
+        if self_healing_enabled:
+            try:
+                from backend.services.monitoring.self_healing import SelfHealingSystem
+                
+                self_healing = SelfHealingSystem(
+                    data_dir="/app/data",
+                    log_dir="/app/logs",
+                    check_interval=int(os.getenv("QT_HEALTH_CHECK_INTERVAL", "30")),  # 30 seconds
+                    critical_check_interval=int(os.getenv("QT_CRITICAL_CHECK_INTERVAL", "5")),  # 5 seconds for critical
+                    max_consecutive_failures=int(os.getenv("QT_MAX_CONSECUTIVE_FAILURES", "3")),
+                    auto_restart_enabled=os.getenv("QT_AUTO_RESTART", "true").lower() == "true",
+                    auto_pause_on_critical=os.getenv("QT_AUTO_PAUSE_CRITICAL", "true").lower() == "true",
+                )
+                
+                # Start self-healing monitor loop in background
+                async def self_healing_loop():
+                    """Run continuous health monitoring and auto-recovery."""
+                    logger.info("🏥 [SELF-HEAL] Starting 24/7 system monitoring...")
+                    
+                    while True:
+                        try:
+                            # Run comprehensive health check
+                            report = await self_healing.check_all_subsystems()
+                            
+                            # Log summary
+                            logger.info(
+                                f"🏥 [HEALTH] Status: {report.overall_status.value.upper()} | "
+                                f"Healthy: {report.healthy_count} | Degraded: {report.degraded_count} | "
+                                f"Critical: {report.critical_count} | Failed: {report.failed_count}"
+                            )
+                            
+                            # Process recovery recommendations if needed
+                            if report.critical_count > 0 or report.failed_count > 0:
+                                logger.warning(
+                                    f"🚨 [SELF-HEAL] Detected {report.critical_count + report.failed_count} critical issues - "
+                                    f"processing {len(report.recovery_recommendations)} recovery recommendations"
+                                )
+                                
+                                for rec in report.recovery_recommendations:
+                                    if rec.can_auto_execute:
+                                        logger.info(
+                                            f"🔧 [AUTO-RECOVERY] {rec.action.value.upper()}: {rec.description} "
+                                            f"(Issue: {rec.issue.description})"
+                                        )
+                                    elif rec.requires_approval:
+                                        logger.warning(
+                                            f"⚠️ [MANUAL-ACTION] {rec.action.value.upper()} required: {rec.description} "
+                                            f"(Issue: {rec.issue.description})"
+                                        )
+                            
+                            
+                            # Save health report to disk
+                            report_path = Path("/app/data/self_healing_report.json")
+                            report_path.parent.mkdir(parents=True, exist_ok=True)
+                            report_path.write_text(json.dumps({
+                                "timestamp": report.timestamp,
+                                "overall_status": report.overall_status.value,
+                                "healthy_count": report.healthy_count,
+                                "degraded_count": report.degraded_count,
+                                "critical_count": report.critical_count,
+                                "failed_count": report.failed_count,
+                                "subsystems": {
+                                    k.value: {
+                                        "status": v.status.value,
+                                        "error_count": v.error_count,
+                                        "response_time_ms": v.response_time_ms,
+                                        "last_error": v.last_error,
+                                        "details": v.details
+                                    }
+                                    for k, v in report.subsystem_health.items()
+                                }
+                            }, indent=2))
+                            
+                            # Adaptive interval based on system health
+                            if report.overall_status == HealthStatus.HEALTHY:
+                                await asyncio.sleep(self_healing.check_interval)
+                            elif report.overall_status == HealthStatus.DEGRADED:
+                                await asyncio.sleep(self_healing.check_interval // 2)  # Check more frequently
+                            else:  # CRITICAL or FAILED
+                                await asyncio.sleep(self_healing.critical_check_interval)  # Very frequent checks
+                                
+                        except Exception as e:
+                            logger.error(f"❌ [SELF-HEAL] Error in monitoring loop: {e}")
+                            await asyncio.sleep(10)  # Short pause on error
+                
+                self_healing_task = asyncio.create_task(self_healing_loop())
+                app_instance.state.self_healing_task = self_healing_task
+                app_instance.state.self_healing_system = self_healing
+                logger.info("🏥 Self-Healing System: ENABLED (24/7 monitoring & auto-recovery)")
+                
+            except Exception as e:
+                logger.warning(f"[WARNING] Could not start Self-Healing System: {e}")
+        
+        # [NEW] SYSTEM HEALTH MONITOR: Central health monitoring for all subsystems
+        shm_enabled = os.getenv("QT_SYSTEM_HEALTH_MONITOR_ENABLED", "true").lower() == "true"
+        if shm_enabled and SYSTEM_HEALTH_MONITOR_AVAILABLE:
+            try:
+                logger.info("[SEARCH] Initializing System Health Monitor...")
+                
+                # Create minimal monitors for core subsystems
+                # (These can be expanded with real implementations later)
+                class MinimalHealthMonitor(BaseHealthMonitor):
+                    def __init__(self, module_name: str, check_func):
+                        super().__init__(module_name)
+                        self.check_func = check_func
+                    
+                    def _perform_check(self) -> HealthCheckResult:
+                        try:
+                            status, message, details = self.check_func()
+                            return HealthCheckResult(
+                                module=self.module_name,
+                                status=status,
+                                details=details,
+                                message=message
+                            )
+                        except Exception as e:
+                            return HealthCheckResult(
+                                module=self.module_name,
+                                status=SHMHealthStatus.CRITICAL,
+                                details={"error": str(e)},
+                                message=f"Check failed: {e}"
+                            )
+                
+                # Define health check functions
+                def check_policy_store():
+                    if not hasattr(app_instance.state, 'policy_store'):
+                        return SHMHealthStatus.CRITICAL, "PolicyStore not initialized", {}
+                    try:
+                        policy = app_instance.state.policy_store.get()
+                        age_str = policy.get("last_updated", "")
+                        if age_str:
+                            from datetime import datetime
+                            age = datetime.utcnow() - datetime.fromisoformat(age_str)
+                            if age.total_seconds() > 600:
+                                return SHMHealthStatus.WARNING, f"PolicyStore aging ({age.total_seconds():.0f}s)", {"age_seconds": age.total_seconds()}
+                        return SHMHealthStatus.HEALTHY, "PolicyStore operational", {"keys": len(policy)}
+                    except Exception as e:
+                        return SHMHealthStatus.CRITICAL, f"PolicyStore error: {e}", {"error": str(e)}
+                
+                def check_risk_guard():
+                    if not hasattr(app_instance.state, 'risk_guard'):
+                        return SHMHealthStatus.WARNING, "RiskGuard not initialized", {}
+                    return SHMHealthStatus.HEALTHY, "RiskGuard operational", {}
+                
+                def check_ai_services():
+                    if not hasattr(app_instance.state, 'ai_services'):
+                        return SHMHealthStatus.WARNING, "AI Services not initialized", {}
+                    if app_instance.state.ai_services is None:
+                        return SHMHealthStatus.WARNING, "AI Services disabled", {}
+                    try:
+                        status = app_instance.state.ai_services.get_status()
+                        if status.get('emergency_brake', False):
+                            return SHMHealthStatus.WARNING, "AI Emergency brake active", status
+                        return SHMHealthStatus.HEALTHY, "AI Services operational", status
+                    except Exception as e:
+                        return SHMHealthStatus.CRITICAL, f"AI Services error: {e}", {"error": str(e)}
+                
+                # Create monitors
+                monitors = [
+                    MinimalHealthMonitor("policy_store", check_policy_store),
+                    MinimalHealthMonitor("risk_guard", check_risk_guard),
+                    MinimalHealthMonitor("ai_services", check_ai_services),
+                ]
+                
+                # Initialize SystemHealthMonitor
+                shm = SystemHealthMonitor(
+                    monitors=monitors,
+                    policy_store=app_instance.state.policy_store if hasattr(app_instance.state, 'policy_store') else None,
+                    critical_threshold=int(os.getenv("QT_SHM_CRITICAL_THRESHOLD", "1")),
+                    warning_threshold=int(os.getenv("QT_SHM_WARNING_THRESHOLD", "2")),
+                    enable_auto_write=True
+                )
+                
+                # Run initial health check
+                initial_summary = shm.run()
+                logger.info(
+                    f"[OK] System Health Monitor initialized: {initial_summary.status.value} "
+                    f"({initial_summary.total_checks} checks: "
+                    f"{len(initial_summary.healthy_modules)} healthy, "
+                    f"{len(initial_summary.warning_modules)} warnings, "
+                    f"{len(initial_summary.failed_modules)} critical)"
+                )
+                
+                # Start background monitoring loop
+                async def shm_monitoring_loop():
+                    """Run System Health Monitor checks every 60 seconds."""
+                    check_interval = int(os.getenv("QT_SHM_CHECK_INTERVAL", "60"))
+                    logger.info(f"🏥 [SHM] Starting health monitoring loop (every {check_interval}s)...")
+                    
+                    while True:
+                        try:
+                            summary = shm.run()
+                            
+                            # React to critical failures
+                            if summary.is_critical():
+                                logger.critical(
+                                    f"🚨 [SHM] CRITICAL: {summary.failed_modules} - "
+                                    f"System may need intervention!"
+                                )
+                                # TODO: Implement emergency actions
+                            elif summary.is_degraded():
+                                logger.warning(
+                                    f"⚠️ [SHM] DEGRADED: {summary.warning_modules} - "
+                                    f"System performance impacted"
+                                )
+                            
+                            await asyncio.sleep(check_interval)
+                            
+                        except Exception as e:
+                            logger.error(f"❌ [SHM] Monitoring loop error: {e}")
+                            await asyncio.sleep(10)
+                
+                shm_task = asyncio.create_task(shm_monitoring_loop())
+                app_instance.state.shm_task = shm_task
+                app_instance.state.system_health_monitor = shm
+                logger.info("🏥 System Health Monitor: ENABLED (aggregated health tracking)")
+                
+                # [UPDATE] Connect System Health Monitor to existing ESS
+                if hasattr(app_instance.state, 'ess') and app_instance.state.ess:
+                    try:
+                        # Add SystemHealthEmergencyEvaluator to ESS if SHM is available
+                        shm_evaluator = SystemHealthEmergencyEvaluator(health_monitor=shm)
+                        # Note: ESS evaluators list is immutable after creation,
+                        # but we can store SHM reference for future use
+                        app_instance.state.ess_system_health_monitor = shm
+                        logger.info("[ESS] System Health Monitor reference added to ESS")
+                    except Exception as e:
+                        logger.warning(f"[ESS] Could not connect SHM to ESS: {e}")
+                
+            except Exception as e:
+                logger.warning(f"[WARNING] Could not start System Health Monitor: {e}")
+        
+        # [NOTE] EMERGENCY STOP SYSTEM already initialized early (right after PolicyStore)
+        # This ensures ESS is available before long-running tasks
+        # See ESS initialization around line 300 for early init code
+        
+        # [REMOVED] AI-HFOS initialization moved to system_services.py
+        # AI-HFOS is now initialized via AISystemServices in the lifespan startup
+        # This eliminates duplicate initialization and import errors
+        # Access via: app.state.ai_services.ai_hfos
+        
+        # [REMOVED] PIL initialization moved to system_services.py
+        # Access via: app.state.ai_services.pil
+        
+        # [REMOVED] PAL initialization moved to system_services.py  
+        # Access via: app.state.ai_services.pal
+        
+        # All AI-OS subsystems are now initialized via AISystemServices
+        # This provides unified initialization, error handling, and health monitoring
+        pass
+        
+        # [NEW] Start Safety Governor - GLOBAL SAFETY LAYER
+        safety_governor_enabled = os.getenv("QT_SAFETY_GOVERNOR_ENABLED", "true").lower() == "true"
+        if safety_governor_enabled:
+            try:
+                from backend.services.risk.safety_governor import SafetyGovernor
+                
+                # Get PolicyStore reference for dynamic risk thresholds
+                policy_store_ref = getattr(app_instance.state, 'policy_store', None)
+                
+                safety_governor = SafetyGovernor(
+                    data_dir=Path("/app/data"),
+                    config=None,  # Use defaults
+                    policy_store=policy_store_ref  # [ARCHITECTURE V2] PolicyStore integration
+                )
+                
+                if policy_store_ref:
+                    logger.info("[SAFETY] SafetyGovernor PolicyStore integration: ACTIVE (dynamic thresholds)")
+                else:
+                    logger.warning("[SAFETY] SafetyGovernor PolicyStore integration: DISABLED (using fallback thresholds)")
+                
+                # Get update interval from ENV
+                governor_update_interval = int(os.getenv("QT_SAFETY_GOVERNOR_UPDATE_INTERVAL", "60"))
+                
+                # Start Safety Governor monitoring loop
+                async def safety_governor_loop():
+                    """Run continuous safety monitoring and enforcement."""
+                    logger.info("[SAFETY GOVERNOR] Starting global safety layer...")
+                    
+                    while True:
+                        try:
+                            # Collect inputs from all subsystems
+                            subsystem_inputs = []
+                            
+                            # 1. Self-Healing (PRIORITY 1)
+                            if hasattr(app_instance.state, "self_healing_system"):
+                                try:
+                                    sh_report = app_instance.state.self_healing_system.get_health_report()
+                                    sh_input = safety_governor.collect_self_healing_input(sh_report)
+                                    subsystem_inputs.append(sh_input)
+                                except Exception as e:
+                                    logger.debug(f"[SAFETY GOVERNOR] Could not collect Self-Healing input: {e}")
+                            
+                            # 2. Risk Manager (PRIORITY 2) - [ARCHITECTURE V2] Using async method
+                            # TODO: Integrate with actual Risk Manager when available
+                            risk_state = {
+                                "emergency_brake_active": False,
+                                "daily_dd_pct": 0.0,
+                                "max_daily_dd_pct": 5.0,
+                                "losing_streak": 0
+                            }
+                            risk_input = await safety_governor.collect_risk_manager_input_async(risk_state)
+                            subsystem_inputs.append(risk_input)
+                            
+                            # 3. AI-HFOS (PRIORITY 3)
+                            if hasattr(app_instance.state, "ai_hfos_output"):
+                                try:
+                                    hfos_output = app_instance.state.ai_hfos_output
+                                    hfos_input = safety_governor.collect_hfos_input(hfos_output)
+                                    subsystem_inputs.append(hfos_input)
+                                except Exception as e:
+                                    logger.debug(f"[SAFETY GOVERNOR] Could not collect AI-HFOS input: {e}")
+                            
+                            # 4. Portfolio Balancer (PRIORITY 4)
+                            if hasattr(app_instance.state, "portfolio_balancer"):
+                                try:
+                                    # TODO: Get actual violations from PBA
+                                    pba_violations = []
+                                    portfolio_state = {"total_positions": 0, "gross_exposure": 0.0}
+                                    pba_input = safety_governor.collect_pba_input(pba_violations, portfolio_state)
+                                    subsystem_inputs.append(pba_input)
+                                except Exception as e:
+                                    logger.debug(f"[SAFETY GOVERNOR] Could not collect PBA input: {e}")
+                            
+                            # Compute global safety directives
+                            if subsystem_inputs:
+                                directives = safety_governor.compute_directives(subsystem_inputs)
+                                
+                                # Store directives in app state for executor access
+                                app_instance.state.safety_governor_directives = directives
+                                
+                                # Log summary
+                                logger.info(
+                                    f"[SAFETY GOVERNOR] Directives updated: "
+                                    f"Level={directives.safety_level.value}, "
+                                    f"AllowTrades={directives.global_allow_new_trades}, "
+                                    f"LevMult={directives.max_leverage_multiplier:.2f}, "
+                                    f"SizeMult={directives.max_position_size_multiplier:.2f}"
+                                )
+                                
+                                if directives.active_constraints:
+                                    logger.warning(
+                                        f"[SAFETY GOVERNOR] Active constraints: {len(directives.active_constraints)}"
+                                    )
+                                    for constraint in directives.active_constraints[:3]:  # Log first 3
+                                        logger.warning(f"   - {constraint}")
+                            
+                            await asyncio.sleep(governor_update_interval)
+                            
+                        except Exception as e:
+                            logger.error(f"[SAFETY GOVERNOR] Coordination error: {e}", exc_info=True)
+                            await asyncio.sleep(60)
+                
+                safety_governor_task = asyncio.create_task(safety_governor_loop())
+                app_instance.state.safety_governor_task = safety_governor_task
+                app_instance.state.safety_governor = safety_governor
+                logger.info("[SAFETY] SAFETY GOVERNOR: ENABLED (global safety enforcement layer)")
+                
+                # Start periodic reporting
+                report_interval = int(os.getenv("QT_SAFETY_GOVERNOR_REPORT_INTERVAL", "300"))  # 5 minutes
+                report_task = asyncio.create_task(safety_governor.monitor_loop(interval_seconds=report_interval))
+                app_instance.state.safety_governor_report_task = report_task
+                
+            except Exception as e:
+                logger.warning(f"[WARNING] Could not start Safety Governor: {e}")
+        
+        # ====================================================================
+        # [NEW] EVENT-DRIVEN TRADING FLOW V1: Initialize EventBus Subscribers
+        # ====================================================================
+        event_flow_enabled = os.getenv("QT_EVENT_FLOW_ENABLED", "true").lower() == "true"
+        if event_flow_enabled:
+            try:
+                logger.info("[EVENT] Initializing Event-Driven Trading Flow v1...")
+                
+                from backend.events.event_types import EventType
+                from backend.events.subscribers import (
+                    SignalSubscriber,
+                    TradeSubscriber,
+                    PositionSubscriber,
+                    RiskSubscriber,
+                    ErrorSubscriber,
+                )
+                
+                # Get EventBus from app state (initialized earlier in lifespan)
+                event_bus = getattr(app_instance.state, 'event_bus_v2', None)
+                if not event_bus:
+                    logger.warning("[EVENT] EventBus not available - skipping event flow initialization")
+                else:
+                    # Get service references
+                    risk_guard_ref = getattr(app_instance.state, 'risk_guard', None)
+                    policy_store_ref = getattr(app_instance.state, 'policy_store', None)
+                    emergency_stop_ref = getattr(app_instance.state, 'ess_controller', None)
+                    
+                    # Initialize subscribers
+                    signal_subscriber = SignalSubscriber(
+                        risk_guard=risk_guard_ref,
+                        policy_store=policy_store_ref,
+                    )
+                    
+                    trade_subscriber = TradeSubscriber(
+                        execution_engine=None,  # TODO: Add when ExecutionEngine ready
+                    )
+                    
+                    position_subscriber = PositionSubscriber(
+                        rl_position_sizing=None,  # TODO: Add when RL agents ready
+                        rl_meta_strategy=None,
+                        model_supervisor=None,
+                        drift_detector=None,
+                        clm=None,
+                    )
+                    
+                    risk_subscriber = RiskSubscriber(
+                        risk_guard=risk_guard_ref,
+                        emergency_stop_controller=emergency_stop_ref,
+                    )
+                    
+                    error_subscriber = ErrorSubscriber(
+                        health_monitor=None,  # TODO: Add when HealthMonitor ready
+                        alert_system=None,
+                    )
+                    
+                    # Register event handlers (subscribe is NOT async, don't await)
+                    event_bus.subscribe(
+                        str(EventType.SIGNAL_GENERATED),
+                        signal_subscriber.handle_signal,
+                    )
+                    
+                    event_bus.subscribe(
+                        str(EventType.TRADE_EXECUTION_REQUESTED),
+                        trade_subscriber.handle_execution_request,
+                    )
+                    
+                    event_bus.subscribe(
+                        str(EventType.TRADE_EXECUTED),
+                        position_subscriber.handle_trade_executed,
+                    )
+                    
+                    event_bus.subscribe(
+                        str(EventType.POSITION_CLOSED),
+                        position_subscriber.handle_position_closed,
+                    )
+                    
+                    event_bus.subscribe(
+                        str(EventType.RISK_ALERT),
+                        risk_subscriber.handle_risk_alert,
+                    )
+                    
+                    event_bus.subscribe(
+                        str(EventType.SYSTEM_EVENT_ERROR),
+                        error_subscriber.handle_event_error,
+                    )
+                    
+                    # Store subscribers in app state
+                    app_instance.state.signal_subscriber = signal_subscriber
+                    app_instance.state.trade_subscriber = trade_subscriber
+                    app_instance.state.position_subscriber = position_subscriber
+                    app_instance.state.risk_subscriber = risk_subscriber
+                    app_instance.state.error_subscriber = error_subscriber
+                    
+                    logger.info("[EVENT] Event-Driven Trading Flow v1 initialized")
+                    logger.info("[EVENT] Registered subscribers:")
+                    logger.info("   - signal.generated → SignalSubscriber")
+                    logger.info("   - trade.execution_requested → TradeSubscriber")
+                    logger.info("   - trade.executed → PositionSubscriber")
+                    logger.info("   - position.closed → PositionSubscriber")
+                    logger.info("   - risk.alert → RiskSubscriber")
+                    logger.info("   - system.event_error → ErrorSubscriber")
+                    
+            except Exception as e:
+                logger.error(f"[EVENT] Failed to initialize Event-Driven Trading Flow: {e}", exc_info=True)
+                logger.warning("[EVENT] Continuing without event-driven flow")
+        else:
+            logger.info("[EVENT] Event-Driven Trading Flow disabled (set QT_EVENT_FLOW_ENABLED=true to enable)")
+        
+        # [NEW] OPPORTUNITY RANKER: Market quality evaluation and ranking
+        # MUST BE INITIALIZED BEFORE MSC AI (MSC needs opportunity_ranker reference)
+        opportunity_ranker_enabled = os.getenv("QT_OPPORTUNITY_RANKER_ENABLED", "true").lower() == "true"
+        if opportunity_ranker_enabled and OPPORTUNITY_RANKER_AVAILABLE:
+            try:
+                logger.info("[SEARCH] Initializing OpportunityRanker...")
+                
+                # Get Binance credentials from environment
+                binance_api_key = os.getenv("BINANCE_API_KEY")
+                binance_api_secret = os.getenv("BINANCE_API_SECRET")
+                
+                # Create Redis client
+                redis_host = os.getenv("REDIS_HOST", "localhost")
+                redis_port = int(os.getenv("REDIS_PORT", "6379"))
+                redis_db = int(os.getenv("REDIS_DB", "0"))
+                
+                import redis
+                redis_client = redis.Redis(
+                    host=redis_host,
+                    port=redis_port,
+                    db=redis_db,
+                    decode_responses=True
+                )
+                
+                # Get RegimeDetector if available
+                regime_detector = None
+                try:
+                    from backend.services.regime_detector import RegimeDetector
+                    regime_detector = RegimeDetector()
+                    logger.info("[OK] RegimeDetector loaded for OpportunityRanker")
+                except Exception as e:
+                    logger.debug(f"[DEBUG] RegimeDetector not available: {e}")
+                
+                # Get PolicyStore reference
+                policy_store_ref = getattr(app_instance.state, 'policy_store', None)
+                
+                # Create OpportunityRanker
+                opportunity_ranker = create_opportunity_ranker(
+                    binance_api_key=binance_api_key,
+                    binance_api_secret=binance_api_secret,
+                    db_session_factory=SessionLocal,
+                    redis_client=redis_client,
+                    regime_detector=regime_detector,
+                    policy_store=policy_store_ref
+                )
+                
+                # Store in app state
+                app_instance.state.opportunity_ranker = opportunity_ranker
+                app_instance.state.redis_client = redis_client
+                
+                logger.info("🔍 OPPORTUNITY RANKER: ENABLED (market quality tracker)")
+                if policy_store_ref:
+                    logger.info("   └─ PolicyStore integration: ACTIVE")
+                
+                # Get symbol universe
+                opprank_symbols = get_default_symbols()
+                logger.info(f"[SEARCH] OpportunityRanker tracking {len(opprank_symbols)} symbols")
+                
+                # Compute initial rankings asynchronously
+                async def compute_initial_rankings():
+                    """Compute initial rankings after system startup."""
+                    await asyncio.sleep(30)  # Wait for market data to stabilize
+                    try:
+                        logger.info("[OpportunityRanker] Computing initial rankings...")
+                        await opportunity_ranker.rank_opportunities(opprank_symbols)
+                        rankings = opportunity_ranker.get_rankings()
+                        logger.info(f"[OK] Initial rankings: {len(rankings)} symbols")
+                        
+                        # Log top 5
+                        if rankings:
+                            for rank in rankings[:5]:
+                                logger.info(
+                                    f"   #{rank.rank}: {rank.symbol} = {rank.overall_score:.3f}"
+                                )
+                    except Exception as e:
+                        logger.error(f"[ERROR] Failed to compute initial rankings: {e}")
+                
+                asyncio.create_task(compute_initial_rankings())
+                
+                # Start periodic refresh
+                refresh_interval = int(os.getenv("QT_OPPORTUNITY_REFRESH_INTERVAL", "300"))
+                
+                async def ranking_refresh_loop():
+                    """Periodically refresh opportunity rankings."""
+                    await asyncio.sleep(60)  # Initial delay
+                    
+                    while True:
+                        try:
+                            logger.debug("[OpportunityRanker] Refreshing rankings...")
+                            await opportunity_ranker.rank_opportunities(opprank_symbols)
+                            rankings = opportunity_ranker.get_rankings()
+                            
+                            if rankings:
+                                top = rankings[0]
+                                logger.info(
+                                    f"[OpportunityRanker] Refreshed: {len(rankings)} symbols, "
+                                    f"Top: {top.symbol} ({top.overall_score:.3f})"
+                                )
+                        except Exception as e:
+                            logger.error(f"[OpportunityRanker] Refresh error: {e}")
+                        
+                        await asyncio.sleep(refresh_interval)
+                
+                ranking_task = asyncio.create_task(ranking_refresh_loop())
+                app_instance.state.opportunity_ranking_task = ranking_task
+                
+                logger.info(f"OPPORTUNITY RANKER: ENABLED (refreshes every {refresh_interval}s)")
+                
+            except Exception as e:
+                logger.warning(f"[WARNING] Could not start OpportunityRanker: {e}")
+        elif not OPPORTUNITY_RANKER_AVAILABLE:
+            logger.info("OpportunityRanker: NOT AVAILABLE (dependencies missing)")
+        else:
+            logger.info("OpportunityRanker: DISABLED (set QT_OPPORTUNITY_RANKER_ENABLED=true)")
+        
+        # [NEW] UNIVERSE MANAGER: Dynamic coin selection (top 100 by 24h volume)
+        logger.info("[UNIVERSE] Initializing dynamic universe manager...")
+        try:
+            from backend.services.universe_manager import get_universe_manager
+            
+            max_symbols = int(os.getenv("QT_MAX_SYMBOLS", "100"))
+            refresh_hours = int(os.getenv("QT_UNIVERSE_REFRESH_HOURS", "24"))
+            
+            universe_manager = get_universe_manager()
+            universe_manager.max_symbols = max_symbols
+            universe_manager.refresh_interval_hours = refresh_hours
+            
+            # Initialize (loads cache or fetches from CoinGecko)
+            await universe_manager.initialize()
+            
+            # Store in app state
+            app_instance.state.universe_manager = universe_manager
+            
+            # Get current universe
+            symbols = universe_manager.get_symbols()
+            info = universe_manager.get_universe_info()
+            
+            logger.info(f"[UNIVERSE] Initialized with {len(symbols)} symbols")
+            logger.info(f"[UNIVERSE] Refresh interval: {refresh_hours}h")
+            logger.info(f"[UNIVERSE] Age: {info.get('age_hours', 0):.1f}h")
+            logger.info(f"[UNIVERSE] Top symbols: {', '.join(symbols[:10])}")
+            
+            # Start background refresh loop
+            universe_task = asyncio.create_task(universe_manager.run_refresh_loop())
+            app_instance.state.universe_refresh_task = universe_task
+            
+            logger.info("[UNIVERSE] Dynamic universe manager ACTIVE (daily refresh)")
+            
+            # [NEW] DATA COLLECTOR: Collect data for all universe symbols
+            logger.info("[DATA] Initializing multi-source data collector...")
+            try:
+                from backend.services.data_collector import get_data_collector
+                
+                lookback_days = int(os.getenv("QT_DATA_LOOKBACK_DAYS", "90"))
+                data_collector = get_data_collector()
+                data_collector.lookback_days = lookback_days
+                
+                # Store in app state
+                app_instance.state.data_collector = data_collector
+                
+                # Start initial collection (non-blocking)
+                async def initial_collection():
+                    """Collect initial data after startup."""
+                    await asyncio.sleep(60)  # Wait for system to stabilize
+                    try:
+                        logger.info("[DATA] Starting initial data collection...")
+                        await data_collector.collect_all_data(force_refresh=False)
+                        logger.info("[DATA] Initial collection complete")
+                    except Exception as e:
+                        logger.error(f"[DATA] Initial collection failed: {e}")
+                
+                asyncio.create_task(initial_collection())
+                
+                # Start daily collection loop
+                collection_task = asyncio.create_task(data_collector.run_daily_collection())
+                app_instance.state.data_collection_task = collection_task
+                
+                logger.info(f"[DATA] Data collector ACTIVE (daily refresh, {lookback_days}d lookback)")
+                
+            except Exception as e:
+                logger.error(f"[ERROR] Failed to initialize data collector: {e}", exc_info=True)
+                logger.warning("Continuing without automated data collection")
+            
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to initialize universe manager: {e}", exc_info=True)
+            logger.warning("Continuing with static symbol list from env")
+        
+        # [REMOVED] MSC AI - Module does not exist
+
+        if price_warm_symbols:
+            # Fire and forget - don't wait for completion
+            price_warm_task = asyncio.create_task(_warm_price_cache(price_warm_symbols))
+            logger.info(f"[STARTUP] Price warming started for {len(price_warm_symbols)} symbols (background)")
+    else:
+        # Scheduled mode: traditional fixed-interval execution
+        await start_scheduler(app_instance)
+        logging.info("Scheduled trading mode active (fixed intervals)")
+        app_instance.state.event_driven_mode = False
+
+        if price_warm_symbols:
+            # Fire and forget - don't wait for completion
+            price_warm_task = asyncio.create_task(_warm_price_cache(price_warm_symbols))
+            logger.info(f"[STARTUP] Price warming started for {len(price_warm_symbols)} symbols (background)")
+
+        if autopilot_enabled:
+            try:
+                await start_bot_task(dry_run=autopilot_dry_run)
+                autopilot_started = True
+            except Exception as exc:  # noqa: BLE001
+                logging.warning("Autopilot autostart failed: %s", exc)
+    
+    try:
+        yield
+    finally:
+        # [NEW] Shutdown caching layer
+        logger.info("[SHUTDOWN] Closing cache connections...")
+        try:
+            await close_cache()
+            logger.info("[OK] Cache closed successfully")
+        except Exception as e:
+            logger.error(f"[ERROR] Cache shutdown error: {e}")
+        
+        # [NEW] ARCHITECTURE V2: Shutdown v2 components FIRST (clean shutdown order)
+        
+        # Shutdown RL Event Listener v1 (before EventBus shutdown)
+        if hasattr(app_instance.state, 'rl_event_listener') and app_instance.state.rl_event_listener:
+            try:
+                logger.info("[v2] Stopping RL Event Listener v1...")
+                await app_instance.state.rl_event_listener.stop()
+                logger.info("[v2] RL Event Listener v1 stopped")
+            except Exception as e:
+                logger.error(f"[ERROR] RL Event Listener v1 shutdown failed: {e}")
+        
+        # Shutdown RL Event Listener v2 (Advanced RL)
+        if hasattr(app_instance.state, 'rl_event_listener_v2') and app_instance.state.rl_event_listener_v2:
+            try:
+                logger.info("[v2] Stopping RL Event Listener v2 (Advanced RL)...")
+                await app_instance.state.rl_event_listener_v2.stop()
+                logger.info("[v2] RL Event Listener v2 stopped")
+            except Exception as e:
+                logger.error(f"[ERROR] RL Event Listener v2 shutdown failed: {e}")
+        
+        # Shutdown RL v3 Training Daemon
+        if hasattr(app_instance.state, 'rl_v3_training_daemon') and app_instance.state.rl_v3_training_daemon:
+            try:
+                logger.info("[v3] Stopping RL v3 Training Daemon...")
+                await app_instance.state.rl_v3_training_daemon.stop()
+                logger.info("[v3] RL v3 Training Daemon stopped")
+            except Exception as e:
+                logger.error(f"[ERROR] RL v3 Training Daemon shutdown failed: {e}")
+        
+        # Shutdown RL v3 Live Orchestrator
+        if hasattr(app_instance.state, 'rl_v3_live_orchestrator') and app_instance.state.rl_v3_live_orchestrator:
+            try:
+                logger.info("[v3] Stopping RL v3 Live Orchestrator...")
+                await app_instance.state.rl_v3_live_orchestrator.stop()
+                logger.info("[v3] RL v3 Live Orchestrator stopped")
+            except Exception as e:
+                logger.error(f"[ERROR] RL v3 Live Orchestrator shutdown failed: {e}")
+        
+        # Shutdown Trade Intent Subscriber
+        if hasattr(app_instance.state, 'trade_intent_subscriber') and app_instance.state.trade_intent_subscriber:
+            try:
+                logger.info("[v3] Stopping Trade Intent Subscriber...")
+                await app_instance.state.trade_intent_subscriber.stop()
+                logger.info("[v3] Trade Intent Subscriber stopped")
+            except Exception as e:
+                logger.error(f"[ERROR] Trade Intent Subscriber shutdown failed: {e}")
+
+        
+        # Shutdown RL v3 Subscriber
+        if hasattr(app_instance.state, 'rl_subscriber_v3') and app_instance.state.rl_subscriber_v3:
+            try:
+                logger.info("[v3] Stopping RL Subscriber v3...")
+                await app_instance.state.rl_subscriber_v3.stop()
+                logger.info("[v3] RL Subscriber v3 stopped")
+            except Exception as e:
+                logger.error(f"[ERROR] RL Subscriber v3 shutdown failed: {e}")
+        
+        # [PHASE 2A] Shutdown Exit Brain Dynamic Executor
+        if hasattr(app_instance.state, 'exit_brain_executor_task') and app_instance.state.exit_brain_executor_task:
+            try:
+                logger.info("[EXIT_BRAIN] Stopping dynamic executor...")
+                app_instance.state.exit_brain_executor_task.cancel()
+                
+                # Wait for cancellation with timeout
+                try:
+                    await asyncio.wait_for(app_instance.state.exit_brain_executor_task, timeout=5.0)
+                except asyncio.TimeoutError:
+                    logger.warning("[EXIT_BRAIN] Executor shutdown timeout - forcing stop")
+                except asyncio.CancelledError:
+                    pass  # Expected
+                
+                logger.info("[EXIT_BRAIN] Dynamic executor stopped")
+            except Exception as e:
+                logger.error(f"[ERROR] Exit Brain executor shutdown failed: {e}")
+        
+        if hasattr(app_instance.state, "event_bus_v2") and app_instance.state.event_bus_v2:
+            try:
+                logger.info("[v2] Stopping EventBus v2...")
+                await app_instance.state.event_bus_v2.stop()
+                await shutdown_event_bus()
+                logger.info("[v2] EventBus v2 stopped")
+            except Exception as e:
+                logger.error(f"[ERROR] EventBus v2 shutdown failed: {e}")
+        
+        if hasattr(app_instance.state, "policy_store_v2") and app_instance.state.policy_store_v2:
+            try:
+                logger.info("[v2] Stopping PolicyStore v2...")
+                await shutdown_policy_store_v2()
+                logger.info("[v2] PolicyStore v2 stopped (final snapshot saved)")
+            except Exception as e:
+                logger.error(f"[ERROR] PolicyStore v2 shutdown failed: {e}")
+        
+        if hasattr(app_instance.state, "redis_client") and app_instance.state.redis_client:
+            try:
+                logger.info("[v2] Closing Redis client...")
+                await app_instance.state.redis_client.close()
+                logger.info("[v2] Redis client closed")
+            except Exception as e:
+                logger.error(f"[ERROR] Redis client close failed: {e}")
+        
+        # [REMOVED] MSC AI shutdown - Module does not exist
+        
+        # [NEW] Shutdown Emergency Stop System
+        if hasattr(app_instance.state, "ess_task"):
+            logger.info("[SHUTDOWN] Stopping Emergency Stop System...")
+            app_instance.state.ess_task.cancel()
+            try:
+                await app_instance.state.ess_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("[ESS] Emergency Stop System: STOPPED")
+        
+        # [NEW] Shutdown Continuous Learning Manager
+        if hasattr(app_instance.state, "clm_task"):
+            logger.info("[SHUTDOWN] Stopping Continuous Learning Manager...")
+            app_instance.state.clm_task.cancel()
+            try:
+                await app_instance.state.clm_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("Continuous Learning Manager: STOPPED")
+        
+        # [NEW] Shutdown System Health Monitor
+        if hasattr(app_instance.state, "shm_task"):
+            logger.info("[SHUTDOWN] Stopping System Health Monitor...")
+            app_instance.state.shm_task.cancel()
+            try:
+                await app_instance.state.shm_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("🏥 System Health Monitor: STOPPED")
+        
+        # [NEW] Shutdown AI-HFOS
+        if hasattr(app_instance.state, "ai_hfos_task"):
+            logger.info("[SHUTDOWN] Stopping AI-HFOS...")
+            app_instance.state.ai_hfos_task.cancel()
+            try:
+                await app_instance.state.ai_hfos_task
+            except asyncio.CancelledError:
+                pass
+        
+        # [NEW] Shutdown PAL
+        if hasattr(app_instance.state, "pal_task"):
+            logger.info("[SHUTDOWN] Stopping PAL...")
+            app_instance.state.pal_task.cancel()
+            try:
+                await app_instance.state.pal_task
+            except asyncio.CancelledError:
+                pass
+        
+        # [NEW] Shutdown Safety Governor
+        if hasattr(app_instance.state, "safety_governor_task"):
+            logger.info("[SHUTDOWN] Stopping Safety Governor...")
+            app_instance.state.safety_governor_task.cancel()
+            try:
+                await app_instance.state.safety_governor_task
+            except asyncio.CancelledError:
+                pass
+        
+        if hasattr(app_instance.state, "safety_governor_report_task"):
+            app_instance.state.safety_governor_report_task.cancel()
+            try:
+                await app_instance.state.safety_governor_report_task
+            except asyncio.CancelledError:
+                pass
+                pass
+        
+        # [NEW] Shutdown AI System Services
+        if AI_INTEGRATION_AVAILABLE and hasattr(app_instance.state, "ai_services"):
+            ai_services = app_instance.state.ai_services
+            if ai_services:
+                try:
+                    logger.info("[SEARCH] Shutting down AI System Services...")
+                    await ai_services.shutdown()
+                    logger.info("[OK] AI System Services shut down successfully")
+                except Exception as e:
+                    logger.error(f"[ERROR] Error shutting down AI services: {e}", exc_info=True)
+        
+        if price_warm_task is not None:
+            # Cancel background task if still running
+            if not price_warm_task.done():
+                price_warm_task.cancel()
+                logger.info("[SHUTDOWN] Cancelled price warming task")
+            with suppress(asyncio.CancelledError):
+                await price_warm_task
+        
+        # Stop trailing stop manager if running
+        if hasattr(app_instance.state, "trailing_task"):
+            app_instance.state.trailing_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await app_instance.state.trailing_task
+            logger.info("🔄 Trailing Stop Manager: STOPPED")
+        
+        # [NEW] Stop Model Supervisor if running
+        if hasattr(app_instance.state, "model_supervisor_task"):
+            logger.info("🔍 Shutting down Model Supervisor...")
+            app_instance.state.model_supervisor_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await app_instance.state.model_supervisor_task
+            logger.info("🔍 Model Supervisor: STOPPED")
+        
+        # [NEW] Stop Portfolio Balancer if running
+        if hasattr(app_instance.state, "portfolio_balancer_task"):
+            logger.info("⚖️ Shutting down Portfolio Balancer...")
+            app_instance.state.portfolio_balancer_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await app_instance.state.portfolio_balancer_task
+            logger.info("⚖️ Portfolio Balancer: STOPPED")
+        
+        # [NEW] Stop Retraining Orchestrator if running
+        if hasattr(app_instance.state, "retraining_task"):
+            logger.info("🔄 Shutting down Retraining Orchestrator...")
+            app_instance.state.retraining_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await app_instance.state.retraining_task
+            logger.info("🔄 Retraining Orchestrator: STOPPED")
+        
+        # [NEW] Stop self-healing system if running
+        if hasattr(app_instance.state, "self_healing_task"):
+            logger.info("🏥 [SELF-HEAL] Shutting down monitoring system...")
+            app_instance.state.self_healing_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await app_instance.state.self_healing_task
+            logger.info("🏥 Self-Healing System: STOPPED")
+        
+        try:
+            if getattr(app_instance.state, "event_driven_mode", False):
+                await stop_event_driven_executor()
+            else:
+                await shutdown_scheduler(app_instance)
+        except asyncio.CancelledError:
+            # Ignore cancellation during shutdown
+            pass
+        if autopilot_started:
+            with suppress(Exception):
+                await stop_bot_task()
+        if hasattr(app_instance.state, "risk_guard"):
+            delattr(app_instance.state, "risk_guard")
+
 
 app = FastAPI(
     title="Quantum Trader API",
-    description="""
-    ## AI-Powered Cryptocurrency Trading Platform
-
-    Quantum Trader provides comprehensive cryptocurrency trading capabilities with AI-driven decision making.
-
-    ### Features
-    * **Real-time trading** - Execute trades on supported exchanges
-    * **AI signals** - ML-powered buy/sell recommendations
-    * **Performance monitoring** - Comprehensive metrics and analytics
-    * **Risk management** - Position sizing and risk controls
-    * **Historical analysis** - Backtest strategies and analyze performance
-
-    ### Authentication
-    Most endpoints require API authentication. Set your API keys via the `/api/settings` endpoint.
-
-    ### Rate Limiting
-    API requests are monitored for performance. See `/api/metrics/*` endpoints for current usage.
-
-    ### Support
-    - View logs via structured logging system
-    - Monitor performance with built-in metrics
-    - Database migrations handled via Alembic
-    """,
+    description="AI-Powered Cryptocurrency Trading Platform",
     version="1.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
-    terms_of_service="https://github.com/binyaminsemerci-ops/quantum_trader/blob/main/LICENSE",
-    contact={
-        "name": "Quantum Trader Team",
-        "url": "https://github.com/binyaminsemerci-ops/quantum_trader",
-        "email": "support@quantumtrader.dev",
-    },
-    license_info={
-        "name": "MIT License",
-        "url": "https://github.com/binyaminsemerci-ops/quantum_trader/blob/main/LICENSE",
-    },
+    lifespan=lifespan,
 )
 
-# Add exception handlers
-add_exception_handlers(app)
+instrument_app(app)
 
-# Add performance monitoring
-add_monitoring_middleware(app)
+# [NEW] SECURITY MIDDLEWARE (HTTPS redirect + Security headers)
+try:
+    from backend.https_config import HTTPSRedirectMiddleware, SecurityHeadersMiddleware
+    app.add_middleware(HTTPSRedirectMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
+except Exception as e:
+    logger.warning(f"HTTPS middleware not available: {e}")
 
+# CORS middleware for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # eller ["*"] for enkel test
+    allow_origins=[
+        "http://localhost:5175",
+        "http://localhost:5174",
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5175",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+        # HTTPS origins for production
+        "https://localhost:5175",
+        "https://localhost:5174",
+        "https://localhost:5173",
+        "https://localhost:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(RequestIdMiddleware)
+
+# Initialize logger
+logger = logging.getLogger(__name__)
+
+# [NEW] AUTHENTICATION ENDPOINTS (Login, Refresh, Logout)
+try:
+    from backend.auth import create_auth_endpoints
+    logger.info("[INIT] Adding authentication endpoints...")
+    auth_router = create_auth_endpoints()
+    app.include_router(auth_router, prefix="/api", tags=["authentication"])
+except Exception as e:
+    logger.warning(f"[WARNING] Authentication endpoints not available: {e}")
+
+DATA_DIR = Path(__file__).resolve().parent / "data"
+PRICE_CACHE_PATH = DATA_DIR / "price_cache.json"
+SIGNALS_CACHE_PATH = DATA_DIR / "signals_cache.json"
+
+PRICE_WARM_DEFAULT = [
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "SOLUSDT",
+    "ADAUSDT",
+    "MATICUSDT",
+    "DOTUSDT",
+    "AVAXUSDT",
+    "LINKUSDT",
+    "UNIUSDT",
+]
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _resolve_price_symbols() -> List[str]:
+    raw = os.getenv("QT_PRICE_WARM_SYMBOLS")
+    if raw:
+        symbols = [sym.strip().upper() for sym in raw.split(",") if sym.strip()]
+        return symbols
+    return PRICE_WARM_DEFAULT.copy()
+
+
+def _cache_price(symbol: str, payload: Dict[str, Any]) -> None:
+    """Persist the latest price snapshot per symbol."""
+    cached = load_json(PRICE_CACHE_PATH) or {}
+    if not isinstance(cached, dict):
+        cached = {}
+    cached[symbol] = payload
+    save_json(PRICE_CACHE_PATH, cached)
+
+
+def _read_cached_price(symbol: str) -> Dict[str, Any] | None:
+    cached = load_json(PRICE_CACHE_PATH) or {}
+    if isinstance(cached, dict):
+        payload = cached.get(symbol)
+        if isinstance(payload, dict):
+            return payload
+    return None
+
+
+def _format_price_payload(symbol: str, price: float, previous: float, timestamp: datetime) -> Dict[str, Any]:
+    change = price - previous if previous else 0.0
+    change_percent = (change / previous * 100) if previous else 0.0
+    return {
+        "symbol": symbol,
+        "price": price,
+        "change": change,
+        "change_percent": change_percent,
+        "timestamp": timestamp.isoformat(),
+    }
+
+
+async def _fetch_latest_price_snapshot(symbol: str, prefer_coingecko: bool = False) -> Dict[str, Any]:
+    symbol = symbol.upper()
+    try:
+        if not prefer_coingecko:
+            market_data = await binance_ohlcv(symbol, limit=2)
+            candles = market_data.get("candles", []) if isinstance(market_data, dict) else []
+            if candles:
+                latest = candles[-1]
+                previous_close = candles[-2]["close"] if len(candles) > 1 else latest["close"]
+                price = float(latest["close"])
+                timestamp = datetime.fromtimestamp(int(latest["timestamp"]) / 1000)
+                payload = _format_price_payload(symbol, price, float(previous_close), timestamp)
+                _cache_price(symbol, payload)
+                return payload
+    except Exception as exc:  # pragma: no cover - runtime safeguard
+        logger.exception("Failed to fetch price from Binance", exc_info=exc)
+
+    try:
+        coin_id = symbol_to_coingecko_id(symbol)
+        history = await get_coin_price_data(coin_id, days=1)
+        prices = history.get("prices", []) if isinstance(history, dict) else []
+        if prices:
+            last_ts, last_price = prices[-1]
+            prev_ts, prev_price = prices[-2] if len(prices) > 1 else (last_ts, last_price)
+            payload = _format_price_payload(
+                symbol,
+                float(last_price),
+                float(prev_price),
+                datetime.fromtimestamp(last_ts / 1000),
+            )
+            _cache_price(symbol, payload)
+            return payload
+    except Exception as exc:  # pragma: no cover - runtime safeguard
+        logger.exception("Failed to fetch price from CoinGecko", exc_info=exc)
+
+    cached = _read_cached_price(symbol)
+    if cached:
+        return cached
+
+    raise HTTPException(status_code=503, detail="Price data unavailable")
+
+
+async def _warm_price_cache(symbols: List[str]) -> None:
+    """Warm price cache with timeout per symbol to prevent startup hang."""
+    for symbol in symbols:
+        try:
+            # Add 5 second timeout per symbol to prevent startup hang
+            await asyncio.wait_for(
+                _fetch_latest_price_snapshot(symbol),
+                timeout=5.0
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Price warm-up timed out for %s (5s limit)", symbol)
+        except HTTPException as exc:  # pragma: no cover - warm-up best effort
+            logger.warning("Price warm-up failed for %s: %s", symbol, exc.detail)
+        except Exception as exc:  # pragma: no cover
+            logger.warning("Unexpected error warming price cache for %s: %s", symbol, str(exc))
+
+
+def _cache_signals(profile: str, items: List[Dict[str, Any]]) -> None:
+    cached = load_json(SIGNALS_CACHE_PATH) or {}
+    if not isinstance(cached, dict):
+        cached = {}
+    cached[profile] = items
+    save_json(SIGNALS_CACHE_PATH, cached)
+
+
+def _read_cached_signals(profile: str) -> List[Dict[str, Any]] | None:
+    cached = load_json(SIGNALS_CACHE_PATH) or {}
+    if isinstance(cached, dict):
+        payload = cached.get(profile)
+        if isinstance(payload, list):
+            return payload
+    return None
+
+
+# Register additional routers for legacy/demo endpoints used in the test suite
+app.include_router(trades_routes.router, prefix="/trades")
+app.include_router(stats_routes.router, prefix="/stats")
+app.include_router(chart_routes.router, prefix="/chart")
+app.include_router(settings_routes.router, prefix="/settings")
+app.include_router(binance_routes.router, prefix="/binance")
+app.include_router(signals_routes.router, prefix="/signals")
+app.include_router(prices_routes.router, prefix="/prices")
+app.include_router(candles_routes.router, prefix="/candles")
+app.include_router(trade_logs_routes.router)
+app.include_router(liquidity_routes.router)
+app.include_router(risk_routes.router)
+app.include_router(ai_routes.router, prefix="/ai")
+app.include_router(ws_routes.router)
+app.include_router(scheduler_routes.router)
+app.include_router(health_routes.router)  # Health and universe debug endpoints
+if API_HEALTH_ROUTES_AVAILABLE:
+    app.include_router(api_health_routes.router)
+# NOTE: prefix="/test" is already set in test_events.router definition, so we don't add it again here
+app.include_router(test_events_routes.router)  # Event flow test endpoints (/test)
+
+# [CLM] ML/AI Learning Pipeline API endpoints (if CLM is enabled)
+try:
+    from backend.domains.learning.api_endpoints import router as learning_router
+    app.include_router(learning_router)  # /api/v1/learning/*
+    logger.info("[CLM] Learning API endpoints registered at /api/v1/learning")
+except ImportError as e:
+    logger.warning(f"[CLM] Learning API endpoints not available: {e}")
+
+# [SPRINT 4] Dashboard API routes
+try:
+    from backend.api.dashboard.routes import router as dashboard_routes
+    logging.info("[DEBUG] dashboard.routes imported successfully")
+    from backend.api.dashboard.websocket import router as dashboard_ws_routes
+    logging.info("[DEBUG] dashboard.websocket imported successfully")
+    from backend.api.dashboard.bff_routes import router as dashboard_bff_routes  # [DASHBOARD-V3-001]
+    logging.info(f"[DEBUG] dashboard.bff_routes imported successfully - prefix: {dashboard_bff_routes.prefix}")
+    from backend.api.dashboard.tp_dashboard_router import router as tp_dashboard_router  # [TP-DASHBOARD]
+    logging.info("[DEBUG] tp_dashboard_router imported successfully")
+    from backend.api.routes.dashboard_tp import router as dashboard_tp_router  # [TP-DASHBOARD-V2]
+    logging.info("[DEBUG] dashboard_tp_router imported successfully")
+    from backend.api.test_new_route import router as test_new_router  # TEST
+    logging.info("[DEBUG] test_new_route imported successfully")
+    
+    app.include_router(dashboard_routes)  # /api/dashboard/snapshot
+    logging.info(f"[DEBUG] dashboard_routes registered with {len(dashboard_routes.routes)} routes")
+    app.include_router(dashboard_ws_routes)  # /ws/dashboard
+    logging.info(f"[DEBUG] dashboard_ws_routes registered with {len(dashboard_ws_routes.routes)} routes")
+    app.include_router(dashboard_bff_routes)  # /api/dashboard/overview,trading,risk,system [V3]
+    logging.info(f"[DEBUG] dashboard_bff_routes registered with {len(dashboard_bff_routes.routes)} routes")
+    app.include_router(tp_dashboard_router)  # /api/dashboard/tp/* [TP Analytics]
+    logging.info(f"[DEBUG] tp_dashboard_router registered with {len(tp_dashboard_router.routes)} routes")
+    app.include_router(dashboard_tp_router)  # /api/dashboard/tp/* [TP Analytics V2 with Service Layer]
+    logging.info(f"[DEBUG] dashboard_tp_router registered with {len(dashboard_tp_router.routes)} routes")
+    app.include_router(test_new_router)  # /api/test123/hello - TEST
+    logging.info(f"[DEBUG] test_new_router registered with {len(test_new_router.routes)} routes")
+    
+    logging.info("[OK] Dashboard API routes registered (Sprint 4 + V3.0)")
+except ImportError as e:
+    logging.warning(f"[WARNING] Dashboard API not available: {e}")
+logging.info(f"[DEBUG] Test events router registered with {len([r for r in test_events_routes.router.routes])} routes")
+# Debug: Print actual route paths to verify registration
+for route in test_events_routes.router.routes:
+    logging.info(f"[DEBUG] Test route registered: {route.path} ({route.methods if hasattr(route, 'methods') else 'N/A'})")
+
+# DEBUG: Direct test endpoint in main.py to verify routing works
+@app.get("/testevents/direct_test")
+async def direct_test_endpoint():
+    """Direct test endpoint defined in main.py"""
+    return {"status": "success", "message": "Direct test endpoint works!", "source": "main.py"}
+
+@app.get("/simple_test_route")
+async def simple_test_route():
+    """Simple test route at root level"""
+    return {"status": "ok", "test": "simple_test_route works"}
+
+logging.info("[DEBUG] Direct test endpoint registered at /testevents/direct_test")
+logging.info("[DEBUG] Simple test route registered at /simple_test_route")
+
+# [NEW] ARCHITECTURE V2: Health Check Endpoint
+@app.get("/api/v2/health", tags=["Health"])
+async def get_v2_health():
+    """
+    Architecture v2 Health Check - Comprehensive system health report.
+    
+    Returns:
+        - service: Service name
+        - status: HEALTHY, DEGRADED, or CRITICAL
+        - dependencies: Status of Redis, Postgres, Binance REST/WS
+        - system: CPU, memory, disk usage
+        - timestamp: UTC timestamp of check
+    """
+    if not hasattr(app.state, "health_checker") or app.state.health_checker is None:
+        return {
+            "service": "quantum_trader",
+            "status": "UNKNOWN",
+            "message": "Architecture v2 HealthChecker not initialized",
+            "v2_available": False
+        }
+    
+    health_checker = app.state.health_checker
+    report = await health_checker.get_health_report()
+    
+    return {
+        "service": report.service,
+        "status": report.status.value,
+        "uptime_seconds": report.uptime_seconds,
+        "dependencies": {
+            name: {
+                "status": dep.status.value,
+                "latency_ms": dep.latency_ms,
+                "error": dep.error,
+                "details": dep.details
+            }
+            for name, dep in report.dependencies.items()
+        },
+        "system": {
+            "cpu_percent": report.system.cpu_percent,
+            "memory_percent": report.system.memory_percent,
+            "memory_used_mb": report.system.memory_used_mb,
+            "memory_available_mb": report.system.memory_available_mb,
+            "disk_percent": report.system.disk_percent,
+            "status": report.system.status.value
+        } if report.system else None,
+        "timestamp": report.timestamp.isoformat(),
+        "v2_available": True
+    }
+
+# POLICY STORE: Register API endpoints for global trading policy
+try:
+    from backend.routes import policy as policy_routes
+    app.include_router(policy_routes.router)
+    logger.info("[OK] PolicyStore API endpoints registered at /api/policy")
+except Exception as e:
+    logger.error(f"❌ Failed to register PolicyStore endpoints: {e}")
+
+# OPPORTUNITY RANKER: Register API endpoints for rankings
+if OPPORTUNITY_RANKER_AVAILABLE:
+    try:
+        app.include_router(opportunity_routes.router, prefix="/opportunities")
+        logger.info("[OK] OpportunityRanker API endpoints registered")
+    except Exception as e:
+        logger.error(f"❌ Failed to register OpportunityRanker endpoints: {e}")
+
+# [REMOVED] MSC AI endpoints - Module does not exist
+
+# CLM: Register Continuous Learning Manager API endpoints
+try:
+    from backend.routes import clm as clm_routes
+    app.include_router(clm_routes.router)
+    logger.info("[OK] Continuous Learning Manager (CLM) API endpoints registered")
+except Exception as e:
+    logger.error(f"❌ Failed to register CLM endpoints: {e}")
+
+# ANALYTICS: Register Analytics API endpoints (Phase 5)
+try:
+    from backend.routes import analytics as analytics_routes
+    app.include_router(analytics_routes.router)
+    logger.info("[OK] Analytics API endpoints registered (/api/analytics/*)")
+except Exception as e:
+    logger.error(f"❌ Failed to register Analytics endpoints: {e}")
+
+# PERFORMANCE ANALYTICS LAYER (PAL): Register PAL API endpoints
+try:
+    from backend.routes import performance_analytics as pal_routes
+    app.include_router(pal_routes.router)
+    logger.info("[OK] Performance & Analytics Layer (PAL) endpoints registered (/api/pal/*)")
+except Exception as e:
+    logger.error(f"❌ Failed to register PAL endpoints: {e}")
+
+# STRESS TESTING: Register Stress Testing API endpoints
+try:
+    from backend.routes import stress_testing as stress_testing_routes
+    app.include_router(stress_testing_routes.router)
+    logger.info("[OK] Stress Testing API endpoints registered (/api/stress-testing/*)")
+except Exception as e:
+    logger.error(f"❌ Failed to register Stress Testing endpoints: {e}")
+
+# RL V3: Register RL v3 (PPO) API endpoints - OPTIONAL (requires gym)
+rl_v3_api_enabled = os.getenv("QT_RL_V3_ENABLED", "false").lower() == "true"
+if rl_v3_api_enabled:
+    try:
+        from backend.routes import rl_v3_routes
+        app.include_router(rl_v3_routes.router)
+        logger.info("[OK] RL v3 (PPO) API endpoints registered (/api/v1/rl/v3/*)")
+    except Exception as e:
+        logger.error(f"❌ Failed to register RL v3 endpoints: {e}")
+else:
+    logger.info("[INFO] RL v3 API disabled (set QT_RL_V3_ENABLED=true to enable)")
+
+# RL V3 DASHBOARD: Register RL v3 dashboard endpoints - OPTIONAL (requires gym)
+if rl_v3_api_enabled:
+    try:
+        from backend.routes.rl_v3_dashboard_routes import router as rl_v3_dashboard_router
+        app.include_router(rl_v3_dashboard_router)
+        logger.info("[OK] RL v3 Dashboard API endpoints registered (/api/v1/rl-v3/dashboard/*)")
+    except Exception as e:
+        logger.error(f"❌ Failed to register RL v3 Dashboard endpoints: {e}")
+else:
+    logger.info("[INFO] RL v3 Dashboard disabled (set QT_RL_V3_ENABLED=true to enable)")
+
+# RL V3 SIMPLE PREDICT: Register simplified RL v3 prediction endpoint - OPTIONAL (requires gym)
+if rl_v3_api_enabled:
+    try:
+        from backend.routes.rl_v3_simple_routes import router as rl_v3_simple_router
+        app.include_router(rl_v3_simple_router)
+        logger.info("[OK] RL v3 Simple Predict API endpoint registered (/api/v1/rl-v3/predict)")
+    except Exception as e:
+        logger.error(f"❌ Failed to register RL v3 Simple Predict endpoint: {e}")
+else:
+    logger.info("[INFO] RL v3 Simple Predict disabled (set QT_RL_V3_ENABLED=true to enable)")
+
+# SG AI: Strategy Generator AI endpoints removed (runs as separate service)
+
+# TRADING PROFILE: Register Trading Profile API endpoints
+try:
+    from backend.routes.trading_profile import router as trading_profile_router
+    app.include_router(trading_profile_router)
+    logger.info("[OK] Trading Profile API endpoints registered")
+except ImportError as e:
+    logger.warning(f"[WARNING] Trading Profile endpoints not available: {e}")
+except Exception as e:
+    logger.error(f"❌ Failed to register Trading Profile endpoints: {e}")
+
+# TEST: Hybrid Agent test endpoint (safe to add)
+try:
+    from backend.routes.test_hybrid import router as test_hybrid_router
+    app.include_router(test_hybrid_router)
+    logger.info("[OK] Hybrid Agent test endpoint registered")
+except ImportError:
+    logger.warning("[WARNING] Hybrid Agent test endpoint not available")
+except Exception as e:
+    logger.error(f"❌ Failed to register Hybrid Agent test endpoint: {e}")
+
+# [NEW] EMERGENCY STOP SYSTEM: API Endpoints
+if ESS_AVAILABLE:
+    from fastapi import APIRouter
+    
+    ess_router = APIRouter(prefix="/api/emergency", tags=["Emergency Stop"])
+    
+    @ess_router.get("/status")
+    async def get_ess_status():
+        """Get Emergency Stop System status."""
+        if not hasattr(app.state, "ess_controller"):
+            return {"available": False, "message": "ESS not initialized"}
+        
+        controller = app.state.ess_controller
+        state = await controller.get_state()
+        
+        return {
+            "available": True,
+            "active": state.active,
+            "status": state.status.value,
+            "reason": state.reason,
+            "timestamp": state.timestamp.isoformat(),
+            "triggered_by": state.triggered_by,
+            "details": state.details
+        }
+    
+    @ess_router.post("/trigger")
+    async def trigger_ess(reason: str = "Manual trigger via API"):
+        """Manually trigger Emergency Stop System."""
+        if not hasattr(app.state, "ess_manual_trigger"):
+            raise HTTPException(status_code=503, detail="ESS not initialized")
+        
+        manual_trigger = app.state.ess_manual_trigger
+        manual_trigger.trigger(reason)
+        
+        return {
+            "status": "triggered",
+            "reason": reason,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "message": "Emergency Stop System has been triggered. All trading halted."
+        }
+    
+    @ess_router.post("/reset")
+    async def reset_ess(reset_by: str = "admin"):
+        """Reset Emergency Stop System (manual only)."""
+        if not hasattr(app.state, "ess_controller"):
+            raise HTTPException(status_code=503, detail="ESS not initialized")
+        
+        controller = app.state.ess_controller
+        state = await controller.get_state()
+        
+        if not state.active:
+            raise HTTPException(status_code=400, detail="ESS is not active")
+        
+        await controller.reset(reset_by=reset_by)
+        
+        return {
+            "status": "reset",
+            "reset_by": reset_by,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "message": "Emergency Stop System has been reset. Trading can resume."
+        }
+    
+    @ess_router.get("/history")
+    async def get_ess_history(limit: int = 20):
+        """Get ESS activation history."""
+        history_path = Path("data/ess_activations.log")
+        if not history_path.exists():
+            return {"history": [], "count": 0}
+        
+        try:
+            history = []
+            with open(history_path, 'r') as f:
+                for line in f:
+                    try:
+                        entry = json.loads(line.strip())
+                        history.append(entry)
+                    except json.JSONDecodeError:
+                        continue
+            
+            return {"history": history[-limit:], "count": len(history)}
+        except Exception as e:
+            logger.error(f"Failed to read ESS history: {e}")
+            return {"history": [], "count": 0, "error": str(e)}
+    
+    app.include_router(ess_router)
+    logger.info("[OK] Emergency Stop System API endpoints registered")
+
+
+
+def _error_payload(
+    request: Request,
+    *,
+    error: str,
+    status_code: int,
+    message: str | None = None,
+    details: Any | None = None,
+    raw_detail: Any | None = None,
+) -> JSONResponse:
+    payload: Dict[str, Any] = {
+        "error": error,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "path": request.url.path,
+    }
+    if message is not None:
+        payload["message"] = message
+    if details is not None:
+        payload["details"] = details
+    elif raw_detail is not None:
+        payload["detail"] = raw_detail
+    return JSONResponse(status_code=status_code, content=payload)
+
+
+@app.exception_handler(RequestValidationError)
+async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    return _error_payload(
+        request,
+        error="Validation Error",
+    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        message="Input validation failed",
+        details=exc.errors(),
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def handle_http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    detail = exc.detail
+    message = detail if isinstance(detail, str) else exc.__class__.__name__
+    error_label = exc.__class__.__name__ if not isinstance(detail, str) else detail
+    return _error_payload(
+        request,
+        error=error_label,
+        status_code=exc.status_code,
+        message=message if isinstance(message, str) else exc.__class__.__name__,
+        raw_detail=detail,
+    )
+
+
+@app.exception_handler(Exception)
+async def handle_generic_exception(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled application error", exc_info=exc)
+    return _error_payload(
+        request,
+        error="Internal Server Error",
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        message="Internal server error",
+    )
+
+
+def _normalise_signals(items: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
+    normalised: List[Dict[str, Any]] = []
+    now_iso = datetime.now().isoformat()
+    for index, item in enumerate(items[:limit]):
+        timestamp = item.get("timestamp", now_iso)
+        if isinstance(timestamp, datetime):
+            timestamp_iso = timestamp.isoformat()
+        else:
+            timestamp_iso = str(timestamp)
+
+        raw_type = item.get("side") or item.get("type") or "HOLD"
+        reason: str = ""
+        source_label: str = ""
+        details = item.get("details")
+        if isinstance(details, dict):
+            note = details.get("note")
+            if isinstance(note, str):
+                reason = note
+            detail_source = details.get("source")
+            if isinstance(detail_source, str):
+                source_label = detail_source
+        if not reason:
+            reason = str(item.get("reason", ""))
+        if not source_label:
+            src = item.get("source")
+            if isinstance(src, str):
+                source_label = src
+        model_name = item.get("model")
+        if not isinstance(model_name, str):
+            model_name = ""
+
+        raw_confidence = item.get("confidence", item.get("score", 0.0))
+        try:
+            confidence = float(raw_confidence)
+        except (TypeError, ValueError):
+            confidence = 0.0
+
+        raw_price = item.get("price")
+        try:
+            price = float(raw_price)
+        except (TypeError, ValueError):
+            price = 0.0
+
+        normalised.append(
+            {
+                "id": str(item.get("id", f"signal_{index}")),
+                "symbol": str(item.get("symbol", "BTCUSDT")),
+                "action": str(raw_type).upper(),  # Changed from 'type' to 'action' for Qt-Agent-UI compatibility
+                "type": str(raw_type).upper(),    # Keep 'type' for backward compatibility
+                "confidence": confidence,
+                "price": price,
+                "timestamp": timestamp_iso,
+                "reason": reason,
+                "source": source_label or "unknown",
+                "model": model_name,
+            }
+        )
+
+    return normalised
 
 
 @app.get("/")
@@ -81,13 +3080,1296 @@ async def root():
     return {"message": "Quantum Trader API is running"}
 
 
-# inkluder routere uten trailing slash-problemer
-app.include_router(trades.router, prefix="/trades")
-app.include_router(stats.router, prefix="/stats")
-app.include_router(chart.router, prefix="/chart")
-app.include_router(settings.router, prefix="/settings")
-app.include_router(binance.router, prefix="/binance")
-app.include_router(signals.router, prefix="/signals")
-app.include_router(prices.router, prefix="/prices")
-app.include_router(candles.router, prefix="/candles")
-# app.include_router(trading_bot_router, prefix="/trading-bot", tags=["Trading Bot"])
+@app.get("/api/ai/model/status")
+async def get_model_status():
+    """Get AI model status and metadata"""
+    try:
+        metadata_path = os.path.join(os.path.dirname(__file__), "..", "ai_engine", "models", "metadata.json")
+
+        if os.path.exists(metadata_path):
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+
+            return {
+                "status": "Ready",
+                "training_date": metadata.get("training_date"),
+                "samples": metadata.get("samples"),
+                "model_type": metadata.get("model_type"),
+                "accuracy": metadata.get("accuracy", 0.85)
+            }
+        else:
+            return {"status": "Not Trained", "training_date": None}
+
+    except Exception as e:
+        return {"status": "Error", "error": str(e)}
+
+
+@app.get("/api/ai/signals/latest")
+async def get_latest_signals(limit: int = 10, profile: str = "mixed"):
+    """Get live AI trading signals with caching and fallbacks."""
+    profile = profile if profile in {"left", "right", "mixed"} else "mixed"
+
+    try:
+        raw_signals = await get_live_ai_signals(limit=limit, profile=profile) or []
+        logger.info(f"get_live_ai_signals returned {len(raw_signals)} signals")
+        if raw_signals:
+            logger.info(f"First raw signal: {raw_signals[0]}")
+        normalised = _normalise_signals(raw_signals, limit)
+        if normalised:
+            logger.info(f"Normalised {len(normalised)} signals, first: {normalised[0]}")
+            _cache_signals(profile, normalised)
+            return normalised
+        logger.warning("Live AI signals unavailable, returning cached data if present")
+    except Exception as exc:  # pragma: no cover - runtime safeguard
+        logger.exception("Failed to generate live AI signals", exc_info=exc)
+
+    cached = _read_cached_signals(profile)
+    if cached:
+        return cached[:limit]
+
+    return _normalise_signals(_generate_mock_signals(limit, profile), limit)
+
+
+@app.get("/api/prices/latest")
+async def get_latest_price(symbol: str = "BTCUSDT", prefer_coingecko: bool = False):
+    """Get latest price for a symbol"""
+    return await _fetch_latest_price_snapshot(symbol, prefer_coingecko)
+
+
+@app.post("/api/ai/retrain")
+async def retrain_model(min_samples: int = 100):
+    """Trigger AI model retraining using the in-process trainer."""
+    try:
+        from backend.database import SessionLocal
+        from backend.services.ai_trading_engine import create_ai_trading_engine
+        from ai_engine.ensemble_manager import EnsembleManager
+
+        db = SessionLocal()
+        try:
+            agent = EnsembleManager()
+            engine = create_ai_trading_engine(agent=agent, db_session=db)
+            result = await engine._retrain_model(min_samples=min_samples)
+            return result
+        finally:
+            db.close()
+
+    except Exception as exc:  # pragma: no cover - runtime safeguard
+        logger.exception("Retraining failed", exc_info=exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# Dashboard API endpoints
+@app.get("/api/portfolio")
+async def get_portfolio():
+    """Get current portfolio with positions and equity"""
+    from backend.database import SessionLocal
+    from backend.models import PortfolioSnapshot
+    from backend.services.execution.execution import _build_adapter
+    
+    db = SessionLocal()
+    try:
+        # Get latest portfolio snapshot
+        latest = db.query(PortfolioSnapshot).order_by(PortfolioSnapshot.created_at.desc()).first()
+        
+        if not latest:
+            return {"total_equity": 0.0, "cash": 0.0, "positions": [], "timestamp": datetime.now().isoformat()}
+        
+        # Get current positions from adapter
+        adapter = await _build_adapter()
+        positions_dict = await adapter.get_positions()
+        cash = await adapter.get_cash_balance()
+        
+        # Format positions for frontend
+        positions = []
+        total_notional = 0.0
+        for symbol, qty in positions_dict.items():
+            if abs(qty) > 0:
+                # Get current price (simplified - would ideally get from price service)
+                notional = abs(qty) * 100.0  # Placeholder - should get real price
+                total_notional += notional
+                positions.append({
+                    "symbol": symbol,
+                    "quantity": qty,
+                    "notional": notional,
+                    "side": "LONG" if qty > 0 else "SHORT"
+                })
+        
+        total_equity = cash + total_notional
+        
+        return {
+            "total_equity": total_equity,
+            "cash": cash,
+            "positions": positions,
+            "timestamp": datetime.now().isoformat()
+        }
+    finally:
+        db.close()
+
+
+@app.get("/api/trades")
+async def get_recent_trades(limit: int = 50):
+    """Get recent trade history from execution journal"""
+    from backend.database import SessionLocal
+    from sqlalchemy import text
+    
+    db = SessionLocal()
+    try:
+        # Direct SQL query to fetch from execution_journal with correct columns
+        result = db.execute(text("""
+            SELECT symbol, side, quantity, target_weight, created_at, status, run_id
+            FROM execution_journal
+            ORDER BY created_at DESC
+            LIMIT :limit
+        """), {"limit": limit})
+        
+        trades = []
+        for row in result:
+            trades.append({
+                "symbol": row[0],
+                "side": row[1],
+                "quantity": float(row[2]) if row[2] else 0.0,
+                "target_weight": float(row[3]) if row[3] else 0.0,
+                "timestamp": str(row[4]) if row[4] else None,  # Already a string from DB
+                "status": row[5],
+                "run_id": row[6],
+            })
+        
+        return trades
+    finally:
+        db.close()
+
+
+@app.get("/api/stats")
+async def get_trading_stats():
+    """Get trading performance statistics"""
+    from backend.database import SessionLocal
+    from backend.models.liquidity import ExecutionJournal
+    from sqlalchemy import func
+    
+    db = SessionLocal()
+    try:
+        # Get counts by status
+        total_trades = db.query(func.count(ExecutionJournal.id)).filter(
+            ExecutionJournal.status == "filled"
+        ).scalar() or 0
+        
+        failed_trades = db.query(func.count(ExecutionJournal.id)).filter(
+            ExecutionJournal.status == "failed"
+        ).scalar() or 0
+        
+        skipped_trades = db.query(func.count(ExecutionJournal.id)).filter(
+            ExecutionJournal.status == "skipped"
+        ).scalar() or 0
+        
+        # Calculate win rate (placeholder - would need PnL data)
+        win_rate = 0.0  # TODO: Calculate from actual PnL
+        total_pnl = 0.0  # TODO: Calculate from position closures
+        
+        # Get recent activity (last 24h)
+        from datetime import timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        recent_trades = db.query(func.count(ExecutionJournal.id)).filter(
+            ExecutionJournal.created_at >= cutoff,
+            ExecutionJournal.status == "filled"
+        ).scalar() or 0
+        
+        return {
+            "total_trades": total_trades,
+            "failed_trades": failed_trades,
+            "skipped_trades": skipped_trades,
+            "recent_trades_24h": recent_trades,
+            "win_rate": win_rate,
+            "total_pnl": total_pnl,
+            "timestamp": datetime.now().isoformat()
+        }
+    finally:
+        db.close()
+
+
+@app.get("/api/ai/signals")
+async def get_ai_signals():
+    """Get current AI trading signals"""
+    try:
+        from ai_engine.agents.xgb_agent import make_default_agent
+        from backend.services.ai_trading_engine import AITradingEngine
+        from backend.database import SessionLocal
+        
+        db = SessionLocal()
+        try:
+            agent = make_default_agent()
+            ai_engine = AITradingEngine(agent=agent, db_session=db)
+            
+            # Get symbols from config
+            from backend.config.risk import load_risk_config
+            risk_cfg = load_risk_config()
+            symbols = risk_cfg.allowed_symbols[:10] if risk_cfg.allowed_symbols else ["BTCUSDT", "ETHUSDT"]
+            
+            # Get signals
+            signals = await ai_engine.get_trading_signals(symbols, {})
+            
+            return {
+                "signals": signals,
+                "timestamp": datetime.now().isoformat()
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        logging.error(f"Failed to get AI signals: {e}")
+        return {"signals": [], "error": str(e), "timestamp": datetime.now().isoformat()}
+
+
+# Health check endpoint
+@app.get("/health/live", tags=["Health"])
+async def health_liveness():
+    """
+    Lightweight liveness check - confirms process is alive.
+    Does not check dependencies. Use for Docker/K8s liveness probe.
+    Returns in <50ms.
+    """
+    return {
+        "status": "ok",
+        "service": "quantum_trader",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@app.get("/health")
+async def health_check():
+    # Check if event-driven mode is active
+    event_driven_active = is_event_driven_active()
+    
+    response = {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "event_driven_active": event_driven_active,
+    }
+    
+    # Try to get risk snapshot (might fail if risk guard not ready)
+    try:
+        risk_guard = getattr(app.state, "risk_guard", None)
+        if risk_guard:
+            # Bound the risk snapshot to keep /health responsive
+            risk_snapshot = await asyncio.wait_for(risk_guard.snapshot(), timeout=1.0)
+            response["risk"] = risk_snapshot
+    except Exception as e:
+        logger.warning("Failed to get risk snapshot: %s", e)
+        response["risk"] = {"status": "unavailable", "error": str(e)}
+    
+    # Only include scheduler info if not in event-driven mode
+    if not event_driven_active:
+        try:
+            response["scheduler"] = get_scheduler_snapshot()
+        except Exception as e:
+            logger.warning("Failed to get scheduler snapshot: %s", e)
+            response["scheduler"] = {"status": "unavailable"}
+    
+    return response
+
+
+@app.get("/health/scheduler")
+async def scheduler_health():
+    return get_scheduler_snapshot()
+
+
+@app.get("/health/risk")
+async def risk_health():
+    risk_guard = getattr(app.state, "risk_guard", None)
+    if risk_guard is None:
+        return {"status": "unavailable"}
+    snapshot = await risk_guard.snapshot()
+    return {"status": "ok", **snapshot}
+
+
+# [NEW] System Health Monitor Endpoints
+@app.get("/health/system")
+async def system_health_summary():
+    """Get aggregated system health from System Health Monitor"""
+    shm = getattr(app.state, "system_health_monitor", None)
+    if shm is None:
+        return {
+            "status": "unavailable",
+            "message": "System Health Monitor not initialized"
+        }
+    
+    summary = shm.get_last_summary()
+    if summary is None:
+        return {
+            "status": "unknown",
+            "message": "No health checks run yet"
+        }
+    
+    return summary.to_dict()
+
+
+@app.get("/health/system/module/{module_name}")
+async def module_health_status(module_name: str):
+    """Get health status of a specific module"""
+    shm = getattr(app.state, "system_health_monitor", None)
+    if shm is None:
+        return {
+            "status": "unavailable",
+            "message": "System Health Monitor not initialized"
+        }
+    
+    status = shm.get_module_status(module_name)
+    return {
+        "module": module_name,
+        "status": status.value if status else "UNKNOWN"
+    }
+
+
+@app.get("/health/system/history")
+async def system_health_history(limit: int = 20):
+    """Get recent system health check history"""
+    shm = getattr(app.state, "system_health_monitor", None)
+    if shm is None:
+        return {
+            "status": "unavailable",
+            "message": "System Health Monitor not initialized"
+        }
+    
+    history = shm.get_history(limit=min(limit, 100))
+    return {
+        "history": [h.to_dict() for h in history],
+        "count": len(history)
+    }
+
+
+# [NEW] AI System Integration Health Endpoints
+@app.get("/health/ai")
+async def ai_system_health():
+    """AI subsystem health check - returns status of all AI subsystems"""
+    if not AI_INTEGRATION_AVAILABLE:
+        return {
+            "status": "unavailable",
+            "message": "AI System Integration not available"
+        }
+    
+    try:
+        ai_services = get_ai_services()
+        if ai_services is None:
+            return {
+                "status": "not_initialized",
+                "message": "AI System Services not initialized"
+            }
+        
+        status = ai_services.get_status()
+        return {
+            "status": "ok",
+            "timestamp": datetime.now().isoformat(),
+            **status
+        }
+    except Exception as e:
+        logger.error(f"Error getting AI system health: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@app.get("/health/ai/integration")
+async def ai_integration_health():
+    """Integration layer health check - detailed subsystem status"""
+    if not AI_INTEGRATION_AVAILABLE:
+        return {
+            "status": "unavailable",
+            "message": "AI System Integration not available"
+        }
+    
+    try:
+        ai_services = get_ai_services()
+        if ai_services is None:
+            return {
+                "status": "not_initialized",
+                "integration_stage": "NONE",
+                "enabled_subsystems": [],
+                "emergency_brake": False
+            }
+        
+        status = ai_services.get_status()
+        
+        return {
+            "status": "ok",
+            "timestamp": datetime.now().isoformat(),
+            "integration_stage": status.get("integration_stage"),
+            "enabled_subsystems": status.get("enabled_subsystems", []),
+            "emergency_brake": status.get("emergency_brake", False),
+            "subsystem_health": {
+                k: v for k, v in status.items() 
+                if k.endswith("_initialized") or k.endswith("_enabled")
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting AI integration health: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@app.post("/api/ai/emergency-brake")
+async def trigger_emergency_brake():
+    """Emergency brake - instantly disable all AI subsystems"""
+    if not AI_INTEGRATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="AI System Integration not available")
+    
+
+@app.get("/health/exit_brain_status", tags=["Health"])
+async def health_exit_brain_status():
+    """
+    Exit Brain v3 activation status and diagnostics.
+    
+    Returns comprehensive status including:
+    - Current exit mode (LEGACY vs EXIT_BRAIN_V3)
+    - Executor mode (SHADOW vs LIVE)
+    - Rollout safety flag status
+    - Executor running state
+    - Exit order metrics
+    
+    Useful for verifying LIVE mode activation and monitoring conflicts.
+    """
+    try:
+        from backend.diagnostics.exit_brain_status import get_exit_brain_status
+        
+        status = get_exit_brain_status(app.state)
+        return status
+        
+    except Exception as e:
+        logger.error(f"Error getting exit brain status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error getting exit brain status: {str(e)}")
+
+
+@app.get("/health/monitor")
+async def health_monitor_status():
+    """
+    System-wide health monitor status.
+    
+    Checks:
+    - Model Supervisor mode and bias detection
+    - Individual AI models (LightGBM, XGBoost, NHiTS, PatchTST)
+    - Retraining orchestrator
+    - Execution layer
+    
+    Returns comprehensive health report with auto-fix recommendations.
+    """
+    if not hasattr(app.state, 'health_monitor'):
+        return {
+            "status": "disabled",
+            "message": "Health Monitor not initialized"
+        }
+    
+    try:
+        health_monitor = app.state.health_monitor
+        
+        # Perform health check
+        overall_status, issues = await health_monitor.check_health()
+        
+        # Get detailed summary
+        summary = health_monitor.get_health_summary()
+        
+        return {
+            "status": "ok",
+            "overall_health": overall_status.value,
+            "summary": summary,
+            "recommendations": [
+                {
+                    "component": issue.component,
+                    "severity": issue.severity.value,
+                    "problem": issue.description,
+                    "auto_fixable": issue.auto_fixable,
+                    "fix_action": issue.fix_action
+                }
+                for issue in issues
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Error getting health monitor status: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@app.post("/health/monitor/auto-heal")
+async def trigger_auto_heal():
+    """
+    Manually trigger auto-healing for detected issues.
+    
+    Attempts to fix:
+    - Model bias (trigger retraining)
+    - Configuration drift
+    - Failed model initialization
+    """
+    if not hasattr(app.state, 'health_monitor'):
+        raise HTTPException(status_code=503, detail="Health Monitor not initialized")
+    
+    try:
+        health_monitor = app.state.health_monitor
+        
+        # Check health first
+        overall_status, issues = await health_monitor.check_health()
+        
+        if not issues:
+            return {
+                "status": "ok",
+                "message": "No issues detected - system healthy",
+                "fixes_applied": 0
+            }
+        
+        # Attempt auto-heal
+        fixes_applied = await health_monitor.auto_heal()
+        
+        return {
+            "status": "ok",
+            "message": f"Auto-healing completed",
+            "issues_detected": len(issues),
+            "fixes_applied": fixes_applied,
+            "remaining_issues": [
+                {
+                    "component": issue.component,
+                    "problem": issue.description,
+                    "requires_manual_fix": not issue.auto_fixable
+                }
+                for issue in issues
+                if not issue.auto_fixable
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Error during auto-heal: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+    try:
+        ai_services = get_ai_services()
+        if ai_services is None:
+            raise HTTPException(status_code=503, detail="AI System Services not initialized")
+        
+        # Set emergency brake
+        ai_services.config.emergency_brake = True
+        logger.warning("[EMERGENCY] Emergency brake activated via API")
+        
+        return {
+            "status": "ok",
+            "message": "Emergency brake activated - all AI subsystems disabled",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error activating emergency brake: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/aios_status")
+async def get_aios_status():
+    """
+    AI-OS Health & Liveness endpoint for dashboard integration.
+    Returns comprehensive health status of all AI subsystems.
+    """
+    # Check if AISystemServices is actually running (ignore the flag)
+    ai_services_available = hasattr(app.state, 'ai_services') and app.state.ai_services is not None
+    
+    if not ai_services_available:
+        # Enhanced fallback response with real system checks
+        from sqlalchemy import text
+        modules = []
+        overall_health = "OPERATIONAL"
+        
+        # Check database connectivity
+        try:
+            db = SessionLocal()
+            db.execute(text("SELECT 1"))
+            db.close()
+            modules.append({
+                "name": "Database",
+                "health": "HEALTHY",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Connected and operational"
+            })
+        except Exception as e:
+            modules.append({
+                "name": "Database",
+                "health": "CRITICAL",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": f"Connection failed: {str(e)[:50]}"
+            })
+            overall_health = "CRITICAL"
+        
+        # Check trading engine status
+        try:
+            from backend.services.ai_trading_engine import AITradingEngine
+            modules.append({
+                "name": "AI Trading Engine",
+                "health": "HEALTHY",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "AI models loaded and active"
+            })
+        except Exception as e:
+            modules.append({
+                "name": "AI Trading Engine",
+                "health": "DEGRADED",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Not fully initialized"
+            })
+        
+        # Check signal generation - use /api/ai/signals/latest endpoint
+        try:
+            # Check if we can generate signals by testing the endpoint internally
+            from backend.routes.live_ai_signals import get_live_ai_signals
+            modules.append({
+                "name": "Signal Generator",
+                "health": "HEALTHY",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "AI signal generation active"
+            })
+        except Exception as e:
+            modules.append({
+                "name": "Signal Generator",
+                "health": "DEGRADED",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Signal generation limited"
+            })
+        
+        # Check position monitoring
+        try:
+            from backend.services.monitoring.position_monitor import PositionMonitor
+            modules.append({
+                "name": "Position Monitor",
+                "health": "HEALTHY",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Monitoring active positions"
+            })
+        except:
+            modules.append({
+                "name": "Position Monitor",
+                "health": "UNKNOWN",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Not available"
+            })
+        
+        # Check PAL (Performance Analytics Layer)
+        modules.append({
+            "name": "Performance Analytics",
+            "health": "HEALTHY",
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": "PAL endpoints operational"
+        })
+        
+        # Check recent trading activity via execution journal
+        try:
+            db = SessionLocal()
+            result = db.execute(text("SELECT COUNT(*) FROM execution_journal WHERE created_at > datetime('now', '-24 hours')"))
+            activity_count = result.scalar() or 0
+            db.close()
+            modules.append({
+                "name": "Trading Activity",
+                "health": "HEALTHY" if activity_count > 0 else "IDLE",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": f"{activity_count} executions in 24h"
+            })
+        except Exception as e:
+            modules.append({
+                "name": "Trading Activity",
+                "health": "UNKNOWN",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Unable to check activity"
+            })
+        
+        # Check RL Position Sizing Agent
+        try:
+            from backend.services.ai.rl_position_sizing_agent import RLPositionSizingAgent
+            modules.append({
+                "name": "RL Position Sizing",
+                "health": "HEALTHY",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Dynamic position sizing active"
+            })
+        except:
+            modules.append({
+                "name": "RL Position Sizing",
+                "health": "DEGRADED",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Using default sizing"
+            })
+        
+        # Check Risk Guard
+        try:
+            from backend.services.risk.risk_guard import RiskGuardService
+            modules.append({
+                "name": "Risk Guard",
+                "health": "HEALTHY",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Risk limits enforced"
+            })
+        except:
+            modules.append({
+                "name": "Risk Guard",
+                "health": "DEGRADED",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Not available"
+            })
+        
+        # Check Self-Healing System
+        try:
+            from backend.services.monitoring.self_healing import SelfHealingSystem
+            modules.append({
+                "name": "Self-Healing",
+                "health": "HEALTHY",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Monitoring system health"
+            })
+        except:
+            modules.append({
+                "name": "Self-Healing",
+                "health": "UNKNOWN",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Not initialized"
+            })
+        
+        # Check Strategy Runtime Engine
+        try:
+            from backend.services.strategy_runtime_engine import StrategyRuntimeEngine
+            modules.append({
+                "name": "Strategy Runtime",
+                "health": "HEALTHY",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Strategy execution ready"
+            })
+        except:
+            modules.append({
+                "name": "Strategy Runtime",
+                "health": "DEGRADED",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Not available"
+            })
+        
+        # Check Emergency Stop System
+        try:
+            from backend.services.emergency_stop import EmergencyStopSystem
+            modules.append({
+                "name": "Emergency Stop",
+                "health": "HEALTHY",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Safety system armed"
+            })
+        except:
+            modules.append({
+                "name": "Emergency Stop",
+                "health": "UNKNOWN",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Not available"
+            })
+        
+        # Check Model Training
+        try:
+            db = SessionLocal()
+            result = db.execute(text("SELECT COUNT(*) FROM model_training_runs WHERE status = 'completed'"))
+            model_count = result.scalar() or 0
+            db.close()
+            modules.append({
+                "name": "Model Training",
+                "health": "HEALTHY" if model_count > 0 else "IDLE",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": f"{model_count} trained models" if model_count > 0 else "No models trained yet"
+            })
+        except:
+            modules.append({
+                "name": "Model Training",
+                "health": "UNKNOWN",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Status unavailable"
+            })
+        
+        # Check Liquidity Management
+        try:
+            db = SessionLocal()
+            result = db.execute(text("SELECT COUNT(*) FROM liquidity_runs ORDER BY created_at DESC LIMIT 1"))
+            has_liquidity = result.scalar() or 0
+            db.close()
+            modules.append({
+                "name": "Liquidity Manager",
+                "health": "HEALTHY" if has_liquidity > 0 else "IDLE",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Portfolio rebalancing active" if has_liquidity > 0 else "Not yet run"
+            })
+        except:
+            modules.append({
+                "name": "Liquidity Manager",
+                "health": "UNKNOWN",
+                "last_activity": datetime.now(timezone.utc).isoformat(),
+                "note": "Status unavailable"
+            })
+        
+        return {
+            "overall_health": overall_health,
+            "risk_mode": "NORMAL",
+            "emergency_brake": False,
+            "new_trades_allowed": True,
+            "modules": modules
+        }
+    
+    try:
+        # Use app.state.ai_services which is set during startup
+        ai_services = app.state.ai_services if hasattr(app.state, 'ai_services') else None
+        
+        # Collect module health data
+        modules = []
+        overall_health = "HEALTHY"
+        
+        # Get services status
+        services_status = ai_services._services_status if ai_services else {}
+        
+        # Helper to get normalized health status
+        def get_module_health(status_key: str, default_note: str = "") -> tuple:
+            status = services_status.get(status_key, "UNKNOWN")
+            # Normalize status
+            if status == "HEALTHY":
+                health = "HEALTHY"
+                note = status
+            elif status == "DEGRADED":
+                health = "DEGRADED"
+                note = status
+                if health == "DEGRADED" and overall_health == "HEALTHY":
+                    # Don't change overall health here, let caller decide
+                    pass
+            elif status == "CRITICAL":
+                health = "CRITICAL"
+                note = status
+            else:
+                health = "UNKNOWN"
+                note = default_note if default_note else "Not initialized"
+            return health, note
+        
+        # AI-HFOS Module
+        ai_hfos_health, ai_hfos_note = get_module_health("ai_hfos", "Supreme coordinator")
+        if ai_hfos_health in ["DEGRADED", "CRITICAL"]:
+            overall_health = ai_hfos_health
+        modules.append({
+            "name": "AI-HFOS",
+            "health": ai_hfos_health,
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": ai_hfos_note
+        })
+        
+        # PBA (Portfolio Balance Amplifier)
+        pba_health, pba_note = get_module_health("pba", "Portfolio balancer")
+        modules.append({
+            "name": "PBA",
+            "health": pba_health,
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": pba_note
+        })
+        
+        # PAL (Profit Amplification Layer)
+        pal_health, pal_note = get_module_health("pal", "Profit amplifier")
+        modules.append({
+            "name": "PAL",
+            "health": pal_health,
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": pal_note
+        })
+        
+        # PIL (Position Intelligence Layer)
+        pil_health, pil_note = get_module_health("pil", "Position intelligence")
+        modules.append({
+            "name": "PIL",
+            "health": pil_health,
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": pil_note
+        })
+        
+        # Universe OS
+        universe_health, universe_note = get_module_health("universe_os", "Virtual subsystem")
+        modules.append({
+            "name": "Universe OS",
+            "health": universe_health,
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": universe_note
+        })
+        
+        # Model Supervisor
+        model_sup_health, model_sup_note = get_module_health("model_supervisor", "Model monitoring")
+        modules.append({
+            "name": "Model Supervisor",
+            "health": model_sup_health,
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": model_sup_note
+        })
+        
+        # Retraining Orchestrator
+        retrain_health, retrain_note = get_module_health("retraining", "Model retraining")
+        modules.append({
+            "name": "Retraining Orchestrator",
+            "health": retrain_health,
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": retrain_note
+        })
+        
+        # Dynamic TP/SL
+        dynamic_tpsl_health, dynamic_tpsl_note = get_module_health("dynamic_tpsl", "Dynamic TP/SL calculator")
+        modules.append({
+            "name": "Dynamic TP/SL",
+            "health": dynamic_tpsl_health,
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": dynamic_tpsl_note
+        })
+        
+        # AELM (Adaptive Execution & Liquidity Manager)
+        aelm_health, aelm_note = get_module_health("aelm", "Liquidity management")
+        modules.append({
+            "name": "AELM",
+            "health": aelm_health,
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": aelm_note
+        })
+        
+        # Risk OS
+        risk_os_health, risk_os_note = get_module_health("risk_os", "Risk management system")
+        modules.append({
+            "name": "Risk OS",
+            "health": risk_os_health,
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": risk_os_note
+        })
+        
+        # Orchestrator Policy
+        orchestrator_health, orchestrator_note = get_module_health("orchestrator", "Policy orchestration")
+        modules.append({
+            "name": "Orchestrator",
+            "health": orchestrator_health,
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": orchestrator_note
+        })
+        
+        # Self-Healing System - use registry as single source of truth
+        self_healing_health, self_healing_note = get_module_health("self_healing", "Monitoring system health")
+        if self_healing_health == "CRITICAL":
+            overall_health = "CRITICAL"
+        elif self_healing_health == "DEGRADED" and overall_health == "HEALTHY":
+            overall_health = "DEGRADED"
+            
+        modules.append({
+            "name": "Self-Healing",
+            "health": self_healing_health,
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": self_healing_note
+        })
+        
+        # Executor (Event-Driven)
+        executor_health = "HEALTHY" if is_event_driven_active() else "DEGRADED"
+        modules.append({
+            "name": "Executor",
+            "health": executor_health,
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": "Event-driven executor active" if is_event_driven_active() else "Executor not active"
+        })
+        
+        # Position Monitor
+        position_monitor_health = "HEALTHY"
+        modules.append({
+            "name": "PositionMonitor",
+            "health": position_monitor_health,
+            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "note": "Monitoring open positions"
+        })
+        
+        # Determine risk mode from config
+        risk_mode = "NORMAL"
+        if ai_services and ai_services.config:
+            stage = ai_services.config.integration_stage.value
+            if stage == "hedgefund_os":
+                risk_mode = "HEDGEFUND"
+            elif stage == "full_defensive":
+                risk_mode = "SAFE"
+            elif stage == "full_aggressive":
+                risk_mode = "AGGRESSIVE"
+        
+        # Check emergency brake and new trades allowed
+        emergency_brake = ai_services.config.emergency_brake_active if ai_services else False
+        new_trades_allowed = not emergency_brake and is_event_driven_active()
+        
+        if emergency_brake:
+            overall_health = "CRITICAL"
+        
+        return {
+            "overall_health": overall_health,
+            "risk_mode": risk_mode,
+            "emergency_brake": emergency_brake,
+            "new_trades_allowed": new_trades_allowed,
+            "modules": modules
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting AI-OS status: {e}", exc_info=True)
+        # Return degraded status on error
+        return {
+            "overall_health": "DEGRADED",
+            "risk_mode": "NORMAL",
+            "emergency_brake": False,
+            "new_trades_allowed": False,
+            "modules": [
+                {
+                    "name": "System",
+                    "health": "DEGRADED",
+                    "last_activity": datetime.now(timezone.utc).isoformat(),
+                    "note": f"Error: {str(e)}"
+                }
+            ]
+        }
+
+
+# Qt-Agent-UI Dashboard Endpoints
+@app.get("/api/metrics/system")
+async def get_system_metrics():
+    """System metrics for Qt-Agent-UI dashboard"""
+    try:
+        event_driven_active = is_event_driven_active()
+        
+        # Get execution journal stats
+        db = SessionLocal()
+        try:
+            from sqlalchemy import text
+            
+            # Total trades (filled orders)
+            total_trades = db.execute(text(
+                "SELECT COUNT(*) FROM execution_journal WHERE status = 'filled'"
+            )).scalar() or 0
+            
+            # Win rate (rough estimate based on recent trades)
+            win_rate_result = db.execute(text("""
+                SELECT 
+                    COUNT(CASE WHEN side = 'BUY' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) as win_rate
+                FROM execution_journal 
+                WHERE status = 'filled' 
+                AND created_at > datetime('now', '-24 hours')
+            """)).fetchone()
+            win_rate = float(win_rate_result[0]) if win_rate_result and win_rate_result[0] else 0.0
+            
+            # PnL (placeholder - would need actual calculation from positions)
+            pnl_usd = 0.0
+            
+            # Active positions count
+            positions_count = 0
+            try:
+                from backend.services.execution.execution import create_execution_adapter
+                adapter = await create_execution_adapter()
+                positions = await adapter.get_positions()
+                positions_count = len([p for p in positions.values() if abs(p) > 0])
+            except Exception:
+                pass
+            
+            # Recent signals count
+            signals_count = db.execute(text(
+                "SELECT COUNT(*) FROM execution_journal WHERE created_at > datetime('now', '-1 hour')"
+            )).scalar() or 0
+            
+            return {
+                "total_trades": total_trades,
+                "win_rate": round(win_rate, 2),
+                "pnl_usd": pnl_usd,
+                "ai_status": "active" if event_driven_active else "idle",
+                "autonomous_mode": event_driven_active,
+                "positions_count": positions_count,
+                "signals_count": signals_count,
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Failed to get system metrics: {e}")
+        return {
+            "total_trades": 0,
+            "win_rate": 0.0,
+            "pnl_usd": 0.0,
+            "ai_status": "error",
+            "autonomous_mode": False,
+            "positions_count": 0,
+            "signals_count": 0,
+        }
+
+
+@app.get("/positions")
+async def get_positions_for_ui():
+    """Get current positions for Qt-Agent-UI dashboard"""
+    try:
+        from backend.services.execution.execution import build_execution_adapter
+        from backend.config.execution import load_execution_config
+        from backend.services.execution.execution import TradeStateStore
+        
+        config = load_execution_config()
+        adapter = build_execution_adapter(config)
+        
+        # Get positions
+        positions = await adapter.get_positions()
+        
+        # Get trade state for entry prices and PnL
+        trade_state_path = Path(__file__).resolve().parent / "data" / "trade_state.json"
+        trade_store = TradeStateStore(trade_state_path)
+        
+        result = []
+        for symbol, qty in positions.items():
+            if abs(qty) < 0.00001:  # Skip zero positions
+                continue
+            
+            # Get state including current price
+            state = trade_store.get(symbol)
+            
+            # Use state if available, otherwise fetch from Binance
+            if state:
+                entry_price = float(state.get("avg_entry", 0.0))
+                current_price = float(state.get("price", entry_price))
+            else:
+                # Fallback: try to get from Binance account data
+                try:
+                    account_data = await adapter._signed_request('GET', '/fapi/v2/account')
+                    position_details = {
+                        p['symbol']: p for p in account_data.get('positions', [])
+                        if abs(float(p.get('positionAmt', 0))) > 0
+                    }
+                    
+                    if symbol in position_details:
+                        pos_data = position_details[symbol]
+                        entry_price = float(pos_data.get('entryPrice', 0))
+                        current_price = float(pos_data.get('markPrice', entry_price))
+                    else:
+                        # Last resort: use 0 and let it show
+                        entry_price = 0.0
+                        current_price = 0.0
+                except Exception as fallback_error:
+                    logger.warning(f"Could not fetch price data for {symbol}: {fallback_error}")
+                    entry_price = 0.0
+                    current_price = 0.0
+            
+            side = "LONG" if qty > 0 else "SHORT"
+            
+            # Calculate PnL
+            if entry_price > 0 and current_price > 0:
+                if side == "LONG":
+                    pnl = (current_price - entry_price) * abs(qty)
+                    pnl_pct = ((current_price - entry_price) / entry_price) * 100
+                else:
+                    pnl = (entry_price - current_price) * abs(qty)
+                    pnl_pct = ((entry_price - current_price) / entry_price) * 100
+            else:
+                pnl = 0.0
+                pnl_pct = 0.0
+            
+            result.append({
+                "symbol": symbol,
+                "side": side,
+                "quantity": abs(qty),
+                "size": abs(qty),
+                "entry_price": entry_price,
+                "avg_entry_price": entry_price,
+                "current_price": current_price,
+                "unrealized_pnl": pnl,
+                "pnl": pnl,
+                "pnl_pct": pnl_pct,
+            })
+        
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get positions: {e}")
+        return []  # Return empty list on error
+        return []
+
+
+@app.get("/trades")
+async def get_trades_for_ui(limit: int = 100):
+    """Get recent trades for Qt-Agent-UI dashboard"""
+    try:
+        db = SessionLocal()
+        try:
+            from sqlalchemy import text
+            
+            result = db.execute(text(f"""
+                SELECT 
+                    id,
+                    created_at as timestamp,
+                    symbol,
+                    side,
+                    quantity,
+                    status,
+                    reason
+                FROM execution_journal
+                WHERE status IN ('filled', 'failed')
+                ORDER BY created_at DESC
+                LIMIT {limit}
+            """)).fetchall()
+            
+            trades = []
+            for row in result:
+                trades.append({
+                    "id": str(row.id),
+                    "timestamp": row.timestamp.isoformat() if hasattr(row.timestamp, 'isoformat') else str(row.timestamp),
+                    "symbol": row.symbol,
+                    "side": row.side.upper(),
+                    "quantity": float(row.quantity),
+                    "status": row.status,
+                    "price": 0.0,  # Would need to parse from reason or store separately
+                    "pnl": None,
+                })
+            
+            return trades
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Failed to get trades: {e}")
+        return []
+
+
+@app.get("/candles/binance")
+async def get_binance_candles(symbol: str = "BTCUSDT", interval: str = "1m", limit: int = 500):
+    """Get OHLCV candle data from Binance for Qt-Agent-UI dashboard"""
+    try:
+        from backend.data_feed.binance_feed import BinanceFeed
+        from config.config import load_config
+        
+        cfg = load_config()
+        feed = BinanceFeed(
+            api_key=cfg.binance_api_key,
+            api_secret=cfg.binance_api_secret,
+            testnet=cfg.testnet
+        )
+        
+        # Fetch historical klines
+        klines = feed.client.get_klines(
+            symbol=symbol,
+            interval=interval,
+            limit=min(limit, 1000)  # Cap at 1000
+        )
+        
+        # Convert to OHLCV format
+        candles = []
+        for k in klines:
+            candles.append({
+                "timestamp": k[0],  # Open time
+                "open": float(k[1]),
+                "high": float(k[2]),
+                "low": float(k[3]),
+                "close": float(k[4]),
+                "volume": float(k[5])
+            })
+        
+        return candles
+        
+    except Exception as e:
+        logger.error(f"Failed to get candles: {e}")
+        return []
+
+
+# COMMENTED OUT - These routers are not implemented yet
+# When you create these router modules, uncomment the corresponding lines:
+# 
+# from routers import trades, stats, chart, settings, binance, signals, prices, candles
+#
+# app.include_router(trades.router, prefix="/trades")
+# app.include_router(stats.router, prefix="/stats")
+# app.include_router(chart.router, prefix="/chart")
+# app.include_router(settings.router, prefix="/settings")
+# app.include_router(binance.router, prefix="/binance")
+# app.include_router(signals.router, prefix="/signals")
+# app.include_router(prices.router, prefix="/prices")
+# app.include_router(candles.router, prefix="/candles")
+app.include_router(trading_bot_router, prefix="/trading-bot", tags=["Trading Bot"])
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

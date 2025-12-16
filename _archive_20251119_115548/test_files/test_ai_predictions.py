@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""
+Test AI model predictions locally
+"""
+import os
+import sys
+import pickle
+import numpy as np
+from datetime import datetime
+
+import pytest
+
+# Add ai_engine to path
+sys.path.append(os.path.dirname(__file__))
+
+
+# SimpleScaler class definition (must match the one used during training)
+class SimpleScaler:
+    """Simple scaler for normalization"""
+
+    def fit(self, X):
+        self.mean_ = np.nanmean(X, axis=0)
+        self.scale_ = np.nanstd(X, axis=0)
+        self.scale_[self.scale_ == 0] = 1.0
+
+    def transform(self, X):
+        return (X - self.mean_) / self.scale_
+
+    def fit_transform(self, X):
+        self.fit(X)
+        return self.transform(X)
+
+
+# Align module path with pickled SimpleScaler originating from training script
+SimpleScaler.__module__ = "__main__"
+
+def test_model_predictions():
+    """Test the trained AI model with sample data."""
+
+    model_path = os.path.join("ai_engine", "models", "xgb_model.pkl")
+    scaler_path = os.path.join("ai_engine", "models", "scaler.pkl")
+    metadata_path = os.path.join("ai_engine", "models", "metadata.json")
+    
+    # Check if model files exist
+    if not os.path.exists(model_path):
+        pytest.skip(f"Model file not found: {model_path}")
+    
+    if not os.path.exists(scaler_path):
+        pytest.skip(f"Scaler file not found: {scaler_path}")
+    
+    try:
+        # Load the model and scaler
+        with open(model_path, 'rb') as f:
+            model = pickle.load(f)
+        
+        class _ScalerUnpickler(pickle.Unpickler):
+            def find_class(self, module, name):
+                if module == "__main__" and name == "SimpleScaler":
+                    return SimpleScaler
+                return super().find_class(module, name)
+
+        with open(scaler_path, 'rb') as f:
+            scaler = _ScalerUnpickler(f).load()
+        
+        # Load metadata if available
+        if os.path.exists(metadata_path):
+            import json
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+            print(f"\n[CHART] Model Metadata:")
+            print(f"   Training Date: {metadata.get('training_date', 'N/A')}")
+            print(f"   Samples: {metadata.get('samples', 'N/A')}")
+            print(f"   Model Type: {metadata.get('model_type', 'N/A')}")
+            print(f"   Accuracy: {metadata.get('accuracy', 'N/A')}")
+        
+        # Create sample feature data (12 features to match training)
+        # These represent: open, high, low, close, volume, and technical indicators
+        sample_features = np.array([
+            [50000, 51000, 49500, 50500, 1500000000, 50250, 50100, 55, 0.5, 0.3, 1.2, 0.8]
+        ])
+        
+        # Scale the features
+        scaled_features = scaler.transform(sample_features)
+        
+        # Make prediction
+        prediction = model.predict(scaled_features)
+        prediction_proba = model.predict_proba(scaled_features)
+
+        assert prediction.shape[0] == 1
+        assert prediction_proba.shape == (1, 2)
+        
+        # Test with multiple scenarios
+        scenarios = [
+            ("Bullish", [51000, 52000, 50500, 51500, 2000000000, 51250, 51000, 70, 0.8, 0.6, 1.5, 1.2]),
+            ("Bearish", [49000, 49500, 48000, 48500, 800000000, 48750, 49000, 30, 0.2, 0.1, 0.8, 0.5]),
+            ("Neutral", [50000, 50500, 49500, 50000, 1200000000, 50000, 50000, 50, 0.5, 0.4, 1.0, 0.9])
+        ]
+        
+        for scenario_name, features in scenarios:
+            features_array = np.array([features])
+            scaled = scaler.transform(features_array)
+            pred = model.predict(scaled)
+            pred_proba = model.predict_proba(scaled)
+
+            assert pred.shape == (1,)
+            assert pred_proba.shape == (1, 2)
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        pytest.fail(f"Error during prediction: {e}")
+
+
+if __name__ == "__main__":
+    print("=" * 60)
+    print("  Quantum Trader - AI Model Prediction Test")
+    print("=" * 60)
+    print(f"  Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 60)
+    print()
+    
+    success = test_model_predictions()
+    
+    print()
+    print("=" * 60)
+    if success:
+        print("  [OK] Test completed successfully!")
+    else:
+        print("  ❌ Test failed!")
+    print("=" * 60)
+    
+    sys.exit(0 if success else 1)

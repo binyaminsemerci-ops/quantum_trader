@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Check current live positions with detailed PNL"""
+import os
+from dotenv import load_dotenv
+from binance.client import Client
+
+load_dotenv()
+
+client = Client(
+    os.getenv("BINANCE_API_KEY"),
+    os.getenv("BINANCE_API_SECRET")
+)
+
+print("📊 LIVE POSITIONS")
+print("=" * 80)
+
+positions = client.futures_position_information()
+open_positions = [p for p in positions if float(p['positionAmt']) != 0]
+
+if not open_positions:
+    print("No open positions")
+else:
+    total_upnl = 0.0
+    total_value = 0.0
+    
+    for pos in open_positions:
+        symbol = pos['symbol']
+        qty = float(pos['positionAmt'])
+        entry_price = float(pos['entryPrice'])
+        mark_price = float(pos['markPrice'])
+        upnl = float(pos['unRealizedProfit'])
+        leverage = int(pos['leverage'])
+        margin_type = pos['marginType']
+        position_value = abs(qty * mark_price)
+        
+        side = "LONG" if qty > 0 else "SHORT"
+        pnl_pct = (upnl / (position_value / leverage)) * 100 if position_value > 0 else 0
+        
+        print(f"\n{symbol} {side} ({margin_type}, {leverage}x)")
+        print(f"  Quantity: {qty:.4f}")
+        print(f"  Entry: ${entry_price:.4f}")
+        print(f"  Mark: ${mark_price:.4f}")
+        print(f"  Position Value: ${position_value:.2f}")
+        print(f"  Unrealized PNL: ${upnl:.2f} ({pnl_pct:+.2f}%)")
+        
+        total_upnl += upnl
+        total_value += position_value
+    
+    print("\n" + "=" * 80)
+    print(f"TOTAL: {len(open_positions)} positions")
+    print(f"Total Position Value: ${total_value:.2f}")
+    print(f"Total Unrealized PNL: ${total_upnl:.2f}")
+    
+# Account info
+account = client.futures_account()
+print("\n" + "=" * 80)
+print("ACCOUNT SUMMARY")
+print(f"Total Wallet Balance: ${float(account['totalWalletBalance']):.2f}")
+print(f"Total Unrealized PNL: ${float(account['totalUnrealizedProfit']):.2f}")
+print(f"Available Balance: ${float(account['availableBalance']):.2f}")
+print(f"Total Margin Balance: ${float(account['totalMarginBalance']):.2f}")
+print(f"Total Position Initial Margin: ${float(account['totalPositionInitialMargin']):.2f}")
+print("=" * 80)

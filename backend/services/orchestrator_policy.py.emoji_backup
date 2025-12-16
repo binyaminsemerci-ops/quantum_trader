@@ -1,0 +1,573 @@
+"""
+Orchestrator Policy Engine
+
+This module acts as the central "Conductor" that unifies outputs from
+all subsystems (regime, risk, performance, cost) and produces one single
+POLICY that the entire trading stack follows.
+
+It controls:
+- Trade permission
+- Risk scaling
+- Confidence thresholds
+- Symbol selection
+- Entry/exit style
+- Adaptability based on market conditions
+
+Author: Quantum Trader Team
+Date: 2025-01-22
+"""
+
+import logging
+from dataclasses import dataclass, asdict
+from typing import Dict, List, Optional
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class OrchestratorConfig:
+    """Configuration for Orchestrator Policy Engine."""
+    
+    # Base parameters
+    base_confidence: float = 0.50
+    base_risk_pct: float = 1.0
+    
+    # Risk limits
+    daily_dd_limit: float = 3.0  # %
+    losing_streak_limit: int = 5
+    max_open_positions: int = 8
+    total_exposure_limit: float = 15.0  # %
+    
+    # Volatility thresholds
+    extreme_vol_threshold: float = 0.06  # ATR/price ratio
+    high_vol_threshold: float = 0.04
+    
+    # Cost thresholds
+    high_spread_bps: float = 10.0
+    high_slippage_bps: float = 8.0
+    
+    # Stability parameters
+    policy_update_interval_sec: int = 60
+    similarity_threshold: float = 0.95  # How similar policies must be to skip update
+    
+    @classmethod
+    def from_env(cls) -> "OrchestratorConfig":
+        """Load config from environment variables."""
+        import os
+        return cls(
+            base_confidence=float(os.getenv("ORCH_BASE_CONFIDENCE", "0.50")),
+            base_risk_pct=float(os.getenv("ORCH_BASE_RISK_PCT", "1.0")),
+            daily_dd_limit=float(os.getenv("ORCH_DAILY_DD_LIMIT", "3.0")),
+            losing_streak_limit=int(os.getenv("ORCH_LOSING_STREAK_LIMIT", "5")),
+            max_open_positions=int(os.getenv("ORCH_MAX_OPEN_POSITIONS", "8")),
+            total_exposure_limit=float(os.getenv("ORCH_TOTAL_EXPOSURE_LIMIT", "15.0"))
+        )
+    
+    @classmethod
+    def from_profile(cls, profile_name: Optional[str] = None) -> "OrchestratorConfig":
+        """
+        Load config from orchestrator profile (SAFE or AGGRESSIVE).
+        
+        Args:
+            profile_name: "SAFE" or "AGGRESSIVE". If None, uses CURRENT_PROFILE from env.
+            
+        Returns:
+            OrchestratorConfig instance with profile parameters
+            
+        Example:
+            >>> config = OrchestratorConfig.from_profile("SAFE")
+            >>> config.base_confidence
+            0.55
+        """
+        try:
+            from backend.services.orchestrator_config import load_profile, CURRENT_PROFILE
+            
+            if profile_name is None:
+                profile_name = CURRENT_PROFILE
+            
+            profile = load_profile(profile_name)
+            
+            return cls(
+                base_confidence=profile["base_confidence"],
+                base_risk_pct=profile["base_risk_pct"],
+                daily_dd_limit=profile["daily_dd_limit"],
+                losing_streak_limit=profile["losing_streak_limit"],
+                max_open_positions=profile["max_open_positions"],
+                total_exposure_limit=profile["total_exposure_limit"],
+                extreme_vol_threshold=profile["extreme_vol_threshold"],
+                high_vol_threshold=profile["high_vol_threshold"],
+                high_spread_bps=profile["high_spread_bps"],
+                high_slippage_bps=profile["high_slippage_bps"]
+            )
+        except ImportError as e:
+            logger.warning(f"⚠️ Could not load profile: {e}. Falling back to defaults.")
+            return cls()
+
+
+@dataclass
+class RiskState:
+    """Current risk state of the trading system."""
+    daily_pnl_pct: float
+    current_drawdown_pct: float
+    losing_streak: int
+    open_trades_count: int
+    total_exposure_pct: float
+
+
+@dataclass
+class SymbolPerformanceData:
+    """Performance data for a symbol."""
+    symbol: str
+    winrate: float
+    avg_R: float
+    cumulative_pnl: float
+    performance_tag: str  # "GOOD" | "NEUTRAL" | "BAD"
+
+
+@dataclass
+class CostMetrics:
+    """Cost-related metrics."""
+    spread_level: str  # "LOW" | "NORMAL" | "HIGH"
+    slippage_level: str  # "LOW" | "NORMAL" | "HIGH"
+    funding_cost_estimate: Optional[float] = None
+
+
+@dataclass
+class TradingPolicy:
+    """Complete trading policy from Orchestrator."""
+    allow_new_trades: bool
+    risk_profile: str  # "NORMAL" | "REDUCED" | "NO_NEW_TRADES"
+    max_risk_pct: float
+    min_confidence: float
+    entry_mode: str  # "NORMAL" | "DEFENSIVE" | "AGGRESSIVE"
+    exit_mode: str  # "FAST_TP" | "TREND_FOLLOW" | "DEFENSIVE_TRAIL"
+    allowed_symbols: List[str]
+    disallowed_symbols: List[str]
+    note: str
+    timestamp: str
+    
+    def to_dict(self) -> dict:
+        """Convert to dictionary."""
+        return asdict(self)
+    
+    def similarity_score(self, other: "TradingPolicy") -> float:
+        """
+        Calculate similarity with another policy (0-1).
+        Used to prevent oscillation.
+        """
+        if other is None:
+            return 0.0
+        
+        score = 0.0
+        weights = {
+            'allow_new_trades': 0.20,
+            'risk_profile': 0.15,
+            'max_risk_pct': 0.15,
+            'min_confidence': 0.15,
+            'entry_mode': 0.10,
+            'exit_mode': 0.10,
+            'allowed_symbols': 0.10,
+            'disallowed_symbols': 0.05
+        }
+        
+        # Boolean comparison
+        if self.allow_new_trades == other.allow_new_trades:
+            score += weights['allow_new_trades']
+        
+        # String comparisons
+        if self.risk_profile == other.risk_profile:
+            score += weights['risk_profile']
+        if self.entry_mode == other.entry_mode:
+            score += weights['entry_mode']
+        if self.exit_mode == other.exit_mode:
+            score += weights['exit_mode']
+        
+        # Numeric comparisons (within 10% tolerance)
+        if abs(self.max_risk_pct - other.max_risk_pct) / max(other.max_risk_pct, 0.01) < 0.10:
+            score += weights['max_risk_pct']
+        if abs(self.min_confidence - other.min_confidence) / max(other.min_confidence, 0.01) < 0.10:
+            score += weights['min_confidence']
+        
+        # List comparisons (set overlap)
+        if set(self.allowed_symbols) == set(other.allowed_symbols):
+            score += weights['allowed_symbols']
+        if set(self.disallowed_symbols) == set(other.disallowed_symbols):
+            score += weights['disallowed_symbols']
+        
+        return score
+
+
+class OrchestratorPolicy:
+    """
+    Top-level control module that unifies all subsystem outputs
+    into a single authoritative trading policy.
+    """
+    
+    def __init__(self, config: Optional[OrchestratorConfig] = None, profile_name: Optional[str] = None):
+        """
+        Initialize Orchestrator Policy Engine.
+        
+        Args:
+            config: Configuration object. If None, loads from profile.
+            profile_name: "SAFE" or "AGGRESSIVE". If None, uses ORCH_PROFILE env var.
+        
+        Example:
+            >>> # Use active profile (from ORCH_PROFILE env)
+            >>> orchestrator = OrchestratorPolicy()
+            >>> 
+            >>> # Explicitly use SAFE profile
+            >>> orchestrator = OrchestratorPolicy(profile_name="SAFE")
+            >>>
+            >>> # Use custom config
+            >>> config = OrchestratorConfig(base_confidence=0.60)
+            >>> orchestrator = OrchestratorPolicy(config=config)
+        """
+        # Priority: explicit config > profile_name > ORCH_PROFILE env > from_profile default
+        if config is None:
+            self.config = OrchestratorConfig.from_profile(profile_name)
+            logger.info(
+                f"🎯 Using profile: {profile_name or 'CURRENT_PROFILE from env'}"
+            )
+        else:
+            self.config = config
+        
+        self.current_policy: Optional[TradingPolicy] = None
+        self.last_update_time: Optional[datetime] = None
+        self.policy_history: List[TradingPolicy] = []
+        
+        # Store profile for risk multipliers (loaded separately)
+        try:
+            from backend.services.orchestrator_config import load_profile, CURRENT_PROFILE
+            self.profile = load_profile(profile_name or CURRENT_PROFILE)
+        except ImportError:
+            logger.warning("⚠️ Could not load profile for risk multipliers")
+            self.profile = {}
+        
+        # Initialize with default safe policy
+        self._initialize_default_policy()
+        
+        logger.info(
+            f"✅ OrchestratorPolicy initialized: "
+            f"Base confidence={self.config.base_confidence:.2f}, "
+            f"Base risk={self.config.base_risk_pct:.2%}, "
+            f"DD limit={self.config.daily_dd_limit:.1f}%"
+        )
+    
+    def _initialize_default_policy(self) -> None:
+        """Initialize with a safe default policy."""
+        self.current_policy = TradingPolicy(
+            allow_new_trades=True,
+            risk_profile="NORMAL",
+            max_risk_pct=self.config.base_risk_pct,
+            min_confidence=self.config.base_confidence,
+            entry_mode="NORMAL",
+            exit_mode="TREND_FOLLOW",
+            allowed_symbols=[],
+            disallowed_symbols=[],
+            note="Default initialization policy",
+            timestamp=datetime.now(timezone.utc).isoformat()
+        )
+    
+    def update_policy(
+        self,
+        regime_tag: str,
+        vol_level: str,
+        risk_state: RiskState,
+        symbol_performance: List[SymbolPerformanceData],
+        ensemble_quality: Optional[float] = None,
+        cost_metrics: Optional[CostMetrics] = None
+    ) -> TradingPolicy:
+        """
+        Compute new trading policy based on all subsystem inputs.
+        
+        Args:
+            regime_tag: "TRENDING" or "RANGING"
+            vol_level: "LOW", "NORMAL", "HIGH", "EXTREME"
+            risk_state: Current risk state
+            symbol_performance: List of per-symbol performance data
+            ensemble_quality: Recent ensemble performance (0-1)
+            cost_metrics: Cost-related metrics
+        
+        Returns:
+            TradingPolicy object
+        """
+        # Check if update is needed (stability mechanism)
+        now = datetime.now(timezone.utc)
+        if self.last_update_time and self.current_policy:
+            elapsed = (now - self.last_update_time).total_seconds()
+            if elapsed < self.config.policy_update_interval_sec:
+                logger.debug(f"Policy update skipped - only {elapsed:.0f}s since last update")
+                return self.current_policy
+        
+        # Start with base parameters
+        policy_data = {
+            "allow_new_trades": True,
+            "risk_profile": "NORMAL",
+            "max_risk_pct": self.config.base_risk_pct,
+            "min_confidence": self.config.base_confidence,
+            "entry_mode": "NORMAL",
+            "exit_mode": "TREND_FOLLOW",
+            "allowed_symbols": [],
+            "disallowed_symbols": [],
+            "note": "",
+            "timestamp": now.isoformat()
+        }
+        
+        notes = []
+        
+        # =============================================================
+        # A) REGIME + VOLATILITY RULES
+        # =============================================================
+        
+        if vol_level == "EXTREME":
+            policy_data["allow_new_trades"] = False
+            policy_data["risk_profile"] = "NO_NEW_TRADES"
+            notes.append("EXTREME volatility - no new trades")
+        
+        elif vol_level == "HIGH":
+            policy_data["risk_profile"] = "REDUCED"
+            policy_data["max_risk_pct"] *= 0.5
+            policy_data["min_confidence"] += 0.03
+            notes.append("HIGH volatility - risk reduced 50%")
+        
+        if regime_tag == "TRENDING" and vol_level == "NORMAL":
+            policy_data["entry_mode"] = "AGGRESSIVE"
+            policy_data["exit_mode"] = "TREND_FOLLOW"
+            policy_data["min_confidence"] -= 0.03
+            notes.append("TRENDING + NORMAL_VOL - aggressive trend following")
+        
+        elif regime_tag == "RANGING":
+            policy_data["entry_mode"] = "DEFENSIVE"
+            policy_data["exit_mode"] = "FAST_TP"
+            policy_data["max_risk_pct"] *= 0.7
+            policy_data["min_confidence"] += 0.05
+            notes.append("RANGING market - defensive scalping")
+        
+        # =============================================================
+        # B) RISK-STATE RULES
+        # =============================================================
+        
+        # Daily drawdown protection
+        if risk_state.current_drawdown_pct <= -self.config.daily_dd_limit:
+            policy_data["allow_new_trades"] = False
+            policy_data["risk_profile"] = "NO_NEW_TRADES"
+            notes.append(f"Daily DD limit hit ({risk_state.current_drawdown_pct:.2f}%)")
+        
+        # Losing streak protection
+        if risk_state.losing_streak >= self.config.losing_streak_limit:
+            policy_data["max_risk_pct"] *= 0.3
+            policy_data["entry_mode"] = "DEFENSIVE"
+            policy_data["min_confidence"] += 0.05
+            notes.append(f"Losing streak {risk_state.losing_streak} - reduced to 30% risk")
+        
+        # Position count limit
+        if risk_state.open_trades_count >= self.config.max_open_positions:
+            policy_data["allow_new_trades"] = False
+            notes.append(f"Max positions reached ({risk_state.open_trades_count})")
+        
+        # Total exposure limit
+        if risk_state.total_exposure_pct >= self.config.total_exposure_limit:
+            policy_data["allow_new_trades"] = False
+            notes.append(f"Exposure limit hit ({risk_state.total_exposure_pct:.1f}%)")
+        
+        # =============================================================
+        # C) SYMBOL PERFORMANCE RULES
+        # =============================================================
+        
+        for perf in symbol_performance:
+            if perf.performance_tag == "BAD":
+                policy_data["disallowed_symbols"].append(perf.symbol)
+            else:
+                policy_data["allowed_symbols"].append(perf.symbol)
+        
+        if policy_data["disallowed_symbols"]:
+            notes.append(f"Excluded {len(policy_data['disallowed_symbols'])} poor performers")
+        
+        # =============================================================
+        # D) COST MODEL RULES
+        # =============================================================
+        
+        if cost_metrics:
+            if cost_metrics.spread_level == "HIGH" or cost_metrics.slippage_level == "HIGH":
+                policy_data["entry_mode"] = "DEFENSIVE"
+                policy_data["min_confidence"] += 0.03
+                notes.append("High costs - tighter entry filter")
+        
+        # =============================================================
+        # E) ENSEMBLE QUALITY ADJUSTMENT (OPTIONAL)
+        # =============================================================
+        
+        if ensemble_quality is not None and ensemble_quality < 0.40:
+            policy_data["min_confidence"] += 0.05
+            notes.append(f"Low ensemble quality ({ensemble_quality:.2f}) - higher confidence required")
+        
+        # Combine notes
+        policy_data["note"] = "; ".join(notes) if notes else "Normal conditions"
+        
+        # Create new policy
+        new_policy = TradingPolicy(**policy_data)
+        
+        # =============================================================
+        # F) STABILITY CHECK
+        # =============================================================
+        
+        if self.current_policy:
+            similarity = new_policy.similarity_score(self.current_policy)
+            if similarity >= self.config.similarity_threshold:
+                logger.debug(f"Policy unchanged (similarity={similarity:.2%}) - keeping previous")
+                return self.current_policy
+            else:
+                logger.info(f"Policy updated (similarity={similarity:.2%}): {policy_data['note']}")
+        else:
+            logger.info(f"Initial policy set: {policy_data['note']}")
+        
+        # Save and return
+        self.current_policy = new_policy
+        self.last_update_time = now
+        self.policy_history.append(new_policy)
+        
+        # Trim history to last 100 policies
+        if len(self.policy_history) > 100:
+            self.policy_history = self.policy_history[-100:]
+        
+        self._log_policy_change(new_policy)
+        
+        return new_policy
+    
+    def get_policy(self) -> TradingPolicy:
+        """
+        Get current trading policy.
+        
+        Returns:
+            Current TradingPolicy object
+        """
+        if self.current_policy is None:
+            self._initialize_default_policy()
+        return self.current_policy
+    
+    def reset_daily(self) -> None:
+        """
+        Reset internal counters for new trading day.
+        Reinitializes to default safe policy.
+        """
+        logger.info("🔄 Daily reset - reinitializing orchestrator policy")
+        self._initialize_default_policy()
+        self.last_update_time = None
+        # Keep policy_history for analysis
+    
+    def _log_policy_change(self, policy: TradingPolicy) -> None:
+        """Log policy change with key details."""
+        logger.info(
+            f"📋 POLICY UPDATE: "
+            f"allow_trades={policy.allow_new_trades}, "
+            f"risk_profile={policy.risk_profile}, "
+            f"max_risk={policy.max_risk_pct:.2%}, "
+            f"min_conf={policy.min_confidence:.2f}, "
+            f"entry={policy.entry_mode}, "
+            f"exit={policy.exit_mode}"
+        )
+        
+        if policy.disallowed_symbols:
+            logger.warning(f"⚠️ Disallowed symbols: {', '.join(policy.disallowed_symbols)}")
+    
+    def get_policy_history(self, limit: int = 10) -> List[TradingPolicy]:
+        """
+        Get recent policy history.
+        
+        Args:
+            limit: Maximum number of policies to return
+        
+        Returns:
+            List of recent TradingPolicy objects
+        """
+        return self.policy_history[-limit:]
+    
+    def save_policy_history(self, filepath: str = "data/orchestrator_policy_history.json") -> None:
+        """
+        Save policy history to file.
+        
+        Args:
+            filepath: Path to save history
+        """
+        Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+        
+        history_data = [p.to_dict() for p in self.policy_history]
+        
+        with open(filepath, 'w') as f:
+            json.dump(history_data, f, indent=2)
+        
+        logger.info(f"💾 Saved {len(history_data)} policies to {filepath}")
+    
+    def load_policy_history(self, filepath: str = "data/orchestrator_policy_history.json") -> None:
+        """
+        Load policy history from file.
+        
+        Args:
+            filepath: Path to load history from
+        """
+        try:
+            with open(filepath, 'r') as f:
+                history_data = json.load(f)
+            
+            self.policy_history = [TradingPolicy(**p) for p in history_data]
+            
+            if self.policy_history:
+                self.current_policy = self.policy_history[-1]
+                logger.info(f"📂 Loaded {len(self.policy_history)} policies from {filepath}")
+            
+        except FileNotFoundError:
+            logger.debug(f"No policy history file found at {filepath}")
+        except Exception as e:
+            logger.error(f"Error loading policy history: {e}")
+
+
+# Convenience functions
+
+def create_risk_state(
+    daily_pnl_pct: float,
+    current_drawdown_pct: float,
+    losing_streak: int,
+    open_trades_count: int,
+    total_exposure_pct: float
+) -> RiskState:
+    """Create RiskState object."""
+    return RiskState(
+        daily_pnl_pct=daily_pnl_pct,
+        current_drawdown_pct=current_drawdown_pct,
+        losing_streak=losing_streak,
+        open_trades_count=open_trades_count,
+        total_exposure_pct=total_exposure_pct
+    )
+
+
+def create_symbol_performance(
+    symbol: str,
+    winrate: float,
+    avg_R: float,
+    cumulative_pnl: float,
+    performance_tag: str
+) -> SymbolPerformanceData:
+    """Create SymbolPerformanceData object."""
+    return SymbolPerformanceData(
+        symbol=symbol,
+        winrate=winrate,
+        avg_R=avg_R,
+        cumulative_pnl=cumulative_pnl,
+        performance_tag=performance_tag
+    )
+
+
+def create_cost_metrics(
+    spread_level: str,
+    slippage_level: str,
+    funding_cost_estimate: Optional[float] = None
+) -> CostMetrics:
+    """Create CostMetrics object."""
+    return CostMetrics(
+        spread_level=spread_level,
+        slippage_level=slippage_level,
+        funding_cost_estimate=funding_cost_estimate
+    )

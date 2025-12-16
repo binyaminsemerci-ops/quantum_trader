@@ -16,6 +16,11 @@ import json
 from backend.routes.live_ai_signals import get_live_ai_signals
 from backend.utils.exchanges import get_exchange_client
 from backend.utils.risk import RiskManager
+from backend.services.ai.rl_position_sizing_agent import RLPositionSizingAgent
+from backend.services.execution.position_invariant import (
+    get_position_invariant_enforcer,
+    PositionInvariantViolation,
+)
 from .market_config import (
     get_market_config,
     get_risk_config,
@@ -78,6 +83,10 @@ class AutonomousTradingBot:
         # Initialize components
         self.risk_manager = RiskManager()
         self.binance_client = get_exchange_client("binance")
+        
+        # 🧮 MATH AI INTEGRATION: Initialize RL Position Sizing Agent
+        self.rl_agent = RLPositionSizingAgent(use_math_ai=True)
+        logger.info("[OK] Math AI Position Sizing integrated into autonomous trader")
 
         # Trading state per market
         # Positions keyed by market -> symbol -> Position
@@ -103,7 +112,7 @@ class AutonomousTradingBot:
     async def start(self):
         """Start the autonomous trading loop"""
         self.running = True
-        logger.info("🚀 Starting autonomous trading bot...")
+        logger.info("[ROCKET] Starting autonomous trading bot...")
 
         try:
             while self.running:
@@ -206,13 +215,30 @@ class AutonomousTradingBot:
                 )
                 return
 
-            # Calculate position size based on market-specific risk
-            position_size = self._calculate_position_size(
-                current_price, confidence, optimal_market
+            # 🧮 MATH AI: Get optimal position sizing, leverage, and TP/SL
+            sizing_decision = self.rl_agent.decide_sizing(
+                symbol=market_symbol,
+                confidence=confidence,
+                atr_pct=0.02,  # Default 2% ATR, TODO: Get from market data
+                current_exposure_pct=0.0,  # TODO: Calculate actual exposure
+                equity_usd=self.market_balances[optimal_market]
+            )
+            
+            # Extract sizing parameters from Math AI
+            position_size_usd = sizing_decision.position_size_usd
+            position_size = position_size_usd / current_price  # Convert USD to quantity
+            leverage = sizing_decision.leverage
+            tp_percent = sizing_decision.tp_percent
+            sl_percent = sizing_decision.sl_percent
+            
+            logger.info(
+                f"[MATH-AI] {market_symbol}: ${position_size_usd:.0f} @ {leverage:.1f}x "
+                f"| TP={tp_percent*100:.2f}% SL={sl_percent*100:.2f}% "
+                f"| Reasoning: {sizing_decision.reasoning}"
             )
 
             logger.info(
-                f"📊 Trade calc for {market_symbol}: price=${current_price}, size={position_size}, notional=${position_size * current_price:.2f}"
+                f"[CHART] Trade calc for {market_symbol}: price=${current_price}, size={position_size}, notional=${position_size * current_price:.2f}"
             )
 
             # Validate trade with risk manager
@@ -233,7 +259,7 @@ class AutonomousTradingBot:
                 )
                 return
 
-            # Execute trade in optimal market
+            # Execute trade in optimal market with Math AI parameters
             await self._execute_trade(
                 market_symbol,
                 side,
@@ -242,6 +268,9 @@ class AutonomousTradingBot:
                 confidence,
                 signal,
                 optimal_market,
+                leverage=leverage,
+                tp_percent=tp_percent,
+                sl_percent=sl_percent,
             )
 
             # Increment daily trade count
@@ -373,8 +402,11 @@ class AutonomousTradingBot:
         confidence: float,
         original_signal: Dict,
         market_type: str,
+        leverage: float = 1.0,
+        tp_percent: Optional[float] = None,
+        sl_percent: Optional[float] = None,
     ):
-        """Execute the actual trade in specified market"""
+        """Execute the actual trade in specified market with Math AI parameters"""
         try:
             if self.dry_run:
                 # Simulate trade execution
@@ -393,15 +425,72 @@ class AutonomousTradingBot:
                     "orderId": f"DRYRUN_{int(datetime.now().timestamp())}",
                 }
             else:
-                # Real trade execution
+                # Real trade execution with leverage
                 logger.info(
-                    f"🚀 LIVE TRADE [{market_type}]: {side.upper()} {qty} {symbol} @ {price} (confidence: {confidence})"
+                    f"[ROCKET] LIVE TRADE [{market_type}]: {side.upper()} {qty} {symbol} @ {price} "
+                    f"(confidence: {confidence}, leverage: {leverage:.1f}x)"
                 )
+                
+                # Set leverage on Binance Futures before placing order
+                if market_type == "FUTURES" and leverage > 1.0:
+                    try:
+                        self.binance_client.futures_change_leverage(
+                            symbol=symbol,
+                            leverage=int(leverage)
+                        )
+                        logger.info(f"✅ Leverage set to {leverage:.1f}x for {symbol}")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to set leverage: {e}")
+
+                # 🛑 [POSITION INVARIANT] Check for conflicting positions before entry
+                try:
+                    enforcer = get_position_invariant_enforcer()
+                    # Get current positions from tracked positions dict
+                    current_positions = {}
+                    for sym, pos_data in self.positions.get(market_type, {}).items():
+                        if pos_data["side"] == "buy":
+                            current_positions[sym] = abs(pos_data["qty"])  # LONG (positive)
+                        else:
+                            current_positions[sym] = -abs(pos_data["qty"])  # SHORT (negative)
+                    
+                    enforcer.enforce_before_order(
+                        symbol=symbol,
+                        side=side,
+                        quantity=qty,
+                        current_positions=current_positions,
+                        account="autonomous",
+                        exchange=market_type
+                    )
+                except PositionInvariantViolation as e:
+                    logger.error(
+                        f"🛑 [POSITION INVARIANT] Order BLOCKED - Would violate position rules: {e}\n"
+                        f"   Symbol: {symbol}\n"
+                        f"   Market: {market_type}\n"
+                        f"   Attempted: {side.upper()} {qty}\n"
+                        f"   Reason: {str(e)}"
+                    )
+                    return  # Skip this order
+                except Exception as e:
+                    logger.error(f"[ERROR] Position invariant check failed: {e}")
+                    return  # Fail-safe: block on error
 
                 order_result = self.binance_client.create_order(
                     symbol=symbol, side=side.upper(), qty=qty, order_type="MARKET"
                 )
 
+            # Calculate TP/SL using Math AI parameters if provided
+            if tp_percent and sl_percent:
+                if side == "buy":
+                    take_profit = price * (1 + tp_percent)
+                    stop_loss = price * (1 - sl_percent)
+                else:  # sell
+                    take_profit = price * (1 - tp_percent)
+                    stop_loss = price * (1 + sl_percent)
+            else:
+                # Fallback to old calculation method
+                stop_loss = self._calculate_stop_loss(price, side, market_type)
+                take_profit = self._calculate_take_profit(price, side, market_type)
+            
             # Track position in specific market
             self.positions[market_type][symbol] = {
                 "side": "buy" if side == "buy" else "sell",
@@ -410,8 +499,8 @@ class AutonomousTradingBot:
                 "entry_time": datetime.now(),
                 "confidence": confidence,
                 "market_type": market_type,
-                "stop_loss": self._calculate_stop_loss(price, side, market_type),
-                "take_profit": self._calculate_take_profit(price, side, market_type),
+                "stop_loss": stop_loss,
+                "take_profit": take_profit,
                 "order_id": order_result.get("orderId"),
                 "original_signal": original_signal,
             }
@@ -422,7 +511,7 @@ class AutonomousTradingBot:
             )
 
             logger.info(
-                f"✅ Trade executed successfully: {symbol} {side} {qty} @ {price}"
+                f"[OK] Trade executed successfully: {symbol} {side} {qty} @ {price}"
             )
 
         except Exception as e:
@@ -578,7 +667,7 @@ class AutonomousTradingBot:
                         except Exception as cancel_e:
                             logger.warning(f"   ✗ Failed to cancel order {order_id}: {cancel_e}")
                     
-                    logger.info(f"✅ Cancelled {cancelled_count}/{len(open_orders)} orders for {symbol}")
+                    logger.info(f"[OK] Cancelled {cancelled_count}/{len(open_orders)} orders for {symbol}")
             except Exception as cancel_exc:
                 logger.warning(f"Could not cancel existing orders for {symbol}: {cancel_exc}")
             side = (
@@ -592,7 +681,7 @@ class AutonomousTradingBot:
                 )
             else:
                 logger.info(
-                    f"🚀 LIVE CLOSE [{market_type}]: {side.upper()} {qty} {symbol} @ {current_price}"
+                    f"[ROCKET] LIVE CLOSE [{market_type}]: {side.upper()} {qty} {symbol} @ {current_price}"
                 )
 
                 # Note: Real implementation would need to handle different market types
@@ -611,7 +700,7 @@ class AutonomousTradingBot:
                 pnl = (entry_price - current_price) * qty * leverage
 
             logger.info(
-                f"💰 Position closed [{market_type}] - P&L: ${pnl:.2f} (leverage: {leverage}x)"
+                f"[MONEY] Position closed [{market_type}] - P&L: ${pnl:.2f} (leverage: {leverage}x)"
             )
 
             # Update market-specific balance

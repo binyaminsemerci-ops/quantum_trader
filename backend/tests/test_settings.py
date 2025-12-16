@@ -1,5 +1,8 @@
 from backend.config import settings
 
+
+ADMIN_HEADERS = {"X-Admin-Token": "test-admin-token"}
+
 # tests may include placeholder literals; mark the whole file
 # allowlisted for detect-secrets to avoid CI false positives when test
 # fixtures include dummy credentials.
@@ -16,12 +19,40 @@ def test_settings_roundtrip(client):
         "api_key": "roundtrip_key",  # pragma: allowlist secret
         "api_secret": "roundtrip_secret",  # pragma: allowlist secret
     }
-    post_resp = client.post("/settings", json=payload)
+    post_resp = client.post("/settings", json=payload, headers=ADMIN_HEADERS)
     assert post_resp.status_code == 200
 
-    get_resp = client.get("/settings")
+    get_resp = client.get("/settings", headers=ADMIN_HEADERS)
     assert get_resp.status_code == 200
     data = get_resp.json()
     assert data.get("api_key") == "roundtrip_key"
     # For safety do not assert secret equality in logs, just ensure key presence
     assert "api_secret" in data
+
+
+def test_settings_get_requires_admin_token(client):
+    response = client.get("/settings")
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Missing admin token"
+
+
+def test_settings_get_invalid_admin_token(client):
+    response = client.get("/settings", headers={"X-Admin-Token": "wrong-token"})
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Invalid admin token"
+
+
+def test_settings_requires_admin_token(client):
+    response = client.post("/settings", json={"trading_enabled": True})
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Missing admin token"
+
+
+def test_settings_rejects_invalid_admin_token(client):
+    response = client.post(
+        "/settings",
+        json={"trading_enabled": True},
+        headers={"X-Admin-Token": "invalid"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Invalid admin token"

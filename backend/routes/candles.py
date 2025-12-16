@@ -4,7 +4,10 @@ import logging
 import sqlite3
 from sqlalchemy import exc as sa_exc
 
-from database import get_db
+try:
+    from database import get_db
+except ImportError:  # Support package-relative imports during testing
+    from backend.database import get_db
 
 router = APIRouter()
 

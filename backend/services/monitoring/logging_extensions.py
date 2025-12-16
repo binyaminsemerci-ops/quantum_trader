@@ -1,0 +1,219 @@
+"""Enhanced Logging Extensions - Trade enrichment helpers for comprehensive logging."""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import asdict
+from datetime import datetime, timezone
+from typing import Dict, Optional, Any
+
+logger = logging.getLogger(__name__)
+
+
+def enrich_trade_entry(
+    symbol: str,
+    action: str,
+    entry_price: float,
+    quantity: float,
+    stop_loss: float,
+    take_profit: float,
+    atr: float,
+    confidence: float,
+    consensus: str,
+    regime: Optional[str] = None,
+    trade_id: Optional[str] = None,
+    timestamp: Optional[datetime] = None
+) -> Dict[str, Any]:
+    """
+    Enrich trade entry data for logging/database.
+    
+    Args:
+        symbol: Trading symbol
+        action: LONG or SHORT
+        entry_price: Entry price
+        quantity: Position size
+        stop_loss: Stop loss price
+        take_profit: Take profit price
+        atr: Average True Range at entry
+        confidence: Model confidence (0-1)
+        consensus: Consensus type (UNANIMOUS, STRONG, etc.)
+        regime: Market regime (optional)
+        trade_id: Trade identifier (optional)
+        timestamp: Entry timestamp (optional)
+    
+    Returns:
+        Enriched trade entry dictionary
+    """
+    if timestamp is None:
+        timestamp = datetime.now(timezone.utc)
+    
+    # Calculate distances
+    sl_distance_dollars = abs(entry_price - stop_loss)
+    sl_distance_pct = (sl_distance_dollars / entry_price) * 100
+    sl_distance_atr = sl_distance_dollars / atr if atr > 0 else 0.0
+    
+    tp_distance_dollars = abs(take_profit - entry_price)
+    tp_distance_pct = (tp_distance_dollars / entry_price) * 100
+    tp_distance_atr = tp_distance_dollars / atr if atr > 0 else 0.0
+    
+    # Calculate R:R
+    risk_reward_ratio = tp_distance_dollars / sl_distance_dollars if sl_distance_dollars > 0 else 0.0
+    
+    # Notional value
+    notional = entry_price * quantity
+    
+    return {
+        "trade_id": trade_id,
+        "symbol": symbol,
+        "action": action,
+        "timestamp": timestamp.isoformat(),
+        "entry_price": entry_price,
+        "quantity": quantity,
+        "notional": notional,
+        "stop_loss": stop_loss,
+        "take_profit": take_profit,
+        "sl_distance_dollars": sl_distance_dollars,
+        "sl_distance_pct": sl_distance_pct,
+        "sl_distance_atr": sl_distance_atr,
+        "tp_distance_dollars": tp_distance_dollars,
+        "tp_distance_pct": tp_distance_pct,
+        "tp_distance_atr": tp_distance_atr,
+        "risk_reward_ratio": risk_reward_ratio,
+        "atr_at_entry": atr,
+        "atr_ratio": atr / entry_price if entry_price > 0 else 0.0,
+        "confidence": confidence,
+        "consensus": consensus,
+        "regime_at_entry": regime,
+    }
+
+
+def enrich_trade_exit(
+    trade_entry: Dict[str, Any],
+    exit_price: float,
+    exit_reason: str,
+    pnl_dollars: float,
+    fees_estimate: float,
+    slippage_estimate: float,
+    regime: Optional[str] = None,
+    mfe: Optional[float] = None,
+    mae: Optional[float] = None,
+    timestamp: Optional[datetime] = None
+) -> Dict[str, Any]:
+    """
+    Enrich trade exit data for logging/database.
+    
+    Args:
+        trade_entry: Entry data from enrich_trade_entry()
+        exit_price: Exit price
+        exit_reason: Exit reason (SL_HIT, TP_HIT, TRAILING, TIMEOUT, etc.)
+        pnl_dollars: Gross PnL in dollars
+        fees_estimate: Estimated fees paid
+        slippage_estimate: Estimated slippage cost
+        regime: Market regime at exit (optional)
+        mfe: Maximum Favorable Excursion (optional)
+        mae: Maximum Adverse Excursion (optional)
+        timestamp: Exit timestamp (optional)
+    
+    Returns:
+        Enriched trade exit dictionary
+    """
+    if timestamp is None:
+        timestamp = datetime.now(timezone.utc)
+    
+    entry_price = trade_entry["entry_price"]
+    stop_loss = trade_entry["stop_loss"]
+    quantity = trade_entry["quantity"]
+    
+    # Calculate R-multiple
+    risk_per_unit = abs(entry_price - stop_loss)
+    profit_per_unit = exit_price - entry_price if trade_entry["action"] == "LONG" else entry_price - exit_price
+    R_multiple = profit_per_unit / risk_per_unit if risk_per_unit > 0 else 0.0
+    
+    # Net PnL after costs
+    total_costs = fees_estimate + slippage_estimate
+    net_pnl_dollars = pnl_dollars - total_costs
+    cost_in_R = total_costs / (risk_per_unit * quantity) if (risk_per_unit * quantity) > 0 else 0.0
+    net_R_multiple = R_multiple - cost_in_R
+    
+    # PnL percentages
+    pnl_pct = (pnl_dollars / trade_entry["notional"]) * 100 if trade_entry["notional"] > 0 else 0.0
+    net_pnl_pct = (net_pnl_dollars / trade_entry["notional"]) * 100 if trade_entry["notional"] > 0 else 0.0
+    
+    # Duration
+    entry_time = datetime.fromisoformat(trade_entry["timestamp"])
+    duration_seconds = (timestamp - entry_time).total_seconds()
+    duration_hours = duration_seconds / 3600
+    
+    # MFE/MAE
+    mfe_R = None
+    mae_R = None
+    if mfe is not None:
+        mfe_distance = abs(mfe - entry_price)
+        mfe_R = mfe_distance / risk_per_unit if risk_per_unit > 0 else 0.0
+    if mae is not None:
+        mae_distance = abs(entry_price - mae)
+        mae_R = mae_distance / risk_per_unit if risk_per_unit > 0 else 0.0
+    
+    return {
+        **trade_entry,  # Include all entry data
+        "exit_timestamp": timestamp.isoformat(),
+        "exit_price": exit_price,
+        "exit_reason": exit_reason,
+        "pnl_dollars": pnl_dollars,
+        "pnl_pct": pnl_pct,
+        "net_pnl_dollars": net_pnl_dollars,
+        "net_pnl_pct": net_pnl_pct,
+        "R_multiple": R_multiple,
+        "net_R_multiple": net_R_multiple,
+        "fees_estimate": fees_estimate,
+        "slippage_estimate": slippage_estimate,
+        "total_costs": total_costs,
+        "cost_in_R": cost_in_R,
+        "duration_seconds": duration_seconds,
+        "duration_hours": duration_hours,
+        "regime_at_exit": regime,
+        "mfe": mfe,
+        "mfe_R": mfe_R,
+        "mae": mae,
+        "mae_R": mae_R,
+        "was_winner": net_pnl_dollars > 0,
+    }
+
+
+def format_trade_log_message(trade_data: Dict[str, Any], stage: str = "ENTRY") -> str:
+    """
+    Format trade data into human-readable log message.
+    
+    Args:
+        trade_data: Enriched trade data
+        stage: "ENTRY" or "EXIT"
+    
+    Returns:
+        Formatted log message
+    """
+    if stage == "ENTRY":
+        return (
+            f"[CHART_UP] {trade_data['action']} {trade_data['symbol']} ENTRY: "
+            f"Price=${trade_data['entry_price']:.4f}, "
+            f"Qty={trade_data['quantity']:.4f}, "
+            f"SL=${trade_data['stop_loss']:.4f} ({trade_data['sl_distance_pct']:.2f}%), "
+            f"TP=${trade_data['take_profit']:.4f} ({trade_data['tp_distance_pct']:.2f}%), "
+            f"R:R={trade_data['risk_reward_ratio']:.2f}, "
+            f"ATR={trade_data['atr_at_entry']:.4f}, "
+            f"Conf={trade_data['confidence']:.1%}, "
+            f"Consensus={trade_data['consensus']}"
+            + (f", Regime={trade_data['regime_at_entry']}" if trade_data.get('regime_at_entry') else "")
+        )
+    else:  # EXIT
+        emoji = "[OK]" if trade_data.get('was_winner') else "❌"
+        return (
+            f"{emoji} {trade_data['action']} {trade_data['symbol']} EXIT: "
+            f"Entry=${trade_data['entry_price']:.4f}, "
+            f"Exit=${trade_data['exit_price']:.4f}, "
+            f"PnL=${trade_data['net_pnl_dollars']:.2f} ({trade_data['net_pnl_pct']:.2f}%), "
+            f"R={trade_data['net_R_multiple']:.2f}R, "
+            f"Duration={trade_data['duration_hours']:.1f}h, "
+            f"Reason={trade_data['exit_reason']}"
+            + (f", MFE={trade_data['mfe_R']:.2f}R" if trade_data.get('mfe_R') is not None else "")
+            + (f", MAE={trade_data['mae_R']:.2f}R" if trade_data.get('mae_R') is not None else "")
+        )

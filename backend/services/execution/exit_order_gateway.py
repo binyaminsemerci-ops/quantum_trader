@@ -46,7 +46,13 @@ EXPECTED_EXIT_BRAIN_MODULES = [
 ]
 
 # Order kind tracking for analytics
-VALID_ORDER_KINDS = ["tp", "sl", "trailing", "breakeven", "partial_tp", "other_exit"]
+VALID_ORDER_KINDS = [
+    "tp", "sl", "trailing", "breakeven", "partial_tp", "other_exit",
+    "hard_sl",  # Exit Brain V3 risk floor SL
+    "loss_guard_emergency",  # Exit Brain V3 max loss guard
+    "emergency_exit",  # Exit Brain V3 emergency full exit
+    "partial_close"  # Exit Brain V3 partial close
+]
 
 
 class ExitOrderMetrics:

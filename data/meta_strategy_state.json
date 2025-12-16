@@ -1,0 +1,154 @@
+{
+  "metadata": {
+    "timestamp": "2025-11-26T17:38:57.345072+00:00",
+    "epsilon": 0.1,
+    "alpha": 0.2,
+    "total_decisions": 1,
+    "total_updates": 1
+  },
+  "q_table": {
+    "BTCUSDT|range_low_vol|defensive": {
+      "count": 0,
+      "sum_reward": 0.0,
+      "avg_reward": 0.0,
+      "ema_reward": 0.0,
+      "last_reward": 0.0,
+      "last_update": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "total_r": 0.0
+    },
+    "BTCUSDT|range_low_vol|moderate": {
+      "count": 7,
+      "sum_reward": 10.873197713945748,
+      "avg_reward": 1.5533139591351068,
+      "ema_reward": 1.4995740768527426,
+      "last_reward": 1.0813005969163765,
+      "last_update": "2025-11-26T17:38:53.543757+00:00",
+      "win_count": 7,
+      "loss_count": 0,
+      "total_r": 10.873197713945748
+    },
+    "BTCUSDT|range_low_vol|scalp": {
+      "count": 0,
+      "sum_reward": 0.0,
+      "avg_reward": 0.0,
+      "ema_reward": 0.0,
+      "last_reward": 0.0,
+      "last_update": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "total_r": 0.0
+    },
+    "BTCUSDT|trend_up|defensive": {
+      "count": 1,
+      "sum_reward": 0.6886127572746401,
+      "avg_reward": 0.6886127572746401,
+      "ema_reward": 0.6886127572746401,
+      "last_reward": 0.6886127572746401,
+      "last_update": "2025-11-26T17:38:53.540010+00:00",
+      "win_count": 1,
+      "loss_count": 0,
+      "total_r": 0.6886127572746401
+    },
+    "BTCUSDT|trend_up|moderate": {
+      "count": 8,
+      "sum_reward": 11.888643502559667,
+      "avg_reward": 1.4860804378199584,
+      "ema_reward": 1.5036771117296133,
+      "last_reward": 2.0035408004418085,
+      "last_update": "2025-11-26T17:38:53.543757+00:00",
+      "win_count": 8,
+      "loss_count": 0,
+      "total_r": 11.888643502559667
+    },
+    "BTCUSDT|trend_up|moderate_aggressive": {
+      "count": 4,
+      "sum_reward": 5.291342425254324,
+      "avg_reward": 1.322835606313581,
+      "ema_reward": 1.1104187472235147,
+      "last_reward": 0.7682728744851612,
+      "last_update": "2025-11-26T17:38:53.534555+00:00",
+      "win_count": 4,
+      "loss_count": 0,
+      "total_r": 5.291342425254324
+    },
+    "BTCUSDT|unknown|defensive": {
+      "count": 0,
+      "sum_reward": 0.0,
+      "avg_reward": 0.0,
+      "ema_reward": 0.0,
+      "last_reward": 0.0,
+      "last_update": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "total_r": 0.0
+    },
+    "BTCUSDT|unknown|moderate": {
+      "count": 0,
+      "sum_reward": 0.0,
+      "avg_reward": 0.0,
+      "ema_reward": 0.0,
+      "last_reward": 0.0,
+      "last_update": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "total_r": 0.0
+    },
+    "BTCUSDT|unknown|moderate_aggressive": {
+      "count": 0,
+      "sum_reward": 0.0,
+      "avg_reward": 0.0,
+      "ema_reward": 0.0,
+      "last_reward": 0.0,
+      "last_update": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "total_r": 0.0
+    },
+    "BTCUSDT|unknown|balanced_aggressive": {
+      "count": 0,
+      "sum_reward": 0.0,
+      "avg_reward": 0.0,
+      "ema_reward": 0.0,
+      "last_reward": 0.0,
+      "last_update": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "total_r": 0.0
+    },
+    "BTCUSDT|unknown|ultra_aggressive": {
+      "count": 0,
+      "sum_reward": 0.0,
+      "avg_reward": 0.0,
+      "ema_reward": 0.0,
+      "last_reward": 0.0,
+      "last_update": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "total_r": 0.0
+    },
+    "BTCUSDT|unknown|scalp": {
+      "count": 0,
+      "sum_reward": 0.0,
+      "avg_reward": 0.0,
+      "ema_reward": 0.0,
+      "last_reward": 0.0,
+      "last_update": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "total_r": 0.0
+    },
+    "BTCUSDT|unknown|trend_rider": {
+      "count": 1,
+      "sum_reward": 5.0,
+      "avg_reward": 5.0,
+      "ema_reward": 5.0,
+      "last_reward": 5.0,
+      "last_update": "2025-11-26T17:38:57.345072+00:00",
+      "win_count": 1,
+      "loss_count": 0,
+      "total_r": 5.0
+    }
+  }
+}

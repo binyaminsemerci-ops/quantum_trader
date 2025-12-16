@@ -1,0 +1,61 @@
+{
+  "timestamp": "2025-11-23T00:46:47.910138+00:00",
+  "total_positions": 3,
+  "amplification_candidates": [
+    {
+      "symbol": "BTCUSDT",
+      "current_R": 2.5,
+      "amplification_score": 73.57,
+      "qualifies_scale_in": false,
+      "qualifies_extend": true,
+      "blocked_by": []
+    },
+    {
+      "symbol": "ETHUSDT",
+      "current_R": 1.8,
+      "amplification_score": 78.38,
+      "qualifies_scale_in": true,
+      "qualifies_extend": true,
+      "blocked_by": []
+    }
+  ],
+  "recommendations": [
+    {
+      "symbol": "BTCUSDT",
+      "action": "extend_hold",
+      "priority": 2,
+      "rationale": "Trend still strong at 2.5R, switch to trend-following exit",
+      "parameters": {
+        "exit_strategy": "trend_follow",
+        "trail_stop_type": "ATR_based",
+        "trail_distance_atr": 2.0,
+        "min_hold_additional_hours": 12
+      },
+      "expected_R_increase": 1.0,
+      "confidence": 65.0
+    },
+    {
+      "symbol": "ETHUSDT",
+      "action": "extend_hold",
+      "priority": 2,
+      "rationale": "Trend still strong at 1.8R, switch to trend-following exit",
+      "parameters": {
+        "exit_strategy": "trend_follow",
+        "trail_stop_type": "ATR_based",
+        "trail_distance_atr": 2.0,
+        "min_hold_additional_hours": 12
+      },
+      "expected_R_increase": 1.0,
+      "confidence": 65.0
+    }
+  ],
+  "summary": {
+    "candidates": 2,
+    "high_priority": 2,
+    "recommendations": 2,
+    "avg_score": 75.975,
+    "additional_size_available": 0
+  },
+  "can_amplify": true,
+  "amplification_enabled": true
+}

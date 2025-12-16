@@ -1,0 +1,152 @@
+"""
+Profile Status Checker - Verify active orchestrator profile configuration
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# Add project root to path
+project_root = Path(__file__).parent
+sys.path.insert(0, str(project_root))
+
+from backend.services.orchestrator_config import (
+    CURRENT_PROFILE,
+    load_profile,
+    get_active_profile
+)
+
+def main():
+    print("\n" + "="*60)
+    print("[TARGET] ORCHESTRATOR PROFILE STATUS")
+    print("="*60 + "\n")
+    
+    # Show environment variable
+    env_value = os.getenv("ORCH_PROFILE", "NOT SET (using default SAFE)")
+    print(f"📌 Environment Variable:")
+    print(f"   ORCH_PROFILE = {env_value}\n")
+    
+    # Show active profile
+    print(f"[OK] Active Profile: {CURRENT_PROFILE}\n")
+    
+    # Load and display profile details
+    try:
+        profile = get_active_profile()
+        
+        print("="*60)
+        print(f"[CLIPBOARD] {CURRENT_PROFILE} PROFILE CONFIGURATION")
+        print("="*60 + "\n")
+        
+        # Core Parameters
+        print("[TARGET] CORE PARAMETERS:")
+        print(f"   Base Confidence:        {profile['base_confidence']*100:.1f}%")
+        print(f"   Base Risk Per Trade:    {profile['base_risk_pct']}%")
+        print(f"   Daily DD Limit:         {profile['daily_dd_limit']}%")
+        print(f"   Losing Streak Limit:    {profile['losing_streak_limit']} trades")
+        print(f"   Max Open Positions:     {profile['max_open_positions']}")
+        print(f"   Total Exposure Limit:   {profile['total_exposure_limit']}%")
+        print()
+        
+        # Volatility Thresholds
+        print("[CHART] VOLATILITY THRESHOLDS:")
+        print(f"   Extreme Vol (ATR/Price): {profile['extreme_vol_threshold']*100:.1f}%")
+        print(f"   High Vol (ATR/Price):    {profile['high_vol_threshold']*100:.1f}%")
+        print()
+        
+        # Cost Thresholds
+        print("[MONEY] COST THRESHOLDS:")
+        print(f"   High Spread:            {profile['high_spread_bps']} BPS")
+        print(f"   High Slippage:          {profile['high_slippage_bps']} BPS")
+        print()
+        
+        # Risk Multipliers
+        print("⚖️  RISK MULTIPLIERS (by regime):")
+        for regime, mult in profile['risk_multipliers'].items():
+            if not regime.startswith("_"):  # Skip meta keys
+                print(f"   {regime:20s} → {mult:.2f}x")
+        print()
+        
+        # Confidence Adjustments
+        print("🎲 CONFIDENCE ADJUSTMENTS (by regime):")
+        for regime, adj in profile['confidence_adjustments'].items():
+            if not regime.startswith("_"):
+                sign = "+" if adj >= 0 else ""
+                adj_pct = adj * 100
+                total = (profile['base_confidence'] + adj) * 100
+                print(f"   {regime:20s} → {sign}{adj_pct:.1f}% (min conf: {total:.1f}%)")
+        print()
+        
+        # Symbol Performance Thresholds
+        print("[CHART_UP] SYMBOL PERFORMANCE THRESHOLDS:")
+        spt = profile['symbol_performance_thresholds']
+        print(f"   Min Win Rate:           {spt['min_winrate']*100:.1f}%")
+        print(f"   Min Avg R-Multiple:     {spt['min_avg_R']:.2f}")
+        print(f"   Bad Streak Limit:       {spt['bad_streak_limit']} losses")
+        print()
+        
+        # Exit Mode Bias
+        print("🚪 EXIT MODE BIAS (by regime):")
+        for regime, mode in profile['exit_mode_bias'].items():
+            print(f"   {regime:20s} → {mode}")
+        print()
+        
+        # Entry Mode Bias
+        print("[TARGET] ENTRY MODE BIAS (by regime):")
+        for regime, mode in profile['entry_mode_bias'].items():
+            print(f"   {regime:20s} → {mode}")
+        print()
+        
+        # Recovery Settings
+        print("🔄 RECOVERY SETTINGS:")
+        print(f"   Recovery Multiplier:    {profile['recovery_multiplier']:.2f}x")
+        print(f"   Recovery After Streak:  {profile['recovery_after_streak']} wins")
+        print()
+        
+        # Cost Sensitivity
+        print("💸 COST SENSITIVITY:")
+        print(f"   Sensitivity Level:      {profile['cost_sensitivity']}")
+        print(f"   Max Cost in R:          {profile['max_cost_in_R']:.2f}R")
+        print()
+        
+        # Profile Summary
+        print("="*60)
+        if CURRENT_PROFILE == "SAFE":
+            print("[SHIELD]  SAFE PROFILE ACTIVE")
+            print("="*60)
+            print("✓ Conservative risk management")
+            print("✓ Higher confidence thresholds")
+            print("✓ Strict symbol quality requirements")
+            print("✓ Fast profit-taking in adverse conditions")
+            print("✓ Recommended for REAL CAPITAL")
+        else:
+            print("⚡ AGGRESSIVE PROFILE ACTIVE")
+            print("="*60)
+            print("✓ Growth-oriented risk management")
+            print("✓ Lower confidence thresholds (more trades)")
+            print("✓ Relaxed symbol quality requirements")
+            print("✓ Trend-following in all conditions")
+            print("✓ Recommended for TESTNET / EXPERIMENTATION")
+        print()
+        
+        # How to switch
+        print("="*60)
+        print("🔧 HOW TO SWITCH PROFILES:")
+        print("="*60)
+        print()
+        if CURRENT_PROFILE == "SAFE":
+            print("To switch to AGGRESSIVE profile:")
+            print('   $env:ORCH_PROFILE="AGGRESSIVE"')
+        else:
+            print("To switch to SAFE profile:")
+            print('   $env:ORCH_PROFILE="SAFE"')
+        print("   docker-compose restart backend")
+        print()
+        
+    except Exception as e:
+        print(f"❌ Error loading profile: {e}")
+        return 1
+    
+    return 0
+
+if __name__ == "__main__":
+    exit(main())

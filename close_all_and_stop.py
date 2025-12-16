@@ -1,0 +1,66 @@
+"""Close all remaining positions and stop trading"""
+import os
+from binance.client import Client
+
+def close_all_positions():
+    api_key = os.getenv("BINANCE_API_KEY")
+    api_secret = os.getenv("BINANCE_API_SECRET")
+    
+    if not api_key:
+        with open(".env") as f:
+            for line in f:
+                if line.startswith("BINANCE_API_KEY="):
+                    api_key = line.split("=", 1)[1].strip()
+                elif line.startswith("BINANCE_API_SECRET="):
+                    api_secret = line.split("=", 1)[1].strip()
+    
+    client = Client(api_key, api_secret)
+    
+    print("\n" + "="*80)
+    print("🛑 CLOSING ALL POSITIONS & STOPPING TRADING")
+    print("="*80)
+    
+    positions = client.futures_position_information()
+    active = [p for p in positions if float(p['positionAmt']) != 0]
+    
+    if not active:
+        print("\n[OK] No active positions to close")
+    else:
+        print(f"\n[CHART] Closing {len(active)} positions...")
+        
+        for pos in active:
+            symbol = pos['symbol']
+            amt = float(pos['positionAmt'])
+            pnl = float(pos['unRealizedProfit'])
+            
+            print(f"\n{symbol}:")
+            print(f"  Amount: {abs(amt)} {'LONG' if amt > 0 else 'SHORT'}")
+            print(f"  P&L: ${pnl:+.2f}")
+            
+            try:
+                # Cancel all orders
+                client.futures_cancel_all_open_orders(symbol=symbol)
+                print(f"  [OK] Canceled orders")
+                
+                # Close position
+                side = "SELL" if amt > 0 else "BUY"
+                order = client.futures_create_order(
+                    symbol=symbol,
+                    side=side,
+                    type="MARKET",
+                    quantity=abs(amt),
+                    reduceOnly=True
+                )
+                print(f"  [OK] Position closed! Order ID: {order['orderId']}")
+                
+            except Exception as e:
+                print(f"  ❌ Error: {e}")
+    
+    # Show final balance
+    account = client.futures_account()
+    balance = float(account['totalWalletBalance'])
+    print(f"\n[MONEY] Final Balance: ${balance:.2f}")
+    print("="*80)
+
+if __name__ == "__main__":
+    close_all_positions()

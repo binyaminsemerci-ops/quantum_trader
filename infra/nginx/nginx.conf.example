@@ -1,0 +1,340 @@
+# NGINX API Gateway Configuration
+# SPRINT 3 - Module C: API Gateway
+#
+# Provides reverse proxy, load balancing, rate limiting, and security for microservices
+
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid /var/run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/json;
+    
+    # Logging format with detailed request info
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for" '
+                    'rt=$request_time uct="$upstream_connect_time" '
+                    'uht="$upstream_header_time" urt="$upstream_response_time"';
+    
+    access_log /var/log/nginx/access.log main;
+    
+    # Connection settings
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+    
+    # Buffer settings
+    client_body_buffer_size 16K;
+    client_header_buffer_size 1k;
+    client_max_body_size 8m;
+    large_client_header_buffers 4 8k;
+    
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript 
+               application/json application/javascript application/xml+rss;
+    
+    # Rate limiting zones
+    limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/s;
+    limit_req_zone $binary_remote_addr zone=execution_limit:10m rate=20r/s;
+    limit_req_zone $binary_remote_addr zone=trading_limit:10m rate=10r/s;
+    
+    # Upstream service definitions
+    upstream ai_engine {
+        least_conn;  # Load balancing algorithm
+        server ai-engine-service:8001 max_fails=3 fail_timeout=30s;
+        keepalive 32;
+    }
+    
+    upstream execution {
+        least_conn;
+        server execution-service:8002 max_fails=3 fail_timeout=30s;
+        keepalive 32;
+    }
+    
+    upstream risk_safety {
+        least_conn;
+        server risk-safety-service:8003 max_fails=3 fail_timeout=30s;
+        keepalive 32;
+    }
+    
+    upstream portfolio_intelligence {
+        least_conn;
+        server portfolio-intelligence-service:8004 max_fails=3 fail_timeout=30s;
+        keepalive 32;
+    }
+    
+    upstream rl_training {
+        least_conn;
+        server rl-training-service:8005 max_fails=3 fail_timeout=30s;
+        keepalive 32;
+    }
+    
+    upstream monitoring_health {
+        least_conn;
+        server monitoring-health-service:8080 max_fails=3 fail_timeout=30s;
+        keepalive 32;
+    }
+    
+    # Main server block
+    server {
+        listen 80;
+        server_name _;  # Replace with your domain
+        
+        # Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "no-referrer-when-downgrade" always;
+        
+        # CORS headers (adjust as needed)
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Authorization, Content-Type, X-Correlation-ID" always;
+        
+        # Handle OPTIONS requests for CORS preflight
+        if ($request_method = 'OPTIONS') {
+            return 204;
+        }
+        
+        # =======================================================================
+        # HEALTH & MONITORING ROUTES
+        # =======================================================================
+        
+        location /api/health {
+            limit_req zone=api_limit burst=10 nodelay;
+            
+            proxy_pass http://monitoring_health;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            proxy_connect_timeout 5s;
+            proxy_send_timeout 10s;
+            proxy_read_timeout 10s;
+        }
+        
+        # =======================================================================
+        # AI ENGINE ROUTES
+        # =======================================================================
+        
+        location /api/ai/ {
+            limit_req zone=api_limit burst=20 nodelay;
+            
+            proxy_pass http://ai_engine/;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
+        }
+        
+        # =======================================================================
+        # EXECUTION SERVICE ROUTES (HIGHER RATE LIMIT)
+        # =======================================================================
+        
+        location /api/execution/ {
+            limit_req zone=execution_limit burst=10 nodelay;
+            
+            proxy_pass http://execution/;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            proxy_connect_timeout 5s;
+            proxy_send_timeout 15s;
+            proxy_read_timeout 15s;
+        }
+        
+        # Trading operations - stricter rate limit
+        location /api/execution/trade {
+            limit_req zone=trading_limit burst=5 nodelay;
+            
+            proxy_pass http://execution/trade;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            proxy_connect_timeout 5s;
+            proxy_send_timeout 20s;
+            proxy_read_timeout 20s;
+        }
+        
+        # =======================================================================
+        # RISK & SAFETY ROUTES
+        # =======================================================================
+        
+        location /api/risk/ {
+            limit_req zone=api_limit burst=15 nodelay;
+            
+            proxy_pass http://risk_safety/;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            proxy_connect_timeout 5s;
+            proxy_send_timeout 15s;
+            proxy_read_timeout 15s;
+        }
+        
+        # =======================================================================
+        # PORTFOLIO INTELLIGENCE ROUTES
+        # =======================================================================
+        
+        location /api/portfolio/ {
+            limit_req zone=api_limit burst=20 nodelay;
+            
+            proxy_pass http://portfolio_intelligence/;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
+        }
+        
+        # =======================================================================
+        # PORTFOLIO INTELLIGENCE ROUTES
+        # =======================================================================
+        
+        location /api/portfolio/ {
+            limit_req zone=api_limit burst=20 nodelay;
+            
+            proxy_pass http://portfolio_intelligence/;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
+        }
+        
+        # =======================================================================
+        # RL TRAINING SERVICE ROUTES
+        # =======================================================================
+        
+        location /api/training/ {
+            limit_req zone=api_limit burst=10 nodelay;
+            
+            proxy_pass http://rl_training/api/training/;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            proxy_connect_timeout 15s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+        }
+        
+        # =======================================================================
+        # FALLBACK & ERROR HANDLING
+        # =======================================================================
+        
+        # Root redirect to health endpoint
+        location = / {
+            return 301 /api/health/system;
+        }
+        
+        # Custom error responses
+        error_page 502 503 504 /50x.json;
+        location = /50x.json {
+            internal;
+            return 503 '{"error": "Service temporarily unavailable", "status": 503}';
+            add_header Content-Type application/json;
+        }
+        
+        error_page 404 /404.json;
+        location = /404.json {
+            internal;
+            return 404 '{"error": "Endpoint not found", "status": 404}';
+            add_header Content-Type application/json;
+        }
+        
+        error_page 429 /429.json;
+        location = /429.json {
+            internal;
+            return 429 '{"error": "Rate limit exceeded", "status": 429}';
+            add_header Content-Type application/json;
+        }
+    }
+}
+
+# =============================================================================
+# CONFIGURATION NOTES
+# =============================================================================
+
+# 1. Rate Limiting Zones:
+#    - api_limit: 100 req/s (general API endpoints)
+#    - execution_limit: 20 req/s (order placement endpoints)
+#    - trading_limit: 10 req/s (critical trading operations)
+
+# 2. Load Balancing:
+#    - least_conn: Routes to service with fewest active connections
+#    - max_fails=3: Mark service as down after 3 consecutive failures
+#    - fail_timeout=30s: Retry failed service after 30 seconds
+
+# 3. Connection Pooling:
+#    - keepalive 32: Maintain 32 idle connections to each upstream
+
+# 4. Timeouts:
+#    - proxy_connect_timeout: Max time to establish connection
+#    - proxy_send_timeout: Max time to send request to upstream
+#    - proxy_read_timeout: Max time to read response from upstream
+
+# 5. Security:
+#    - X-Frame-Options: Prevent clickjacking
+#    - X-Content-Type-Options: Prevent MIME sniffing
+#    - X-XSS-Protection: Enable XSS filtering
+#    - CORS headers: Allow cross-origin requests (adjust in production)
+
+# 6. Logging:
+#    - Detailed access logs include request time and upstream times
+#    - Error logs at WARN level

@@ -21,7 +21,13 @@ from .telemetry import (
 logger = logging.getLogger(__name__)
 
 _SCHEDULER: Optional[AsyncIOScheduler] = None
-_DEFAULT_SYMBOLS = ["BTCUSDT", "ETHUSDT"]
+# Extended to top coins - will be filtered by liquidity selection
+_DEFAULT_SYMBOLS = [
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "XRPUSDT", "SOLUSDT",
+    "ADAUSDT", "DOGEUSDT", "TRXUSDT", "TONUSDT", "LINKUSDT",
+    "AVAXUSDT", "DOTUSDT", "MATICUSDT", "ATOMUSDT", "ARBUSDT",
+    "OPUSDT", "UNIUSDT", "PEPEUSDT", "SHIBUSDT", "APTUSDT"
+]
 
 _SCHEDULER_CONFIG: Dict[str, Any] = {
     "symbols": _DEFAULT_SYMBOLS.copy(),
@@ -138,11 +144,57 @@ def _reset_internal_state_for_tests() -> None:
 
 def _resolve_symbols() -> List[str]:
     raw = os.getenv("QUANTUM_TRADER_SYMBOLS")
-    if not raw:
-        symbols = _DEFAULT_SYMBOLS
-    else:
+    if raw:
         symbols = [item.strip().upper() for item in raw.split(",") if item.strip()]
         symbols = symbols or _DEFAULT_SYMBOLS
+        _SCHEDULER_CONFIG["symbols"] = symbols
+        return symbols
+
+    # Try to use QT_UNIVERSE setting (same as event-driven mode)
+    universe_profile = os.getenv("QT_UNIVERSE", "l1l2-top")
+    try:
+        if universe_profile.lower() in ("l1l2-top", "l1l2volume", "l1l2-vol"):
+            try:
+                from config.config import DEFAULT_QUOTE  # type: ignore
+                quote = DEFAULT_QUOTE
+            except Exception:
+                quote = "USDC"
+            from backend.utils.universe import get_l1l2_top_by_volume, get_l1l2_top_by_volume_multi
+            max_symbols = int(os.getenv("QT_MAX_SYMBOLS", "100"))
+            quotes_env = os.getenv("QT_QUOTES", "").strip()
+            
+            # Default to cross-margin with USDC + USDT if not specified
+            if not quotes_env:
+                quotes_env = "USDC,USDT"
+                logger.info("Using cross-margin mode (USDC + USDT futures)")
+            
+            if quotes_env:
+                quotes = [q.strip().upper() for q in quotes_env.split(",") if q.strip()]
+                symbols = get_l1l2_top_by_volume_multi(quotes=quotes, max_symbols=max_symbols)
+                logger.info(
+                    "Selected %d L1/L2+base pairs by 24h volume (quotes=%s, cross-margin)",
+                    len(symbols), ",".join(quotes)
+                )
+            else:
+                symbols = get_l1l2_top_by_volume(quote=quote, max_symbols=max_symbols)
+                logger.info(
+                    "Selected %d L1/L2+base symbols by 24h volume (quote=%s)",
+                    len(symbols), quote
+                )
+        else:
+            from config.trading_universe import get_trading_universe
+            symbols = get_trading_universe(universe_profile)
+            # Apply max symbols limit if set
+            max_symbols_env = int(os.getenv("QT_MAX_SYMBOLS", "0"))
+            if max_symbols_env > 0 and len(symbols) > max_symbols_env:
+                symbols = symbols[:max_symbols_env]
+                logger.info(f"Limited to {max_symbols_env} symbols (QT_MAX_SYMBOLS)")
+    except Exception as e:
+        logger.warning(
+            f"Failed to load trading universe '{universe_profile}': {e}, using defaults"
+        )
+        symbols = _DEFAULT_SYMBOLS
+
     _SCHEDULER_CONFIG["symbols"] = symbols
     return symbols
 
@@ -165,16 +217,16 @@ def _liquidity_interval_seconds() -> int:
 def _execution_interval_seconds() -> int:
     raw = os.getenv("QUANTUM_TRADER_EXECUTION_SECONDS")
     if not raw:
-        return 1800
+        return 300  # 5 minutes (shortened for faster testing)
     try:
         value = int(raw)
         return max(value, 0)
     except ValueError:
         logger.warning(
-            "Invalid QUANTUM_TRADER_EXECUTION_SECONDS=%s; using default 1800",
+            "Invalid QUANTUM_TRADER_EXECUTION_SECONDS=%s; using default 300",
             raw,
         )
-        return 1800
+        return 900
 
 
 def _scheduler_disabled() -> bool:
@@ -423,6 +475,20 @@ async def start_scheduler(app) -> None:
             next_run_time=datetime.now(timezone.utc),
         )
 
+    # Add AI model retraining job (daily at 3 AM UTC)
+    ai_retraining_enabled = os.getenv("QT_AI_RETRAINING_ENABLED", "1") == "1"
+    if ai_retraining_enabled:
+        scheduler.add_job(
+            _run_ai_retraining,
+            "cron",
+            hour=3,
+            minute=0,
+            id="ai-retraining",
+            coalesce=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled AI retraining job: daily at 03:00 UTC")
+
     scheduler.start()
     _SCHEDULER = scheduler
     setattr(app.state, "scheduler", scheduler)
@@ -613,7 +679,8 @@ async def _run_liquidity_refresh() -> None:
         config = load_liquidity_config()
         db = SessionLocal()
         try:
-            result = await refresh_liquidity(db, config=config)
+            # Ensure liquidity refresh cannot hang the scheduler indefinitely
+            result = await asyncio.wait_for(refresh_liquidity(db, config=config), timeout=45)
         finally:
             db.close()
 
@@ -641,6 +708,22 @@ async def _run_liquidity_refresh() -> None:
             result.get("universe_size"),
             result.get("selection_size"),
         )
+    except asyncio.TimeoutError as exc:  # noqa: BLE001
+        completed_at = datetime.now(timezone.utc)
+        duration_seconds = (completed_at - started_at).total_seconds()
+        _LIQUIDITY_STATE.update(
+            {
+                "status": "failed",
+                "last_completed": completed_at,
+                "last_duration": duration_seconds,
+                "error": "Liquidity refresh timed out",
+                "run_id": None,
+                "runs": int(_LIQUIDITY_STATE.get("runs", 0)) + 1,
+                "analytics": None,
+            }
+        )
+        record_scheduler_run("liquidity-refresh", "failed", duration_seconds)
+        logger.warning("Liquidity refresh timed out after %ss", duration_seconds)
     except Exception as exc:  # noqa: BLE001
         completed_at = datetime.now(timezone.utc)
         duration_seconds = (completed_at - started_at).total_seconds()
@@ -688,7 +771,7 @@ async def _run_execution_cycle() -> None:
             from database import SessionLocal  # type: ignore
 
         try:
-            from backend.services.execution import run_portfolio_rebalance  # type: ignore
+            from backend.services.execution.execution import run_portfolio_rebalance  # type: ignore
         except ImportError:  # pragma: no cover - package fallback
             from services.execution import run_portfolio_rebalance  # type: ignore
 
@@ -738,3 +821,58 @@ async def _run_execution_cycle() -> None:
         )
         logger.exception("Execution cycle failed: %s", exc)
         record_scheduler_run("execution-rebalance", "error", duration_seconds)
+
+
+async def _run_ai_retraining() -> None:
+    """
+    Scheduled job for automatic AI model retraining.
+    
+    Runs daily to retrain model on accumulated trading outcomes.
+    """
+    from backend.database import SessionLocal
+    from backend.services.ai_trading_engine import create_ai_trading_engine
+    from ai_engine.ensemble_manager import EnsembleManager
+    
+    logger.info("Starting scheduled AI retraining...")
+    started_at = datetime.now(timezone.utc)
+    
+    db = SessionLocal()
+    try:
+        agent = EnsembleManager()
+        ai_engine = create_ai_trading_engine(agent=agent, db_session=db)
+        
+        # Run retraining (requires at least 100 samples by default)
+        result = await ai_engine._retrain_model(min_samples=100)
+        
+        completed_at = datetime.now(timezone.utc)
+        duration_seconds = (completed_at - started_at).total_seconds()
+        
+        status = result.get("status", "unknown")
+        
+        if status == "success":
+            logger.info(
+                f"AI retraining completed successfully: "
+                f"version={result.get('version_id')} "
+                f"train_acc={result.get('train_accuracy', 0):.2%} "
+                f"val_acc={result.get('validation_accuracy', 0):.2%} "
+                f"duration={duration_seconds:.1f}s"
+            )
+        elif status == "skipped":
+            logger.info(
+                f"AI retraining skipped: {result.get('reason')} "
+                f"(samples: {result.get('samples_count', 0)}/{result.get('required', 0)})"
+            )
+        else:
+            logger.warning(
+                f"AI retraining failed: {result.get('reason', 'unknown error')}"
+            )
+        
+        record_scheduler_run("ai-retraining", status, duration_seconds)
+        
+    except Exception as exc:
+        completed_at = datetime.now(timezone.utc)
+        duration_seconds = (completed_at - started_at).total_seconds()
+        logger.exception("AI retraining failed: %s", exc)
+        record_scheduler_run("ai-retraining", "error", duration_seconds)
+    finally:
+        db.close()

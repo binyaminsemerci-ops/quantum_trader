@@ -1,0 +1,1248 @@
+from contextlib import asynccontextmanager, suppress
+import asyncio
+import json
+import logging
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List
+import sys
+
+# Load .env file FIRST before anything else
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file
+
+# Ensure Starlette uses the modern multipart parser implementation before FastAPI loads.
+import python_multipart  # type: ignore  # noqa: F401
+
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+# Add ai_engine to path
+sys.path.append(os.path.dirname(__file__))
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+try:  # Prefer package-style imports to avoid clashes with top-level modules
+    from backend.routes.coingecko_data import get_coin_price_data, symbol_to_coingecko_id
+    from backend.routes.external_data import binance_ohlcv
+    from backend.routes.live_ai_signals import get_live_ai_signals
+    from backend.routes.signals import _generate_mock_signals
+    from backend.routes import (
+        trades as trades_routes,
+        stats as stats_routes,
+        chart as chart_routes,
+        settings as settings_routes,
+        binance as binance_routes,
+        signals as signals_routes,
+        prices as prices_routes,
+        candles as candles_routes,
+        trade_logs as trade_logs_routes,
+        liquidity as liquidity_routes,
+        risk as risk_routes,
+        ai as ai_routes,
+        ws as ws_routes,
+        scheduler as scheduler_routes,
+    )
+    from backend.trading_bot.routes import (
+        router as trading_bot_router,
+        start_bot_task,
+        stop_bot_task,
+    )
+    from backend.config.risk import load_risk_config
+    from backend.database import SessionLocal
+    from backend.services.positions import PortfolioPositionService
+    from backend.services.risk_guard import RiskGuardService, SqliteRiskStateStore
+    from backend.utils.logging_config import configure_logging, RequestIdMiddleware
+    from backend.utils.scheduler import (
+        get_scheduler_snapshot,
+        shutdown_scheduler,
+        start_scheduler,
+    )
+    from backend.services.event_driven_executor import (
+        start_event_driven_executor,
+        stop_event_driven_executor,
+        is_event_driven_active,
+    )
+    from backend.services.ai_trading_engine import AITradingEngine
+    from backend.utils.telemetry import instrument_app
+    from backend.utils.cache import load_json, save_json
+except ModuleNotFoundError:  # Fallback when running directly from backend directory
+    from routes.coingecko_data import get_coin_price_data, symbol_to_coingecko_id  # type: ignore
+    from routes.external_data import binance_ohlcv  # type: ignore
+    from routes.live_ai_signals import get_live_ai_signals  # type: ignore
+    from routes.signals import _generate_mock_signals  # type: ignore
+    from routes import (
+        trades as trades_routes,  # type: ignore
+        stats as stats_routes,  # type: ignore
+        chart as chart_routes,  # type: ignore
+        settings as settings_routes,  # type: ignore
+        binance as binance_routes,  # type: ignore
+        signals as signals_routes,  # type: ignore
+        prices as prices_routes,  # type: ignore
+        candles as candles_routes,  # type: ignore
+        trade_logs as trade_logs_routes,  # type: ignore
+        liquidity as liquidity_routes,  # type: ignore
+        risk as risk_routes,  # type: ignore
+        ai as ai_routes,  # type: ignore
+        ws as ws_routes,  # type: ignore
+        scheduler as scheduler_routes,  # type: ignore
+    )
+    from config.risk import load_risk_config  # type: ignore
+    from services.risk_guard import RiskGuardService, SqliteRiskStateStore  # type: ignore
+    from database import SessionLocal  # type: ignore
+    from services.positions import PortfolioPositionService  # type: ignore
+    from utils.logging_config import configure_logging, RequestIdMiddleware  # type: ignore
+    from utils.scheduler import (  # type: ignore
+        get_scheduler_snapshot,
+        shutdown_scheduler,
+        start_scheduler,
+    )
+    from utils.telemetry import instrument_app  # type: ignore
+    from utils.cache import load_json, save_json  # type: ignore
+    from trading_bot.routes import (  # type: ignore
+        router as trading_bot_router,
+        start_bot_task,
+        stop_bot_task,
+    )
+
+
+configure_logging()
+
+
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    # CRITICAL: Validate database connectivity on startup
+    logger.info("🔍 Validating database connectivity...")
+    try:
+        from backend.database_validator import validate_database_on_startup
+        db_valid = validate_database_on_startup()
+        if not db_valid:
+            logger.critical("🚨 DATABASE VALIDATION FAILED - System may not work correctly!")
+            logger.critical("Please fix database issues before going live")
+            # Continue with warnings - some endpoints may work without DB
+        else:
+            logger.info("✅ Database validation passed - DB ready!")
+    except Exception as e:
+        logger.error(f"❌ Database validation error: {e}")
+        logger.warning("Continuing startup despite database validation error...")
+    
+    # CRITICAL: Validate sklearn and ML dependencies on startup
+    logger.info("🔍 Validating sklearn and ML dependencies...")
+    try:
+        from ai_engine.sklearn_startup_validator import validate_sklearn_on_startup
+        sklearn_valid = validate_sklearn_on_startup()
+        if not sklearn_valid:
+            logger.critical("🚨 SKLEARN VALIDATION FAILED - AI components may not work!")
+            logger.critical("System will continue but with degraded AI functionality")
+            # Don't crash the system - continue with fallbacks
+        else:
+            logger.info("✅ Sklearn validation passed - AI ready to go!")
+    except Exception as e:
+        logger.error(f"❌ Sklearn validation error: {e}")
+        logger.warning("Continuing startup despite validation error...")
+    
+    risk_config = load_risk_config()
+    store_path = risk_config.risk_state_db_path
+    if store_path:
+        resolved_path = Path(store_path)
+        if not resolved_path.is_absolute():
+            resolved_path = Path(__file__).resolve().parent / resolved_path
+    else:
+        resolved_path = Path(__file__).resolve().parent / "data" / "risk_state.db"
+    
+    # ♻️ POSITION RECOVERY: Recover open positions from Binance after restart/reconnection
+    logger.info("🔍 Checking for positions to recover from previous session...")
+    try:
+        from backend.services.execution import build_execution_adapter, TradeStateStore
+        from backend.config.execution import load_execution_config
+        
+        exec_config = load_execution_config()
+        adapter = build_execution_adapter(exec_config)
+        
+        # Get current positions from Binance
+        positions = await adapter.get_positions()
+        
+        # Get position details including entry prices
+        if positions:
+            account_data = await adapter._signed_request('GET', '/fapi/v2/account')
+            position_details = {
+                p['symbol']: p for p in account_data.get('positions', [])
+                if abs(float(p.get('positionAmt', 0))) > 0
+            }
+            
+            # Load trade state store
+            trade_state_path = Path(__file__).resolve().parent / "data" / "trade_state.json"
+            trade_store = TradeStateStore(trade_state_path)
+            
+            recovered_count = 0
+            for symbol, qty in positions.items():
+                # Check if we already have state for this position
+                existing_state = trade_store.get(symbol)
+                if existing_state is None and symbol in position_details:
+                    # Recover position state from Binance data
+                    pos_data = position_details[symbol]
+                    entry_price = float(pos_data.get('entryPrice', 0))
+                    
+                    if entry_price > 0:
+                        side = "LONG" if qty > 0 else "SHORT"
+                        state = {
+                            "side": side,
+                            "qty": abs(qty),
+                            "avg_entry": entry_price,
+                            "peak": entry_price if side == "LONG" else None,
+                            "trough": entry_price if side == "SHORT" else None,
+                            "recovered": True,
+                            "opened_at": datetime.now(timezone.utc).isoformat()
+                        }
+                        trade_store.set(symbol, state)
+                        recovered_count += 1
+                        logger.info(f"♻️ Recovered {symbol}: {side} {abs(qty):.4f} @ ${entry_price:.4f}")
+            
+            if recovered_count > 0:
+                logger.info(f"✅ Recovered {recovered_count} position(s) from previous session - AI will now track TP/SL")
+            else:
+                logger.info("✅ All positions already have tracking state")
+    except Exception as e:
+        logger.warning(f"⚠️ Position recovery failed: {e}")
+        logger.warning("Positions may not have TP/SL tracking until next fill event")
+    
+    # 🤖 CONTINUOUS LEARNING: Auto-start if enabled
+    continuous_learning_enabled = os.getenv("QT_CONTINUOUS_LEARNING", "false").lower() == "true"
+    if continuous_learning_enabled:
+        logger.info("🤖 Continuous Learning: ENABLED")
+        min_samples = int(os.getenv("QT_MIN_SAMPLES_FOR_RETRAIN", "50"))
+        retrain_interval = int(os.getenv("QT_RETRAIN_INTERVAL_HOURS", "24"))
+        logger.info(f"   ✅ Auto-retrain: every {retrain_interval}h or after {min_samples} samples")
+        logger.info(f"   ✅ Learning from every trade outcome (win/loss)")
+        # Note: Actual continuous learning scheduling happens in the event-driven executor or scheduler
+        # This is just startup logging to confirm configuration
+    else:
+        logger.info("ℹ️ Continuous Learning: DISABLED (set QT_CONTINUOUS_LEARNING=true to enable)")
+
+    app_instance.state.risk_guard = RiskGuardService(
+        risk_config,
+        store=SqliteRiskStateStore(resolved_path),
+    )
+    # Ensure core application tables exist in development environments where
+    # Alembic migrations have not been executed yet. This is a defensive
+    # safeguard so AI/monitoring endpoints querying TradeLog (and other ORM
+    # models) do not fail with OperationalError. In production the recommended
+    # approach remains running migrations explicitly.
+    # BULLETPROOF: Now includes proper error logging
+    try:
+        from backend.database import Base, engine  # type: ignore
+        Base.metadata.create_all(bind=engine)
+        logger.info("✅ Database tables verified/created")
+    except Exception as e:
+        # Log the error - endpoints will handle DB unavailability gracefully
+        logger.warning(f"⚠️ Could not create database tables: {e}")
+        logger.warning("Some endpoints may not work if database is unavailable")
+        pass
+    async def _load_positions_snapshot() -> Dict[str, Any]:
+        def _inner() -> Dict[str, Any]:
+            with SessionLocal() as session:
+                service = PortfolioPositionService(session)
+                return service.snapshot()
+
+        return await asyncio.to_thread(_inner)
+
+    app_instance.state.risk_guard.set_position_loader(_load_positions_snapshot)
+    
+    # Choose trading mode: event-driven (AI signals) or scheduled (fixed intervals)
+    use_event_driven = os.getenv("QT_EVENT_DRIVEN_MODE", "false").lower() == "true"
+    autopilot_enabled = _env_flag("QT_AUTOPILOT_AUTOSTART")
+    autopilot_dry_run = _env_flag("QT_AUTOPILOT_DRY_RUN", True)
+    price_warm_symbols = _resolve_price_symbols() if _env_flag("QT_PRICE_WARM_ENABLED", True) else []
+    price_warm_task: asyncio.Task | None = None
+    autopilot_started = False
+    
+    if use_event_driven:
+        # Event-driven mode: AI continuously monitors and trades on strong signals
+        # Support multiple ways to define trading universe
+        symbols_env = os.getenv("QT_SYMBOLS", "")
+        universe_profile = os.getenv("QT_UNIVERSE", "default")  # default, aggressive, conservative, all
+        
+        if symbols_env:
+            # Explicit symbols provided
+            symbols = symbols_env.split(",")
+        else:
+            # Use trading universe profile
+            universe_profile = os.getenv("QT_UNIVERSE", "l1l2-top")
+            try:
+                if universe_profile.lower() in ("l1l2-top", "l1l2volume", "l1l2-vol"):
+                    try:
+                        from config.config import DEFAULT_QUOTE  # type: ignore
+                        quote = DEFAULT_QUOTE
+                    except Exception:
+                        quote = "USDC"
+                    from backend.utils.universe import get_l1l2_top_by_volume, get_l1l2_top_by_volume_multi
+                    max_symbols = int(os.getenv("QT_MAX_SYMBOLS", "100"))
+                    quotes_env = os.getenv("QT_QUOTES", "").strip()
+                    if quotes_env:
+                        quotes = [q.strip().upper() for q in quotes_env.split(",") if q.strip()]
+                        symbols = get_l1l2_top_by_volume_multi(quotes=quotes, max_symbols=max_symbols)
+                        logging.info(
+                            "Selected %d L1/L2+base pairs by 24h volume (quotes=%s)",
+                            len(symbols), ",".join(quotes)
+                        )
+                    else:
+                        symbols = get_l1l2_top_by_volume(quote=quote, max_symbols=max_symbols)
+                        logging.info(
+                            "Selected %d L1/L2+base symbols by 24h volume (quote=%s)",
+                            len(symbols), quote
+                        )
+                else:
+                    from config.trading_universe import get_trading_universe
+                    symbols = get_trading_universe(universe_profile)
+                    # Apply max symbols limit if set
+                    max_symbols_env = int(os.getenv("QT_MAX_SYMBOLS", "0"))
+                    if max_symbols_env > 0 and len(symbols) > max_symbols_env:
+                        symbols = symbols[:max_symbols_env]
+                        logging.info(f"Limited to {max_symbols_env} symbols (QT_MAX_SYMBOLS)")
+            except Exception as e:
+                logging.warning(f"Failed to load trading universe '{universe_profile}': {e}, using defaults")
+                symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
+
+        # Optional limit on symbol count (match training dataset size)
+        max_symbols = int(os.getenv("QT_MAX_SYMBOLS", "0"))
+        if max_symbols > 0 and len(symbols) > max_symbols:
+            symbols = symbols[:max_symbols]
+            logging.info(f"🔢 Limited to {max_symbols} symbols (QT_MAX_SYMBOLS)")
+        
+        # Optional: filter to symbols that actually exist on Binance (reduces 400 noise)
+        # DISABLED: This is TOO SLOW with many symbols - causes startup hang!
+        # try:
+        #     from backend.routes.external_data import filter_existing_usdc_symbols
+        #     filtered = await filter_existing_usdc_symbols(symbols)
+        #     if filtered and len(filtered) < len(symbols):
+        #         logging.info(
+        #             "Filtered to %d/%d symbols with active Binance markets",
+        #             len(filtered), len(symbols)
+        #         )
+        #         symbols = filtered
+        # except Exception as e:
+        #     logging.debug(f"Symbol existence filter skipped: {e}")
+        
+        confidence = float(os.getenv("QT_CONFIDENCE_THRESHOLD", "0.65"))
+        check_interval = int(os.getenv("QT_CHECK_INTERVAL", "30"))
+        cooldown = int(os.getenv("QT_COOLDOWN_SECONDS", "300"))
+        
+        # Load Hybrid AI agent (TFT + XGBoost ensemble)
+        try:
+            from ai_engine.agents.hybrid_agent import HybridAgent
+            agent = HybridAgent(
+                tft_weight=0.6,  # TFT gets 60% vote
+                xgb_weight=0.4,  # XGBoost gets 40% vote
+                agreement_bonus=0.15,  # +15% when models agree
+                min_confidence=confidence
+            )
+            logging.info("🤖 Hybrid Agent loaded (TFT + XGBoost ensemble)")
+        except Exception as e:
+            logging.warning("Failed to load Hybrid agent, falling back to XGBoost: %s", e)
+            try:
+                from ai_engine.ensemble_manager import EnsembleManager
+                def make_default_agent():
+                    return EnsembleManager()
+                agent = make_default_agent()
+                logging.info("AI agent loaded successfully (XGBoost fallback)")
+            except Exception as e2:
+                logging.warning("Failed to load AI agent: %s", e2)
+                agent = None
+        
+        # AI engine doesn't need DB session for signal generation
+        ai_engine = AITradingEngine(agent=agent, db_session=None)
+        
+        executor = await start_event_driven_executor(
+            ai_engine=ai_engine,
+            symbols=symbols,
+            confidence_threshold=confidence,
+            check_interval=check_interval,
+            cooldown=cooldown,
+        )
+        logging.info(
+            "Event-driven trading mode active: %d symbols, confidence >= %.2f",
+            len(symbols), confidence
+        )
+        
+        # ⚠️ CRITICAL: Store BOTH executor and its task to prevent garbage collection
+        app_instance.state.executor = executor
+        app_instance.state.executor_task = executor._task  # Keep task alive!
+        app_instance.state.event_driven_mode = True
+        logging.info("✅ Event-driven executor task stored: %s", executor._task.get_name())
+        
+        # 🎯 Start Position Monitor (ensures all positions have TP/SL)
+        try:
+            from backend.services.position_monitor import PositionMonitor
+            position_monitor = PositionMonitor(
+                check_interval=int(os.getenv("QT_POSITION_MONITOR_INTERVAL", "10")),  # 🎯 Default 10s for dynamic adjustments
+                ai_engine=ai_engine  # 🚨 FIX #3: Pass AI engine for sentiment re-evaluation
+            )
+            # Start position monitor in background
+            position_monitor_task = asyncio.create_task(position_monitor.monitor_loop())
+            app_instance.state.position_monitor_task = position_monitor_task
+            logger.info("🔍 Position Monitor: ENABLED (auto TP/SL + AI re-evaluation)")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not start Position Monitor: {e}")
+        
+        # 🎯 Start Trailing Stop Manager
+        trailing_enabled = os.getenv("QT_TRAILING_STOP_ENABLED", "true").lower() == "true"
+        if trailing_enabled:
+            try:
+                from backend.services.trailing_stop_manager import TrailingStopManager
+                trailing_manager = TrailingStopManager(
+                    check_interval=int(os.getenv("QT_TRAILING_CHECK_INTERVAL", "10")),
+                    min_profit_to_activate=float(os.getenv("QT_TRAILING_MIN_PROFIT", "0.005"))
+                )
+                # Start trailing stop monitor in background
+                trailing_task = asyncio.create_task(trailing_manager.monitor_loop())
+                app_instance.state.trailing_task = trailing_task
+                logger.info("🔄 Trailing Stop Manager: ENABLED")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not start Trailing Stop Manager: {e}")
+
+        if price_warm_symbols:
+            price_warm_task = asyncio.create_task(_warm_price_cache(price_warm_symbols))
+    else:
+        # Scheduled mode: traditional fixed-interval execution
+        await start_scheduler(app_instance)
+        logging.info("Scheduled trading mode active (fixed intervals)")
+        app_instance.state.event_driven_mode = False
+
+        if price_warm_symbols:
+            price_warm_task = asyncio.create_task(_warm_price_cache(price_warm_symbols))
+
+        if autopilot_enabled:
+            try:
+                await start_bot_task(dry_run=autopilot_dry_run)
+                autopilot_started = True
+            except Exception as exc:  # noqa: BLE001
+                logging.warning("Autopilot autostart failed: %s", exc)
+    
+    try:
+        yield
+    finally:
+        if price_warm_task is not None:
+            with suppress(asyncio.CancelledError):
+                await price_warm_task
+        
+        # Stop trailing stop manager if running
+        if hasattr(app_instance.state, "trailing_task"):
+            app_instance.state.trailing_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await app_instance.state.trailing_task
+            logger.info("🔄 Trailing Stop Manager: STOPPED")
+        
+        try:
+            if getattr(app_instance.state, "event_driven_mode", False):
+                await stop_event_driven_executor()
+            else:
+                await shutdown_scheduler(app_instance)
+        except asyncio.CancelledError:
+            # Ignore cancellation during shutdown
+            pass
+        if autopilot_started:
+            with suppress(Exception):
+                await stop_bot_task()
+        if hasattr(app_instance.state, "risk_guard"):
+            delattr(app_instance.state, "risk_guard")
+
+
+app = FastAPI(
+    title="Quantum Trader API",
+    description="AI-Powered Cryptocurrency Trading Platform",
+    version="1.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan,
+)
+
+instrument_app(app)
+
+# CORS middleware for frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5175",
+        "http://localhost:5174",
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5175",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.add_middleware(RequestIdMiddleware)
+
+logger = logging.getLogger(__name__)
+
+DATA_DIR = Path(__file__).resolve().parent / "data"
+PRICE_CACHE_PATH = DATA_DIR / "price_cache.json"
+SIGNALS_CACHE_PATH = DATA_DIR / "signals_cache.json"
+
+PRICE_WARM_DEFAULT = [
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "SOLUSDT",
+    "ADAUSDT",
+    "MATICUSDT",
+    "DOTUSDT",
+    "AVAXUSDT",
+    "LINKUSDT",
+    "UNIUSDT",
+]
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _resolve_price_symbols() -> List[str]:
+    raw = os.getenv("QT_PRICE_WARM_SYMBOLS")
+    if raw:
+        symbols = [sym.strip().upper() for sym in raw.split(",") if sym.strip()]
+        return symbols
+    return PRICE_WARM_DEFAULT.copy()
+
+
+def _cache_price(symbol: str, payload: Dict[str, Any]) -> None:
+    """Persist the latest price snapshot per symbol."""
+    cached = load_json(PRICE_CACHE_PATH) or {}
+    if not isinstance(cached, dict):
+        cached = {}
+    cached[symbol] = payload
+    save_json(PRICE_CACHE_PATH, cached)
+
+
+def _read_cached_price(symbol: str) -> Dict[str, Any] | None:
+    cached = load_json(PRICE_CACHE_PATH) or {}
+    if isinstance(cached, dict):
+        payload = cached.get(symbol)
+        if isinstance(payload, dict):
+            return payload
+    return None
+
+
+def _format_price_payload(symbol: str, price: float, previous: float, timestamp: datetime) -> Dict[str, Any]:
+    change = price - previous if previous else 0.0
+    change_percent = (change / previous * 100) if previous else 0.0
+    return {
+        "symbol": symbol,
+        "price": price,
+        "change": change,
+        "change_percent": change_percent,
+        "timestamp": timestamp.isoformat(),
+    }
+
+
+async def _fetch_latest_price_snapshot(symbol: str) -> Dict[str, Any]:
+    symbol = symbol.upper()
+    try:
+        market_data = await binance_ohlcv(symbol, limit=2)
+        candles = market_data.get("candles", []) if isinstance(market_data, dict) else []
+        if candles:
+            latest = candles[-1]
+            previous_close = candles[-2]["close"] if len(candles) > 1 else latest["close"]
+            price = float(latest["close"])
+            timestamp = datetime.fromtimestamp(int(latest["timestamp"]) / 1000)
+            payload = _format_price_payload(symbol, price, float(previous_close), timestamp)
+            _cache_price(symbol, payload)
+            return payload
+    except Exception as exc:  # pragma: no cover - runtime safeguard
+        logger.exception("Failed to fetch price from Binance", exc_info=exc)
+
+    try:
+        coin_id = symbol_to_coingecko_id(symbol)
+        history = await get_coin_price_data(coin_id, days=1)
+        prices = history.get("prices", []) if isinstance(history, dict) else []
+        if prices:
+            last_ts, last_price = prices[-1]
+            prev_ts, prev_price = prices[-2] if len(prices) > 1 else (last_ts, last_price)
+            payload = _format_price_payload(
+                symbol,
+                float(last_price),
+                float(prev_price),
+                datetime.fromtimestamp(last_ts / 1000),
+            )
+            _cache_price(symbol, payload)
+            return payload
+    except Exception as exc:  # pragma: no cover - runtime safeguard
+        logger.exception("Failed to fetch price from CoinGecko", exc_info=exc)
+
+    cached = _read_cached_price(symbol)
+    if cached:
+        return cached
+
+    raise HTTPException(status_code=503, detail="Price data unavailable")
+
+
+async def _warm_price_cache(symbols: List[str]) -> None:
+    for symbol in symbols:
+        try:
+            await _fetch_latest_price_snapshot(symbol)
+        except HTTPException as exc:  # pragma: no cover - warm-up best effort
+            logger.warning("Price warm-up failed for %s: %s", symbol, exc.detail)
+        except Exception as exc:  # pragma: no cover
+            logger.exception("Unexpected error warming price cache for %s", symbol, exc_info=exc)
+
+
+def _cache_signals(profile: str, items: List[Dict[str, Any]]) -> None:
+    cached = load_json(SIGNALS_CACHE_PATH) or {}
+    if not isinstance(cached, dict):
+        cached = {}
+    cached[profile] = items
+    save_json(SIGNALS_CACHE_PATH, cached)
+
+
+def _read_cached_signals(profile: str) -> List[Dict[str, Any]] | None:
+    cached = load_json(SIGNALS_CACHE_PATH) or {}
+    if isinstance(cached, dict):
+        payload = cached.get(profile)
+        if isinstance(payload, list):
+            return payload
+    return None
+
+
+# Register additional routers for legacy/demo endpoints used in the test suite
+app.include_router(trades_routes.router, prefix="/trades")
+app.include_router(stats_routes.router, prefix="/stats")
+app.include_router(chart_routes.router, prefix="/chart")
+app.include_router(settings_routes.router, prefix="/settings")
+app.include_router(binance_routes.router, prefix="/binance")
+app.include_router(signals_routes.router, prefix="/signals")
+app.include_router(prices_routes.router, prefix="/prices")
+app.include_router(candles_routes.router, prefix="/candles")
+app.include_router(trade_logs_routes.router)
+app.include_router(liquidity_routes.router)
+app.include_router(risk_routes.router)
+app.include_router(ai_routes.router, prefix="/ai")
+app.include_router(ws_routes.router)
+app.include_router(scheduler_routes.router)
+
+# TEST: Hybrid Agent test endpoint (safe to add)
+try:
+    from backend.routes.test_hybrid import router as test_hybrid_router
+    app.include_router(test_hybrid_router)
+    logger.info("✅ Hybrid Agent test endpoint registered")
+except ImportError:
+    logger.warning("⚠️ Hybrid Agent test endpoint not available")
+except Exception as e:
+    logger.error(f"❌ Failed to register Hybrid Agent test endpoint: {e}")
+
+
+
+def _error_payload(
+    request: Request,
+    *,
+    error: str,
+    status_code: int,
+    message: str | None = None,
+    details: Any | None = None,
+    raw_detail: Any | None = None,
+) -> JSONResponse:
+    payload: Dict[str, Any] = {
+        "error": error,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "path": request.url.path,
+    }
+    if message is not None:
+        payload["message"] = message
+    if details is not None:
+        payload["details"] = details
+    elif raw_detail is not None:
+        payload["detail"] = raw_detail
+    return JSONResponse(status_code=status_code, content=payload)
+
+
+@app.exception_handler(RequestValidationError)
+async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    return _error_payload(
+        request,
+        error="Validation Error",
+    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        message="Input validation failed",
+        details=exc.errors(),
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def handle_http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    detail = exc.detail
+    message = detail if isinstance(detail, str) else exc.__class__.__name__
+    error_label = exc.__class__.__name__ if not isinstance(detail, str) else detail
+    return _error_payload(
+        request,
+        error=error_label,
+        status_code=exc.status_code,
+        message=message if isinstance(message, str) else exc.__class__.__name__,
+        raw_detail=detail,
+    )
+
+
+@app.exception_handler(Exception)
+async def handle_generic_exception(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled application error", exc_info=exc)
+    return _error_payload(
+        request,
+        error="Internal Server Error",
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        message="Internal server error",
+    )
+
+
+def _normalise_signals(items: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
+    normalised: List[Dict[str, Any]] = []
+    now_iso = datetime.now().isoformat()
+    for index, item in enumerate(items[:limit]):
+        timestamp = item.get("timestamp", now_iso)
+        if isinstance(timestamp, datetime):
+            timestamp_iso = timestamp.isoformat()
+        else:
+            timestamp_iso = str(timestamp)
+
+        raw_type = item.get("side") or item.get("type") or "HOLD"
+        reason: str = ""
+        source_label: str = ""
+        details = item.get("details")
+        if isinstance(details, dict):
+            note = details.get("note")
+            if isinstance(note, str):
+                reason = note
+            detail_source = details.get("source")
+            if isinstance(detail_source, str):
+                source_label = detail_source
+        if not reason:
+            reason = str(item.get("reason", ""))
+        if not source_label:
+            src = item.get("source")
+            if isinstance(src, str):
+                source_label = src
+        model_name = item.get("model")
+        if not isinstance(model_name, str):
+            model_name = ""
+
+        raw_confidence = item.get("confidence", item.get("score", 0.0))
+        try:
+            confidence = float(raw_confidence)
+        except (TypeError, ValueError):
+            confidence = 0.0
+
+        raw_price = item.get("price")
+        try:
+            price = float(raw_price)
+        except (TypeError, ValueError):
+            price = 0.0
+
+        normalised.append(
+            {
+                "id": str(item.get("id", f"signal_{index}")),
+                "symbol": str(item.get("symbol", "BTCUSDT")),
+                "action": str(raw_type).upper(),  # Changed from 'type' to 'action' for Qt-Agent-UI compatibility
+                "type": str(raw_type).upper(),    # Keep 'type' for backward compatibility
+                "confidence": confidence,
+                "price": price,
+                "timestamp": timestamp_iso,
+                "reason": reason,
+                "source": source_label or "unknown",
+                "model": model_name,
+            }
+        )
+
+    return normalised
+
+
+@app.get("/")
+async def root():
+    return {"message": "Quantum Trader API is running"}
+
+
+@app.get("/api/ai/model/status")
+async def get_model_status():
+    """Get AI model status and metadata"""
+    try:
+        metadata_path = os.path.join(os.path.dirname(__file__), "..", "ai_engine", "models", "metadata.json")
+
+        if os.path.exists(metadata_path):
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+
+            return {
+                "status": "Ready",
+                "training_date": metadata.get("training_date"),
+                "samples": metadata.get("samples"),
+                "model_type": metadata.get("model_type"),
+                "accuracy": metadata.get("accuracy", 0.85)
+            }
+        else:
+            return {"status": "Not Trained", "training_date": None}
+
+    except Exception as e:
+        return {"status": "Error", "error": str(e)}
+
+
+@app.get("/api/ai/signals/latest")
+async def get_latest_signals(limit: int = 10, profile: str = "mixed"):
+    """Get live AI trading signals with caching and fallbacks."""
+    profile = profile if profile in {"left", "right", "mixed"} else "mixed"
+
+    try:
+        raw_signals = await get_live_ai_signals(limit=limit, profile=profile) or []
+        logger.info(f"get_live_ai_signals returned {len(raw_signals)} signals")
+        if raw_signals:
+            logger.info(f"First raw signal: {raw_signals[0]}")
+        normalised = _normalise_signals(raw_signals, limit)
+        if normalised:
+            logger.info(f"Normalised {len(normalised)} signals, first: {normalised[0]}")
+            _cache_signals(profile, normalised)
+            return normalised
+        logger.warning("Live AI signals unavailable, returning cached data if present")
+    except Exception as exc:  # pragma: no cover - runtime safeguard
+        logger.exception("Failed to generate live AI signals", exc_info=exc)
+
+    cached = _read_cached_signals(profile)
+    if cached:
+        return cached[:limit]
+
+    return _normalise_signals(_generate_mock_signals(limit, profile), limit)
+
+
+@app.get("/api/prices/latest")
+async def get_latest_price(symbol: str = "BTCUSDT"):
+    """Get latest price for a symbol"""
+    return await _fetch_latest_price_snapshot(symbol)
+
+
+@app.post("/api/ai/retrain")
+async def retrain_model():
+    """Trigger AI model retraining"""
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            ["cmd", "/c", "train_ai_model.bat"],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__))
+        )
+
+        if result.returncode == 0:
+            return {"status": "success", "message": "Model retraining started"}
+        else:
+            return {"status": "error", "message": result.stderr}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Dashboard API endpoints
+@app.get("/api/portfolio")
+async def get_portfolio():
+    """Get current portfolio with positions and equity"""
+    from backend.database import SessionLocal
+    from backend.models import PortfolioSnapshot
+    from backend.services.execution import _build_adapter
+    
+    db = SessionLocal()
+    try:
+        # Get latest portfolio snapshot
+        latest = db.query(PortfolioSnapshot).order_by(PortfolioSnapshot.created_at.desc()).first()
+        
+        if not latest:
+            return {"total_equity": 0.0, "cash": 0.0, "positions": [], "timestamp": datetime.now().isoformat()}
+        
+        # Get current positions from adapter
+        adapter = await _build_adapter()
+        positions_dict = await adapter.get_positions()
+        cash = await adapter.get_cash_balance()
+        
+        # Format positions for frontend
+        positions = []
+        total_notional = 0.0
+        for symbol, qty in positions_dict.items():
+            if abs(qty) > 0:
+                # Get current price (simplified - would ideally get from price service)
+                notional = abs(qty) * 100.0  # Placeholder - should get real price
+                total_notional += notional
+                positions.append({
+                    "symbol": symbol,
+                    "quantity": qty,
+                    "notional": notional,
+                    "side": "LONG" if qty > 0 else "SHORT"
+                })
+        
+        total_equity = cash + total_notional
+        
+        return {
+            "total_equity": total_equity,
+            "cash": cash,
+            "positions": positions,
+            "timestamp": datetime.now().isoformat()
+        }
+    finally:
+        db.close()
+
+
+@app.get("/api/trades")
+async def get_recent_trades(limit: int = 50):
+    """Get recent trade history from execution journal"""
+    from backend.database import SessionLocal
+    from sqlalchemy import text
+    
+    db = SessionLocal()
+    try:
+        # Direct SQL query to avoid missing model import
+        result = db.execute(text("""
+            SELECT symbol, side, quantity, price, timestamp, run_id
+            FROM execution_journal
+            ORDER BY timestamp DESC
+            LIMIT :limit
+        """), {"limit": limit})
+        
+        trades = []
+        for row in result:
+            trades.append({
+                "symbol": row[0],
+                "side": row[1],
+                "quantity": float(row[2]) if row[2] else 0.0,
+                "price": float(row[3]) if row[3] else 0.0,
+                "timestamp": row[4],
+                "run_id": row[5],
+            })
+        
+        return trades
+    finally:
+        db.close()
+
+
+@app.get("/api/stats")
+async def get_trading_stats():
+    """Get trading performance statistics"""
+    from backend.database import SessionLocal
+    from backend.models import ExecutionJournal
+    from sqlalchemy import func
+    
+    db = SessionLocal()
+    try:
+        # Get counts by status
+        total_trades = db.query(func.count(ExecutionJournal.id)).filter(
+            ExecutionJournal.status == "filled"
+        ).scalar() or 0
+        
+        failed_trades = db.query(func.count(ExecutionJournal.id)).filter(
+            ExecutionJournal.status == "failed"
+        ).scalar() or 0
+        
+        skipped_trades = db.query(func.count(ExecutionJournal.id)).filter(
+            ExecutionJournal.status == "skipped"
+        ).scalar() or 0
+        
+        # Calculate win rate (placeholder - would need PnL data)
+        win_rate = 0.0  # TODO: Calculate from actual PnL
+        total_pnl = 0.0  # TODO: Calculate from position closures
+        
+        # Get recent activity (last 24h)
+        from datetime import timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        recent_trades = db.query(func.count(ExecutionJournal.id)).filter(
+            ExecutionJournal.created_at >= cutoff,
+            ExecutionJournal.status == "filled"
+        ).scalar() or 0
+        
+        return {
+            "total_trades": total_trades,
+            "failed_trades": failed_trades,
+            "skipped_trades": skipped_trades,
+            "recent_trades_24h": recent_trades,
+            "win_rate": win_rate,
+            "total_pnl": total_pnl,
+            "timestamp": datetime.now().isoformat()
+        }
+    finally:
+        db.close()
+
+
+@app.get("/api/ai/signals")
+async def get_ai_signals():
+    """Get current AI trading signals"""
+    try:
+        from ai_engine.agents.xgb_agent import make_default_agent
+        from backend.services.ai_trading_engine import AITradingEngine
+        from backend.database import SessionLocal
+        
+        db = SessionLocal()
+        try:
+            agent = make_default_agent()
+            ai_engine = AITradingEngine(agent=agent, db_session=db)
+            
+            # Get symbols from config
+            from backend.config.risk import load_risk_config
+            risk_cfg = load_risk_config()
+            symbols = risk_cfg.allowed_symbols[:10] if risk_cfg.allowed_symbols else ["BTCUSDT", "ETHUSDT"]
+            
+            # Get signals
+            signals = await ai_engine.get_trading_signals(symbols, {})
+            
+            return {
+                "signals": signals,
+                "timestamp": datetime.now().isoformat()
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        logging.error(f"Failed to get AI signals: {e}")
+        return {"signals": [], "error": str(e), "timestamp": datetime.now().isoformat()}
+
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    # Check if event-driven mode is active
+    event_driven_active = is_event_driven_active()
+    
+    response = {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "event_driven_active": event_driven_active,
+    }
+    
+    # Try to get risk snapshot (might fail if risk guard not ready)
+    try:
+        risk_guard = getattr(app.state, "risk_guard", None)
+        if risk_guard:
+            risk_snapshot = await risk_guard.snapshot()
+            response["risk"] = risk_snapshot
+    except Exception as e:
+        logger.warning("Failed to get risk snapshot: %s", e)
+        response["risk"] = {"status": "unavailable", "error": str(e)}
+    
+    # Only include scheduler info if not in event-driven mode
+    if not event_driven_active:
+        try:
+            response["scheduler"] = get_scheduler_snapshot()
+        except Exception as e:
+            logger.warning("Failed to get scheduler snapshot: %s", e)
+            response["scheduler"] = {"status": "unavailable"}
+    
+    return response
+
+
+@app.get("/health/scheduler")
+async def scheduler_health():
+    return get_scheduler_snapshot()
+
+
+@app.get("/health/risk")
+async def risk_health():
+    risk_guard = getattr(app.state, "risk_guard", None)
+    if risk_guard is None:
+        return {"status": "unavailable"}
+    snapshot = await risk_guard.snapshot()
+    return {"status": "ok", **snapshot}
+
+
+# Qt-Agent-UI Dashboard Endpoints
+@app.get("/api/metrics/system")
+async def get_system_metrics():
+    """System metrics for Qt-Agent-UI dashboard"""
+    try:
+        event_driven_active = is_event_driven_active()
+        
+        # Get execution journal stats
+        db = SessionLocal()
+        try:
+            from sqlalchemy import text
+            
+            # Total trades (filled orders)
+            total_trades = db.execute(text(
+                "SELECT COUNT(*) FROM execution_journal WHERE status = 'filled'"
+            )).scalar() or 0
+            
+            # Win rate (rough estimate based on recent trades)
+            win_rate_result = db.execute(text("""
+                SELECT 
+                    COUNT(CASE WHEN side = 'BUY' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) as win_rate
+                FROM execution_journal 
+                WHERE status = 'filled' 
+                AND created_at > datetime('now', '-24 hours')
+            """)).fetchone()
+            win_rate = float(win_rate_result[0]) if win_rate_result and win_rate_result[0] else 0.0
+            
+            # PnL (placeholder - would need actual calculation from positions)
+            pnl_usd = 0.0
+            
+            # Active positions count
+            positions_count = 0
+            try:
+                from backend.services.execution import create_execution_adapter
+                adapter = await create_execution_adapter()
+                positions = await adapter.get_positions()
+                positions_count = len([p for p in positions.values() if abs(p) > 0])
+            except Exception:
+                pass
+            
+            # Recent signals count
+            signals_count = db.execute(text(
+                "SELECT COUNT(*) FROM execution_journal WHERE created_at > datetime('now', '-1 hour')"
+            )).scalar() or 0
+            
+            return {
+                "total_trades": total_trades,
+                "win_rate": round(win_rate, 2),
+                "pnl_usd": pnl_usd,
+                "ai_status": "active" if event_driven_active else "idle",
+                "autonomous_mode": event_driven_active,
+                "positions_count": positions_count,
+                "signals_count": signals_count,
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Failed to get system metrics: {e}")
+        return {
+            "total_trades": 0,
+            "win_rate": 0.0,
+            "pnl_usd": 0.0,
+            "ai_status": "error",
+            "autonomous_mode": False,
+            "positions_count": 0,
+            "signals_count": 0,
+        }
+
+
+@app.get("/positions")
+async def get_positions_for_ui():
+    """Get current positions for Qt-Agent-UI dashboard"""
+    try:
+        from backend.services.execution import build_execution_adapter
+        from backend.config.execution import load_execution_config
+        from backend.services.execution import TradeStateStore
+        
+        config = load_execution_config()
+        adapter = build_execution_adapter(config)
+        
+        # Get positions
+        positions = await adapter.get_positions()
+        
+        # Get trade state for entry prices and PnL
+        trade_state_path = Path(__file__).resolve().parent / "data" / "trade_state.json"
+        trade_store = TradeStateStore(trade_state_path)
+        
+        result = []
+        for symbol, qty in positions.items():
+            if abs(qty) < 0.00001:  # Skip zero positions
+                continue
+            
+            # Get state including current price
+            state = trade_store.get(symbol)
+            if not state:
+                continue  # Skip if no state (shouldn't happen)
+            
+            entry_price = float(state.get("avg_entry", 0.0))
+            current_price = float(state.get("price", entry_price))
+            side = "LONG" if qty > 0 else "SHORT"
+            
+            # Calculate PnL
+            if entry_price > 0 and current_price > 0:
+                if side == "LONG":
+                    pnl = (current_price - entry_price) * abs(qty)
+                    pnl_pct = ((current_price - entry_price) / entry_price) * 100
+                else:
+                    pnl = (entry_price - current_price) * abs(qty)
+                    pnl_pct = ((entry_price - current_price) / entry_price) * 100
+            else:
+                pnl = 0.0
+                pnl_pct = 0.0
+            
+            result.append({
+                "symbol": symbol,
+                "side": side,
+                "quantity": abs(qty),
+                "size": abs(qty),
+                "entry_price": entry_price,
+                "avg_entry_price": entry_price,
+                "current_price": current_price,
+                "unrealized_pnl": pnl,
+                "pnl": pnl,
+                "pnl_pct": pnl_pct,
+            })
+        
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get positions: {e}")
+        return []  # Return empty list on error
+        return []
+
+
+@app.get("/trades")
+async def get_trades_for_ui(limit: int = 100):
+    """Get recent trades for Qt-Agent-UI dashboard"""
+    try:
+        db = SessionLocal()
+        try:
+            from sqlalchemy import text
+            
+            result = db.execute(text(f"""
+                SELECT 
+                    id,
+                    created_at as timestamp,
+                    symbol,
+                    side,
+                    quantity,
+                    status,
+                    reason
+                FROM execution_journal
+                WHERE status IN ('filled', 'failed')
+                ORDER BY created_at DESC
+                LIMIT {limit}
+            """)).fetchall()
+            
+            trades = []
+            for row in result:
+                trades.append({
+                    "id": str(row.id),
+                    "timestamp": row.timestamp.isoformat() if hasattr(row.timestamp, 'isoformat') else str(row.timestamp),
+                    "symbol": row.symbol,
+                    "side": row.side.upper(),
+                    "quantity": float(row.quantity),
+                    "status": row.status,
+                    "price": 0.0,  # Would need to parse from reason or store separately
+                    "pnl": None,
+                })
+            
+            return trades
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Failed to get trades: {e}")
+        return []
+
+# COMMENTED OUT - These routers are not implemented yet
+# When you create these router modules, uncomment the corresponding lines:
+# 
+# from routers import trades, stats, chart, settings, binance, signals, prices, candles
+#
+# app.include_router(trades.router, prefix="/trades")
+# app.include_router(stats.router, prefix="/stats")
+# app.include_router(chart.router, prefix="/chart")
+# app.include_router(settings.router, prefix="/settings")
+# app.include_router(binance.router, prefix="/binance")
+# app.include_router(signals.router, prefix="/signals")
+# app.include_router(prices.router, prefix="/prices")
+# app.include_router(candles.router, prefix="/candles")
+app.include_router(trading_bot_router, prefix="/trading-bot", tags=["Trading Bot"])
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

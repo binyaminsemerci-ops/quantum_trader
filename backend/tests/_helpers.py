@@ -159,6 +159,31 @@ class ExternalDataStub:
             "tweet_count": 25,
         }
 
+    async def cryptopanic_news(self, symbol: str) -> List[Dict[str, Any]]:
+        """
+        Mock CryptoPanic news feed for tests.
+
+        Args:
+            symbol: Trading pair symbol
+
+        Returns:
+            List of deterministic news items with sentiment labels
+        """
+        return [
+            {
+                "title": f"{symbol} breaking resistance levels",
+                "sentiment": "positive",
+                "url": "https://example.com/analysis",
+                "published_at": "2025-11-01T12:00:00Z",
+            },
+            {
+                "title": f"Regulatory updates impact {symbol}",
+                "sentiment": "neutral",
+                "url": "https://example.com/regulation",
+                "published_at": "2025-11-02T08:30:00Z",
+            },
+        ]
+
 
 # Create a global instance for easy importing
 external_data_stub = ExternalDataStub()

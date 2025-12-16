@@ -1,0 +1,74 @@
+from binance.client import Client
+import os
+
+client = Client(os.getenv('BINANCE_API_KEY'), os.getenv('BINANCE_API_SECRET'))
+
+# Get LTCUSDT position
+positions = client.futures_position_information(symbol='LTCUSDT')
+pos = next((p for p in positions if float(p['positionAmt']) != 0), None)
+
+if not pos:
+    print("❌ No LTCUSDT position found")
+    exit()
+
+entry = float(pos['entryPrice'])
+qty = float(pos['positionAmt'])
+side = 'SHORT' if qty < 0 else 'LONG'
+
+print(f"LTCUSDT {side}: Size={abs(qty)}, Entry=${entry}")
+
+# Get precision
+info = client.futures_exchange_info()
+symbol_info = next(s for s in info['symbols'] if s['symbol'] == 'LTCUSDT')
+price_filter = next(f for f in symbol_info['filters'] if f['filterType'] == 'PRICE_FILTER')
+tick_size = float(price_filter['tickSize'])
+
+if tick_size >= 1:
+    precision = 0
+else:
+    precision = len(str(tick_size).rstrip('0').split('.')[-1])
+
+print(f"tickSize: {tick_size}, precision: {precision} decimals")
+
+# Calculate TP/SL
+tp_pct = 0.005  # 0.5%
+sl_pct = 0.0075  # 0.75%
+
+if side == 'SHORT':
+    tp_price = round(entry * (1 - tp_pct), precision)
+    sl_price = round(entry * (1 + sl_pct), precision)
+    order_side = 'BUY'
+else:
+    tp_price = round(entry * (1 + tp_pct), precision)
+    sl_price = round(entry * (1 - sl_pct), precision)
+    order_side = 'SELL'
+
+print(f"TP Price: {tp_price}, SL Price: {sl_price}")
+
+# Place TP order
+try:
+    tp_order = client.futures_create_order(
+        symbol='LTCUSDT',
+        side=order_side,
+        type='TAKE_PROFIT_MARKET',
+        stopPrice=tp_price,
+        closePosition=True,
+        workingType='MARK_PRICE'
+    )
+    print(f"[OK] TP order placed: {tp_order['orderId']}")
+except Exception as e:
+    print(f"❌ TP order failed: {e}")
+
+# Place SL order
+try:
+    sl_order = client.futures_create_order(
+        symbol='LTCUSDT',
+        side=order_side,
+        type='STOP_MARKET',
+        stopPrice=sl_price,
+        closePosition=True,
+        workingType='MARK_PRICE'
+    )
+    print(f"[OK] SL order placed: {sl_order['orderId']}")
+except Exception as e:
+    print(f"❌ SL order failed: {e}")

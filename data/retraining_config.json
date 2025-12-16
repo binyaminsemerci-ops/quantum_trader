@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "configured_at": "2025-12-11T23:38:46.843349+00:00",
+  "settings": {
+    "min_winrate": 0.5,
+    "min_improvement_pct": 0.05,
+    "periodic_retrain_days": 1,
+    "canary_threshold_pct": 0.02
+  },
+  "next_scheduled_retrain": "2025-12-12T23:38:46.843349+00:00",
+  "triggers_found": 2,
+  "status": "ACTIVE"
+}

@@ -1,0 +1,39 @@
+"""Test Binance API connection and check account balance"""
+from backend.config import load_config
+from binance.client import Client
+
+cfg = load_config()
+print('🔑 Testing Binance API credentials...')
+print(f'API Key: {cfg.binance_api_key[:10]}...')
+
+try:
+    client = Client(cfg.binance_api_key, cfg.binance_api_secret)
+    account = client.get_account()
+    print('✅ Binance API connection successful!')
+    print(f'Can Trade: {account["canTrade"]}')
+    
+    # Check balances
+    balances = [b for b in account['balances'] if float(b['free']) > 0 or float(b['locked']) > 0]
+    print(f'\n💰 Available Balances:')
+    for bal in balances[:10]:
+        free = float(bal['free'])
+        locked = float(bal['locked'])
+        if free > 0.001 or locked > 0.001:
+            total = free + locked
+            print(f'  {bal["asset"]:6s}: {free:12.8f} free + {locked:12.8f} locked = {total:12.8f} total')
+            
+    # Check USDT specifically
+    usdt_bal = next((b for b in account['balances'] if b['asset'] == 'USDT'), None)
+    if usdt_bal:
+        usdt_free = float(usdt_bal['free'])
+        usdt_locked = float(usdt_bal['locked'])
+        print(f'\n💵 USDT Balance: ${usdt_free:.2f} (locked: ${usdt_locked:.2f})')
+        if usdt_free < 15:
+            print('⚠️  WARNING: USDT balance is below minimum notional ($15)')
+        else:
+            print(f'✅ Sufficient USDT for trading (min: $15)')
+            
+except Exception as e:
+    print(f'❌ Binance API error: {e}')
+    import traceback
+    traceback.print_exc()

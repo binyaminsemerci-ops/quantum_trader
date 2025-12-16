@@ -1,0 +1,16 @@
+{
+  "name": "CURRENT_PROFILE",
+  "description": "Currently active configuration",
+  "config": {
+    "base_confidence": 0.5,
+    "base_risk_pct": 1.0,
+    "daily_dd_limit": 3.0,
+    "losing_streak_limit": 5,
+    "max_open_positions": 8,
+    "total_exposure_limit": 15.0,
+    "extreme_vol_threshold": 0.06,
+    "high_vol_threshold": 0.04,
+    "high_spread_bps": 10.0,
+    "high_slippage_bps": 8.0
+  }
+}

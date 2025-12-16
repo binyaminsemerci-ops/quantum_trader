@@ -1,0 +1,11 @@
+{
+  "symbol": "FLOWUSDT",
+  "payload": {
+    "score": 0.35,
+    "label": "negative",
+    "source": "coingecko",
+    "sentiment_votes_up_percentage": 50,
+    "market_cap_rank": 181
+  },
+  "fetched_at": "2025-11-19T12:39:12.147294+00:00"
+}

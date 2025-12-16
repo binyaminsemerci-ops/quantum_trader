@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""Delete all TP/SL orders to force recalculation with correct leverage."""
+import os
+from binance.client import Client
+
+client = Client(os.getenv('BINANCE_API_KEY'), os.getenv('BINANCE_SECRET_KEY'))
+
+# Get all open positions
+positions = client.futures_position_information()
+open_positions = [p for p in positions if float(p['positionAmt']) != 0]
+
+print(f"\n🗑️  SLETTER ALLE TP/SL ORDERS FOR RE-KALKULERING\n")
+print(f"Fant {len(open_positions)} åpne posisjoner\n")
+
+for pos in open_positions:
+    symbol = pos['symbol']
+    print(f"[CHART] {symbol}:")
+    
+    # Get all open orders
+    orders = client.futures_get_open_orders(symbol=symbol)
+    
+    cancelled = 0
+    for order in orders:
+        if order['type'] in ['TAKE_PROFIT_MARKET', 'STOP_MARKET', 'TRAILING_STOP_MARKET', 'STOP_LOSS']:
+            try:
+                client.futures_cancel_order(symbol=symbol, orderId=order['orderId'])
+                print(f"   [OK] Slettet {order['type']} order {order['orderId']}")
+                cancelled += 1
+            except Exception as e:
+                print(f"   ❌ Kunne ikke slette {order['orderId']}: {e}")
+    
+    if cancelled == 0:
+        print(f"   ℹ️  Ingen TP/SL orders å slette")
+    else:
+        print(f"   🗑️  Slettet {cancelled} orders")
+
+print(f"\n[OK] Position monitor vil nå re-kalkulere TP/SL med riktig leverage!")
+print(f"Vent 30 sekunder for neste position check cycle...")

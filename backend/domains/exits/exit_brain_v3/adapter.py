@@ -72,6 +72,8 @@ class ExitBrainAdapter:
             ExitDecision with concrete action to take
         """
         try:
+            self.logger.warning(f"[EXIT_BRAIN_ADAPTER] {ctx.symbol}: decide() CALLED!")
+            
             # Get or create Exit Brain plan for this position
             plan = await self._get_or_create_plan(ctx)
             
@@ -89,10 +91,11 @@ class ExitBrainAdapter:
                 )
             
             # Interpret plan based on current state
+            self.logger.warning(f"[EXIT_BRAIN_ADAPTER] {ctx.symbol}: Got plan, interpreting...")
             decision = self._interpret_plan(ctx, plan)
             
-            self.logger.debug(
-                f"[EXIT_BRAIN_ADAPTER] {ctx.symbol}: {decision.summary()}"
+            self.logger.warning(
+                f"[EXIT_BRAIN_ADAPTER] {ctx.symbol}: Decision={decision.decision_type.value}, reason={decision.reason}"
             )
             
             return decision
@@ -620,7 +623,7 @@ class ExitBrainAdapter:
         active_tp_levels = ctx.meta.get("active_tp_levels", [])
         
         # DEBUG: Log what we see
-        self.logger.debug(
+        self.logger.warning(
             f"[EXIT_BRAIN_ADAPTER] {ctx.symbol}: _should_update_tp_limits check: "
             f"active_tp_levels={len(active_tp_levels)} entries, "
             f"type={type(active_tp_levels)}"
@@ -703,30 +706,25 @@ class ExitBrainAdapter:
         tp_levels = []
         tp_fractions = []
         
+        immediate_hits = 0
         for leg in tp_legs:
             # trigger_pct is POSITIVE for profit (e.g., +0.05 = 5% profit)
             # For LONG: TP = entry * (1 + trigger_pct)
             # For SHORT: TP = entry * (1 - trigger_pct)
             if ctx.is_long:
                 tp_price = ctx.entry_price * (1 + leg.trigger_pct)
+                already_hit = tp_price <= ctx.current_price
             else:
                 tp_price = ctx.entry_price * (1 - leg.trigger_pct)
-            
-            # Skip TP levels that are "behind" current price (already achieved)
-            # For LONG: TP must be above current price
-            # For SHORT: TP must be below current price
-            if ctx.is_long and tp_price <= ctx.current_price:
-                self.logger.debug(
-                    f"[EXIT_BRAIN_ADAPTER] {ctx.symbol}: Skipping TP @ {tp_price:.4f} "
-                    f"(below current {ctx.current_price:.4f}, already achieved)"
+                already_hit = tp_price >= ctx.current_price
+
+            # Keep TPs even if price already surpassed so executor can harvest immediately
+            if already_hit:
+                immediate_hits += 1
+                self.logger.info(
+                    f"[EXIT_BRAIN_ADAPTER] {ctx.symbol}: TP target {tp_price:.4f} already hit "
+                    f"(current {ctx.current_price:.4f}) — queuing for immediate execution"
                 )
-                continue
-            elif not ctx.is_long and tp_price >= ctx.current_price:
-                self.logger.debug(
-                    f"[EXIT_BRAIN_ADAPTER] {ctx.symbol}: Skipping TP @ {tp_price:.4f} "
-                    f"(above current {ctx.current_price:.4f}, already achieved)"
-                )
-                continue
             
             tp_levels.append(tp_price)
             tp_fractions.append(leg.size_pct)
@@ -751,7 +749,10 @@ class ExitBrainAdapter:
             symbol=ctx.symbol,
             new_tp_levels=tp_levels,
             tp_fractions=tp_fractions,
-            reason=f"TP ladder: {len(tp_levels)} levels from plan ({plan.strategy_id})",
+            reason=(
+                f"TP ladder: {len(tp_levels)} levels from plan ({plan.strategy_id})"
+                + (f" | {immediate_hits} already hit" if immediate_hits else "")
+            ),
             current_price=ctx.current_price,
             unrealized_pnl=ctx.unrealized_pnl,
             confidence=0.85,  # Higher confidence since using plan
@@ -759,6 +760,7 @@ class ExitBrainAdapter:
                 "plan_strategy": plan.strategy_id,
                 "regime": ctx.regime,
                 "tp_count": len(tp_levels),
-                "original_tp_count": len(tp_legs)
+                "original_tp_count": len(tp_legs),
+                "immediate_hits": immediate_hits
             }
         )

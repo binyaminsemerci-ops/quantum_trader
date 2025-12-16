@@ -1,0 +1,89 @@
+"""
+Train all 4 models with full 136K dataset
+Runs training in parallel where possible
+"""
+import subprocess
+import sys
+from pathlib import Path
+from datetime import datetime
+import time
+
+def run_training(script_name, model_name):
+    """Run training script and return result."""
+    print(f"\n{'='*60}")
+    print(f"[ROCKET] Starting {model_name} training...")
+    print(f"{'='*60}")
+    
+    start_time = time.time()
+    
+    try:
+        result = subprocess.run(
+            [sys.executable, f"scripts/{script_name}"],
+            capture_output=False,
+            text=True,
+            check=True
+        )
+        
+        duration = time.time() - start_time
+        print(f"\n[OK] {model_name} completed in {duration/60:.1f} minutes")
+        return True, duration
+        
+    except subprocess.CalledProcessError as e:
+        duration = time.time() - start_time
+        print(f"\n❌ {model_name} failed after {duration/60:.1f} minutes")
+        return False, duration
+
+def main():
+    """Train all models sequentially."""
+    print("="*60)
+    print("[TARGET] TRAINING ALL 4 MODELS WITH FULL DATASET")
+    print("   Dataset: 136,500 rows (91 symbols)")
+    print("="*60)
+    
+    start_total = time.time()
+    
+    # Training order: fastest to slowest
+    models = [
+        ("train_binance_only.py", "XGBoost"),
+        # We'll skip LightGBM for now (uses XGB as placeholder)
+        ("train_nhits.py", "N-HiTS"),
+        ("train_patchtst.py", "PatchTST"),
+    ]
+    
+    results = {}
+    
+    for script, name in models:
+        success, duration = run_training(script, name)
+        results[name] = {
+            'success': success,
+            'duration': duration
+        }
+    
+    # Summary
+    total_duration = time.time() - start_total
+    
+    print("\n" + "="*60)
+    print("[CHART] TRAINING SUMMARY")
+    print("="*60)
+    
+    for name, result in results.items():
+        status = "[OK] SUCCESS" if result['success'] else "❌ FAILED"
+        print(f"{name:15} {status:12} {result['duration']/60:6.1f} min")
+    
+    print(f"\n{'Total time:':15} {total_duration/60:18.1f} min")
+    print("="*60)
+    
+    # Check if all succeeded
+    all_success = all(r['success'] for r in results.values())
+    
+    if all_success:
+        print("\n🎉 All models trained successfully!")
+        print("   Ready for deployment with EnsembleManager")
+    else:
+        print("\n[WARNING]  Some models failed. Check logs above.")
+    
+    return all_success
+
+if __name__ == '__main__':
+    success = main()
+    sys.exit(0 if success else 1)

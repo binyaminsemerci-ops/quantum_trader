@@ -1,0 +1,8 @@
+{
+  "profile": "SAFE",
+  "max_leverage": 5,
+  "position_size_multiplier": 0.5,
+  "stop_loss_multiplier": 0.8,
+  "updated_by": "self_healing_system",
+  "updated_at": "2025-11-23T00:40:59.677399+00:00"
+}

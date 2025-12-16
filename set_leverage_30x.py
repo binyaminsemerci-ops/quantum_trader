@@ -1,0 +1,87 @@
+"""
+Verify and set 30x leverage on all trading symbols
+"""
+import os
+import asyncio
+from binance.client import Client
+
+LEVERAGE = 30
+
+async def verify_leverage():
+    api_key = os.getenv("BINANCE_API_KEY")
+    api_secret = os.getenv("BINANCE_API_SECRET")
+    
+    if not api_key or not api_secret:
+        print("❌ Missing API credentials")
+        return
+    
+    client = Client(api_key, api_secret)
+    
+    # Get all open positions
+    positions = client.futures_position_information()
+    
+    symbols_to_set = set()
+    
+    print("\n[CHART] Current Positions:")
+    print("-" * 80)
+    
+    for pos in positions:
+        symbol = pos['symbol']
+        position_amt = float(pos['positionAmt'])
+        leverage = int(pos.get('leverage', 1))
+        
+        if position_amt != 0:
+            print(f"{symbol:12} | Qty: {position_amt:>12.4f} | Leverage: {leverage:>3}x")
+            if leverage != LEVERAGE:
+                symbols_to_set.add(symbol)
+    
+    # Also check recently traded symbols
+    recent_trades = client.futures_account_trades(limit=100)
+    for trade in recent_trades:
+        symbols_to_set.add(trade['symbol'])
+    
+    if not symbols_to_set:
+        print(f"\n[OK] All positions already have {LEVERAGE}x leverage")
+        return
+    
+    print(f"\n🔧 Setting {LEVERAGE}x leverage on {len(symbols_to_set)} symbols...")
+    print("-" * 80)
+    
+    success = 0
+    for symbol in symbols_to_set:
+        try:
+            result = client.futures_change_leverage(symbol=symbol, leverage=LEVERAGE)
+            current_lev = result.get('leverage', 'N/A')
+            print(f"[OK] {symbol:12} -> {current_lev}x leverage")
+            success += 1
+        except Exception as e:
+            error_msg = str(e)
+            if "No need to change leverage" in error_msg:
+                print(f"✓  {symbol:12} (already {LEVERAGE}x)")
+                success += 1
+            else:
+                print(f"❌ {symbol:12} - Error: {error_msg}")
+    
+    print("-" * 80)
+    print(f"\n[OK] Successfully configured {success}/{len(symbols_to_set)} symbols with {LEVERAGE}x leverage")
+    
+    # Verify positions again
+    print(f"\n[CHART] Verification - Current Positions:")
+    print("-" * 80)
+    positions = client.futures_position_information()
+    
+    for pos in positions:
+        symbol = pos['symbol']
+        position_amt = float(pos['positionAmt'])
+        leverage = int(pos.get('leverage', 1))
+        
+        if position_amt != 0:
+            status = "[OK]" if leverage == LEVERAGE else "[WARNING]"
+            print(f"{status} {symbol:12} | Qty: {position_amt:>12.4f} | Leverage: {leverage:>3}x")
+
+if __name__ == "__main__":
+    # Load .env.live
+    from dotenv import load_dotenv
+    load_dotenv('backend/.env.live')
+    
+    asyncio.run(verify_leverage())

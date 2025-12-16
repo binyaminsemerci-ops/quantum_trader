@@ -15,6 +15,7 @@ from fastapi import APIRouter, Query
 from typing import List, Dict, Literal, Annotated, Optional
 import datetime
 import logging
+import asyncio
 
 # Note: mock_signals is test/demo-only. Import it lazily inside the
 # generator function so production imports of this module don't pull
@@ -60,6 +61,22 @@ class Signal(BaseModel):
         ge=0.0, le=1.0, description="Model confidence in signal (0.0 = low, 1.0 = high)"
     )
     details: SignalDetails = Field(description="Additional signal metadata and context")
+    
+    # EPIC-EXCH-ROUTING-001: Optional exchange routing
+    exchange: Optional[str] = Field(
+        default=None,
+        description="Target exchange for this signal (e.g., 'binance', 'bybit'). If None, determined by strategy policy."
+    )
+    strategy_id: Optional[str] = Field(
+        default=None,
+        description="Strategy identifier for exchange routing (e.g., 'scalper_btc', 'ai_ensemble')"
+    )
+    
+    # EPIC-MT-ACCOUNTS-001: Optional account routing
+    account_name: Optional[str] = Field(
+        default=None,
+        description="Target trading account for this signal (e.g., 'main_binance', 'friend_1_firi'). If None, determined by strategy/exchange mapping."
+    )
 
 
 class PaginatedSignals(BaseModel):
@@ -139,18 +156,27 @@ async def recent_signals(
         # Import the new live AI signals generator
         from routes.live_ai_signals import get_live_ai_signals
 
-        # Get live AI signals
-        signals = await get_live_ai_signals(limit, profile)
+        # Get live AI signals with a defensive timeout to keep responses fast in tests
+        signals = await asyncio.wait_for(
+            get_live_ai_signals(limit, profile), timeout=10.0
+        )
 
         # If we got signals, return them
         if signals:
             logger.info(f"Generated {len(signals)} live AI signals")
+            if len(signals) < limit:
+                fallback = _generate_mock_signals(limit, profile)
+                combined = (signals + fallback)[:limit]
+                return combined
             return signals[:limit]
 
         # If no AI signals available, fall back to mock data
         logger.warning("No AI signals generated, falling back to mock data")
         return _generate_mock_signals(limit, profile)
 
+    except asyncio.TimeoutError:
+        logger.warning("Timed out while generating live AI signals; falling back to mock data")
+        return _generate_mock_signals(limit, profile)
     except Exception as e:
         logger.error(f"Failed to generate AI signals: {e}")
         # Fall back to mock data on error

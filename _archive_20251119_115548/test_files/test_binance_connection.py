@@ -1,0 +1,92 @@
+"""
+Test Binance API connection after updating keys
+Run this after updating BINANCE_API_KEY and BINANCE_API_SECRET in .env
+"""
+
+print("=" * 80)
+print("🔑 BINANCE API CONNECTION TEST")
+print("=" * 80)
+print()
+print("STEG FOR Å OPPDATERE API KEY:")
+print()
+print("1. Gå til: https://www.binance.com/en/my/settings/api-management")
+print("2. Klikk 'Create API' eller finn eksisterende key")
+print("3. Sjekk at disse permissions er aktivert:")
+print("   [OK] Enable Reading")
+print("   [OK] Enable Spot & Margin Trading")
+print("   [WARNING]  (IKKE aktiver Withdrawals for sikkerhet)")
+print()
+print("4. Kopier API Key og Secret")
+print()
+print("5. Oppdater .env filen:")
+print("   BINANCE_API_KEY=<qy5g2Dxa8JyNzWI29Ub9ZBbaEWAbTjTz91OMCOWWBd7LRlrnLSO82uQFLuMWGoHb>")
+print("   BINANCE_API_SECRET=<oIcNvT3IzlnDwrPxor8jxmCnt2f7ClmmreLsfog2R1QidbgBXNCvm0KyWcF1ebbg>")
+print()
+print("6. Restart backend:")
+print("   docker-compose restart backend")
+print()
+print("7. Test connection med denne filen igjen")
+print()
+print("=" * 80)
+print()
+
+# Test hvis vi er i Docker
+try:
+    from backend.config import load_config
+    from binance.client import Client
+    
+    cfg = load_config()
+    print(f"[MEMO] Current API Key: {cfg.binance_api_key[:10]}...{cfg.binance_api_key[-4:]}")
+    print()
+    
+    try:
+        client = Client(cfg.binance_api_key, cfg.binance_api_secret)
+        
+        # Test simple ping first
+        print("Testing connection...")
+        server_time = client.get_server_time()
+        print(f"[OK] Server reachable! Time: {server_time['serverTime']}")
+        
+        # Try to get account
+        account = client.get_account()
+        print(f"[OK] Account access OK!")
+        print(f"   Can Trade: {account['canTrade']}")
+        print(f"   Can Withdraw: {account['canWithdraw']}")
+        
+        # Check USDT balance
+        usdt = next((b for b in account['balances'] if b['asset'] == 'USDT'), None)
+        if usdt:
+            usdt_free = float(usdt['free'])
+            print(f"   USDT Balance: ${usdt_free:.2f}")
+            
+            if usdt_free >= 50:
+                print(f"\n🎉 KLAR FOR TRADING! Du har ${usdt_free:.2f} USDT")
+            elif usdt_free >= 11:
+                print(f"\n[WARNING]  USDT: ${usdt_free:.2f} (min $50 anbefalt)")
+            else:
+                print(f"\n❌ USDT: ${usdt_free:.2f} (trenger min $11)")
+        
+        print()
+        print("=" * 80)
+        print("[OK] API KEY FUNGERER PERFEKT!")
+        print("=" * 80)
+        
+    except Exception as e:
+        print(f"\n❌ API ERROR: {e}")
+        print()
+        if "2015" in str(e):
+            print("🔧 LØSNING:")
+            print("   - API key mangler 'Spot Trading' permission")
+            print("   - Eller IP whitelist blokkerer deg")
+            print("   - Opprett ny API key med riktige permissions")
+        elif "1000" in str(e):
+            print("🔧 LØSNING:")
+            print("   - API key eller secret er feil")
+            print("   - Sjekk at du kopierte hele key/secret")
+        print()
+        print("=" * 80)
+        
+except ImportError:
+    print("[WARNING]  Kjør dette scriptet i Docker:")
+    print("   docker cp test_binance_connection.py quantum_backend:/app/")
+    print("   docker exec quantum_backend python test_binance_connection.py")

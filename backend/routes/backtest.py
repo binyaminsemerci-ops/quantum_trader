@@ -1,6 +1,9 @@
 # backend/routes/backtest.py
 from fastapi import APIRouter
-from database import get_db
+try:
+    from database import get_db
+except ImportError:
+    from backend.database import get_db
 
 router = APIRouter()
 

@@ -1,0 +1,501 @@
+"""
+Database Startup Validator - Bulletproof Database Layer
+
+CRITICAL: This validator ensures database connectivity is 100% reliable
+before the system goes live. No silent failures, no crashes.
+
+Author: Quantum Trader Team
+Created: 2025-11-14
+"""
+
+import logging
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
+
+
+class DatabaseValidator:
+    """
+    Validates database connectivity and health on system startup.
+    
+    Ensures:
+    - Database engine creation succeeds
+    - Connection pool is healthy
+    - Tables exist or can be created
+    - Basic read/write operations work
+    - No connection leaks
+    
+    Returns clear pass/fail status - NEVER crashes the system.
+    """
+    
+    def __init__(self):
+        self.errors: List[str] = []
+        self.warnings: List[str] = []
+        self.checks_passed: List[str] = []
+        self.db_url: Optional[str] = None
+        self.is_sqlite: bool = False
+        self.engine = None
+        self.session_factory = None
+        
+    def validate_all(self) -> Dict[str, Any]:
+        """
+        Run all database validation checks.
+        
+        Returns:
+            dict with:
+            - success: True if all critical checks pass
+            - errors: List of error messages
+            - warnings: List of warning messages
+            - checks_passed: List of successful checks
+            - db_info: Database connection details
+        """
+        logger.info("[SEARCH] Starting database validation...")
+        
+        # Critical checks (must pass)
+        self._check_database_url()
+        self._check_database_directory()
+        self._check_engine_creation()
+        self._check_connection_pool()
+        self._check_basic_connectivity()
+        self._check_tables_exist()
+        self._check_read_write_operations()
+        self._check_connection_cleanup()
+        
+        # Warning checks (nice to have)
+        self._check_connection_pool_size()
+        self._check_sqlite_wal_mode()
+        
+        success = len(self.errors) == 0
+        
+        db_info = {
+            "url": self._sanitize_url(self.db_url) if self.db_url else None,
+            "type": "sqlite" if self.is_sqlite else "other",
+            "engine_connected": self.engine is not None,
+            "session_factory_created": self.session_factory is not None,
+        }
+        
+        return {
+            "success": success,
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "checks_passed": self.checks_passed,
+            "db_info": db_info,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    
+    def _check_database_url(self) -> None:
+        """Check that DATABASE_URL is configured and valid."""
+        try:
+            if "QUANTUM_TRADER_DATABASE_URL" in os.environ:
+                self.db_url = os.environ["QUANTUM_TRADER_DATABASE_URL"]
+            else:
+                # Default SQLite path
+                db_dir = os.path.join(os.path.dirname(__file__), "data")
+                self.db_url = f"sqlite:///{os.path.join(db_dir, 'trades.db')}"
+            
+            if not self.db_url or self.db_url.strip() == "":
+                self.errors.append("DATABASE_URL is empty")
+                return
+            
+            self.is_sqlite = self.db_url.startswith("sqlite:///")
+            self.checks_passed.append("[OK] Database URL configured")
+            logger.info(f"[OK] Database URL: {self._sanitize_url(self.db_url)}")
+            
+        except Exception as e:
+            self.errors.append(f"Failed to get DATABASE_URL: {e}")
+            logger.error(f"❌ Database URL check failed: {e}")
+    
+    def _check_database_directory(self) -> None:
+        """Ensure database directory exists (for SQLite)."""
+        try:
+            if not self.is_sqlite:
+                self.checks_passed.append("[OK] Non-SQLite DB (no directory check needed)")
+                return
+            
+            db_dir = os.path.join(os.path.dirname(__file__), "data")
+            
+            if not os.path.exists(db_dir):
+                os.makedirs(db_dir, exist_ok=True)
+                logger.info(f"[OK] Created database directory: {db_dir}")
+            
+            if not os.access(db_dir, os.W_OK):
+                self.errors.append(f"Database directory not writable: {db_dir}")
+                return
+            
+            self.checks_passed.append("[OK] Database directory exists and writable")
+            logger.info(f"[OK] Database directory: {db_dir}")
+            
+        except Exception as e:
+            self.errors.append(f"Database directory check failed: {e}")
+            logger.error(f"❌ Database directory check failed: {e}")
+    
+    def _check_engine_creation(self) -> None:
+        """Check that SQLAlchemy engine can be created."""
+        try:
+            from sqlalchemy import create_engine
+            
+            connect_args = (
+                {"check_same_thread": False, "timeout": 10}
+                if self.is_sqlite
+                else {}
+            )
+            
+            # Add connection pooling settings for reliability
+            if self.is_sqlite:
+                self.engine = create_engine(
+                    self.db_url,
+                    connect_args=connect_args,
+                    pool_pre_ping=True,  # Verify connections before using
+                    pool_recycle=3600,   # Recycle connections after 1 hour
+                )
+            else:
+                self.engine = create_engine(
+                    self.db_url,
+                    connect_args=connect_args,
+                    pool_pre_ping=True,
+                    pool_recycle=3600,
+                    pool_size=5,
+                    max_overflow=10,
+                )
+            
+            if self.engine is None:
+                self.errors.append("Engine creation returned None")
+                return
+            
+            self.checks_passed.append("[OK] SQLAlchemy engine created")
+            logger.info("[OK] SQLAlchemy engine created successfully")
+            
+        except Exception as e:
+            self.errors.append(f"Failed to create engine: {e}")
+            logger.error(f"❌ Engine creation failed: {e}", exc_info=True)
+    
+    def _check_connection_pool(self) -> None:
+        """Check that connection pool is healthy."""
+        try:
+            if self.engine is None:
+                self.errors.append("Cannot check connection pool - engine is None")
+                return
+            
+            # Try to get pool status
+            pool = self.engine.pool
+            if pool is None:
+                self.warnings.append("Connection pool is None")
+                return
+            
+            # Check pool is not exhausted
+            try:
+                pool_status = pool.status()
+                logger.debug(f"Connection pool status: {pool_status}")
+            except Exception:
+                pass  # Some pool types don't support status()
+            
+            self.checks_passed.append("[OK] Connection pool initialized")
+            logger.info("[OK] Connection pool healthy")
+            
+        except Exception as e:
+            self.warnings.append(f"Connection pool check warning: {e}")
+            logger.warning(f"[WARNING] Connection pool check: {e}")
+    
+    def _check_basic_connectivity(self) -> None:
+        """Check that we can actually connect to the database."""
+        try:
+            if self.engine is None:
+                self.errors.append("Cannot check connectivity - engine is None")
+                return
+            
+            # Try to connect
+            from sqlalchemy import text
+            
+            with self.engine.connect() as conn:
+                # Execute a simple query (works for all database types)
+                result = conn.execute(text("SELECT 1"))
+                row = result.fetchone()
+                
+                # Verify we got a result
+                if row is None:
+                    self.errors.append("Connection test query returned None")
+                    return
+            
+            self.checks_passed.append("[OK] Database connection successful")
+            logger.info("[OK] Database connection test passed")
+            
+        except Exception as e:
+            self.errors.append(f"Database connection failed: {e}")
+            logger.error(f"❌ Database connection failed: {e}", exc_info=True)
+    
+    def _check_tables_exist(self) -> None:
+        """Check that core tables exist or can be created."""
+        try:
+            if self.engine is None:
+                self.errors.append("Cannot check tables - engine is None")
+                return
+            
+            from sqlalchemy import inspect
+            
+            inspector = inspect(self.engine)
+            existing_tables = inspector.get_table_names()
+            
+            # Core tables we expect
+            expected_tables = ["trade_logs", "settings"]
+            
+            if not existing_tables:
+                # No tables yet - try to create them
+                try:
+                    from backend.database import Base
+                    Base.metadata.create_all(bind=self.engine)
+                    logger.info("[OK] Created database tables")
+                    self.checks_passed.append("[OK] Database tables created")
+                except Exception as create_error:
+                    self.warnings.append(f"Could not create tables: {create_error}")
+                    logger.warning(f"[WARNING] Table creation: {create_error}")
+            else:
+                missing_tables = [t for t in expected_tables if t not in existing_tables]
+                if missing_tables:
+                    self.warnings.append(f"Some tables missing: {missing_tables}")
+                    logger.warning(f"[WARNING] Missing tables: {missing_tables}")
+                else:
+                    self.checks_passed.append(f"[OK] Core tables exist ({len(existing_tables)} total)")
+                    logger.info(f"[OK] Found {len(existing_tables)} tables")
+            
+        except Exception as e:
+            self.warnings.append(f"Table check warning: {e}")
+            logger.warning(f"[WARNING] Table check: {e}")
+    
+    def _check_read_write_operations(self) -> None:
+        """Check that basic read/write operations work."""
+        try:
+            if self.engine is None:
+                self.errors.append("Cannot check read/write - engine is None")
+                return
+            
+            from sqlalchemy.orm import sessionmaker
+            
+            # Create session factory
+            self.session_factory = sessionmaker(
+                autocommit=False,
+                autoflush=False,
+                bind=self.engine,
+            )
+            
+            # Try to create a session
+            session = self.session_factory()
+            
+            try:
+                # Test query (may fail if tables don't exist yet - that's OK)
+                try:
+                    from backend.database import TradeLog
+                    count = session.query(TradeLog).count()
+                    logger.debug(f"Trade log count: {count}")
+                    self.checks_passed.append("[OK] Read operations work")
+                except Exception:
+                    self.warnings.append("Could not query TradeLog (tables may not exist yet)")
+                
+                # Test transaction rollback (sessions auto-begin transactions)
+                try:
+                    session.rollback()
+                    self.checks_passed.append("[OK] Transaction operations work")
+                except Exception as tx_err:
+                    self.warnings.append(f"Transaction test warning: {tx_err}")
+                
+                logger.info("[OK] Read/write operations validated")
+                
+            finally:
+                session.close()
+            
+        except Exception as e:
+            self.errors.append(f"Read/write operations failed: {e}")
+            logger.error(f"❌ Read/write check failed: {e}", exc_info=True)
+    
+    def _check_connection_cleanup(self) -> None:
+        """Check that connections are properly cleaned up."""
+        try:
+            if self.session_factory is None:
+                self.warnings.append("Cannot check cleanup - session_factory is None")
+                return
+            
+            # Create and close multiple sessions to test cleanup
+            for i in range(3):
+                session = self.session_factory()
+                session.close()
+            
+            self.checks_passed.append("[OK] Connection cleanup works")
+            logger.info("[OK] Connection cleanup validated")
+            
+        except Exception as e:
+            self.warnings.append(f"Connection cleanup warning: {e}")
+            logger.warning(f"[WARNING] Connection cleanup: {e}")
+    
+    def _check_connection_pool_size(self) -> None:
+        """Check connection pool size settings."""
+        try:
+            if self.engine is None:
+                return
+            
+            pool = self.engine.pool
+            if pool is None:
+                return
+            
+            # Check if pool size is configured
+            if hasattr(pool, '_pool'):
+                pool_size = getattr(pool, 'size', lambda: None)()
+                if pool_size and pool_size < 5:
+                    self.warnings.append(f"Connection pool size is small: {pool_size}")
+            
+            logger.debug("Connection pool size check completed")
+            
+        except Exception as e:
+            logger.debug(f"Pool size check: {e}")
+    
+    def _check_sqlite_wal_mode(self) -> None:
+        """Check if SQLite is using WAL mode for better concurrency."""
+        try:
+            if not self.is_sqlite or self.engine is None:
+                return
+            
+            with self.engine.connect() as conn:
+                from sqlalchemy import text
+                result = conn.execute(text("PRAGMA journal_mode"))
+                mode = result.scalar()
+                
+                if mode and mode.upper() != "WAL":
+                    self.warnings.append(
+                        f"SQLite not using WAL mode (current: {mode}). "
+                        "Consider enabling WAL for better concurrency."
+                    )
+                else:
+                    logger.debug(f"SQLite journal mode: {mode}")
+            
+        except Exception as e:
+            logger.debug(f"WAL mode check: {e}")
+    
+    def _sanitize_url(self, url: str) -> str:
+        """Remove sensitive info from database URL for logging."""
+        if not url:
+            return "None"
+        
+        # Hide passwords in URLs like postgresql://user:pass@host/db
+        if "://" in url and "@" in url:
+            parts = url.split("://", 1)
+            if len(parts) == 2:
+                scheme = parts[0]
+                rest = parts[1]
+                if "@" in rest:
+                    auth_and_host = rest.split("@", 1)
+                    if len(auth_and_host) == 2:
+                        auth = auth_and_host[0]
+                        if ":" in auth:
+                            user = auth.split(":", 1)[0]
+                            return f"{scheme}://{user}:***@{auth_and_host[1]}"
+        
+        return url
+
+
+def validate_database_on_startup() -> bool:
+    """
+    Main entry point for database validation.
+    
+    Returns:
+        True if all critical checks pass, False otherwise
+    """
+    validator = DatabaseValidator()
+    result = validator.validate_all()
+    
+    if result["success"]:
+        logger.info("=" * 60)
+        logger.info("[OK] DATABASE VALIDATION PASSED")
+        logger.info("=" * 60)
+        for check in result["checks_passed"]:
+            logger.info(f"   {check}")
+        
+        if result["warnings"]:
+            logger.info("")
+            logger.info("[WARNING]  Warnings (non-critical):")
+            for warning in result["warnings"]:
+                logger.warning(f"   [WARNING]  {warning}")
+        
+        logger.info("=" * 60)
+        return True
+    else:
+        logger.critical("=" * 60)
+        logger.critical("[ALERT] DATABASE VALIDATION FAILED - SYSTEM MAY NOT WORK CORRECTLY [ALERT]")
+        logger.critical("=" * 60)
+        logger.critical("Please fix errors before going live:")
+        for error in result["errors"]:
+            logger.critical(f"   ❌ {error}")
+        
+        if result["warnings"]:
+            logger.critical("")
+            logger.critical("Additional warnings:")
+            for warning in result["warnings"]:
+                logger.warning(f"   [WARNING]  {warning}")
+        
+        logger.critical("=" * 60)
+        return False
+
+
+def get_safe_session():
+    """
+    Get a database session with automatic error handling.
+    
+    BULLETPROOF: Never crashes - returns None if database unavailable.
+    Always use with context manager or manual close.
+    
+    Usage:
+        session = get_safe_session()
+        if session is None:
+            logger.error("Database unavailable")
+            return fallback_response()
+        
+        try:
+            # Use session
+            result = session.query(Model).all()
+        finally:
+            session.close()
+    
+    Returns:
+        Session object or None if creation fails
+    """
+    try:
+        from backend.database import SessionLocal
+        return SessionLocal()
+    except Exception as e:
+        logger.error(f"❌ Failed to create database session: {e}", exc_info=True)
+        return None
+
+
+def safe_session_context():
+    """
+    Context manager for safe database sessions.
+    
+    BULLETPROOF: Automatically handles errors and cleanup.
+    
+    Usage:
+        from backend.database_validator import safe_session_context
+        
+        with safe_session_context() as session:
+            if session is None:
+                return fallback_response()
+            
+            result = session.query(Model).all()
+    """
+    from contextlib import contextmanager
+    
+    @contextmanager
+    def _context():
+        session = get_safe_session()
+        try:
+            yield session
+        except Exception as e:
+            logger.error(f"❌ Database operation failed: {e}", exc_info=True)
+            if session:
+                session.rollback()
+            raise
+        finally:
+            if session:
+                session.close()
+    
+    return _context()

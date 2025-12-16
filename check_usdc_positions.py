@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""Check USDC Futures Positions"""
+import os
+from binance.client import Client
+from dotenv import load_dotenv
+
+load_dotenv()
+
+client = Client(
+    os.getenv('BINANCE_API_KEY'),
+    os.getenv('BINANCE_SECRET_KEY')
+)
+
+print("\n[TARGET] USDC FUTURES POSITIONS")
+print("="*80)
+
+positions = client.futures_position_information()
+usdc_positions = [p for p in positions if 'USDC' in p['symbol'] and float(p['positionAmt']) != 0]
+
+if not usdc_positions:
+    print("❌ No active USDC positions found\n")
+else:
+    for pos in usdc_positions:
+        symbol = pos['symbol']
+        amt = float(pos['positionAmt'])
+        entry = float(pos['entryPrice'])
+        pnl = float(pos['unRealizedProfit'])
+        leverage = pos['leverage']
+        mark_price = float(pos['markPrice'])
+        
+        side = "LONG" if amt > 0 else "SHORT"
+        pnl_pct = (pnl / (abs(amt) * entry)) * 100 if entry > 0 else 0
+        
+        print(f"\n{symbol}:")
+        print(f"  Side: {side}")
+        print(f"  Amount: {amt}")
+        print(f"  Entry: ${entry:.4f}")
+        print(f"  Mark: ${mark_price:.4f}")
+        print(f"  PnL: ${pnl:.2f} ({pnl_pct:+.2f}%)")
+        print(f"  Leverage: {leverage}x")
+
+print("\n" + "="*80 + "\n")

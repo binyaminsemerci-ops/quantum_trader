@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""
+Test script for Binance Futures API data fetching
+"""
+import os
+import sys
+import asyncio
+import aiohttp
+
+# Set environment variables
+os.environ["QT_MARKET_TYPE"] = "usdm_perp"
+os.environ["QT_MARGIN_MODE"] = "cross"
+os.environ["QT_DEFAULT_LEVERAGE"] = "5"
+os.environ["QT_LIQUIDITY_STABLE_QUOTES"] = "USDT,USDC"
+os.environ["STAGING_MODE"] = "true"
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "backend"))
+
+from backend.config.liquidity import load_liquidity_config
+from backend.services.liquidity import fetch_binance_liquidity
+
+async def test_futures_api():
+    print("\n" + "="*60)
+    print("🌐 TESTING BINANCE FUTURES API")
+    print("="*60)
+    
+    config = load_liquidity_config()
+    
+    print(f"\nFetching data from: {config.market_type} market")
+    print(f"Looking for: {', '.join(config.stable_quote_assets)} pairs")
+    print(f"Filtering to: PERPETUAL contracts only\n")
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            records = await fetch_binance_liquidity(session, config)
+        
+            if not records:
+                print("❌ No records returned")
+                return
+            
+            # Convert dict to list and sort by volume
+            # Convert dict to list and sort by quote_volume (USD volume)
+            records_list = sorted(records.values(), key=lambda x: x.quote_volume, reverse=True)
+            
+            print(f"✅ Fetched {len(records_list)} liquidity records\n")
+            
+            # Show first 10 records
+            print("📊 Top 10 symbols by volume:")
+            print("-" * 60)
+            
+            for i, record in enumerate(records_list[:10], 1):
+                symbol = record.symbol
+                volume = record.quote_volume
+                provider = record.provider
+                
+                print(f"{i:2}. {symbol:15} | ${volume:>15,.0f} | {provider}")
+        
+            # Check quote assets
+            print("\n💰 Quote asset distribution:")
+            print("-" * 60)
+            
+            quote_counts = {}
+            for record in records_list:
+                symbol = record.symbol
+                if symbol.endswith("USDT"):
+                    quote_counts["USDT"] = quote_counts.get("USDT", 0) + 1
+                elif symbol.endswith("USDC"):
+                    quote_counts["USDC"] = quote_counts.get("USDC", 0) + 1
+                else:
+                    # Extract quote asset
+                    for quote in ["BUSD", "FDUSD", "BTC", "ETH", "BNB"]:
+                        if symbol.endswith(quote):
+                            quote_counts[quote] = quote_counts.get(quote, 0) + 1
+                            break
+        
+            for quote, count in sorted(quote_counts.items(), key=lambda x: x[1], reverse=True):
+                print(f"  {quote:10} : {count:3} symbols")
+            
+            if len(quote_counts) == 2 and "USDT" in quote_counts and "USDC" in quote_counts:
+                print("\n  ✅ Perfect: Only USDT and USDC pairs")
+            elif len(quote_counts) > 2:
+                other_quotes = [q for q in quote_counts.keys() if q not in ["USDT", "USDC"]]
+                print(f"\n  ⚠️  Found unexpected quote assets: {', '.join(other_quotes)}")
+            
+            # Check provider label
+            providers = set(record.provider for record in records_list)
+            print(f"\n🏷️  Provider labels: {', '.join(providers)}")
+            
+            if "binance-futures" in providers:
+                print("  ✅ Correct: Labeled as 'binance-futures'")
+            elif "binance" in providers:
+                print("  ⚠️  Warning: Labeled as 'binance' (should be 'binance-futures')")
+            
+            print("\n" + "="*60)
+            print("✅ API test completed successfully!")
+            print("="*60 + "\n")
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    asyncio.run(test_futures_api())

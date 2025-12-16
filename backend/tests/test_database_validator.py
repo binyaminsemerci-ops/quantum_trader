@@ -1,0 +1,351 @@
+"""
+Test suite for database validator - ensures bulletproof database layer
+
+Tests all critical database validation checks to ensure system never crashes
+due to database issues.
+"""
+
+import os
+import pytest
+import tempfile
+from pathlib import Path
+from unittest.mock import Mock, patch, MagicMock
+
+from backend.database_validator import (
+    DatabaseValidator,
+    validate_database_on_startup,
+    get_safe_session,
+    safe_session_context,
+)
+
+
+class TestDatabaseValidator:
+    """Test DatabaseValidator class."""
+    
+    def test_validator_initialization(self):
+        """Test validator initializes correctly."""
+        validator = DatabaseValidator()
+        
+        assert validator.errors == []
+        assert validator.warnings == []
+        assert validator.checks_passed == []
+        assert validator.db_url is None
+        assert validator.is_sqlite is False
+        assert validator.engine is None
+        assert validator.session_factory is None
+    
+    def test_check_database_url_from_env(self):
+        """Test database URL detection from environment."""
+        validator = DatabaseValidator()
+        
+        with patch.dict(os.environ, {"QUANTUM_TRADER_DATABASE_URL": "sqlite:///test.db"}):
+            validator._check_database_url()
+        
+        assert validator.db_url == "sqlite:///test.db"
+        assert validator.is_sqlite is True
+        assert len(validator.errors) == 0
+        assert "[OK] Database URL configured" in validator.checks_passed
+    
+    def test_check_database_url_default(self):
+        """Test default database URL."""
+        validator = DatabaseValidator()
+        
+        # Remove env var if it exists
+        with patch.dict(os.environ, {}, clear=True):
+            validator._check_database_url()
+        
+        assert validator.db_url is not None
+        assert "sqlite:///" in validator.db_url
+        assert validator.is_sqlite is True
+        assert len(validator.errors) == 0
+    
+    def test_check_database_url_empty(self):
+        """Test empty database URL is caught."""
+        validator = DatabaseValidator()
+        
+        # Mock to return empty string
+        with patch.dict(os.environ, {"QUANTUM_TRADER_DATABASE_URL": ""}):
+            validator._check_database_url()
+        
+        assert "DATABASE_URL is empty" in validator.errors
+    
+    def test_check_database_directory_creates_if_missing(self):
+        """Test directory is created if it doesn't exist."""
+        validator = DatabaseValidator()
+        validator.is_sqlite = True
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Patch the directory path
+            with patch('backend.database_validator.os.path.dirname', return_value=tmpdir):
+                validator._check_database_directory()
+            
+            # Directory should exist now
+            db_dir = os.path.join(tmpdir, "data")
+            # Note: The actual creation happens in database.py, not validator
+            # Validator just checks permissions
+    
+    def test_check_database_directory_non_sqlite(self):
+        """Test directory check is skipped for non-SQLite databases."""
+        validator = DatabaseValidator()
+        validator.is_sqlite = False
+        
+        validator._check_database_directory()
+        
+        assert len(validator.errors) == 0
+        assert any("Non-SQLite" in check for check in validator.checks_passed)
+    
+    def test_engine_creation_success(self):
+        """Test successful engine creation."""
+        validator = DatabaseValidator()
+        validator.db_url = "sqlite:///:memory:"
+        validator.is_sqlite = True
+        
+        validator._check_engine_creation()
+        
+        assert validator.engine is not None
+        assert len(validator.errors) == 0
+        assert "[OK] SQLAlchemy engine created" in validator.checks_passed
+    
+    def test_engine_creation_failure(self):
+        """Test engine creation failure is caught."""
+        validator = DatabaseValidator()
+        validator.db_url = "invalid://database/url"
+        validator.is_sqlite = False
+        
+        validator._check_engine_creation()
+        
+        assert validator.engine is None
+        assert len(validator.errors) > 0
+        assert any("Failed to create engine" in err for err in validator.errors)
+    
+    def test_connection_pool_check_no_engine(self):
+        """Test connection pool check when engine is None."""
+        validator = DatabaseValidator()
+        validator.engine = None
+        
+        validator._check_connection_pool()
+        
+        assert "Cannot check connection pool - engine is None" in validator.errors
+    
+    def test_basic_connectivity_success(self):
+        """Test successful database connection."""
+        validator = DatabaseValidator()
+        validator.db_url = "sqlite:///:memory:"
+        validator.is_sqlite = True
+        
+        # Create engine first
+        validator._check_engine_creation()
+        assert validator.engine is not None
+        
+        # Test connectivity
+        validator._check_basic_connectivity()
+        
+        assert len(validator.errors) == 0
+        assert "[OK] Database connection successful" in validator.checks_passed
+    
+    def test_basic_connectivity_no_engine(self):
+        """Test connectivity check when engine is None."""
+        validator = DatabaseValidator()
+        validator.engine = None
+        
+        validator._check_basic_connectivity()
+        
+        assert "Cannot check connectivity - engine is None" in validator.errors
+    
+    def test_tables_exist_check(self):
+        """Test tables exist check."""
+        validator = DatabaseValidator()
+        validator.db_url = "sqlite:///:memory:"
+        validator.is_sqlite = True
+        
+        # Create engine
+        validator._check_engine_creation()
+        
+        # Check tables
+        validator._check_tables_exist()
+        
+        # Should either create tables or warn about missing tables
+        # No errors should occur
+        assert len([e for e in validator.errors if "Cannot check tables" in e]) == 0
+    
+    def test_read_write_operations(self):
+        """Test read/write operations check."""
+        validator = DatabaseValidator()
+        validator.db_url = "sqlite:///:memory:"
+        validator.is_sqlite = True
+        
+        # Create engine
+        validator._check_engine_creation()
+        
+        # Test read/write
+        validator._check_read_write_operations()
+        
+        assert validator.session_factory is not None
+        # Should have some successful checks
+        assert len(validator.checks_passed) > 0
+    
+    def test_read_write_no_engine(self):
+        """Test read/write check when engine is None."""
+        validator = DatabaseValidator()
+        validator.engine = None
+        
+        validator._check_read_write_operations()
+        
+        assert "Cannot check read/write - engine is None" in validator.errors
+    
+    def test_connection_cleanup(self):
+        """Test connection cleanup check."""
+        validator = DatabaseValidator()
+        validator.db_url = "sqlite:///:memory:"
+        validator.is_sqlite = True
+        
+        # Setup
+        validator._check_engine_creation()
+        validator._check_read_write_operations()
+        
+        # Test cleanup
+        validator._check_connection_cleanup()
+        
+        assert "[OK] Connection cleanup works" in validator.checks_passed
+    
+    def test_connection_cleanup_no_session_factory(self):
+        """Test cleanup check when session_factory is None."""
+        validator = DatabaseValidator()
+        validator.session_factory = None
+        
+        validator._check_connection_cleanup()
+        
+        assert any("Cannot check cleanup" in w for w in validator.warnings)
+    
+    def test_sanitize_url_with_password(self):
+        """Test URL sanitization hides passwords."""
+        validator = DatabaseValidator()
+        
+        url = "postgresql://user:secret_password@localhost:5432/mydb"
+        sanitized = validator._sanitize_url(url)
+        
+        assert "secret_password" not in sanitized
+        assert "user:***@localhost" in sanitized
+    
+    def test_sanitize_url_without_password(self):
+        """Test URL sanitization for URLs without passwords."""
+        validator = DatabaseValidator()
+        
+        url = "sqlite:///path/to/database.db"
+        sanitized = validator._sanitize_url(url)
+        
+        assert sanitized == url
+    
+    def test_validate_all_success(self):
+        """Test complete validation with in-memory database."""
+        validator = DatabaseValidator()
+        
+        with patch.dict(os.environ, {"QUANTUM_TRADER_DATABASE_URL": "sqlite:///:memory:"}):
+            result = validator.validate_all()
+        
+        assert result["success"] is True
+        assert len(result["errors"]) == 0
+        assert len(result["checks_passed"]) > 0
+        assert result["db_info"]["engine_connected"] is True
+        assert result["db_info"]["session_factory_created"] is True
+    
+    def test_validate_all_with_errors(self):
+        """Test validation detects errors."""
+        validator = DatabaseValidator()
+        
+        # Force an invalid URL
+        with patch.dict(os.environ, {"QUANTUM_TRADER_DATABASE_URL": "invalid://url"}):
+            result = validator.validate_all()
+        
+        assert result["success"] is False
+        assert len(result["errors"]) > 0
+    
+    def test_sqlite_wal_mode_check(self):
+        """Test SQLite WAL mode check."""
+        validator = DatabaseValidator()
+        validator.db_url = "sqlite:///:memory:"
+        validator.is_sqlite = True
+        
+        validator._check_engine_creation()
+        validator._check_sqlite_wal_mode()
+        
+        # Should not error (may add warnings)
+        assert len([e for e in validator.errors if "WAL" in e]) == 0
+
+
+class TestValidateOnStartup:
+    """Test validate_database_on_startup function."""
+    
+    def test_validate_on_startup_success(self):
+        """Test successful startup validation."""
+        with patch.dict(os.environ, {"QUANTUM_TRADER_DATABASE_URL": "sqlite:///:memory:"}):
+            result = validate_database_on_startup()
+        
+        assert result is True
+    
+    def test_validate_on_startup_failure(self):
+        """Test startup validation with errors."""
+        with patch.dict(os.environ, {"QUANTUM_TRADER_DATABASE_URL": "invalid://url"}):
+            result = validate_database_on_startup()
+        
+        assert result is False
+
+
+class TestSafeSessions:
+    """Test safe session helpers."""
+    
+    def test_get_safe_session_success(self):
+        """Test get_safe_session returns session."""
+        with patch('backend.database.SessionLocal') as mock_session_local:
+            mock_session = Mock()
+            mock_session_local.return_value = mock_session
+            
+            session = get_safe_session()
+            
+            assert session is mock_session
+            mock_session_local.assert_called_once()
+    
+    def test_get_safe_session_failure(self):
+        """Test get_safe_session handles errors."""
+        with patch('backend.database.SessionLocal') as mock_session_local:
+            mock_session_local.side_effect = Exception("Database unavailable")
+            
+            session = get_safe_session()
+            
+            assert session is None
+    
+    def test_safe_session_context_success(self):
+        """Test safe_session_context context manager."""
+        with patch('backend.database.SessionLocal') as mock_session_local:
+            mock_session = Mock()
+            mock_session_local.return_value = mock_session
+            
+            with safe_session_context() as session:
+                assert session is mock_session
+            
+            mock_session.close.assert_called_once()
+    
+    def test_safe_session_context_with_error(self):
+        """Test safe_session_context handles errors."""
+        with patch('backend.database.SessionLocal') as mock_session_local:
+            mock_session = Mock()
+            mock_session_local.return_value = mock_session
+            
+            with pytest.raises(ValueError):
+                with safe_session_context() as session:
+                    raise ValueError("Test error")
+            
+            mock_session.rollback.assert_called_once()
+            mock_session.close.assert_called_once()
+    
+    def test_safe_session_context_no_session(self):
+        """Test safe_session_context when session creation fails."""
+        with patch('backend.database.SessionLocal') as mock_session_local:
+            mock_session_local.side_effect = Exception("Database unavailable")
+            
+            with safe_session_context() as session:
+                assert session is None
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

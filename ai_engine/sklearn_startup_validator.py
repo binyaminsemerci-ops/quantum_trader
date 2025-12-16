@@ -1,0 +1,289 @@
+"""
+Sklearn Startup Validator - Ensures scikit-learn is ready when system goes live
+
+This module validates that sklearn and all required ML dependencies are:
+1. Installed and importable
+2. Have correct versions
+3. Can load trained models
+4. Work correctly with our data pipeline
+
+CRITICAL: This must pass before system goes live!
+"""
+
+import logging
+import sys
+from typing import Dict, Any, List, Tuple
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+
+class SklearnStartupValidator:
+    """Bulletproof validator for sklearn and ML dependencies on startup."""
+    
+    def __init__(self):
+        self.validation_results: Dict[str, Any] = {}
+        self.errors: List[str] = []
+        self.warnings: List[str] = []
+    
+    def validate_all(self) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Run all validation checks.
+        
+        Returns:
+            (success, results_dict)
+            - success: True if all critical checks pass
+            - results_dict: Detailed validation results
+        """
+        logger.info("[SEARCH] Starting sklearn startup validation...")
+        
+        # Critical checks (must pass)
+        self._check_sklearn_import()
+        self._check_sklearn_version()
+        self._check_numpy_compatibility()
+        self._check_core_sklearn_modules()
+        self._check_scaler_functionality()
+        self._check_model_loading()
+        
+        # Optional checks (warnings only)
+        self._check_optional_dependencies()
+        self._check_model_files_exist()
+        
+        # Summarize results
+        success = len(self.errors) == 0
+        
+        if success:
+            logger.info("[OK] Sklearn startup validation: ALL PASSED")
+        else:
+            logger.error(f"❌ Sklearn startup validation: {len(self.errors)} ERRORS")
+            for error in self.errors:
+                logger.error(f"   ❌ {error}")
+        
+        if self.warnings:
+            logger.warning(f"[WARNING] Sklearn validation: {len(self.warnings)} warnings")
+            for warning in self.warnings:
+                logger.warning(f"   [WARNING] {warning}")
+        
+        return success, self.validation_results
+    
+    def _check_sklearn_import(self):
+        """Check that sklearn can be imported."""
+        try:
+            import sklearn
+            version = sklearn.__version__
+            self.validation_results['sklearn_import'] = True
+            self.validation_results['sklearn_version'] = version
+            logger.info(f"[OK] sklearn imported successfully (v{version})")
+        except ImportError as e:
+            error = f"sklearn import failed: {e}"
+            self.errors.append(error)
+            self.validation_results['sklearn_import'] = False
+            logger.error(f"❌ {error}")
+        except Exception as e:
+            # Handle any other errors (e.g., corrupted sklearn)
+            error = f"sklearn import error: {e}"
+            self.errors.append(error)
+            self.validation_results['sklearn_import'] = False
+            logger.error(f"❌ {error}")
+    
+    def _check_sklearn_version(self):
+        """Check that sklearn version is compatible."""
+        try:
+            import sklearn
+            from packaging import version
+            
+            current = version.parse(sklearn.__version__)
+            minimum = version.parse("1.0.0")
+            
+            if current >= minimum:
+                self.validation_results['sklearn_version_ok'] = True
+                logger.info(f"[OK] sklearn version {current} >= {minimum}")
+            else:
+                error = f"sklearn version too old: {current} < {minimum}"
+                self.errors.append(error)
+                self.validation_results['sklearn_version_ok'] = False
+                logger.error(f"❌ {error}")
+        except Exception as e:
+            error = f"sklearn version check failed: {e}"
+            self.warnings.append(error)
+            self.validation_results['sklearn_version_ok'] = None
+    
+    def _check_numpy_compatibility(self):
+        """Check that numpy is compatible with sklearn."""
+        try:
+            import numpy as np
+            import sklearn
+            
+            # Test basic numpy operation that sklearn uses
+            arr = np.array([1, 2, 3, 4, 5])
+            result = np.mean(arr)
+            
+            self.validation_results['numpy_compatible'] = True
+            self.validation_results['numpy_version'] = np.__version__
+            logger.info(f"[OK] numpy {np.__version__} compatible with sklearn")
+        except Exception as e:
+            error = f"numpy compatibility check failed: {e}"
+            self.errors.append(error)
+            self.validation_results['numpy_compatible'] = False
+            logger.error(f"❌ {error}")
+    
+    def _check_core_sklearn_modules(self):
+        """Check that all required sklearn modules can be imported."""
+        required_modules = [
+            'sklearn.preprocessing',
+            'sklearn.ensemble',
+            'sklearn.linear_model',
+            'sklearn.neural_network',
+            'sklearn.metrics',
+            'sklearn.model_selection',
+        ]
+        
+        failed = []
+        for module_name in required_modules:
+            try:
+                __import__(module_name)
+                logger.info(f"[OK] {module_name} importable")
+            except ImportError as e:
+                error = f"{module_name} import failed: {e}"
+                failed.append(error)
+                logger.error(f"❌ {error}")
+        
+        if failed:
+            self.errors.extend(failed)
+            self.validation_results['core_modules'] = False
+        else:
+            self.validation_results['core_modules'] = True
+            logger.info("[OK] All core sklearn modules importable")
+    
+    def _check_scaler_functionality(self):
+        """Check that StandardScaler works correctly."""
+        try:
+            from sklearn.preprocessing import StandardScaler
+            import numpy as np
+            
+            # Test scaler with sample data
+            scaler = StandardScaler()
+            data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+            
+            # Fit and transform
+            scaler.fit(data)
+            transformed = scaler.transform(data)
+            
+            # Validate transformed data has mean ~0 and std ~1
+            mean = np.mean(transformed, axis=0)
+            std = np.std(transformed, axis=0)
+            
+            if np.allclose(mean, 0, atol=1e-10) and np.allclose(std, 1, atol=1e-10):
+                self.validation_results['scaler_functional'] = True
+                logger.info("[OK] StandardScaler functioning correctly")
+            else:
+                error = "StandardScaler not normalizing correctly"
+                self.errors.append(error)
+                self.validation_results['scaler_functional'] = False
+                logger.error(f"❌ {error}")
+        except Exception as e:
+            error = f"StandardScaler functionality check failed: {e}"
+            self.errors.append(error)
+            self.validation_results['scaler_functional'] = False
+            logger.error(f"❌ {error}")
+    
+    def _check_model_loading(self):
+        """Check that pickle model loading works."""
+        try:
+            import pickle
+            from sklearn.ensemble import RandomForestRegressor
+            import numpy as np
+            
+            # Create and pickle a dummy model
+            model = RandomForestRegressor(n_estimators=10, random_state=42)
+            X_dummy = np.array([[1, 2], [3, 4], [5, 6]])
+            y_dummy = np.array([1, 2, 3])
+            model.fit(X_dummy, y_dummy)
+            
+            # Pickle and unpickle
+            pickled = pickle.dumps(model)
+            loaded = pickle.loads(pickled)
+            
+            # Test prediction
+            pred = loaded.predict([[2, 3]])
+            
+            self.validation_results['model_loading'] = True
+            logger.info("[OK] Pickle model loading working")
+        except Exception as e:
+            error = f"Model loading check failed: {e}"
+            self.errors.append(error)
+            self.validation_results['model_loading'] = False
+            logger.error(f"❌ {error}")
+    
+    def _check_optional_dependencies(self):
+        """Check optional ML dependencies (warnings only)."""
+        optional = {
+            'xgboost': 'XGBRegressor',
+            'lightgbm': 'LGBMRegressor',
+            'catboost': 'CatBoostRegressor',
+        }
+        
+        missing = []
+        for package, model_name in optional.items():
+            try:
+                __import__(package)
+                logger.info(f"[OK] {package} available")
+            except ImportError:
+                warning = f"{package} not installed - {model_name} unavailable"
+                missing.append(package)
+                self.warnings.append(warning)
+                logger.warning(f"[WARNING] {warning}")
+        
+        self.validation_results['optional_deps_missing'] = missing
+    
+    def _check_model_files_exist(self):
+        """Check that trained model files exist (warnings only)."""
+        model_dir = Path("ai_engine/models")
+        expected_files = [
+            "xgb_model.pkl",
+            "scaler.pkl",
+            "ensemble_model.pkl",
+        ]
+        
+        missing = []
+        for file_name in expected_files:
+            file_path = model_dir / file_name
+            if file_path.exists():
+                logger.info(f"[OK] {file_name} exists")
+            else:
+                warning = f"Model file missing: {file_name}"
+                missing.append(file_name)
+                self.warnings.append(warning)
+                logger.warning(f"[WARNING] {warning}")
+        
+        self.validation_results['missing_model_files'] = missing
+
+
+def validate_sklearn_on_startup() -> bool:
+    """
+    Run sklearn validation on system startup.
+    
+    Returns:
+        True if all critical checks pass, False otherwise
+    """
+    validator = SklearnStartupValidator()
+    success, results = validator.validate_all()
+    
+    if not success:
+        logger.critical("[ALERT] SKLEARN VALIDATION FAILED - SYSTEM MAY NOT WORK CORRECTLY [ALERT]")
+        logger.critical("Please fix errors before going live:")
+        for error in validator.errors:
+            logger.critical(f"   ❌ {error}")
+    
+    return success
+
+
+if __name__ == "__main__":
+    # Allow running as standalone validation script
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    
+    success = validate_sklearn_on_startup()
+    sys.exit(0 if success else 1)

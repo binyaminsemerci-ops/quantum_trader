@@ -1,0 +1,83 @@
+"""Analyze training dataset for issues"""
+from backend.database import engine
+from sqlalchemy.orm import sessionmaker
+from backend.models.ai_training import AITrainingSample
+from collections import Counter
+import json
+
+Session = sessionmaker(bind=engine)
+db = Session()
+
+# Load samples
+samples = db.query(AITrainingSample).filter(
+    AITrainingSample.outcome_known == True
+).all()
+
+print(f"Total samples: {len(samples):,}")
+print("\n" + "="*80)
+
+# Target class distribution
+classes = Counter([s.target_class for s in samples])
+print("\nTARGET CLASS DISTRIBUTION:")
+for k, v in sorted(classes.items(), key=lambda x: -x[1]):
+    print(f"  {k}: {v:,} ({v/len(samples)*100:.1f}%)")
+
+# P&L statistics
+pnls = [s.realized_pnl for s in samples if s.realized_pnl is not None]
+print(f"\nP&L STATISTICS:")
+print(f"  Count: {len(pnls):,}")
+print(f"  Avg: ${sum(pnls)/len(pnls):.4f}")
+print(f"  Min: ${min(pnls):.4f}")
+print(f"  Max: ${max(pnls):.4f}")
+print(f"  Positive: {sum(1 for p in pnls if p > 0):,} ({sum(1 for p in pnls if p > 0)/len(pnls)*100:.1f}%)")
+
+# Prediction vs execution
+predicted = Counter([s.predicted_action for s in samples])
+executed = Counter([s.executed for s in samples])
+print(f"\nPREDICTION DISTRIBUTION:")
+for k, v in sorted(predicted.items(), key=lambda x: -x[1]):
+    print(f"  {k}: {v:,} ({v/len(samples)*100:.1f}%)")
+
+print(f"\nEXECUTION RATE:")
+print(f"  Executed: {executed[True]:,} ({executed[True]/len(samples)*100:.1f}%)")
+print(f"  Not executed: {executed[False]:,} ({executed[False]/len(samples)*100:.1f}%)")
+
+# Feature analysis
+print(f"\nFEATURE ANALYSIS:")
+sample_with_features = [s for s in samples if s.features]
+if sample_with_features:
+    s = sample_with_features[0]
+    feats = json.loads(s.features)
+    if isinstance(feats, dict):
+        feat_list = list(feats.values())[:5]
+    else:
+        feat_list = feats[:5]
+    print(f"  Feature count: {len(feats)}")
+    print(f"  Sample values (first 5): {[f'{f:.4f}' if isinstance(f, (int, float)) else str(f) for f in feat_list]}")
+
+# Check for data leakage - look at timestamps
+print(f"\nTIMESTAMP ANALYSIS:")
+timestamps = sorted([s.timestamp for s in samples if s.timestamp])
+if timestamps:
+    print(f"  First sample: {timestamps[0]}")
+    print(f"  Last sample: {timestamps[-1]}")
+    print(f"  Date range: {(timestamps[-1] - timestamps[0]).days} days")
+
+# Check outcome timing
+print(f"\nOUTCOME TIMING:")
+durations = [s.hold_duration_seconds for s in samples if s.hold_duration_seconds]
+if durations:
+    print(f"  Avg hold time: {sum(durations)/len(durations)/60:.1f} minutes")
+    print(f"  Min hold time: {min(durations)/60:.1f} minutes")
+    print(f"  Max hold time: {max(durations)/3600:.1f} hours")
+
+db.close()
+
+print("\n" + "="*80)
+print("\nPROBLEM DIAGNOSIS:")
+if classes.get('NEUTRAL', 0) > len(samples) * 0.7:
+    print("  [WARNING]  SEVERE CLASS IMBALANCE: >70% NEUTRAL/HOLD")
+    print("      This will cause model to predict only HOLD")
+if classes.get('WIN', 0) == 0 or classes.get('LOSS', 0) == 0:
+    print("  [WARNING]  MISSING CLASS: Need both WIN and LOSS samples")
+print("\n" + "="*80)

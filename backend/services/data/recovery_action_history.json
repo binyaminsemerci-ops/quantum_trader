@@ -1,0 +1,29 @@
+[
+  {
+    "action": "disable_module",
+    "subsystem": "ai_model",
+    "timestamp": "2025-11-23T00:40:59.673393+00:00",
+    "success": true,
+    "message": "Action succeeded",
+    "duration_ms": 1.0070000000000001,
+    "error": null
+  },
+  {
+    "action": "switch_to_safe_profile",
+    "subsystem": "risk_guard",
+    "timestamp": "2025-11-23T00:40:59.676402+00:00",
+    "success": true,
+    "message": "Action succeeded",
+    "duration_ms": 0.9970000000000001,
+    "error": null
+  },
+  {
+    "action": "no_new_trades",
+    "subsystem": "event_executor",
+    "timestamp": "2025-11-23T00:40:59.678904+00:00",
+    "success": true,
+    "message": "Action succeeded",
+    "duration_ms": 1.518,
+    "error": null
+  }
+]

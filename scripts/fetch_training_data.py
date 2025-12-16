@@ -1,0 +1,149 @@
+"""
+QUICK DATA GENERATOR FOR TFT TRAINING
+Fetches OHLCV data from Binance API for testing
+"""
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from binance.client import Client
+import pandas as pd
+from pathlib import Path
+from datetime import datetime, timedelta
+import logging
+import time
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+def fetch_binance_data(
+    symbols: list = None,
+    days_back: int = 30,
+    interval: str = '1h'
+):
+    """
+    Fetch OHLCV data from Binance
+    
+    Args:
+        symbols: List of symbols to fetch
+        days_back: Days of historical data
+        interval: Candle interval
+    """
+    
+    if symbols is None:
+        symbols = [
+            'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'ADAUSDT',
+            'XRPUSDT', 'DOGEUSDT', 'MATICUSDT', 'DOTUSDT', 'AVAXUSDT',
+            'LINKUSDT', 'UNIUSDT', 'LTCUSDT', 'ATOMUSDT', 'NEARUSDT'
+        ]
+    
+    logger.info(f"🔌 Connecting to Binance API...")
+    logger.info(f"[CHART] Fetching {len(symbols)} symbols, {days_back} days, {interval} candles")
+    
+    # Initialize Binance client (no API key needed for public data)
+    client = Client()
+    
+    all_data = []
+    
+    # Calculate start time
+    end_time = int(datetime.now().timestamp() * 1000)
+    start_time = int((datetime.now() - timedelta(days=days_back)).timestamp() * 1000)
+    
+    for i, symbol in enumerate(symbols, 1):
+        try:
+            logger.info(f"   [{i}/{len(symbols)}] Fetching {symbol}...")
+            
+            # Fetch klines
+            klines = client.get_historical_klines(
+                symbol=symbol,
+                interval=interval,
+                start_str=start_time,
+                end_str=end_time,
+                limit=1000
+            )
+            
+            if not klines:
+                logger.warning(f"   [WARNING] No data for {symbol}")
+                continue
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(klines, columns=[
+                'timestamp', 'Open', 'High', 'Low', 'Close', 'Volume',
+                'close_time', 'quote_volume', 'trades', 'taker_buy_base',
+                'taker_buy_quote', 'ignore'
+            ])
+            
+            # Convert types
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df['Open'] = df['Open'].astype(float)
+            df['High'] = df['High'].astype(float)
+            df['Low'] = df['Low'].astype(float)
+            df['Close'] = df['Close'].astype(float)
+            df['Volume'] = df['Volume'].astype(float)
+            
+            # Add symbol
+            df['symbol'] = symbol
+            
+            # Keep relevant columns
+            df = df[['symbol', 'timestamp', 'Open', 'High', 'Low', 'Close', 'Volume']]
+            
+            all_data.append(df)
+            
+            logger.info(f"   [OK] {symbol}: {len(df)} candles")
+            
+            # Rate limiting
+            time.sleep(0.2)
+            
+        except Exception as e:
+            logger.error(f"   ❌ {symbol} failed: {e}")
+            continue
+    
+    if not all_data:
+        logger.error("❌ No data fetched!")
+        return None
+    
+    # Combine all data
+    combined_df = pd.concat(all_data, ignore_index=True)
+    
+    logger.info(f"\n[OK] Total data fetched:")
+    logger.info(f"   Symbols: {combined_df['symbol'].nunique()}")
+    logger.info(f"   Total candles: {len(combined_df)}")
+    logger.info(f"   Date range: {combined_df['timestamp'].min()} to {combined_df['timestamp'].max()}")
+    
+    return combined_df
+
+
+def main():
+    """Generate training data"""
+    
+    print("\n" + "="*60)
+    print("📥 FETCHING TRAINING DATA FROM BINANCE")
+    print("="*60 + "\n")
+    
+    # Fetch data
+    df = fetch_binance_data(days_back=30)
+    
+    if df is None:
+        print("\n❌ Data fetch failed!")
+        return
+    
+    # Save to CSV
+    output_path = Path("data/binance_training_data.csv")
+    output_path.parent.mkdir(exist_ok=True, parents=True)
+    
+    df.to_csv(output_path, index=False)
+    
+    print("\n" + "="*60)
+    print(f"[OK] TRAINING DATA SAVED!")
+    print("="*60)
+    print(f"   File: {output_path}")
+    print(f"   Size: {output_path.stat().st_size / 1024 / 1024:.2f} MB")
+    print(f"   Rows: {len(df)}")
+    print("\n[ROCKET] Next step:")
+    print("   python scripts/train_tft_quantile.py")
+    print("="*60 + "\n")
+
+
+if __name__ == "__main__":
+    main()

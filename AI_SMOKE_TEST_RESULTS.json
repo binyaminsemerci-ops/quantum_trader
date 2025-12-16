@@ -1,0 +1,195 @@
+{
+  "timestamp": "2025-12-05T07:19:48.957977",
+  "summary": {
+    "total": 23,
+    "passed": 18,
+    "failed": 5,
+    "pass_rate": 78.26086956521739
+  },
+  "results": [
+    {
+      "module": "EnsembleManager",
+      "test": "Import",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:47.995073",
+      "details": "Successfully imported from ai_engine/",
+      "error": ""
+    },
+    {
+      "module": "EnsembleManager",
+      "test": "Initialize",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.915025",
+      "details": "Default weights and min_consensus=3",
+      "error": ""
+    },
+    {
+      "module": "EnsembleManager",
+      "test": "Has predict()",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.915025",
+      "details": "Method exists",
+      "error": ""
+    },
+    {
+      "module": "EnsembleManager",
+      "test": "Has warmup()",
+      "passed": false,
+      "timestamp": "2025-12-05T07:19:48.916025",
+      "details": "",
+      "error": "Missing warmup method"
+    },
+    {
+      "module": "EnsembleManager",
+      "test": "4-Model Architecture",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.916025",
+      "details": "XGB, LGBM, N-HiTS, PatchTST present",
+      "error": ""
+    },
+    {
+      "module": "RegimeDetectorV2",
+      "test": "Import",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.921639",
+      "details": "Successfully imported",
+      "error": ""
+    },
+    {
+      "module": "RegimeDetectorV2",
+      "test": "Initialize",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.923642",
+      "details": "No errors during init",
+      "error": ""
+    },
+    {
+      "module": "RegimeDetectorV2",
+      "test": "Has detect_regime()",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.923642",
+      "details": "Method exists",
+      "error": ""
+    },
+    {
+      "module": "RegimeDetectorV2",
+      "test": "Synthetic Data Test",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.924562",
+      "details": "Detected regime: RANGE",
+      "error": ""
+    },
+    {
+      "module": "WorldModel",
+      "test": "Import",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.942824",
+      "details": "WorldModel, MarketState, MarketRegime imported",
+      "error": ""
+    },
+    {
+      "module": "WorldModel",
+      "test": "MarketState creation",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.942824",
+      "details": "Created state with all fields",
+      "error": ""
+    },
+    {
+      "module": "WorldModel",
+      "test": "Initialize",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.943828",
+      "details": "No errors during init",
+      "error": ""
+    },
+    {
+      "module": "WorldModel",
+      "test": "Has scenario generation",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.943828",
+      "details": "Method exists",
+      "error": ""
+    },
+    {
+      "module": "RLPositionSizing",
+      "test": "Import",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.948497",
+      "details": "Found in backend.services.ai.rl_position_sizing_agent",
+      "error": ""
+    },
+    {
+      "module": "RLPositionSizing",
+      "test": "Initialize",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.949569",
+      "details": "Agent initialized",
+      "error": ""
+    },
+    {
+      "module": "RLPositionSizing",
+      "test": "Has position sizing",
+      "passed": false,
+      "timestamp": "2025-12-05T07:19:48.949569",
+      "details": "",
+      "error": "Missing position sizing method"
+    },
+    {
+      "module": "RLPositionSizing",
+      "test": "Has Q-learning state",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.949569",
+      "details": "Q-table or policy present",
+      "error": ""
+    },
+    {
+      "module": "ModelSupervisor",
+      "test": "Import (Shadow Models)",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.950569",
+      "details": "ShadowModelManager imported",
+      "error": ""
+    },
+    {
+      "module": "ModelSupervisor",
+      "test": "Initialize",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.950569",
+      "details": "Shadow model manager initialized",
+      "error": ""
+    },
+    {
+      "module": "ModelSupervisor",
+      "test": "Has promotion logic",
+      "passed": false,
+      "timestamp": "2025-12-05T07:19:48.950569",
+      "details": "",
+      "error": "Missing promotion logic"
+    },
+    {
+      "module": "PortfolioBalancer",
+      "test": "Import",
+      "passed": false,
+      "timestamp": "2025-12-05T07:19:48.952570",
+      "details": "",
+      "error": "No module named 'backend.domains.portfolio'"
+    },
+    {
+      "module": "ContinuousLearning",
+      "test": "Import",
+      "passed": true,
+      "timestamp": "2025-12-05T07:19:48.952570",
+      "details": "CLM imported",
+      "error": ""
+    },
+    {
+      "module": "ContinuousLearning",
+      "test": "Initialize",
+      "passed": false,
+      "timestamp": "2025-12-05T07:19:48.952570",
+      "details": "",
+      "error": "ContinuousLearningManager.__init__() missing 6 required positional arguments: 'data_client', 'feature_engineer', 'trainer', 'evaluator', 'shadow_tester', and 'registry'"
+    }
+  ]
+}

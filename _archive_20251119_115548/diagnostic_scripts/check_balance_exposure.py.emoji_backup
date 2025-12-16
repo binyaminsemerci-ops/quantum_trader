@@ -1,0 +1,52 @@
+"""Check current balance and position exposure"""
+import asyncio
+from backend.services.execution import build_execution_adapter
+from backend.config.execution import load_execution_config
+
+async def check():
+    config = load_execution_config()
+    adapter = build_execution_adapter(config)
+    
+    balance = await adapter.get_cash_balance()
+    print(f"\n💰 Available Balance: ${balance:.2f} USDT")
+    
+    # Get positions
+    positions = await adapter.get_positions()
+    print(f"\n📊 Open Positions: {len(positions)}")
+    
+    # Get account data for position details
+    account_data = await adapter._signed_request('GET', '/fapi/v2/account')
+    
+    total_notional = 0.0
+    total_unrealized_pnl = 0.0
+    
+    print("\nPosition Details:")
+    for pos in account_data.get('positions', []):
+        if abs(float(pos.get('positionAmt', 0))) > 0:
+            symbol = pos['symbol']
+            amt = float(pos.get('positionAmt', 0))
+            entry_price = float(pos.get('entryPrice', 0))
+            mark_price = float(pos.get('markPrice', 0))
+            notional = float(pos.get('notional', 0))
+            unrealized_pnl = float(pos.get('unrealizedProfit', 0))
+            leverage = float(pos.get('leverage', 5))
+            
+            side = "LONG" if amt > 0 else "SHORT"
+            pnl_pct = ((mark_price - entry_price) / entry_price * 100) if side == "LONG" else ((entry_price - mark_price) / entry_price * 100)
+            
+            total_notional += abs(notional)
+            total_unrealized_pnl += unrealized_pnl
+            
+            print(f"  {symbol}: {side} {abs(amt):.4f} @ ${entry_price:.4f}")
+            print(f"    Notional: ${abs(notional):.2f} | Leverage: {leverage}x | P&L: ${unrealized_pnl:.2f} ({pnl_pct:+.2f}%)")
+    
+    print(f"\n💼 Total Exposure: ${total_notional:.2f}")
+    print(f"💵 Total Unrealized P&L: ${total_unrealized_pnl:.2f}")
+    print(f"\n📊 Current Config:")
+    print(f"  Max Positions: 4")
+    print(f"  Max per trade: $200")
+    print(f"  Max exposure: $800")
+    print(f"  Leverage: 5x")
+    print(f"  Margin Mode: Cross")
+
+asyncio.run(check())

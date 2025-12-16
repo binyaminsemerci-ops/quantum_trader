@@ -81,11 +81,11 @@ def create_demo_trades():
             db.add(trade)
 
         db.commit()
-        print(f"✅ Created {len(demo_trades)} demo trades successfully!")
+        print(f"[OK] Created {len(demo_trades)} demo trades successfully!")
 
         # Show what we created
         trades = db.query(TradeLog).all()
-        print(f"\n📊 Total trades in database: {len(trades)}")
+        print(f"\n[CHART] Total trades in database: {len(trades)}")
         for trade in trades[-5:]:  # Show last 5
             print(
                 f"  {trade.timestamp.strftime('%H:%M')} | {trade.symbol} | {trade.side} | {trade.status}"
@@ -108,7 +108,7 @@ def create_demo_settings():
         # Check if settings already exist
         existing_settings = db.query(Settings).first()
         if existing_settings:
-            print("⚠️ Settings already exist, skipping demo settings creation")
+            print("[WARNING] Settings already exist, skipping demo settings creation")
             return
 
         # Create demo settings (masked for security)
@@ -119,7 +119,7 @@ def create_demo_settings():
 
         db.add(demo_settings)
         db.commit()
-        print("✅ Created demo settings successfully!")
+        print("[OK] Created demo settings successfully!")
 
     except IntegrityError as e:
         db.rollback()
@@ -129,7 +129,7 @@ def create_demo_settings():
 
 
 if __name__ == "__main__":
-    print("🚀 Seeding Quantum Trader with demo data...")
+    print("[ROCKET] Seeding Quantum Trader with demo data...")
 
     # Check if database exists and is accessible
     try:

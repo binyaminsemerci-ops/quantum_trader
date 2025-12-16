@@ -1,0 +1,17 @@
+{
+  "test_timestamp": "2025-11-23T00:15:59.540546+00:00",
+  "triggers_found": 2,
+  "plan_created": {
+    "plan_id": "plan_20251123_001559",
+    "total_jobs": 2,
+    "estimated_minutes": 15.0
+  },
+  "deployment_recommendation": {
+    "model_id": "xgboost_v1",
+    "decision": "deploy_immediately",
+    "improvement": 0.2496703296703296,
+    "reasons": [
+      "Performance improved by 25.0%"
+    ]
+  }
+}

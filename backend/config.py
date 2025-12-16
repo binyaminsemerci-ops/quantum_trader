@@ -13,8 +13,15 @@ from typing import Any
 
 try:
     # canonical config location
-    from config.config import load_config, settings  # type: ignore[import-not-found]
+    from config.config import load_config, settings, DEFAULT_EXCHANGE, DEFAULT_QUOTE, FUTURES_QUOTE, make_pair  # type: ignore[import-not-found]
 except Exception:  # pragma: no cover - fallback for static analysis environments
+    DEFAULT_EXCHANGE = "binance"
+    DEFAULT_QUOTE = "USDT"
+    FUTURES_QUOTE = "USDT"
+    
+    def make_pair(base: str, quote: str | None = None) -> str:
+        """Build a simple market pair string."""
+        return f"{base}{quote or DEFAULT_QUOTE}"
 
     def load_config() -> Any:  # type: ignore[override]
         """Fallback stub used in analysis environments where the real

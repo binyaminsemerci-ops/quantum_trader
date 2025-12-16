@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monitoring
+  namespace: quantum-trader
+  labels:
+    app: monitoring-service
+    component: monitoring
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: monitoring-service
+  template:
+    metadata:
+      labels:
+        app: monitoring-service
+        component: monitoring
+        tier: backend
+    spec:
+      containers:
+      - name: monitoring
+        image: ghcr.io/quantum-trader/monitoring:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8005
+          name: http
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: quantum-trader-config
+        - secretRef:
+            name: exchange-secrets
+        env:
+        - name: SERVICE_NAME
+          value: "monitoring"
+        - name: SERVICE_PORT
+          value: "8005"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8005
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8005
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: logs
+        persistentVolumeClaim:
+          claimName: logs-pvc

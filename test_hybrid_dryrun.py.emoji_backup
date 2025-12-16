@@ -1,0 +1,291 @@
+#!/usr/bin/env python3
+"""
+🧪 HYBRID AGENT DRY-RUN TEST SCRIPT
+Tests the new TFT + XGBoost Hybrid Agent in paper trading mode
+"""
+import os
+import sys
+import time
+import requests
+from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
+
+BACKEND_URL = "http://localhost:8000"
+TEST_DURATION = 300  # 5 minutes
+
+class Colors:
+    GREEN = '\033[92m'
+    RED = '\033[91m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+
+def print_header(text):
+    print(f"\n{Colors.CYAN}{Colors.BOLD}{'='*80}{Colors.RESET}")
+    print(f"{Colors.CYAN}{Colors.BOLD}{text.center(80)}{Colors.RESET}")
+    print(f"{Colors.CYAN}{Colors.BOLD}{'='*80}{Colors.RESET}\n")
+
+def print_success(text):
+    print(f"{Colors.GREEN}✅ {text}{Colors.RESET}")
+
+def print_error(text):
+    print(f"{Colors.RED}❌ {text}{Colors.RESET}")
+
+def print_warning(text):
+    print(f"{Colors.YELLOW}⚠️  {text}{Colors.RESET}")
+
+def print_info(text):
+    print(f"{Colors.BLUE}ℹ️  {text}{Colors.RESET}")
+
+def check_backend_health():
+    """Check if backend is running and healthy"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/health", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            print_success(f"Backend is healthy: {data}")
+            return True
+    except Exception as e:
+        print_error(f"Backend not reachable: {e}")
+    return False
+
+def check_paper_trading_mode():
+    """Verify we're in paper trading mode"""
+    paper_mode = os.getenv('QT_PAPER_TRADING', 'false').lower() == 'true'
+    if paper_mode:
+        print_success("Paper trading mode: ENABLED ✅")
+    else:
+        print_error("Paper trading mode: DISABLED ⚠️")
+        print_warning("DANGER: System is in LIVE TRADING mode!")
+        response = input("Continue anyway? (type 'YES' to proceed): ")
+        if response != 'YES':
+            print_info("Test aborted by user")
+            return False
+    return True
+
+def get_docker_logs(service='backend', lines=50):
+    """Get recent Docker logs"""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ['docker', 'logs', f'quantum_{service}', '--tail', str(lines)],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        return result.stdout + result.stderr
+    except Exception as e:
+        print_error(f"Failed to get logs: {e}")
+        return ""
+
+def check_hybrid_agent_loaded():
+    """Check if Hybrid Agent loaded successfully from logs"""
+    print_info("Checking if Hybrid Agent loaded...")
+    logs = get_docker_logs(lines=100)
+    
+    checks = {
+        "Hybrid Agent": "Hybrid Agent loaded" in logs or "🤖" in logs,
+        "TFT Model": "TFT model loaded" in logs or "✅ TFT" in logs,
+        "XGBoost Model": "XGBoost" in logs or "xgb" in logs.lower(),
+        "No Fallback RSI": "Skipping - using fallback rules" not in logs[-2000:],
+        "AI Engine Connected": "ai_engine" in logs.lower() or "agent" in logs.lower()
+    }
+    
+    print("\n📋 Startup Checks:")
+    all_passed = True
+    for check_name, passed in checks.items():
+        if passed:
+            print_success(f"{check_name}")
+        else:
+            print_warning(f"{check_name} - NOT DETECTED")
+            if check_name == "Hybrid Agent":
+                all_passed = False
+    
+    return all_passed
+
+def monitor_ai_signals(duration=60):
+    """Monitor AI signals for a period"""
+    print_info(f"Monitoring AI signals for {duration} seconds...")
+    
+    logs = get_docker_logs(lines=200)
+    
+    # Count signal types
+    ai_signals = logs.count("AI Signal:")
+    confidence_readings = logs.count("confidence:")
+    tft_mentions = logs.lower().count("tft")
+    xgb_mentions = logs.lower().count("xgb") + logs.lower().count("xgboost")
+    
+    print(f"\n📊 Signal Statistics:")
+    print(f"   AI Signals detected: {ai_signals}")
+    print(f"   Confidence readings: {confidence_readings}")
+    print(f"   TFT mentions: {tft_mentions}")
+    print(f"   XGBoost mentions: {xgb_mentions}")
+    
+    # Check for feature mismatch errors
+    if "Feature shape mismatch" in logs:
+        print_error("⚠️ FEATURE MISMATCH ERROR DETECTED!")
+        print_error("   Model expects different number of features")
+        return False
+    else:
+        print_success("No feature mismatch errors")
+    
+    # Check for PyTorch errors
+    if "No module named 'torch'" in logs or "pytorch" in logs.lower():
+        print_error("⚠️ PyTorch import error detected!")
+        return False
+    else:
+        print_success("No PyTorch import errors")
+    
+    return True
+
+def check_positions():
+    """Check current positions"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/positions", timeout=5)
+        if response.status_code == 200:
+            positions = response.json()
+            print(f"\n💼 Current Positions: {len(positions)}")
+            for pos in positions[:5]:  # Show first 5
+                symbol = pos.get('symbol', 'N/A')
+                side = pos.get('side', 'N/A')
+                pnl = pos.get('unrealizedProfit', 0)
+                print(f"   {symbol}: {side} | PnL: ${pnl:.2f}")
+            return True
+    except Exception as e:
+        print_warning(f"Could not fetch positions: {e}")
+    return False
+
+def test_confidence_threshold():
+    """Test that confidence threshold is properly set"""
+    threshold = float(os.getenv('QT_CONFIDENCE_THRESHOLD', '0.5'))
+    print(f"\n🎯 Confidence Threshold: {threshold}")
+    
+    if threshold >= 0.64:
+        print_success(f"Threshold is set to {threshold} (good for filtering weak signals)")
+    elif threshold >= 0.60:
+        print_warning(f"Threshold is {threshold} (moderate filtering)")
+    else:
+        print_warning(f"Threshold is {threshold} (low filtering, may get many signals)")
+    
+    logs = get_docker_logs(lines=100)
+    if f"confidence_threshold={threshold}" in logs or f"min_confidence={threshold}" in logs:
+        print_success("Threshold confirmed in logs")
+        return True
+    else:
+        print_warning("Could not confirm threshold in logs")
+        return False
+
+def check_safety_fixes():
+    """Verify all safety fixes are active"""
+    print_info("Checking safety fixes...")
+    logs = get_docker_logs(lines=300)
+    
+    safety_checks = {
+        "Fallback RSI Blocked": "Skipping - using fallback rules" not in logs[-1000:] or logs.count("Skipping - using fallback rules") < 3,
+        "AI Re-evaluation Active": "re-evaluat" in logs.lower() or "position monitor" in logs.lower(),
+        "TP/SL Setting": "TP/SL for" in logs or "take_profit" in logs.lower(),
+        "No Critical Errors": "ERROR" not in logs[-1000:] or logs.count("ERROR") < 5
+    }
+    
+    print("\n🛡️ Safety Features:")
+    for feature, active in safety_checks.items():
+        if active:
+            print_success(f"{feature}")
+        else:
+            print_warning(f"{feature} - NOT DETECTED")
+    
+    return all(safety_checks.values())
+
+def run_full_test():
+    """Run complete dry-run test suite"""
+    print_header("🧪 HYBRID AGENT DRY-RUN TEST SUITE")
+    print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+    
+    test_results = {}
+    
+    # Test 1: Backend Health
+    print_header("TEST 1: Backend Health Check")
+    test_results['backend_health'] = check_backend_health()
+    time.sleep(1)
+    
+    # Test 2: Paper Trading Mode
+    print_header("TEST 2: Paper Trading Mode Verification")
+    test_results['paper_mode'] = check_paper_trading_mode()
+    if not test_results['paper_mode']:
+        return False
+    time.sleep(1)
+    
+    # Test 3: Hybrid Agent Loading
+    print_header("TEST 3: Hybrid Agent Initialization")
+    test_results['hybrid_agent'] = check_hybrid_agent_loaded()
+    time.sleep(1)
+    
+    # Test 4: Confidence Threshold
+    print_header("TEST 4: Confidence Threshold Configuration")
+    test_results['confidence'] = test_confidence_threshold()
+    time.sleep(1)
+    
+    # Test 5: Safety Fixes
+    print_header("TEST 5: Safety Features Verification")
+    test_results['safety'] = check_safety_fixes()
+    time.sleep(1)
+    
+    # Test 6: AI Signals Monitoring
+    print_header("TEST 6: AI Signal Monitoring")
+    test_results['signals'] = monitor_ai_signals(duration=60)
+    time.sleep(1)
+    
+    # Test 7: Position Check
+    print_header("TEST 7: Position Status")
+    test_results['positions'] = check_positions()
+    
+    # Summary
+    print_header("📊 TEST RESULTS SUMMARY")
+    
+    passed = sum(1 for v in test_results.values() if v)
+    total = len(test_results)
+    
+    print(f"\nTests Passed: {passed}/{total}\n")
+    
+    for test_name, result in test_results.items():
+        status = "✅ PASS" if result else "❌ FAIL"
+        color = Colors.GREEN if result else Colors.RED
+        print(f"{color}{status}{Colors.RESET} - {test_name.replace('_', ' ').title()}")
+    
+    print(f"\n{Colors.BOLD}Overall Status:{Colors.RESET} ", end="")
+    if passed == total:
+        print(f"{Colors.GREEN}ALL TESTS PASSED ✅{Colors.RESET}")
+        print(f"\n{Colors.CYAN}🎉 System is ready for dry-run testing!{Colors.RESET}")
+        print(f"{Colors.CYAN}   - Hybrid Agent (TFT + XGBoost) loaded{Colors.RESET}")
+        print(f"{Colors.CYAN}   - All safety features active{Colors.RESET}")
+        print(f"{Colors.CYAN}   - Paper trading mode enabled{Colors.RESET}")
+    elif passed >= total * 0.7:
+        print(f"{Colors.YELLOW}MOSTLY PASSED ⚠️{Colors.RESET}")
+        print(f"\n{Colors.YELLOW}System is functional but some issues detected{Colors.RESET}")
+    else:
+        print(f"{Colors.RED}MULTIPLE FAILURES ❌{Colors.RESET}")
+        print(f"\n{Colors.RED}System may not be ready for testing{Colors.RESET}")
+    
+    print(f"\n{Colors.BLUE}To monitor live:{Colors.RESET}")
+    print(f"  docker logs quantum_backend -f --tail 100")
+    print(f"\n{Colors.BLUE}To check for specific issues:{Colors.RESET}")
+    print(f"  docker logs quantum_backend | Select-String 'Hybrid|TFT|ERROR'")
+    
+    return passed == total
+
+if __name__ == "__main__":
+    try:
+        success = run_full_test()
+        sys.exit(0 if success else 1)
+    except KeyboardInterrupt:
+        print(f"\n\n{Colors.YELLOW}Test interrupted by user{Colors.RESET}")
+        sys.exit(1)
+    except Exception as e:
+        print_error(f"Test failed with exception: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)

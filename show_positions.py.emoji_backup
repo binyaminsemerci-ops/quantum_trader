@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""Quick Binance positions checker"""
+import os
+from dotenv import load_dotenv
+from binance.client import Client
+
+load_dotenv()
+
+client = Client(
+    api_key=os.getenv("BINANCE_API_KEY"),
+    api_secret=os.getenv("BINANCE_API_SECRET")
+)
+
+# Get futures positions
+positions = client.futures_position_information()
+
+print("\n" + "="*80)
+print("🔍 ACTIVE BINANCE FUTURES POSITIONS")
+print("="*80)
+
+active = [p for p in positions if float(p['positionAmt']) != 0]
+
+if not active:
+    print("   • No active positions")
+else:
+    print(f"   • Total Active: {len(active)}\n")
+    for p in active:
+        symbol = p['symbol']
+        amt = float(p['positionAmt'])
+        entry = float(p['entryPrice'])
+        unrealized = float(p['unRealizedProfit'])
+        leverage = p['leverage']
+        
+        side = "🟢 LONG" if amt > 0 else "🔴 SHORT"
+        
+        print(f"{side} {symbol}")
+        print(f"   Amount: {abs(amt)}")
+        print(f"   Entry: ${entry:.4f}")
+        print(f"   P&L: ${unrealized:.2f}")
+        print(f"   Leverage: {leverage}x")
+        print()
+
+print("="*80)

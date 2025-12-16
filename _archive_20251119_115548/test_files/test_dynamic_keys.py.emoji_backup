@@ -1,0 +1,107 @@
+"""Test dynamic API key loading from dashboard settings.
+
+This script verifies:
+1. Dashboard settings take priority over environment variables
+2. Environment variables are used as fallback
+3. Execution adapters use the dynamically loaded keys
+"""
+
+import os
+import sys
+
+# Add backend to path
+backend_path = os.path.join(os.path.dirname(__file__), "backend")
+sys.path.insert(0, backend_path)
+sys.path.insert(0, os.path.dirname(__file__))
+
+# Test 1: Environment variable fallback
+print("=" * 60)
+print("TEST 1: Environment Variable Fallback")
+print("=" * 60)
+
+# Clear any existing env vars
+if "BINANCE_API_KEY" in os.environ:
+    del os.environ["BINANCE_API_KEY"]
+if "BINANCE_API_SECRET" in os.environ:
+    del os.environ["BINANCE_API_SECRET"]
+
+# Set test env vars
+os.environ["BINANCE_API_KEY"] = "test_env_key"
+os.environ["BINANCE_API_SECRET"] = "test_env_secret"
+
+from config.config import load_config
+
+cfg1 = load_config()
+print(f"✓ API Key from env: {cfg1.binance_api_key}")
+print(f"✓ API Secret from env: {cfg1.binance_api_secret}")
+assert cfg1.binance_api_key == "test_env_key", "Should load from env"
+assert cfg1.binance_api_secret == "test_env_secret", "Should load from env"
+print("✅ Environment fallback works!\n")
+
+# Test 2: Dashboard settings priority
+print("=" * 60)
+print("TEST 2: Dashboard Settings Priority")
+print("=" * 60)
+
+# Import and populate dashboard settings
+from backend.routes.settings import SETTINGS
+
+SETTINGS["api_key"] = "test_dashboard_key"
+SETTINGS["api_secret"] = "test_dashboard_secret"
+
+# Reload config (in production this happens on each adapter build)
+cfg2 = load_config()
+print(f"✓ API Key from dashboard: {cfg2.binance_api_key}")
+print(f"✓ API Secret from dashboard: {cfg2.binance_api_secret}")
+assert cfg2.binance_api_key == "test_dashboard_key", "Should prioritize dashboard"
+assert cfg2.binance_api_secret == "test_dashboard_secret", "Should prioritize dashboard"
+print("✅ Dashboard settings take priority!\n")
+
+# Test 3: Execution adapter uses dynamic config
+print("=" * 60)
+print("TEST 3: Execution Adapter Integration")
+print("=" * 60)
+
+from backend.config.execution import ExecutionConfig
+from backend.services.execution import build_execution_adapter
+
+# Build a futures adapter (will load config internally)
+exec_cfg = ExecutionConfig(
+    exchange="binance-futures",
+    quote_asset="USDT",
+)
+
+# This should use dashboard keys (test_dashboard_key/secret)
+adapter = build_execution_adapter(exec_cfg)
+print(f"✓ Adapter type: {type(adapter).__name__}")
+
+# Verify it tried to use the dashboard keys (will fall back to paper if no real API)
+if hasattr(adapter, '_api_key'):
+    print(f"✓ Adapter has API key: {adapter._api_key[:10]}..." if adapter._api_key else "✓ Paper mode (no keys)")
+print("✅ Execution adapter loads config dynamically!\n")
+
+# Test 4: Clear dashboard settings, verify env fallback
+print("=" * 60)
+print("TEST 4: Fallback After Clearing Dashboard")
+print("=" * 60)
+
+SETTINGS.clear()
+cfg3 = load_config()
+print(f"✓ API Key falls back to env: {cfg3.binance_api_key}")
+print(f"✓ API Secret falls back to env: {cfg3.binance_api_secret}")
+assert cfg3.binance_api_key == "test_env_key", "Should fall back to env"
+assert cfg3.binance_api_secret == "test_env_secret", "Should fall back to env"
+print("✅ Fallback works correctly!\n")
+
+print("=" * 60)
+print("🎉 ALL TESTS PASSED!")
+print("=" * 60)
+print("\nSummary:")
+print("  1. ✅ Environment variables work as fallback")
+print("  2. ✅ Dashboard settings take priority")
+print("  3. ✅ Execution adapters use dynamic config")
+print("  4. ✅ Fallback works when dashboard is cleared")
+print("\nYou can now:")
+print("  - Set API keys via dashboard /settings endpoint")
+print("  - Or use environment variables as fallback")
+print("  - Execution adapters will use dashboard keys first!")

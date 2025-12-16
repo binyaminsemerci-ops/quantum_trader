@@ -1,0 +1,752 @@
+"""
+AI Trading Engine - Intelligent position management with deep learning models.
+
+Integrates ML predictions directly into execution decisions:
+- Uses TFT (Temporal Fusion Transformer) for BUY/SELL/HOLD signals
+- Fallback to XGBoost/ensemble if TFT unavailable
+- Tracks prediction accuracy for model retraining
+- Adjusts position sizes based on model confidence
+- Learns from actual P&L outcomes
+- Continuous learning with periodic retraining
+"""
+
+from __future__ import annotations
+import logging
+from typing import Dict, List, Optional, Any, Tuple
+from datetime import datetime, timezone
+import asyncio
+import json
+
+logger = logging.getLogger(__name__)
+
+
+class AITradingEngine:
+    """Orchestrates AI-driven trading decisions with continuous learning."""
+    
+    def __init__(self, agent=None, db_session=None):
+        """Initialize AI trading engine with model agent and database session."""
+        self.agent = agent
+        self.db = db_session
+        self._prediction_cache: Dict[str, Dict[str, Any]] = {}
+        self._performance_history: List[Dict[str, Any]] = []
+        
+    async def get_trading_signals(
+        self, 
+        symbols: List[str],
+        current_positions: Dict[str, float]
+    ) -> List[Dict[str, Any]]:
+        """
+        Get AI predictions for trading decisions.
+        
+        Returns list of dicts:
+        [
+            {
+                "symbol": "BTCUSDC",
+                "action": "BUY"|"SELL"|"HOLD",
+                "score": 0.0-1.0,
+                "confidence": 0.0-1.0,
+                "size_multiplier": 0.5-1.5  # Adjust position size by confidence
+            }
+        ]
+        """
+        logger.info("🚀 get_trading_signals called with %d symbols", len(symbols))
+        if not self.agent:
+            logger.warning("AI agent not available, returning neutral signals")
+            return [
+                {**self._neutral_signal(), "symbol": sym} 
+                for sym in symbols
+            ]
+            
+        try:
+            # 🚀 PARALLEL processing for 222 symbols - process in batches
+            import asyncio
+            
+            async def process_symbol(symbol: str) -> Dict[str, Any]:
+                """Process one symbol and return signal"""
+                try:
+                    current_qty = current_positions.get(symbol, 0.0)
+                    prediction = await self._get_ensemble_prediction(symbol)
+                    signal = self._process_prediction(symbol, prediction, current_qty)
+                    signal["symbol"] = symbol
+                    return signal
+                except Exception as e:
+                    logger.warning(f"Failed to get AI signal for {symbol}: {e}")
+                    signal = self._neutral_signal()
+                    signal["symbol"] = symbol
+                    return signal
+            
+            # Process in parallel batches of 50 to avoid overwhelming the system
+            logger.info("🚀 Processing %d symbols in parallel batches...", len(symbols))
+            batch_size = 50
+            signals = []
+            
+            for i in range(0, len(symbols), batch_size):
+                batch = symbols[i:i+batch_size]
+                logger.info("Processing batch %d-%d/%d...", i, min(i+batch_size, len(symbols)), len(symbols))
+                
+                # Process batch in parallel
+                batch_signals = await asyncio.gather(*[process_symbol(sym) for sym in batch])
+                signals.extend(batch_signals)
+                
+            # Basic counts
+            buy_cnt = sum(1 for s in signals if s["action"] == "BUY")
+            sell_cnt = sum(1 for s in signals if s["action"] == "SELL")
+            hold_cnt = sum(1 for s in signals if s["action"] == "HOLD")
+
+            # Confidence summary to diagnose HOLD bias/distribution
+            confs = [float(s.get("confidence", 0.0)) for s in signals]
+            max_conf = max(confs) if confs else 0.0
+            avg_conf = sum(confs) / len(confs) if confs else 0.0
+
+            logger.info(
+                "AI signals generated for %d symbols: BUY=%d SELL=%d HOLD=%d | conf avg=%.2f max=%.2f",
+                len(signals), buy_cnt, sell_cnt, hold_cnt, avg_conf, max_conf
+            )
+            
+            return signals
+            
+        except Exception as exc:
+            logger.error("AI signal generation failed: %s", exc, exc_info=True)
+            return [
+                {**self._neutral_signal(), "symbol": sym} 
+                for sym in symbols
+            ]
+    
+    async def _get_ensemble_prediction(self, symbol: str) -> Dict[str, Any]:
+        """Get prediction from ensemble manager with real market data."""
+        if not self.agent:
+            return {"action": "HOLD", "score": 0.0, "confidence": 0.0}
+        
+        try:
+            # Get real-time market data and compute features
+            from ai_engine.feature_engineer import compute_all_indicators
+            import pandas as pd
+            import httpx
+            import time
+            import hmac
+            import hashlib
+            
+            # Get API credentials
+            api_key = self.agent.client._api_key if hasattr(self.agent, 'client') else None
+            api_secret = self.agent.client._api_secret if hasattr(self.agent, 'client') else None
+            
+            # Use async HTTP client for parallel requests
+            base_url = 'https://testnet.binancefuture.com'
+            
+            # Fetch recent klines asynchronously
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    f"{base_url}/fapi/v1/klines",
+                    params={'symbol': symbol, 'interval': '1m', 'limit': 100}
+                )
+                
+                if response.status_code != 200:
+                    logger.debug(f"Failed to fetch klines for {symbol}: {response.status_code}")
+                    return {"action": "HOLD", "score": 0.0, "confidence": 0.0}
+                
+                klines = response.json()
+            
+            if not klines or len(klines) < 20:
+                logger.debug(f"Insufficient kline data for {symbol}")
+                return {"action": "HOLD", "score": 0.0, "confidence": 0.0}
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(klines, columns=[
+                'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                'close_time', 'quote_volume', 'trades', 'taker_buy_base',
+                'taker_buy_quote', 'ignore'
+            ])
+            
+            for col in ['open', 'high', 'low', 'close', 'volume']:
+                df[col] = df[col].astype(float)
+            
+            # Compute technical indicators
+            df_with_indicators = compute_all_indicators(df)
+            
+            # Convert last row to dict for features
+            if len(df_with_indicators) > 0:
+                raw_features = df_with_indicators.iloc[-1].to_dict()
+                
+                # Normalize feature names and calculate missing features
+                features = {}
+                
+                # Case-insensitive mapping for existing features
+                for key, value in raw_features.items():
+                    features[key.lower()] = value
+                
+                # Calculate missing features that models need
+                if 'price_change' not in features and 'close' in features:
+                    if len(df_with_indicators) >= 2:
+                        prev_close = df_with_indicators.iloc[-2].get('close', df_with_indicators.iloc[-2].get('Close', features['close']))
+                        features['price_change'] = (features['close'] - float(prev_close)) / float(prev_close) if float(prev_close) != 0 else 0.0
+                    else:
+                        features['price_change'] = 0.0
+                
+                if 'volume_change' not in features and 'volume' in features:
+                    if len(df_with_indicators) >= 2:
+                        prev_volume = df_with_indicators.iloc[-2].get('volume', df_with_indicators.iloc[-2].get('Volume', features['volume']))
+                        features['volume_change'] = (features['volume'] - float(prev_volume)) / float(prev_volume) if float(prev_volume) != 0 else 0.0
+                    else:
+                        features['volume_change'] = 0.0
+                
+                if 'volume_ma_ratio' not in features and 'volume' in features and 'volume_sma_20' in features:
+                    features['volume_ma_ratio'] = features['volume'] / features['volume_sma_20'] if features['volume_sma_20'] != 0 else 1.0
+                
+                if 'ema_20' not in features and 'ma_50' in features:
+                    features['ema_20'] = features['ma_50']  # Use MA as fallback
+                
+                if 'ema_10_20_cross' not in features and 'ema_10' in features and 'ema_20' in features:
+                    features['ema_10_20_cross'] = 1.0 if features['ema_10'] > features['ema_20'] else -1.0
+                
+                if 'ema_10_50_cross' not in features and 'ema_10' in features and 'ema_50' in features:
+                    features['ema_10_50_cross'] = 1.0 if features['ema_10'] > features['ema_50'] else -1.0
+                
+                if 'volatility_20' not in features and 'hist_vol_20' in features:
+                    features['volatility_20'] = features['hist_vol_20']
+                
+                if 'macd_hist' not in features and 'macd' in features and 'macd_signal' in features:
+                    features['macd_hist'] = features['macd'] - features['macd_signal']
+            else:
+                features = {}
+            
+            # Get ensemble prediction with normalized features
+            action, confidence, model_info = self.agent.predict(symbol, features)
+            
+            return {
+                "action": action,
+                "score": confidence,
+                "confidence": confidence,
+                "model": model_info,
+                "features": features
+            }
+        except Exception as e:
+            logger.warning(f"Ensemble prediction failed for {symbol}: {e}")
+            return {"action": "HOLD", "score": 0.0, "confidence": 0.0}
+    
+    def _neutral_signal(self) -> Dict[str, Any]:
+        """Return neutral/HOLD signal when AI unavailable."""
+        return {
+            "action": "HOLD",
+            "score": 0.0,
+            "confidence": 0.0,
+            "size_multiplier": 1.0,
+            "model": "fallback",
+            "reason": "AI model unavailable"
+        }
+    
+    def _process_prediction(
+        self, 
+        symbol: str, 
+        prediction: Dict[str, Any],
+        current_qty: float
+    ) -> Dict[str, Any]:
+        """Process raw AI prediction with position awareness and dynamic TP/SL."""
+        action = str(prediction.get("action", "HOLD")).upper()
+        score = float(prediction.get("score", 0.0))
+        confidence = float(prediction.get("confidence", 0.5))
+        
+        # Adjust action based on current position
+        if current_qty != 0:
+            # Already have position - be more conservative
+            if action == "BUY" and current_qty > 0:
+                # Already long, reduce urgency
+                action = "HOLD" if confidence < 0.7 else "BUY"
+            elif action == "SELL" and current_qty < 0:
+                # Already short, reduce urgency
+                action = "HOLD" if confidence < 0.7 else "SELL"
+            elif action == "SELL" and current_qty > 0:
+                # Model says sell our long position
+                action = "SELL" if confidence > 0.6 else "HOLD"
+            elif action == "BUY" and current_qty < 0:
+                # Model says cover our short position
+                action = "BUY" if confidence > 0.6 else "HOLD"
+        
+        # Calculate position size multiplier based on confidence
+        # High confidence = larger position, low confidence = smaller
+        size_multiplier = 0.5 + (confidence * 1.0)  # Range: 0.5x to 1.5x
+        size_multiplier = max(0.3, min(2.0, size_multiplier))  # Clamp
+        
+        # 🎯 HYBRID AI-DRIVEN TP/SL SYSTEM
+        # AI dynamically adjusts TP/SL based on confidence and market conditions
+        tp_sl_config = self._calculate_dynamic_tpsl(
+            confidence=confidence,
+            score=score,
+            action=action,
+            volatility_estimate=prediction.get("volatility", 0.02)  # From prediction if available
+        )
+        
+        return {
+            "action": action,
+            "score": score,
+            "confidence": confidence,
+            "size_multiplier": size_multiplier,
+            "model": prediction.get("model", "unknown"),
+            "reason": self._explain_signal(action, score, confidence, current_qty),
+            # Dynamic TP/SL levels set by AI
+            "tp_percent": tp_sl_config["tp_percent"],
+            "sl_percent": tp_sl_config["sl_percent"],
+            "trail_percent": tp_sl_config["trail_percent"],
+            "partial_tp": tp_sl_config["partial_tp"],
+            # Include features for training data collection
+            "features": prediction.get("features", {})
+        }
+    
+    def _calculate_dynamic_tpsl(
+        self,
+        confidence: float,
+        score: float,
+        action: str,
+        volatility_estimate: float = 0.02
+    ) -> Dict[str, float]:
+        """
+        AI-DRIVEN HYBRID TP/SL SYSTEM
+        
+        Dynamically calculate TP/SL levels based on:
+        - AI confidence (higher confidence = wider TP, tighter SL)
+        - Market volatility (higher vol = wider stops)
+        - Signal strength (stronger signal = let winners run)
+        
+        Returns dict with tp_percent, sl_percent, trail_percent, partial_tp
+        """
+        # 🚀 REALISTIC LEVELS FOR 30X LEVERAGE - GI ROM FOR VOLATILITET!
+        base_tp = 0.04    # 4% TP (realistisk for 2-4 timer, 120% på 30x)
+        base_sl = 0.06    # 6% SL (gi rom for bevegelse, 180% tap på 30x)
+        base_trail = 0.02 # 2% (trailing med rom)
+        
+        # Confidence adjustment: High confidence = wider TP, men FORTSATT bred SL for toleranse
+        if confidence > 0.8:
+            # Very confident - let winners run MER, men BRED SL
+            tp_multiplier = 1.5   # 6% TP (180% på 30x - la det løpe!)
+            sl_multiplier = 1.2   # 7.2% SL (GI ROM til bevegelse!)
+            trail_multiplier = 1.2  # 2.4% trail
+            partial_tp = 0.4  # Take 40% profit, let 60% run longer
+        elif confidence > 0.6:
+            # Confident - god balanse
+            tp_multiplier = 1.2   # 4.8% TP (144% på 30x)
+            sl_multiplier = 1.15  # 6.9% SL (gi rom)
+            trail_multiplier = 1.0  # 2% trail
+            partial_tp = 0.5  # Take 50% profit
+        elif confidence > 0.4:
+            # Medium confidence - balansert men fortsatt ROM
+            tp_multiplier = 1.0   # 4% TP (120% på 30x)
+            sl_multiplier = 1.1   # 6.6% SL (gi rom)
+            trail_multiplier = 0.9  # 1.8% trail
+            partial_tp = 0.65  # Take 65% profit
+        else:
+            # Low confidence - rask exit MEN FORTSATT ROM
+            tp_multiplier = 0.75  # 3% TP (90% på 30x - rask exit)
+            sl_multiplier = 1.05  # 6.3% SL (fortsatt gi rom!)
+            trail_multiplier = 0.75  # 1.5% trail
+            partial_tp = 0.8  # Take 80% profit (nesten full exit)
+        
+        # Volatility adjustment: High volatility = MYE wider stops
+        vol_multiplier = max(0.9, min(1.8, 1.0 + (volatility_estimate - 0.02) / 0.01))
+        
+        # Score adjustment: Strong signal = let it run MORE
+        score_multiplier = max(0.8, min(1.5, 0.8 + abs(score) * 0.7))
+        
+        # Calculate final levels
+        tp_percent = base_tp * tp_multiplier * score_multiplier
+        sl_percent = base_sl * sl_multiplier * vol_multiplier
+        trail_percent = base_trail * trail_multiplier * vol_multiplier
+        
+        # 🎯 REALISTIC CLAMPS FOR 30X LEVERAGE - GI ROM!
+        tp_percent = max(0.03, min(0.10, tp_percent))    # 3% - 10% TP (90% - 300% på 30x!)
+        sl_percent = max(0.05, min(0.12, sl_percent))    # 5% - 12% SL (GI ROM FOR VOLATILITET!)
+        trail_percent = max(0.01, min(0.03, trail_percent))  # 1% - 3% trailing
+        partial_tp = max(0.0, min(1.0, partial_tp))      # 0% - 100%
+        
+        logger.info(
+            f"🎯 Dynamic TP/SL for {action}: confidence={confidence:.2f} -> "
+            f"TP={tp_percent*100:.1f}% SL={sl_percent*100:.1f}% "
+            f"Trail={trail_percent*100:.1f}% Partial={partial_tp*100:.0f}%"
+        )
+        
+        return {
+            "tp_percent": tp_percent,
+            "sl_percent": sl_percent,
+            "trail_percent": trail_percent,
+            "partial_tp": partial_tp
+        }
+    
+    def _explain_signal(
+        self,
+        action: str,
+        score: float,
+        confidence: float,
+        current_qty: float
+    ) -> str:
+        """Generate human-readable explanation of trading signal."""
+        pos_state = "long" if current_qty > 0 else "short" if current_qty < 0 else "no position"
+        conf_desc = "high" if confidence > 0.7 else "medium" if confidence > 0.5 else "low"
+        
+        if action == "BUY":
+            return f"AI predicts upward movement (score={score:.2f}, {conf_desc} confidence) | {pos_state}"
+        elif action == "SELL":
+            return f"AI predicts downward movement (score={score:.2f}, {conf_desc} confidence) | {pos_state}"
+        else:
+            return f"AI suggests waiting (score={score:.2f}, {conf_desc} confidence) | {pos_state}"
+    
+    async def record_execution_outcome(
+        self,
+        symbol: str,
+        predicted_action: str,
+        confidence: float,
+        actual_outcome: str,
+        entry_price: float,
+        quantity: float = 0.0,
+        features: Optional[Dict[str, Any]] = None,
+        run_id: Optional[int] = None
+    ) -> None:
+        """
+        Record trade execution for continuous learning.
+        
+        Saves prediction + features to database for later retraining.
+        """
+        if not self.db:
+            logger.debug("No database session, skipping outcome recording")
+            return
+            
+        try:
+            from backend.models.ai_training import AITrainingSample
+            
+            # Serialize features
+            features_json = json.dumps(features or {})
+            
+            # Create training sample
+            sample = AITrainingSample(
+                symbol=symbol,
+                timestamp=datetime.now(timezone.utc),
+                run_id=run_id,
+                predicted_action=predicted_action,
+                prediction_score=0.0,  # Will be filled from features if available
+                prediction_confidence=confidence,
+                model_version=self._get_model_version(),
+                features=features_json,
+                executed=True,
+                execution_side=actual_outcome,
+                entry_price=entry_price,
+                entry_quantity=quantity,
+                entry_time=datetime.now(timezone.utc),
+                outcome_known=False  # Will be updated when position closes
+            )
+            
+            self.db.add(sample)
+            self.db.commit()
+            
+            logger.info(
+                f"Recorded training sample: {symbol} predicted={predicted_action}({confidence:.2f}) "
+                f"executed={actual_outcome} @ {entry_price}"
+            )
+            
+        except Exception as exc:
+            logger.error(f"Failed to record execution outcome: {exc}", exc_info=True)
+            if self.db:
+                self.db.rollback()
+    
+    async def update_outcome_with_pnl(
+        self,
+        symbol: str,
+        entry_price: float,
+        exit_price: float,
+        exit_time: datetime,
+        realized_pnl: float
+    ) -> None:
+        """
+        Update training sample with actual P&L outcome.
+        
+        Called when position closes to complete the training sample.
+        """
+        if not self.db:
+            return
+            
+        try:
+            from backend.models.ai_training import AITrainingSample
+            
+            # Find the most recent open sample for this symbol
+            sample = self.db.query(AITrainingSample).filter(
+                AITrainingSample.symbol == symbol,
+                AITrainingSample.entry_price == entry_price,
+                AITrainingSample.outcome_known == False
+            ).order_by(AITrainingSample.entry_time.desc()).first()
+            
+            if sample:
+                duration = (exit_time - sample.entry_time).total_seconds()
+                
+                # Calculate target label (% return)
+                pct_return = (exit_price - entry_price) / entry_price
+                if sample.execution_side == "SELL":
+                    pct_return = -pct_return  # Invert for short positions
+                
+                # Update sample
+                sample.outcome_known = True
+                sample.exit_price = exit_price
+                sample.exit_time = exit_time
+                sample.realized_pnl = realized_pnl
+                sample.hold_duration_seconds = int(duration)
+                sample.target_label = pct_return
+                sample.target_class = "WIN" if realized_pnl > 0 else "LOSS" if realized_pnl < 0 else "NEUTRAL"
+                sample.updated_at = datetime.now(timezone.utc)
+                
+                self.db.commit()
+                
+                logger.info(
+                    f"Updated outcome: {symbol} P&L={realized_pnl:.2f} "
+                    f"return={pct_return:.2%} class={sample.target_class}"
+                )
+            else:
+                logger.debug(f"No open training sample found for {symbol} @ {entry_price}")
+                
+        except Exception as exc:
+            logger.error(f"Failed to update outcome: {exc}", exc_info=True)
+            if self.db:
+                self.db.rollback()
+    
+    def _get_model_version(self) -> str:
+        """Get current model version identifier."""
+        if hasattr(self.agent, 'model'):
+            try:
+                # Try to get version from model metadata
+                return getattr(self.agent.model, '__version__', 'unknown')
+            except:
+                pass
+        return f"v{datetime.now(timezone.utc).strftime('%Y%m%d')}"
+    
+    async def record_execution_outcome_legacy(
+        self,
+        symbol: str,
+        action: str,
+        entry_price: float,
+        quantity: float,
+        timestamp: datetime
+    ) -> None:
+        """Legacy method for backward compatibility."""
+        prediction = self._prediction_cache.get(symbol)
+        if not prediction:
+            return
+            
+        outcome = {
+            "symbol": symbol,
+            "predicted_action": prediction["action"],
+            "actual_action": action,
+            "confidence": prediction["confidence"],
+            "entry_price": entry_price,
+            "quantity": quantity,
+            "timestamp": timestamp,
+            "prediction_time": prediction["timestamp"]
+        }
+        
+        self._performance_history.append(outcome)
+        logger.info(
+            "Recorded execution outcome: %s %s @ %.4f (predicted: %s, conf=%.2f)",
+            symbol, action, entry_price, prediction["action"], prediction["confidence"]
+        )
+        
+        # Trigger model retraining if we have enough data
+        if len(self._performance_history) >= 50:
+            asyncio.create_task(self._retrain_model())
+    
+    async def _retrain_model(self, min_samples: int = 100) -> Dict[str, Any]:
+        """
+        Retrain AI model based on actual trading outcomes.
+        
+        Implements continuous learning by:
+        1. Fetching completed training samples from database
+        2. Building dataset from features and outcomes
+        3. Training new model
+        4. Validating against holdout set
+        5. Replacing old model if new one is better
+        
+        Returns:
+            Dict with retraining status and metrics
+        """
+        logger.info("Starting model retraining...")
+        
+        if not self.db:
+            logger.warning("No database session, cannot retrain")
+            return {"status": "error", "reason": "no_database"}
+        
+        try:
+            from backend.models.ai_training import AITrainingSample, AIModelVersion
+            from ai_engine.train_and_save import make_regressor, make_scaler
+            import numpy as np
+            from datetime import timedelta
+            
+            # Fetch completed training samples
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
+            
+            samples = self.db.query(AITrainingSample).filter(
+                AITrainingSample.outcome_known == True,
+                AITrainingSample.timestamp >= cutoff_date
+            ).all()
+            
+            if len(samples) < min_samples:
+                logger.info(
+                    f"Not enough samples for retraining: {len(samples)}/{min_samples}"
+                )
+                return {
+                    "status": "skipped",
+                    "reason": "insufficient_samples",
+                    "samples_count": len(samples),
+                    "required": min_samples
+                }
+            
+            logger.info(f"Building dataset from {len(samples)} training samples...")
+            
+            # Build feature matrix and target vector
+            X_list = []
+            y_list = []
+            
+            for sample in samples:
+                try:
+                    features = json.loads(sample.features)
+                    
+                    # Convert features dict to array
+                    if isinstance(features, dict):
+                        feature_array = list(features.values())
+                    elif isinstance(features, list):
+                        feature_array = features
+                    else:
+                        continue
+                    
+                    # Use % return as target
+                    target = sample.target_label if sample.target_label is not None else 0.0
+                    
+                    X_list.append(feature_array)
+                    y_list.append(target)
+                    
+                except Exception as e:
+                    logger.debug(f"Skipping sample {sample.id}: {e}")
+                    continue
+            
+            if len(X_list) < min_samples:
+                return {
+                    "status": "error",
+                    "reason": "too_few_valid_samples",
+                    "valid_samples": len(X_list)
+                }
+            
+            X = np.array(X_list)
+            y = np.array(y_list)
+            
+            logger.info(f"Dataset shape: X={X.shape}, y={y.shape}")
+            
+            # Split into train/validation
+            split_idx = int(len(X) * 0.8)
+            X_train, X_val = X[:split_idx], X[split_idx:]
+            y_train, y_val = y[:split_idx], y[split_idx:]
+            
+            # Scale features
+            scaler = make_scaler()
+            X_train_scaled = scaler.fit_transform(X_train)
+            X_val_scaled = scaler.transform(X_val)
+            
+            # Train new model
+            logger.info("Training new model...")
+            start_time = datetime.now(timezone.utc)
+            
+            model = make_regressor()
+            model.fit(X_train_scaled, y_train)
+            
+            train_duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+            
+            # Validate
+            train_preds = model.predict(X_train_scaled)
+            val_preds = model.predict(X_val_scaled)
+            
+            train_mae = np.mean(np.abs(train_preds - y_train))
+            val_mae = np.mean(np.abs(val_preds - y_val))
+            
+            # Calculate accuracy (predictions within 1% of actual)
+            train_acc = np.mean(np.abs(train_preds - y_train) < 0.01)
+            val_acc = np.mean(np.abs(val_preds - y_val) < 0.01)
+            
+            logger.info(
+                f"Training complete: train_mae={train_mae:.4f} val_mae={val_mae:.4f} "
+                f"train_acc={train_acc:.2%} val_acc={val_acc:.2%}"
+            )
+            
+            # Save new model
+            import pickle
+            from pathlib import Path
+            
+            model_dir = Path("ai_engine/models")
+            model_dir.mkdir(exist_ok=True, parents=True)
+            
+            version_id = f"v{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+            model_path = model_dir / f"xgb_model_{version_id}.pkl"
+            scaler_path = model_dir / f"scaler_{version_id}.pkl"
+            
+            with open(model_path, 'wb') as f:
+                pickle.dump(model, f)
+            with open(scaler_path, 'wb') as f:
+                pickle.dump(scaler, f)
+            
+            logger.info(f"Saved new model: {model_path}")
+            
+            # Record model version in database
+            model_version = AIModelVersion(
+                version_id=version_id,
+                model_type="xgboost_continuous",
+                file_path=str(model_path),
+                trained_at=datetime.now(timezone.utc),
+                training_samples=len(X_train),
+                training_duration_seconds=train_duration,
+                train_accuracy=float(train_acc),
+                validation_accuracy=float(val_acc),
+                train_mae=float(train_mae),
+                validation_mae=float(val_mae),
+                is_active=False,  # Don't auto-activate yet
+                notes=f"Trained on {len(samples)} samples from last 30 days"
+            )
+            
+            self.db.add(model_version)
+            self.db.commit()
+            
+            # TODO: Add logic to activate new model if it's better than current
+            # For now, keep it inactive and require manual activation
+            
+            return {
+                "status": "success",
+                "version_id": version_id,
+                "training_samples": len(X_train),
+                "validation_samples": len(X_val),
+                "train_accuracy": float(train_acc),
+                "validation_accuracy": float(val_acc),
+                "train_mae": float(train_mae),
+                "validation_mae": float(val_mae),
+                "model_path": str(model_path),
+                "message": f"New model trained and saved. Activate via /ai/activate-model/{version_id}"
+            }
+            
+        except Exception as exc:
+            logger.error(f"Model retraining failed: {exc}", exc_info=True)
+            return {
+                "status": "error",
+                "reason": str(exc)
+            }
+    
+    def get_performance_metrics(self) -> Dict[str, Any]:
+        """Calculate AI prediction accuracy metrics."""
+        if not self._performance_history:
+            return {"total_predictions": 0, "accuracy": 0.0}
+            
+        correct = sum(
+            1 for outcome in self._performance_history
+            if outcome["predicted_action"] == outcome["actual_action"]
+        )
+        
+        total = len(self._performance_history)
+        accuracy = correct / total if total > 0 else 0.0
+        
+        return {
+            "total_predictions": total,
+            "correct_predictions": correct,
+            "accuracy": accuracy,
+            "recent_outcomes": self._performance_history[-10:]
+        }
+
+
+def create_ai_trading_engine(agent=None, db_session=None) -> AITradingEngine:
+    """Factory function to create AI trading engine instance."""
+    return AITradingEngine(agent=agent, db_session=db_session)

@@ -1,0 +1,14 @@
+{
+  "timestamp": "2025-11-20T15:30:04.083557",
+  "epoch": 7,
+  "train_loss": 0.703445664554272,
+  "val_loss": 0.8531369975319615,
+  "accuracy": 72.19251336898395,
+  "q10_coverage": 85.44266191325015,
+  "q90_coverage": 86.7498514557338,
+  "quantile_calibration": 1.5219251336898396,
+  "sequence_length": 120,
+  "hidden_size": 128,
+  "dropout": 0.2,
+  "quantile_weight": 0.5
+}

@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""
+🤖 LIVE AI MONITOR - Watch AI analyze market in real-time
+"""
+import subprocess
+import time
+from datetime import datetime
+
+print("=" * 80)
+print("🤖 QUANTUM TRADER - LIVE AI MONITORING")
+print("=" * 80)
+print()
+print("[CHART] CONFIG:")
+print("   • 20x Leverage")
+print("   • $1600 per trade ($80 margin)")
+print("   • 70% minimum confidence required")
+print("   • 10s check interval, 120s cooldown")
+print("   • 3% TP ($48/win), 2% SL ($32 loss)")
+print()
+print("=" * 80)
+print("[SEARCH] WATCHING AI ACTIVITY (press Ctrl+C to stop)...")
+print("=" * 80)
+print()
+
+last_line_count = 0
+
+try:
+    while True:
+        result = subprocess.run(
+            [
+                "docker", "logs", "quantum_backend", "--tail", "500"
+            ],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='ignore'  # Ignore encoding errors
+        )
+        
+        lines = (result.stdout or '') + (result.stderr or '')
+        all_lines = lines.strip().split('\n')
+        
+        # Filter for interesting lines
+        relevant = []
+        for line in all_lines:
+            if any(keyword in line.lower() for keyword in [
+                'ai signals generated',
+                'strong signals',
+                'no strong signals', 
+                'best buy',
+                'best sell',
+                'rebalancing',
+                'orders submitted',
+                'position opened',
+                'position monitor',
+                'trailing stop',
+                'confidence >=',
+                'event-driven executor task',
+                'monitoring loop started'
+            ]):
+                relevant.append(line)
+        
+        # Only show new lines
+        new_lines = relevant[last_line_count:]
+        if new_lines:
+            for line in new_lines:
+                try:
+                    # Try to parse JSON log
+                    import json
+                    log = json.loads(line)
+                    timestamp = log.get('timestamp', '')[:19]  # Just date and time
+                    level = log.get('level', 'INFO')
+                    message = log.get('message', '')
+                    
+                    # Color code
+                    if 'strong signals' in message.lower() or 'rebalancing' in message.lower():
+                        color = '\033[92m'  # Green
+                    elif 'no strong' in message.lower():
+                        color = '\033[93m'  # Yellow
+                    elif 'error' in level.lower():
+                        color = '\033[91m'  # Red
+                    else:
+                        color = '\033[0m'  # White
+                    
+                    print(f"{color}{timestamp} | {message}\033[0m")
+                except:
+                    # Not JSON, print as-is
+                    print(line)
+            
+            last_line_count = len(relevant)
+        
+        time.sleep(3)  # Check every 3 seconds
+        
+except KeyboardInterrupt:
+    print()
+    print("=" * 80)
+    print("⏹️  Monitoring stopped")
+    print("=" * 80)
+    print()
+    print("💡 TIP: Run 'python check_ai_status.py' for current status")
+    print()

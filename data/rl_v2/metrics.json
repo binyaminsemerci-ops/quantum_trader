@@ -1,0 +1,24 @@
+[
+  {
+    "timestamp": "2025-12-02T14:46:59.692015",
+    "meta_agent": {
+      "exists": false,
+      "total_states": 0,
+      "total_state_actions": 0,
+      "epsilon": 0.0,
+      "update_count": 0,
+      "file_size_kb": 0
+    },
+    "sizing_agent": {
+      "exists": false,
+      "total_states": 0,
+      "total_state_actions": 0,
+      "epsilon": 0.0,
+      "update_count": 0,
+      "file_size_kb": 0
+    },
+    "total_updates": 0,
+    "total_states": 0,
+    "total_size_kb": 0
+  }
+]

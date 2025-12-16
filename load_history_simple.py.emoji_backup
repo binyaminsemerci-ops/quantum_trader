@@ -1,0 +1,64 @@
+"""
+Simple script to fetch recent kline data from Binance Testnet.
+This will trigger the models to start building history.
+"""
+import os
+from binance.client import Client
+from datetime import datetime, timezone, timedelta
+import time
+
+# Get testnet API keys
+testnet_api_key = os.getenv('BINANCE_TESTNET_API_KEY')
+testnet_secret = os.getenv('BINANCE_TESTNET_SECRET_KEY')
+
+if not testnet_api_key or not testnet_secret:
+    print("❌ Testnet API keys not found!")
+    print("Run: export BINANCE_TESTNET_API_KEY=your_key")
+    exit(1)
+
+# Initialize client
+client = Client(
+    api_key=testnet_api_key,
+    api_secret=testnet_secret,
+    testnet=True
+)
+
+# Top 20 symbols
+symbols = [
+    'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT',
+    'DOGEUSDT', 'ADAUSDT', 'LINKUSDT', 'AVAXUSDT', 'DOTUSDT',
+    'MATICUSDT', 'NEARUSDT', 'UNIUSDT', 'LTCUSDT', 'ATOMUSDT',
+    'APTUSDT', 'ARBUSDT', 'OPUSDT', 'SHIBUSDT', 'SUIUSDT'
+]
+
+print(f"📊 Fetching 2 hours of 1-minute data for {len(symbols)} symbols...")
+print(f"   This will give N-HiTS and PatchTST the 120 timesteps they need\n")
+
+end_time = datetime.now(timezone.utc)
+start_time = end_time - timedelta(hours=2)
+
+for symbol in symbols:
+    try:
+        # Fetch last 120 1-minute candles
+        klines = client.futures_klines(
+            symbol=symbol,
+            interval='1m',
+            startTime=int(start_time.timestamp() * 1000),
+            endTime=int(end_time.timestamp() * 1000),
+            limit=120
+        )
+        
+        if klines:
+            print(f"✅ {symbol:12} - {len(klines)} candles from {start_time.strftime('%H:%M')} to {end_time.strftime('%H:%M')}")
+        else:
+            print(f"⚠️  {symbol:12} - No data")
+        
+        time.sleep(0.1)  # Rate limiting
+        
+    except Exception as e:
+        print(f"❌ {symbol:12} - Error: {e}")
+
+print(f"\n✅ Data fetched! Backend will now have access to this data.")
+print(f"   N-HiTS and PatchTST models will start making predictions!")
+print(f"\n💡 The models cache data in memory as backend scans symbols.")
+print(f"   Wait 5-10 minutes for full history to build up.")

@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Temavariabler – lys (root), mørk, og blå aksenter */
+:root {
+  --bg: 248 250 252;         /* slate-50 */
+  --panel: 255 255 255;      /* white */
+  --text: 15 23 42;          /* slate-900 */
+  --ring: 0 0 0 / 0.06;
+  --muted: 100 116 139;      /* slate-500 */
+  --accent: 59 130 246;      /* brand-500 */
+}
+html.theme-dark {
+  --bg: 12 15 18;
+  --panel: 18 22 27;
+  --text: 229 231 235;
+  --ring: 255 255 255 / 0.08;
+  --muted: 148 163 184;
+  --accent: 59 130 246;
+}
+html.theme-blue {
+  --bg: 244 248 255;
+  --panel: 255 255 255;
+  --text: 15 23 42;
+  --ring: 0 95 204 / 0.12;
+  --muted: 71 85 105;
+  --accent: 37 99 235;
+}
+
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--text));
+}
+
+/* Card-stil som gjenskaper "widget-bokser" fra wireframe */
+.card {
+  background: rgb(var(--panel));
+  border-radius: 1.2rem;              /* rounded-2xl */
+  box-shadow: var(--card-shadow, 0 1px 2px rgba(0,0,0,.05));
+  outline: 1px solid color-mix(in oklch, black 8%, transparent);
+}
+.card-outline {
+  outline: 1px dashed color-mix(in oklch, black 14%, transparent);
+  outline-offset: -6px;
+}
+
+/* Subtil "statusbar" øverst */
+.status-blur {
+  backdrop-filter: blur(8px);
+  background: color-mix(in oklch, rgb(var(--panel)) 80%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, black 8%, transparent);
+}
+
+/* Custom scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+html.theme-dark *::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.4);
+}
+
+html.theme-dark *::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.6);
+}

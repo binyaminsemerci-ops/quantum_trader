@@ -1,0 +1,35 @@
+from backend.database import SessionLocal
+from backend.models.ai_training import AITrainingSample
+import json
+
+db = SessionLocal()
+
+# Lag dummy features for testing (typiske technical indicators)
+dummy_features = {
+    "Close": 3100.5,
+    "Volume": 15000000,
+    "EMA_10": 3095.2,
+    "EMA_50": 3080.1,
+    "RSI": 65.3,
+    "MACD": 12.5,
+    "MACD_signal": 10.2,
+    "BB_upper": 3150.0,
+    "BB_middle": 3100.0,
+    "BB_lower": 3050.0,
+    "ATR": 45.2,
+    "volume_sma_20": 14500000,
+    "price_change_pct": 0.8,
+    "high_low_range": 55.3
+}
+
+samples = db.query(AITrainingSample).all()
+print(f"Oppdaterer {len(samples)} samples med dummy features...")
+
+for s in samples:
+    s.features = json.dumps(dummy_features)
+    print(f"  Sample {s.id}: ✅ {len(dummy_features)} features")
+
+db.commit()
+print(f"\n✅ Alle {len(samples)} samples har nå features!")
+
+db.close()

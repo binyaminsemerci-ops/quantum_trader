@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+"""Quick check of open positions."""
+from binance.client import Client
+import os
+
+client = Client(os.getenv('BINANCE_API_KEY'), os.getenv('BINANCE_API_SECRET'))
+positions = [p for p in client.futures_position_information() if float(p['positionAmt']) != 0]
+
+print(f"\n[CHART] Open Positions: {len(positions)}\n")
+for p in sorted(positions, key=lambda x: float(x['unRealizedProfit'])):
+    symbol = p['symbol']
+    size = float(p['positionAmt'])
+    entry = float(p['entryPrice'])
+    pnl = float(p['unRealizedProfit'])
+    notional = float(p['notional'])
+    pnl_pct = (pnl / abs(notional)) * 100 if notional != 0 else 0
+    
+    print(f"{symbol:12} | Size: {size:>8.2f} | Entry: ${entry:>8.4f} | PNL: ${pnl:>7.2f} ({pnl_pct:>6.2f}%)")
+
+# Check for TP/SL orders
+print(f"\n[SHIELD]  TP/SL Orders:\n")
+for p in positions:
+    symbol = p['symbol']
+    orders = client.futures_get_open_orders(symbol=symbol)
+    tp_orders = [o for o in orders if o['type'] == 'TAKE_PROFIT_MARKET']
+    sl_orders = [o for o in orders if o['type'] == 'STOP_MARKET']
+    
+    if tp_orders or sl_orders:
+        print(f"{symbol:12} | TP: {len(tp_orders)} orders | SL: {len(sl_orders)} orders")
+    else:
+        print(f"{symbol:12} | [WARNING]  NO TP/SL PROTECTION")

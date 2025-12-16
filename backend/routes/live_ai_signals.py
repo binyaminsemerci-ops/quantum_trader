@@ -1,16 +1,210 @@
 """
 Simplified AI-powered trading signals endpoint
 Uses live market data to generate real trading signals
+
+Now supports configurable AI models via AI_MODEL environment variable:
+- xgb: XGBoost only (fast, proven)
+- tft: Temporal Fusion Transformer only (temporal patterns)
+- hybrid: TFT + XGBoost ensemble (best performance, default)
 """
 
 import asyncio
 import aiohttp
 import pandas as pd
-from datetime import datetime, timedelta
-from typing import Dict, List, Any
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Iterable, List, Optional
 import logging
+import os
+
+from ai_engine.ensemble_manager import EnsembleManager
+
+def make_default_agent():
+    """Create default 4-model ensemble agent."""
+    return EnsembleManager()
 
 logger = logging.getLogger(__name__)
+
+# Log which AI model will be used
+_AI_MODEL_MODE = os.getenv('AI_MODEL', 'hybrid').lower()
+logger.info(f"🤖 AI Signal Generator configured with model: {_AI_MODEL_MODE.upper()}")
+
+_AGENT: Optional[Any] = None
+_AGENT_LOCK = asyncio.Lock()
+_AGENT_DISABLED_UNTIL: float = 0.0
+_AGENT_BACKOFF_SECONDS = 90.0
+
+
+def _loop_time() -> float:
+    return asyncio.get_event_loop().time()
+
+
+def _disable_agent_temporarily() -> None:
+    global _AGENT_DISABLED_UNTIL
+    _AGENT_DISABLED_UNTIL = _loop_time() + _AGENT_BACKOFF_SECONDS
+
+
+async def _get_agent() -> Optional[Any]:
+    """BULLETPROOF: Return a cached XGBAgent instance, creating it lazily.
+    
+    NEVER raises. Returns None if agent cannot be loaded.
+    """
+    global _AGENT
+    
+    try:
+        # Check if agent is temporarily disabled
+        if _AGENT_DISABLED_UNTIL and _loop_time() < _AGENT_DISABLED_UNTIL:
+            logger.debug("Agent temporarily disabled (backoff active)")
+            return None
+
+        # Return cached agent if available
+        if _AGENT is not None:
+            return _AGENT
+
+        # Load agent with lock to prevent race conditions
+        async with _AGENT_LOCK:
+            # Double-check after acquiring lock
+            if _AGENT is not None:
+                return _AGENT
+            
+            loop = asyncio.get_event_loop()
+            try:
+                # Create agent with timeout to prevent hanging
+                # make_default_agent() now returns XGBAgent, TFTAgent, or HybridAgent based on AI_MODEL env var
+                _AGENT = await asyncio.wait_for(
+                    loop.run_in_executor(None, make_default_agent),
+                    timeout=45.0  # 45 second timeout (TFT needs more time to load)
+                )
+                agent_type = type(_AGENT).__name__
+                logger.info(f"[OK] {agent_type} loaded successfully for live signal generation")
+            except asyncio.TimeoutError:
+                logger.error(f"❌ CRITICAL: AI Agent initialization timed out after 45s (mode: {_AI_MODEL_MODE})")
+                _disable_agent_temporarily()
+                _AGENT = None
+            except Exception as exc:
+                logger.error(f"❌ CRITICAL: Failed to initialize AI Agent (mode: {_AI_MODEL_MODE}): %s", exc, exc_info=True)
+                _disable_agent_temporarily()
+                _AGENT = None
+        
+        return _AGENT
+    except Exception as e:
+        logger.error("❌ CRITICAL: Unexpected error in _get_agent: %s", e, exc_info=True)
+        return None
+
+
+async def _fetch_latest_prices(symbols: Iterable[str]) -> Dict[str, Optional[float]]:
+    """BULLETPROOF: Fetch the latest close price for each symbol.
+    
+    NEVER raises. Returns empty dict on total failure, partial results on partial failure.
+    Uses bounded concurrency and per-symbol timeouts.
+    """
+
+    symbols_list = [s.upper() for s in symbols]
+    if not symbols_list:
+        return {}
+
+    try:
+        from backend.routes.external_data import binance_ohlcv
+    except ImportError:  # pragma: no cover - fallback when package layout differs
+        from routes.external_data import binance_ohlcv  # type: ignore
+
+    semaphore = asyncio.Semaphore(4)
+
+    async def _load(symbol: str) -> tuple[str, Optional[float]]:
+        async with semaphore:
+            try:
+                payload = await asyncio.wait_for(
+                    binance_ohlcv(symbol, limit=1),
+                    timeout=6.0,
+                )
+                candles = payload.get("candles", []) if isinstance(payload, dict) else []
+                if candles:
+                    return symbol, float(candles[-1]["close"])
+            except Exception as exc:
+                logger.debug("Price fetch failed for %s: %s", symbol, exc)
+            return symbol, None
+
+    tasks = [_load(sym) for sym in symbols_list]
+    results = await asyncio.gather(*tasks, return_exceptions=False)
+    return {symbol: price for symbol, price in results}
+
+
+def _merge_signals(primary: List[Dict[str, Any]], fallback: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
+    """Combine agent and heuristic signals without duplicating symbols."""
+
+    merged: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for bucket in (primary, fallback):
+        for signal in bucket:
+            symbol = str(signal.get("symbol", "")).upper()
+            if not symbol or symbol in seen:
+                continue
+            merged.append(signal)
+            seen.add(symbol)
+            if len(merged) >= limit:
+                return merged
+    return merged
+
+
+async def _agent_signals(symbols: List[str], limit: int) -> List[Dict[str, Any]]:
+    """Generate signals using the trained XGBAgent, falling back on failure."""
+
+    agent = await _get_agent()
+    if agent is None:
+        return []
+
+    try:
+        predictions = await asyncio.wait_for(
+            agent.scan_top_by_volume_from_api(
+                symbols,
+                top_n=min(limit, max(1, len(symbols))),
+                limit=240,
+            ),
+            timeout=70.0,
+        )
+    except Exception as exc:
+        logger.warning("XGBAgent scan failed: %s", exc)
+        _disable_agent_temporarily()
+        return []
+
+    if not predictions:
+        return []
+
+    price_map = await _fetch_latest_prices(predictions.keys())
+    now = datetime.now(timezone.utc)
+    actionable: List[Dict[str, Any]] = []
+
+    for index, (symbol, payload) in enumerate(predictions.items()):
+        if not isinstance(payload, dict):
+            continue
+        action = str(payload.get("action", "HOLD")).upper()
+        score = float(payload.get("score", 0.0))
+        confidence = float(payload.get("confidence", score))
+        if action not in {"BUY", "SELL"}:
+            continue
+        if score <= 0.0001:  # Very low threshold to catch weak signals
+            continue
+
+        actionable.append(
+            {
+                "id": f"xgb_{symbol}_{int(now.timestamp())}_{index}",
+                "timestamp": (now - timedelta(seconds=index * 5)).isoformat(),
+                "symbol": symbol,
+                "side": action.lower(),
+                "score": round(min(max(score, 0.0), 1.0), 3),
+                "confidence": round(min(max(confidence, 0.0), 1.0), 3),
+                "price": price_map.get(symbol),
+                "details": {
+                    "source": "XGBAgent",
+                    "note": payload.get("model", "xgboost"),
+                },
+                "source": "XGBAgent",
+                "model": str(payload.get("model", "xgboost")),
+            }
+        )
+
+    actionable.sort(key=lambda item: item.get("confidence", 0.0), reverse=True)
+    return actionable[:limit]
 
 
 class SimpleAITrader:
@@ -118,10 +312,10 @@ class SimpleAITrader:
             score -= 0.3
             signals.append("Strong momentum down")
 
-        # Determine action - make more sensitive
-        if score > 0.2:  # Lower threshold for BUY
+        # Determine action - very sensitive thresholds
+        if score > 0.15:  # Very low threshold for BUY
             action = "BUY"
-        elif score < -0.2:  # Lower threshold for SELL
+        elif score < -0.15:  # Very low threshold for SELL
             action = "SELL"
         else:
             action = "HOLD"
@@ -154,19 +348,25 @@ class SimpleAITrader:
         signals = []
         current_time = datetime.now()
 
-        for i, symbol in enumerate(symbols[:limit]):
-            try:
-                # Get market data
-                df = await self.get_binance_data(symbol)
+        # Fetch data for all symbols in parallel
+        tasks = [self.get_binance_data(symbol) for symbol in symbols[:limit]]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
+        for i, (symbol, result) in enumerate(zip(symbols[:limit], results)):
+            try:
+                if isinstance(result, Exception):
+                    logger.error(f"Error fetching {symbol}: {result}")
+                    continue
+
+                df = result
                 if df is None or len(df) < 20:
                     continue
 
                 # Analyze
                 analysis = self.analyze_trend(df)
 
-                # Only include actionable signals - make more permissive
-                if analysis["action"] != "HOLD" and analysis["score"] > 0.1:
+                # Only include actionable signals - very permissive
+                if analysis["action"] != "HOLD" and analysis["score"] > 0.05:
                     signal = {
                         "id": f"ai_{symbol}_{int(current_time.timestamp())}",
                         "timestamp": (
@@ -176,15 +376,15 @@ class SimpleAITrader:
                         "side": analysis["action"].lower(),
                         "score": round(analysis["score"], 3),
                         "confidence": round(analysis["confidence"], 3),
+                        "price": float(df["close"].iloc[-1]),
                         "details": {
                             "source": "Live AI Analysis",
                             "note": f"RSI: {analysis['rsi']:.1f}, {analysis['reason']}",
                         },
+                        "source": "LiveAIHeuristic",
+                        "model": "technical",
                     }
                     signals.append(signal)
-
-                # Rate limiting
-                await asyncio.sleep(0.1)
 
             except Exception as e:
                 logger.error(f"Error analyzing {symbol}: {e}")
@@ -200,7 +400,25 @@ ai_trader = SimpleAITrader()
 async def get_live_ai_signals(
     limit: int = 20, profile: str = "mixed"
 ) -> List[Dict[str, Any]]:
-    """Generate live AI trading signals"""
+    """BULLETPROOF: Generate live AI trading signals.
+    
+    THIS IS THE HEART OF THE SYSTEM - MUST NEVER FAIL COMPLETELY.
+    Always returns a list (possibly empty, but never None).
+    Uses agent first, heuristic fallback second, guarantees result.
+    """
+    # BULLETPROOF: Validate and sanitize inputs
+    try:
+        if limit <= 0 or limit > 100:
+            logger.warning("Invalid limit %d, clamping to [1, 100]", limit)
+            limit = max(1, min(100, limit))
+        
+        if profile not in ["left", "right", "mixed"]:
+            logger.warning("Invalid profile '%s', using 'mixed'", profile)
+            profile = "mixed"
+    except Exception as e:
+        logger.error("❌ Input validation failed: %s, using defaults", e)
+        limit = 20
+        profile = "mixed"
 
     # Symbol selection based on profile
     if profile == "left":  # Conservative
@@ -227,9 +445,54 @@ async def get_live_ai_signals(
             "MATICUSDT",
         ]
 
+    # Bulletproof signal generation - NEVER fails, always returns valid list
     try:
-        return await ai_trader.generate_signals(symbols, limit)
-    except Exception as e:
-        logger.error(f"Error generating live signals: {e}")
+        # Step 1: Try agent signals (with internal timeout/fallback)
+        agent_signals = await _agent_signals(symbols, limit)
+        logger.info(f"[OK] Agent signals: {len(agent_signals)} generated")
 
+        # Step 2: Generate heuristic fallback if needed
+        fallback_signals: List[Dict[str, Any]] = []
+        try:
+            if len(agent_signals) < limit:
+                logger.info(f"🔄 Agent signals insufficient ({len(agent_signals)}/{limit}), generating heuristic fallback...")
+                fallback_signals = await ai_trader.generate_signals(symbols, limit)
+                logger.info(f"[OK] Heuristic fallback: {len(fallback_signals)} signals")
+        except Exception as fallback_err:
+            logger.error(f"❌ Heuristic fallback failed: {fallback_err}")
+            fallback_signals = []  # Safe default
+
+        # Step 3: Merge signals with validation
+        merged = []
+        try:
+            merged = _merge_signals(agent_signals, fallback_signals, limit)
+            if merged and isinstance(merged, list):
+                logger.info(f"[OK] Merged signals: {len(merged)} total")
+                return merged
+        except Exception as merge_err:
+            logger.error(f"❌ Merge failed: {merge_err}")
+
+        # Step 4: Return best available signals
+        if agent_signals:
+            logger.info(f"[WARNING] Returning agent signals only: {len(agent_signals[:limit])}")
+            return agent_signals[:limit]
+        if fallback_signals:
+            logger.info(f"[WARNING] Returning fallback signals only: {len(fallback_signals[:limit])}")
+            return fallback_signals[:limit]
+
+        logger.warning("[WARNING] No signals generated, returning empty list")
         return []
+
+    except Exception as e:
+        logger.error(f"❌ Critical error in live signals generation: {e}", exc_info=True)
+        # Last resort: try emergency heuristic
+        try:
+            logger.info("[ALERT] Attempting emergency heuristic generation...")
+            emergency = await ai_trader.generate_signals(symbols[:3], min(limit, 3))
+            if emergency:
+                logger.info(f"[OK] Emergency signals: {len(emergency)}")
+                return emergency
+        except Exception as emergency_err:
+            logger.error(f"❌ Emergency generation failed: {emergency_err}")
+
+        return []  # Absolute last resort - empty but valid

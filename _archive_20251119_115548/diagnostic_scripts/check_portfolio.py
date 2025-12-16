@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+"""Check portfolio allocations and calculate order sizes with $500 cash"""
+import sys
+sys.path.insert(0, '/app')
+
+from database.connection import SessionLocal
+from database.models import PortfolioAllocation
+
+PAPER_CASH = 500.0
+MAX_ORDER = 50.0
+
+db = SessionLocal()
+try:
+    latest = db.query(PortfolioAllocation).order_by(
+        PortfolioAllocation.created_at.desc()
+    ).limit(10).all()
+    
+    print(f"\n[CHART] Latest Portfolio Allocations (with ${PAPER_CASH} cash):")
+    print("=" * 70)
+    
+    if not latest:
+        print("❌ No portfolio allocations found!")
+    else:
+        for a in latest:
+            order_size = a.target_pct * PAPER_CASH / 100.0
+            status = "[OK]" if order_size <= MAX_ORDER else "❌ TOO LARGE"
+            print(f"{a.symbol:10} {a.target_pct:6.2f}% → ${order_size:7.2f} {status}")
+            print(f"           Created: {a.created_at}")
+            print()
+
+finally:
+    db.close()

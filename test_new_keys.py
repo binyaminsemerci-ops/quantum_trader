@@ -1,0 +1,35 @@
+import hmac
+import hashlib
+import time
+import requests
+
+api_key = 'xOPqaf2iSKt4gVuScoebb3wDBm0R9gw0qSPtpHYnJNzcahTSL58b4QZcC4dsJ5eX'
+api_secret = 'hwyeOL1BHBMv5jLmCEemg2OQNUb8dUAyHgamOftcS9oFDfc605SX1IZs294zvNmZ'
+
+base_url = 'https://testnet.binancefuture.com'
+timestamp = int(time.time() * 1000)
+params = f'recvWindow=10000&timestamp={timestamp}'
+signature = hmac.new(api_secret.encode(), params.encode(), hashlib.sha256).hexdigest()
+
+headers = {'X-MBX-APIKEY': api_key}
+url = f'{base_url}/fapi/v2/account?{params}&signature={signature}'
+
+print("Testing Quantum1 API keys...")
+response = requests.get(url, headers=headers, timeout=10)
+print(f'Status Code: {response.status_code}')
+
+if response.status_code == 200:
+    data = response.json()
+    print(f"\n[OK] SUCCESS!")
+    print(f"Margin Balance: ${float(data.get('totalMarginBalance', 0)):.2f}")
+    print(f"Available Balance: ${float(data.get('availableBalance', 0)):.2f}")
+    print(f"Wallet Balance: ${float(data.get('totalWalletBalance', 0)):.2f}")
+    
+    assets = data.get('assets', [])
+    usdt = next((a for a in assets if a['asset'] == 'USDT'), None)
+    if usdt:
+        print(f"\nUSDT Asset:")
+        print(f"  Wallet: ${float(usdt.get('walletBalance', 0)):.2f}")
+        print(f"  Available: ${float(usdt.get('availableBalance', 0)):.2f}")
+else:
+    print(f"\n❌ ERROR: {response.text}")

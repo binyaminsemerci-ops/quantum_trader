@@ -1,0 +1,38 @@
+### Task
+
+Design and implement the module: **[MODULE NAME]**.
+
+### Role in the system
+
+[Short description in your own words – what this module does, how it interacts with other modules, and why it is important in the overall Quantum Trader architecture.]
+
+### Responsibilities / Requirements
+
+- [Bullet list of what it must do]
+- [What inputs it receives]
+- [What outputs it should produce]
+- [How often it runs: per trade / periodic batch / event-driven]
+- [Which other services it talks to: e.g. PolicyStore, StrategyRepository, MetricsRepository, etc.]
+
+### Interfaces
+
+I expect something like:
+
+- A main service class: `ClassName`
+- Repository interfaces: `[Name]Repository` with methods:
+  - `...`
+- Public methods:
+  - `...`
+
+### Implementation details
+
+- Use Python 3.11, type hints, docstrings.
+- Keep it framework-agnostic.
+- Prefer dependency injection for repositories and external clients.
+- Show example usage in a short code snippet or simple test.
+
+Now:
+1. Restate the module’s role in your own words.
+2. Propose and refine class/method interfaces.
+3. Implement the module code.
+4. Provide an example of how it would be instantiated and used in the existing system.

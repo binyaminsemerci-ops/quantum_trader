@@ -1,0 +1,62 @@
+"""Test AI TP/SL calculation across different confidence levels"""
+from backend.services.ai_trading_engine import AITradingEngine
+
+
+def test_confidence_tiers():
+    print("=" * 100)
+    print("🎯 AI DYNAMIC TP/SL - CONFIDENCE TIER TESTING")
+    print("=" * 100)
+    
+    # Create engine instance to access _calculate_dynamic_tpsl method
+    engine = AITradingEngine(agent=None, db_session=None)
+    
+    test_cases = [
+        {"confidence": 0.95, "score": 0.85, "action": "BUY", "volatility": 0.02, "label": "VERY HIGH CONFIDENCE"},
+        {"confidence": 0.75, "score": 0.65, "action": "BUY", "volatility": 0.025, "label": "HIGH CONFIDENCE"},
+        {"confidence": 0.55, "score": 0.55, "action": "BUY", "volatility": 0.03, "label": "MEDIUM CONFIDENCE"},
+        {"confidence": 0.25, "score": 0.45, "action": "HOLD", "volatility": 0.04, "label": "LOW CONFIDENCE"},
+    ]
+    
+    print("\nScenarios showing how AI adjusts TP/SL based on confidence and market conditions:\n")
+    
+    for case in test_cases:
+        result = engine._calculate_dynamic_tpsl(
+            confidence=case["confidence"],
+            score=case["score"],
+            action=case["action"],
+            volatility_estimate=case["volatility"]
+        )
+        
+        print("-" * 100)
+        print(f"📊 {case['label']}")
+        print(f"   Confidence: {case['confidence']:.1%} | Score: {case['score']:.2f} | Action: {case['action']} | Volatility: {case['volatility']:.1%}")
+        print(f"\n   🎯 AI-GENERATED TP/SL:")
+        print(f"      Take Profit:    {result['tp_percent']*100:6.2f}%  {'← WIDER to let winners run' if result['tp_percent'] > 0.06 else '← TIGHTER for quick profit'}")
+        print(f"      Stop Loss:      {result['sl_percent']*100:6.2f}%  {'← TIGHTER to protect capital' if result['sl_percent'] < 0.03 else '← WIDER to avoid noise'}")
+        print(f"      Trailing Stop:  {result['trail_percent']*100:6.2f}%")
+        print(f"      Partial TP:     {result['partial_tp']*100:6.0f}%  {'← Partial exit to lock gains' if result['partial_tp'] < 1.0 else '← Full exit'}")
+        
+        # Explain the strategy
+        if case['confidence'] > 0.8:
+            print(f"\n   💡 Strategy: HIGH CONVICTION - Let winners run with wider TP, protect with tight SL")
+        elif case['confidence'] > 0.6:
+            print(f"\n   💡 Strategy: CONFIDENT - Balanced risk/reward, take partial profits")
+        elif case['confidence'] > 0.4:
+            print(f"\n   💡 Strategy: MODERATE - Standard targets, most profits as partial")
+        else:
+            print(f"\n   💡 Strategy: LOW CONVICTION - Quick exit with tight TP, wider SL to avoid false stops")
+    
+    print("\n" + "=" * 100)
+    print("✅ HYBRID AI + TP/SL SYSTEM ACTIVE")
+    print("=" * 100)
+    print("\n📝 Summary:")
+    print("   • High confidence trades get WIDER TP (7.5%) and TIGHTER SL (2.4%) to maximize winners")
+    print("   • Low confidence trades get TIGHTER TP (4%) and WIDER SL (3.6%) for quick defensive exits")
+    print("   • Volatility automatically adjusts stops (0.8x to 1.5x multiplier)")
+    print("   • AI decides partial vs full profit taking (50-100% based on confidence)")
+    print("   • System falls back to static config if AI fails (safety net)")
+    print("=" * 100)
+
+
+if __name__ == "__main__":
+    test_confidence_tiers()

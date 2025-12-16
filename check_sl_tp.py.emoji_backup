@@ -1,0 +1,39 @@
+"""Check if positions have stop losses set."""
+import requests
+
+try:
+    r = requests.get('http://localhost:8000/api/positions', timeout=10)
+    data = r.json()
+    
+    print('\n🔍 STOP LOSS/TAKE PROFIT STATUS:\n')
+    print('═' * 60)
+    
+    positions = data.get('positions', [])
+    active_positions = [p for p in positions if float(p.get('positionAmt', 0)) != 0]
+    
+    if not active_positions:
+        print('❌ Ingen aktive posisjoner')
+    else:
+        for p in active_positions:
+            symbol = p.get('symbol')
+            entry = float(p.get('entryPrice', 0))
+            amt = float(p.get('positionAmt', 0))
+            side = 'LONG' if amt > 0 else 'SHORT'
+            
+            # Check for stop loss and take profit
+            # These might be in different fields depending on API
+            sl = p.get('stopLoss') or p.get('stopPrice') or 'MANGLER!'
+            tp = p.get('takeProfit') or p.get('takeProfitPrice') or 'MANGLER!'
+            
+            print(f'\n{symbol} ({side}):')
+            print(f'  Entry: ${entry:.4f}')
+            print(f'  Stop Loss: {sl}')
+            print(f'  Take Profit: {tp}')
+            
+            if sl == 'MANGLER!' or tp == 'MANGLER!':
+                print(f'  ⚠️  PROBLEM: Mangler beskyttelse!')
+    
+    print('\n' + '═' * 60)
+    
+except Exception as e:
+    print(f'❌ Feil: {e}')

@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Test Binance Futures API connection and balance"""
+import os
+from binance.client import Client
+from binance.exceptions import BinanceAPIException
+
+print("=" * 80)
+print("🔑 BINANCE FUTURES CONNECTION TEST")
+print("=" * 80)
+
+# Load API credentials
+api_key = os.getenv("BINANCE_API_KEY", "")
+api_secret = os.getenv("BINANCE_API_SECRET", "")
+
+if not api_key or not api_secret:
+    print("❌ BINANCE_API_KEY or BINANCE_API_SECRET not found in environment")
+    exit(1)
+
+print(f"\n📝 API Key: {api_key[:10]}...{api_key[-4:]}")
+print("\nTesting Futures API...")
+
+try:
+    client = Client(api_key, api_secret)
+    
+    # Test server time
+    server_time = client.get_server_time()
+    print(f"✅ Server reachable! Time: {server_time['serverTime']}")
+    
+    # Test futures account access
+    try:
+        futures_account = client.futures_account()
+        print(f"✅ Futures account access OK!")
+        print(f"   Can Trade: {futures_account.get('canTrade', False)}")
+        print(f"   Can Deposit: {futures_account.get('canDeposit', False)}")
+        print(f"   Can Withdraw: {futures_account.get('canWithdraw', False)}")
+        
+        # Show USDT balance
+        total_wallet = float(futures_account.get('totalWalletBalance', 0))
+        available = float(futures_account.get('availableBalance', 0))
+        
+        print(f"\n💰 FUTURES WALLET:")
+        print(f"   Total Balance: ${total_wallet:.2f} USDT")
+        print(f"   Available: ${available:.2f} USDT")
+        
+        # Show positions if any
+        positions = client.futures_position_information()
+        open_positions = [p for p in positions if float(p.get('positionAmt', 0)) != 0]
+        
+        if open_positions:
+            print(f"\n📊 OPEN POSITIONS ({len(open_positions)}):")
+            for pos in open_positions:
+                symbol = pos['symbol']
+                amt = float(pos['positionAmt'])
+                entry = float(pos['entryPrice'])
+                unrealized = float(pos['unRealizedProfit'])
+                print(f"   {symbol}: {amt} @ ${entry:.2f} (PnL: ${unrealized:.2f})")
+        else:
+            print(f"\n📊 No open positions")
+        
+        if available < 11:
+            print(f"\n⚠️  USDT: ${available:.2f} (trenger min $11 for trading)")
+        else:
+            print(f"\n✅ Balance OK for trading (min $11)")
+        
+    except BinanceAPIException as e:
+        print(f"\n❌ Futures API ERROR: {e}")
+        if e.code == -2015:
+            print("🔧 LØSNING:")
+            print("   - API key mangler 'Enable Futures' permission")
+            print("   - Gå til: https://www.binance.com/en/my/settings/api-management")
+            print("   - Aktiver 'Enable Futures' på API keyen")
+        elif e.code == -4028:
+            print("🔧 LØSNING:")
+            print("   - Futures konto ikke aktivert")
+            print("   - Gå til: https://www.binance.com/en/futures/BTCUSDT")
+            print("   - Aktiver futures trading først")
+        
+except Exception as e:
+    print(f"❌ Connection ERROR: {e}")
+
+print("=" * 80)

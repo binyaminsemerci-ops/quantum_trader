@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-sentinel-config
+  namespace: quantum-trader
+  labels:
+    app: redis-sentinel
+    tier: infrastructure
+data:
+  sentinel.conf: |
+    port 26379
+    dir /tmp
+    sentinel monitor mymaster redis-sentinel-0.redis-sentinel-headless 6379 2
+    sentinel down-after-milliseconds mymaster 5000
+    sentinel parallel-syncs mymaster 1
+    sentinel failover-timeout mymaster 10000

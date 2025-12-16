@@ -1,0 +1,159 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: quantum-trader-alerts
+  namespace: quantum-trader
+  labels:
+    app: quantum-trader
+    epic: OBS-001
+spec:
+  groups:
+  - name: service_health
+    interval: 30s
+    rules:
+    
+    # CRITICAL: High error rate across services
+    - alert: HighErrorRate
+      expr: |
+        (
+          sum by (service) (rate(http_requests_total{status=~"5.."}[5m]))
+          /
+          sum by (service) (rate(http_requests_total[5m]))
+        ) > 0.05
+      for: 2m
+      labels:
+        severity: critical
+        epic: OBS-001
+      annotations:
+        summary: "High error rate detected for {{ $labels.service }}"
+        description: "Service {{ $labels.service }} has {{ $value | humanizePercentage }} error rate (threshold: 5%)"
+        runbook: "https://wiki.quantum-trader.io/runbooks/high-error-rate"
+    
+    # WARNING: No trades executed in last 30 minutes
+    - alert: NoTradesExecuted
+      expr: |
+        absent_over_time(trades_executed_total[30m])
+        and
+        hour() >= 9 and hour() <= 16
+      for: 5m
+      labels:
+        severity: warning
+        epic: OBS-001
+      annotations:
+        summary: "No trades executed in last 30 minutes"
+        description: "Execution service has not executed any trades during market hours"
+        runbook: "https://wiki.quantum-trader.io/runbooks/no-trades"
+    
+    # CRITICAL: High latency (P95 > 2s)
+    - alert: HighLatency
+      expr: |
+        histogram_quantile(0.95,
+          sum by (service, le) (rate(http_request_duration_seconds_bucket[5m]))
+        ) > 2
+      for: 5m
+      labels:
+        severity: critical
+        epic: OBS-001
+      annotations:
+        summary: "High latency detected for {{ $labels.service }}"
+        description: "Service {{ $labels.service }} has P95 latency of {{ $value | humanizeDuration }} (threshold: 2s)"
+        runbook: "https://wiki.quantum-trader.io/runbooks/high-latency"
+    
+    # CRITICAL: Service down (no metrics)
+    - alert: ServiceDown
+      expr: |
+        up{job=~"ai-engine|execution-service|risk-service|portfolio-service"} == 0
+      for: 5m
+      labels:
+        severity: critical
+        epic: OBS-001
+      annotations:
+        summary: "Service {{ $labels.job }} is down"
+        description: "Prometheus cannot scrape metrics from {{ $labels.job }}"
+        runbook: "https://wiki.quantum-trader.io/runbooks/service-down"
+    
+    # WARNING: Service not ready
+    - alert: ServiceNotReady
+      expr: |
+        probe_success{job=~".*-readiness"} == 0
+      for: 2m
+      labels:
+        severity: warning
+        epic: OBS-001
+      annotations:
+        summary: "Service {{ $labels.job }} is not ready"
+        description: "Readiness probe failing for {{ $labels.job }}"
+        runbook: "https://wiki.quantum-trader.io/runbooks/not-ready"
+
+  - name: trading_activity
+    interval: 30s
+    rules:
+    
+    # WARNING: Abnormally high signal generation
+    - alert: HighSignalGeneration
+      expr: |
+        rate(signals_generated_total[5m]) > 100
+      for: 10m
+      labels:
+        severity: warning
+        epic: OBS-001
+      annotations:
+        summary: "Abnormally high signal generation rate"
+        description: "AI Engine generating {{ $value }} signals/sec (normal: <50/sec)"
+        runbook: "https://wiki.quantum-trader.io/runbooks/high-signals"
+    
+    # CRITICAL: Position limit breached
+    - alert: PositionLimitBreached
+      expr: |
+        portfolio_open_positions_total > 50
+      for: 1m
+      labels:
+        severity: critical
+        epic: OBS-001
+      annotations:
+        summary: "Position limit breached"
+        description: "Portfolio has {{ $value }} open positions (limit: 50)"
+        runbook: "https://wiki.quantum-trader.io/runbooks/position-limit"
+    
+    # WARNING: Drawdown approaching limit
+    - alert: DrawdownWarning
+      expr: |
+        abs(portfolio_drawdown_percent) > 15
+      for: 5m
+      labels:
+        severity: warning
+        epic: OBS-001
+      annotations:
+        summary: "Drawdown approaching limit"
+        description: "Current drawdown: {{ $value }}% (limit: 20%)"
+        runbook: "https://wiki.quantum-trader.io/runbooks/drawdown"
+
+  - name: infrastructure
+    interval: 60s
+    rules:
+    
+    # WARNING: Redis slow queries
+    - alert: RedisSlowQueries
+      expr: |
+        rate(redis_command_duration_seconds_sum[5m]) / rate(redis_command_duration_seconds_count[5m]) > 0.1
+      for: 5m
+      labels:
+        severity: warning
+        epic: OBS-001
+      annotations:
+        summary: "Redis queries are slow"
+        description: "Average Redis query time: {{ $value | humanizeDuration }} (threshold: 100ms)"
+        runbook: "https://wiki.quantum-trader.io/runbooks/redis-slow"
+    
+    # CRITICAL: Database connection pool exhausted
+    - alert: DatabasePoolExhausted
+      expr: |
+        database_connection_pool_usage_percent > 90
+      for: 2m
+      labels:
+        severity: critical
+        epic: OBS-001
+      annotations:
+        summary: "Database connection pool near exhaustion"
+        description: "Connection pool usage: {{ $value }}% (threshold: 90%)"
+        runbook: "https://wiki.quantum-trader.io/runbooks/db-pool"

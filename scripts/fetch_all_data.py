@@ -1,0 +1,197 @@
+"""
+Comprehensive Data Fetching Script
+Fetches fresh market data from multiple sources:
+- Binance: OHLCV for 222 symbols (30 days)
+- Fear & Greed Index
+- Bitcoin Dominance
+- Market metrics
+"""
+import sys
+import os
+from pathlib import Path
+from datetime import datetime, timedelta
+import pandas as pd
+import requests
+from binance.client import Client as BinanceClient
+import json
+import time
+
+# Add project root
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Binance symbols to fetch - TOP 100 by volume
+SYMBOLS = [
+    # Top 20 - Must have
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
+    "ADAUSDT", "DOGEUSDT", "DOTUSDT", "MATICUSDT", "LTCUSDT",
+    "AVAXUSDT", "LINKUSDT", "UNIUSDT", "ATOMUSDT", "NEARUSDT",
+    "APTUSDT", "ARBUSDT", "OPUSDT", "INJUSDT", "SUIUSDT",
+    
+    # Top 40 - High volume
+    "RENDERUSDT", "WLDUSDT", "JUPUSDT", "TIAUSDT", "ONDOUSDT",
+    "RUNEUSDT", "FILUSDT", "ICPUSDT", "FTMUSDT", "HBARUSDT",
+    "IMXUSDT", "LDOUSDT", "STXUSDT", "ALGOUSDT", "SANDUSDT",
+    "MANAUSDT", "AXSUSDT", "AAVEUSDT", "EGLDUSDT", "THETAUSDT",
+    
+    # Top 60 - Medium volume
+    "EOSUSDT", "XTZUSDT", "FLOWUSDT", "CHZUSDT", "ENJUSDT",
+    "GALAUSDT", "ZILUSDT", "XLMUSDT", "VETUSDT", "ICXUSDT",
+    "QNTUSDT", "ZECUSDT", "DASHUSDT", "WAVESUSDT", "BATUSDT",
+    "IOSTUSDT", "ONTUSDT", "RVNUSDT", "CELRUSDT", "NKNUSDT",
+    
+    # Top 80 - Decent volume
+    "ONEUSDT", "HNTUSDT", "CTKUSDT", "IOTXUSDT", "KAVAUSDT",
+    "BANDUSDT", "ANKRUSDT", "CRVUSDT", "RSRUSDT", "OCEANUSDT",
+    "LRCUSDT", "OGNUSDT", "LITUSDT", "CTXCUSDT", "BELUSDT",
+    "COTIUSDT", "CHRUSDT", "DENTUSDT", "HOTUSDT", "MTLUSDT",
+    
+    # Top 100 - Good liquidity
+    "OGNUSDT", "CELOUSDT", "ARPAUSDT", "REEFUSDT", "BAKEUSDT",
+    "SFPUSDT", "FTTUSDT", "ALPHAUSDT", "DEXEUSDT", "EASYUSDT",
+    "SUPERUSDT", "CFXUSDT", "PAXGUSDT", "WAXPUSDT", "TRIBEUSDT",
+    "ARPAUSDT", "LPTUSDT", "CTSIUSDT", "OXTUSDT", "PERLUSDT"
+]
+
+def fetch_binance_data(symbol: str, days: int = 90) -> pd.DataFrame:
+    """Fetch OHLCV data from Binance - default 90 days for better training"""
+    try:
+        api_key = os.getenv('BINANCE_API_KEY')
+        api_secret = os.getenv('BINANCE_API_SECRET')
+        
+        client = BinanceClient(api_key, api_secret)
+        
+        # Get klines (candlesticks)
+        end_time = datetime.now()
+        start_time = end_time - timedelta(days=days)
+        
+        print(f"Fetching {symbol} from {start_time.date()} to {end_time.date()}...")
+        
+        klines = client.futures_klines(
+            symbol=symbol,
+            interval='1h',  # Use string instead of Client constant
+            startTime=int(start_time.timestamp() * 1000),
+            endTime=int(end_time.timestamp() * 1000),
+            limit=1500  # Increased limit
+        )
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(klines, columns=[
+            'timestamp', 'open', 'high', 'low', 'close', 'volume',
+            'close_time', 'quote_volume', 'trades', 'taker_buy_base',
+            'taker_buy_quote', 'ignore'
+        ])
+        
+        # Clean up
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = pd.to_numeric(df[col])
+        
+        df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
+        
+        print(f"  [OK] {symbol}: {len(df)} candles fetched")
+        return df
+        
+    except Exception as e:
+        print(f"  ❌ {symbol}: {e}")
+        return pd.DataFrame()
+
+
+def fetch_fear_greed_index() -> dict:
+    """Fetch Fear & Greed Index from Alternative.me"""
+    try:
+        url = "https://api.alternative.me/fng/?limit=30"
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        
+        if 'data' in data:
+            latest = data['data'][0]
+            print(f"[OK] Fear & Greed Index: {latest['value']} ({latest['value_classification']})")
+            return {
+                'value': int(latest['value']),
+                'classification': latest['value_classification'],
+                'timestamp': latest['timestamp']
+            }
+    except Exception as e:
+        print(f"❌ Fear & Greed: {e}")
+    
+    return {}
+
+
+def fetch_bitcoin_dominance() -> float:
+    """Fetch Bitcoin dominance from CoinGecko"""
+    try:
+        url = "https://api.coingecko.com/api/v3/global"
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        
+        if 'data' in data:
+            btc_dom = data['data']['market_cap_percentage']['btc']
+            print(f"[OK] Bitcoin Dominance: {btc_dom:.2f}%")
+            return btc_dom
+            
+    except Exception as e:
+        print(f"❌ BTC Dominance: {e}")
+    
+    return 0.0
+
+
+def main():
+    """Main execution"""
+    print("=" * 80)
+    print("🔄 FETCHING FRESH MARKET DATA")
+    print("=" * 80)
+    print()
+    
+    # Create data directory
+    data_dir = Path("data/market_data")
+    data_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Fetch Binance data for top symbols
+    print("[CHART] Fetching Binance Futures Data (90 days, 1h candles)")
+    print("-" * 80)
+    
+    all_data = {}
+    for i, symbol in enumerate(SYMBOLS, 1):
+        print(f"[{i}/{len(SYMBOLS)}] ", end="")
+        df = fetch_binance_data(symbol, days=90)  # 90 days for better training
+        if not df.empty:
+            all_data[symbol] = df
+            # Save individual CSV
+            df.to_csv(data_dir / f"{symbol}_90d.csv", index=False)
+        time.sleep(0.3)  # Rate limit protection
+    
+    print()
+    print(f"[OK] Saved {len(all_data)} symbols to {data_dir}")
+    print()
+    
+    # Fetch market metrics
+    print("[CHART_UP] Fetching Market Metrics")
+    print("-" * 80)
+    
+    fear_greed = fetch_fear_greed_index()
+    btc_dom = fetch_bitcoin_dominance()
+    
+    # Save metrics
+    metrics = {
+        'timestamp': datetime.now().isoformat(),
+        'fear_greed': fear_greed,
+        'btc_dominance': btc_dom,
+        'symbols_fetched': list(all_data.keys()),
+        'total_candles': sum(len(df) for df in all_data.values())
+    }
+    
+    with open(data_dir / "market_metrics.json", 'w') as f:
+        json.dump(metrics, f, indent=2)
+    
+    print()
+    print("=" * 80)
+    print("[OK] DATA FETCH COMPLETE!")
+    print("=" * 80)
+    print(f"📁 Location: {data_dir.absolute()}")
+    print(f"[CHART] Symbols: {len(all_data)}")
+    print(f"🕐 Total candles: {metrics['total_candles']}")
+    print()
+
+
+if __name__ == "__main__":
+    main()
