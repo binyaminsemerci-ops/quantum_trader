@@ -278,6 +278,9 @@ get_ai_services = None
 
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
+    print("═══════════════════════════════════════════", flush=True)
+    print("🔥 LIFESPAN FUNCTION STARTED (LINE 281) 🔥", flush=True)
+    print("═══════════════════════════════════════════", flush=True)
     # [NEW] ARCHITECTURE V2: Configure structured logging FIRST (before any other logging)
     if configure_v2_logging is not None:
         try:
