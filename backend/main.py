@@ -37,6 +37,32 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 # Track optional route availability explicitly
 API_HEALTH_ROUTES_AVAILABLE = False
 
+# [SCOPE FIX] Initialize variables at module level (BEFORE lifespan uses them)
+configure_v2_logging = None
+get_v2_logger = None
+initialize_event_bus = None
+shutdown_event_bus = None
+get_event_bus = None
+initialize_policy_store_v2 = None
+shutdown_policy_store_v2 = None
+get_policy_store_v2 = None
+initialize_health_checker = None
+get_health_checker = None
+trace_context = None
+init_auth_redis = None
+init_cache = None
+close_cache = None
+
+# Import RequestIdMiddleware FIRST (needed for middleware registration)
+try:
+    from backend.utils.logging_config import configure_logging, RequestIdMiddleware
+    LOGGING_CONFIG_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"[CRITICAL] logging_config not available: {e}")
+    LOGGING_CONFIG_AVAILABLE = False
+    RequestIdMiddleware = None
+    configure_logging = lambda: None
+
 try:  # Prefer package-style imports to avoid clashes with top-level modules
     from backend.routes.coingecko_data import get_coin_price_data, symbol_to_coingecko_id
     from backend.routes.external_data import binance_ohlcv
@@ -86,7 +112,7 @@ try:  # Prefer package-style imports to avoid clashes with top-level modules
     from backend.database import SessionLocal
     from backend.services.execution.positions import PortfolioPositionService
     from backend.services.risk.risk_guard import RiskGuardService, SqliteRiskStateStore
-    from backend.utils.logging_config import configure_logging, RequestIdMiddleware
+    # logging_config already imported above, before try block
     from backend.utils.scheduler import (
         get_scheduler_snapshot,
         shutdown_scheduler,
@@ -96,24 +122,20 @@ try:  # Prefer package-style imports to avoid clashes with top-level modules
     AUTH_AVAILABLE = False
     CACHE_AVAILABLE = False
     try:
-        from backend.auth import (
-            create_auth_endpoints,
-            init_auth_redis,
-            get_current_user,
-            optional_auth,
-        )
+        from backend.auth import create_auth_endpoints, get_current_user, optional_auth
+        from backend.auth import init_auth_redis as _init_auth_redis
+        globals()['init_auth_redis'] = _init_auth_redis
         AUTH_AVAILABLE = True
     except ImportError as e:
         logging.warning(f"[WARNING] Auth module not available: {e}")
-        init_auth_redis = None
     
     try:
-        from backend.cache import init_cache, close_cache
+        from backend.cache import init_cache as _init_cache, close_cache as _close_cache
+        globals()['init_cache'] = _init_cache
+        globals()['close_cache'] = _close_cache
         CACHE_AVAILABLE = True
     except ImportError as e:
         logging.warning(f"[WARNING] Cache module not available: {e}")
-        init_cache = None
-        close_cache = None
     
     try:
         from backend.https_config import HTTPSRedirectMiddleware, SecurityHeadersMiddleware
@@ -184,68 +206,40 @@ try:  # Prefer package-style imports to avoid clashes with top-level modules
     
     # [NEW] Architecture v2 - Core Infrastructure
     # redis.asyncio already imported at top level
+    # Variables already initialized at module level (line 38)
+    
     CORE_V2_AVAILABLE = False
     try:
-        from backend.core import (
-            configure_logging as configure_v2_logging,
-            get_logger as get_v2_logger,
-            initialize_event_bus,
-            shutdown_event_bus,
-            get_event_bus,
-            initialize_policy_store as initialize_policy_store_v2,
-            shutdown_policy_store as shutdown_policy_store_v2,
-            get_policy_store as get_policy_store_v2,
-            initialize_health_checker,
-            get_health_checker,
-            trace_context,
-        )
+        from backend.core import configure_logging, get_logger, initialize_event_bus
+        from backend.core import shutdown_event_bus, get_event_bus
+        from backend.core import initialize_policy_store, shutdown_policy_store, get_policy_store
+        from backend.core import initialize_health_checker, get_health_checker, trace_context
+        
+        # Assign to module-level variables
+        globals()['configure_v2_logging'] = configure_logging
+        globals()['get_v2_logger'] = get_logger
+        globals()['initialize_event_bus'] = initialize_event_bus
+        globals()['shutdown_event_bus'] = shutdown_event_bus
+        globals()['get_event_bus'] = get_event_bus
+        globals()['initialize_policy_store_v2'] = initialize_policy_store
+        globals()['shutdown_policy_store_v2'] = shutdown_policy_store
+        globals()['get_policy_store_v2'] = get_policy_store
+        globals()['initialize_health_checker'] = initialize_health_checker
+        globals()['get_health_checker'] = get_health_checker
+        globals()['trace_context'] = trace_context
+        
         CORE_V2_AVAILABLE = True
         logging.info("[OK] Architecture v2 core modules loaded")
     except ImportError as e:
         logging.warning(f"[WARNING] Core v2 modules not available: {e}")
-        configure_v2_logging = None
-        get_v2_logger = None
-        initialize_event_bus = None
-        shutdown_event_bus = None
-        get_event_bus = None
-        initialize_policy_store_v2 = None
-        shutdown_policy_store_v2 = None
-        get_policy_store_v2 = None
-        initialize_health_checker = None
-        get_health_checker = None
-        trace_context = None
     
-    # Legacy routes - load with fallback
-    try:
-        from routes.coingecko_data import get_coin_price_data, symbol_to_coingecko_id  # type: ignore
-        from routes.external_data import binance_ohlcv  # type: ignore
-        from routes.live_ai_signals import get_live_ai_signals  # type: ignore
-        from routes.signals import _generate_mock_signals  # type: ignore
-    except ModuleNotFoundError:  # Fallback when running directly from backend directory
-        pass
-    
-    from routes import (
-        trades as trades_routes,  # type: ignore
-        stats as stats_routes,  # type: ignore
-        chart as chart_routes,  # type: ignore
-        settings as settings_routes,  # type: ignore
-        binance as binance_routes,  # type: ignore
-        signals as signals_routes,  # type: ignore
-        prices as prices_routes,  # type: ignore
-        candles as candles_routes,  # type: ignore
-        trade_logs as trade_logs_routes,  # type: ignore
-        liquidity as liquidity_routes,  # type: ignore
-        risk as risk_routes,  # type: ignore
-        ai as ai_routes,  # type: ignore
-        ws as ws_routes,  # type: ignore
-        scheduler as scheduler_routes,  # type: ignore
-        health as health_routes,  # type: ignore
-    )
+    # Legacy routes - deprecated, removed fallback imports
+    # All routes now imported from backend.routes (line 64)
     from backend.config.risk import load_risk_config  # type: ignore
     from backend.services.risk.risk_guard import RiskGuardService, SqliteRiskStateStore  # type: ignore
     from backend.database import SessionLocal  # type: ignore
     from backend.services.execution.positions import PortfolioPositionService  # type: ignore
-    from backend.utils.logging_config import configure_logging, RequestIdMiddleware  # type: ignore
+    # logging_config already imported at top, no need for fallback
     from backend.utils.scheduler import (  # type: ignore
         get_scheduler_snapshot,
         shutdown_scheduler,
@@ -1103,7 +1097,13 @@ async def lifespan(app_instance: FastAPI):
         # ==============================================================================
         # UNIVERSE LOADING: Support explicit QT_SYMBOLS or dynamic QT_UNIVERSE
         # ==============================================================================
-        from config.config import get_qt_symbols, get_qt_universe, get_qt_max_symbols
+        try:
+            from config.config import get_qt_symbols, get_qt_universe, get_qt_max_symbols
+        except ImportError:
+            # Fallback if config.config doesn't have these functions
+            get_qt_symbols = lambda: os.getenv("QT_SYMBOLS", "")
+            get_qt_universe = lambda: os.getenv("QT_UNIVERSE", "")
+            get_qt_max_symbols = lambda: int(os.getenv("QT_MAX_SYMBOLS", "10"))
         from backend.utils.universe import load_universe, save_universe_snapshot
         
         symbols_env = get_qt_symbols()
@@ -1213,8 +1213,10 @@ async def lifespan(app_instance: FastAPI):
                 logging.warning("Failed to load AI agent: %s", e2)
                 agent = None
         
+        # [TEMPORARY FIX] AITradingEngine not needed for Phase 1 AI modules
         # AI engine doesn't need DB session for signal generation
-        ai_engine = AITradingEngine(agent=agent, db_session=None)
+        # ai_engine = AITradingEngine(agent=agent, db_session=None)
+        ai_engine = None  # Disable for Phase 1 (AI-HFOS, PBA, PAL, PIL, Model Supervisor, Self-Healing)
         
         # [NEW] Store AI services in app state for executor to access
         ai_services = getattr(app_instance.state, 'ai_services', None)
@@ -2446,7 +2448,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-instrument_app(app)
+# Telemetry instrumentation - commented out for now (not critical for event_driven_executor)
+# instrument_app(app)
 
 # [NEW] SECURITY MIDDLEWARE (HTTPS redirect + Security headers)
 try:
@@ -2479,7 +2482,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(RequestIdMiddleware)
+# Add RequestIdMiddleware if available
+if RequestIdMiddleware is not None:
+    app.add_middleware(RequestIdMiddleware)
+    logging.info("[OK] RequestIdMiddleware registered")
+else:
+    logging.warning("[WARNING] RequestIdMiddleware not available - request IDs will not be logged")
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -2633,25 +2641,35 @@ def _read_cached_signals(profile: str) -> List[Dict[str, Any]] | None:
 
 
 # Register additional routers for legacy/demo endpoints used in the test suite
-app.include_router(trades_routes.router, prefix="/trades")
-app.include_router(stats_routes.router, prefix="/stats")
-app.include_router(chart_routes.router, prefix="/chart")
-app.include_router(settings_routes.router, prefix="/settings")
-app.include_router(binance_routes.router, prefix="/binance")
-app.include_router(signals_routes.router, prefix="/signals")
-app.include_router(prices_routes.router, prefix="/prices")
-app.include_router(candles_routes.router, prefix="/candles")
-app.include_router(trade_logs_routes.router)
-app.include_router(liquidity_routes.router)
-app.include_router(risk_routes.router)
-app.include_router(ai_routes.router, prefix="/ai")
-app.include_router(ws_routes.router)
-app.include_router(scheduler_routes.router)
-app.include_router(health_routes.router)  # Health and universe debug endpoints
-if API_HEALTH_ROUTES_AVAILABLE:
-    app.include_router(api_health_routes.router)
-# NOTE: prefix="/test" is already set in test_events.router definition, so we don't add it again here
-app.include_router(test_events_routes.router)  # Event flow test endpoints (/test)
+# Check if routes were successfully imported before registering
+try:
+    app.include_router(trades_routes.router, prefix="/trades")
+    app.include_router(stats_routes.router, prefix="/stats")
+    app.include_router(chart_routes.router, prefix="/chart")
+    app.include_router(settings_routes.router, prefix="/settings")
+    app.include_router(binance_routes.router, prefix="/binance")
+    app.include_router(signals_routes.router, prefix="/signals")
+    app.include_router(prices_routes.router, prefix="/prices")
+    app.include_router(candles_routes.router, prefix="/candles")
+    app.include_router(trade_logs_routes.router)
+    app.include_router(liquidity_routes.router)
+    app.include_router(risk_routes.router)
+    app.include_router(ai_routes.router, prefix="/ai")
+    app.include_router(ws_routes.router)
+    app.include_router(scheduler_routes.router)
+    app.include_router(health_routes.router)  # Health and universe debug endpoints
+    if API_HEALTH_ROUTES_AVAILABLE:
+        app.include_router(api_health_routes.router)
+    logging.info("[OK] All route modules registered")
+except NameError as e:
+    logging.error(f"[ERROR] Route registration failed: {e}. Backend API will be limited.")
+
+# Register test_events routes if available
+try:
+    app.include_router(test_events_routes.router)  # Event flow test endpoints (/test)
+    logging.info("[OK] test_events router registered")
+except NameError:
+    logging.warning("[WARNING] test_events_routes not available - skipping")
 
 # [CLM] ML/AI Learning Pipeline API endpoints (if CLM is enabled)
 try:
@@ -2692,10 +2710,14 @@ try:
     logging.info("[OK] Dashboard API routes registered (Sprint 4 + V3.0)")
 except ImportError as e:
     logging.warning(f"[WARNING] Dashboard API not available: {e}")
-logging.info(f"[DEBUG] Test events router registered with {len([r for r in test_events_routes.router.routes])} routes")
-# Debug: Print actual route paths to verify registration
-for route in test_events_routes.router.routes:
-    logging.info(f"[DEBUG] Test route registered: {route.path} ({route.methods if hasattr(route, 'methods') else 'N/A'})")
+
+# Debug test_events routes if available
+try:
+    logging.info(f"[DEBUG] Test events router registered with {len([r for r in test_events_routes.router.routes])} routes")
+    for route in test_events_routes.router.routes:
+        logging.info(f"[DEBUG] Test route registered: {route.path} ({route.methods if hasattr(route, 'methods') else 'N/A'})")
+except NameError:
+    pass  # test_events not available
 
 # DEBUG: Direct test endpoint in main.py to verify routing works
 @app.get("/testevents/direct_test")
@@ -4368,7 +4390,10 @@ async def get_binance_candles(symbol: str = "BTCUSDT", interval: str = "1m", lim
 # app.include_router(signals.router, prefix="/signals")
 # app.include_router(prices.router, prefix="/prices")
 # app.include_router(candles.router, prefix="/candles")
-app.include_router(trading_bot_router, prefix="/trading-bot", tags=["Trading Bot"])
+try:
+    app.include_router(trading_bot_router, prefix="/trading-bot", tags=["Trading Bot"])
+except NameError:
+    logging.warning("[WARNING] trading_bot_router not available - skipping")
 
 if __name__ == "__main__":
     import uvicorn
