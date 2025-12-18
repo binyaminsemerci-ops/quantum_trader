@@ -270,20 +270,10 @@ ESS_AVAILABLE = False
 
 configure_logging()
 
-# [NEW] AI SYSTEM INTEGRATION - Import AFTER configure_logging
-logging.info("[DEBUG] Attempting to import AISystemServices...")
-try:
-    from backend.services.system_services import AISystemServices, get_ai_services
-    AI_INTEGRATION_AVAILABLE = True
-    logging.info("[OK] ✅ AI System Integration available - AISystemServices imported successfully")
-    logging.info(f"[DEBUG] AISystemServices class: {AISystemServices}")
-except ImportError as e:
-    AI_INTEGRATION_AVAILABLE = False
-    logging.error(f"[ERROR] ❌ AI System Integration not available: {e}", exc_info=True)
-except Exception as e:
-    AI_INTEGRATION_AVAILABLE = False
-    logging.error(f"[ERROR] ❌ Unexpected error importing AISystemServices: {e}", exc_info=True)
-
+# [NEW] AI SYSTEM INTEGRATION - Import flags (actual import happens at runtime in lifespan)
+AI_INTEGRATION_AVAILABLE = False
+AISystemServices = None
+get_ai_services = None
 
 
 @asynccontextmanager
@@ -358,8 +348,21 @@ async def lifespan(app_instance: FastAPI):
         logger.error(f"❌ Sklearn validation error: {e}")
         logger.warning("Continuing startup despite validation error...")
     
-    # [NEW] AI SYSTEM INTEGRATION: Initialize AI System Services
-    logger.info(f"[DEBUG] AI_INTEGRATION_AVAILABLE flag = {AI_INTEGRATION_AVAILABLE}")
+    # [NEW] AI SYSTEM INTEGRATION: Import and initialize AI System Services at runtime
+    logger.info("[DEBUG] 🔍 Attempting to import AISystemServices at runtime...")
+    global AI_INTEGRATION_AVAILABLE, AISystemServices, get_ai_services
+    try:
+        from backend.services.system_services import AISystemServices, get_ai_services
+        AI_INTEGRATION_AVAILABLE = True
+        logger.info("[OK] ✅ AI System Integration available - AISystemServices imported successfully")
+        logger.info(f"[DEBUG] AISystemServices class: {AISystemServices}")
+    except ImportError as e:
+        AI_INTEGRATION_AVAILABLE = False
+        logger.error(f"[ERROR] ❌ AI System Integration not available (ImportError): {e}", exc_info=True)
+    except Exception as e:
+        AI_INTEGRATION_AVAILABLE = False
+        logger.error(f"[ERROR] ❌ Unexpected error importing AISystemServices: {e}", exc_info=True)
+    
     if AI_INTEGRATION_AVAILABLE:
         logger.info("[SEARCH] 🔍 Initializing AI System Services...")
         try:
