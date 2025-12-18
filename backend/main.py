@@ -271,13 +271,18 @@ ESS_AVAILABLE = False
 configure_logging()
 
 # [NEW] AI SYSTEM INTEGRATION - Import AFTER configure_logging
+logging.info("[DEBUG] Attempting to import AISystemServices...")
 try:
     from backend.services.system_services import AISystemServices, get_ai_services
     AI_INTEGRATION_AVAILABLE = True
-    logging.info("[OK] AI System Integration available")
+    logging.info("[OK] ✅ AI System Integration available - AISystemServices imported successfully")
+    logging.info(f"[DEBUG] AISystemServices class: {AISystemServices}")
 except ImportError as e:
     AI_INTEGRATION_AVAILABLE = False
-    logging.warning(f"[WARNING] AI System Integration not available: {e}")
+    logging.error(f"[ERROR] ❌ AI System Integration not available: {e}", exc_info=True)
+except Exception as e:
+    AI_INTEGRATION_AVAILABLE = False
+    logging.error(f"[ERROR] ❌ Unexpected error importing AISystemServices: {e}", exc_info=True)
 
 
 
@@ -354,32 +359,37 @@ async def lifespan(app_instance: FastAPI):
         logger.warning("Continuing startup despite validation error...")
     
     # [NEW] AI SYSTEM INTEGRATION: Initialize AI System Services
+    logger.info(f"[DEBUG] AI_INTEGRATION_AVAILABLE flag = {AI_INTEGRATION_AVAILABLE}")
     if AI_INTEGRATION_AVAILABLE:
-        logger.info("[SEARCH] Initializing AI System Services...")
+        logger.info("[SEARCH] 🔍 Initializing AI System Services...")
         try:
             # Create AISystemServices instance (config will be loaded from env)
+            logger.info("[DEBUG] Creating AISystemServices instance...")
             ai_services = AISystemServices()
+            logger.info("[DEBUG] AISystemServices instance created, calling initialize()...")
             await ai_services.initialize()
+            logger.info("[DEBUG] AISystemServices.initialize() completed")
             app_instance.state.ai_services = ai_services
             
             # Log configuration summary
             status = ai_services.get_status()
             logger.info(
-                f"[OK] AI System Services initialized: "
+                f"[OK] ✅ AI System Services initialized: "
                 f"Stage={status.get('integration_stage')}, "
                 f"Emergency Brake={status.get('emergency_brake', False)}"
             )
             enabled_subsystems = status.get('enabled_subsystems', [])
             if enabled_subsystems:
-                logger.info(f"[OK] Enabled AI Subsystems: {', '.join(enabled_subsystems)}")
+                logger.info(f"[OK] 🎯 Enabled AI Subsystems ({len(enabled_subsystems)}): {', '.join(enabled_subsystems)}")
             else:
-                logger.info("[INFO] No AI subsystems enabled - using default behavior")
+                logger.warning("[WARNING] ⚠️ No AI subsystems enabled - using default behavior")
         except Exception as e:
-            logger.error(f"[ERROR] Failed to initialize AI System Services: {e}", exc_info=True)
+            logger.error(f"[ERROR] ❌ Failed to initialize AI System Services: {e}", exc_info=True)
             logger.warning("Continuing without AI System Integration")
             app_instance.state.ai_services = None
     else:
-        logger.info("[INFO] AI System Integration not available - using default behavior")
+        logger.warning("[WARNING] ⚠️ AI System Integration not available - flag is False")
+        logger.info("[INFO] Using default behavior without AI System Integration")
         app_instance.state.ai_services = None
     
     # [NEW] INITIALIZE POLICY STORE - Central config hub for all AI components
