@@ -278,11 +278,13 @@ get_ai_services = None
 
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
-    print("═══════════════════════════════════════════", flush=True)
-    print("🔥 LIFESPAN FUNCTION STARTED (LINE 281) 🔥", flush=True)
-    print("═══════════════════════════════════════════", flush=True)
-    # [NEW] ARCHITECTURE V2: Configure structured logging FIRST (before any other logging)
-    print("[TRACE] About to check configure_v2_logging...", flush=True)
+    try:
+        print("═══════════════════════════════════════════", flush=True)
+        print("🔥 LIFESPAN FUNCTION STARTED (LINE 281) 🔥", flush=True)
+        print("═══════════════════════════════════════════", flush=True)
+        print("[TRACE] Line 284 reached!", flush=True)
+        # [NEW] ARCHITECTURE V2: Configure structured logging FIRST (before any other logging)
+        print("[TRACE] About to check configure_v2_logging...", flush=True)
     if configure_v2_logging is not None:
         print("[TRACE] configure_v2_logging is NOT None - calling it...", flush=True)
         try:
@@ -2208,8 +2210,17 @@ async def lifespan(app_instance: FastAPI):
             except Exception as exc:  # noqa: BLE001
                 logging.warning("Autopilot autostart failed: %s", exc)
     
+    except Exception as startup_error:
+        print(f"🚨 EXCEPTION IN LIFESPAN STARTUP: {startup_error}", flush=True)
+        import traceback
+        traceback.print_exc()
+        raise
+    
     try:
         yield
+    except Exception as runtime_error:
+        print(f"🚨 EXCEPTION DURING RUNTIME: {runtime_error}", flush=True)
+        raise
     finally:
         # [NEW] Shutdown caching layer
         logger.info("[SHUTDOWN] Closing cache connections...")
