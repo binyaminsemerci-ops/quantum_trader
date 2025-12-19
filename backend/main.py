@@ -288,23 +288,23 @@ async def lifespan(app_instance: FastAPI):
         # [NEW] ARCHITECTURE V2: Configure structured logging FIRST (before any other logging)
         print("[TRACE] About to check configure_v2_logging...", flush=True)
         if configure_v2_logging is not None:
-        print("[TRACE] configure_v2_logging is NOT None - calling it...", flush=True)
-        try:
-            log_level = os.getenv("LOG_LEVEL", "INFO")
-            configure_v2_logging(
-                service_name="quantum_trader",
-                log_level=log_level,
-                json_output=True  # JSON for production log aggregation
-            )
-            print("[TRACE] configure_v2_logging DONE", flush=True)
-            logger.info("[v2] Structured logging configured with trace_id support")
-        except Exception as e:
-            print(f"[TRACE] configure_v2_logging FAILED: {e}", flush=True)
-            logger.error(f"[ERROR] Failed to configure v2 logging: {e}")
-            logger.warning("Continuing with standard logging")
-    else:
-        print("[TRACE] configure_v2_logging is None - skipping", flush=True)
-        logger.info("[INFO] Using standard logging (v2 not available)")
+            print("[TRACE] configure_v2_logging is NOT None - calling it...", flush=True)
+            try:
+                log_level = os.getenv("LOG_LEVEL", "INFO")
+                configure_v2_logging(
+                    service_name="quantum_trader",
+                    log_level=log_level,
+                    json_output=True  # JSON for production log aggregation
+                )
+                print("[TRACE] configure_v2_logging DONE", flush=True)
+                logger.info("[v2] Structured logging configured with trace_id support")
+            except Exception as e:
+                print(f"[TRACE] configure_v2_logging FAILED: {e}", flush=True)
+                logger.error(f"[ERROR] Failed to configure v2 logging: {e}")
+                logger.warning("Continuing with standard logging")
+        else:
+            print("[TRACE] configure_v2_logging is None - skipping", flush=True)
+            logger.info("[INFO] Using standard logging (v2 not available)")
     
     # [NEW] INITIALIZE AUTHENTICATION SYSTEM (Redis + JWT)
     if init_auth_redis is not None:
