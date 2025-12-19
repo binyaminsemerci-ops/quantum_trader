@@ -305,9 +305,9 @@ async def lifespan(app_instance: FastAPI):
         else:
             print("[TRACE] configure_v2_logging is None - skipping", flush=True)
             logger.info("[INFO] Using standard logging (v2 not available)")
-    
-    # [NEW] INITIALIZE AUTHENTICATION SYSTEM (Redis + JWT)
-    if init_auth_redis is not None:
+        
+        # [NEW] INITIALIZE AUTHENTICATION SYSTEM (Redis + JWT)
+        if init_auth_redis is not None:
         logger.info("[SEARCH] Initializing Authentication System...")
         try:
             await init_auth_redis()
