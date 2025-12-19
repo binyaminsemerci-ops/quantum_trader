@@ -279,10 +279,12 @@ get_ai_services = None
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     try:
+        # CRITICAL: Force async context execution
+        await asyncio.sleep(0)
         print("═══════════════════════════════════════════", flush=True)
-        print("🔥 LIFESPAN FUNCTION STARTED (LINE 281) 🔥", flush=True)
+        print("🔥 LIFESPAN FUNCTION STARTED (LINE 282) 🔥", flush=True)
         print("═══════════════════════════════════════════", flush=True)
-        print("[TRACE] Line 284 reached!", flush=True)
+        print("[TRACE] Line 286 reached!", flush=True)
         # [NEW] ARCHITECTURE V2: Configure structured logging FIRST (before any other logging)
         print("[TRACE] About to check configure_v2_logging...", flush=True)
     if configure_v2_logging is not None:
