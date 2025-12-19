@@ -287,7 +287,7 @@ async def lifespan(app_instance: FastAPI):
         print("[TRACE] Line 286 reached!", flush=True)
         # [NEW] ARCHITECTURE V2: Configure structured logging FIRST (before any other logging)
         print("[TRACE] About to check configure_v2_logging...", flush=True)
-    if configure_v2_logging is not None:
+        if configure_v2_logging is not None:
         print("[TRACE] configure_v2_logging is NOT None - calling it...", flush=True)
         try:
             log_level = os.getenv("LOG_LEVEL", "INFO")
