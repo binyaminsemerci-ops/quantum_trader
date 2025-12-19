@@ -308,15 +308,15 @@ async def lifespan(app_instance: FastAPI):
         
         # [NEW] INITIALIZE AUTHENTICATION SYSTEM (Redis + JWT)
         if init_auth_redis is not None:
-        logger.info("[SEARCH] Initializing Authentication System...")
-        try:
-            await init_auth_redis()
-            logger.info("[OK] Authentication system initialized (JWT + Redis)")
-        except Exception as e:
-            logger.error(f"[ERROR] Failed to initialize auth system: {e}", exc_info=True)
-            logger.warning("Continuing without authentication - SECURITY RISK!")
-    else:
-        logger.info("[INFO] Authentication system not available (dependencies missing)")
+            logger.info("[SEARCH] Initializing Authentication System...")
+            try:
+                await init_auth_redis()
+                logger.info("[OK] Authentication system initialized (JWT + Redis)")
+            except Exception as e:
+                logger.error(f"[ERROR] Failed to initialize auth system: {e}", exc_info=True)
+                logger.warning("Continuing without authentication - SECURITY RISK!")
+        else:
+            logger.info("[INFO] Authentication system not available (dependencies missing)")
     
     # [NEW] INITIALIZE CACHING LAYER (Redis + Connection Pooling)
     if init_cache is not None:
