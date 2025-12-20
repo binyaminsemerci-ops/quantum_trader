@@ -68,7 +68,16 @@ class ClmOrchestrator:
         self.training_adapter = training_adapter
         self.backtest_adapter = backtest_adapter
         self.event_bus = event_bus
-        self.config = config or self._default_config()
+        
+        # Merge provided config with defaults (similar to scheduler)
+        default_config = self._default_config()
+        if config:
+            for key, value in config.items():
+                if key in default_config and isinstance(default_config[key], dict) and isinstance(value, dict):
+                    default_config[key].update(value)
+                else:
+                    default_config[key] = value
+        self.config = default_config
         
         logger.info("[CLM v3 Orchestrator] Initialized")
     

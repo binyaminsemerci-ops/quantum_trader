@@ -14,7 +14,15 @@ RUN pip install --no-cache-dir \
     fastapi uvicorn redis structlog \
     xgboost lightgbm torch numpy pandas scikit-learn \
     aiohttp httpx python-dotenv pydantic-settings prometheus-client \
-    psutil requests
+    psutil requests sqlalchemy asyncpg
+
+# Copy source code
+COPY microservices/ai_engine /app/microservices/ai_engine
+COPY backend /app/backend
+COPY ai_engine /app/ai_engine
+
+# Add backend to PYTHONPATH
+ENV PYTHONPATH=/app/backend:/app:$PYTHONPATH
 
 # Create data directories
 RUN mkdir -p logs data/event_buffers/ai_engine models

@@ -1,0 +1,26 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy code
+COPY backend /app/backend
+COPY models /app/models
+COPY data /app/data
+
+# Set environment
+ENV PYTHONPATH=/app
+ENV ENABLE_TRADING_MATHEMATICIAN=true
+
+# Expose port
+EXPOSE 8015
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD curl -f http://localhost:8015/health || exit 1
+
+# Run service
+CMD ["python", "-m", "backend.services.trading_mathematician_service"]

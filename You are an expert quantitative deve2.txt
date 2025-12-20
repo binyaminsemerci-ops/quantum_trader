@@ -1,0 +1,336 @@
+You are an expert quantitative developer and ML engineer helping me build an advanced, modular AI trading backend called **Quantum Trader**.
+
+### Current System (high-level)
+
+Quantum Trader is already a fairly advanced "AI Hedge Fund OS", not a simple bot. It is written in Python and has a modular architecture with services like:
+
+- Multiple AI prediction agents (XGBoost, LightGBM, N-HiTS, PatchTST)
+- An Ensemble Manager that combines these model outputs
+- Regime Detectors (local and global) that classify the market as TRENDING / RANGING / CHOPPY etc.
+- Risk and sizing components:
+  - Math/Trading Mathematician (position sizing, TP/SL math)
+  - RL Position Sizing Agent
+  - Risk Guard (pre-trade risk validation)
+- Execution & portfolio:
+  - Orchestrator Policy (decides if a given trade is allowed, per-signal)
+  - Portfolio Balancer (max positions, correlation, sector exposure)
+  - Safety Governor (circuit breaker, DD limits)
+  - Position Monitor and Trailing Stop Manager
+- System layers:
+  - Event-driven executor loop
+  - Cost Model (fees, slippage)
+  - Health Monitor
+
+The codebase is structured in a "backend/services" style, with pure Python modules and a repository layer for storage. Separation of concerns and testability are important.
+
+### Goal
+
+We are now taking Quantum Trader to the **next level** by adding:
+
+1. **Strategy Generator AI (SG AI)**  
+   - Generates strategy configurations
+   - Backtests them
+   - Evolves them (genetic/evolutionary approach)
+   - Runs them in shadow mode
+   - Promotes/demotes strategies based on performance
+
+2. **Meta Strategy Controller (MSC AI)**  
+   - A top-level “brain” that:
+     - Chooses risk mode (AGGRESSIVE / NORMAL / DEFENSIVE)
+     - Chooses which strategies are allowed to trade
+     - Sets global parameters (global min confidence, max risk per trade, max positions, etc.)
+   - Orchestrator and other services will read these policies.
+
+3. **Continuous Learning Manager (CLM)**  
+   - Periodically retrains and evaluates the core ML models
+   - Uses shadow evaluation before promoting new model versions to production
+
+4. **Market / Opportunity Ranker (OppRank)**  
+   - Scores symbols by trend, volatility, liquidity, symbol performance etc.
+   - Produces a TOP_N list of tradeable symbols at any given time
+
+5. **Central Policy Store**  
+   - A simple storage abstraction (DB/Redis) where global policy/state is kept:
+     - current risk mode
+     - allowed strategies
+     - global min confidence
+     - max risk per trade, etc.
+
+6. **Analytics / Reporting Layer**  
+   - Provides aggregated metrics for:
+     - Strategy performance
+     - Symbol performance
+     - Regime breakdown
+     - Equity curve, drawdown, etc.
+
+### General Requirements
+
+- Write **clean, production-minded Python 3.11 code**.
+- Focus on **clear interfaces and separation of concerns**:
+  - service classes
+  - repository abstractions (no hard-coded DB queries in business logic)
+  - pure functions where reasonable
+- Prefer dependency injection (pass repositories/clients into constructors).
+- Add type hints to all public methods.
+- Use docstrings to explain non-trivial methods and decisions.
+- Do NOT overcomplicate with frameworks. Keep it framework-agnostic (plain Python modules), but design in a way that can be wired into FastAPI or similar later.
+- Where persistence is needed, assume a repository interface like `StrategyRepository`, `MetricsRepository`, `PolicyStore`, etc. You can define their method signatures, but you don’t need to implement DB drivers.
+
+I will now ask you to work on **one module at a time**. Each time, you should:
+- Restate your understanding of that module’s role in 2–3 sentences
+- Propose or refine the interface (classes, methods)
+- Implement the core module logic in Python
+- Include at least minimal examples or tests to show usage
+
+
+### Task
+
+Design and implement an **internal asynchronous EventBus** subsystem for Quantum Trader.
+
+---
+
+### Role in the system
+
+The EventBus is the **internal messaging backbone** of Quantum Trader.
+
+It allows all modules (SG AI, Strategy Runtime Engine, MSC AI, CLM, OppRank, PolicyStore, System Health Monitor, Executor, etc.) to:
+
+- publish events (e.g. “NewPolicyUpdated”, “StrategyPromoted”, “ModelDegraded”, “HealthCritical”, “NewOpportunityRankingsAvailable”, “TradeExecuted”, etc.)
+- subscribe to events by type
+- process messages asynchronously in background worker(s)
+- avoid tight coupling and direct, synchronous dependencies
+
+The EventBus is **in-process**, not Kafka/RabbitMQ scale – but the design should be clean enough to later plug into an external broker if needed.
+
+It is primarily for:
+
+- decoupling  
+- observability  
+- system reactions / automation  
+- async notifications (e.g. Discord alerts, logging, metrics, etc.)
+
+---
+
+### Requirements
+
+The EventBus must:
+
+1. Provide a **publish / subscribe** mechanism:
+   - `publish(event)`  
+   - `subscribe(event_type, handler)`  
+
+2. Support **async handlers**:
+   - event handlers can be `async def` or sync functions  
+
+3. Support **event types** as Python classes or dataclasses:
+   - e.g. `PolicyUpdatedEvent`, `StrategyPromotedEvent`, etc.
+
+4. Provide **typed event objects**:
+   - each event has:
+     - `event_type` (string or class)
+     - `timestamp`
+     - payload fields
+
+5. Have **in-memory implementation**:
+   - simple, asyncio-based
+   - uses an `asyncio.Queue` internally
+   - a `run_forever()` loop that consumes events and dispatches to handlers
+
+6. Provide **at-least-once delivery** semantics (best-effort):
+   - handler errors should not kill the bus
+   - errors should be logged
+   - continue processing other events
+
+7. Be **lightweight and framework-agnostic**.
+
+---
+
+### Event Model
+
+Define a base event type:
+
+```python
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
+
+@dataclass
+class Event:
+    type: str
+    timestamp: datetime
+    payload: dict[str, Any]
+You may optionally define more specific subclasses, like:
+
+python
+Kopier kode
+@dataclass
+class PolicyUpdatedEvent(Event):
+    type: str = "policy.updated"
+But the core EventBus should be able to work with generic Event instances.
+
+Main interface to design
+Define:
+
+python
+Kopier kode
+from typing import Callable, Awaitable, Protocol
+
+EventHandler = Callable[[Event], Awaitable[None]] | Callable[[Event], None]
+
+class EventBus(Protocol):
+    async def publish(self, event: Event) -> None:
+        ...
+    def subscribe(self, event_type: str, handler: EventHandler) -> None:
+        ...
+    async def run_forever(self) -> None:
+        """Continuously consume events and dispatch them to handlers."""
+Implement a concrete class:
+
+python
+Kopier kode
+class InMemoryEventBus(EventBus):
+    ...
+Behavior details
+publish(event)
+Puts the event into an asyncio queue.
+
+Non-blocking (apart from queue put).
+
+subscribe(event_type, handler)
+Registers handler to be called for that event type.
+
+Support multiple handlers per event type.
+
+run_forever()
+While True:
+
+event = await queue.get()
+
+look up all handlers for event.type
+
+for each handler:
+
+if async → await handler(event)
+
+if sync → run in thread executor or directly (for simplicity)
+
+handle exceptions:
+
+log exceptions
+
+do not stop the loop
+
+Example Event Types
+Define some example event dataclasses for Quantum Trader:
+
+PolicyUpdatedEvent → fired by MSC AI when new policy is written
+
+StrategyPromotedEvent → fired by SG AI when strategy goes SHADOW → LIVE
+
+ModelPromotedEvent → fired by CLM when new model version goes LIVE
+
+HealthStatusChangedEvent → fired by System Health Monitor
+
+OpportunitiesUpdatedEvent → fired by OppRank when new rankings are stored
+
+TradeExecutedEvent → fired by Executor when an order is filled
+
+You don’t need to implement full business logic around them – just define a couple of these as examples.
+
+Integration Examples (high-level)
+You should show how this fits together:
+
+MSC AI:
+
+After updating PolicyStore, it publishes a PolicyUpdatedEvent.
+
+SystemHealthMonitor:
+
+After computing degraded or critical health, it publishes HealthStatusChangedEvent.
+
+A DiscordNotifier module (fake):
+
+Subscribes to HealthStatusChangedEvent
+
+Sends a message if status == CRITICAL
+
+Logger module:
+
+Subscribes to StrategyPromotedEvent
+
+Logs “Strategy X promoted to LIVE”.
+
+Public API Implementation
+Your implementation must include:
+
+Event base dataclass
+
+Example specialized events (2–4 types)
+
+EventBus protocol
+
+InMemoryEventBus implementation:
+
+uses asyncio.Queue
+
+maintains a dict: event_type -> list[handler]
+
+supports async & sync handlers
+
+robust error handling
+
+Example usage script:
+
+Create InMemoryEventBus
+
+Register some handlers
+
+Publish events
+
+Run the event loop
+
+For example:
+
+python
+Kopier kode
+async def main():
+    bus = InMemoryEventBus()
+
+    async def on_policy_updated(event: Event):
+        print("Policy updated:", event.payload)
+
+    bus.subscribe("policy.updated", on_policy_updated)
+
+    await bus.publish(Event(type="policy.updated", timestamp=datetime.utcnow(), payload={"risk_mode": "DEFENSIVE"}))
+
+    # Run dispatcher in the background for a short time
+    asyncio.create_task(bus.run_forever())
+    await asyncio.sleep(0.5)
+
+asyncio.run(main())
+Deliverables
+Your output must include:
+
+A short explanation in 2–3 sentences of what the EventBus does in this system.
+
+Proposed class/interface structure.
+
+Full implementation of:
+
+Event dataclass
+
+specialized event types
+
+EventBus protocol
+
+InMemoryEventBus
+
+Example usage with:
+
+subscribing handlers
+
+publishing events
+
+running the event loop
+
+Clean, typed, Python 3.11 code with docstrings.

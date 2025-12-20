@@ -271,11 +271,12 @@ class EventBus:
             # Ensure stream and consumer group exist
             await self._ensure_stream_and_group(stream_name, group_name)
             
-            # Spawn consumer task
+            # Spawn consumer task with exception tracking
             task = asyncio.create_task(
-                self._consume_stream(stream_name, group_name, event_type)
+                self._consume_stream_safe(stream_name, group_name, event_type)
             )
             self._consumer_tasks[event_type] = task
+            logger.info(f"🔹 Created consumer task for '{event_type}': consumer_id={self.consumer_id}")
         
         logger.info(
             f"EventBus started: subscriptions={len(self._handlers)}, "
@@ -350,6 +351,24 @@ class EventBus:
                 )
                 raise
     
+    async def _consume_stream_safe(
+        self,
+        stream_name: str,
+        group_name: str,
+        event_type: str,
+    ) -> None:
+        """
+        Safe wrapper around _consume_stream that logs any exceptions.
+        """
+        try:
+            await self._consume_stream(stream_name, group_name, event_type)
+        except Exception as e:
+            logger.error(
+                f"🔥 Consumer task CRASHED for '{event_type}': {str(e)}",
+                exc_info=True
+            )
+            raise
+    
     async def _consume_stream(
         self,
         stream_name: str,
@@ -362,8 +381,8 @@ class EventBus:
         Reads messages from Redis Stream and dispatches to handlers.
         """
         logger.info(
-            f"Consumer started: stream={stream_name}, group={group_name}, "
-            f"event_type={event_type}"
+            f"🎯 Consumer loop starting: stream={stream_name}, group={group_name}, "
+            f"event_type={event_type}, consumer_id={self.consumer_id}"
         )
         
         while self._running:
@@ -395,17 +414,12 @@ class EventBus:
                 break
             except redis.RedisError as e:
                 logger.error(
-                    "Redis error in consumer loop",
-                    event_type=event_type,
-                    error=str(e),
+                    f"Redis error in consumer loop for event_type={event_type}: {e}"
                 )
                 await asyncio.sleep(5)  # Backoff before retry
             except Exception as e:
                 logger.error(
-                    "Unexpected error in consumer loop",
-                    event_type=event_type,
-                    error=str(e),
-                    traceback=traceback.format_exc(),
+                    f"Unexpected error in consumer loop for event_type={event_type}: {e}\n{traceback.format_exc()}"
                 )
                 await asyncio.sleep(1)
         
@@ -428,11 +442,21 @@ class EventBus:
         - Sends to DLQ on repeated failures
         """
         try:
-            # Decode message data
-            payload_json = message_data.get(b"payload", b"{}")
-            payload = json.loads(payload_json)
+            # Debug: log raw message data
+            logger.info(f"🔍 Raw message_data keys: {list(message_data.keys())}")
+            logger.info(f"🔍 Raw message_data: {message_data}")
             
-            trace_id = message_data.get(b"trace_id", b"").decode("utf-8")
+            # Decode message data - handle both bytes and string keys
+            payload_json = message_data.get("payload") or message_data.get(b"payload", b"{}")
+            if isinstance(payload_json, bytes):
+                payload_json = payload_json.decode("utf-8")
+            payload = json.loads(payload_json) if payload_json else {}
+            
+            logger.info(f"✅ Decoded payload: {payload}")
+            
+            trace_id = message_data.get("trace_id") or message_data.get(b"trace_id", b"")
+            if isinstance(trace_id, bytes):
+                trace_id = trace_id.decode("utf-8")
             
             # Call all handlers for this event type
             handlers = self._handlers.get(event_type, [])
@@ -442,12 +466,7 @@ class EventBus:
                     await handler(payload)
                 except Exception as e:
                     logger.error(
-                        "Handler error",
-                        event_type=event_type,
-                        handler=handler.__name__,
-                        error=str(e),
-                        trace_id=trace_id,
-                        traceback=traceback.format_exc(),
+                        f"Handler error for event_type={event_type}, handler={handler.__name__}, trace_id={trace_id}: {e}\n{traceback.format_exc()}"
                     )
                     # Continue to other handlers even if one fails
             
@@ -455,29 +474,19 @@ class EventBus:
             await self.redis.xack(stream_name, group_name, message_id)
             
             logger.debug(
-                "Message processed and acknowledged",
-                event_type=event_type,
-                message_id=message_id,
-                trace_id=trace_id,
+                f"Message processed and acknowledged: event_type={event_type}, message_id={message_id}, trace_id={trace_id}"
             )
         
         except json.JSONDecodeError as e:
             logger.error(
-                "Failed to decode message payload",
-                event_type=event_type,
-                message_id=message_id,
-                error=str(e),
+                f"Failed to decode message payload for event_type={event_type}, message_id={message_id}: {e}"
             )
             # Acknowledge anyway to skip bad message
             await self.redis.xack(stream_name, group_name, message_id)
         
         except Exception as e:
             logger.error(
-                "Failed to process message",
-                event_type=event_type,
-                message_id=message_id,
-                error=str(e),
-                traceback=traceback.format_exc(),
+                f"Failed to process message for event_type={event_type}, message_id={message_id}: {e}\n{traceback.format_exc()}"
             )
             # TODO: Implement retry logic and DLQ
             # For now, acknowledge to avoid infinite loop

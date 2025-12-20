@@ -1,0 +1,103 @@
+# VPS Recovery Validation - Quick Summary
+
+**Date:** 2025-12-17  
+**Status:** ⚠️ Ready to Deploy (Docker not started)
+
+---
+
+## ✅ File Structure Validation - COMPLETE
+
+All critical AI subsystem files are present:
+
+| Module | Files | Status |
+|--------|-------|--------|
+| Exit Brain V3 | 18 files | ✅ Present |
+| RL Agent V3 | 16 files | ✅ Present |
+| CLM V3 | 9 files | ✅ Present |
+| TP Optimizer V3 | 1 file | ✅ Present |
+| Risk Gate V3 | 1 file | ✅ Present |
+
+**Total:** 45 critical module files verified on disk
+
+---
+
+## ✅ Configuration Validation - COMPLETE
+
+| File | Status | Key Settings |
+|------|--------|--------------|
+| docker-compose.yml | ✅ | PYTHONPATH=/app/backend, GO_LIVE=true |
+| .env | ✅ | All VPS runtime variables set |
+| activation.yaml | ✅ | All modules marked active |
+| config/go_live.yaml | ✅ | Production config present |
+
+---
+
+## ⏸️ Runtime Validation - PENDING
+
+**Cannot verify runtime because:**
+- Docker Desktop: **Stopped**
+- Containers: **Not built**
+- Logs: **Not available**
+
+**Required Actions:**
+1. Start Docker Desktop (1-2 min)
+2. Build containers: `docker compose build backend` (10-15 min)
+3. Start services: `docker compose up -d backend` (30 sec)
+4. Check logs: `docker logs quantum_backend --tail 100` (10 sec)
+
+**Expected Total Time:** 15-20 minutes
+
+---
+
+## Module Activation Checklist (After Docker Starts)
+
+Look for these log messages:
+
+- [ ] `[ExitBrainV3] activated` or `exit_brain_v3.*initialized`
+- [ ] `[TPOptimizerV3] metrics synced` or `tp_optimizer_v3.*active`
+- [ ] `[RLAgentV3] listening for feedback` or `rl_v3.*ready`
+- [ ] `[RiskGateV3] active` or `risk_gate_v3.*initialized`
+
+**If logs are quiet:**
+```powershell
+docker exec -it quantum_backend bash -c "pytest -q tests/smoke || true"
+```
+
+---
+
+## One-Line Summary
+
+**Quantum Trader v3 environment validated — all files present, configuration complete, ready for Docker startup and Sonnet TP optimizer prompts. ⚠️**
+
+---
+
+## Next Commands (Execute in Order)
+
+```powershell
+# 1. Start Docker Desktop (from Start Menu or:)
+Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+Start-Sleep -Seconds 90
+
+# 2. Navigate to project
+cd C:\quantum_trader
+
+# 3. Build backend
+docker compose build backend
+
+# 4. Start backend
+docker compose up -d backend
+
+# 5. Check logs
+docker logs quantum_backend --tail 100
+
+# 6. Verify modules
+docker logs quantum_backend | Select-String "ExitBrainV3|TPOptimizer|RLAgent|RiskGate"
+
+# 7. Test imports
+docker exec quantum_backend python3 -c "from domains.exits.exit_brain_v3 import dynamic_executor; print('✅ OK')"
+```
+
+---
+
+**Full Report:** [VPS_RECOVERY_REPORT.md](VPS_RECOVERY_REPORT.md)  
+**Build Guide:** [DOCKER_BUILD_INSTRUCTIONS.md](DOCKER_BUILD_INSTRUCTIONS.md)

@@ -13,6 +13,7 @@ Dependencies:
 """
 import asyncio
 import logging
+import os
 import time
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
@@ -35,6 +36,21 @@ from .models import (
 from .config import Settings
 from .risk_stub import RiskStub
 from .binance_adapter import BinanceAdapter, ExecutionMode
+
+# [EXIT BRAIN V3] Advanced exit strategy orchestration
+try:
+    from .exit_brain_v3.router import ExitRouter
+    from .exit_brain_v3.integration import build_context_from_position
+    EXIT_BRAIN_V3_AVAILABLE = True
+except ImportError as e:
+    EXIT_BRAIN_V3_AVAILABLE = False
+
+# [SIMPLE CLM] Continuous Learning Manager
+try:
+    from .simple_clm import SimpleCLM
+    SIMPLE_CLM_AVAILABLE = True
+except ImportError as e:
+    SIMPLE_CLM_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +117,45 @@ class ExecutionService:
         self.positions: Dict[str, Dict] = {}  # symbol -> position_data
         self.order_counter = 1
         
+        # [EXIT BRAIN V3] Initialize Exit Router for exit strategy orchestration
+        self.exit_router = None
+        self.exit_brain_enabled = os.getenv("EXIT_BRAIN_V3_ENABLED", "true").lower() == "true"
+        if EXIT_BRAIN_V3_AVAILABLE and self.exit_brain_enabled:
+            try:
+                self.exit_router = ExitRouter()
+                logger.info("[EXECUTION-V2] ✅ Exit Brain V3 initialized")
+            except Exception as e:
+                logger.error(f"[EXECUTION-V2] Exit Brain V3 init failed: {e}", exc_info=True)
+                self.exit_router = None
+        elif not self.exit_brain_enabled:
+            logger.info("[EXECUTION-V2] Exit Brain V3 disabled")
+        else:
+            logger.warning("[EXECUTION-V2] Exit Brain V3 not available")
+        
+        # [SIMPLE CLM] Initialize Continuous Learning Manager
+        self.clm = None
+        self.clm_enabled = os.getenv("CLM_ENABLED", "true").lower() == "true"
+        if SIMPLE_CLM_AVAILABLE and self.clm_enabled:
+            try:
+                ai_engine_url = os.getenv("AI_ENGINE_URL", "http://ai-engine:8001")
+                retraining_hours = int(os.getenv("CLM_RETRAINING_HOURS", "168"))  # 7 days
+                min_samples = int(os.getenv("CLM_MIN_SAMPLES", "100"))
+                
+                self.clm = SimpleCLM(
+                    ai_engine_url=ai_engine_url,
+                    retraining_interval_hours=retraining_hours,
+                    min_samples_required=min_samples,
+                    event_bus=None  # Will set after EventBus init
+                )
+                logger.info("[EXECUTION-V2] ✅ SimpleCLM initialized")
+            except Exception as e:
+                logger.error(f"[EXECUTION-V2] SimpleCLM init failed: {e}", exc_info=True)
+                self.clm = None
+        elif not self.clm_enabled:
+            logger.info("[EXECUTION-V2] SimpleCLM disabled")
+        else:
+            logger.warning("[EXECUTION-V2] SimpleCLM not available")
+        
         logger.info("[EXECUTION-V2] Service initialized")
     
     async def start(self):
@@ -163,13 +218,25 @@ class ExecutionService:
             logger.info("[EXECUTION-V2] ✅ Rate limiter ready")
             
             # 5. Subscribe to trade signals
+            print("[DEBUG] About to subscribe to trade.intent events")
             logger.info("[EXECUTION-V2] Subscribing to 'trade.intent' events...")
             self.event_bus.subscribe("trade.intent", self._handle_trade_signal)
+            print("[DEBUG] Subscribed! Handler added.")
             logger.info("[EXECUTION-V2] ✅ Event subscription active")
             
-            # 6. Start EventBus consumer loop
+            # 6. Start EventBus consumer loop (stop first to ensure clean state)
+            print("[DEBUG] Stopping EventBus if already running...")
+            await self.event_bus.stop()
+            print("[DEBUG] EventBus stopped. Now starting fresh...")
             await self.event_bus.start()
+            print("[DEBUG] EventBus.start() completed!")
             logger.info("[EXECUTION-V2] ✅ EventBus consumer loop started")
+            
+            # 7. Start SimpleCLM if enabled
+            if self.clm:
+                self.clm.event_bus = self.event_bus  # Give CLM access to EventBus
+                await self.clm.start()
+                logger.info("[EXECUTION-V2] ✅ SimpleCLM started")
             
             self._running = True
             logger.info("=" * 60)
@@ -185,6 +252,10 @@ class ExecutionService:
         """Stop the service"""
         logger.info("[EXECUTION-V2] Stopping service...")
         self._running = False
+        
+        # Stop SimpleCLM
+        if self.clm:
+            await self.clm.stop()
         
         # Stop event consumer
         if self._event_task:
@@ -220,8 +291,12 @@ class ExecutionService:
             "timestamp": "2024-01-15T10:30:00Z"
         }
         """
+        print(f"[DEBUG] _handle_trade_signal CALLED! event_data={event_data}")
         try:
-            logger.info(f"[EXECUTION-V2] 📥 Received trade signal: {event_data}")
+            logger.info(f"[EXECUTION-V2] 📥 Received trade signal")
+            logger.info(f"[EXECUTION-V2] 🔍 Raw event_data type: {type(event_data)}")
+            logger.info(f"[EXECUTION-V2] 🔍 Raw event_data: {event_data}")
+            logger.info(f"[EXECUTION-V2] 🔍 event_data keys: {list(event_data.keys()) if isinstance(event_data, dict) else 'NOT A DICT'}")
             
             # Parse signal
             signal = AIDecisionEvent(**event_data)
@@ -263,13 +338,11 @@ class ExecutionService:
             # For futures: quantity = position_size_usd / entry_price
             quantity = signal.position_size_usd / signal.entry_price
             
-            # Round to appropriate precision (Binance requires specific precision)
-            # For now, round to 3 decimals
-            quantity = round(quantity, 3)
+            # Note: Quantity precision will be handled by BinanceAdapter based on symbol rules
             
             logger.info(
                 f"[EXECUTION-V2] {trade_id} - Executing: {signal.symbol} {signal.side} "
-                f"{quantity} @ ~{signal.entry_price} (leverage: {signal.leverage}x)"
+                f"{quantity:.6f} @ ~{signal.entry_price} (leverage: {signal.leverage}x)"
             )
             
             # 4. Execute order
@@ -299,14 +372,133 @@ class ExecutionService:
             
             self.trades[trade_id] = trade_data
             
-            # 6. Update position tracking
-            if order_result["status"] == "FILLED":
-                self._update_position(signal.symbol, signal.side, quantity, order_result["price"])
+            # 6. Update position tracking and create exit plan
+            # Note: For testnet, order_result["price"] may be 0, so use signal.entry_price as fallback
+            actual_price = order_result["price"] if order_result["price"] and order_result["price"] > 0 else signal.entry_price
+            order_is_filled = order_result["status"] in ["FILLED", "NEW", "PARTIALLY_FILLED"] and order_result["order_id"]
+            
+            if order_is_filled:
+                self._update_position(signal.symbol, signal.side, quantity, actual_price)
+                
+                logger.info(
+                    f"[EXECUTION-V2] T{self.order_counter:06d} - ✅ Order executed: "
+                    f"{signal.symbol} {signal.side} {quantity} @ {actual_price}"
+                )
+                
+                # [EXIT BRAIN V3] Create exit plan for position protection
+                if self.exit_router and EXIT_BRAIN_V3_AVAILABLE:
+                    try:
+                        # Build position dict matching Binance API format for build_context_from_position
+                        position_amt = quantity if signal.side.upper() in ['BUY', 'LONG'] else -quantity
+                        position_for_brain = {
+                            'symbol': signal.symbol,
+                            'positionAmt': str(position_amt),
+                            'entryPrice': str(actual_price),
+                            'markPrice': str(actual_price),
+                            'leverage': str(signal.leverage or 1),
+                            'unrealizedProfit': '0.0',
+                            'side': 'LONG' if signal.side.upper() in ['BUY', 'LONG'] else 'SHORT'
+                        }
+                        
+                        # Build RL hints for Exit Brain
+                        rl_hints = {
+                            'tp_pct': ((signal.take_profit / actual_price) - 1) * 100 if signal.take_profit and actual_price else 2.0,
+                            'sl_pct': ((actual_price / signal.stop_loss) - 1) * 100 if signal.stop_loss and actual_price else 1.0,
+                            'confidence': signal.confidence
+                        }
+                        
+                        # Create exit plan via router
+                        plan = await self.exit_router.get_or_create_plan(
+                            position=position_for_brain,
+                            rl_hints=rl_hints,
+                            risk_context={'max_leverage': signal.leverage or 1},
+                            market_data={'atr': actual_price * 0.01}
+                        )
+                        
+                        if plan and len(plan.legs) > 0:
+                            logger.info(
+                                f"[EXIT BRAIN V3] {signal.symbol}: Created exit plan with {len(plan.legs)} legs"
+                            )
+                            
+                            # 🔥 NEW: Actually place the exit orders on Binance!
+                            try:
+                                # Extract TP and SL prices from plan
+                                tp_prices = []
+                                tp_quantities = []
+                                sl_price = None
+                                
+                                for leg in plan.legs:
+                                    if leg.kind.name == "STOP_LOSS":
+                                        # Stop loss: trigger_pct is negative (e.g., -2%)
+                                        sl_price = actual_price * (1 + leg.trigger_pct / 100)
+                                        logger.info(
+                                            f"  ↳ SL: size={leg.size_pct*100:.0f}%, "
+                                            f"trigger={leg.trigger_pct*100:+.2f}%, price={sl_price:.6f}"
+                                        )
+                                    elif leg.kind.name in ["TAKE_PROFIT_1", "TAKE_PROFIT_2", "TAKE_PROFIT_3"]:
+                                        # Take profit: trigger_pct is positive (e.g., +1.95%)
+                                        tp_price = actual_price * (1 + leg.trigger_pct / 100)
+                                        tp_qty = quantity * leg.size_pct
+                                        tp_prices.append(tp_price)
+                                        tp_quantities.append(tp_qty)
+                                        logger.info(
+                                            f"  ↳ TP{len(tp_prices)}: size={leg.size_pct*100:.0f}%, "
+                                            f"trigger={leg.trigger_pct*100:+.2f}%, price={tp_price:.6f}, qty={tp_qty:.4f}"
+                                        )
+                                
+                                # Place exit orders on Binance
+                                if sl_price and len(tp_prices) > 0:
+                                    exit_result = await self.binance.place_exit_orders(
+                                        symbol=signal.symbol,
+                                        side=signal.side,
+                                        quantity=quantity,
+                                        stop_loss_price=sl_price,
+                                        take_profit_prices=tp_prices,
+                                        take_profit_quantities=tp_quantities
+                                    )
+                                    
+                                    if exit_result["status"] == "SUCCESS":
+                                        logger.info(
+                                            f"[EXIT BRAIN V3] ✅ {signal.symbol}: All exit orders placed! "
+                                            f"SL @ {sl_price:.6f}, {len(tp_prices)} TPs"
+                                        )
+                                    elif exit_result["status"] == "PARTIAL":
+                                        logger.warning(
+                                            f"[EXIT BRAIN V3] ⚠️ {signal.symbol}: Partial exit order placement"
+                                        )
+                                    else:
+                                        logger.error(
+                                            f"[EXIT BRAIN V3] ❌ {signal.symbol}: Failed to place exit orders"
+                                        )
+                                else:
+                                    logger.warning(
+                                        f"[EXIT BRAIN V3] {signal.symbol}: Incomplete exit plan - "
+                                        f"SL={sl_price}, TPs={len(tp_prices)}"
+                                    )
+                                    
+                            except Exception as order_exc:
+                                logger.error(
+                                    f"[EXIT BRAIN V3] {signal.symbol}: Order placement failed: {order_exc}",
+                                    exc_info=True
+                                )
+                        else:
+                            logger.warning(f"[EXIT BRAIN V3] {signal.symbol}: Plan has no legs")
+                            
+                    except Exception as brain_exc:
+                        logger.error(
+                            f"[EXIT BRAIN V3] {signal.symbol}: Plan creation failed: {brain_exc}",
+                            exc_info=True
+                        )
+            
+            else:
+                logger.error(
+                    f"[EXECUTION-V2] {trade_id} - ❌ Order FAILED: {order_result.get('status', 'Unknown')}"
+                )
             
             # 7. Publish result
             await self._publish_execution_result({
                 "trade_id": trade_id,
-                "status": order_result["status"],
+                "status": "FILLED" if order_is_filled else order_result["status"],
                 "order_id": order_result["order_id"],
                 "symbol": signal.symbol,
                 "side": signal.side,
@@ -403,6 +595,23 @@ class ExecutionService:
                 name="risk_stub",
                 status="OK",
                 message=f"{len(self.risk_stub.allowed_symbols)} symbols allowed"
+            ))
+        
+        # Exit Brain V3 health
+        if self.exit_router:
+            components.append(ComponentHealth(
+                name="exit_brain_v3",
+                status="OK",
+                message="Exit strategy orchestration active"
+            ))
+        
+        # SimpleCLM health
+        if self.clm:
+            clm_status = self.clm.get_status()
+            components.append(ComponentHealth(
+                name="clm",
+                status="OK" if clm_status["running"] else "STOPPED",
+                message=f"Next retraining: {clm_status.get('next_retraining', 'N/A')}"
             ))
         
         # Overall status

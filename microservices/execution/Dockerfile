@@ -8,10 +8,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy service code
-COPY . .
+COPY microservices/execution /app/microservices/execution
 
 # Copy shared backend modules (temporary until modules are fully extracted)
-COPY ../../backend /app/backend
+COPY backend /app/backend
 
 # Create data directories
 RUN mkdir -p logs data/event_buffers/execution
@@ -24,4 +24,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8002/health')"
 
 # Run service
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002", "--log-level", "info"]
+CMD ["python", "-m", "uvicorn", "microservices.execution.main:app", "--host", "0.0.0.0", "--port", "8002", "--log-level", "info"]

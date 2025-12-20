@@ -278,10 +278,10 @@ class PatchTST(nn.Module):
         stride: int = 12,  # Non-overlapping by default
         
         # Model architecture
-        d_model: int = 128,
+        d_model: int = 64,  # Match existing trained model
         nhead: int = 8,
-        num_layers: int = 3,
-        dim_feedforward: int = 512,
+        num_layers: int = 2,  # Match existing checkpoint
+        dim_feedforward: int = 256,  # Match existing checkpoint
         dropout: float = 0.1,
         activation: str = 'gelu',
         
@@ -504,9 +504,12 @@ def load_model(path: str, device: str = 'cpu') -> Tuple[PatchTST, Optional[np.nd
     """Load PatchTST model with normalization stats."""
     checkpoint = torch.load(path, map_location=device, weights_only=False)
     
+    # Use default patch_len if missing in checkpoint (backward compatibility)
+    patch_len = checkpoint.get('patch_len', 16)  # Default: 16 timesteps per patch
+    
     model = PatchTST(
         input_size=checkpoint['input_size'],
-        patch_len=checkpoint['patch_len'],
+        patch_len=patch_len,
         num_features=checkpoint['num_features']
     )
     

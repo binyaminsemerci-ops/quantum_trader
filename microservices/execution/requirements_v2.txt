@@ -10,7 +10,7 @@ pydantic-settings==2.6.1
 # Redis (for EventBus)
 redis==5.2.0
 
-# Binance API
+# Binance API (python-binance has better futures support)
 python-binance==1.0.20
 
 # HTTP client

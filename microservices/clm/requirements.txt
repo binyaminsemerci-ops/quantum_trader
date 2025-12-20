@@ -1,0 +1,26 @@
+# CLM v3 Microservice Requirements
+# Continuous Learning Manager dependencies
+
+# Core dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+redis==5.0.1
+python-dotenv==1.0.0
+
+# Backend core dependencies (needed for EventBus)
+aiohttp==3.9.1
+psutil
+structlog>=23.0.0
+apscheduler==3.10.4
+
+# ML dependencies (matching main project)
+scikit-learn==1.5.2
+xgboost==2.0.3
+lightgbm==4.3.0
+torch==2.2.0
+numpy==1.26.4
+pandas==2.2.1
+
+# Utility
+pydantic==2.5.2
+pydantic-settings==2.1.0

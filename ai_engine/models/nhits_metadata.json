@@ -1,9 +1,9 @@
 {
-  "timestamp": "2025-12-12T00:36:20.003313",
-  "epoch": 5,
-  "train_loss": 0.5814775016932442,
-  "val_loss": 0.6400935215940629,
-  "accuracy": 71.63636363636364,
+  "timestamp": "2025-12-17T02:01:08.819032",
+  "epoch": 6,
+  "train_loss": 0.5850617482448919,
+  "val_loss": 0.6418380759103327,
+  "accuracy": 71.77622377622377,
   "num_params": 411139,
   "sequence_length": 120,
   "hidden_size": 512

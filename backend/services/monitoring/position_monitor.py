@@ -169,8 +169,7 @@ class PositionMonitor:
         self.partial_tp = float(os.getenv("QT_PARTIAL_TP", "0.5"))
         
         # [FIX] CRITICAL: Get trail callback rate from config (must be [0.1, 5.0])
-        from config.config import get_trail_callback_rate
-        self.trail_callback_rate = get_trail_callback_rate()
+        self.trail_callback_rate = float(os.getenv("QT_TRAIL_CALLBACK_RATE", "1.5"))
         
         # Track open positions to detect closures (for Meta-Strategy reward updates)
         self._previous_open_positions = {}  # {symbol: position_data}

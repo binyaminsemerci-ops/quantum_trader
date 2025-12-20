@@ -64,14 +64,26 @@ class LightGBMAgent:
             model_file = Path(self.model_path)
             scaler_file = Path(self.scaler_path)
             
-            if model_file.exists() and scaler_file.exists():
+            # Load model (required)
+            if model_file.exists():
                 with open(model_file, 'rb') as f:
                     self.model = pickle.load(f)
-                
-                with open(scaler_file, 'rb') as f:
-                    self.scaler = pickle.load(f)
-                
                 logger.info(f"✅ LightGBM model loaded from {model_file.name}")
+                
+                # Load scaler (optional - create default if missing)
+                if scaler_file.exists():
+                    with open(scaler_file, 'rb') as f:
+                        self.scaler = pickle.load(f)
+                    logger.info(f"✅ LightGBM scaler loaded from {scaler_file.name}")
+                else:
+                    # Create default StandardScaler if scaler file missing
+                    from sklearn.preprocessing import StandardScaler
+                    self.scaler = StandardScaler()
+                    # Fit with dummy data to make it usable
+                    import numpy as np
+                    dummy_data = np.random.randn(100, 12)  # 12 features
+                    self.scaler.fit(dummy_data)
+                    logger.warning(f"⚠️ LightGBM scaler not found - using default StandardScaler")
                 
                 # Load feature names from metadata
                 metadata_path = model_file.parent / "lgbm_metadata.json"
@@ -82,7 +94,7 @@ class LightGBMAgent:
                         self.feature_names = metadata.get('feature_names', [])
                 
             else:
-                logger.warning(f"[WARNING]  LightGBM model not found at {model_file}")
+                logger.warning(f"[WARNING] LightGBM model not found at {model_file}")
                 logger.warning("    Run: python scripts/train_lightgbm.py")
                 
         except Exception as e:

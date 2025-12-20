@@ -90,13 +90,17 @@ services:
       - REDIS_DB=0
       - REDIS_PASSWORD=
       # Execution mode: PAPER (default), TESTNET, LIVE
-      - EXECUTION_MODE=PAPER
+      - EXECUTION_MODE=TESTNET
       # Binance credentials (only needed for TESTNET/LIVE)
       - BINANCE_API_KEY=${BINANCE_API_KEY:-}
       - BINANCE_API_SECRET=${BINANCE_API_SECRET:-}
-      # Risk limits
-      - MAX_POSITION_USD=1000
-      - MAX_LEVERAGE=10
+      - BINANCE_TESTNET=true
+      # Risk limits - PRODUCTION SAFE DEFAULTS
+      - MAX_POSITION_USD=${MAX_POSITION_USD:-50}
+      - MAX_LEVERAGE=${MAX_LEVERAGE:-1}
+      - MAX_CONCURRENT_POSITIONS=${MAX_CONCURRENT_POSITIONS:-1}
+      - MAX_DAILY_TRADES=${MAX_DAILY_TRADES:-3}
+      - MAX_DAILY_LOSS_USD=${MAX_DAILY_LOSS_USD:-200}
       # Rate limiting
       - BINANCE_RATE_LIMIT_RPM=1200
       # Logging

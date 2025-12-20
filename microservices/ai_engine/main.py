@@ -85,6 +85,10 @@ async def lifespan(app: FastAPI):
         await service.start()
         logger.info("✅ AI Engine Service STARTED")
         
+        # Inject service into API module
+        api.set_service(service)
+        logger.info("✅ Service injected into API module")
+        
         # Register signal handlers for graceful shutdown
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
@@ -130,12 +134,6 @@ app.add_middleware(
 
 # Include API router
 app.include_router(api.router)
-
-# Inject service instance into API module
-@app.on_event("startup")
-async def inject_service():
-    """Inject service instance into API module."""
-    api.set_service(service)
 
 
 @app.get("/", tags=["root"])

@@ -1,0 +1,362 @@
+You are an expert quantitative developer and ML engineer helping me build an advanced, modular AI trading backend called **Quantum Trader**.
+
+### Current System (high-level)
+
+Quantum Trader is already a fairly advanced "AI Hedge Fund OS", not a simple bot. It is written in Python and has a modular architecture with services like:
+
+- Multiple AI prediction agents (XGBoost, LightGBM, N-HiTS, PatchTST)
+- An Ensemble Manager that combines these model outputs
+- Regime Detectors (local and global) that classify the market as TRENDING / RANGING / CHOPPY etc.
+- Risk and sizing components:
+  - Math/Trading Mathematician (position sizing, TP/SL math)
+  - RL Position Sizing Agent
+  - Risk Guard (pre-trade risk validation)
+- Execution & portfolio:
+  - Orchestrator Policy (decides if a given trade is allowed, per-signal)
+  - Portfolio Balancer (max positions, correlation, sector exposure)
+  - Safety Governor (circuit breaker, DD limits)
+  - Position Monitor and Trailing Stop Manager
+- System layers:
+  - Event-driven executor loop
+  - Cost Model (fees, slippage)
+  - Health Monitor
+
+The codebase is structured in a "backend/services" style, with pure Python modules and a repository layer for storage. Separation of concerns and testability are important.
+
+### Goal
+
+We are now taking Quantum Trader to the **next level** by adding:
+
+1. **Strategy Generator AI (SG AI)**  
+   - Generates strategy configurations
+   - Backtests them
+   - Evolves them (genetic/evolutionary approach)
+   - Runs them in shadow mode
+   - Promotes/demotes strategies based on performance
+
+2. **Meta Strategy Controller (MSC AI)**  
+   - A top-level “brain” that:
+     - Chooses risk mode (AGGRESSIVE / NORMAL / DEFENSIVE)
+     - Chooses which strategies are allowed to trade
+     - Sets global parameters (global min confidence, max risk per trade, max positions, etc.)
+   - Orchestrator and other services will read these policies.
+
+3. **Continuous Learning Manager (CLM)**  
+   - Periodically retrains and evaluates the core ML models
+   - Uses shadow evaluation before promoting new model versions to production
+
+4. **Market / Opportunity Ranker (OppRank)**  
+   - Scores symbols by trend, volatility, liquidity, symbol performance etc.
+   - Produces a TOP_N list of tradeable symbols at any given time
+
+5. **Central Policy Store**  
+   - A simple storage abstraction (DB/Redis) where global policy/state is kept:
+     - current risk mode
+     - allowed strategies
+     - global min confidence
+     - max risk per trade, etc.
+
+6. **Analytics / Reporting Layer**  
+   - Provides aggregated metrics for:
+     - Strategy performance
+     - Symbol performance
+     - Regime breakdown
+     - Equity curve, drawdown, etc.
+
+### General Requirements
+
+- Write **clean, production-minded Python 3.11 code**.
+- Focus on **clear interfaces and separation of concerns**:
+  - service classes
+  - repository abstractions (no hard-coded DB queries in business logic)
+  - pure functions where reasonable
+- Prefer dependency injection (pass repositories/clients into constructors).
+- Add type hints to all public methods.
+- Use docstrings to explain non-trivial methods and decisions.
+- Do NOT overcomplicate with frameworks. Keep it framework-agnostic (plain Python modules), but design in a way that can be wired into FastAPI or similar later.
+- Where persistence is needed, assume a repository interface like `StrategyRepository`, `MetricsRepository`, `PolicyStore`, etc. You can define their method signatures, but you don’t need to implement DB drivers.
+
+I will now ask you to work on **one module at a time**. Each time, you should:
+- Restate your understanding of that module’s role in 2–3 sentences
+- Propose or refine the interface (classes, methods)
+- Implement the core module logic in Python
+- Include at least minimal examples or tests to show usage
+
+
+### Task
+
+Design and implement the **Emergency Stop System (ESS)** for Quantum Trader.
+
+---
+
+### Role in the system
+
+The Emergency Stop System is the **absolute last line of defense**.
+
+Its job is to:
+
+- detect catastrophic conditions  
+- immediately halt all trading  
+- close all open positions  
+- block any new trades  
+- notify the system (via EventBus)  
+- update PolicyStore and SystemHealthMonitor  
+- require manual human override before reactivation  
+
+ESS must react **FAST**, with **zero debate**.
+
+This module enforces capital protection at all costs.
+
+---
+
+### ESS TRIGGERS
+
+ESS should activate when any of the following conditions occur:
+
+#### 1. **Account-level catastrophic losses**
+- Daily PnL < -X% (e.g. -10% intraday)
+- Equity drawdown exceeds limit (e.g. -25% of account)
+- Equity flash-crash (rapid DD spike)
+
+#### 2. **System-wide failures**
+- SystemHealthMonitor status == "CRITICAL"
+- Lost connection to Binance for > N minutes
+- Data feed returns corrupted/empty data
+- Trade execution errors > threshold
+- Latency spike > threshold (e.g. 5s+)
+- PolicyStore corruption / stale > N minutes
+
+#### 3. **Trading behavior anomalies**
+- Too many trades in short period (bot going rogue)
+- Repeated SL hits (> X times in Y minutes)
+- Repeated order errors or rejects
+- Position sizing anomalies
+
+#### 4. **Security concerns**
+- API key invalid / changed
+- Unauthorized access attempt
+- Unexpected environment modifications
+
+#### 5. **Manual override**
+- Admin triggers ESS manually
+
+---
+
+### Required Behavior
+
+When ESS triggers:
+
+1. **Set ESS status to ACTIVE**
+2. **Immediately block all trade creation**
+   - Orchestrator → auto-reject
+   - RiskGuard → auto-reject
+   - Strategy Runtime Engine → disabled
+   - MSC policies overridden
+3. **Immediately close all open positions** (market close)
+4. **Cancel all open orders**
+5. **Publish EmergencyStopEvent via EventBus**
+6. **Write to PolicyStore:**
+
+```json
+"emergency_stop": {
+    "active": true,
+    "reason": "system_critical",
+    "timestamp": "...",
+    "auto_recover": false
+}
+Require manual manual reset:
+
+python
+Kopier kode
+ess.reset()
+— NO automatic reactivation allowed.
+
+Architecture Requirements
+ESS consists of:
+
+EmergencyStopConditionEvaluator
+
+Evaluates all ESS trigger rules
+
+Consumes data from MetricsRepository, SystemHealthMonitor, TradeLogsRepository, DataFeedMonitor
+
+EmergencyStopController
+
+Activates emergency stop
+
+Calls broker/ExchangeClient to close all positions
+
+Cancels all orders
+
+Updates PolicyStore
+
+Publishes event
+
+ESS State Machine
+
+State: ACTIVE / INACTIVE
+
+Handles transition logic
+
+No automatic reactivation
+
+EventBus Integration
+
+On activation → publish EmergencyStopEvent
+
+On reset → publish EmergencyResetEvent
+
+PolicyStore Integration
+
+Writes emergency_stop.active = true
+
+Writes reason, timestamp
+
+SystemHealthMonitor must see ESS state
+
+Required Interfaces
+Condition evaluator interface:
+python
+Kopier kode
+class EmergencyConditionEvaluator(Protocol):
+    def check(self) -> tuple[bool, str | None]:
+        """
+        Returns (triggered, reason_str)
+        """
+You will implement multiple evaluators:
+
+DrawdownEmergencyEvaluator
+
+SystemHealthEmergencyEvaluator
+
+ExecutionErrorEmergencyEvaluator
+
+DataFeedEmergencyEvaluator
+
+ManualTriggerEmergencyEvaluator (optional)
+
+Controller:
+python
+Kopier kode
+class EmergencyStopController:
+    def __init__(
+        self,
+        policy_store: PolicyStore,
+        exchange: ExchangeClient,
+        event_bus: EventBus,
+    ): ...
+
+    async def activate(self, reason: str) -> None:
+        """
+        Activates ESS, cancels orders, closes positions, writes policy, publishes event.
+        """
+
+    async def reset(self) -> None:
+        """
+        Deactivates ESS manually.
+        """
+Exchange interface:
+python
+Kopier kode
+class ExchangeClient(Protocol):
+    async def close_all_positions(self) -> None: ...
+    async def cancel_all_orders(self) -> None: ...
+State management
+ESS must maintain:
+
+python
+Kopier kode
+@dataclass
+class EmergencyState:
+    active: bool
+    reason: str | None
+    timestamp: datetime | None
+This state must be stored in PolicyStore under:
+
+arduino
+Kopier kode
+"emergency_stop": {...}
+Event Types
+Implement:
+
+python
+Kopier kode
+@dataclass
+class EmergencyStopEvent(Event):
+    type: str = "emergency.stop"
+
+@dataclass
+class EmergencyResetEvent(Event):
+    type: str = "emergency.reset"
+ESS Runner (Main Control Loop)
+Implement:
+
+python
+Kopier kode
+class EmergencyStopSystem:
+    def __init__(
+        self,
+        evaluators: list[EmergencyConditionEvaluator],
+        controller: EmergencyStopController,
+        policy_store: PolicyStore,
+        check_interval_sec: int = 5,
+    ): ...
+
+    async def run_forever(self) -> None:
+        """
+        Every N seconds:
+            - Evaluate all emergency conditions
+            - If any triggered → controller.activate(reason)
+        """
+Example Fake Classes to Demonstrate
+Implement simple fakes:
+
+FakeExchangeClient
+
+FakePolicyStore
+
+FakeEventBus
+
+FakeHealthEvaluator (returns triggered=True sometimes)
+
+Then run:
+
+python
+Kopier kode
+async def main():
+    evaluators = [FakeHealthEvaluator()]
+    ess = EmergencyStopSystem(
+        evaluators=evaluators,
+        controller=fake_controller,
+        policy_store=fake_policy_store
+    )
+
+    asyncio.create_task(ess.run_forever())
+
+    # simulate health failing after 3 seconds…
+    await asyncio.sleep(3)
+    evaluators[0].fail = True
+Required Output
+Sonnet’s output MUST include:
+
+Restatement (2–3 sentences) of ESS role
+
+Class architecture description
+
+Full code:
+
+dataclasses
+
+evaluator classes
+
+controller
+
+state machine
+
+ESS runner (async)
+
+fake example objects
+
+Example runnable async demonstration
+
+Clean, fully typed Python 3.11 code

@@ -35,25 +35,28 @@ class SimpleNHiTS(nn.Module):
         # Flatten sequence
         self.flatten = nn.Flatten()
         
-        # Simple MLP
-        self.mlp = nn.Sequential(
-            nn.Linear(input_size * num_features, hidden_size),
-            nn.LayerNorm(hidden_size),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            
-            nn.Linear(hidden_size, hidden_size // 2),
-            nn.LayerNorm(hidden_size // 2),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            
-            nn.Linear(hidden_size // 2, 64),
-            nn.LayerNorm(64),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            
-            nn.Linear(64, 3)  # BUY/HOLD/SELL
-        )
+        # Block-based MLP (matches checkpoint from Dec 13)
+        self.blocks = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(input_size * num_features, hidden_size),
+                nn.LayerNorm(hidden_size),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_size, hidden_size // 2),
+                nn.LayerNorm(hidden_size // 2),
+                nn.ReLU()
+            ),
+            nn.Sequential(
+                nn.Dropout(dropout),
+                nn.Linear(hidden_size // 2, 64),
+                nn.LayerNorm(64),
+                nn.ReLU()
+            ),
+            nn.Sequential(
+                nn.Dropout(dropout)
+            )
+        ])
+        self.output_layer = nn.Linear(64, 3)  # BUY/HOLD/SELL
         
         # Conservative init
         self.apply(self._init_weights)
@@ -79,8 +82,11 @@ class SimpleNHiTS(nn.Module):
         # Flatten
         x_flat = self.flatten(x)  # [batch, seq_len * num_features]
         
-        # MLP
-        logits = self.mlp(x_flat)
+        # Blocks (matches checkpoint structure)
+        x = x_flat
+        for block in self.blocks:
+            x = block(x)
+        logits = self.output_layer(x)
         
         # Dummy forecast for compatibility
         dummy_forecast = logits[:, :1]  # Just take first logit

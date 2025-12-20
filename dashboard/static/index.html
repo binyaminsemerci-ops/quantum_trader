@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quantum Trader V3 Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 100%);
+      color: #eee;
+      padding: 2rem;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 0.5rem;
+      font-size: 2.5rem;
+      color: #00d4ff;
+      text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+    }
+    .subtitle {
+      text-align: center;
+      margin-bottom: 2rem;
+      color: #888;
+      font-size: 0.9rem;
+    }
+    .status-bar {
+      background: rgba(0, 212, 255, 0.1);
+      border: 1px solid #00d4ff;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+    .status-bar .timestamp {
+      font-size: 0.85rem;
+      color: #aaa;
+    }
+    .containers {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .containers h3 {
+      margin-bottom: 1rem;
+      color: #00d4ff;
+      font-size: 1.3rem;
+    }
+    .containers ul {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 0.75rem;
+    }
+    .containers li {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 0.75rem;
+      border-radius: 6px;
+      border-left: 3px solid #00d4ff;
+      font-size: 0.9rem;
+    }
+    .containers li.running {
+      border-left-color: #00ff88;
+    }
+    .containers li.stopped {
+      border-left-color: #ff4444;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-bottom: 2rem;
+    }
+    .chart-container {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 1.5rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .chart-container h3 {
+      margin-bottom: 1rem;
+      color: #00d4ff;
+      font-size: 1.1rem;
+      text-align: center;
+    }
+    canvas {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+    }
+    .error {
+      background: rgba(255, 68, 68, 0.2);
+      border: 1px solid #ff4444;
+      color: #ff8888;
+      padding: 1rem;
+      border-radius: 8px;
+      text-align: center;
+      margin: 2rem 0;
+    }
+    @media (max-width: 768px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      h1 {
+        font-size: 1.8rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>🧠 Quantum Trader V3 Dashboard</h1>
+  <div class="subtitle">Real-Time Monitoring & Status</div>
+  
+  <div class="status-bar">
+    <div id="statusText">Loading...</div>
+    <div class="timestamp" id="timestamp"></div>
+  </div>
+
+  <div class="containers" id="containersSection">
+    <h3>📦 Container Status</h3>
+    <ul id="containers"></ul>
+  </div>
+
+  <div class="grid">
+    <div class="chart-container">
+      <h3>💻 CPU Usage</h3>
+      <canvas id="cpuChart"></canvas>
+    </div>
+    <div class="chart-container">
+      <h3>🧠 Memory Usage</h3>
+      <canvas id="memChart"></canvas>
+    </div>
+  </div>
+
+  <div style="background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; border: 1px solid rgba(255, 255, 255, 0.1);">
+    <h2 style="color: #00d4ff; margin-bottom: 1rem; font-size: 1.5rem;">📋 Audit & Reports</h2>
+    <div style="margin-bottom: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+      <button onclick="loadAudit()" style="background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0, 212, 255, 0.3); transition: all 0.3s;">
+        📊 View Audit Log
+      </button>
+      <button onclick="loadReport()" style="background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%); color: #111; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0, 255, 136, 0.3); transition: all 0.3s;">
+        📄 View Weekly Report
+      </button>
+      <input id="searchBox" type="text" placeholder="Filter e.g. database, xgboost, grafana" style="flex: 1; min-width: 260px; padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(0, 212, 255, 0.5); background: rgba(255, 255, 255, 0.05); color: #eee; font-size: 0.95rem;">
+      <button onclick="filterAudit()" style="background: linear-gradient(135deg, #ff9500 0%, #ff6600 100%); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(255, 149, 0, 0.3); transition: all 0.3s;">
+        🔍 Search
+      </button>
+      <button onclick="clearFilter()" style="background: rgba(255, 255, 255, 0.1); color: #eee; border: 1px solid rgba(255, 255, 255, 0.3); padding: 0.75rem 1.5rem; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: bold; transition: all 0.3s;">
+        ✕ Clear
+      </button>
+    </div>
+    <pre id="auditBox" style="background: #0f0f0f; color: #9f9; border: 1px solid rgba(0, 212, 255, 0.3); border-radius: 8px; padding: 1rem; max-height: 500px; overflow: auto; text-align: left; font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);">Click a button above to view audit logs or weekly reports...</pre>
+  </div>
+
+  <script>
+    // Chart.js configuration
+    const chartOptions = {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          display: false
+        }
+      },
+      scales: {
+        y: {
+          min: 0,
+          max: 100,
+          ticks: {
+            color: '#aaa',
+            callback: function(value) {
+              return value + '%';
+            }
+          },
+          grid: {
+            color: 'rgba(255, 255, 255, 0.1)'
+          }
+        },
+        x: {
+          ticks: {
+            color: '#aaa',
+            maxRotation: 45,
+            minRotation: 45
+          },
+          grid: {
+            color: 'rgba(255, 255, 255, 0.1)'
+          }
+        }
+      }
+    };
+
+    // Initialize CPU chart
+    const cpuChart = new Chart(document.getElementById('cpuChart'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'CPU %',
+          data: [],
+          borderColor: '#00d4ff',
+          backgroundColor: 'rgba(0, 212, 255, 0.1)',
+          borderWidth: 2,
+          tension: 0.4,
+          fill: true
+        }]
+      },
+      options: chartOptions
+    });
+
+    // Initialize Memory chart
+    const memChart = new Chart(document.getElementById('memChart'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Memory %',
+          data: [],
+          borderColor: '#00ff88',
+          backgroundColor: 'rgba(0, 255, 136, 0.1)',
+          borderWidth: 2,
+          tension: 0.4,
+          fill: true
+        }]
+      },
+      options: chartOptions
+    });
+
+    let fetchCount = 0;
+    let errorCount = 0;
+
+    async function fetchStatus() {
+      try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+        
+        if (data.error) {
+          console.error('API Error:', data.error);
+          document.getElementById('statusText').innerHTML = 
+            `<span style="color: #ff4444;">⚠️ Error: ${data.error}</span>`;
+          errorCount++;
+          return;
+        }
+
+        // Reset error count on success
+        errorCount = 0;
+        fetchCount++;
+
+        // Update status bar
+        document.getElementById('statusText').innerHTML = 
+          `<span style="color: #00ff88;">✅ System Online</span> (${fetchCount} updates)`;
+        document.getElementById('timestamp').textContent = 
+          `Last update: ${new Date(data.timestamp).toLocaleString()}`;
+
+        // Update charts
+        const timeLabel = new Date(data.timestamp).toLocaleTimeString();
+        
+        // CPU chart
+        cpuChart.data.labels.push(timeLabel);
+        cpuChart.data.datasets[0].data.push(data.system.cpu_percent);
+        
+        // Memory chart
+        memChart.data.labels.push(timeLabel);
+        memChart.data.datasets[0].data.push(data.system.mem_percent);
+        
+        // Keep only last 20 data points
+        if (cpuChart.data.labels.length > 20) {
+          cpuChart.data.labels.shift();
+          cpuChart.data.datasets[0].data.shift();
+          memChart.data.labels.shift();
+          memChart.data.datasets[0].data.shift();
+        }
+        
+        cpuChart.update('none'); // 'none' mode for performance
+        memChart.update('none');
+
+        // Update container list
+        const containersHtml = data.containers.map(container => {
+          const statusClass = container.status.toLowerCase().includes('running') ? 'running' : 'stopped';
+          const statusIcon = statusClass === 'running' ? '✅' : '⚠️';
+          return `<li class="${statusClass}">${statusIcon} <strong>${container.name}</strong>: ${container.status}</li>`;
+        }).join('');
+        
+        document.getElementById('containers').innerHTML = containersHtml;
+
+      } catch (error) {
+        console.error('Fetch error:', error);
+        errorCount++;
+        document.getElementById('statusText').innerHTML = 
+          `<span style="color: #ff4444;">⚠️ Connection Error</span> (${errorCount} failures)`;
+      }
+    }
+
+    // Fetch immediately on load
+    fetchStatus();
+
+    // Then fetch every 15 seconds
+    setInterval(fetchStatus, 15000);
+
+    // Audit viewer functions with smart search
+    let auditRaw = "";
+
+    async function loadAudit() {
+      const auditBox = document.getElementById('auditBox');
+      auditBox.textContent = 'Loading audit log...';
+      auditBox.style.color = '#aaa';
+      
+      try {
+        const res = await fetch('/api/audit');
+        auditRaw = await res.text();
+        auditBox.innerHTML = auditRaw.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        auditBox.style.color = '#9f9';
+      } catch (error) {
+        auditBox.textContent = `Error loading audit log: ${error.message}`;
+        auditBox.style.color = '#f99';
+      }
+    }
+
+    async function loadReport() {
+      const auditBox = document.getElementById('auditBox');
+      auditBox.textContent = 'Loading weekly report...';
+      auditBox.style.color = '#aaa';
+      
+      try {
+        const res = await fetch('/api/reports');
+        const text = await res.text();
+        auditBox.innerHTML = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        auditBox.style.color = '#9cf';
+      } catch (error) {
+        auditBox.textContent = `Error loading weekly report: ${error.message}`;
+        auditBox.style.color = '#f99';
+      }
+    }
+
+    function filterAudit() {
+      const q = document.getElementById('searchBox').value.trim();
+      if (!q) {
+        clearFilter();
+        return;
+      }
+      
+      const regex = new RegExp(q, 'ig');
+      const filtered = auditRaw.split('\n')
+        .filter(line => regex.test(line))
+        .map(line => {
+          return line.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                     .replace(regex, m => `<mark style='background:yellow;color:black;padding:2px 4px;border-radius:3px'>${m}</mark>`);
+        })
+        .join('\n');
+      
+      const auditBox = document.getElementById('auditBox');
+      auditBox.innerHTML = filtered || "<span style='color:#f99'>(no matches found)</span>";
+    }
+
+    function clearFilter() {
+      document.getElementById('searchBox').value = '';
+      const auditBox = document.getElementById('auditBox');
+      auditBox.innerHTML = auditRaw.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      auditBox.style.color = '#9f9';
+    }
+
+    // Auto-refresh audit log every 10 minutes (600000 ms)
+    setInterval(loadAudit, 600000);
+
+    // ---- Real-time WebSocket Audit Streaming ----
+    let socket;
+    let wsEnabled = false;
+    
+    function startWebSocket() {
+      const loc = window.location;
+      const proto = loc.protocol === "https:" ? "wss://" : "ws://";
+      const wsUrl = proto + loc.host + "/ws/audit";
+      
+      console.log('🔌 Connecting to WebSocket:', wsUrl);
+      
+      try {
+        socket = new WebSocket(wsUrl);
+        
+        socket.onopen = () => {
+          console.log('✅ WebSocket connected - Real-time audit streaming active');
+          wsEnabled = true;
+        };
+        
+        socket.onmessage = (event) => {
+          // Append new log data in real-time
+          const newData = event.data;
+          auditRaw += newData;
+          
+          const auditBox = document.getElementById('auditBox');
+          const searchBox = document.getElementById('searchBox');
+          
+          // If no active filter, append new data
+          if (!searchBox.value.trim()) {
+            const escapedData = newData.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            auditBox.innerHTML += escapedData;
+            
+            // Auto-scroll to bottom
+            auditBox.scrollTop = auditBox.scrollHeight;
+          } else {
+            // Re-apply filter with new data
+            filterAudit();
+          }
+          
+          console.log('📡 New audit data received:', newData.length, 'bytes');
+        };
+        
+        socket.onerror = (error) => {
+          console.error('❌ WebSocket error:', error);
+          wsEnabled = false;
+        };
+        
+        socket.onclose = () => {
+          console.log('🔌 WebSocket disconnected - Reconnecting in 5 seconds...');
+          wsEnabled = false;
+          setTimeout(startWebSocket, 5000); // Auto-reconnect after 5 seconds
+        };
+        
+      } catch (error) {
+        console.error('❌ Failed to create WebSocket:', error);
+        setTimeout(startWebSocket, 5000);
+      }
+    }
+    
+    // Start WebSocket connection when page loads
+    startWebSocket();
+  </script>
+</body>
+</html>

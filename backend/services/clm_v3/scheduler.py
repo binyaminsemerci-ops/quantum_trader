@@ -46,7 +46,18 @@ class TrainingScheduler:
             config: Scheduler configuration
         """
         self.registry = registry
-        self.config = config or self._default_config()
+        
+        # Merge provided config with defaults (deep merge for nested dicts)
+        default_config = self._default_config()
+        if config:
+            # Merge top-level keys
+            for key, value in config.items():
+                if key in default_config and isinstance(default_config[key], dict) and isinstance(value, dict):
+                    # Deep merge for nested dicts like "periodic_training"
+                    default_config[key].update(value)
+                else:
+                    default_config[key] = value
+        self.config = default_config
         
         # State
         self.last_training: Dict[str, datetime] = {}  # {model_id: last_trained_at}
@@ -120,10 +131,13 @@ class TrainingScheduler:
     async def _scheduler_loop(self):
         """Main scheduler loop - checks for training needs periodically."""
         interval_seconds = self.config["check_interval_minutes"] * 60
+        logger.info(f"[CLM v3 Scheduler] Loop started - will check every {interval_seconds}s ({interval_seconds/60:.1f} min)")
         
         while self._running:
             try:
+                logger.info(f"[CLM v3 Scheduler] 🔍 Running periodic training check...")
                 await self._check_periodic_training()
+                logger.info(f"[CLM v3 Scheduler] ✅ Check complete - sleeping {interval_seconds}s")
             except Exception as e:
                 logger.error(f"[CLM v3 Scheduler] Error in scheduler loop: {e}", exc_info=True)
             
@@ -136,6 +150,8 @@ class TrainingScheduler:
         
         now = datetime.utcnow()
         periodic_config = self.config["periodic_training"]
+        
+        logger.debug(f"[CLM v3 Scheduler] 🔍 Checking for models needing periodic training...")
         
         # Check each model type
         for model_type in ModelType:

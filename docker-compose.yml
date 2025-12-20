@@ -10,12 +10,13 @@ services:
       - .env
     environment:
       # Sørg for at Python finner backend/ som modul
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app/backend
+      - GO_LIVE=true
       - QT_ADMIN_TOKEN=${QT_ADMIN_TOKEN:-dev-admin}
       
       # 🔐 BINANCE TESTNET API CREDENTIALS
-      - BINANCE_API_KEY=xOPqaf2iSKt4gVuScoebb3wDBm0R9gw0qSPtpHYnJNzcahTSL58b4QZcC4dsJ5eX
-      - BINANCE_API_SECRET=hwyeOL1BHBMv5jLmCEemg2OQNUb8dUAyHgamOftcS9oFDfc605SX1IZs294zvNmZ
+      - BINANCE_API_KEY=IsY3mFpko7Z8joZr8clWwpJZuZcFdAtnDBy4g4ULQu827Gf6kJPAPS9VyVOVrR0r
+      - BINANCE_API_SECRET=tEKYWf77tqSOArfgeSqgVwiO62bjro8D1VMaEvXBwcUOQuRxmCdxrtTvAXy7ZKSE
       - BINANCE_TESTNET=true
       - BINANCE_USE_TESTNET=true
       - EXCHANGE_MODE=binance_testnet
@@ -24,6 +25,10 @@ services:
       # 🤖 AI MODEL SELECTION (NEW!)
       - AI_MODEL=hybrid                    # 🚀 HYBRID: TFT (60%) + XGBoost (40%) ensemble
                                             # Options: xgb (fast), tft (temporal), hybrid (best)
+      
+      # 🧠 AI HEDGE FUND OS BRAINS (PHASE 2 INTEGRATION)
+      - ENABLE_BRAINS=true                 # ✅ Activate CEO, Strategy, Risk Brains
+      - CEO_MODE=ACTIVE                    # CEO Brain operating mode control
       
       # 🎯 SIGNAL QUALITY SETTINGS (RAISED FOR BETTER TRADES - 2025-12-08)
       - QT_EVENT_DRIVEN_MODE=true
@@ -100,7 +105,7 @@ services:
       - QT_RL_V3_SHADOW_MODE=false                 # Disable shadow mode = LIVE TRADING with RL v3!
       - QT_RL_V3_TRAINING_ENABLED=true             # Enable live training
       - QT_RL_V3_CHECKPOINT_DIR=/app/models/rl_v3  # Model checkpoint directory
-      - QT_RL_V3_UPDATE_INTERVAL=100               # Update policy every 100 steps
+      - QT_RL_V3_UPDATE_INTERVAL=10                # ⚡ Update policy every 10 steps (was 100)
       
       # 🧠 EXIT BRAIN V3: Unified TP/SL/Trailing orchestrator
       - EXIT_BRAIN_V3_ENABLED=true                 # ✅ ENABLED: Exit Brain v3 active (unified TP/SL orchestration)
@@ -116,9 +121,9 @@ services:
       
       # 🎓 CLM (Continuous Learning Manager) - Central ML/AI orchestrator
       - QT_CLM_ENABLED=true                 # ✅ ACTIVATE CLM for XGBoost/LightGBM/N-HiTS/PatchTST
-      - QT_CLM_RETRAIN_HOURS=168            # Weekly scheduled retraining (168h = 7 days)
-      - QT_CLM_DRIFT_HOURS=24               # Drift check every 24 hours
-      - QT_CLM_PERF_HOURS=6                 # Performance check every 6 hours
+      - QT_CLM_RETRAIN_HOURS=0.5            # ⚡ AGGRESSIVE: Retrain every 30 minutes (was 168h = 7 days)
+      - QT_CLM_DRIFT_HOURS=0.25             # ⚡ Check drift every 15 minutes (was 24h)
+      - QT_CLM_PERF_HOURS=0.17              # ⚡ Check performance every 10 minutes (was 6h)
       - QT_CLM_DRIFT_THRESHOLD=0.05         # Trigger retraining if drift score > 0.05
       - QT_CLM_SHADOW_MIN=100               # Min 100 predictions before shadow promotion
       - QT_CLM_AUTO_RETRAIN=true            # Auto-trigger retraining on drift/performance
@@ -163,7 +168,8 @@ services:
     env_file:
       - ./backend/.env.live
     environment:
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app/backend
+      - GO_LIVE=true
       # Hardening: limit workers to 1 so APScheduler runs once
       - UVICORN_WORKERS=1
     # Use Dockerfile's default CMD (uvicorn backend.main:app)
@@ -191,7 +197,7 @@ services:
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app/backend
       - LOG_LEVEL=INFO
       # Strategy generation config
       - GENERATION_INTERVAL_HOURS=24     # Run new generation every 24 hours
@@ -216,7 +222,7 @@ services:
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app/backend
       - LOG_LEVEL=INFO
       # Shadow testing config
       - SHADOW_INTERVAL_MINUTES=15       # Test every 15 minutes
@@ -242,7 +248,7 @@ services:
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app/backend
       - LOG_LEVEL=INFO
       - METRICS_PORT=9090
       - METRICS_UPDATE_INTERVAL=60
@@ -266,7 +272,7 @@ services:
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app/backend
       - LOG_LEVEL=INFO
     volumes:
       - ./scripts:/app/scripts
@@ -347,21 +353,23 @@ services:
   # Service #1: Risk & Safety Management (PolicyStore + ESS)
   risk-safety:
     build:
-      context: ./microservices/risk_safety
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: microservices/risk_safety/Dockerfile
     container_name: quantum_risk_safety
     restart: unless-stopped
     profiles: ["microservices"]
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app/backend
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - PORT=8005
     ports:
-      - "8003:8003"
+      - "8005:8005"
     volumes:
-      - ./microservices/risk_safety:/app
+      - ./microservices/risk_safety:/app/microservices/risk_safety
+      - ./backend:/app/backend
       - ./logs:/app/logs
       - ./data:/app/data
     networks:
@@ -370,7 +378,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8003/health')"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8005/health')"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -386,11 +394,14 @@ services:
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app/backend
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - RISK_SAFETY_SERVICE_URL=http://risk-safety:8003
       - USE_BINANCE_TESTNET=true
+      - EXECUTION_MODE=${EXECUTION_MODE:-TESTNET}
+      - BINANCE_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET}
     ports:
       - "8002:8002"
     volumes:
@@ -411,6 +422,36 @@ services:
       timeout: 5s
       retries: 3
 
+  # Service #2b: CLM v3 - Continuous Learning Manager
+  clm:
+    build:
+      context: .
+      dockerfile: microservices/clm/Dockerfile
+    container_name: quantum_clm
+    restart: unless-stopped
+    profiles: ["microservices"]
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_URL=redis://redis:6379
+      - MODELS_DIR=/app/models
+      - CLM_METADATA_DIR=/app/data/clm_v3/registry
+      - QT_CLM_RETRAIN_HOURS=${QT_CLM_RETRAIN_HOURS:-0.5}
+      - QT_CLM_DRIFT_HOURS=${QT_CLM_DRIFT_HOURS:-0.25}
+      - QT_CLM_PERF_HOURS=${QT_CLM_PERF_HOURS:-0.17}
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./backend:/app/backend
+      - ./ai_engine:/app/ai_engine
+      - ./microservices/clm:/app/microservices/clm
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+
   # Service #3: Portfolio Intelligence (Aggregator + PnL + Exposure)
   portfolio-intelligence:
     build:
@@ -422,16 +463,16 @@ services:
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app/backend
       
       # 🔐 BINANCE TESTNET API CREDENTIALS (with PORTFOLIO_ prefix for Pydantic)
-      - PORTFOLIO_BINANCE_API_KEY=xOPqaf2iSKt4gVuScoebb3wDBm0R9gw0qSPtpHYnJNzcahTSL58b4QZcC4dsJ5eX
-      - PORTFOLIO_BINANCE_API_SECRET=hwyeOL1BHBMv5jLmCEemg2OQNUb8dUAyHgamOftcS9oFDfc605SX1IZs294zvNmZ
+      - PORTFOLIO_BINANCE_API_KEY=IsY3mFpko7Z8joZr8clWwpJZuZcFdAtnDBy4g4ULQu827Gf6kJPAPS9VyVOVrR0r
+      - PORTFOLIO_BINANCE_API_SECRET=tEKYWf77tqSOArfgeSqgVwiO62bjro8D1VMaEvXBwcUOQuRxmCdxrtTvAXy7ZKSE
       - PORTFOLIO_USE_TESTNET=true
       
       # Also set without prefix as fallback
-      - BINANCE_API_KEY=xOPqaf2iSKt4gVuScoebb3wDBm0R9gw0qSPtpHYnJNzcahTSL58b4QZcC4dsJ5eX
-      - BINANCE_API_SECRET=hwyeOL1BHBMv5jLmCEemg2OQNUb8dUAyHgamOftcS9oFDfc605SX1IZs294zvNmZ
+      - BINANCE_API_KEY=IsY3mFpko7Z8joZr8clWwpJZuZcFdAtnDBy4g4ULQu827Gf6kJPAPS9VyVOVrR0r
+      - BINANCE_API_SECRET=tEKYWf77tqSOArfgeSqgVwiO62bjro8D1VMaEvXBwcUOQuRxmCdxrtTvAXy7ZKSE
       - BINANCE_TESTNET=true
       - USE_TESTNET=true
       
@@ -471,7 +512,7 @@ services:
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app/backend
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - RISK_SAFETY_SERVICE_URL=http://risk-safety:8003

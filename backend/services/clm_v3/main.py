@@ -91,6 +91,7 @@ class ClmV3Service:
         )
         
         self._running = False
+        self._job_processor_task: Optional[asyncio.Task] = None
         
         logger.info("[CLM v3] Service initialized successfully")
     
@@ -109,7 +110,15 @@ class ClmV3Service:
             
             "scheduler": {
                 "enabled": True,
-                "check_interval_minutes": 30,
+                "check_interval_minutes": 5,  # Check every 5 min (fast for testing)
+                "periodic_training": {
+                    "enabled": True,
+                    "xgboost_interval_hours": 6,  # Every 6 hours (testing)
+                    "lightgbm_interval_hours": 6,
+                    "nhits_interval_hours": 12,
+                    "patchtst_interval_hours": 12,
+                    "rl_v3_interval_hours": 4,  # Every 4 hours
+                },
             },
             
             "evolution": {
@@ -146,7 +155,11 @@ class ClmV3Service:
         if self.config["scheduler"]["enabled"]:
             await self.scheduler.start()
         
+        # Start job processor (polls pending jobs and executes them)
         self._running = True
+        self._job_processor_task = asyncio.create_task(self._job_processor_loop())
+        logger.info("[CLM v3] Job processor started")
+        
         logger.info("[CLM v3] ✅ Service started")
     
     async def stop(self):
@@ -155,6 +168,15 @@ class ClmV3Service:
             return
         
         logger.info("[CLM v3] Stopping service...")
+        
+        # Stop job processor
+        if self._job_processor_task:
+            self._job_processor_task.cancel()
+            try:
+                await self._job_processor_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("[CLM v3] Job processor stopped")
         
         # Stop scheduler
         await self.scheduler.stop()
@@ -165,6 +187,58 @@ class ClmV3Service:
         
         self._running = False
         logger.info("[CLM v3] Service stopped")
+    
+    # ========================================================================
+    # Job Processing Loop
+    # ========================================================================
+    
+    async def _job_processor_loop(self):
+        """
+        Background task that polls for pending training jobs and executes them.
+        
+        This is the critical missing piece that connects scheduler → orchestrator.
+        Scheduler creates jobs with status="pending", this loop picks them up.
+        """
+        logger.info("[CLM v3 Job Processor] Starting job processor loop...")
+        
+        while self._running:
+            try:
+                # Poll for pending jobs
+                pending_jobs = self.registry.list_training_jobs(status="pending", limit=10)
+                
+                if pending_jobs:
+                    logger.info(
+                        f"[CLM v3 Job Processor] Found {len(pending_jobs)} pending training jobs"
+                    )
+                
+                for job in pending_jobs:
+                    # Double-check status (might have been picked up by another instance)
+                    current_job = self.registry.get_training_job(job.id)
+                    if not current_job or current_job.status != "pending":
+                        continue  # Already being processed or completed
+                    
+                    logger.info(
+                        f"[CLM v3 Job Processor] 🚀 Starting training job {job.id}: "
+                        f"model={job.model_type.value}, trigger={job.trigger_reason.value}, "
+                        f"triggered_by={job.triggered_by}"
+                    )
+                    
+                    # Start training in background (orchestrator will update job status)
+                    asyncio.create_task(self.orchestrator.handle_training_job(job))
+                    
+                    # Small delay to avoid race conditions
+                    await asyncio.sleep(2)
+            
+            except Exception as e:
+                logger.error(
+                    f"[CLM v3 Job Processor] Error in job processor loop: {e}",
+                    exc_info=True
+                )
+            
+            # Poll every 60 seconds
+            await asyncio.sleep(60)
+        
+        logger.info("[CLM v3 Job Processor] Job processor loop stopped")
     
     # ========================================================================
     # EventBus Integration

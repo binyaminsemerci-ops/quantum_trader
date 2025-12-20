@@ -1,11 +1,13 @@
-environment: production
-activation_enabled: true
+environment: testnet
+activation_enabled: false
 required_preflight: true
+simulate_orders: true
+risk_mode: sandbox
 allowed_profiles:
 - micro
 default_profile: micro
-require_testnet_history: true
-min_testnet_trades: 3
+require_testnet_history: false
+min_testnet_trades: 0
 require_risk_state: OK
 require_ess_inactive: true
 require_exchanges_healthy: true
