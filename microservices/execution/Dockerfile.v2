@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/core/event_bus.py /app/backend/core/event_bus.py
 COPY backend/core/eventbus /app/backend/core/eventbus
 COPY microservices/execution/*.py /app/microservices/execution/
+COPY microservices/execution/exit_brain_v3 /app/microservices/execution/exit_brain_v3
 
 # Create __init__.py files
 RUN mkdir -p /app/backend/core && \

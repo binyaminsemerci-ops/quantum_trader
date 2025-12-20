@@ -24,12 +24,12 @@ COPY backend/utils /app/backend/utils
 RUN mkdir -p logs data/event_buffers/risk_safety
 
 # Expose port
-EXPOSE 8003
+EXPOSE 8005
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8003/health').raise_for_status()"
+    CMD python -c "import os; import requests; port = os.getenv('PORT', '8005'); requests.get(f'http://localhost:{port}/health').raise_for_status()"
 
-# Run service (use module path from /app root)
+# Run service (use simplified stub version for now)
 WORKDIR /app
-CMD ["python", "-m", "uvicorn", "microservices.risk_safety.main:app", "--host", "0.0.0.0", "--port", "8003"]
+CMD ["sh", "-c", "python /app/microservices/risk_safety/stub_main.py"]

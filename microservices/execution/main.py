@@ -20,11 +20,21 @@ from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import REGISTRY, generate_latest, CONTENT_TYPE_LATEST
 
-from .service import ExecutionService
+from .service_v2 import ExecutionService
 from . import api
 from .config import settings
 
 # [EPIC-OBS-001] Initialize observability (tracing, metrics, structured logging)
+# CRITICAL: Always ensure logging works, even if observability fails
+import os
+
+# Ensure log directory exists
+try:
+    os.makedirs(settings.LOG_DIR, exist_ok=True)
+except Exception as e:
+    print(f"[WARNING] Could not create log directory {settings.LOG_DIR}: {e}")
+
+# Try observability first
 try:
     from backend.infra.observability import (
         init_observability,
@@ -33,20 +43,8 @@ try:
         add_metrics_middleware,
     )
     OBSERVABILITY_AVAILABLE = True
-except ImportError:
-    OBSERVABILITY_AVAILABLE = False
-    # Fallback to basic logging
-    logging.basicConfig(
-        level=getattr(logging, settings.LOG_LEVEL),
-        format='[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s',
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler(f'{settings.LOG_DIR}/execution_service.log')
-        ]
-    )
-
-# Initialize observability at module level
-if OBSERVABILITY_AVAILABLE:
+    
+    # Initialize observability
     init_observability(
         service_name="execution",
         log_level=settings.LOG_LEVEL,
@@ -54,7 +52,32 @@ if OBSERVABILITY_AVAILABLE:
         enable_metrics=True,
     )
     logger = get_logger(__name__)
-else:
+    
+    # IMPORTANT: Also add stdout handler to ensure we see logs in docker logs
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(getattr(logging, settings.LOG_LEVEL, logging.INFO))
+    console_handler.setFormatter(logging.Formatter('[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s'))
+    logging.getLogger().addHandler(console_handler)
+    
+except Exception as e:
+    print(f"[WARNING] Observability init failed: {e}, using basic logging")
+    OBSERVABILITY_AVAILABLE = False
+    
+    # Fallback to basic logging (ALWAYS works)
+    handlers = [logging.StreamHandler(sys.stdout)]
+    
+    # Try to add file handler, but don't crash if it fails
+    try:
+        handlers.append(logging.FileHandler(f'{settings.LOG_DIR}/execution_service.log'))
+    except Exception as file_err:
+        print(f"[WARNING] Could not create file handler: {file_err}")
+    
+    logging.basicConfig(
+        level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
+        format='[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s',
+        handlers=handlers,
+        force=True  # Override any existing config
+    )
     logger = logging.getLogger(__name__)
 
 # Global service instance
@@ -67,17 +90,28 @@ async def lifespan(app: FastAPI):
     global service
     
     # Startup
-    logger.info("=" * 60)
-    logger.info("EXECUTION SERVICE STARTING")
-    logger.info(f"Version: {settings.VERSION}")
-    logger.info(f"Port: {settings.PORT}")
-    logger.info(f"Environment: {'TESTNET' if settings.USE_BINANCE_TESTNET else 'MAINNET'}")
-    logger.info("=" * 60)
-    
+    print("[DEBUG] Lifespan startup CALLED")
     try:
+        print(f"[DEBUG] Settings loaded: VERSION={settings.VERSION}")
+        print("[DEBUG] About to call logger.info()")
+        logger.info("=" * 60)
+        logger.info("EXECUTION SERVICE STARTING")
+        logger.info(f"Version: {settings.VERSION}")
+        logger.info(f"Port: {settings.PORT}")
+        testnet_mode = getattr(settings, 'USE_BINANCE_TESTNET', False)
+        logger.info(f"Environment: {'TESTNET' if testnet_mode else 'MAINNET'}")
+        logger.info("=" * 60)
+        print("[DEBUG] Logger.info() calls completed")
+        
         # Initialize service
-        service = ExecutionService()
+        print("[DEBUG] Initializing ExecutionService...")
+        logger.info("[EXECUTION] Initializing ExecutionService...")
+        service = ExecutionService(settings)
+        print("[DEBUG] ExecutionService created, calling start()...")
+        logger.info("[EXECUTION] service.start() INVOKED")
         await service.start()
+        print("[DEBUG] service.start() completed!")
+        logger.info("[EXECUTION] ✅ service.start() COMPLETED - Consumer loop running")
         
         # Register shutdown handler
         loop = asyncio.get_running_loop()
@@ -143,9 +177,23 @@ async def health_check():
     Returns full health status. Use /health/ready for K8s readiness probes.
     """
     if service is None:
-        return {"status": "starting", "healthy": False}
+        return {"status": "starting", "healthy": False, "consumer_started": False}
     
-    return await service.get_health()
+    health_data = await service.get_health()
+    
+    # Add consumer status (convert ServiceHealth to dict if needed)
+    if hasattr(health_data, 'dict'):
+        health_dict = health_data.dict()
+    elif hasattr(health_data, '__dict__'):
+        health_dict = health_data.__dict__
+    else:
+        health_dict = dict(health_data) if isinstance(health_data, dict) else {}
+    
+    consumer_started = service._running and service.event_bus is not None and service.event_bus._running
+    health_dict["consumer_started"] = consumer_started
+    health_dict["event_bus_running"] = service.event_bus._running if service.event_bus else False
+    
+    return health_dict
 
 
 @app.get("/health/live", tags=["health"])
@@ -210,11 +258,6 @@ async def metrics():
 async def root():
     """Root endpoint."""
     return {
-        "service": "execution",
-        "version": settings.VERSION,
-        "status": "running",
-        "docs": "/docs"
-    }eturn {
         "service": "execution",
         "version": settings.VERSION,
         "status": "running",

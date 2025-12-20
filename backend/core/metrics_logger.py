@@ -337,3 +337,7 @@ class MetricsTimer:
         duration = time.time() - self.start_time
         success = exc_type is None
         self.metrics.record_latency(self.operation, duration, success=success)
+
+
+# Export singleton instance for direct import
+metrics_logger = get_metrics_logger()

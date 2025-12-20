@@ -40,10 +40,15 @@ async def generate_signal(request: SignalRequest):
     if not _service:
         raise HTTPException(status_code=503, detail="Service not initialized")
     
-    logger.info(f"[API] Manual signal request: {request.symbol}")
+    price_str = f"${request.price:.2f}" if request.price else "N/A"
+    logger.info(f"[API] Signal request: {request.symbol} @ {price_str}")
+    
+    # If market data provided, update price history
+    if request.price and request.price > 0:
+        await _service.update_price_history(request.symbol, request.price, request.volume or 0)
     
     try:
-        decision = await _service.generate_signal(symbol=request.symbol)
+        decision = await _service.generate_signal(symbol=request.symbol, current_price=request.price)
         
         if not decision:
             raise HTTPException(status_code=404, detail=f"No signal generated for {request.symbol}")

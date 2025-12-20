@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # Binance configuration
     BINANCE_API_KEY: str = os.getenv("BINANCE_API_KEY", "")
     BINANCE_API_SECRET: str = os.getenv("BINANCE_API_SECRET", "")
+    USE_BINANCE_TESTNET: bool = os.getenv("BINANCE_TESTNET", "false").lower() == "true"
     
     # Redis configuration (for EventBus)
     REDIS_HOST: str = os.getenv("REDIS_HOST", "redis")
@@ -37,6 +38,7 @@ class Settings(BaseSettings):
     
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_DIR: str = os.getenv("LOG_DIR", "logs")
     
     class Config:
         env_file = ".env"

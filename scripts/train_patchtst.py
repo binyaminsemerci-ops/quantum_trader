@@ -15,48 +15,40 @@ import json
 import logging
 
 from ai_engine.patchtst_model import PatchTST, PatchTSTTrainer, save_model
-from ai_engine.feature_engineer import compute_all_indicators
+from backend.shared.unified_features import get_feature_engineer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Initialize feature engineer
+feature_engineer = get_feature_engineer()
+
 
 def prepare_sequences(df: pd.DataFrame, sequence_length: int = 120):
-    """Prepare sequences for PatchTST training."""
-    # Derive needed features from compute_all_indicators output
-    df['price_change'] = df['close'].pct_change().fillna(0.0)
-    df['volume_change'] = df['volume'].pct_change().fillna(0.0)
+    """Prepare sequences for PatchTST training using unified features."""
+    # Use existing unified features - already has ema_9, ema_21, ema_50, ema_200
+    # Map to simplified 12-feature set
     
-    # Use existing MA columns and compute simple indicators
-    df['volume_ma_ratio'] = (df['volume'] / df['volume_ma_20']).fillna(1.0) if 'volume_ma_20' in df.columns else 1.0
+    df['price_change'] = df['returns']
+    df['high_low_range'] = df['price_range']
+    df['volume_change'] = df['volume'].pct_change().fillna(0)
+    df['volume_ma_ratio'] = df['volume_ratio']
     
-    # Compute EMAs from close price
-    df['ema_10'] = df['close'].ewm(span=10, adjust=False).mean()
-    df['ema_20'] = df['close'].ewm(span=20, adjust=False).mean()
-    df['ema_50'] = df['close'].ewm(span=50, adjust=False).mean()
-    df['ema_10_20_cross'] = ((df['ema_10'] - df['ema_20']) / df['close']).fillna(0.0)
-    df['ema_10_50_cross'] = ((df['ema_10'] - df['ema_50']) / df['close']).fillna(0.0)
+    # Use existing EMAs and create crosses
+    df['ema_10'] = df['ema_9']  # Use existing ema_9 as proxy for ema_10
+    df['ema_20'] = df['ema_21']  # Use existing ema_21 as proxy for ema_20
+    # ema_50 already exists
+    df['ema_10_20_cross'] = df['ema_9_dist']  # Distance from ema_9
+    df['ema_10_50_cross'] = df['ema_50_dist']  # Distance from ema_50
     
-    # Use existing volatility or compute it
-    if 'hist_vol_20' in df.columns:
-        df['volatility_20'] = df['hist_vol_20']
-    else:
-        df['volatility_20'] = df['close'].pct_change().rolling(20).std().fillna(0.0)
-    
-    # Compute MACD
-    ema_12 = df['close'].ewm(span=12, adjust=False).mean()
-    ema_26 = df['close'].ewm(span=26, adjust=False).mean()
-    df['macd'] = ema_12 - ema_26
-    df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
-    df['macd_hist'] = (df['macd'] - df['macd_signal']).fillna(0.0)
-    
-    # Fill any remaining NaN
-    df = df.ffill().bfill().fillna(0)
+    df['rsi_14'] = df['rsi']
+    df['volatility_20'] = df['volatility']
+    # macd already exists
     
     features = [
-        'price_change', 'volume_change', 'volume_ma_ratio',
+        'price_change', 'high_low_range', 'volume_change', 'volume_ma_ratio',
         'ema_10', 'ema_20', 'ema_50', 'ema_10_20_cross', 'ema_10_50_cross',
-        'volatility_20', 'macd', 'macd_signal', 'macd_hist'
+        'rsi_14', 'volatility_20', 'macd'
     ]
     
     # Verify all features exist
@@ -112,16 +104,24 @@ def main():
     symbols = df['symbol'].unique()
     logger.info(f"   Found {len(symbols)} symbols")
     
+    # Use only top 20 symbols to reduce memory usage
+    symbols = symbols[:20]
+    logger.info(f"   Training on {len(symbols)} symbols (memory optimization)")
+    
     # Process each symbol
     all_sequences = []
     all_targets = []
     
     for symbol in symbols:
         symbol_df = df[df['symbol'] == symbol].copy()
-        symbol_df = compute_all_indicators(symbol_df)
+        symbol_df = feature_engineer.compute_features(symbol_df)
         
         if len(symbol_df) < 150:
             continue
+        
+        # Debug: show available columns
+        if symbol == symbols[0]:  # Only for first symbol
+            logger.info(f"[DEBUG] Columns after compute_features: {list(symbol_df.columns)}")
         
         seqs, tgts = prepare_sequences(symbol_df, sequence_length=120)
         all_sequences.append(seqs)
@@ -160,20 +160,20 @@ def main():
     )
     
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=64, shuffle=True
+        train_dataset, batch_size=16, shuffle=True  # Reduced for memory
     )
     val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=64, shuffle=False
+        val_dataset, batch_size=16, shuffle=False
     )
     
-    # Create model
+    # Create model - reduced parameters for CPU training
     model = PatchTST(
         input_size=120,
         patch_len=12,  # 120/12 = 10 patches
-        d_model=128,
-        nhead=8,
-        num_layers=3,
-        dim_feedforward=512,
+        d_model=64,    # Reduced from 128
+        nhead=4,       # Reduced from 8
+        num_layers=2,  # Reduced from 3
+        dim_feedforward=256,  # Reduced from 512
         dropout=0.1,
         num_features=12  # Changed from 14 to match actual features
     )
@@ -186,14 +186,14 @@ def main():
     trainer = PatchTSTTrainer(model, device=device, learning_rate=0.001)
     
     # Training loop
-    logger.info("\n🏋️ Starting training for 50 epochs\n")
+    logger.info("\n🏋️ Starting training for 25 epochs (memory optimized)\n")
     
     best_val_loss = float('inf')
     patience = 10
     patience_counter = 0
     
-    for epoch in range(50):
-        logger.info(f"[CHART_UP] Epoch {epoch+1}/50")
+    for epoch in range(25):
+        logger.info(f"[CHART_UP] Epoch {epoch+1}/25")
         
         # Train
         train_loss = trainer.train_epoch(train_loader)

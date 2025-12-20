@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     RETRAIN_INTERVAL_HOURS: int = 24               # Auto-retrain every 24 hours
     
     # Confidence thresholds
-    MIN_SIGNAL_CONFIDENCE: float = 0.65   # Block signals <65%
+    MIN_SIGNAL_CONFIDENCE: float = 0.55   # Block signals <55% (lowered for testing)
     HIGH_CONFIDENCE_THRESHOLD: float = 0.85  # Flag high-confidence signals
     
     # Event processing

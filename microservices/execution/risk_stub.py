@@ -42,8 +42,17 @@ class RiskStub:
     ):
         self.enabled = enabled
         self.allowed_symbols = set(allowed_symbols or [
+            # Top 50 Major Cryptocurrencies (Megacap + High Volume)
             "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
-            "ADAUSDT", "DOGEUSDT", "MATICUSDT", "DOTUSDT", "AVAXUSDT"
+            "ADAUSDT", "DOGEUSDT", "TRXUSDT", "LINKUSDT", "AVAXUSDT",
+            "DOTUSDT", "MATICUSDT", "UNIUSDT", "LTCUSDT", "ATOMUSDT",
+            "NEARUSDT", "APTUSDT", "ARBUSDT", "OPUSDT", "SUIUSDT",
+            "SHIBUSDT", "TONUSDT", "ICPUSDT", "INJUSDT", "VETUSDT",
+            "HBARUSDT", "FILUSDT", "QNTUSDT", "ALGOUSDT", "SEIUSDT",
+            "FTMUSDT", "RENDERUSDT", "IMXUSDT", "AAVEUSDT", "LDOUSDT",
+            "RNDRUSDT", "GRTUSDT", "SANDUSDT", "MANAUSDT", "AXSUSDT",
+            "THETAUSDT", "GALAUSDT", "APEUSDT", "CHZUSDT", "EOSUSDT",
+            "XTZUSDT", "RUNEUSDT", "FLOWUSDT", "EGLDUSDT", "KLAYUSDT"
         ])
         self.max_position_usd = max_position_usd
         self.max_leverage = max_leverage

@@ -1,0 +1,33 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    docker.io \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt psutil
+
+# Copy code
+COPY backend /app/backend
+COPY models /app/models
+COPY data /app/data
+
+# Set environment
+ENV PYTHONPATH=/app
+ENV ENABLE_SELF_HEALING=true
+ENV SELF_HEALING_MODE=SAFE
+
+# Expose port
+EXPOSE 8009
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD curl -f http://localhost:8009/health || exit 1
+
+# Run service
+CMD ["python", "-m", "backend.services.self_healing_service"]

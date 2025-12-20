@@ -64,13 +64,10 @@ except ImportError:
 
 # Module 6: Continuous Learning
 try:
-    from backend.services.ai.continuous_learning_manager import (
-        ContinuousLearningManager,
-        RetrainingTrigger,
-        PerformanceMetrics
-    )
+    from backend.services.ai.continuous_learning_manager import ContinuousLearningManager
     CONTINUOUS_LEARNING_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    logger.warning(f"[CLM] Import failed: {e}")
     CONTINUOUS_LEARNING_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -91,6 +88,7 @@ class EnsembleManager:
         self,
         weights: Optional[Dict[str, float]] = None,
         min_consensus: int = 3,  # Require 3/4 models to agree
+        enabled_models: Optional[List[str]] = None,  # Models to load
         xgb_model_path: Optional[str] = None,
         xgb_scaler_path: Optional[str] = None
     ):
@@ -100,6 +98,7 @@ class EnsembleManager:
         Args:
             weights: Model weights (default: XGB=25%, LGBM=25%, NHITS=30%, PatchTST=20%)
             min_consensus: Minimum models that must agree for high confidence
+            enabled_models: List of models to load (e.g., ['xgb', 'lgbm']). If None, loads all.
             xgb_model_path: Optional custom path for XGBoost model (e.g., futures model)
             xgb_scaler_path: Optional custom path for XGBoost scaler
         """
@@ -111,8 +110,8 @@ class EnsembleManager:
         # Default weights (used if ModelSupervisor not available)
         if weights is None:
             self.default_weights = {
-                'xgboost': 0.25,
-                'lightgbm': 0.25,
+                'xgb': 0.25,
+                'lgbm': 0.25,
                 'nhits': 0.30,
                 'patchtst': 0.20
             }
@@ -124,9 +123,14 @@ class EnsembleManager:
         
         self.min_consensus = min_consensus
         
+        # Set default enabled_models if None (all models)
+        if enabled_models is None:
+            enabled_models = ['xgb', 'lgbm', 'nhits', 'patchtst']
+        
         # Initialize agents (disable their own ensemble loading - we handle it here)
         logger.info("=" * 60)
         logger.info("[TARGET] INITIALIZING 4-MODEL ENSEMBLE")
+        logger.info(f"[ENABLED] Models to load: {enabled_models}")
         logger.info("=" * 60)
         
         self.xgb_agent = XGBAgent(
@@ -134,21 +138,40 @@ class EnsembleManager:
             model_path=xgb_model_path,
             scaler_path=xgb_scaler_path
         )
-        logger.info(f"[OK] XGBoost agent loaded (weight: {self.weights['xgboost']*100}%)")
+        logger.info(f"[OK] XGBoost agent loaded (weight: {self.weights['xgb']*100}%)")
         
         self.lgbm_agent = LightGBMAgent()
-        logger.info(f"[OK] LightGBM agent loaded (weight: {self.weights['lightgbm']*100}%)")
+        logger.info(f"[OK] LightGBM agent loaded (weight: {self.weights['lgbm']*100}%)")
         
-        self.nhits_agent = NHiTSAgent()
-        self.nhits_agent._ensure_model_loaded()  # Force load
-        logger.info(f"[OK] N-HiTS agent loaded (weight: {self.weights['nhits']*100}%)")
+        # N-HiTS and PatchTST are optional (heavy models, may cause OOM)
+        self.nhits_agent = None
+        self.patchtst_agent = None
         
-        self.patchtst_agent = PatchTSTAgent()
-        self.patchtst_agent._ensure_model_loaded()  # Force load
-        logger.info(f"[OK] PatchTST agent loaded (weight: {self.weights['patchtst']*100}%)")
+        if 'nhits' in enabled_models:
+            try:
+                self.nhits_agent = NHiTSAgent()
+                self.nhits_agent._ensure_model_loaded()  # Force load
+                logger.info(f"[OK] N-HiTS agent loaded (weight: {self.weights['nhits']*100}%)")
+            except Exception as e:
+                logger.warning(f"[WARNING] N-HiTS loading failed: {e} - Disabled")
+                self.nhits_agent = None
+        else:
+            logger.info("[SKIP] N-HiTS agent disabled (not in enabled_models)")
         
+        if 'patchtst' in enabled_models:
+            try:
+                self.patchtst_agent = PatchTSTAgent()
+                self.patchtst_agent._ensure_model_loaded()  # Force load
+                logger.info(f"[OK] PatchTST agent loaded (weight: {self.weights['patchtst']*100}%)")
+            except Exception as e:
+                logger.warning(f"[WARNING] PatchTST loading failed: {e} - Disabled")
+                self.patchtst_agent = None
+        else:
+            logger.info("[SKIP] PatchTST agent disabled (not in enabled_models)")
+        
+        active_models = len([m for m in [self.xgb_agent, self.lgbm_agent, self.nhits_agent, self.patchtst_agent] if m is not None])
         logger.info("=" * 60)
-        logger.info(f"[TARGET] Ensemble ready! Min consensus: {min_consensus}/4 models")
+        logger.info(f"[TARGET] Ensemble ready! Min consensus: {min_consensus}/{active_models} models")
         logger.info("[FIX #2] Dynamic weight loading: {'ENABLED' if self.supervisor_weights_file.exists() else 'DISABLED (using defaults)'}")
         logger.info("=" * 60)
         
@@ -287,41 +310,9 @@ class EnsembleManager:
         self.cl_manager = None
         self.cl_enabled = False
         
-        if CONTINUOUS_LEARNING_AVAILABLE:
-            self.cl_enabled = os.getenv('ENABLE_CONTINUOUS_LEARNING', 'false').lower() == 'true'
-            
-            if self.cl_enabled:
-                try:
-                    self.cl_manager = ContinuousLearningManager(
-                        storage_path='data/continuous_learning',
-                        checkpoint_path='data/continuous_learning_checkpoint.json',
-                        ewma_alpha=float(os.getenv('CL_EWMA_ALPHA', '0.1')),
-                        ewma_threshold=float(os.getenv('CL_EWMA_THRESHOLD', '3.0')),
-                        feature_drift_threshold=float(os.getenv('CL_FEATURE_DRIFT_THRESHOLD', '0.3')),
-                        online_learning_rate=float(os.getenv('CL_ONLINE_LR', '0.01')),
-                        enable_online_learning=os.getenv('CL_ENABLE_ONLINE', 'true').lower() == 'true'
-                    )
-                    
-                    # Initialize baseline if shadow manager has champion metrics
-                    if self.shadow_manager:
-                        try:
-                            champion_stats = self.shadow_manager.get_champion_statistics()
-                            if champion_stats and 'win_rate' in champion_stats:
-                                self.cl_manager.initialize_baseline(
-                                    win_rate=champion_stats['win_rate'],
-                                    feature_importance={'placeholder': 1.0}  # TODO: Get real importance
-                                )
-                                logger.info(f"[CL] Baseline initialized: WR={champion_stats['win_rate']:.2%}")
-                        except:
-                            pass
-                    
-                    logger.info("[CL] Continuous Learning ENABLED")
-                    
-                except Exception as e:
-                    logger.error(f"[CL] Failed to initialize: {e}")
-                    self.cl_enabled = False
-            else:
-                logger.info("[CL] Continuous Learning DISABLED")
+        # CLM requires full pipeline: DataClient, FeatureEngineer, Trainer, Evaluator, ShadowTester
+        # For now, disabled pending full implementation
+        logger.info("[CL] Continuous Learning DISABLED (requires full pipeline implementation)")
         
         # Shadow testing state
         self.shadow_trade_count = 0
@@ -369,8 +360,8 @@ class EnsembleManager:
                 self.weights = new_weights
                 logger.info(
                     f"[FIX #2] 🔄 Weights updated: "
-                    f"XGB {old_weights.get('xgboost', 0):.1%}→{new_weights.get('xgboost', 0):.1%}, "
-                    f"LGBM {old_weights.get('lightgbm', 0):.1%}→{new_weights.get('lightgbm', 0):.1%}, "
+                    f"XGB {old_weights.get('xgb', 0):.1%}→{new_weights.get('xgb', 0):.1%}, "
+                    f"LGBM {old_weights.get('lgbm', 0):.1%}→{new_weights.get('lgbm', 0):.1%}, "
                     f"NHITS {old_weights.get('nhits', 0):.1%}→{new_weights.get('nhits', 0):.1%}, "
                     f"PatchTST {old_weights.get('patchtst', 0):.1%}→{new_weights.get('patchtst', 0):.1%}"
                 )
@@ -399,41 +390,48 @@ class EnsembleManager:
         predictions = {}
         
         try:
-            predictions['xgboost'] = self.xgb_agent.predict(symbol, features)
+            predictions['xgb'] = self.xgb_agent.predict(symbol, features)
         except Exception as e:
             logger.warning(f"XGBoost prediction failed: {e}")
-            predictions['xgboost'] = ('HOLD', 0.50, 'xgb_error')
+            predictions['xgb'] = ('HOLD', 0.50, 'xgb_error')
         
         try:
-            predictions['lightgbm'] = self.lgbm_agent.predict(symbol, features)
+            predictions['lgbm'] = self.lgbm_agent.predict(symbol, features)
         except Exception as e:
             logger.warning(f"LightGBM prediction failed: {e}")
-            predictions['lightgbm'] = ('HOLD', 0.50, 'lgbm_error')
+            predictions['lgbm'] = ('HOLD', 0.50, 'lgbm_error')
         
-        try:
-            predictions['nhits'] = self.nhits_agent.predict(symbol, features)
-        except Exception as e:
-            logger.warning(f"N-HiTS prediction failed: {e}")
-            predictions['nhits'] = ('HOLD', 0.50, 'nhits_error')
+        # N-HiTS: Only predict if agent is loaded
+        if self.nhits_agent is not None:
+            try:
+                predictions['nhits'] = self.nhits_agent.predict(symbol, features)
+            except Exception as e:
+                logger.warning(f"N-HiTS prediction failed: {e}")
+                predictions['nhits'] = ('HOLD', 0.50, 'nhits_error')
         
-        try:
-            predictions['patchtst'] = self.patchtst_agent.predict(symbol, features)
-        except Exception as e:
-            logger.warning(f"PatchTST prediction failed: {e}")
-            predictions['patchtst'] = ('HOLD', 0.50, 'patchtst_error')
+        # PatchTST: Only predict if agent is loaded
+        if self.patchtst_agent is not None:
+            try:
+                predictions['patchtst'] = self.patchtst_agent.predict(symbol, features)
+            except Exception as e:
+                logger.warning(f"PatchTST prediction failed: {e}")
+                predictions['patchtst'] = ('HOLD', 0.50, 'patchtst_error')
         
         # Aggregate with smart voting
         action, confidence, info = self._aggregate_predictions(predictions, features)
         
         # DEBUG: Log predictions with any signal
         if action != 'HOLD' or confidence > 0.50:
-            logger.info(
-                f"[CHART] ENSEMBLE {symbol}: {action} {confidence:.2%} | "
-                f"XGB:{predictions['xgboost'][0]}/{predictions['xgboost'][1]:.2f} "
-                f"LGBM:{predictions['lightgbm'][0]}/{predictions['lightgbm'][1]:.2f} "
-                f"NH:{predictions['nhits'][0]}/{predictions['nhits'][1]:.2f} "
-                f"PT:{predictions['patchtst'][0]}/{predictions['patchtst'][1]:.2f}"
+            pred_str = (
+                f"XGB:{predictions['xgb'][0]}/{predictions['xgb'][1]:.2f} "
+                f"LGBM:{predictions['lgbm'][0]}/{predictions['lgbm'][1]:.2f}"
             )
+            if 'nhits' in predictions:
+                pred_str += f" NH:{predictions['nhits'][0]}/{predictions['nhits'][1]:.2f}"
+            if 'patchtst' in predictions:
+                pred_str += f" PT:{predictions['patchtst'][0]}/{predictions['patchtst'][1]:.2f}"
+            
+            logger.info(f"[CHART] ENSEMBLE {symbol}: {action} {confidence:.2%} | {pred_str}")
         
         return action, confidence, info
     
@@ -532,10 +530,10 @@ class EnsembleManager:
     def get_model_status(self) -> Dict[str, bool]:
         """Check which models are loaded."""
         return {
-            'xgboost': self.xgb_agent.model is not None,
-            'lightgbm': self.lgbm_agent.model is not None,
-            'nhits': self.nhits_agent.model is not None,
-            'patchtst': self.patchtst_agent.model is not None
+            'xgb': self.xgb_agent.model is not None if self.xgb_agent else False,
+            'lgbm': self.lgbm_agent.model is not None if self.lgbm_agent else False,
+            'nhits': self.nhits_agent.model is not None if self.nhits_agent else False,
+            'patchtst': self.patchtst_agent.model is not None if self.patchtst_agent else False
         }
     
     def _calculate_ema(self, prices, period):
@@ -691,31 +689,39 @@ class EnsembleManager:
                         float(macd_hist)
                     ]
                     
-                    # Add to N-HiTS history buffer
-                    if symbol not in self.nhits_agent.history_buffer:
-                        self.nhits_agent.history_buffer[symbol] = []
+                    # Add to N-HiTS history buffer (only if agent loaded)
+                    if self.nhits_agent is not None:
+                        if symbol not in self.nhits_agent.history_buffer:
+                            self.nhits_agent.history_buffer[symbol] = []
+                        
+                        self.nhits_agent.history_buffer[symbol].append(feature_vector)
+                        
+                        # Keep buffer size limited (120 candles)
+                        if len(self.nhits_agent.history_buffer[symbol]) > 120:
+                            self.nhits_agent.history_buffer[symbol].pop(0)
                     
-                    self.nhits_agent.history_buffer[symbol].append(feature_vector)
-                    
-                    # Keep buffer size limited (120 candles)
-                    if len(self.nhits_agent.history_buffer[symbol]) > 120:
-                        self.nhits_agent.history_buffer[symbol].pop(0)
-                    
-                    # Add to PatchTST history buffer (same features)
-                    if symbol not in self.patchtst_agent.history_buffer:
-                        self.patchtst_agent.history_buffer[symbol] = []
-                    
-                    self.patchtst_agent.history_buffer[symbol].append(feature_vector)
-                    
-                    if len(self.patchtst_agent.history_buffer[symbol]) > 120:
-                        self.patchtst_agent.history_buffer[symbol].pop(0)
+                    # Add to PatchTST history buffer (only if agent loaded)
+                    if self.patchtst_agent is not None:
+                        if symbol not in self.patchtst_agent.history_buffer:
+                            self.patchtst_agent.history_buffer[symbol] = []
+                        
+                        self.patchtst_agent.history_buffer[symbol].append(feature_vector)
+                        
+                        if len(self.patchtst_agent.history_buffer[symbol]) > 120:
+                            self.patchtst_agent.history_buffer[symbol].pop(0)
                 
-                nhits_ready = len(self.nhits_agent.history_buffer.get(symbol, [])) >= self.nhits_agent.sequence_length
-                patchtst_ready = len(self.patchtst_agent.history_buffer.get(symbol, [])) >= self.patchtst_agent.sequence_length
+                nhits_ready = False
+                patchtst_ready = False
+                if self.nhits_agent is not None:
+                    nhits_ready = len(self.nhits_agent.history_buffer.get(symbol, [])) >= self.nhits_agent.sequence_length
+                if self.patchtst_agent is not None:
+                    patchtst_ready = len(self.patchtst_agent.history_buffer.get(symbol, [])) >= self.patchtst_agent.sequence_length
                 
+                buffer_len = len(self.nhits_agent.history_buffer[symbol]) if self.nhits_agent and symbol in self.nhits_agent.history_buffer else 0
                 logger.info(
-                    f"[WARMUP] {symbol}: Loaded {len(self.nhits_agent.history_buffer[symbol])} candles "
-                    f"(N-HiTS: {'✅' if nhits_ready else '❌'}, PatchTST: {'✅' if patchtst_ready else '❌'})"
+                    f"[WARMUP] {symbol}: Loaded {buffer_len} candles "
+                    f"(N-HiTS: {'✅' if nhits_ready else '❌ (disabled)' if self.nhits_agent is None else '❌'}, "
+                    f"PatchTST: {'✅' if patchtst_ready else '❌ (disabled)' if self.patchtst_agent is None else '❌'})"
                 )
 
                 # Yield to the event loop between symbols so API requests stay responsive
@@ -735,8 +741,8 @@ class EnsembleManager:
     ) -> Dict[str, Tuple[str, float, str]]:
         """Get predictions from each model individually (for debugging)."""
         return {
-            'xgboost': self.xgb_agent.predict(symbol, features),
-            'lightgbm': self.lgbm_agent.predict(symbol, features),
+            'xgb': self.xgb_agent.predict(symbol, features),
+            'lgbm': self.lgbm_agent.predict(symbol, features),
             'nhits': self.nhits_agent.predict(symbol, features),
             'patchtst': self.patchtst_agent.predict(symbol, features)
         }

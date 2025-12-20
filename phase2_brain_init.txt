@@ -1,0 +1,30 @@
+        # [PHASE 2] BRAIN INTEGRATION
+        logger.info("[PHASE 2] 🧠 Initializing AI Hedge Fund OS Brains...")
+        try:
+            from backend.ai_orchestrator.ceo_brain import CEOBrain
+            from backend.ai_strategy.strategy_brain import StrategyBrain
+            from backend.ai_risk.risk_brain import RiskBrain
+            from backend.services.universe_os.universe_os import UniverseOS
+            from backend.services.position_intelligence.position_intelligence import PositionIntelligence
+            from backend.services.model_supervisor.model_supervisor import ModelSupervisor
+            
+            app_instance.state.ceo_brain = CEOBrain()
+            app_instance.state.strategy_brain = StrategyBrain()
+            app_instance.state.risk_brain = RiskBrain()
+            app_instance.state.universe_os = UniverseOS(ranker=None, max_symbols=20, min_score=0.6)
+            app_instance.state.position_intelligence = PositionIntelligence()
+            app_instance.state.model_supervisor = ModelSupervisor()
+            
+            logger.info("[INIT] ✅ Brains initialized successfully")
+            logger.info("[Universe OS] Updated")
+            logger.info("[PIL] Initialized")
+            logger.info("[Model Supervisor] Initialized")
+            logger.info("[PHASE 2 COMPLETE] Brains Activated – Observation Modules Operational")
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to initialize AI Brains: {e}", exc_info=True)
+            app_instance.state.ceo_brain = None
+            app_instance.state.strategy_brain = None
+            app_instance.state.risk_brain = None
+            app_instance.state.universe_os = None
+            app_instance.state.position_intelligence = None
+            app_instance.state.model_supervisor = None

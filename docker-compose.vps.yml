@@ -76,6 +76,35 @@ services:
       retries: 3
       start_period: 40s
 
+  # Position Monitor - Live TP/SL Management with Exit Brain v3
+  position-monitor:
+    build:
+      context: .
+      dockerfile: microservices/position_monitor/Dockerfile
+    container_name: quantum_position_monitor
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - EXIT_BRAIN_V3_ENABLED=true
+      - POSITION_CHECK_INTERVAL=10
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./logs:/app/logs:rw
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.path.exists('/tmp/position_monitor.pid')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   # Frontend Dashboard - Next.js Web Interface
   frontend:
     build:

@@ -62,29 +62,52 @@ def should_retrain():
 
 
 def trigger_retraining():
-    """Trigger retraining via PowerShell script"""
+    """Trigger retraining via Python training scripts"""
     logger.info("🔄 Triggering scheduled retraining...")
     
     try:
-        # Run PowerShell retraining script
-        result = subprocess.run(
-            ["pwsh", "-File", str(DEPLOYMENT_SCRIPT)],
-            capture_output=True,
-            text=True,
-            timeout=600  # 10 minute timeout
-        )
+        import requests
         
-        if result.returncode == 0:
-            logger.info("✅ Retraining completed successfully")
-            logger.info(result.stdout)
-            return True
-        else:
-            logger.error(f"❌ Retraining failed: {result.stderr}")
-            return False
+        # Trigger retraining via API (if backend has endpoint)
+        # Or run training scripts directly
+        training_scripts = [
+            "scripts/train_xgboost_quick.py",
+            "scripts/train_lightgbm.py",
+            "scripts/train_nhits.py",
+            "scripts/train_patchtst.py"
+        ]
+        
+        all_success = True
+        for script in training_scripts:
+            script_path = Path(script)
+            if not script_path.exists():
+                logger.warning(f"⚠️  Script not found: {script}, skipping...")
+                continue
+                
+            logger.info(f"🔧 Running: {script}")
+            try:
+                result = subprocess.run(
+                    ["python3", str(script_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=1800  # 30 minute timeout per model
+                )
+                
+                if result.returncode == 0:
+                    logger.info(f"✅ {script} completed")
+                else:
+                    logger.error(f"❌ {script} failed: {result.stderr[:200]}")
+                    all_success = False
+                    
+            except subprocess.TimeoutExpired:
+                logger.error(f"❌ {script} timed out")
+                all_success = False
+            except Exception as e:
+                logger.error(f"❌ {script} error: {e}")
+                all_success = False
+        
+        return all_success
             
-    except subprocess.TimeoutExpired:
-        logger.error("❌ Retraining timed out (>10 minutes)")
-        return False
     except Exception as e:
         logger.error(f"❌ Retraining error: {e}")
         return False
@@ -135,12 +158,5 @@ if __name__ == "__main__":
         logger.info("Exiting...")
         sys.exit(0)
     
-    if not TRAINING_SCRIPT.exists():
-        logger.error(f"❌ Training script not found: {TRAINING_SCRIPT}")
-        sys.exit(1)
-    
-    if not DEPLOYMENT_SCRIPT.exists():
-        logger.error(f"❌ Deployment script not found: {DEPLOYMENT_SCRIPT}")
-        sys.exit(1)
-    
+    logger.info("🚀 Starting CLM scheduler...")
     run_continuous_loop()

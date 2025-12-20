@@ -1,0 +1,28 @@
+[Unit]
+Description=Quantum Trader Real-Time Monitoring Daemon
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+After=docker.service network.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader/tools
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/tools/realtime_monitor.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum_realtime
+
+# Resource limits
+MemoryLimit=512M
+CPUQuota=10%
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

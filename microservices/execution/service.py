@@ -15,7 +15,8 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 # D5: TradeStore
-from backend.utils.trade_store_v2 import TradeStore, Trade as TradeModel, TradeStatus, TradeSide
+from backend.core.trading.trade_store_base import TradeStore
+from backend.services.performance_analytics.models import Trade as TradeModel, TradeDirection as TradeSide
 
 # D6: Rate Limiter
 from backend.services.execution.global_rate_limiter import GlobalRateLimiter

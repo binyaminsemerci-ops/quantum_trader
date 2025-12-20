@@ -28,6 +28,7 @@ from backend.core.logger import (
     get_logger,
     log_event,
 )
+from backend.core.metrics_logger import metrics_logger
 from backend.core.policy_store import (
     PolicyStore,
     get_policy_store,
@@ -61,4 +62,6 @@ __all__ = [
     "initialize_health_checker",
     # Trace
     "trace_context",
+    # Metrics
+    "metrics_logger",
 ]

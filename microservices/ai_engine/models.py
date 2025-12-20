@@ -2,7 +2,7 @@
 AI Engine Service - Pydantic Models
 """
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Union
 from datetime import datetime
 from enum import Enum
 
@@ -100,8 +100,8 @@ class AISignalGeneratedEvent(BaseModel):
     action: SignalAction
     confidence: float
     ensemble_confidence: float
-    model_votes: Dict[str, str]  # {"xgb": "buy", "lgbm": "buy", ...}
-    consensus: int  # Number of models in agreement
+    model_votes: Dict[str, str]  # {"BUY": "fallback"} or {"xgb": "buy", "lgbm": "hold"}
+    consensus: int  # Number of models agreeing
     timestamp: str
 
 
@@ -170,6 +170,8 @@ class AIDecisionMadeEvent(BaseModel):
 class SignalRequest(BaseModel):
     """Manual signal generation request."""
     symbol: str
+    price: Optional[float] = None
+    volume: Optional[float] = None
     timeframe: str = "5m"
     include_reasoning: bool = False
 

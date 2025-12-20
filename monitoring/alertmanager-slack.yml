@@ -1,0 +1,58 @@
+global:
+  resolve_timeout: 5m
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+route:
+  group_by: ['alertname', 'service', 'severity']
+  group_wait: 10s
+  group_interval: 5m
+  repeat_interval: 12h
+  receiver: 'slack-critical'
+  routes:
+    - match:
+        severity: critical
+      receiver: 'slack-critical'
+      continue: true
+    - match:
+        severity: warning
+      receiver: 'slack-warnings'
+
+receivers:
+  - name: 'slack-critical'
+    slack_configs:
+      - channel: '#quantum-trader-alerts'
+        username: 'Quantum Trader Monitor'
+        icon_emoji: ':rotating_light:'
+        title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        text: |
+          *Service:* {{ .GroupLabels.service }}
+          *Severity:* {{ .CommonLabels.severity }}
+          *Status:* {{ .Status }}
+          
+          {{ range .Alerts }}
+          *Summary:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          {{ end }}
+        send_resolved: true
+
+  - name: 'slack-warnings'
+    slack_configs:
+      - channel: '#quantum-trader-warnings'
+        username: 'Quantum Trader Monitor'
+        icon_emoji: ':warning:'
+        title: '⚠️ WARNING: {{ .GroupLabels.alertname }}'
+        text: |
+          *Service:* {{ .GroupLabels.service }}
+          *Status:* {{ .Status }}
+          
+          {{ range .Alerts }}
+          *Summary:* {{ .Annotations.summary }}
+          {{ end }}
+        send_resolved: true
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'service']
