@@ -13,6 +13,7 @@ class PortfolioPosition(Base):
     __tablename__ = "portfolio_positions"
     __table_args__ = (
         UniqueConstraint("symbol", name="uq_portfolio_position_symbol"),
+        {'extend_existing': True}
     )
 
     id = Column(Integer, primary_key=True)
