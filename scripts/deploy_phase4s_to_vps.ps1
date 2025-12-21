@@ -8,28 +8,28 @@
 
 param(
     [string]$VpsHost = "46.224.116.254",
-    [string]$VpsUser = "qt",
-    [string]$SshKeyPath = "$env:USERPROFILE\.ssh\hetzner_fresh"
+    [string]$VpsUser = "qt"
 )
+
+$SSH_KEY_WIN = "$env:USERPROFILE\.ssh\hetzner_fresh"
+$SSH_KEY_WSL = "~/.ssh/hetzner_fresh"
 
 Write-Host "🚀 Phase 4S+ VPS Deployment Initiating..." -ForegroundColor Cyan
 Write-Host "Target: $VpsUser@$VpsHost" -ForegroundColor Yellow
 Write-Host ""
 
 # Check SSH key exists
-if (-not (Test-Path $SshKeyPath)) {
-    Write-Host "❌ SSH key not found at: $SshKeyPath" -ForegroundColor Red
-    Write-Host "Please specify correct path with -SshKeyPath parameter" -ForegroundColor Yellow
+if (-not (Test-Path $SSH_KEY_WIN)) {
+    Write-Host "❌ SSH key not found at: $SSH_KEY_WIN" -ForegroundColor Red
     exit 1
 }
 
-Write-Host "✅ SSH key found: $SshKeyPath" -ForegroundColor Green
+Write-Host "✅ SSH key found: $SSH_KEY_WIN" -ForegroundColor Green
 Write-Host ""
 
 # Test VPS connectivity
 Write-Host "🔍 Testing VPS connectivity..." -ForegroundColor Yellow
-$wslSshKey = $SshKeyPath -replace '\\', '/' -replace 'C:', '/mnt/c' -replace 'Users', 'users'
-$testConnection = wsl ssh -i $wslSshKey -o ConnectTimeout=10 -o StrictHostKeyChecking=no "$VpsUser@$VpsHost" "echo 'Connection OK'" 2>&1
+$testConnection = wsl ssh -i $SSH_KEY_WSL -o ConnectTimeout=10 -o StrictHostKeyChecking=no "$VpsUser@$VpsHost" "echo 'Connection OK'" 2>&1
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Cannot connect to VPS: $VpsHost" -ForegroundColor Red
@@ -62,7 +62,7 @@ echo "🚀 Launching Phase 4S+ deployment..."
 '@
 
 # Execute deployment via SSH
-$deploymentScript | wsl ssh -i $wslSshKey -o StrictHostKeyChecking=no "$VpsUser@$VpsHost" "bash -s"
+$deploymentScript | wsl ssh -i $SSH_KEY_WSL -o StrictHostKeyChecking=no "$VpsUser@$VpsHost" "bash -s"
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
@@ -70,13 +70,13 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "✅ Phase 4S+ deployment completed successfully!" -ForegroundColor Green
     Write-Host ""
     Write-Host "📊 To monitor the deployment:" -ForegroundColor Cyan
-    Write-Host "  wsl ssh -i $wslSshKey $VpsUser@$VpsHost 'docker logs -f quantum_strategic_memory'" -ForegroundColor Gray
+    Write-Host "  wsl ssh -i $SSH_KEY_WSL $VpsUser@$VpsHost 'docker logs -f quantum_strategic_memory'" -ForegroundColor Gray
     Write-Host ""
     Write-Host "🔍 To check feedback loop:" -ForegroundColor Cyan
-    Write-Host "  wsl ssh -i $wslSshKey $VpsUser@$VpsHost 'docker exec redis redis-cli GET quantum:feedback:strategic_memory'" -ForegroundColor Gray
+    Write-Host "  wsl ssh -i $SSH_KEY_WSL $VpsUser@$VpsHost 'docker exec redis redis-cli GET quantum:feedback:strategic_memory'" -ForegroundColor Gray
     Write-Host ""
     Write-Host "🧠 To verify AI Engine health:" -ForegroundColor Cyan
-    Write-Host "  wsl ssh -i $wslSshKey $VpsUser@$VpsHost 'curl -s http://localhost:8001/health | jq .metrics.strategic_memory'" -ForegroundColor Gray
+    Write-Host "  wsl ssh -i $SSH_KEY_WSL $VpsUser@$VpsHost 'curl -s http://localhost:8001/health | jq .metrics.strategic_memory'" -ForegroundColor Gray
     Write-Host ""
 } else {
     Write-Host ""
@@ -84,6 +84,6 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "❌ Deployment failed with exit code: $LASTEXITCODE" -ForegroundColor Red
     Write-Host ""
     Write-Host "🔍 To check logs:" -ForegroundColor Yellow
-    Write-Host "  wsl ssh -i $wslSshKey $VpsUser@$VpsHost 'docker logs --tail 50 quantum_strategic_memory'" -ForegroundColor Gray
+    Write-Host "  wsl ssh -i $SSH_KEY_WSL $VpsUser@$VpsHost 'docker logs --tail 50 quantum_strategic_memory'" -ForegroundColor Gray
     exit 1
 }
