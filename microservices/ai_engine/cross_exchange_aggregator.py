@@ -13,6 +13,9 @@ import os
 from datetime import datetime
 from collections import defaultdict
 import json
+import sys
+sys.path.append("/app")
+from backend.infrastructure.redis_manager import RedisConnectionManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,6 +34,7 @@ class CrossExchangeAggregator:
     
     def __init__(self, redis_url: str = REDIS_URL):
         self.redis_url = redis_url
+        self.redis_manager = RedisConnectionManager(redis_url=redis_url)
         self.redis_client: Optional[aioredis.Redis] = None
         self.running = False
         
@@ -45,22 +49,17 @@ class CrossExchangeAggregator:
     async def connect_redis(self):
         """Connect to Redis"""
         try:
-            self.redis_client = await aioredis.from_url(
-                self.redis_url,
-                encoding="utf-8",
-                decode_responses=True
-            )
-            await self.redis_client.ping()
-            logger.info("✅ Connected to Redis")
+            await self.redis_manager.start()
+            self.redis_client = self.redis_manager.redis
+            logger.info("✅ Connected to Redis via RedisConnectionManager")
         except Exception as e:
             logger.error(f"❌ Failed to connect to Redis: {e}")
             raise
     
     async def close_redis(self):
         """Close Redis connection"""
-        if self.redis_client:
-            await self.redis_client.close()
-            logger.info("Redis connection closed")
+        await self.redis_manager.stop()
+        logger.info("Redis connection closed")
     
     def merge_exchange_data(self, symbol: str, timestamp: int) -> Optional[Dict]:
         """Merge data from all exchanges for a given timestamp"""
@@ -117,8 +116,12 @@ class CrossExchangeAggregator:
                 "coinbase_price": str(data["prices"].get("coinbase", "null"))
             }
             
-            await self.redis_client.xadd(REDIS_STREAM_NORMALIZED, message, maxlen=10000)
-            logger.info(f"Published normalized: {data['symbol']} @ {data['avg_price']:.2f}")
+            # Use Redis Manager with retry logic
+            success = await self.redis_manager.publish(REDIS_STREAM_NORMALIZED, json.dumps(message))
+            if success:
+                logger.info(f"Published normalized: {data['symbol']} @ {data['avg_price']:.2f}")
+            else:
+                logger.warning(f"Failed to publish (circuit breaker open): {data['symbol']}")
         
         except Exception as e:
             logger.error(f"Failed to publish normalized data: {e}")
