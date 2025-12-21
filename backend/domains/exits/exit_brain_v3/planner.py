@@ -1,5 +1,6 @@
 """
 Exit Brain v3 Planner - Core orchestration logic for exit strategies.
+Phase 4M+ Integration: Uses Cross-Exchange Intelligence for adaptive TP/SL
 """
 
 import logging
@@ -24,6 +25,10 @@ from backend.domains.exits.exit_brain_v3.dynamic_tp_calculator import (
     DynamicTPCalculator,
     calculate_dynamic_tp_levels
 )
+from backend.domains.exits.exit_brain_v3.cross_exchange_adapter import (
+    CrossExchangeAdapter,
+    get_cross_exchange_adapter
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +49,13 @@ class ExitBrainV3:
     - Replace existing modules (thin coordination layer)
     """
     
-    def __init__(self, config: Optional[Dict] = None):
+    def __init__(self, config: Optional[Dict] = None, redis_client=None):
         """
         Initialize Exit Brain v3.
         
         Args:
             config: Optional configuration overrides
+            redis_client: Redis client for cross-exchange adapter
         """
         self.config = config or {}
         self.logger = logging.getLogger(__name__)
@@ -61,6 +67,15 @@ class ExitBrainV3:
         # Dynamic TP calculator
         self.use_dynamic_tp = self.config.get("use_dynamic_tp", True)  # AI-driven TP sizing
         self.dynamic_tp_calculator = DynamicTPCalculator() if self.use_dynamic_tp else None
+        
+        # Phase 4M+: Cross-Exchange Intelligence adapter
+        self.use_cross_exchange = self.config.get("use_cross_exchange", True)
+        self.cross_exchange_adapter: Optional[CrossExchangeAdapter] = None
+        if self.use_cross_exchange and redis_client:
+            self.cross_exchange_adapter = get_cross_exchange_adapter(redis_client=redis_client)
+            self.logger.info("[EXIT BRAIN] ✓ Cross-Exchange Intelligence enabled")
+        else:
+            self.logger.info("[EXIT BRAIN] Cross-Exchange Intelligence disabled")
         
         # Legacy config (for backward compatibility if use_profiles=False)
         self.default_tp_pct = self.config.get("default_tp_pct", 0.03)  # 3%
@@ -116,6 +131,43 @@ class ExitBrainV3:
         # Step 1: Determine base targets from RL or defaults
         base_tp_pct, base_sl_pct = self._get_base_targets(ctx)
         
+        # Step 1.5: Phase 4M+ - Apply cross-exchange adjustments
+        cross_exchange_adjustments = None
+        if self.cross_exchange_adapter:
+            try:
+                # Get global volatility state from cross-exchange data
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # We're in async context, use await
+                    state = asyncio.create_task(self.cross_exchange_adapter.get_global_volatility_state())
+                else:
+                    # Sync context, run in event loop
+                    state = loop.run_until_complete(self.cross_exchange_adapter.get_global_volatility_state())
+                
+                # Calculate ATR/TP/SL adjustments
+                base_atr = 0.02  # 2% baseline ATR (can be overridden by ctx if available)
+                cross_exchange_adjustments = self.cross_exchange_adapter.calculate_adjustments(
+                    state=state,
+                    base_atr=base_atr,
+                    base_tp=base_tp_pct,
+                    base_sl=base_sl_pct
+                )
+                
+                # Apply cross-exchange multipliers
+                base_tp_pct *= cross_exchange_adjustments.tp_multiplier
+                base_sl_pct *= cross_exchange_adjustments.sl_multiplier
+                
+                self.logger.info(
+                    f"[EXIT BRAIN] 🌐 Cross-Exchange adjustments applied: {cross_exchange_adjustments.reasoning}"
+                )
+                
+                # Publish status to Redis
+                asyncio.create_task(self.cross_exchange_adapter.publish_status(cross_exchange_adjustments, state))
+                
+            except Exception as e:
+                self.logger.warning(f"[EXIT BRAIN] Cross-Exchange adjustment failed: {e}, using base values")
+        
         # Step 2: Apply risk mode adjustments
         risk_mult = self.risk_mode_multipliers.get(ctx.risk_mode, 1.0)
         tp_pct = base_tp_pct * risk_mult
@@ -128,6 +180,11 @@ class ExitBrainV3:
         tp_pct *= regime_adj["tp_mult"]
         sl_pct *= regime_adj["sl_mult"]
         trail_enabled = regime_adj["trail"] and ctx.trail_enabled
+        
+        # Override trailing if cross-exchange says no
+        if cross_exchange_adjustments and not cross_exchange_adjustments.use_trailing:
+            trail_enabled = False
+            self.logger.info("[EXIT BRAIN] Trailing disabled by cross-exchange volatility")
         
         # Step 4: Enforce min/max bounds
         tp_pct = max(0.015, min(0.15, tp_pct))  # 1.5% - 15%
