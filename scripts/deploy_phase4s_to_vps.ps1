@@ -45,19 +45,9 @@ Write-Host "📡 Executing Phase 4S+ deployment on VPS..." -ForegroundColor Cyan
 Write-Host "-------------------------------------------------------" -ForegroundColor Gray
 
 $deploymentScript = @'
-#!/bin/bash
-set -e
-
-echo "🔄 Navigating to quantum_trader directory..."
 cd /home/qt/quantum_trader
-
-echo "📥 Pulling latest code from repository..."
 git pull origin main
-
-echo "🔧 Making deployment script executable..."
 chmod +x deploy_phase4s.sh
-
-echo "🚀 Launching Phase 4S+ deployment..."
 ./deploy_phase4s.sh
 '@
 
