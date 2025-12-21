@@ -1,0 +1,393 @@
+# QUANTUM TRADER - SYSTEM INVENTORY
+# Auto-generated file location and deployment map
+# Last Updated: 2025-12-21 (Phase 4M+ Integration Complete)
+
+version: "1.1"
+last_update: "2025-12-21T04:00:00Z"
+latest_phase: "Phase 4M+ - Cross-Exchange → ExitBrain v3 Integration"
+
+# ============================================================================
+# CONTAINERS - What's running where
+# ============================================================================
+containers:
+  quantum_redis:
+    image: "redis:7-alpine"
+    port: 6379
+    status: "running"
+    purpose: "EventBus & Cache"
+    data_location: "/data (volume: redis_data)"
+    health_check: "redis-cli ping"
+    
+  quantum_cross_exchange:
+    image: "quantum_trader-cross-exchange"
+    build_context: "./microservices/data_collector"
+    status: "running"
+    purpose: "Multi-exchange WebSocket data collection"
+    streams:
+      - "quantum:stream:exchange.raw (3,897+ entries)"
+    dependencies: ["redis"]
+    
+  quantum_ai_engine:
+    image: "quantum_trader-ai-engine"
+    build_context: "."
+    dockerfile: "microservices/ai_engine/Dockerfile"
+    port: 8001
+    status: "running"
+    purpose: "ML inference, signal generation, adaptive leverage"
+    dependencies: ["redis", "cross-exchange"]
+    environment:
+      - ADAPTIVE_LEVERAGE_ENABLED=true
+      - CROSS_EXCHANGE_ENABLED=true
+    mounted_volumes:
+      - "./microservices/ai_engine:/app/microservices/ai_engine:ro"
+      - "./backend:/app/backend:ro"
+      - "./logs:/app/logs:rw"
+      - "./models:/app/models:rw"
+
+# ============================================================================
+# FILE LOCATIONS - Where everything is
+# ============================================================================
+modules:
+  
+  # Phase 4M+ - Cross-Exchange → ExitBrain v3 Integration
+  exitbrain_cross_exchange:
+    location: "backend/domains/exits/exit_brain_v3/"
+    in_containers: ["quantum_ai_engine"]
+    status: "ACTIVE"
+    files:
+      - name: "cross_exchange_adapter.py"
+        lines: 480
+        purpose: "Adapter between Cross-Exchange Intelligence and ExitBrain v3"
+        features:
+          - "Reads quantum:stream:exchange.normalized"
+          - "Calculates volatility adjustments (ATR, TP, SL)"
+          - "Fail-safe fallback to local mode"
+          - "Publishes status to quantum:stream:exitbrain.status"
+        formulas:
+          - "ATR = base_atr × (1 + volatility_factor × 0.6)"
+          - "TP = base_tp × (1 + funding_delta × 0.8)"
+          - "SL = base_sl × (1 + exchange_divergence × 0.4)"
+          - "Trailing disabled if volatility_factor > 3.0"
+        safety:
+          - "60s staleness threshold"
+          - "3 consecutive failures → local mode"
+          - "Min TP: 0.3%, Min SL: 0.15%"
+          - "Max volatility: 5.0x, Max divergence: 100%"
+    
+    integration:
+      file: "backend/domains/exits/exit_brain_v3/planner.py"
+      lines: 428
+      changes: "Added Step 1.5 - Cross-Exchange adjustments in build_exit_plan()"
+      import_path: "from backend.domains.exits.exit_brain_v3.cross_exchange_adapter import get_cross_exchange_adapter"
+  
+  # Phase 4M - Cross-Exchange Intelligence
+  cross_exchange:
+    location: "microservices/data_collector/"
+    in_containers: ["quantum_cross_exchange", "quantum_ai_engine"]
+    files:
+      - name: "exchange_data_collector.py"
+        lines: 385
+        purpose: "REST API data fetching (OHLC, funding, OI)"
+        
+      - name: "exchange_stream_bridge.py"
+        lines: 270
+        purpose: "WebSocket real-time data streaming"
+        status: "ACTIVE - Running in quantum_cross_exchange"
+        
+      - name: "Dockerfile"
+        lines: 15
+        purpose: "Container build for cross-exchange service"
+    
+    aggregator:
+      file: "microservices/ai_engine/cross_exchange_aggregator.py"
+      lines: 240
+      purpose: "Merge multi-exchange data, publish to normalized stream"
+      status: "Not running (requires AI Engine fix)"
+      in_containers: ["quantum_ai_engine"]
+    
+    features:
+      location: "microservices/ai_engine/features/"
+      in_containers: ["quantum_ai_engine"]
+      files:
+        - "exchange_feature_adapter.py (220 lines) - ML feature engineering"
+        - "feature_loader.py (120 lines) - Unified feature loading interface"
+  
+  # Phase 4N - Adaptive Leverage Engine
+  adaptive_leverage:
+    location: "microservices/exitbrain_v3_5/"
+    in_containers: ["quantum_ai_engine"]
+    status: "ACTIVE"
+    files:
+      - name: "adaptive_leverage_engine.py"
+        lines: 305
+        purpose: "Leverage-sensitive TP/SL calculation"
+        features:
+          - "Leverage Scaling Factor (LSF)"
+          - "3-level partial profit harvesting"
+          - "Cross-exchange volatility adjustment"
+          - "PnL-based auto-tuning"
+        
+      - name: "pnl_tracker.py"
+        lines: 94
+        purpose: "Rolling trade performance tracking (last 20 trades)"
+        
+      - name: "__init__.py"
+        lines: 9
+        purpose: "Module initialization"
+    
+    integration:
+      file: "backend/domains/exits/exit_brain_v3/v35_integration.py"
+      lines: 200
+      purpose: "Bridge between ExitBrain v3 and adaptive leverage engine"
+      in_containers: ["quantum_ai_engine"]
+      import_path: "from backend.domains.exits.exit_brain_v3.v35_integration import get_v35_integration"
+  
+  # AI Engine Core
+  ai_engine:
+    location: "microservices/ai_engine/"
+    in_containers: ["quantum_ai_engine"]
+    files:
+      - name: "service.py"
+        lines: 1163
+        purpose: "Core AI Engine orchestration"
+        features:
+          - "Ensemble model management"
+          - "Signal generation"
+          - "Health monitoring"
+          - "Phase 4N adaptive leverage status"
+        
+      - name: "main.py"
+        lines: 231itbrain.status":
+    producer: "CrossExchangeAdapter (Phase 4M+)"
+    consumers: ["Monitoring, analytics"]
+    current_entries: "~1000 (rolling)"
+    status: "ACTIVE"
+    update_frequency: "Every TP/SL calculation (1-5 min)"
+    format:
+      timestamp: "2025-12-21T03:15:42Z"
+      cross_exchange_active: true
+      data_age_seconds: 12.4
+      volatility_factor: 1.8
+      exchange_divergence: 0.042
+      funding_delta: 0.0012
+      atr_multiplier: 1.8
+      tp_multiplier: 1.1
+      sl_multiplier: 1.17
+      use_trailing: true
+      reasoning: "Vol:1.80 Div:0.042 Fund:0.0012 | ATR×1.80 TP×1.10 SL×1.17"
+    retention: "maxlen=1000"
+  
+  "quantum:stream:exitbrain.alerts":
+    producer: "CrossExchangeAdapter (fail-safe events)"
+    consumers: ["Monitoring, alerting systems"]
+    current_entries: "0 (normal operation)"
+    status: "READY"
+    triggers:
+      - "Data staleness > 60s"
+      - "Redis read errors"
+      - "Fallback to local mode"
+    format:
+      timestamp: "2025-12-21T03:20:15Z"
+      type: "FALLBACK_TO_LOCAL"
+      reason: "Data stale (67.3s)"
+      fail_count: 1
+    retention: "maxlen=500"
+  
+  "quantum:stream:ex
+        purpose: "FastAPI application entry point"
+        endpoints:
+          - "GET /health - Service health status"
+          - "GET /health/live - Liveness probe"
+          - "GET /health/ready - Readiness probe"
+          - "POST /api/ai/signal - Generate trading signal"
+  
+  # Backend Models
+  backend_models:
+    location: "backend/models/"
+    in_containers: ["quantum_ai_engine"]
+    on_vps: true
+    files:
+      - name: "ai_training.py"
+        status: "FIXED - Uses try/except for Base import"
+        
+      - name: "trade_logs.py"
+        status: "EXISTS (not trade_log.py)"
+        
+      - name: "events.py"
+        purpose: "Event models for EventBus"
+        
+      - name: "policy.py"
+        purpose: "Trading policy configurations"
+
+# ============================================================================
+# REDIS STREAMS - Data flow map
+# ============================================================================
+redis_streams:
+  
+  "quantum:stream:exchange.raw":
+    producer: "exchange_stream_bridge.py (in quantum_cross_exchange)"
+    consumers: ["cross_exchange_aggregator.py (not running)"]
+    current_entries: "3,897+"
+    growth_rate: "~200 ticks/minute"
+    format:
+      exchange: "binance|bybit|coinbase"
+      symbol: "BTCUSDT"
+      timestamp: 1703174400
+      o: "open price"
+      h: "high price"
+      l: "low price"
+      c: "close price"
+      v: "volume"
+    retention: "maxlen=10000"
+  
+  "quantum:stream:exchange.normalized":
+    producer: "cross_exchange_aggregator.py (NOT RUNNING)"
+    consumers: ["AI Engine ensemble models"]
+    current_entries: 0
+    status: "EMPTY - aggregator not running"
+    format:
+      symbol: "BTCUSDT"
+      timestamp: 1703174400
+      avg_price: "average across exchanges"
+      price_divergence: "std dev"
+      num_exchanges: 3
+  
+  "quantum:stream:exitbrain.pnl":
+    producer: "ExitBrain v3.5 (when trades close)"
+    consumers: ["PnL tracker, analytics"]
+    current_entries: 0
+    status: "READY - no trades closed yet"
+    format:
+      symbol: "BTCUSDT"
+      leverage: 50
+      tp1: 0.012
+      tp2: 0.018
+      tp3: 0.024
+      sl: 0.006
+      harvest_scheme: [0.5, 0.3, 0.2]
+      LSF: 0.2231
+      adjustment: 1.05
+      avg_pnl_last_20: 0.0045
+
+# ============================================================================
+# VPS DEPLOYMENT MAP
+# ============================================================================
+vps:
+  host: "46.224.116.254"
+  user: "qt"
+  ssh_key: "~/.ssh/hetzner_fresh"
+  working_dir: "/home/qt/quantum_trader"
+  
+  git_status:
+    branch: "main"
+    status: "diverged (52 local commits, 73 remote)"
+    note: "Use SCP for file updates, git pull fails due to local changes"
+  
+  docker_compose_file: "/home/qt/quantum_trader/docker-compose.vps.yml"
+  
+  file_sync_strategy: "SCP direct copy (git pull blocked by local changes)"
+
+# ============================================================================
+# BUILD CONTEXTS - What goes into each Docker image
+# ============================================================================
+docker_builds:
+  
+  quantum_trader-cross-exchange:
+    dockerfile: "microservices/data_collector/Dockerfile"
+    base_image: "python:3.11-slim"
+    copies:
+      - "microservices/data_collector/* → /app/"
+    dependencies:
+      - aiohttp
+      - websockets
+      - redis
+      - pandas
+      - numpy
+      - orjson
+    entry_point: "python3 exchange_stream_bridge.py"
+  
+  quantum_trader-ai-engine:
+    dockerfile: "microservices/ai_engine/Dockerfile"
+    base_image: "python:3.11-slim"
+    copies:
+      - "microservices/* → /app/microservices/"
+      - "backend/* → /app/backend/"
+      - "ai_engine/* → /app/ai_engine/"
+    critical_note: "MUST copy entire microservices/ directory for exitbrain_v3_5 to work"
+    entry_point: "uvicorn microservices.ai_engine.main:app"
+
+# ============================================================================
+# COMMON ISSUES & SOLUTIONS
+# ============================================================================
+troubleshooting:
+  
+  "Module 'exitbrain_v3_5' not found":
+    cause: "Dockerfile only copied microservices/ai_engine, not entire microservices/"
+    solution: "Change COPY to: COPY microservices /app/microservices"
+    verification: "docker run --rm quantum_trader-ai-engine ls /app/microservices/"
+  
+  "ModuleNotFoundError: No module named 'database'":
+    cause: "Models using 'from database import' instead of 'from backend.database import'"
+    solution: "Use try/except fallback in models"
+    files_affected:
+      - "backend/models/ai_training.py"
+      - "backend/models/trade_logs.py"
+  
+  "Python cache issues":
+    cause: ".pyc files with old imports"
+    solution: "docker exec quantum_ai_engine find /app -name '*.pyc' -delete"
+  
+  "Git pull fails on VPS":
+    cause: "52 local commits diverged from remote"
+    solution: "Use SCP for file updates: scp -i ~/.ssh/hetzner_fresh file.py qt@46.224.116.254:~/path/"
+
+# ============================================================================
+# QUICK COMMANDS
+# ============================================================================
+commands:
+  
+  # Check what's in a container
+  inspect_container_files:
+    ai_engine: "docker exec quantum_ai_engine ls -la /app/microservices/"
+    cross_exchange: "docker exec quantum_cross_exchange ls -la /app/"
+  
+  # Check Redis streams
+  redis_streams:
+    raw_stream_length: "docker exec quantum_redis redis-cli XLEN quantum:stream:exchange.raw"
+    normalized_stream_length: "docker exec quantum_redis redis-cli XLEN quantum:stream:exchange.normalized"
+    pnl_stream_length: "docker exec quantum_redis redis-cli XLEN quantum:stream:exitbrain.pnl"
+    view_latest_raw: "docker exec quantum_redis redis-cli XREVRANGE quantum:stream:exchange.raw + - COUNT 1"
+  
+  # Health checks
+  health:
+    ai_engine_full: "curl -s http://localhost:8001/health | python3 -m json.tool"
+    ai_engine_adaptive: "curl -s http://localhost:8001/health | python3 -m json.tool | grep -A 10 adaptive_leverage"
+    cross_exchange: "docker logs quantum_cross_exchange --tail 20"
+  
+  # Rebuild & Deploy
+  rebuild:
+    ai_engine: "cd ~/quantum_trader && docker compose -f docker-compose.vps.yml build ai-engine"
+    restart: "cd ~/quantum_trader && docker compose -f docker-compose.vps.yml up -d ai-engine"
+  
+  # File sync to VPS
+  sync_file:
+    template: "scp -i ~/.ssh/hetzner_fresh LOCAL_FILE qt@46.224.116.254:~/quantum_trader/PATH/"
+    example: "scp -i ~/.ssh/hetzner_fresh backend/models/trade.py qt@46.224.116.254:~/quantum_trader/backend/models/"
+
+# ============================================================================
+# PORT MAPPING
+# ============================================================================
+ports:
+  6379: "Redis (quantum_redis)"
+  8001: "AI Engine API (quantum_ai_engine)"
+  
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
+env_vars:
+  CROSS_EXCHANGE_ENABLED: "true (Phase 4M)"
+  ADAPTIVE_LEVERAGE_ENABLED: "true (Phase 4N)"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  REDIS_URL: "redis://redis:6379"
+  PYTHONPATH: "/app"
