@@ -151,7 +151,7 @@ if __name__ == "__main__":
 # PHASE 4: ADAPTIVE POLICY REINFORCEMENT LAYER (APRL)
 # ============================================================================
 
-from services.adaptive_policy_reinforcement import AdaptivePolicyReinforcement
+from backend.services.adaptive_policy_reinforcement import AdaptivePolicyReinforcement
 import logging
 import os
 

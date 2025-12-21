@@ -31,5 +31,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import os; import requests; port = os.getenv('PORT', '8005'); requests.get(f'http://localhost:{port}/health').raise_for_status()"
 
 # Run service (use simplified stub version for now)
-WORKDIR /app
-CMD ["sh", "-c", "python /app/microservices/risk_safety/stub_main.py"]
+WORKDIR /app/microservices/risk_safety
+CMD ["python", "stub_main.py"]
