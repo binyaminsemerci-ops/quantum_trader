@@ -1,10 +1,10 @@
 # QUANTUM TRADER - SYSTEM INVENTORY
 # Auto-generated file location and deployment map
-# Last Updated: 2025-12-21 (Phase 4M+ Integration Complete)
+# Last Updated: 2025-12-21 (Phase 4O+ Intelligent Leverage + RL Position Sizing Complete)
 
-version: "1.1"
-last_update: "2025-12-21T04:00:00Z"
-latest_phase: "Phase 4M+ - Cross-Exchange → ExitBrain v3 Integration"
+version: "1.2"
+last_update: "2025-12-21T05:00:00Z"
+latest_phase: "Phase 4O+ - Intelligent Leverage v2 + RL Position Sizing (Cross-Exchange Enabled)"
 
 # ============================================================================
 # CONTAINERS - What's running where
@@ -33,11 +33,13 @@ containers:
     dockerfile: "microservices/ai_engine/Dockerfile"
     port: 8001
     status: "running"
-    purpose: "ML inference, signal generation, adaptive leverage"
+    purpose: "ML inference, signal generation, intelligent leverage, RL position sizing"
     dependencies: ["redis", "cross-exchange"]
     environment:
       - ADAPTIVE_LEVERAGE_ENABLED=true
       - CROSS_EXCHANGE_ENABLED=true
+      - INTELLIGENT_LEVERAGE_ENABLED=true  # Phase 4O+
+      - RL_POSITION_SIZING_ENABLED=true   # Phase 4O+
     mounted_volumes:
       - "./microservices/ai_engine:/app/microservices/ai_engine:ro"
       - "./backend:/app/backend:ro"
@@ -48,6 +50,102 @@ containers:
 # FILE LOCATIONS - Where everything is
 # ============================================================================
 modules:
+  
+  # Phase 4O+ - Intelligent Leverage v2 + RL Position Sizing
+  intelligent_leverage_v2:
+    location: "microservices/exitbrain_v3_5/"
+    in_containers: ["quantum_ai_engine"]
+    status: "ACTIVE"
+    files:
+      - name: "intelligent_leverage_engine.py"
+        lines: 390
+        purpose: "ILFv2 - Adaptive leverage calculation (5-80x)"
+        features:
+          - "7-factor leverage calculation"
+          - "Cross-exchange divergence integration (Phase 4M+)"
+          - "Confidence-based baseline (5-80x)"
+          - "Volatility, PnL trend, funding rate adjustments"
+          - "Safety cap (90% of calculated)"
+          - "Statistics tracking"
+        formula: |
+          base = 5 + (confidence × 75)
+          leverage = base × vol_factor × pnl_factor × symbol_factor × 
+                     margin_factor × divergence_factor × funding_factor × safety_cap
+          Clamped to [5, 80]
+        factors:
+          volatility: "max(0.2, 1.5 - volatility) → Lower leverage when volatile"
+          pnl_trend: "1 + (pnl_trend × 0.25) → Reward winning streaks"
+          symbol_risk: "1 / symbol_risk → Reduce for risky symbols"
+          margin_util: "max(0.3, 1 - margin_util) → Prevent over-leverage"
+          divergence: "max(0.5, 1 - exch_divergence) → Cross-exchange safety"
+          funding: "max(0.5, 1 - abs(funding_rate × 10)) → Avoid extreme funding"
+          safety_cap: "0.9 → Max 90% of calculated"
+      
+      - name: "exit_brain.py"
+        lines: 370
+        purpose: "ExitBrain v3.5 - Complete exit management with ILFv2"
+        features:
+          - "ILFv2 integration for leverage calculation"
+          - "Confidence-based TP/SL adjustment"
+          - "Phase 4M+ cross-exchange multipliers"
+          - "PnL stream publishing (quantum:stream:exitbrain.pnl)"
+          - "Detailed calculation breakdowns"
+        classes:
+          - "SignalContext - Trading signal with ATR"
+          - "ExitPlan - Complete exit plan (leverage, TP, SL, trailing)"
+          - "ExitBrainV35 - Main orchestration class"
+    
+    redis_streams:
+      output: "quantum:stream:exitbrain.pnl"
+      format:
+        timestamp: float
+        symbol: str
+        side: "long/short"
+        confidence: float
+        dynamic_leverage: float  # ILFv2 calculated
+        take_profit_pct: float
+        stop_loss_pct: float
+        volatility: float
+        exch_divergence: float
+        funding_rate: float
+        pnl_trend: float
+        margin_util: float
+      retention: "maxlen=1000"
+  
+  rl_position_sizing:
+    location: "microservices/rl_sizing_agent/"
+    in_containers: ["quantum_ai_engine"]
+    status: "ACTIVE"
+    files:
+      - name: "rl_agent.py"
+        lines: 520
+        purpose: "Reinforcement Learning agent for adaptive position sizing"
+        features:
+          - "PyTorch policy network (6→64→64→1)"
+          - "Policy gradient learning"
+          - "Experience replay buffer (max 1000)"
+          - "Automatic retraining (every 100 trades)"
+          - "Fallback heuristic if PyTorch unavailable"
+        state_vector: "[confidence, volatility, pnl_trend, exch_divergence, funding_rate, margin_util]"
+        reward_function: |
+          reward = (pnl_pct × confidence)
+                   - 0.005 × |leverage - target_leverage|
+                   - 0.002 × exch_divergence
+                   + 0.003 × sign(pnl_trend)
+        policy_storage: "/models/rl_sizing_agent_v3.pth"
+        policy_version: "v3.{policy_updates}"
+      
+      - name: "pnl_feedback_listener.py"
+        lines: 280
+        purpose: "Continuous learning loop - Redis stream listener"
+        features:
+          - "Reads quantum:stream:exitbrain.pnl"
+          - "Feeds experiences to RL agent"
+          - "Async and sync support"
+          - "Standalone service capability"
+        retraining_triggers:
+          - "Every 100 trades"
+          - "Mean absolute PnL < 0.001 over 50 trades"
   
   # Phase 4M+ - Cross-Exchange → ExitBrain v3 Integration
   exitbrain_cross_exchange:
@@ -154,7 +252,32 @@ modules:
           - "Ensemble model management"
           - "Signal generation"
           - "Health monitoring"
-          - "Phase 4N adaptive leverage status"
+          - "Phase 4M+ cross-exchange intelligence status"
+          - "Phase 4O+ intelligent leverage v2 metrics"
+          - "Phase 4O+ RL position sizing metrics"
+        health_metrics:
+          intelligent_leverage_v2: "Enabled flag"
+          intelligent_leverage:
+            enabled: true
+            version: "ILFv2"
+            range: "5-80x"
+            avg_leverage: "Rolling average from last 100 calculations"
+            avg_confidence: "Average signal confidence"
+            avg_divergence: "Average cross-exchange divergence"
+            avg_volatility: "Average market volatility"
+            calculations_total: "Total ILFv2 calculations"
+            cross_exchange_integrated: true
+            status: "OK"
+          rl_position_sizing: "Enabled flag"
+          rl_agent:
+            enabled: true
+            policy_version: "v3.{updates}"
+            trades_processed: "Total trades processed"
+            policy_updates: "Number of policy updates"
+            reward_mean: "Average reward (last 100)"
+            pytorch_available: "bool"
+            experiences_buffered: "Experience buffer size"
+            status: "OK/NO_POLICY/ERROR"
         
       - name: "main.py"
         lines: 231itbrain.status":
@@ -178,7 +301,7 @@ modules:
     retention: "maxlen=1000"
   
   "quantum:stream:exitbrain.alerts":
-    producer: "CrossExchangeAdapter (fail-safe events)"
+    producer: "CrossExchangeAdapter (fail-safe events, Phase 4M+)"
     consumers: ["Monitoring, alerting systems"]
     current_entries: "0 (normal operation)"
     status: "READY"
@@ -192,6 +315,31 @@ modules:
       reason: "Data stale (67.3s)"
       fail_count: 1
     retention: "maxlen=500"
+  
+  "quantum:stream:exitbrain.pnl":
+    producer: "ExitBrain v3.5 (Phase 4O+)"
+    consumers: ["RL Position Sizing Agent, monitoring"]
+    current_entries: "~1000 (rolling)"
+    status: "ACTIVE"
+    update_frequency: "Every exit plan calculation (1-5 min)"
+    purpose: "Feedback loop for RL agent continuous learning"
+    format:
+      timestamp: float
+      symbol: "BTCUSDT"
+      side: "long/short"
+      confidence: 0.85
+      dynamic_leverage: 14.3  # ILFv2 calculated
+      take_profit_pct: 0.027
+      stop_loss_pct: 0.012
+      volatility: 1.2
+      exch_divergence: 0.02
+      funding_rate: -0.001
+      pnl_trend: 0.4
+      margin_util: 0.3
+    retention: "maxlen=1000"
+    consumers_details:
+      - "PnLFeedbackListener → RL Agent policy updates"
+      - "AI Engine health metrics → avg leverage, confidence"
   
   "quantum:stream:ex
         purpose: "FastAPI application entry point"
