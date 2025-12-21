@@ -1208,6 +1208,90 @@ class AIEngineService:
                 logger.error(f"[Adaptive-Leverage] Error getting status: {e}")
                 metrics["adaptive_leverage_status"] = {"status": "ERROR", "error": str(e)}
         
+        # Add Portfolio Governance status (Phase 4Q)
+        portfolio_governance_enabled = os.getenv("PORTFOLIO_GOVERNANCE_ENABLED", "true").lower() == "true"
+        metrics["portfolio_governance_enabled"] = portfolio_governance_enabled
+        
+        if portfolio_governance_enabled:
+            try:
+                if self.event_bus and hasattr(self.event_bus, 'redis'):
+                    # Get current policy and score from Redis
+                    policy = await self.event_bus.redis.get("quantum:governance:policy")
+                    score = await self.event_bus.redis.get("quantum:governance:score")
+                    params_json = await self.event_bus.redis.get("quantum:governance:params")
+                    
+                    # Get memory stream length
+                    memory_samples = await self.event_bus.redis.xlen("quantum:stream:portfolio.memory")
+                    
+                    # Parse policy parameters
+                    params = {}
+                    if params_json:
+                        import json
+                        params = json.loads(params_json.decode('utf-8') if isinstance(params_json, bytes) else params_json)
+                    
+                    metrics["portfolio_governance"] = {
+                        "enabled": True,
+                        "policy": policy.decode('utf-8') if isinstance(policy, bytes) else (policy or "BALANCED"),
+                        "score": float(score.decode('utf-8') if isinstance(score, bytes) else (score or "0.0")),
+                        "memory_samples": memory_samples,
+                        "current_parameters": {
+                            "max_leverage": params.get("max_leverage", "N/A"),
+                            "min_confidence": params.get("min_confidence", "N/A"),
+                            "max_concurrent_positions": params.get("max_concurrent_positions", "N/A")
+                        },
+                        "status": "OK" if memory_samples > 0 else "WARMING_UP"
+                    }
+                else:
+                    metrics["portfolio_governance"] = {"status": "REDIS_NOT_AVAILABLE"}
+            except Exception as e:
+                logger.error(f"[Portfolio-Governance] Error getting status: {e}")
+                metrics["portfolio_governance"] = {"status": "ERROR", "error": str(e)}
+        
+        # Add Meta-Regime Correlator status (Phase 4R)
+        meta_regime_enabled = os.getenv("META_REGIME_ENABLED", "true").lower() == "true"
+        metrics["meta_regime_enabled"] = meta_regime_enabled
+        
+        if meta_regime_enabled:
+            try:
+                if self.event_bus and hasattr(self.event_bus, 'redis'):
+                    # Get preferred regime from Redis
+                    preferred_regime = await self.event_bus.redis.get("quantum:governance:preferred_regime")
+                    
+                    # Get regime statistics
+                    regime_stats_json = await self.event_bus.redis.get("quantum:governance:regime_stats")
+                    
+                    # Get regime stream length
+                    regime_samples = await self.event_bus.redis.xlen("quantum:stream:meta.regime")
+                    
+                    # Parse regime stats
+                    regime_stats = {}
+                    if regime_stats_json:
+                        import json
+                        regime_stats = json.loads(regime_stats_json.decode('utf-8') if isinstance(regime_stats_json, bytes) else regime_stats_json)
+                    
+                    # Get best regime info
+                    best_regime = None
+                    best_pnl = -float('inf')
+                    for regime_name, stats in regime_stats.items():
+                        if stats.get('count', 0) >= 5 and stats.get('avg_pnl', -999) > best_pnl:
+                            best_regime = regime_name
+                            best_pnl = stats['avg_pnl']
+                    
+                    metrics["meta_regime"] = {
+                        "enabled": True,
+                        "preferred": preferred_regime.decode('utf-8') if isinstance(preferred_regime, bytes) else (preferred_regime or "UNKNOWN"),
+                        "samples": regime_samples,
+                        "best_regime": best_regime,
+                        "best_pnl": round(best_pnl, 4) if best_regime else None,
+                        "regimes_detected": len(regime_stats),
+                        "status": "active" if regime_samples > 0 else "warming_up"
+                    }
+                else:
+                    metrics["meta_regime"] = {"status": "redis_not_available"}
+            except Exception as e:
+                logger.error(f"[Meta-Regime] Error getting status: {e}")
+                metrics["meta_regime"] = {"status": "error", "error": str(e)}
+        
         # Add governance status if active
         if self.supervisor_governance:
             try:
@@ -1216,6 +1300,73 @@ class AIEngineService:
             except Exception as e:
                 logger.error(f"[Governance] Error getting status: {e}")
                 metrics["governance"] = {"error": str(e)}
+        
+        # Add strategic memory feedback (Phase 4S)
+        try:
+            import json
+            if self.event_bus and self.event_bus.redis:
+                feedback_data = await self.event_bus.redis.get("quantum:feedback:strategic_memory")
+                if feedback_data:
+                    feedback_str = feedback_data.decode('utf-8') if isinstance(feedback_data, bytes) else feedback_data
+                    feedback = json.loads(feedback_str)
+                    metrics["strategic_memory"] = {
+                        "status": "active",
+                        "preferred_regime": feedback.get("preferred_regime", "UNKNOWN"),
+                        "recommended_policy": feedback.get("updated_policy", "CONSERVATIVE"),
+                        "confidence_boost": feedback.get("confidence_boost", 0.0),
+                        "leverage_hint": feedback.get("leverage_hint", 1.0),
+                        "performance": feedback.get("regime_performance", {}),
+                        "last_update": feedback.get("timestamp")
+                    }
+                else:
+                    metrics["strategic_memory"] = {
+                        "status": "warming_up",
+                        "message": "Waiting for first analysis cycle"
+                    }
+            else:
+                metrics["strategic_memory"] = {"status": "redis_not_available"}
+        except Exception as e:
+            logger.error(f"[StrategicMemory] Error getting feedback: {e}")
+            metrics["strategic_memory"] = {"status": "error", "error": str(e)}
+        
+        # Add strategic evolution status (Phase 4T)
+        try:
+            import json
+            if self.event_bus and self.event_bus.redis:
+                # Get selected models
+                selected_data = await self.event_bus.redis.get("quantum:evolution:selected")
+                rankings_data = await self.event_bus.redis.get("quantum:evolution:rankings")
+                mutated_data = await self.event_bus.redis.get("quantum:evolution:mutated")
+                retrain_count = await self.event_bus.redis.get("quantum:evolution:retrain_count")
+                
+                evolution_metrics = {"status": "active"}
+                
+                if selected_data:
+                    selected_str = selected_data.decode('utf-8') if isinstance(selected_data, bytes) else selected_data
+                    selected = json.loads(selected_str)
+                    evolution_metrics["selected_models"] = selected.get("models", [])
+                    evolution_metrics["top_scores"] = selected.get("scores", [])
+                
+                if rankings_data:
+                    rankings_str = rankings_data.decode('utf-8') if isinstance(rankings_data, bytes) else rankings_data
+                    rankings = json.loads(rankings_str)
+                    evolution_metrics["strategies_evaluated"] = len(rankings)
+                
+                if mutated_data:
+                    mutated_str = mutated_data.decode('utf-8') if isinstance(mutated_data, bytes) else mutated_data
+                    mutated = json.loads(mutated_str)
+                    evolution_metrics["mutation_count"] = len(mutated)
+                
+                if retrain_count:
+                    count_str = retrain_count.decode('utf-8') if isinstance(retrain_count, bytes) else retrain_count
+                    evolution_metrics["total_retrains"] = int(count_str)
+                
+                metrics["strategic_evolution"] = evolution_metrics
+            else:
+                metrics["strategic_evolution"] = {"status": "redis_not_available"}
+        except Exception as e:
+            logger.error(f"[StrategicEvolution] Error getting status: {e}")
+            metrics["strategic_evolution"] = {"status": "error", "error": str(e)}
         
         # Add adaptive retrainer status if active (Phase 4F)
         if self.adaptive_retrainer:
