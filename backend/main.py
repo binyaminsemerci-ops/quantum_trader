@@ -130,6 +130,10 @@ app.include_router(trade_logs.router)  # Trade logs (root level)
 app.include_router(ws.router)  # WebSocket routes (no prefix needed)
 # app.include_router(trading_bot_router, prefix="/trading-bot", tags=["Trading Bot"])
 
+# Phase 2: Circuit Breaker Management API
+from backend.api.circuit_breaker_simple import register_routes as register_cb_routes
+register_cb_routes(app)
+
 
 if __name__ == "__main__":
     # Local dev launcher: run `python backend/main.py` (from repo root) or `python main.py` inside backend dir.
