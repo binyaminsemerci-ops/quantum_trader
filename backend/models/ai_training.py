@@ -6,12 +6,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
-
-# Import Base - handle both direct and module imports
-try:
-    from backend.database import Base
-except ModuleNotFoundError:
-    from database import Base
+from backend.database import Base
 
 
 class AITrainingSample(Base):
