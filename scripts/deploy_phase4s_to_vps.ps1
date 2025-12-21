@@ -44,15 +44,8 @@ Write-Host ""
 Write-Host "📡 Executing Phase 4S+ deployment on VPS..." -ForegroundColor Cyan
 Write-Host "-------------------------------------------------------" -ForegroundColor Gray
 
-$deploymentScript = @'
-cd /home/qt/quantum_trader
-git pull origin main
-chmod +x deploy_phase4s.sh
-./deploy_phase4s.sh
-'@
-
-# Execute deployment via SSH
-$deploymentScript | wsl ssh -i $SSH_KEY_WSL -o StrictHostKeyChecking=no "$VpsUser@$VpsHost" "bash -s"
+# Execute deployment via SSH - one command at a time
+wsl ssh -i $SSH_KEY_WSL -o StrictHostKeyChecking=no "$VpsUser@$VpsHost" "cd /home/qt/quantum_trader && git pull origin main && chmod +x deploy_phase4s.sh && ./deploy_phase4s.sh"
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
