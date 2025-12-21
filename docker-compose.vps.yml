@@ -89,6 +89,7 @@ services:
       - INTELLIGENT_LEVERAGE_ENABLED=true
       - RL_POSITION_SIZING_ENABLED=true
       - EXPOSURE_BALANCER_ENABLED=true
+      - PORTFOLIO_GOVERNANCE_ENABLED=true
     ports:
       - "8001:8001"
     volumes:
@@ -148,6 +149,135 @@ services:
         limits:
           cpus: '0.2'
           memory: 128M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+
+  # Portfolio Governance - Phase 4Q: Exposure Memory & Dynamic Policy Control
+  portfolio-governance:
+    build:
+      context: ./microservices/portfolio_governance
+      dockerfile: Dockerfile
+    container_name: quantum_portfolio_governance
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+      - POLICY_UPDATE_INTERVAL=30
+      - MIN_SAMPLES=50
+      - CONSERVATIVE_THRESHOLD=0.3
+      - AGGRESSIVE_THRESHOLD=0.7
+    volumes:
+      - ./microservices/portfolio_governance:/app:ro
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-engine:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.from_url('redis://redis:6379/0'); assert r.exists('quantum:governance:policy')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+  # Meta-Regime Correlator - Phase 4R
+  meta-regime:
+    build: ./microservices/meta_regime
+    container_name: quantum_meta_regime
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - REGIME_INTERVAL=30
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./microservices/meta_regime:/app:ro
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+      cross-exchange:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.from_url('redis://redis:6379/0'); r.ping()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+
+  # Strategic Memory Sync - Phase 4S: Pattern Learning & Feedback
+  strategic-memory:
+    build:
+      context: ./microservices/strategic_memory
+      dockerfile: Dockerfile
+    container_name: quantum_strategic_memory
+    restart: always
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - MEMORY_SYNC_INTERVAL=60
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - quantum_trader
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.from_url('redis://redis:6379/0'); r.ping()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+
+  # Strategic Evolution Engine - Phase 4T: Automatic Strategy Evolution
+  strategic-evolution:
+    build:
+      context: ./microservices/strategic_evolution
+      dockerfile: Dockerfile
+    container_name: quantum_strategic_evolution
+    restart: always
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-engine:
+        condition: service_started
+    networks:
+      - quantum_trader
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.from_url('redis://redis:6379/0'); r.ping()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.4'
+          memory: 256M
         reservations:
           cpus: '0.05'
           memory: 64M
