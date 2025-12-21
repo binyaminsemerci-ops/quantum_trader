@@ -375,6 +375,40 @@ services:
       retries: 3
       start_period: 20s
 
+  # Training Worker - Executes retraining jobs from Strategic Evolution
+  retraining-worker:
+    build:
+      context: ./microservices/training_worker
+      dockerfile: Dockerfile
+    container_name: quantum_retraining_worker
+    restart: always
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./models:/app/models:rw
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-engine:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.from_url('redis://redis:6379/0'); r.ping()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
 networks:
   quantum_trader:
     driver: bridge
