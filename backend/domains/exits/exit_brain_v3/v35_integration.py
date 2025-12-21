@@ -7,11 +7,15 @@ import sys
 from typing import Dict, Optional
 import logging
 
-# Add microservices to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'microservices'))
-
-from exitbrain_v3_5.adaptive_leverage_engine import AdaptiveLeverageEngine
-from exitbrain_v3_5.pnl_tracker import PnLTracker
+# Import from microservices package (works in Docker)
+try:
+    from microservices.exitbrain_v3_5.adaptive_leverage_engine import AdaptiveLeverageEngine
+    from microservices.exitbrain_v3_5.pnl_tracker import PnLTracker
+except ImportError:
+    # Fallback for local development
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'microservices'))
+    from exitbrain_v3_5.adaptive_leverage_engine import AdaptiveLeverageEngine
+    from exitbrain_v3_5.pnl_tracker import PnLTracker
 
 logger = logging.getLogger(__name__)
 
