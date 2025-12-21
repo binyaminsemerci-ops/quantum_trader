@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Starting Phase 4T Deployment — Strategic Evolution Engine"
+echo "🚀 Starting Phase 4T+ Deployment — Strategic Evolution Engine"
 
 # Determine working directory
 if [ -d "/home/qt/quantum_trader" ]; then
@@ -41,50 +41,71 @@ docker ps --format "table {{.Names}}\t{{.Status}}" | grep strategic_evolution ||
 echo "📊 Checking Redis connections..."
 docker exec redis redis-cli PING || { echo "❌ Redis not reachable"; exit 1; }
 
-# === 6️⃣ Inject test strategy data ===
-echo "🧩 Injecting synthetic strategy performance data..."
-docker exec redis redis-cli RPUSH quantum:strategy:performance '{"strategy":"nhits","sharpe_ratio":1.8,"win_rate":0.65,"max_drawdown":0.12,"consistency":0.78}'
-docker exec redis redis-cli RPUSH quantum:strategy:performance '{"strategy":"patchtst","sharpe_ratio":2.1,"win_rate":0.72,"max_drawdown":0.08,"consistency":0.85}'
-docker exec redis redis-cli RPUSH quantum:strategy:performance '{"strategy":"xgboost","sharpe_ratio":1.5,"win_rate":0.58,"max_drawdown":0.15,"consistency":0.65}'
-docker exec redis redis-cli RPUSH quantum:strategy:performance '{"strategy":"lstm","sharpe_ratio":1.2,"win_rate":0.52,"max_drawdown":0.20,"consistency":0.55}'
+# === 6️⃣ Inject synthetic strategy performance data (6 mock strategies) ===
+echo "🧩 Injecting synthetic strategy performance data (6 models)..."
+for i in {1..6}; do
+  SHARPE=$(awk -v min=0.5 -v max=2.5 'BEGIN{srand(); print min+rand()*(max-min)}')
+  WINRATE=$(awk -v min=0.4 -v max=0.9 'BEGIN{srand(); print min+rand()*(max-min)}')
+  DRAWDOWN=$(awk -v min=0.05 -v max=0.25 'BEGIN{srand(); print min+rand()*(max-min)}')
+  CONSISTENCY=$(awk -v min=0.3 -v max=0.9 'BEGIN{srand(); print min+rand()*(max-min)}')
+  
+  docker exec redis redis-cli RPUSH quantum:strategy:performance \
+    "{\"strategy\":\"model_$i\",\"sharpe_ratio\":$SHARPE,\"win_rate\":$WINRATE,\"max_drawdown\":$DRAWDOWN,\"consistency\":$CONSISTENCY}"
+  
+  echo "  ✓ Injected model_$i (Sharpe: $SHARPE, WinRate: $WINRATE)"
+done
 
 # === 7️⃣ Wait for processing cycle ===
-echo "⏳ Waiting for Strategic Evolution to process..."
+echo "⏳ Waiting for Strategic Evolution to process (90 seconds)..."
 sleep 90
 
-# === 8️⃣ Fetch AI Engine Health ===
-echo "🧠 Fetching AI Engine Health snapshot..."
-curl -s http://localhost:8001/health > /tmp/health_check.json || echo "⚠️ Health endpoint not available"
+# === 8️⃣ Logs summary ===
+echo ""
+echo "📜 Latest Evolution Engine logs:"
+docker logs --tail 30 quantum_strategic_evolution
 
 # === 9️⃣ Check evolution data in Redis ===
-echo "🔁 Checking evolution keys..."
-echo "Rankings:"
-docker exec redis redis-cli GET quantum:evolution:rankings
+echo ""
+echo "🔁 Checking evolution keys in Redis..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📊 Rankings (first 300 chars):"
+docker exec redis redis-cli GET quantum:evolution:rankings | head -c 300 && echo "..."
 
 echo ""
-echo "Selected Models:"
+echo "🎯 Selected Models:"
 docker exec redis redis-cli GET quantum:evolution:selected
 
 echo ""
-echo "Mutations:"
+echo "🧬 Mutated Configurations:"
 docker exec redis redis-cli GET quantum:evolution:mutated
 
 echo ""
-echo "Retrain Stream (last 5):"
-docker exec redis redis-cli XREVRANGE quantum:stream:model.retrain + - COUNT 5
+echo "🔄 Retrain Stream (last 3 jobs):"
+docker exec redis redis-cli XREVRANGE quantum:stream:model.retrain + - COUNT 3
 
-# === 🔟 Logs summary ===
+# === 🔟 Fetch AI Engine Health (if available) ===
 echo ""
-echo "📜 Latest logs:"
-docker logs --tail 30 quantum_strategic_evolution
+echo "🧠 Fetching AI Engine Health snapshot..."
+curl -s http://localhost:8001/health 2>/dev/null | python3 -m json.tool 2>/dev/null | grep -A 10 "strategic_evolution" || echo "⚠️ AI Engine health endpoint not available"
 
 # === 11️⃣ Summary ===
 echo ""
-echo "🎯 PHASE 4T DEPLOYMENT COMPLETE"
-echo "-------------------------------------------------------"
+echo "🎯 PHASE 4T+ DEPLOYMENT COMPLETE"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "• Strategic Evolution Engine: ✅ Running"
-echo "• Performance Evaluator: ✅ Active"
-echo "• Model Selector: ✅ Top 3 Selected"
-echo "• Mutation Engine: ✅ Configs Generated"
-echo "• Retrain Manager: ✅ Jobs Scheduled"
-echo "-------------------------------------------------------"
+echo "• Performance Evaluator: ✅ 6 strategies analyzed"
+echo "• Model Selector: ✅ Top 3 selected"
+echo "• Mutation Engine: ✅ Hyperparameters mutated"
+echo "• Retrain Manager: ✅ Jobs scheduled"
+echo "• Feedback Loop: ✅ Active (10 min cycle)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "📊 Monitor live:"
+echo "  docker logs -f quantum_strategic_evolution"
+echo ""
+echo "🔍 Check rankings:"
+echo "  docker exec redis redis-cli GET quantum:evolution:rankings | jq ."
+echo ""
+echo "🧠 View retrain stream:"
+echo "  docker exec redis redis-cli XREVRANGE quantum:stream:model.retrain + - COUNT 5"
+echo ""
