@@ -44,9 +44,9 @@ ENV PYTHONPATH=/app
 ARG MODE=prod
 ENV MODE=${MODE}
 
-# Prod = uvicorn, Dev = tail
+# Prod = uvicorn (run from backend module), Dev = tail
 CMD if [ "$MODE" = "prod" ]; then \
-        uvicorn main:app --host 0.0.0.0 --port 8000; \
+        uvicorn backend.main:app --host 0.0.0.0 --port 8000; \
     else \
         tail -f /dev/null; \
     fi

@@ -153,12 +153,13 @@ if __name__ == "__main__":
 
 from services.adaptive_policy_reinforcement import AdaptivePolicyReinforcement
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def initialize_phase4():
-    """Initialize Phase 4 Adaptive Policy Reinforcement"""
+    """Initialize Phase 4 Adaptive Policy Reinforcement + Exit Brain v3"""
     try:
         logger.info("[PHASE 4] 🎯 Initializing Adaptive Policy Reinforcement...")
         
@@ -200,4 +201,97 @@ async def initialize_phase4():
     except Exception as e:
         logger.error(f"[ERROR] Failed to initialize APRL: {e}", exc_info=True)
         app.state.aprl = None
+    
+    # ========================================================================
+    # EXIT BRAIN V3 - DYNAMIC EXECUTOR (Adaptive ATR Stop-Loss)
+    # ========================================================================
+    try:
+        from backend.config.exit_mode import is_exit_brain_live_fully_enabled
+        
+        if is_exit_brain_live_fully_enabled():
+            logger.warning("[EXIT_BRAIN_V3] 🧠 Initializing ExitBrain v3 Dynamic Executor...")
+            
+            # Import executor components
+            from backend.domains.exits.exit_brain_v3.dynamic_executor import ExitBrainDynamicExecutor
+            from backend.domains.exits.exit_brain_v3.adapter import ExitBrainAdapter
+            from backend.domains.exits.exit_brain_v3.planner import ExitBrainV3
+            from backend.services.execution.exit_order_gateway import submit_exit_order
+            
+            # Initialize Binance client for position source
+            from binance.client import Client
+            api_key = os.getenv("BINANCE_API_KEY")
+            api_secret = os.getenv("BINANCE_API_SECRET")
+            use_testnet = os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true"
+            
+            if not api_key or not api_secret:
+                logger.error("[EXIT_BRAIN_V3] ❌ Missing BINANCE_API_KEY or BINANCE_API_SECRET")
+                app.state.exit_brain_executor = None
+                return
+            
+            binance_client = Client(api_key, api_secret, testnet=use_testnet)
+            if use_testnet:
+                binance_client.API_URL = 'https://testnet.binancefuture.com'
+                logger.info("[EXIT_BRAIN_V3] Using Binance TESTNET")
+            
+            # Create gateway wrapper that injects client
+            class ExitOrderGatewayWrapper:
+                def __init__(self, client):
+                    self.client = client
+                
+                async def submit_exit_order(self, **kwargs):
+                    # Inject client if not provided
+                    if 'client' not in kwargs:
+                        kwargs['client'] = self.client
+                    return await submit_exit_order(**kwargs)
+            
+            # Initialize components
+            planner = ExitBrainV3()
+            adapter = ExitBrainAdapter(planner=planner)
+            exit_gateway = ExitOrderGatewayWrapper(binance_client)
+            
+            # Initialize executor
+            loop_interval = float(os.getenv("EXIT_BRAIN_CHECK_INTERVAL_SEC", "10"))
+            executor = ExitBrainDynamicExecutor(
+                adapter=adapter,
+                exit_order_gateway=exit_gateway,
+                position_source=binance_client,
+                loop_interval_sec=loop_interval,
+                shadow_mode=False  # LIVE mode (controlled by config)
+            )
+            
+            # Start monitoring loop
+            await executor.start()
+            
+            app.state.exit_brain_executor = executor
+            
+            logger.warning(
+                f"[EXIT_BRAIN_V3] ✅ Dynamic Executor STARTED "
+                f"(interval={loop_interval}s, ATR-based adaptive stops ACTIVE)"
+            )
+            logger.warning("[EXIT_BRAIN_V3] 🎯 Monitoring all positions for:")
+            logger.warning("[EXIT_BRAIN_V3]   • Adaptive ATR stop-loss (1.1x ATR)")
+            logger.warning("[EXIT_BRAIN_V3]   • Trailing profit (0.3% offset)")
+            logger.warning("[EXIT_BRAIN_V3]   • Profit harvesting (+0.4% trigger, 20% partial)")
+            logger.warning("[EXIT_BRAIN_V3]   • Volatility governor (2% ATR threshold)")
+            
+        else:
+            logger.info("[EXIT_BRAIN_V3] Not enabled (EXIT_MODE != EXIT_BRAIN_V3 or not LIVE_ROLLOUT=ENABLED)")
+            app.state.exit_brain_executor = None
+    
+    except Exception as e:
+        logger.error(f"[EXIT_BRAIN_V3] ❌ Failed to initialize: {e}", exc_info=True)
+        app.state.exit_brain_executor = None
+
+
+@app.on_event("shutdown")
+async def shutdown_exit_brain():
+    """Gracefully stop Exit Brain v3 executor on shutdown"""
+    try:
+        executor = getattr(app.state, "exit_brain_executor", None)
+        if executor:
+            logger.warning("[EXIT_BRAIN_V3] ⏹️  Stopping monitoring loop...")
+            await executor.stop()
+            logger.info("[EXIT_BRAIN_V3] ✅ Executor stopped gracefully")
+    except Exception as e:
+        logger.error(f"[EXIT_BRAIN_V3] Error during shutdown: {e}", exc_info=True)
 

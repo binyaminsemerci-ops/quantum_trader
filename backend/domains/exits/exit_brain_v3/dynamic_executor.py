@@ -172,6 +172,9 @@ class ExitBrainDynamicExecutor:
         self._market_data_cache: Dict[str, Dict] = {}
         self._cache_ttl_sec: float = 60.0  # Cache for 60 seconds
         
+        # Binance hedge mode detection (dualSidePosition)
+        self._hedge_mode: Optional[bool] = None  # Will detect on first cycle
+        
         # Monitoring control
         self._monitoring_task: Optional[asyncio.Task] = None
         self._running = False
@@ -208,6 +211,25 @@ class ExitBrainDynamicExecutor:
         )
         
         self._monitoring_task = asyncio.create_task(self._monitoring_loop())
+    
+    async def _detect_hedge_mode(self):
+        """Detect if Binance account is in hedge mode (dualSidePosition)."""
+        if self._hedge_mode is not None:
+            return self._hedge_mode
+        
+        try:
+            result = await asyncio.to_thread(
+                self.position_source.futures_get_position_mode
+            )
+            self._hedge_mode = result.get('dualSidePosition', False)
+            mode_str = "HEDGE (dual-side)" if self._hedge_mode else "ONE-WAY (single-side)"
+            self.logger.warning(f"[EXIT_BRAIN_EXECUTOR] Binance position mode: {mode_str}")
+            return self._hedge_mode
+        except Exception as e:
+            self.logger.error(f"[EXIT_BRAIN_EXECUTOR] Failed to detect hedge mode: {e}")
+            # Default to False (one-way mode) to avoid order errors
+            self._hedge_mode = False
+            return False
     
     async def stop(self):
         """Stop monitoring loop."""
@@ -265,6 +287,10 @@ class ExitBrainDynamicExecutor:
         4. Execute MARKET orders where needed
         5. Clean up closed positions
         """
+        # Detect hedge mode on first cycle
+        if cycle == 1:
+            await self._detect_hedge_mode()
+        
         # Get open positions
         self.logger.info(f"[EXIT_BRAIN_CYCLE] 📡 Fetching positions...")
         positions = await self._get_open_positions()
@@ -908,8 +934,11 @@ class ExitBrainDynamicExecutor:
             "stopPrice": stop_price_str,  # Use formatted string
             "closePosition": True,
             "workingType": "MARK_PRICE",
-            "positionSide": state.side
         }
+        
+        # Only include positionSide if hedge mode is enabled
+        if self._hedge_mode:
+            order_params["positionSide"] = state.side
         
         try:
             # CRITICAL FIX: Cancel existing SL orders first to avoid -4130 error
@@ -1060,8 +1089,11 @@ class ExitBrainDynamicExecutor:
                     "type": "MARKET",
                     "quantity": close_qty,
                     "reduceOnly": True,
-                    "positionSide": state.side
                 }
+                
+                # Only include positionSide if hedge mode
+                if self._hedge_mode:
+                    order_params["positionSide"] = state.side
                 
                 self.logger.error(
                     f"[EXIT_LOSS_GUARD] 🚨 {state.symbol} {state.side}: "
@@ -1404,8 +1436,11 @@ class ExitBrainDynamicExecutor:
                 "type": "MARKET",
                 "quantity": qty,
                 "reduceOnly": True,
-                "positionSide": state.side
             }
+            
+            # Only include positionSide if hedge mode
+            if self._hedge_mode:
+                order_params["positionSide"] = state.side
             
             self.logger.warning(
                 f"[EXIT_EMERGENCY] {state.symbol} {state.side}: "
@@ -1493,8 +1528,11 @@ class ExitBrainDynamicExecutor:
                 "type": "MARKET",
                 "quantity": close_qty,
                 "reduceOnly": True,
-                "positionSide": state.side
             }
+            
+            # Only include positionSide if hedge mode
+            if self._hedge_mode:
+                order_params["positionSide"] = state.side
             
             self.logger.info(
                 f"[EXIT_PARTIAL] {state.symbol} {state.side}: "
@@ -1690,8 +1728,11 @@ class ExitBrainDynamicExecutor:
                         "side": order_side,
                         "type": "MARKET",
                         "closePosition": True,
-                        "positionSide": state.side
                     }
+                    
+                    # Only include positionSide if hedge mode
+                    if self._hedge_mode:
+                        order_params["positionSide"] = state.side
                     self.logger.warning(
                         f"[EXIT_BRAIN_EXECUTOR] {state.symbol} {state.side}: "
                         f"SL quantized to 0, using closePosition MARKET fallback (remaining={remaining_size})"
@@ -1704,7 +1745,7 @@ class ExitBrainDynamicExecutor:
                     )
                 return
             
-            # Build MARKET order (positionSide handles hedge mode)
+            # Build MARKET order
             order_side = "SELL" if state.side == "LONG" else "BUY"
             
             order_params = {
@@ -1712,8 +1753,11 @@ class ExitBrainDynamicExecutor:
                 "side": order_side,
                 "type": "MARKET",
                 "quantity": close_qty,
-                "positionSide": state.side
             }
+            
+            # Only include positionSide if hedge mode is enabled
+            if self._hedge_mode:
+                order_params["positionSide"] = state.side
             
             self.logger.warning(
                 f"[EXIT_SL_TRIGGER] 🛑 {state.symbol} {state.side}: "
@@ -1839,8 +1883,11 @@ class ExitBrainDynamicExecutor:
                         "side": order_side,
                         "type": "MARKET",
                         "closePosition": True,
-                        "positionSide": state.side
                     }
+                    
+                    # Only include positionSide if hedge mode
+                    if self._hedge_mode:
+                        order_params["positionSide"] = state.side
                     self.logger.warning(
                         f"[EXIT_BRAIN_EXECUTOR] {state.symbol} {state.side}: "
                         f"TP{leg_index} quantized to 0, using closePosition MARKET fallback "
@@ -1868,8 +1915,11 @@ class ExitBrainDynamicExecutor:
                 "side": order_side,
                 "type": "MARKET",
                 "quantity": close_qty,
-                "positionSide": state.side
             }
+            
+            # Only include positionSide if hedge mode
+            if self._hedge_mode:
+                order_params["positionSide"] = state.side
             
             self.logger.warning(
                 f"[EXIT_TP_TRIGGER] 🎯 {state.symbol} {state.side}: "
@@ -2274,9 +2324,11 @@ class ExitBrainDynamicExecutor:
             "type": "STOP_MARKET",
             "stopPrice": hard_sl_price,
             "closePosition": True,  # Close entire remaining position
-            "positionSide": state.side,  # LONG or SHORT
-            "reduceOnly": True  # Safety: ensure it only closes, never opens
         }
+        
+        # Only include positionSide if hedge mode
+        if self._hedge_mode:
+            order_params["positionSide"] = state.side  # LONG or SHORT
         
         self.logger.warning(
             f"[CHALLENGE_100_HARD_SL] 🛡️ {state.symbol} {state.side}: Attempting to place HARD SL safety net\n"
