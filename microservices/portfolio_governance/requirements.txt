@@ -1,0 +1,7 @@
+# Portfolio Governance Service Requirements
+
+# Redis for state management and event streaming
+redis==5.0.1
+
+# Logging and monitoring
+python-json-logger==2.0.7

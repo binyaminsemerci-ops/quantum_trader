@@ -1,10 +1,10 @@
 # QUANTUM TRADER - SYSTEM INVENTORY
 # Auto-generated file location and deployment map
-# Last Updated: 2025-12-21 (Phase 4P Real-time Adaptive Exposure Balancer Complete)
+# Last Updated: 2025-12-21 (Phase 4Q Portfolio Governance & Exposure Memory Complete)
 
-version: "1.3"
-last_update: "2025-12-21T08:00:00Z"
-latest_phase: "Phase 4P - Real-time Adaptive Exposure Balancer (Builds on 4M+ and 4O+)"
+version: "1.4"
+last_update: "2025-12-21T10:00:00Z"
+latest_phase: "Phase 4Q - Portfolio Governance & Exposure Memory (Builds on 4P)"
 
 # ============================================================================
 # CONTAINERS - What's running where
@@ -41,11 +41,31 @@ containers:
       - INTELLIGENT_LEVERAGE_ENABLED=true  # Phase 4O+
       - RL_POSITION_SIZING_ENABLED=true   # Phase 4O+
       - EXPOSURE_BALANCER_ENABLED=true    # Phase 4P
+      - PORTFOLIO_GOVERNANCE_ENABLED=true # Phase 4Q
     mounted_volumes:
       - "./microservices/ai_engine:/app/microservices/ai_engine:ro"
       - "./backend:/app/backend:ro"
       - "./logs:/app/logs:rw"
       - "./models:/app/models:rw"
+  
+  quantum_portfolio_governance:
+    image: "quantum_trader-portfolio-governance"
+    build_context: "./microservices/portfolio_governance"
+    status: "ready_for_deployment"
+    purpose: "Exposure memory & dynamic policy control"
+    dependencies: ["redis", "ai-engine"]
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - POLICY_UPDATE_INTERVAL=30
+      - MIN_SAMPLES=50
+    redis_keys:
+      - "quantum:governance:policy (CONSERVATIVE/BALANCED/AGGRESSIVE)"
+      - "quantum:governance:score (portfolio performance)"
+      - "quantum:governance:params (JSON policy parameters)"
+    streams:
+      - "quantum:stream:portfolio.memory (exposure events)"
+      - "quantum:stream:governance.events (policy changes)"
+    health_check: "Redis policy key exists"
   
   quantum_exposure_balancer:
     image: "quantum_trader-exposure-balancer"
