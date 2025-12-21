@@ -36,6 +36,35 @@ services:
     networks:
       - quantum_trader
 
+  # Cross-Exchange Intelligence - Multi-Exchange Data Pipeline
+  cross-exchange:
+    build:
+      context: ./microservices/data_collector
+      dockerfile: Dockerfile
+    container_name: quantum_cross_exchange
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=INFO
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import redis; r=redis.from_url('redis://redis:6379'); r.ping()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
   # AI Engine Service - ML Inference & Signal Generation
   ai-engine:
     build:
@@ -55,6 +84,7 @@ services:
       - RISK_SAFETY_SERVICE_URL=http://risk-safety:8003
       - LOG_LEVEL=DEBUG
       - LOG_DIR=/app/logs
+      - CROSS_EXCHANGE_ENABLED=true
     ports:
       - "8001:8001"
     volumes:
@@ -69,6 +99,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      cross-exchange:
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get(''http://localhost:8001/health'', timeout=5)"]
       interval: 30s

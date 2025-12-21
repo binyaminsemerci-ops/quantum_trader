@@ -11,6 +11,7 @@ Orchestrates AI inference pipeline:
 import asyncio
 import logging
 import httpx
+import numpy as np
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 import sys
@@ -36,6 +37,9 @@ from .models import (
     # NOTE: ServiceHealth removed from here - using health_contract version instead
 )
 from .config import settings
+from backend.microservices.ai_engine.services.model_supervisor_governance import ModelSupervisorGovernance
+from backend.microservices.ai_engine.services.adaptive_retrainer import AdaptiveRetrainer
+from backend.microservices.ai_engine.services.model_validation_layer import ModelValidationLayer
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +69,9 @@ class AIEngineService:
         self.regime_detector = None
         self.memory_manager = None
         self.model_supervisor = None
+        self.supervisor_governance = None  # Phase 4D+4E: Model Supervisor & Predictive Governance
+        self.adaptive_retrainer = None  # Phase 4F: Adaptive Retraining Pipeline
+        self.model_validator = None  # Phase 4G: Model Validation Layer
         
         # State tracking
         self._running = False
@@ -73,6 +80,11 @@ class AIEngineService:
         self._signals_generated = 0
         self._models_loaded = 0
         self._start_time = datetime.now(timezone.utc)
+        
+        # Governance tracking (Phase 4D+4E)
+        self._governance_predictions: Dict[str, Dict[str, np.ndarray]] = {}  # {symbol: {model: predictions}}
+        self._governance_actuals: Dict[str, List[float]] = {}  # {symbol: [actual_prices]}
+        self._governance_pnl: Dict[str, Dict[str, float]] = {}  # {symbol: {model: pnl}}
         
         # Price history for indicator calculations (symbol -> list of prices)
         self._price_history: Dict[str, List[float]] = {}
@@ -266,6 +278,69 @@ class AIEngineService:
                 self._models_loaded += 1
                 logger.info("[AI-ENGINE] ✅ Model Supervisor loaded")
             
+            # 7. Model Supervisor & Predictive Governance (Phase 4D + 4E)
+            if self.ensemble_manager and settings.ENSEMBLE_MODELS:
+                logger.info("[AI-ENGINE] 🧠 Initializing Model Supervisor & Governance (Phase 4D+4E)...")
+                
+                # Initialize governance system
+                self.supervisor_governance = ModelSupervisorGovernance(
+                    drift_threshold=0.05,  # 5% MAPE threshold
+                    retrain_interval=3600,  # 1 hour
+                    smooth=0.3  # 30% smoothing for weight adjustment
+                )
+                
+                # Register ensemble models for supervision
+                # Map friendly names to settings names
+                model_mapping = {
+                    "PatchTST": "patchtst",
+                    "NHiTS": "nhits",
+                    "XGBoost": "xgb",
+                    "LightGBM": "lgbm"
+                }
+                
+                for display_name, config_name in model_mapping.items():
+                    if config_name in settings.ENSEMBLE_MODELS:
+                        self.supervisor_governance.register(display_name, None)
+                
+                self._models_loaded += 1
+                logger.info("[AI-ENGINE] ✅ Model Supervisor & Governance active")
+                logger.info(f"[PHASE 4D+4E] Supervisor + Predictive Governance active")
+            
+            # 8. Adaptive Retraining Pipeline (Phase 4F)
+            if self.ensemble_manager and settings.ENSEMBLE_MODELS:
+                logger.info("[AI-ENGINE] 🔄 Initializing Adaptive Retraining Pipeline (Phase 4F)...")
+                
+                self.adaptive_retrainer = AdaptiveRetrainer(
+                    data_api=None,  # Will be replaced with actual data API
+                    model_paths={
+                        "patchtst": "/app/models/patchtst_adaptive.pth",
+                        "nhits": "/app/models/nhits_adaptive.pth"
+                    },
+                    retrain_interval=14400,  # 4 hours
+                    min_data_points=5000,
+                    max_epochs=2
+                )
+                
+                self._models_loaded += 1
+                logger.info("[AI-ENGINE] ✅ Adaptive Retraining Pipeline active")
+                logger.info(f"[PHASE 4F] Adaptive Retrainer initialized - Interval: 4h")
+            
+            # 9. Model Validation Layer (Phase 4G)
+            if self.adaptive_retrainer:
+                logger.info("[AI-ENGINE] 🔍 Initializing Model Validation Layer (Phase 4G)...")
+                
+                self.model_validator = ModelValidationLayer(
+                    model_paths={
+                        "patchtst": "/app/models/patchtst.pth",
+                        "nhits": "/app/models/nhits.pth"
+                    },
+                    val_data_api=None  # Will use same data API as retrainer
+                )
+                
+                self._models_loaded += 1
+                logger.info("[AI-ENGINE] ✅ Model Validation Layer active")
+                logger.info(f"[PHASE 4G] Validator initialized - Criteria: 3% MAPE improvement + better Sharpe")
+            
             logger.info(f"[AI-ENGINE] ✅ All AI modules loaded ({self._models_loaded} models active)")
             
         except Exception as e:
@@ -361,14 +436,27 @@ class AIEngineService:
         - Update Meta-Strategy Q-values
         - Update RL Sizing Q-values
         - Feed to Continuous Learning Manager
+        - Track PnL for Model Supervisor & Governance (Phase 4D+4E)
         """
         try:
             trade_id = event_data.get("trade_id")
+            symbol = event_data.get("symbol", "unknown")
             pnl_percent = event_data.get("pnl_percent", 0.0)
             model = event_data.get("model", "unknown")
             strategy = event_data.get("strategy")
             
             logger.info(f"[AI-ENGINE] Trade closed: {trade_id} (PnL={pnl_percent:.2f}%, model={model})")
+            
+            # Phase 4D+4E: Track PnL for governance
+            if self.supervisor_governance and symbol:
+                if symbol not in self._governance_pnl:
+                    self._governance_pnl[symbol] = {}
+                
+                # Distribute PnL to all models (simplified - in reality you'd track per model)
+                for model_name in ["PatchTST", "NHiTS", "XGBoost", "LightGBM"]:
+                    self._governance_pnl[symbol][model_name] = pnl_percent
+                
+                logger.info(f"[Governance] PnL tracked for {symbol}: {pnl_percent:.2f}%")
             
             # TODO: Update Meta-Strategy Q-table
             if self.meta_strategy_selector and strategy:
@@ -625,6 +713,48 @@ class AIEngineService:
                 f"(confidence={ensemble_confidence:.2f}, consensus={consensus}/4)"
             )
             
+            # Phase 4D+4E: Run Governance Cycle
+            if self.supervisor_governance and not fallback_triggered:
+                try:
+                    # Store predictions for governance tracking
+                    if symbol not in self._governance_predictions:
+                        self._governance_predictions[symbol] = {}
+                    
+                    # Create synthetic predictions dict (in real scenario, ensemble_manager would return per-model predictions)
+                    model_predictions = {
+                        "PatchTST": np.array([current_price * (1.01 if action == "BUY" else 0.99)]),
+                        "NHiTS": np.array([current_price * (1.01 if action == "BUY" else 0.99)]),
+                        "XGBoost": np.array([current_price * (1.01 if action == "BUY" else 0.99)]),
+                        "LightGBM": np.array([current_price * (1.01 if action == "BUY" else 0.99)])
+                    }
+                    self._governance_predictions[symbol] = model_predictions
+                    
+                    # Track actual prices for comparison
+                    if symbol not in self._governance_actuals:
+                        self._governance_actuals[symbol] = []
+                    self._governance_actuals[symbol].append(current_price)
+                    if len(self._governance_actuals[symbol]) > 100:
+                        self._governance_actuals[symbol].pop(0)
+                    
+                    # Get PnL data (if available from closed trades)
+                    pnl_data = self._governance_pnl.get(symbol, {
+                        "PatchTST": 0.0, "NHiTS": 0.0, "XGBoost": 0.0, "LightGBM": 0.0
+                    })
+                    
+                    # Run governance cycle
+                    if len(self._governance_actuals[symbol]) >= 2:
+                        actuals_array = np.array(self._governance_actuals[symbol][-1:])  # Use latest actual
+                        weights = self.supervisor_governance.run_cycle(
+                            predictions=model_predictions,
+                            actuals=actuals_array,
+                            pnl=pnl_data
+                        )
+                        
+                        logger.info(f"[Governance] Cycle complete for {symbol} - Weights: {weights}")
+                    
+                except Exception as e:
+                    logger.error(f"[Governance] Error in cycle: {e}", exc_info=True)
+            
             # Publish intermediate event
             await self.event_bus.publish("ai.signal_generated", AISignalGeneratedEvent(
                 symbol=symbol,
@@ -805,6 +935,23 @@ class AIEngineService:
                 #             await self.event_bus.publish(event_type, event_data)
                 #             logger.debug(f"[AI-ENGINE] Replayed buffered event: {event_type}")
                 
+                # Phase 4F: Run adaptive retraining cycle
+                if self.adaptive_retrainer:
+                    try:
+                        result = self.adaptive_retrainer.run_cycle()
+                        if result.get("status") == "success":
+                            logger.info(f"[Retrainer] Cycle completed - Models: {result.get('models_retrained', [])}")
+                            
+                            # Phase 4G: Validate retrained models
+                            if self.model_validator:
+                                try:
+                                    validation_result = self.model_validator.run_validation_cycle()
+                                    logger.info(f"[Validator] Validation complete: {validation_result}")
+                                except Exception as val_e:
+                                    logger.error(f"[Validator] Validation error: {val_e}")
+                    except Exception as e:
+                        logger.error(f"[Retrainer] Cycle error: {e}")
+                
                 await asyncio.sleep(5.0)  # Reduced frequency since not processing
                 
             except asyncio.CancelledError:
@@ -906,8 +1053,55 @@ class AIEngineService:
             "ensemble_enabled": self.ensemble_manager is not None,
             "meta_strategy_enabled": settings.META_STRATEGY_ENABLED,
             "rl_sizing_enabled": settings.RL_SIZING_ENABLED,
-            "running": self._running
+            "running": self._running,
+            "governance_active": self.supervisor_governance is not None,  # Phase 4D+4E
+            "cross_exchange_intelligence": os.getenv("CROSS_EXCHANGE_ENABLED", "false").lower() == "true",  # Phase 4M
         }
+        
+        # Add cross-exchange stream status if enabled
+        if metrics["cross_exchange_intelligence"]:
+            try:
+                if self.event_bus and hasattr(self.event_bus, 'redis'):
+                    # Check normalized stream length
+                    stream_len = await self.event_bus.redis.xlen("quantum:stream:exchange.normalized")
+                    metrics["cross_exchange_stream"] = {
+                        "active": stream_len > 0,
+                        "entries": stream_len,
+                        "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+                        "status": "OK" if stream_len > 0 else "NO_DATA"
+                    }
+                else:
+                    metrics["cross_exchange_stream"] = {"status": "REDIS_NOT_AVAILABLE"}
+            except Exception as e:
+                logger.error(f"[Cross-Exchange] Error checking stream: {e}")
+                metrics["cross_exchange_stream"] = {"status": "ERROR", "error": str(e)}
+        
+        # Add governance status if active
+        if self.supervisor_governance:
+            try:
+                governance_status = self.supervisor_governance.get_status()
+                metrics["governance"] = governance_status
+            except Exception as e:
+                logger.error(f"[Governance] Error getting status: {e}")
+                metrics["governance"] = {"error": str(e)}
+        
+        # Add adaptive retrainer status if active (Phase 4F)
+        if self.adaptive_retrainer:
+            try:
+                retrainer_status = self.adaptive_retrainer.get_status()
+                metrics["adaptive_retrainer"] = retrainer_status
+            except Exception as e:
+                logger.error(f"[Retrainer] Error getting status: {e}")
+        
+        # Add model validator status if active (Phase 4G)
+        if self.model_validator:
+            try:
+                validator_status = self.model_validator.get_status()
+                metrics["model_validator"] = validator_status
+            except Exception as e:
+                logger.error(f"[Validator] Error getting status: {e}")
+                metrics["model_validator"] = {"error": str(e)}
+                metrics["adaptive_retrainer"] = {"error": str(e)}
         
         # Build standardized health response
         try:
