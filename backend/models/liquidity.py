@@ -21,6 +21,7 @@ from backend.database import Base
 
 class LiquidityRun(Base):
     __tablename__ = "liquidity_runs"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True)
     fetched_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
@@ -39,6 +40,7 @@ class LiquiditySnapshot(Base):
     __tablename__ = "liquidity_snapshots"
     __table_args__ = (
         UniqueConstraint("run_id", "symbol", name="uq_liquidity_snapshot_symbol"),
+        {'extend_existing': True}
     )
 
     id = Column(Integer, primary_key=True)
@@ -62,6 +64,7 @@ class PortfolioAllocation(Base):
     __tablename__ = "portfolio_allocations"
     __table_args__ = (
         UniqueConstraint("run_id", "symbol", name="uq_portfolio_allocation_symbol"),
+        {'extend_existing': True}
     )
 
     id = Column(Integer, primary_key=True)
@@ -76,6 +79,7 @@ class PortfolioAllocation(Base):
 
 class ExecutionJournal(Base):
     __tablename__ = "execution_journal"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True)
     run_id = Column(Integer, ForeignKey("liquidity_runs.id", ondelete="SET NULL"), nullable=True, index=True)

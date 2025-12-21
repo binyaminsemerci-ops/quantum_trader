@@ -4,6 +4,8 @@ from backend.database import Base
 
 class TradeLog(Base):
     __tablename__ = "trade_logs"
+    __table_args__ = {'extend_existing': True}
+    
     id = Column(Integer, primary_key=True, index=True)
     symbol = Column(String, nullable=False)
     side = Column(String, nullable=False)
