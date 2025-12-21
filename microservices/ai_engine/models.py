@@ -100,7 +100,7 @@ class AISignalGeneratedEvent(BaseModel):
     action: SignalAction
     confidence: float
     ensemble_confidence: float
-    model_votes: Dict[str, str]  # {"BUY": "fallback"} or {"xgb": "buy", "lgbm": "hold"}
+    model_votes: Dict[str, Any]  # {"BUY": 0.55} (float votes) or {"action": "fallback"} (string)
     consensus: int  # Number of models agreeing
     timestamp: str
 

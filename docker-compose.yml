@@ -540,6 +540,308 @@ services:
       timeout: 5s
       retries: 3
 
+  # Service #7: Governance Dashboard (Phase 4H)
+  governance-dashboard:
+    build:
+      context: .
+      dockerfile: backend/microservices/governance_dashboard/Dockerfile
+    container_name: quantum_governance_dashboard
+    restart: unless-stopped
+    profiles: ["microservices"]
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./logs:/app/logs  # Mount logs for validation log access
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8501/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  governance-alerts:
+    build:
+      context: .
+      dockerfile: backend/microservices/governance_alerts/Dockerfile
+    container_name: quantum_governance_alerts
+    restart: unless-stopped
+    profiles: ["microservices"]
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Email alerts configuration (optional)
+      - ALERT_EMAIL=${ALERT_EMAIL:-}
+      - EMAIL_USER=${EMAIL_USER:-}
+      - EMAIL_PASS=${EMAIL_PASS:-}
+      - SMTP_SERVER=${SMTP_SERVER:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      # Telegram alerts configuration (optional)
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      # Alert thresholds
+      - CPU_THRESHOLD=${CPU_THRESHOLD:-85}
+      - MEM_THRESHOLD=${MEM_THRESHOLD:-80}
+      - MAPE_THRESHOLD=${MAPE_THRESHOLD:-0.06}
+      - SHARPE_THRESHOLD=${SHARPE_THRESHOLD:-0.8}
+    volumes:
+      - ./logs:/app/logs  # Mount logs for validation log access
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import psutil; exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  auto-executor:
+    build:
+      context: .
+      dockerfile: backend/microservices/auto_executor/Dockerfile
+    container_name: quantum_auto_executor
+    restart: unless-stopped
+    profiles: ["microservices"]
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Exchange configuration
+      - EXCHANGE=${EXCHANGE:-binance}
+      - TESTNET=${TESTNET:-true}
+      - PAPER_TRADING=${PAPER_TRADING:-true}
+      # Binance API credentials (use testnet keys first!)
+      - BINANCE_API_KEY=${BINANCE_API_KEY:-}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET:-}
+      # Risk management settings
+      - MAX_RISK_PER_TRADE=${MAX_RISK_PER_TRADE:-0.01}
+      - MAX_LEVERAGE=${MAX_LEVERAGE:-3}
+      - MAX_POSITION_SIZE=${MAX_POSITION_SIZE:-1000}
+      - CONFIDENCE_THRESHOLD=${CONFIDENCE_THRESHOLD:-0.55}
+      - MAX_DRAWDOWN=${MAX_DRAWDOWN:-4.0}
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.Redis(host='redis'); exit(0 if r.ping() else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Service #8: Trade Journal & Performance Analytics (Phase 7)
+  trade-journal:
+    build:
+      context: .
+      dockerfile: backend/microservices/trade_journal/Dockerfile
+    container_name: quantum_trade_journal
+    restart: unless-stopped
+    profiles: ["microservices"]
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Performance analytics configuration
+      - REPORT_INTERVAL_HOURS=${REPORT_INTERVAL_HOURS:-6}
+      - MAX_TRADES=${MAX_TRADES:-1000}
+      - STARTING_EQUITY=${STARTING_EQUITY:-100000}
+    volumes:
+      - ./backend/microservices/trade_journal/reports:/app/reports
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+      auto-executor:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.Redis(host='redis'); exit(0 if r.ping() else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Service #9: Reinforcement Learning Optimizer (Phase 8)
+  rl-optimizer:
+    build:
+      context: .
+      dockerfile: backend/microservices/rl_optimizer/Dockerfile
+    container_name: quantum_rl_optimizer
+    restart: unless-stopped
+    profiles: ["microservices"]
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # RL Hyperparameters
+      - RL_ALPHA=${RL_ALPHA:-0.3}
+      - RL_GAMMA=${RL_GAMMA:-0.95}
+      - RL_EPSILON=${RL_EPSILON:-0.1}
+      - RL_UPDATE_INTERVAL=${RL_UPDATE_INTERVAL:-1800}
+      # Reward weights
+      - REWARD_PNL_WEIGHT=${REWARD_PNL_WEIGHT:-0.7}
+      - REWARD_SHARPE_WEIGHT=${REWARD_SHARPE_WEIGHT:-0.25}
+      - REWARD_DRAWDOWN_WEIGHT=${REWARD_DRAWDOWN_WEIGHT:-0.05}
+      # Safety constraints
+      - MIN_WEIGHT=${MIN_WEIGHT:-0.05}
+      - MAX_WEIGHT=${MAX_WEIGHT:-0.60}
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+      trade-journal:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.Redis(host='redis'); exit(0 if r.ping() else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Service #10: Meta-Cognitive Strategy Evaluator (Phase 9)
+  strategy-evaluator:
+    build:
+      context: .
+      dockerfile: backend/microservices/strategy_evaluator/Dockerfile
+    container_name: quantum_strategy_evaluator
+    restart: unless-stopped
+    profiles: ["microservices"]
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Strategy evaluation configuration
+      - EVALUATION_INTERVAL=${EVALUATION_INTERVAL:-43200}  # 12 hours
+      - NUM_VARIANTS=${NUM_VARIANTS:-5}
+      - MUTATION_RANGE=${MUTATION_RANGE:-0.2}  # ±20%
+    volumes:
+      - ./backend/microservices/strategy_evaluator/sandbox_strategies:/app/sandbox_strategies
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+      rl-optimizer:
+        condition: service_started
+      trade-journal:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.Redis(host='redis'); exit(0 if r.ping() else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 🧬 PHASE 10: AUTONOMOUS STRATEGY EVOLUTION & LONG-TERM MEMORY
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Evolutionary memory subsystem:
+  # - Collects all meta_best_strategy from Phase 9
+  # - Evaluates performance over days and weeks
+  # - Computes fitness scores based on PnL, Sharpe, survival time
+  # - Performs natural selection - keeps top 3 survivors
+  # - Mutates and combines top strategies via genetic crossover
+  # - Stores archive of all strategies in /memory_bank/
+  # Creates an ecosystem where strategies compete and only the fittest survive
+  strategy-evolution:
+    build:
+      context: ./backend/microservices/strategy_evolution
+      dockerfile: Dockerfile
+    container_name: quantum_strategy_evolution
+    restart: unless-stopped
+    profiles: ["microservices"]
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Evolution configuration
+      - EVOLUTION_INTERVAL=${EVOLUTION_INTERVAL:-86400}  # 24 hours (daily evolution)
+      - SURVIVORS=${SURVIVORS:-3}  # Keep top 3 strategies
+      - MAX_MEMORY=${MAX_MEMORY:-100}  # Maximum 100 strategies in memory
+      - CROSSOVER_RATE=${CROSSOVER_RATE:-0.7}  # 70% crossover probability
+    volumes:
+      - ./backend/microservices/strategy_evolution/memory_bank:/app/memory_bank
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+      strategy-evaluator:
+        condition: service_started
+      rl-optimizer:
+        condition: service_started
+      trade-journal:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.Redis(host='redis'); exit(0 if r.ping() else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 🧠 PHASE 11: QUANTUM POLICY MEMORY & TEMPORAL REGIME FORECASTING
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Quantum Policy Memory Layer:
+  # - Reads Phase 10's long-term memory (all strategies, results, patterns)
+  # - Trains Temporal Fusion Transformer (TFT) to predict:
+  #   * Future regime (bull, bear, volatile, neutral)
+  #   * Policy behavior (when to increase/reduce risk)
+  # - Writes predictions to Governance Layer for automatic adjustments
+  # - Extends ensemble with meta-forecaster agent
+  quantum-policy-memory:
+    build:
+      context: ./backend/microservices/quantum_policy_memory
+      dockerfile: Dockerfile
+    container_name: quantum_policy_memory
+    restart: unless-stopped
+    profiles: ["microservices"]
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Quantum Policy Memory configuration
+      - FORECAST_INTERVAL=${FORECAST_INTERVAL:-21600}  # 6 hours
+      - MIN_SAMPLES=${MIN_SAMPLES:-50}  # Minimum samples needed
+      - SEQUENCE_LENGTH=${SEQUENCE_LENGTH:-32}  # Time steps
+      - TRAINING_EPOCHS=${TRAINING_EPOCHS:-5}  # Training epochs
+    volumes:
+      - ./backend/microservices/strategy_evolution/memory_bank:/app/policy_memory
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+      strategy-evolution:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis, torch; r=redis.Redis(host='redis'); exit(0 if r.ping() else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  federation-stub:
+    build:
+      context: ./backend/microservices/federation_stub
+      dockerfile: Dockerfile
+    container_name: quantum_federation_stub
+    restart: unless-stopped
+    profiles: ["microservices"]
+    environment:
+      - REDIS_HOST=redis
+    volumes:
+      - ./backend/microservices/federation_stub/federation_stub_log:/app/federation_stub_log
+    networks:
+      - quantum_trader
+    depends_on:
+      quantum-policy-memory:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.Redis(host='redis'); r.ping()"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
 networks:
   quantum_trader:
     driver: bridge

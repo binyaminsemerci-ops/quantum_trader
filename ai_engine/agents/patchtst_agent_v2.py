@@ -128,7 +128,7 @@ class PatchTSTAgent:
         # Load weights
         if model_path and Path(model_path).exists():
             logger.info(f"[PatchTST] Loading model from {model_path}")
-            state_dict = torch.load(model_path, map_location="cpu", weights_only=False)
+            state_dict = torch.load(model_path, map_location="cpu")
             self.model.load_state_dict(state_dict, strict=False)
             logger.info(f"[PatchTST] ✅ Model weights loaded")
         else:
