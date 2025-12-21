@@ -44,8 +44,15 @@ Write-Host ""
 Write-Host "📡 Executing Phase 4S+ deployment on VPS..." -ForegroundColor Cyan
 Write-Host "-------------------------------------------------------" -ForegroundColor Gray
 
-# Execute deployment via SSH - force pull and deploy
-wsl ssh -i $SSH_KEY_WSL -o StrictHostKeyChecking=no "$VpsUser@$VpsHost" "cd /home/qt/quantum_trader && git fetch origin && git reset --hard origin/main && chmod +x deploy_phase4s.sh && ./deploy_phase4s.sh"
+# Fix permissions and deploy
+Write-Host "🔧 Fixing file permissions on VPS..." -ForegroundColor Yellow
+wsl ssh -i $SSH_KEY_WSL -o StrictHostKeyChecking=no "$VpsUser@$VpsHost" "sudo chown -R qt:qt /home/qt/quantum_trader" 2>&1 | Out-Null
+
+Write-Host "📥 Fetching latest code..." -ForegroundColor Yellow
+wsl ssh -i $SSH_KEY_WSL -o StrictHostKeyChecking=no "$VpsUser@$VpsHost" "cd /home/qt/quantum_trader && git fetch origin && git reset --hard origin/main && chmod +x deploy_phase4s.sh"
+
+Write-Host "🚀 Launching Phase 4S+ deployment..." -ForegroundColor Cyan
+wsl ssh -i $SSH_KEY_WSL -o StrictHostKeyChecking=no "$VpsUser@$VpsHost" "cd /home/qt/quantum_trader && ./deploy_phase4s.sh"
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
