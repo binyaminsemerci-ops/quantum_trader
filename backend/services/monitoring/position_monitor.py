@@ -171,6 +171,12 @@ class PositionMonitor:
         # [FIX] CRITICAL: Get trail callback rate from config (must be [0.1, 5.0])
         self.trail_callback_rate = float(os.getenv("QT_TRAIL_CALLBACK_RATE", "1.5"))
         
+        # [FIX] CRITICAL: Detect position mode (One-Way vs Hedge Mode)
+        # In One-Way Mode: positionSide must be 'BOTH' or omitted
+        # In Hedge Mode: positionSide must be 'LONG' or 'SHORT'
+        self._position_mode = None  # Will be detected on first check
+        self._is_hedge_mode = False
+        
         # Track open positions to detect closures (for Meta-Strategy reward updates)
         self._previous_open_positions = {}  # {symbol: position_data}
         
@@ -961,12 +967,14 @@ class PositionMonitor:
             tp_price = round(entry_price * (1 + price_tp_pct), price_precision)
             sl_price = round(entry_price * (1 - price_sl_pct), price_precision)
             side = 'SELL'
-            position_side = 'LONG'  # For hedge mode
+            # [FIX] Use correct positionSide based on account mode
+            position_side = 'LONG' if self._is_hedge_mode else 'BOTH'
         else:  # SHORT position
             tp_price = round(entry_price * (1 - price_tp_pct), price_precision)
             sl_price = round(entry_price * (1 + price_sl_pct), price_precision)
             side = 'BUY'
-            position_side = 'SHORT'  # For hedge mode
+            # [FIX] Use correct positionSide based on account mode
+            position_side = 'SHORT' if self._is_hedge_mode else 'BOTH'
         
         # Calculate quantities using Dynamic partial_tp
         partial_qty = self._round_quantity(abs(amt) * partial_tp, step_size)
@@ -1938,6 +1946,50 @@ class PositionMonitor:
     async def monitor_loop(self) -> None:
         """Main monitoring loop"""
         logger.info(f"[SEARCH] Starting Position Monitor (interval: {self.check_interval}s)")
+        
+        # [FIX] CRITICAL: Detect position mode on startup (One-Way vs Hedge Mode)
+        try:
+            import hmac
+            import hashlib
+            import time
+            import requests
+            
+            timestamp = int(time.time() * 1000)
+            params = {'timestamp': timestamp}
+            query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+            signature = hmac.new(
+                self.client.API_SECRET.encode('utf-8'),
+                query_string.encode('utf-8'),
+                hashlib.sha256
+            ).hexdigest()
+            params['signature'] = signature
+            
+            headers = {'X-MBX-APIKEY': self.client.API_KEY}
+            response = requests.get(
+                f"{self.client.API_URL}/fapi/v1/positionSide/dual",
+                headers=headers,
+                params=params,
+                timeout=5
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                dual_side = data.get('dualSidePosition', False)
+                self._is_hedge_mode = dual_side
+                self._position_mode = "HEDGE" if dual_side else "ONE-WAY"
+                
+                if dual_side:
+                    logger.info(f"[POSITION_MODE] ✅ HEDGE MODE detected - will use positionSide='LONG'/'SHORT'")
+                else:
+                    logger.info(f"[POSITION_MODE] ✅ ONE-WAY MODE detected - will use positionSide='BOTH'")
+            else:
+                logger.warning(f"[POSITION_MODE] ⚠️ Could not detect mode (HTTP {response.status_code}), defaulting to ONE-WAY")
+                self._is_hedge_mode = False
+                self._position_mode = "ONE-WAY"
+        except Exception as e:
+            logger.warning(f"[POSITION_MODE] ⚠️ Could not detect mode: {e}, defaulting to ONE-WAY")
+            self._is_hedge_mode = False
+            self._position_mode = "ONE-WAY"
         
         # [NEW] TRADESTORE - SPRINT 1 D5: Initialize async trade persistence
         if TRADESTORE_AVAILABLE and self.trade_store is None:
