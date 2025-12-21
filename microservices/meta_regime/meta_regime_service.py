@@ -58,7 +58,7 @@ class MetaRegimeService:
     
     def get_market_data(self, symbol: str = "BTCUSDT") -> pd.Series:
         """
-        Get market data from Redis or external source.
+        Get market data from Redis stream (populated by cross-exchange).
         
         Args:
             symbol: Trading symbol
@@ -67,33 +67,36 @@ class MetaRegimeService:
             Price series
         """
         try:
-            # Try to get from Redis stream (populated by cross-exchange)
+            # Read from cross-exchange stream: quantum:stream:exchange.raw
+            # Format: {exchange, symbol, timestamp, open, high, low, close, volume}
             stream_data = self.redis_client.xrevrange(
-                f"quantum:market:{symbol}:prices",
-                count=300
+                "quantum:stream:exchange.raw",
+                count=500  # Get more entries to filter by symbol
             )
             
-            if stream_data and len(stream_data) >= 50:
-                prices = [
-                    float(entry[1].get(b'price', b'0').decode())
-                    for entry in stream_data
-                ]
+            if not stream_data:
+                logger.warning("No market data available", symbol=symbol)
+                return None
+            
+            # Filter and extract close prices for the specified symbol
+            prices = []
+            for entry_id, data in stream_data:
+                if data.get(b'symbol', b'').decode() == symbol:
+                    close_price = data.get(b'close', b'0').decode()
+                    if close_price and close_price != '0':
+                        prices.append(float(close_price))
+            
+            if len(prices) >= 50:
                 prices.reverse()  # Oldest to newest
                 return pd.Series(prices)
             
-            # Fallback: Get from Redis simple keys
-            prices = []
-            for i in range(300):
-                key = f"quantum:market:{symbol}:price:{i}"
-                price = self.redis_client.get(key)
-                if price:
-                    prices.append(float(price))
-            
-            if len(prices) >= 50:
-                return pd.Series(prices)
-            
-            # If no real data, return None (will be handled by caller)
-            logger.warning("No market data available", symbol=symbol)
+            # If insufficient data for requested symbol
+            logger.warning(
+                "Insufficient market data",
+                symbol=symbol,
+                found=len(prices),
+                required=50
+            )
             return None
             
         except Exception as e:
