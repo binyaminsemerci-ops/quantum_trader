@@ -1368,6 +1368,35 @@ class AIEngineService:
             logger.error(f"[StrategicEvolution] Error getting status: {e}")
             metrics["strategic_evolution"] = {"status": "error", "error": str(e)}
         
+        # Add Phase 4U: Model Federation metrics
+        try:
+            if self.event_bus and self.event_bus.redis:
+                consensus_data = await self.event_bus.redis.get("quantum:consensus:signal")
+                trust_weights = await self.event_bus.redis.hgetall("quantum:trust:history")
+                
+                federation_metrics = {"status": "active" if consensus_data else "inactive"}
+                
+                if consensus_data:
+                    consensus_str = consensus_data.decode('utf-8') if isinstance(consensus_data, bytes) else consensus_data
+                    consensus = json.loads(consensus_str)
+                    federation_metrics["consensus_signal"] = consensus
+                    federation_metrics["active_models"] = consensus.get("models_used", 0)
+                
+                if trust_weights:
+                    decoded_weights = {}
+                    for k, v in trust_weights.items():
+                        key = k.decode('utf-8') if isinstance(k, bytes) else k
+                        val = v.decode('utf-8') if isinstance(v, bytes) else v
+                        decoded_weights[key] = float(val)
+                    federation_metrics["trusted_weights"] = decoded_weights
+                
+                metrics["model_federation"] = federation_metrics
+            else:
+                metrics["model_federation"] = {"status": "redis_not_available"}
+        except Exception as e:
+            logger.error(f"[ModelFederation] Error getting status: {e}")
+            metrics["model_federation"] = {"status": "error", "error": str(e)}
+        
         # Add adaptive retrainer status if active (Phase 4F)
         if self.adaptive_retrainer:
             try:

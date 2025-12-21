@@ -311,6 +311,46 @@ services:
       timeout: 5s
       retries: 3
 
+  # Strategic Evolution Engine - Phase 4T: Auto Strategy Evolution
+  strategic-evolution:
+    build: ./microservices/strategic_evolution
+    container_name: quantum_strategic_evolution
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    networks:
+      - quantum_trader
+    deploy:
+      resources:
+        limits:
+          cpus: '0.4'
+          memory: 256M
+
+  # Model Federation - Phase 4U: Auto-Model Federation & Consensus Layer
+  model-federation:
+    build: ./microservices/model_federation
+    container_name: quantum_model_federation
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-engine:
+        condition: service_started
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    networks:
+      - quantum_trader
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 192M
+
   # Frontend Dashboard - Next.js Web Interface
   frontend:
     build:
