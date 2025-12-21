@@ -2,11 +2,26 @@
 set -e
 
 echo "🚀 Starting Phase 4S+ Deployment — Strategic Memory Sync"
-cd /home/qt/quantum_trader
 
-# === 1️⃣ Oppdater kode ===
-echo "🔄 Pulling latest repository..."
-git pull origin main
+# Determine working directory
+if [ -d "/home/qt/quantum_trader" ]; then
+    WORK_DIR="/home/qt/quantum_trader"
+elif [ -d "/tmp" ]; then
+    WORK_DIR="/tmp"
+else
+    WORK_DIR="$(pwd)"
+fi
+
+cd "$WORK_DIR"
+echo "📂 Working directory: $WORK_DIR"
+
+# === 1️⃣ Oppdater kode (hvis i quantum_trader repo) ===
+if [ -d ".git" ]; then
+    echo "🔄 Pulling latest repository..."
+    git pull origin main
+else
+    echo "⚠️  Not a git repository, skipping git pull"
+fi
 
 # === 2️⃣ Bygg container ===
 echo "🏗️ Building Strategic Memory container..."
