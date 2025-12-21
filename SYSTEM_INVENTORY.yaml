@@ -420,7 +420,10 @@ modules:
             status: "OK/NO_POLICY/ERROR"
         
       - name: "main.py"
-        lines: 231itbrain.status":
+        lines: 231
+        purpose: "FastAPI application entry point"
+
+  "quantum:stream:cross.divergence":
     producer: "CrossExchangeAdapter (Phase 4M+)"
     consumers: ["Monitoring, analytics"]
     current_entries: "~1000 (rolling)"
@@ -480,14 +483,6 @@ modules:
     consumers_details:
       - "PnLFeedbackListener → RL Agent policy updates"
       - "AI Engine health metrics → avg leverage, confidence"
-  
-  "quantum:stream:ex
-        purpose: "FastAPI application entry point"
-        endpoints:
-          - "GET /health - Service health status"
-          - "GET /health/live - Liveness probe"
-          - "GET /health/ready - Readiness probe"
-          - "POST /api/ai/signal - Generate trading signal"
   
   # Backend Models
   backend_models:
