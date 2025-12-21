@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import (
+from backend.routes import (
     trades,
     stats,
     chart,
@@ -13,9 +13,9 @@ from routes import (
     trade_logs,
 )
 # from trading_bot.routes import router as trading_bot_router
-from exceptions import add_exception_handlers
-from logging_config import setup_logging
-from performance_monitor import add_monitoring_middleware
+from backend.exceptions import add_exception_handlers
+from backend.logging_config import setup_logging
+from backend.performance_monitor import add_monitoring_middleware
 import os
 
 # Setup logging
