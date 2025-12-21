@@ -1147,6 +1147,34 @@ class AIEngineService:
                 logger.error(f"[RL-Agent] Error getting status: {e}")
                 metrics["rl_agent"] = {"status": "ERROR", "error": str(e)}
         
+        # Add Exposure Balancer status if enabled (Phase 4P)
+        exposure_balancer_enabled = os.getenv("EXPOSURE_BALANCER_ENABLED", "true").lower() == "true"
+        metrics["exposure_balancer_enabled"] = exposure_balancer_enabled
+        
+        if exposure_balancer_enabled:
+            try:
+                from microservices.exposure_balancer import get_exposure_balancer
+                balancer = get_exposure_balancer(redis_client=None, config=None)  # Gets existing instance
+                balancer_stats = balancer.get_statistics()
+                
+                metrics["exposure_balancer"] = {
+                    "enabled": True,
+                    "version": "v1.0",
+                    "actions_taken": balancer_stats.get('actions_taken', 0),
+                    "actions_by_type": balancer_stats.get('actions_by_type', {}),
+                    "last_metrics": {
+                        "margin_utilization": round(balancer_stats['last_metrics'].get('margin_utilization', 0.0), 4),
+                        "symbol_count": balancer_stats['last_metrics'].get('symbol_count', 0),
+                        "avg_confidence": round(balancer_stats['last_metrics'].get('avg_confidence', 0.0), 4),
+                        "cross_divergence": round(balancer_stats['last_metrics'].get('cross_divergence', 0.0), 4)
+                    },
+                    "limits": balancer_stats.get('limits', {}),
+                    "status": "OK"
+                }
+            except Exception as e:
+                logger.error(f"[Exposure-Balancer] Error getting status: {e}")
+                metrics["exposure_balancer"] = {"status": "ERROR", "error": str(e)}
+        
         # Add adaptive leverage status if enabled (Phase 4N)
         if metrics["adaptive_leverage_enabled"]:
             try:
