@@ -86,6 +86,9 @@ services:
       - LOG_DIR=/app/logs
       - CROSS_EXCHANGE_ENABLED=true
       - ADAPTIVE_LEVERAGE_ENABLED=true
+      - INTELLIGENT_LEVERAGE_ENABLED=true
+      - RL_POSITION_SIZING_ENABLED=true
+      - EXPOSURE_BALANCER_ENABLED=true
     ports:
       - "8001:8001"
     volumes:
@@ -108,6 +111,46 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Exposure Balancer - Phase 4P: Real-time Adaptive Risk Management
+  exposure-balancer:
+    build:
+      context: .
+      dockerfile: microservices/exposure_balancer/Dockerfile
+    container_name: quantum_exposure_balancer
+    restart: unless-stopped
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MAX_MARGIN_UTIL=0.85
+      - MAX_SYMBOL_EXPOSURE=0.15
+      - MIN_DIVERSIFICATION=5
+      - DIVERGENCE_THRESHOLD=0.03
+      - REBALANCE_INTERVAL=10
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./microservices/exposure_balancer:/app/microservices/exposure_balancer:ro
+      - ./logs:/app/logs:rw
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-engine:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.path.exists('/tmp/exposure_balancer.pid')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
 
   # Position Monitor - Live TP/SL Management with Exit Brain v3
   position-monitor:

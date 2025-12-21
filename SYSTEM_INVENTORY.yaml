@@ -1,10 +1,10 @@
 # QUANTUM TRADER - SYSTEM INVENTORY
 # Auto-generated file location and deployment map
-# Last Updated: 2025-12-21 (Phase 4O+ Intelligent Leverage + RL Position Sizing Complete)
+# Last Updated: 2025-12-21 (Phase 4P Real-time Adaptive Exposure Balancer Complete)
 
-version: "1.2"
-last_update: "2025-12-21T05:00:00Z"
-latest_phase: "Phase 4O+ - Intelligent Leverage v2 + RL Position Sizing (Cross-Exchange Enabled)"
+version: "1.3"
+last_update: "2025-12-21T08:00:00Z"
+latest_phase: "Phase 4P - Real-time Adaptive Exposure Balancer (Builds on 4M+ and 4O+)"
 
 # ============================================================================
 # CONTAINERS - What's running where
@@ -40,11 +40,38 @@ containers:
       - CROSS_EXCHANGE_ENABLED=true
       - INTELLIGENT_LEVERAGE_ENABLED=true  # Phase 4O+
       - RL_POSITION_SIZING_ENABLED=true   # Phase 4O+
+      - EXPOSURE_BALANCER_ENABLED=true    # Phase 4P
     mounted_volumes:
       - "./microservices/ai_engine:/app/microservices/ai_engine:ro"
       - "./backend:/app/backend:ro"
       - "./logs:/app/logs:rw"
       - "./models:/app/models:rw"
+  
+  quantum_exposure_balancer:
+    image: "quantum_trader-exposure-balancer"
+    build_context: "."
+    dockerfile: "microservices/exposure_balancer/Dockerfile"
+    status: "deploying"  # Phase 4P
+    purpose: "Real-time adaptive portfolio risk management"
+    dependencies: ["redis", "ai-engine"]
+    environment:
+      - REDIS_HOST=redis
+      - MAX_MARGIN_UTIL=0.85
+      - MAX_SYMBOL_EXPOSURE=0.15
+      - MIN_DIVERSIFICATION=5
+      - DIVERGENCE_THRESHOLD=0.03
+      - REBALANCE_INTERVAL=10
+    streams_write:
+      - "quantum:stream:exposure.alerts"
+      - "quantum:stream:executor.commands"
+    streams_read:
+      - "quantum:positions:open"
+      - "quantum:margin:total"
+      - "quantum:meta:confidence"  # From Phase 4O+
+      - "quantum:cross:divergence"  # From Phase 4M+
+    mounted_volumes:
+      - "./microservices/exposure_balancer:/app/microservices/exposure_balancer:ro"
+      - "./logs:/app/logs:rw"
 
 # ============================================================================
 # FILE LOCATIONS - Where everything is
@@ -146,6 +173,119 @@ modules:
         retraining_triggers:
           - "Every 100 trades"
           - "Mean absolute PnL < 0.001 over 50 trades"
+  
+  # Phase 4P - Real-time Adaptive Exposure Balancer
+  exposure_balancer:
+    location: "microservices/exposure_balancer/"
+    in_containers: ["quantum_exposure_balancer"]
+    status: "DEPLOYING"  # Phase 4P
+    files:
+      - name: "exposure_balancer.py"
+        lines: 350
+        purpose: "Core risk assessment and rebalancing engine"
+        features:
+          - "Real-time portfolio monitoring (every 10s)"
+          - "5-tier risk assessment system"
+          - "Priority-based action execution (1=critical, 2=important, 3=optimization)"
+          - "Phase 4M+ divergence integration"
+          - "Phase 4O+ confidence integration"
+          - "Alert system for critical conditions"
+          - "Statistics tracking"
+        classes:
+          - "ExposureMetrics - Portfolio state dataclass"
+          - "BalanceAction - Rebalancing action dataclass"
+          - "ExposureBalancer - Main risk management class"
+        risk_limits:
+          max_margin_util: 0.85  # 85% max margin utilization
+          max_symbol_exposure: 0.15  # 15% max per-symbol exposure
+          min_diversification: 5  # Minimum 5 symbols
+          divergence_threshold: 0.03  # 3% cross-exchange divergence
+        risk_checks:
+          - "Priority 1: Margin overload (>85%) → reduce_margin"
+          - "Priority 2: Symbol overexposure (>15%) → reduce"
+          - "Priority 2: Underdiversification (<5 symbols) → expand"
+          - "Priority 2: High divergence (>3%) → hedge"
+          - "Priority 3: Symbol imbalance (>1.5x avg) → rebalance"
+      
+      - name: "service.py"
+        lines: 200
+        purpose: "Background continuous monitoring service"
+        features:
+          - "Runs rebalancing loop every 10 seconds"
+          - "Periodic statistics logging (every 10 cycles)"
+          - "Redis connection management"
+          - "Graceful shutdown handling"
+        execution_intervals:
+          priority_1_critical: "Immediate"
+          priority_2_important: "Every 10 seconds"
+          priority_3_optimization: "Every 30 seconds"
+      
+      - name: "Dockerfile"
+        lines: 20
+        purpose: "Container configuration for exposure balancer"
+        resources:
+          cpu_limit: "0.2"
+          memory_limit: "128M"
+          cpu_reservation: "0.05"
+          memory_reservation: "64M"
+    
+    redis_streams:
+      reads:
+        - stream: "quantum:positions:open"
+          format: "symbol → margin_usd"
+          purpose: "Current open positions"
+        - stream: "quantum:margin:total"
+          format: "float (total available margin)"
+          purpose: "Calculate margin utilization"
+        - stream: "quantum:meta:confidence"
+          format: "float [0-1] (from Phase 4O+)"
+          purpose: "AI signal confidence weighting"
+        - stream: "quantum:cross:divergence"
+          format: "float [0-1] (from Phase 4M+)"
+          purpose: "Cross-exchange divergence detection"
+      
+      writes:
+        - stream: "quantum:stream:exposure.alerts"
+          format:
+            timestamp: float
+            type: "margin_overload | high_divergence"
+            data: "Dict[str, Any]"
+          retention: "maxlen=500"
+          purpose: "Critical alerts for monitoring"
+        
+        - stream: "quantum:stream:executor.commands"
+          format:
+            timestamp: float
+            action: "reduce_margin | reduce | expand | hedge | rebalance"
+            symbol: "Optional[str]"
+            target_size: "Optional[float]"
+            reason: str
+            priority: "int (1-3)"
+          retention: "maxlen=500"
+          purpose: "Position adjustment commands to auto executor"
+    
+    integration:
+      phase_4m_plus: "Reads quantum:cross:divergence for hedging decisions"
+      phase_4o_plus: "Reads quantum:meta:confidence for risk weighting"
+      auto_executor: "Sends commands to quantum:stream:executor.commands"
+      ai_engine: "Health metrics exposed via /health endpoint"
+    
+    health_metrics:
+      enabled: "exposure_balancer_enabled (bool)"
+      version: "v1.0"
+      actions_taken: "Total rebalancing actions (int)"
+      actions_by_type: "Breakdown by action type (Dict)"
+      last_metrics:
+        - "margin_utilization (float [0-1])"
+        - "symbol_count (int)"
+        - "avg_confidence (float [0-1])"
+        - "cross_divergence (float [0-1])"
+      limits:
+        - "max_margin_util (0.85)"
+        - "max_symbol_exposure (0.15)"
+        - "min_diversification (5)"
+        - "divergence_threshold (0.03)"
+      status: "OK | ERROR"
   
   # Phase 4M+ - Cross-Exchange → ExitBrain v3 Integration
   exitbrain_cross_exchange:
