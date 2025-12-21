@@ -1055,11 +1055,13 @@ class AIEngineService:
             "rl_sizing_enabled": settings.RL_SIZING_ENABLED,
             "running": self._running,
             "governance_active": self.supervisor_governance is not None,  # Phase 4D+4E
-            "cross_exchange_intelligence": os.getenv("CROSS_EXCHANGE_ENABLED", "false").lower() == "true",  # Phase 4M
+            "cross_exchange_intelligence": os.getenv("CROSS_EXCHANGE_ENABLED", "false").lower() == "true",  # Phase 4M+
+            "intelligent_leverage_v2": os.getenv("INTELLIGENT_LEVERAGE_ENABLED", "true").lower() == "true",  # Phase 4O+
+            "rl_position_sizing": os.getenv("RL_POSITION_SIZING_ENABLED", "true").lower() == "true",  # Phase 4O+
             "adaptive_leverage_enabled": os.getenv("ADAPTIVE_LEVERAGE_ENABLED", "true").lower() == "true",  # Phase 4N
         }
         
-        # Add cross-exchange stream status if enabled
+        # Add cross-exchange stream status if enabled (Phase 4M+)
         if metrics["cross_exchange_intelligence"]:
             try:
                 if self.event_bus and hasattr(self.event_bus, 'redis'):
@@ -1076,6 +1078,74 @@ class AIEngineService:
             except Exception as e:
                 logger.error(f"[Cross-Exchange] Error checking stream: {e}")
                 metrics["cross_exchange_stream"] = {"status": "ERROR", "error": str(e)}
+        
+        # Add Intelligent Leverage v2 status if enabled (Phase 4O+)
+        if metrics["intelligent_leverage_v2"]:
+            try:
+                if self.event_bus and hasattr(self.event_bus, 'redis'):
+                    # Check PnL stream length (where ILFv2 calculations published)
+                    pnl_stream_len = await self.event_bus.redis.xlen("quantum:stream:exitbrain.pnl")
+                    
+                    # Get recent leverages for averaging
+                    recent_leverages = []
+                    recent_confidences = []
+                    recent_divergences = []
+                    recent_vols = []
+                    
+                    if pnl_stream_len > 0:
+                        # Read last 100 entries
+                        messages = await self.event_bus.redis.xrevrange(
+                            "quantum:stream:exitbrain.pnl",
+                            count=100
+                        )
+                        for msg_id, data in messages:
+                            if 'dynamic_leverage' in data:
+                                recent_leverages.append(float(data['dynamic_leverage']))
+                            if 'confidence' in data:
+                                recent_confidences.append(float(data['confidence']))
+                            if 'exch_divergence' in data:
+                                recent_divergences.append(float(data['exch_divergence']))
+                            if 'volatility' in data:
+                                recent_vols.append(float(data['volatility']))
+                    
+                    metrics["intelligent_leverage"] = {
+                        "enabled": True,
+                        "version": "ILFv2",
+                        "range": "5-80x",
+                        "avg_leverage": round(np.mean(recent_leverages), 2) if recent_leverages else 0.0,
+                        "avg_confidence": round(np.mean(recent_confidences), 2) if recent_confidences else 0.0,
+                        "avg_divergence": round(np.mean(recent_divergences), 4) if recent_divergences else 0.0,
+                        "avg_volatility": round(np.mean(recent_vols), 2) if recent_vols else 0.0,
+                        "calculations_total": pnl_stream_len,
+                        "cross_exchange_integrated": True,
+                        "status": "OK"
+                    }
+                else:
+                    metrics["intelligent_leverage"] = {"status": "REDIS_NOT_AVAILABLE"}
+            except Exception as e:
+                logger.error(f"[ILF-v2] Error getting status: {e}")
+                metrics["intelligent_leverage"] = {"status": "ERROR", "error": str(e)}
+        
+        # Add RL Position Sizing status if enabled (Phase 4O+)
+        if metrics["rl_position_sizing"]:
+            try:
+                from microservices.rl_sizing_agent.rl_agent import get_rl_agent
+                rl_agent = get_rl_agent()
+                rl_stats = rl_agent.get_statistics()
+                
+                metrics["rl_agent"] = {
+                    "enabled": True,
+                    "policy_version": f"v3.{rl_stats.get('policy_updates', 0)}",
+                    "trades_processed": rl_stats.get('trades_processed', 0),
+                    "policy_updates": rl_stats.get('policy_updates', 0),
+                    "reward_mean": round(rl_stats.get('avg_reward', 0.0), 4),
+                    "pytorch_available": rl_stats.get('pytorch_available', False),
+                    "experiences_buffered": rl_stats.get('experiences_buffered', 0),
+                    "status": "OK" if rl_stats.get('policy_loaded', False) else "NO_POLICY"
+                }
+            except Exception as e:
+                logger.error(f"[RL-Agent] Error getting status: {e}")
+                metrics["rl_agent"] = {"status": "ERROR", "error": str(e)}
         
         # Add adaptive leverage status if enabled (Phase 4N)
         if metrics["adaptive_leverage_enabled"]:
