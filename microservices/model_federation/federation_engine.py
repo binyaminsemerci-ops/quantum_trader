@@ -3,6 +3,7 @@ Federation Engine - Coordinates collaboration between models and builds consensu
 """
 import json
 import time
+import os
 import redis
 from model_broker import ModelBroker
 from consensus_calculator import ConsensusCalculator
@@ -12,7 +13,12 @@ from trust_memory import TrustMemory
 class FederationEngine:
     """Coordinates interaction between models and builds consensus."""
     
-    def __init__(self, redis_url="redis://localhost:6379/0"):
+    def __init__(self, redis_url=None):
+        if redis_url is None:
+            redis_host = os.getenv("REDIS_HOST", "localhost")
+            redis_port = os.getenv("REDIS_PORT", "6379")
+            redis_url = f"redis://{redis_host}:{redis_port}/0"
+        
         self.redis = redis.from_url(redis_url)
         self.broker = ModelBroker(self.redis)
         self.calculator = ConsensusCalculator(self.redis)
