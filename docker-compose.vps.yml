@@ -85,6 +85,7 @@ services:
       - LOG_LEVEL=DEBUG
       - LOG_DIR=/app/logs
       - CROSS_EXCHANGE_ENABLED=true
+      - ADAPTIVE_LEVERAGE_ENABLED=true
     ports:
       - "8001:8001"
     volumes:

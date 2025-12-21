@@ -1056,6 +1056,7 @@ class AIEngineService:
             "running": self._running,
             "governance_active": self.supervisor_governance is not None,  # Phase 4D+4E
             "cross_exchange_intelligence": os.getenv("CROSS_EXCHANGE_ENABLED", "false").lower() == "true",  # Phase 4M
+            "adaptive_leverage_enabled": os.getenv("ADAPTIVE_LEVERAGE_ENABLED", "true").lower() == "true",  # Phase 4N
         }
         
         # Add cross-exchange stream status if enabled
@@ -1075,6 +1076,39 @@ class AIEngineService:
             except Exception as e:
                 logger.error(f"[Cross-Exchange] Error checking stream: {e}")
                 metrics["cross_exchange_stream"] = {"status": "ERROR", "error": str(e)}
+        
+        # Add adaptive leverage status if enabled (Phase 4N)
+        if metrics["adaptive_leverage_enabled"]:
+            try:
+                from backend.domains.exits.exit_brain_v3.v35_integration import get_v35_integration
+                v35 = get_v35_integration()
+                
+                if v35.enabled:
+                    pnl_stats = v35.get_pnl_stats()
+                    
+                    # Check PnL stream length
+                    pnl_stream_len = 0
+                    if self.event_bus and hasattr(self.event_bus, 'redis'):
+                        pnl_stream_len = await self.event_bus.redis.xlen("quantum:stream:exitbrain.pnl")
+                    
+                    metrics["adaptive_leverage_status"] = {
+                        "enabled": True,
+                        "models": 1,
+                        "volatility_source": "cross_exchange",
+                        "avg_pnl_last_20": round(pnl_stats['avg_pnl'], 4),
+                        "win_rate": round(pnl_stats['win_rate'], 4),
+                        "total_trades": pnl_stats['total_trades'],
+                        "pnl_stream_entries": pnl_stream_len,
+                        "status": "OK"
+                    }
+                else:
+                    metrics["adaptive_leverage_status"] = {
+                        "enabled": False,
+                        "status": "DISABLED"
+                    }
+            except Exception as e:
+                logger.error(f"[Adaptive-Leverage] Error getting status: {e}")
+                metrics["adaptive_leverage_status"] = {"status": "ERROR", "error": str(e)}
         
         # Add governance status if active
         if self.supervisor_governance:
