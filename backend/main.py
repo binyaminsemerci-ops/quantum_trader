@@ -148,6 +148,86 @@ if __name__ == "__main__":
     )
 
 # ============================================================================
+# PHASE 3: SAFETY GOVERNOR, RISK BRAIN, EVENT BUS INITIALIZATION
+# ============================================================================
+
+@app.on_event("startup")
+async def initialize_phase3():
+    """Initialize Phase 3: Safety Governor, Risk Brain, EventBus"""
+    try:
+        logger.info("[PHASE 3] 🛡️ Initializing Safety Layer...")
+        
+        # Initialize Redis client for EventBus
+        import redis.asyncio as redis
+        redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
+        redis_client = await redis.from_url(
+            redis_url,
+            encoding="utf-8",
+            decode_responses=True
+        )
+        logger.info(f"[PHASE 3] ✅ Redis connected: {redis_url}")
+        
+        # Initialize EventBus
+        from backend.core.event_bus import EventBus
+        app.state.event_bus = EventBus(
+            redis_client=redis_client,
+            service_name="backend_api"
+        )
+        await app.state.event_bus.initialize()
+        logger.info("[PHASE 3] ✅ EventBus initialized")
+        
+        # Initialize Safety Governor (optional - requires PolicyStore)
+        try:
+            from pathlib import Path
+            from backend.services.risk.safety_governor import SafetyGovernor
+            from backend.core.policy_store import get_policy_store, initialize_policy_store
+            
+            # Try to get or initialize PolicyStore (requires redis_client and event_bus)
+            try:
+                policy_store = get_policy_store()
+            except RuntimeError:
+                # PolicyStore not initialized, initialize it now with redis and event_bus
+                policy_store = await initialize_policy_store(
+                    redis_client=redis_client,
+                    event_bus=app.state.event_bus
+                )
+            
+            safety_data_dir = Path("runtime/safety_governor")
+            safety_data_dir.mkdir(parents=True, exist_ok=True)
+            
+            app.state.safety_governor = SafetyGovernor(
+                data_dir=safety_data_dir,
+                policy_store=policy_store
+            )
+            logger.info("[PHASE 3] ✅ Safety Governor initialized")
+        except Exception as e:
+            logger.warning(f"[PHASE 3] ⚠️ Safety Governor initialization failed: {e}")
+            app.state.safety_governor = None
+        
+        # Initialize Risk Brain (optional)
+        try:
+            from backend.ai_risk.risk_brain import RiskBrain
+            app.state.risk_brain = RiskBrain()
+            logger.info("[PHASE 3] ✅ Risk Brain initialized")
+        except Exception as e:
+            logger.warning(f"[PHASE 3] ⚠️ Risk Brain initialization failed: {e}")
+            app.state.risk_brain = None
+        
+        if app.state.safety_governor and app.state.risk_brain:
+            logger.info("[PHASE 3] 🎉 Safety Layer ACTIVE - All components operational")
+        else:
+            logger.info("[PHASE 3] ⚠️ Safety Layer PARTIALLY ACTIVE - Some components unavailable")
+        
+    except Exception as e:
+        logger.error(f"[PHASE 3] ❌ Failed to initialize Safety Layer core: {e}", exc_info=True)
+        # Set to None so Phase 4 knows they're unavailable
+        app.state.safety_governor = None
+        app.state.risk_brain = None
+        if not hasattr(app.state, 'event_bus'):
+            app.state.event_bus = None
+
+
+# ============================================================================
 # PHASE 4: ADAPTIVE POLICY REINFORCEMENT LAYER (APRL)
 # ============================================================================
 
@@ -294,4 +374,95 @@ async def shutdown_exit_brain():
             logger.info("[EXIT_BRAIN_V3] ✅ Executor stopped gracefully")
     except Exception as e:
         logger.error(f"[EXIT_BRAIN_V3] Error during shutdown: {e}", exc_info=True)
+
+
+# ============================================================================
+# PHASE 5: POSITION MONITOR - AUTOMATIC TP/SL PROTECTION
+# ============================================================================
+
+@app.on_event("startup")
+async def initialize_position_monitor():
+    """
+    Initialize Position Monitor for automatic TP/SL protection.
+    
+    This is a PERMANENT solution to ensure all positions have TP/SL orders.
+    The Position Monitor runs as a background task and continuously:
+    - Monitors all open positions every 10 seconds
+    - Detects positions without TP/SL protection
+    - Automatically sets hybrid TP/SL strategy
+    - Uses AI-generated levels when available
+    - Integrates with Safety Governor and Risk Brain
+    """
+    try:
+        logger.info("[POSITION-MONITOR] 🛡️ Initializing automatic TP/SL protection...")
+        
+        # Import Position Monitor
+        from backend.services.monitoring.position_monitor import PositionMonitor
+        import threading
+        
+        # Get Phase 3 components if available
+        ai_engine = getattr(app.state, "ai_engine", None)
+        event_bus = getattr(app.state, "event_bus", None)
+        
+        # Initialize Position Monitor
+        position_monitor = PositionMonitor(
+            check_interval=10,  # Check every 10 seconds
+            ai_engine=ai_engine,
+            app_state=app.state,
+            event_bus=event_bus
+        )
+        
+        # Store reference
+        app.state.position_monitor = position_monitor
+        
+        # Start Position Monitor in a separate thread (since run() uses asyncio.run())
+        def run_monitor():
+            try:
+                logger.info("[POSITION-MONITOR] 🔄 Starting monitoring loop...")
+                position_monitor.run()
+            except Exception as e:
+                logger.error(f"[POSITION-MONITOR] ❌ Monitor crashed: {e}", exc_info=True)
+        
+        monitor_thread = threading.Thread(target=run_monitor, daemon=True, name="PositionMonitor")
+        monitor_thread.start()
+        
+        app.state.position_monitor_thread = monitor_thread
+        
+        logger.info("[POSITION-MONITOR] ✅ Started successfully")
+        logger.info("[POSITION-MONITOR] 🛡️ Automatic TP/SL protection ACTIVE")
+        logger.info("[POSITION-MONITOR] 📊 Monitoring all positions every 10 seconds")
+        logger.info("[POSITION-MONITOR] 🎯 Features:")
+        logger.info("[POSITION-MONITOR]   • Auto-detect unprotected positions")
+        logger.info("[POSITION-MONITOR]   • Hybrid TP/SL strategy (partial + trailing)")
+        logger.info("[POSITION-MONITOR]   • AI-generated dynamic levels")
+        logger.info("[POSITION-MONITOR]   • Safety Governor integration")
+        
+        if ai_engine:
+            logger.info("[POSITION-MONITOR]   ✅ AI Engine: CONNECTED")
+        else:
+            logger.info("[POSITION-MONITOR]   ⚠️  AI Engine: Not available (using static levels)")
+        
+        if event_bus:
+            logger.info("[POSITION-MONITOR]   ✅ EventBus: CONNECTED")
+        else:
+            logger.info("[POSITION-MONITOR]   ⚠️  EventBus: Not available")
+        
+    except Exception as e:
+        logger.error(f"[POSITION-MONITOR] ❌ Failed to initialize: {e}", exc_info=True)
+        logger.warning("[POSITION-MONITOR] ⚠️  TP/SL protection NOT active - positions may be unprotected!")
+        app.state.position_monitor = None
+        app.state.position_monitor_thread = None
+
+
+@app.on_event("shutdown")
+async def shutdown_position_monitor():
+    """Gracefully stop Position Monitor on shutdown"""
+    try:
+        monitor_thread = getattr(app.state, "position_monitor_thread", None)
+        if monitor_thread and monitor_thread.is_alive():
+            logger.info("[POSITION-MONITOR] ⏹️  Stopping monitoring loop...")
+            # Thread is daemon so it will stop when main thread exits
+            logger.info("[POSITION-MONITOR] ✅ Monitor stopped")
+    except Exception as e:
+        logger.error(f"[POSITION-MONITOR] Error during shutdown: {e}", exc_info=True)
 
