@@ -14,7 +14,8 @@ RUN pip install --no-cache-dir \
     pydantic \
     httpx \
     numpy \
-    pandas
+    pandas \
+    structlog
 
 # Copy backend code
 COPY backend /app/backend

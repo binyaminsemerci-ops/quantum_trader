@@ -12,7 +12,8 @@ RUN pip install --no-cache-dir \
     uvicorn \
     redis \
     pydantic \
-    httpx
+    httpx \
+    structlog
 
 # Copy backend code
 COPY backend /app/backend
