@@ -13,6 +13,7 @@ Architecture:
 """
 
 import time
+import json
 import logging
 from typing import Dict, Optional, Tuple
 from dataclasses import dataclass
@@ -157,6 +158,18 @@ class ExitBrainV35:
             exchange_divergence=exch_divergence
         )
         
+        # [MONITORING] Log adaptive level calculation
+        logger.info(
+            f"[ExitBrain-v3.5] Adaptive Levels | "
+            f"{signal.symbol} {leverage_calc.leverage:.1f}x | "
+            f"LSF={adaptive_levels.lsf:.4f} | "
+            f"TP1={adaptive_levels.tp1_pct*100:.2f}% "
+            f"TP2={adaptive_levels.tp2_pct*100:.2f}% "
+            f"TP3={adaptive_levels.tp3_pct*100:.2f}% | "
+            f"SL={adaptive_levels.sl_pct*100:.2f}% | "
+            f"Harvest={adaptive_levels.harvest_scheme}"
+        )
+        
         # Use adaptive levels as base TP/SL
         base_tp = adaptive_levels.tp1_pct  # Use TP1 as primary target
         base_sl = adaptive_levels.sl_pct
@@ -254,6 +267,13 @@ class ExitBrainV35:
                 sl_pct=final_sl,
                 calc_details=calc_details
             )
+            
+            # [NEW] Publish adaptive levels to dedicated stream for monitoring
+            self._publish_adaptive_levels_stream(
+                signal=signal,
+                adaptive_levels=adaptive_levels,
+                leverage=leverage_calc.leverage
+            )
         
         # Update statistics
         self.plans_generated += 1
@@ -319,6 +339,42 @@ class ExitBrainV35:
             
         except Exception as e:
             logger.error(f"[ExitBrain-v3.5] Failed to publish PnL stream: {e}")
+    
+    def _publish_adaptive_levels_stream(
+        self,
+        signal: SignalContext,
+        adaptive_levels: AdaptiveLevels,
+        leverage: float
+    ):
+        """Publish adaptive levels to Redis stream for monitoring"""
+        try:
+            stream_key = "quantum:stream:adaptive_levels"
+            
+            data = {
+                "timestamp": time.time(),
+                "symbol": signal.symbol,
+                "side": signal.side,
+                "leverage": leverage,
+                "lsf": adaptive_levels.lsf,
+                "tp1_pct": adaptive_levels.tp1_pct,
+                "tp2_pct": adaptive_levels.tp2_pct,
+                "tp3_pct": adaptive_levels.tp3_pct,
+                "sl_pct": adaptive_levels.sl_pct,
+                "harvest_scheme": json.dumps(adaptive_levels.harvest_scheme),
+                "sl_clamped": "true" if adaptive_levels.sl_pct in [0.001, 0.02] else "false",
+                "tp_minimum_enforced": "true" if adaptive_levels.tp1_pct <= 0.003 else "false"
+            }
+            
+            # Add to stream (maxlen 1000)
+            self.redis.xadd(stream_key, data, maxlen=1000)
+            
+            logger.debug(
+                f"[ExitBrain-v3.5] Published adaptive levels to {stream_key} | "
+                f"{signal.symbol} {leverage:.1f}x"
+            )
+            
+        except Exception as e:
+            logger.error(f"[ExitBrain-v3.5] Failed to publish adaptive levels stream: {e}")
     
     def get_statistics(self) -> Dict:
         """Get ExitBrain statistics"""
