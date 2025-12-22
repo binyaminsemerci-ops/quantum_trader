@@ -200,8 +200,96 @@ class AutoExecutor:
                 logger.error(f"❌ Invalid side: {side}")
                 return None
             
-            logger.info(f"✅ Order placed: {symbol} {side} {qty} @ {leverage}x")
+            # Get fill price and position details
+            fill_price = float(order.get('avgPrice', price or 0))
+            contract_qty = float(order.get('executedQty', qty))
+            notional = fill_price * contract_qty
+            
+            logger.info(f"✅ Order placed: {symbol} {side} {contract_qty} contracts ({notional:.2f} USDT) @ {leverage}x")
             self.successful_trades += 1
+            
+            # Set TP/SL automatically after order placement
+            try:
+                # Get current market price for precision
+                ticker = client.get_symbol_ticker(symbol=symbol)
+                current_price = float(ticker['price'])
+                
+                # Dynamic TP/SL based on leverage (LSF-inspired)
+                # Higher leverage = tighter stops
+                if leverage >= 10:
+                    tp_pct = 0.012  # 1.2% TP for ultra-high leverage
+                    sl_pct = 0.006  # 0.6% SL
+                elif leverage >= 5:
+                    tp_pct = 0.015  # 1.5% TP for high leverage
+                    sl_pct = 0.008  # 0.8% SL
+                else:
+                    tp_pct = 0.02   # 2% TP for low leverage
+                    sl_pct = 0.01   # 1% SL
+                
+                # Calculate TP/SL prices based on position direction
+                if side.upper() == "BUY":
+                    take_profit_price = fill_price * (1 + tp_pct)
+                    stop_loss_price = fill_price * (1 - sl_pct)
+                else:  # SELL (SHORT)
+                    take_profit_price = fill_price * (1 - tp_pct)
+                    stop_loss_price = fill_price * (1 + sl_pct)
+                
+                # Determine price precision dynamically
+                price_str = str(current_price)
+                if '.' in price_str:
+                    decimals = len(price_str.split('.')[1])
+                    # Use appropriate precision (max 8 decimals for crypto)
+                    price_precision = min(decimals, 8)
+                else:
+                    price_precision = 2
+                
+                # Round prices
+                take_profit_price = round(take_profit_price, price_precision)
+                stop_loss_price = round(stop_loss_price, price_precision)
+                
+                # Safety check: Ensure stop loss price is positive and reasonable
+                if stop_loss_price <= 0:
+                    raise ValueError(f"Invalid SL price: {stop_loss_price} (must be > 0)")
+                
+                if take_profit_price <= 0:
+                    raise ValueError(f"Invalid TP price: {take_profit_price} (must be > 0)")
+                
+                # Validate price spread
+                if side.upper() == "BUY":
+                    if stop_loss_price >= fill_price:
+                        raise ValueError(f"SL {stop_loss_price} must be < entry {fill_price} for LONG")
+                    if take_profit_price <= fill_price:
+                        raise ValueError(f"TP {take_profit_price} must be > entry {fill_price} for LONG")
+                else:  # SELL
+                    if stop_loss_price <= fill_price:
+                        raise ValueError(f"SL {stop_loss_price} must be > entry {fill_price} for SHORT")
+                    if take_profit_price >= fill_price:
+                        raise ValueError(f"TP {take_profit_price} must be < entry {fill_price} for SHORT")
+                
+                # Place Take Profit order
+                tp_order = client.futures_create_order(
+                    symbol=symbol,
+                    side="SELL" if side.upper() == "BUY" else "BUY",
+                    type="TAKE_PROFIT_MARKET",
+                    stopPrice=take_profit_price,
+                    closePosition=True
+                )
+                logger.info(f"✅ TP set @ ${take_profit_price} ({tp_pct*100:+.1f}%)")
+                
+                # Place Stop Loss order
+                sl_order = client.futures_create_order(
+                    symbol=symbol,
+                    side="SELL" if side.upper() == "BUY" else "BUY",
+                    type="STOP_MARKET",
+                    stopPrice=stop_loss_price,
+                    closePosition=True
+                )
+                logger.info(f"✅ SL set @ ${stop_loss_price} ({-sl_pct*100:.1f}%)")
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to set TP/SL: {e}")
+                # Don't fail the main order if TP/SL fails
+            
             return order
             
         except Exception as e:
