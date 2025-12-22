@@ -1887,6 +1887,10 @@ class PositionMonitor:
                     unprotected += 1
                     logger.warning(f"[WARNING] {symbol} UNPROTECTED - setting TP/SL now...")
                     
+                    # [FIX] Add delay to avoid overwhelming Binance API
+                    if newly_protected > 0:
+                        await asyncio.sleep(1.0)  # 1 second delay between positions
+                    
                     # Set TP/SL asynchronously
                     success = await self._set_tpsl_for_position(position)
                     if success:
