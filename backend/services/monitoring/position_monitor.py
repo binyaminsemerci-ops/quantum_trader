@@ -1048,6 +1048,8 @@ class PositionMonitor:
             cancelled = self._cancel_all_orders_for_symbol(symbol)
             if cancelled > 0:
                 logger.info(f"   Cleaned up {cancelled} existing orders before setting new TP/SL")
+                # [FIX] Wait for Binance to process order cancellations
+                await asyncio.sleep(0.5)  # 500ms delay
         except Exception as e:
             logger.warning(f"   Could not cancel orders: {e}")
         
