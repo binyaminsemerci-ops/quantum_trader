@@ -24,6 +24,7 @@ except ImportError:
     Redis = None
 
 from .intelligent_leverage_engine import get_leverage_engine, LeverageCalculation
+from .adaptive_leverage_engine import AdaptiveLeverageEngine, AdaptiveLevels
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,13 @@ class ExitBrainV35:
             config=self.config.get("leverage_engine", {})
         )
         
-        # Base exit parameters
+        # Get Adaptive Leverage Engine
+        self.adaptive_engine = AdaptiveLeverageEngine(
+            base_tp=self.config.get("base_tp_pct", 0.01),
+            base_sl=self.config.get("base_sl_pct", 0.005)
+        )
+        
+        # Base exit parameters (kept for backward compatibility)
         self.base_tp_pct = self.config.get("base_tp_pct", 0.02)  # 2%
         self.base_sl_pct = self.config.get("base_sl_pct", 0.01)  # 1%
         self.trailing_callback_pct = self.config.get("trailing_callback_pct", 0.005)  # 0.5%
@@ -98,6 +105,7 @@ class ExitBrainV35:
         logger.info(
             f"[ExitBrain-v3.5] Initialized | "
             f"ILFv2: Enabled | "
+            f"AdaptiveLeverage: Enabled | "
             f"Base TP: {self.base_tp_pct*100:.1f}% | "
             f"Base SL: {self.base_sl_pct*100:.1f}%"
         )
@@ -138,14 +146,24 @@ class ExitBrainV35:
             funding_rate=funding_rate
         )
         
-        # Step 2: Base TP/SL calculation
-        base_tp = self.base_tp_pct
-        base_sl = self.base_sl_pct
+        # Step 2: Calculate adaptive TP/SL levels using AdaptiveLeverageEngine
+        # This replaces the old hardcoded TP/SL calculations
+        adaptive_levels = self.adaptive_engine.compute_levels(
+            base_tp_pct=self.base_tp_pct,
+            base_sl_pct=self.base_sl_pct,
+            leverage=leverage_calc.leverage,
+            volatility_factor=signal.atr_value / 100.0 if signal.atr_value > 0 else 0.0,  # Normalize ATR
+            funding_delta=funding_rate,
+            exchange_divergence=exch_divergence
+        )
         
-        # Adjust based on confidence
-        confidence_multiplier = 0.5 + (signal.confidence * 1.5)  # 0.5x to 2.0x
-        base_tp *= confidence_multiplier
-        base_sl *= (2.0 - confidence_multiplier)  # Inverse for SL
+        # Use adaptive levels as base TP/SL
+        base_tp = adaptive_levels.tp1_pct  # Use TP1 as primary target
+        base_sl = adaptive_levels.sl_pct
+        
+        # Store full TP levels for partial harvesting (if needed by executor)
+        tp_levels = [adaptive_levels.tp1_pct, adaptive_levels.tp2_pct, adaptive_levels.tp3_pct]
+        harvest_scheme = adaptive_levels.harvest_scheme
         
         # Step 3: Apply Phase 4M+ cross-exchange adjustments (if available)
         if cross_exchange_adjustments:
@@ -174,8 +192,10 @@ class ExitBrainV35:
         # Step 6: Build reasoning
         reasoning_parts = [
             f"Leverage: {leverage_calc.leverage:.1f}x ({leverage_calc.reasoning})",
-            f"TP: {final_tp*100:.2f}% (base {self.base_tp_pct*100:.1f}% × conf {confidence_multiplier:.2f})",
-            f"SL: {final_sl*100:.2f}% (base {self.base_sl_pct*100:.1f}% × conf {2.0-confidence_multiplier:.2f})"
+            f"LSF: {adaptive_levels.lsf:.4f}",
+            f"TP Levels: {adaptive_levels.tp1_pct*100:.2f}%/{adaptive_levels.tp2_pct*100:.2f}%/{adaptive_levels.tp3_pct*100:.2f}%",
+            f"Harvest: {adaptive_levels.harvest_scheme}",
+            f"SL: {final_sl*100:.2f}%"
         ]
         
         if cross_exchange_adjustments:
@@ -196,16 +216,23 @@ class ExitBrainV35:
                 "factors": leverage_calc.factors,
                 "clamped": leverage_calc.clamped
             },
+            "adaptive_levels": {
+                "tp1_pct": adaptive_levels.tp1_pct,
+                "tp2_pct": adaptive_levels.tp2_pct,
+                "tp3_pct": adaptive_levels.tp3_pct,
+                "sl_pct": adaptive_levels.sl_pct,
+                "harvest_scheme": adaptive_levels.harvest_scheme,
+                "lsf": adaptive_levels.lsf
+            },
             "take_profit": {
                 "final_pct": final_tp,
                 "base_pct": self.base_tp_pct,
-                "confidence_multiplier": confidence_multiplier,
+                "tp_levels": tp_levels,
                 "cross_exchange_multiplier": cross_exchange_adjustments.get("tp_multiplier", 1.0) if cross_exchange_adjustments else 1.0
             },
             "stop_loss": {
                 "final_pct": final_sl,
                 "base_pct": self.base_sl_pct,
-                "confidence_multiplier": 2.0 - confidence_multiplier,
                 "cross_exchange_multiplier": cross_exchange_adjustments.get("sl_multiplier", 1.0) if cross_exchange_adjustments else 1.0
             },
             "inputs": {
