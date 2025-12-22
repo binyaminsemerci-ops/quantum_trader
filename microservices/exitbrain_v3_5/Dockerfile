@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-WORKDIR /app/microservices/exitbrain_v3_5
+WORKDIR /app
 
 # Install dependencies
 RUN pip install --no-cache-dir \
@@ -8,8 +8,8 @@ RUN pip install --no-cache-dir \
     redis \
     aiohttp
 
-# Copy source files
-COPY . .
+# Copy only this microservice
+COPY microservices/exitbrain_v3_5/ ./
 
 # Default command
 CMD ["python3", "adaptive_leverage_engine.py", "--test"]
