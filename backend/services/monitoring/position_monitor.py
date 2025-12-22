@@ -1080,7 +1080,12 @@ class PositionMonitor:
             cancelled = self._cancel_all_orders_for_symbol(symbol)
             if cancelled > 0:
                 logger.info(f"   Cleaned up {cancelled} existing orders, trigger slots should be released")
-                # Additional safety wait already done in _cancel_all_orders_for_symbol
+                # [CRITICAL] Additional safety wait for trigger slot garbage collection
+                # The wait in _cancel_all_orders_for_symbol() happens DURING the cancel
+                # But testnet may need MORE time for slots to fully release before new orders
+                import time
+                logger.info(f"   ⏳ Waiting extra 2 seconds for trigger slot garbage collection...")
+                time.sleep(2.0)
         except Exception as e:
             logger.warning(f"   Could not cancel orders: {e}")
         
