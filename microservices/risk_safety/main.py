@@ -19,9 +19,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .service import RiskSafetyService
-from .api import router
-from .config import settings
+from microservices.risk_safety.service import RiskSafetyService
+from microservices.risk_safety.api import router
+from microservices.risk_safety.config import settings
 
 # Configure logging
 logging.basicConfig(

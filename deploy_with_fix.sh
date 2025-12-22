@@ -1,0 +1,34 @@
+#!/bin/bash
+# Fix git permissions and deploy Position Monitor
+
+set -e
+
+VPS_IP="46.224.116.254"
+VPS_USER="qt"
+SSH_KEY="$HOME/.ssh/hetzner_fresh"
+
+echo "🔧 Fixing git permissions..."
+ssh -i $SSH_KEY $VPS_USER@$VPS_IP << 'ENDSSH'
+cd ~/quantum_trader
+sudo chown -R qt:qt .git
+chmod -R 755 .git
+ENDSSH
+
+echo "📥 Pulling latest code..."
+ssh -i $SSH_KEY $VPS_USER@$VPS_IP "cd ~/quantum_trader && git pull origin main"
+
+echo "🔨 Rebuilding backend..."
+ssh -i $SSH_KEY $VPS_USER@$VPS_IP "cd ~/quantum_trader && docker compose -f docker-compose.vps.yml build backend"
+
+echo "🔄 Restarting backend..."
+ssh -i $SSH_KEY $VPS_USER@$VPS_IP "cd ~/quantum_trader && docker compose -f docker-compose.vps.yml up -d backend"
+
+echo "⏳ Waiting 20 seconds..."
+sleep 20
+
+echo ""
+echo "📊 Checking Position Monitor logs..."
+ssh -i $SSH_KEY $VPS_USER@$VPS_IP "docker logs quantum_backend 2>&1 | tail -80 | grep -E '(POSITION-MONITOR|protection)' || echo '⚠️ No logs yet'"
+
+echo ""
+echo "✅ Deployment complete!"

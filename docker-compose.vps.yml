@@ -390,6 +390,187 @@ services:
           cpus: '0.1'
           memory: 128M
 
+  # ============================================================================
+  # PHASE 2: OBSERVATION & BRAIN INTEGRATION
+  # ============================================================================
+
+  # Universe OS - Market data aggregation and universe management
+  universe-os:
+    build:
+      context: .
+      dockerfile: backend/services/Dockerfile.universe_os
+    container_name: quantum_universe_os
+    restart: unless-stopped
+    environment:
+      - ENABLE_UNIVERSE_OS=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8006:8006"
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # Position Intelligence Layer (PIL) - Position analysis and insights
+  pil:
+    build:
+      context: .
+      dockerfile: backend/services/Dockerfile.pil
+    container_name: quantum_pil
+    restart: unless-stopped
+    environment:
+      - ENABLE_PIL=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8013:8013"
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8013/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # Model Supervisor - ML model monitoring and governance
+  model-supervisor:
+    build:
+      context: .
+      dockerfile: backend/services/Dockerfile.model_supervisor
+    container_name: quantum_model_supervisor
+    restart: unless-stopped
+    environment:
+      - ENABLE_MODEL_SUPERVISOR=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8007:8007"
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-engine:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # CEO Brain - Top-level AI orchestration and decision-making
+  ceo-brain:
+    build:
+      context: .
+      dockerfile: backend/ai_orchestrator/Dockerfile
+    container_name: quantum_ceo_brain
+    restart: unless-stopped
+    environment:
+      - ENABLE_CEO_BRAIN=true
+      - CEO_MODE=ACTIVE
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8010:8010"
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 192M
+
+  # Strategy Brain - Strategy performance analysis and recommendations
+  strategy-brain:
+    build:
+      context: .
+      dockerfile: backend/ai_strategy/Dockerfile
+    container_name: quantum_strategy_brain
+    restart: unless-stopped
+    environment:
+      - ENABLE_STRATEGY_BRAIN=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8011:8011"
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8011/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 192M
+
+  # Risk Brain - Risk analysis and limit recommendations
+  risk-brain:
+    build:
+      context: .
+      dockerfile: backend/ai_risk/Dockerfile
+    container_name: quantum_risk_brain
+    restart: unless-stopped
+    environment:
+      - ENABLE_RISK_BRAIN=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8012:8012"
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8012/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 192M
+
 networks:
   quantum_trader:
     driver: bridge
