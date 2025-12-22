@@ -413,7 +413,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8006/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -442,7 +442,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8013/health"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8013/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -473,7 +473,7 @@ services:
       ai-engine:
         condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8007/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -503,7 +503,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8010/health"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8010/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -532,7 +532,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8011/health"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8011/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -561,7 +561,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8012/health"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8012/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
