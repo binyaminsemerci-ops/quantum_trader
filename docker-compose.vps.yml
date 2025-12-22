@@ -298,8 +298,8 @@ services:
       - EXIT_BRAIN_V3_ENABLED=true
       - POSITION_CHECK_INTERVAL=10
       - LOG_LEVEL=INFO
-      - BINANCE_API_KEY=${BINANCE_API_KEY:-dummy_key_for_startup}
-      - BINANCE_API_SECRET=${BINANCE_API_SECRET:-dummy_secret_for_startup}
+      - BINANCE_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET}
       - BINANCE_TESTNET=${BINANCE_TESTNET:-true}
     volumes:
       - ./logs:/app/logs:rw
