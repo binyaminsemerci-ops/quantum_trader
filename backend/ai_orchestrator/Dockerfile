@@ -16,8 +16,6 @@ RUN pip install --no-cache-dir \
 
 # Copy backend code
 COPY backend /app/backend
-COPY models /app/models 2>/dev/null || true
-COPY data /app/data 2>/dev/null || true
 
 # Set environment
 ENV PYTHONPATH=/app
