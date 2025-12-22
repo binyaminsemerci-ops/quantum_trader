@@ -11,6 +11,7 @@ from typing import Optional, Dict, List
 import logging
 import os
 from datetime import datetime
+from redis_manager import RedisConnectionManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ class ExchangeStreamBridge:
     
     def __init__(self, redis_url: str = REDIS_URL):
         self.redis_url = redis_url
+        self.redis_manager = RedisConnectionManager(url=redis_url)
         self.redis_client: Optional[aioredis.Redis] = None
         self.binance_ws: Optional[websockets.WebSocketClientProtocol] = None
         self.bybit_ws: Optional[websockets.WebSocketClientProtocol] = None
@@ -40,30 +42,25 @@ class ExchangeStreamBridge:
     async def connect_redis(self):
         """Connect to Redis"""
         try:
-            self.redis_client = await aioredis.from_url(
-                self.redis_url,
-                encoding="utf-8",
-                decode_responses=True
-            )
-            await self.redis_client.ping()
-            logger.info("✅ Connected to Redis")
+            await self.redis_manager.start()
+            self.redis_client = self.redis_manager.client
+            logger.info("βœ… Connected to Redis via RedisConnectionManager")
         except Exception as e:
             logger.error(f"❌ Failed to connect to Redis: {e}")
             raise
     
     async def close_redis(self):
         """Close Redis connection"""
-        if self.redis_client:
-            await self.redis_client.close()
-            logger.info("Redis connection closed")
+        await self.redis_manager.stop()
+        logger.info("Redis connection closed")
     
     async def publish_to_redis(self, data: Dict):
         """Publish tick data to Redis stream"""
+        # Use Redis Manager client with resilience
+        if not self.redis_manager.healthy or not self.redis_manager.client:
+            return  # Silently skip when unhealthy
+        
         try:
-            if not self.redis_client:
-                logger.error("Redis client not connected")
-                return
-            
             # Convert to JSON string for Redis
             message = {
                 "exchange": data["exchange"],
@@ -76,11 +73,22 @@ class ExchangeStreamBridge:
                 "volume": str(data["v"])
             }
             
-            await self.redis_client.xadd(REDIS_STREAM_RAW, message)
+            await self.redis_manager.client.xadd(REDIS_STREAM_RAW, message)
             logger.debug(f"Published {data['exchange']}:{data['symbol']} @ {data['c']}")
             
         except Exception as e:
-            logger.error(f"Failed to publish to Redis: {e}")
+            # Only log first error to avoid spam
+            if self.redis_manager.healthy:
+                logger.warning(f"Redis publish failed - marking unhealthy: {e}")
+                self.redis_manager.healthy = False
+                self.redis_manager.consecutive_failures += 1
+                # Close broken connection
+                if self.redis_manager.client:
+                    try:
+                        await self.redis_manager.client.close()
+                    except:
+                        pass
+                    self.redis_manager.client = None
     
     async def handle_binance_stream(self, symbol: str):
         """Handle Binance WebSocket stream for a symbol"""
@@ -90,7 +98,7 @@ class ExchangeStreamBridge:
         while self.running:
             try:
                 async with websockets.connect(ws_url) as websocket:
-                    logger.info(f"✅ Connected to Binance stream: {symbol}")
+                    logger.info(f"Γ£à Connected to Binance stream: {symbol}")
                     
                     async for message in websocket:
                         if not self.running:
@@ -135,7 +143,7 @@ class ExchangeStreamBridge:
         while self.running:
             try:
                 async with websockets.connect(WS_BYBIT) as websocket:
-                    logger.info("✅ Connected to Bybit stream")
+                    logger.info("Γ£à Connected to Bybit stream")
                     
                     # Subscribe to kline streams
                     subscribe_msg = {
@@ -197,7 +205,7 @@ class ExchangeStreamBridge:
         # Create stream if it doesn't exist
         try:
             await self.redis_client.xadd(REDIS_STREAM_RAW, {"init": "1"}, maxlen=10000)
-            logger.info(f"✅ Redis stream ready: {REDIS_STREAM_RAW}")
+            logger.info(f"Γ£à Redis stream ready: {REDIS_STREAM_RAW}")
         except Exception as e:
             logger.warning(f"Stream init warning: {e}")
         
@@ -211,14 +219,14 @@ class ExchangeStreamBridge:
         # Bybit stream (all symbols in one connection)
         tasks.append(asyncio.create_task(self.handle_bybit_stream()))
         
-        logger.info(f"🚀 Started {len(tasks)} WebSocket streams")
+        logger.info(f"≡ƒÜÇ Started {len(tasks)} WebSocket streams")
         
         # Wait for all tasks
         await asyncio.gather(*tasks, return_exceptions=True)
     
     async def stop(self):
         """Stop all streams"""
-        logger.info("⏹️ Stopping all streams...")
+        logger.info("ΓÅ╣∩╕Å Stopping all streams...")
         self.running = False
         await asyncio.sleep(2)  # Give time for graceful shutdown
         await self.close_redis()
@@ -245,25 +253,25 @@ async def test_stream_bridge():
     try:
         redis_client = await aioredis.from_url(REDIS_URL, decode_responses=True)
         stream_len = await redis_client.xlen(REDIS_STREAM_RAW)
-        logger.info(f"\n✅ Redis stream length: {stream_len}")
+        logger.info(f"\nΓ£à Redis stream length: {stream_len}")
         
         # Get latest entries
         entries = await redis_client.xrevrange(REDIS_STREAM_RAW, count=3)
-        logger.info(f"✅ Latest 3 entries:")
+        logger.info(f"Γ£à Latest 3 entries:")
         for entry_id, entry_data in entries:
             logger.info(f"  {entry_id}: {entry_data}")
         
         await redis_client.close()
         
         if stream_len > 0:
-            logger.info("\n✅ Stream bridge test PASSED")
+            logger.info("\nΓ£à Stream bridge test PASSED")
             return True
         else:
-            logger.error("\n❌ Stream bridge test FAILED - No data in stream")
+            logger.error("\nΓ¥î Stream bridge test FAILED - No data in stream")
             return False
     
     except Exception as e:
-        logger.error(f"\n❌ Stream bridge test FAILED: {e}")
+        logger.error(f"\nΓ¥î Stream bridge test FAILED: {e}")
         return False
 
 
