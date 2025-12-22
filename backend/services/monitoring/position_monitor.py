@@ -241,13 +241,10 @@ class PositionMonitor:
             
             if result and result.get('code') == 200:
                 logger.info(f"🗑️  Bulk cancelled all orders for {symbol} (including hidden)")
-                # Wait for Binance to process
-                import asyncio
-                try:
-                    asyncio.create_task(asyncio.sleep(0.5))
-                except RuntimeError:
-                    import time
-                    time.sleep(0.5)
+                # [CRITICAL] Wait for Binance backend to release trigger slots
+                # Testnet needs ~3s, mainnet needs ~1-2s
+                import time
+                time.sleep(3.0)  # 3 second wait for trigger slot release
                 return 1  # We don't know exact count, but assume at least 1
             
             # METHOD 2: Fallback to individual cancellation
@@ -268,6 +265,12 @@ class PositionMonitor:
                     logger.warning(f"   ✗ Failed to cancel order {order_id}: {e}")
             
             logger.info(f"[OK] Cancelled {cancelled_count}/{len(open_orders)} orders for {symbol}")
+            
+            # Wait for trigger slot release after individual cancels too
+            if cancelled_count > 0:
+                import time
+                time.sleep(2.0)
+                
         except Exception as e:
             # Check if error is "no orders to cancel" (which is OK)
             error_str = str(e)
@@ -1076,9 +1079,8 @@ class PositionMonitor:
         try:
             cancelled = self._cancel_all_orders_for_symbol(symbol)
             if cancelled > 0:
-                logger.info(f"   Cleaned up {cancelled} existing orders before setting new TP/SL")
-                # [FIX] Wait for Binance to process order cancellations
-                await asyncio.sleep(0.5)  # 500ms delay
+                logger.info(f"   Cleaned up {cancelled} existing orders, trigger slots should be released")
+                # Additional safety wait already done in _cancel_all_orders_for_symbol
         except Exception as e:
             logger.warning(f"   Could not cancel orders: {e}")
         
