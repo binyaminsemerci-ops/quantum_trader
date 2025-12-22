@@ -429,6 +429,14 @@ class PositionMonitor:
             precision = 0
         return round(qty, precision)
     
+    def _round_price(self, price: float, precision: int) -> float:
+        """Round price to exact precision using Decimal for accuracy"""
+        from decimal import Decimal, ROUND_DOWN
+        if precision == 0:
+            return int(price)
+        # Use string formatting to ensure exact precision
+        return float(f"{price:.{precision}f}")
+    
     async def _adjust_tpsl_dynamically(self, position: Dict, ai_signals: List[Dict] = None) -> bool:
         """
         [TARGET] DYNAMISK TP/SL JUSTERING basert på profit, sentiment og markedsbevegelse
@@ -669,12 +677,12 @@ class PositionMonitor:
         # Hent price precision
         price_precision = self._get_price_precision(symbol)
         if new_sl_price:
-            new_sl_price = round(new_sl_price, price_precision)
+            new_sl_price = self._round_price(new_sl_price, price_precision)
         
         # Round all TP prices
         for i in range(len(partial_tp_levels)):
             price, qty_pct, reason = partial_tp_levels[i]
-            partial_tp_levels[i] = (round(price, price_precision), qty_pct, reason)
+            partial_tp_levels[i] = (self._round_price(price, price_precision), qty_pct, reason)
         
         # Sjekk eksisterende orders
         current_orders = self.client.futures_get_open_orders(symbol=symbol)
@@ -728,19 +736,19 @@ class PositionMonitor:
                         logger.warning(f"   [SKIP] New SL ${new_sl_price:.6f} too close to mark ${mark_price:.6f} - would trigger immediately")
                         new_sl_price = min_sl_price
                         logger.info(f"   [ADJUSTED] SL lowered to ${new_sl_price:.6f} for safety buffer")
-                        new_sl_price = round(new_sl_price, price_precision)  # Re-round after adjustment
+                        new_sl_price = self._round_price(new_sl_price, price_precision)  # Re-round after adjustment
                 else:  # SHORT
                     max_sl_price = mark_price * (1 + min_distance_pct)
                     if new_sl_price < max_sl_price:
                         logger.warning(f"   [SKIP] New SL ${new_sl_price:.6f} too close to mark ${mark_price:.6f} - would trigger immediately")
                         new_sl_price = max_sl_price
                         logger.info(f"   [ADJUSTED] SL raised to ${new_sl_price:.6f} for safety buffer")
-                        new_sl_price = round(new_sl_price, price_precision)  # Re-round after adjustment
+                        new_sl_price = self._round_price(new_sl_price, price_precision)  # Re-round after adjustment
                 
                 try:
                     # Place new SL first
                     # 🔥 CRITICAL: Ensure SL price is correctly rounded for this symbol's precision
-                    new_sl_price = round(new_sl_price, price_precision)
+                    new_sl_price = self._round_price(new_sl_price, price_precision)
                     logger.info(f"   [DEBUG] Placing SL order @ ${new_sl_price} (precision={price_precision})")
                     
                     # [PHASE 1] Route through exit gateway for observability
@@ -964,14 +972,14 @@ class PositionMonitor:
         
         # Calculate TP/SL prices directly from AI percentages
         if amt > 0:  # LONG position
-            tp_price = round(entry_price * (1 + price_tp_pct), price_precision)
-            sl_price = round(entry_price * (1 - price_sl_pct), price_precision)
+            tp_price = self._round_price(entry_price * (1 + price_tp_pct), price_precision)
+            sl_price = self._round_price(entry_price * (1 - price_sl_pct), price_precision)
             side = 'SELL'
             # [FIX] Use correct positionSide based on account mode
             position_side = 'LONG' if self._is_hedge_mode else 'BOTH'
         else:  # SHORT position
-            tp_price = round(entry_price * (1 - price_tp_pct), price_precision)
-            sl_price = round(entry_price * (1 + price_sl_pct), price_precision)
+            tp_price = self._round_price(entry_price * (1 - price_tp_pct), price_precision)
+            sl_price = self._round_price(entry_price * (1 + price_sl_pct), price_precision)
             side = 'BUY'
             # [FIX] Use correct positionSide based on account mode
             position_side = 'SHORT' if self._is_hedge_mode else 'BOTH'
