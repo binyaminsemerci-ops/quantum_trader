@@ -231,15 +231,31 @@ class PositionMonitor:
     def _cancel_all_orders_for_symbol(self, symbol: str) -> int:
         """
         Cancel ALL open orders for a symbol (comprehensive cleanup).
+        Uses futures_cancel_all_open_orders to catch hidden/conditional orders.
         Returns number of orders cancelled.
         """
         cancelled_count = 0
         try:
+            # METHOD 1: Use Binance's bulk cancel API (catches hidden orders)
+            result = self.client.futures_cancel_all_open_orders(symbol=symbol)
+            
+            if result and result.get('code') == 200:
+                logger.info(f"🗑️  Bulk cancelled all orders for {symbol} (including hidden)")
+                # Wait for Binance to process
+                import asyncio
+                try:
+                    asyncio.create_task(asyncio.sleep(0.5))
+                except RuntimeError:
+                    import time
+                    time.sleep(0.5)
+                return 1  # We don't know exact count, but assume at least 1
+            
+            # METHOD 2: Fallback to individual cancellation
             open_orders = self.client.futures_get_open_orders(symbol=symbol)
             if not open_orders:
                 return 0
             
-            logger.info(f"🗑️  Cancelling {len(open_orders)} open orders for {symbol}")
+            logger.info(f"🗑️  Cancelling {len(open_orders)} visible orders for {symbol}")
             
             for order in open_orders:
                 try:
@@ -253,6 +269,11 @@ class PositionMonitor:
             
             logger.info(f"[OK] Cancelled {cancelled_count}/{len(open_orders)} orders for {symbol}")
         except Exception as e:
+            # Check if error is "no orders to cancel" (which is OK)
+            error_str = str(e)
+            if 'No such open order' in error_str or 'Unknown order sent' in error_str:
+                logger.debug(f"No orders to cancel for {symbol} (expected)")
+                return 0
             logger.error(f"❌ Error cancelling orders for {symbol}: {e}")
         
         return cancelled_count
@@ -1176,6 +1197,34 @@ class PositionMonitor:
         except Exception as e:
             logger.error(f"   ❌ CRITICAL: Failed to set TP/SL for {symbol}: {e}")
             logger.error(f"   Exception type: {type(e).__name__}, Details: {str(e)}")
+            
+            # [FIX] Special handling for -4045 (order limit) error
+            if '-4045' in str(e):
+                logger.error(f"   ⚠️  Binance order limit reached (global account issue)")
+                logger.error(f"   This is typically a Binance testnet bug with ghost orders")
+                logger.error(f"   Recommendation: Wait 60 seconds or switch to production API")
+                
+                # Try simplified approach: ONE order only (closePosition SL)
+                logger.info(f"   🔧 Attempting emergency fallback: simple closePosition SL only...")
+                try:
+                    emergency_sl_params = {
+                        'symbol': symbol,
+                        'side': side,
+                        'type': 'STOP_MARKET',
+                        'stopPrice': sl_price,
+                        'closePosition': True,
+                        'workingType': 'MARK_PRICE',
+                        'positionSide': position_side
+                    }
+                    
+                    emergency_order = self.client.futures_create_order(**emergency_sl_params)
+                    logger.info(f"   ✅ [EMERGENCY] Minimal SL protection set: closePosition @ ${sl_price}")
+                    self._protected_positions[symbol] = datetime.now(timezone.utc)
+                    return True
+                    
+                except Exception as emergency_e:
+                    logger.critical(f"   ❌ Emergency SL also failed: {emergency_e}")
+                    # Fall through to backup restoration
             
             # 🛡️ EMERGENCY FALLBACK: Restore SL protection if we have backup!
             if existing_orders_backup:
