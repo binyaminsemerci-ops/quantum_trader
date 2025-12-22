@@ -11,7 +11,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 docker network ls | grep quantum_trader || echo "⚠️ Network quantum_trader missing"
 
 ## 2.  Source-tree verification (should exist from yesterday's build)
-find ~/quantum_trader -type d \( -name "microservices" -o -name "backend" \) -maxdepth 2 | sort
+find /home/qt/quantum_trader -type d \( -name "microservices" -o -name "backend" \) -maxdepth 2 | sort
 
 ## 3.  Health endpoints
 for port in {8001..8015}; do
@@ -21,9 +21,9 @@ done
 
 ## 4.  Redis core keys & pub/sub
 echo "Redis namespaces:"
-docker exec redis redis-cli KEYS "quantum:*" | head -20
+docker exec quantum_redis redis-cli KEYS "quantum:*" | head -20
 echo "Checking live channels:"
-docker exec redis redis-cli PUBSUB CHANNELS
+docker exec quantum_redis redis-cli PUBSUB CHANNELS
 
 ## 5.  Internal API communication checks
 # Verify that brains and engines can talk through HTTP
@@ -37,7 +37,7 @@ tail -n 10 /var/log/*_brain*.log 2>/dev/null || echo "No brain logs found"
 tail -n 10 /var/log/model_federation*.log 2>/dev/null || true
 
 ## 7.  Git & config sync
-cd ~/quantum_trader && git fetch origin main
+cd /home/qt/quantum_trader && git fetch origin main
 if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
   echo "⚠️ Local repo not synced with origin/main"
 else
