@@ -1,45 +1,78 @@
 """
 Adaptive Leverage Engine - ExitBrain v3.5
-Dynamic TP/SL adjustment based on leverage, volatility, and PnL history
+Leverage-aware TP/SL + multi-stage harvesting with fail-safe clamps
+
+Implements:
+- Leverage Sensitivity Factor (LSF): LSF = 1 / (1 + log(leverage + 1))
+- Multi-stage TP levels with harvest schemes
+- Fail-safe clamps: SL [0.1%, 2.0%], TP min 0.3%, SL min 0.15%
+- Dynamic adjustment based on volatility, funding, divergence
 """
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import List, Optional
 import math
-import numpy as np
-from typing import Dict, List, Optional
 import logging
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class AdaptiveLevels:
+    """Result of adaptive level calculation"""
+    tp1_pct: float
+    tp2_pct: float
+    tp3_pct: float
+    sl_pct: float
+    harvest_scheme: List[float]
+    lsf: float
 
 
 class AdaptiveLeverageEngine:
     """
-    Adaptive Leverage-Aware Profit Harvesting Engine
+    Adaptive Leverage-Aware TP/SL engine (ExitBrain v3 compatible).
+
+    Inputs are percentages expressed as decimals:
+      - 1%  = 0.01
+      - 0.5% = 0.005
     
     Features:
-    - Leverage-sensitive TP/SL calculation
-    - Partial profit harvesting (3 levels)
-    - Cross-exchange ATR adjustment
-    - PnL-based auto-tuning
+    - LSF-based TP/SL calculation
+    - Multi-stage profit harvesting
+    - Fail-safe clamps for safety
+    - Volatility, funding, divergence adjustments
     """
-    
+
+    # Hard safety clamps (from design spec)
+    SL_CLAMP_MIN = 0.001   # 0.1%
+    SL_CLAMP_MAX = 0.02    # 2.0%
+
+    # Soft minimums (from design spec)
+    TP_MIN = 0.003         # 0.3%
+    SL_MIN = 0.0015        # 0.15%
+
     def __init__(self, base_tp: float = 0.01, base_sl: float = 0.005):
         """
         Initialize adaptive leverage engine
         
         Args:
-            base_tp: Base take profit ratio (1%)
-            base_sl: Base stop loss ratio (0.5%)
+            base_tp: Base take profit ratio (default 1%)
+            base_sl: Base stop loss ratio (default 0.5%)
         """
         self.base_tp = base_tp
         self.base_sl = base_sl
-        logger.info(f"✅ AdaptiveLeverageEngine initialized: base_tp={base_tp}, base_sl={base_sl}")
+        logger.info(
+            f"[AdaptiveLeverageEngine] Initialized | "
+            f"Base TP: {base_tp*100:.2f}% | Base SL: {base_sl*100:.2f}%"
+        )
     
-    def compute_leverage_factor(self, leverage: float) -> float:
+    def compute_lsf(self, leverage: float) -> float:
         """
-        Compute Leverage Scaling Factor (LSF)
+        Compute Leverage Sensitivity Factor (LSF)
         
-        Higher leverage = Lower LSF = Tighter TP/SL
         Formula: LSF = 1 / (1 + ln(leverage + 1))
+        Higher leverage → Lower LSF → Tighter TP/SL
         
         Args:
             leverage: Position leverage (1-100x)
@@ -47,69 +80,13 @@ class AdaptiveLeverageEngine:
         Returns:
             LSF between 0 and 1
         """
-        if leverage <= 0:
-            leverage = 1
-        
-        lsf = 1 / (1 + math.log(leverage + 1))
-        
-        # Ensure LSF stays in valid range
-        lsf = max(0.1, min(lsf, 1.0))
-        
-        logger.debug(f"Leverage {leverage}x → LSF = {lsf:.4f}")
+        lev = max(float(leverage), 1.0)
+        lsf = 1.0 / (1.0 + math.log(lev + 1.0))
+        return lsf
+        lsf = 1.0 / (1.0 + math.log(lev + 1.0))
         return lsf
     
-    def compute_levels(
-        self, 
-        leverage: float, 
-        volatility_factor: float = 1.0
-    ) -> Dict[str, float]:
-        """
-        Compute adaptive TP/SL levels
-        
-        Args:
-            leverage: Position leverage
-            volatility_factor: Cross-exchange volatility multiplier (default 1.0)
-            
-        Returns:
-            Dictionary with tp1, tp2, tp3, sl, LSF
-        """
-        # Compute leverage scaling factor
-        LSF = self.compute_leverage_factor(leverage)
-        
-        # Base level calculations with leverage adjustment
-        tp1 = self.base_tp * (0.6 + LSF)
-        tp2 = self.base_tp * (1.2 + LSF / 2)
-        tp3 = self.base_tp * (1.8 + LSF / 4)
-        sl = self.base_sl * (1 + (1 - LSF) * 0.8)
-        
-        # Apply cross-exchange ATR corrections
-        # Higher volatility = Wider targets
-        tp1 *= (1 + volatility_factor * 0.4)
-        tp2 *= (1 + volatility_factor * 0.4)
-        tp3 *= (1 + volatility_factor * 0.4)
-        sl *= (1 + volatility_factor * 0.2)
-        
-        # Fail-safe margin protection
-        # Prevent liquidation on high leverage
-        sl = min(max(sl, 0.001), 0.02)  # 0.1% to 2% range
-        
-        levels = {
-            'tp1': round(tp1, 5),
-            'tp2': round(tp2, 5),
-            'tp3': round(tp3, 5),
-            'sl': round(sl, 5),
-            'LSF': round(LSF, 4)
-        }
-        
-        logger.info(
-            f"Computed levels for {leverage}x leverage (volatility={volatility_factor:.2f}): "
-            f"TP1={levels['tp1']:.3%}, TP2={levels['tp2']:.3%}, TP3={levels['tp3']:.3%}, "
-            f"SL={levels['sl']:.3%}"
-        )
-        
-        return levels
-    
-    def get_harvest_scheme(self, leverage: float) -> List[float]:
+    def harvest_scheme_for(self, leverage: float) -> List[float]:
         """
         Get partial profit harvesting scheme based on leverage
         
@@ -117,172 +94,128 @@ class AdaptiveLeverageEngine:
             leverage: Position leverage
             
         Returns:
-            List of 3 percentages for TP1, TP2, TP3 (sum = 1.0)
+            List of 3 percentages for [TP1, TP2, TP3] (sum = 1.0)
         """
-        if leverage <= 10:
+        lev = max(float(leverage), 1.0)
+        if lev <= 10:
             # Conservative: Gradual profit taking
-            scheme = [0.3, 0.3, 0.4]
-            strategy = "Conservative"
-        elif leverage <= 30:
+            return [0.3, 0.3, 0.4]
+        if lev <= 30:
             # Aggressive: Front-load profit taking
-            scheme = [0.4, 0.4, 0.2]
-            strategy = "Aggressive"
-        else:
-            # Ultra-aggressive: Maximize early profits
-            scheme = [0.5, 0.3, 0.2]
-            strategy = "Ultra-Aggressive"
-        
-        logger.info(
-            f"{strategy} harvest scheme for {leverage}x: "
-            f"TP1={scheme[0]:.0%}, TP2={scheme[1]:.0%}, TP3={scheme[2]:.0%}"
-        )
-        
-        return scheme
+            return [0.4, 0.4, 0.2]
+        # Ultra-aggressive: Maximize early profits
+        return [0.5, 0.3, 0.2]
     
-    def optimize_based_on_pnl(
-        self, 
-        avg_pnl_last_20: float, 
-        current_confidence: float
-    ) -> float:
+    def compute_levels(
+        self,
+        base_tp_pct: float,
+        base_sl_pct: float,
+        leverage: float,
+        volatility_factor: Optional[float] = None,
+        funding_delta: Optional[float] = None,
+        exchange_divergence: Optional[float] = None,
+    ) -> AdaptiveLevels:
         """
-        Dynamic adjustment based on recent profitability
+        Compute adaptive TP/SL levels with fail-safe clamps
         
         Args:
-            avg_pnl_last_20: Average PnL of last 20 trades (e.g., 0.3 = +30%)
-            current_confidence: AI signal confidence (0-1)
-            
-        Returns:
-            Adjustment factor (0.8 - 1.2)
-        """
-        adjust = 1.0
-        
-        # PnL-based adjustment
-        if avg_pnl_last_20 < 0:
-            # Recent losses → Tighten stops
-            adjust -= 0.1
-            logger.warning(f"Negative PnL detected ({avg_pnl_last_20:.2%}) → Tightening levels by 10%")
-        elif avg_pnl_last_20 > 0.3:
-            # Strong profits → Allow room to run
-            adjust += 0.1
-            logger.info(f"Strong PnL ({avg_pnl_last_20:.2%}) → Expanding levels by 10%")
-        
-        # Confidence-based adjustment
-        if current_confidence < 0.5:
-            # Low confidence → Be more conservative
-            adjust -= 0.05
-            logger.warning(f"Low confidence ({current_confidence:.2%}) → Extra 5% tightening")
-        
-        # Clamp to safe range
-        adjust = max(0.8, min(adjust, 1.2))
-        
-        logger.info(f"PnL optimizer: adjustment factor = {adjust:.2f}")
-        return adjust
-    
-    def validate_levels(self, levels: Dict[str, float], leverage: float) -> bool:
-        """
-        Validate that computed levels are safe
-        
-        Args:
-            levels: Dictionary with TP/SL levels
+            base_tp_pct: Base take profit percentage (decimal)
+            base_sl_pct: Base stop loss percentage (decimal)
             leverage: Position leverage
+            volatility_factor: Normalized 0..1-ish (0 = calm). If None => 0
+            funding_delta: Signed small value (e.g. -0.02..+0.02). If None => 0
+            exchange_divergence: Normalized 0..1-ish. If None => 0
             
         Returns:
-            True if levels are valid and safe
+            AdaptiveLevels with all calculated parameters
         """
-        # Check TP progression
-        if not (levels['tp1'] < levels['tp2'] < levels['tp3']):
-            logger.error("❌ Invalid TP progression")
-            return False
-        
-        # Check SL is positive
-        if levels['sl'] <= 0:
-            logger.error("❌ Invalid SL (must be positive)")
-            return False
-        
-        # Check liquidation risk
-        # For high leverage, SL must be well within liquidation distance
-        max_safe_sl = 0.8 / leverage  # 80% of liquidation distance
-        if levels['sl'] > max_safe_sl:
-            logger.error(
-                f"❌ SL too wide for {leverage}x leverage "
-                f"(SL={levels['sl']:.3%}, max_safe={max_safe_sl:.3%})"
-            )
-            return False
-        
-        logger.debug("✅ Levels validated successfully")
-        return True
+        lsf = self.compute_lsf(leverage)
+
+        base_tp = max(float(base_tp_pct), 0.0)
+        base_sl = max(float(base_sl_pct), 0.0)
+
+        # Core LSF-based formula (from spec)
+        tp1 = base_tp * (0.6 + lsf)
+        tp2 = base_tp * (1.2 + lsf / 2.0)
+        tp3 = base_tp * (1.8 + lsf / 4.0)
+        sl = base_sl * (1.0 + (1.0 - lsf) * 0.8)
+
+        # Optional adaptive modifiers (kept conservative)
+        vf = float(volatility_factor) if volatility_factor is not None else 0.0
+        fd = float(funding_delta) if funding_delta is not None else 0.0
+        xd = float(exchange_divergence) if exchange_divergence is not None else 0.0
+
+        # Funding can scale TP (more positive funding -> slightly higher TP targets)
+        tp_scale = 1.0 + (fd * 0.8)
+        # Divergence/volatility can widen SL a bit to avoid premature stop-outs
+        sl_scale = 1.0 + (xd * 0.4) + (vf * 0.2)
+
+        tp1 *= tp_scale
+        tp2 *= tp_scale
+        tp3 *= tp_scale
+        sl *= sl_scale
+
+        # Apply soft minimums
+        tp1 = max(tp1, self.TP_MIN)
+        tp2 = max(tp2, self.TP_MIN)
+        tp3 = max(tp3, self.TP_MIN)
+        sl = max(sl, self.SL_MIN)
+
+        # Apply hard fail-safe clamps
+        sl = min(max(sl, self.SL_CLAMP_MIN), self.SL_CLAMP_MAX)
+
+        return AdaptiveLevels(
+            tp1_pct=tp1,
+            tp2_pct=tp2,
+            tp3_pct=tp3,
+            sl_pct=sl,
+            harvest_scheme=self.harvest_scheme_for(leverage),
+            lsf=lsf,
+        )
 
 
 def test_adaptive_engine():
-    """Test adaptive leverage engine"""
-    logger.info("=== Testing Adaptive Leverage Engine ===\n")
+    """Sanity tests for AdaptiveLeverageEngine"""
+    logger.info("=== AdaptiveLeverageEngine Sanity Tests ===\n")
     
-    engine = AdaptiveLeverageEngine()
+    engine = AdaptiveLeverageEngine(base_tp=0.01, base_sl=0.005)
     
-    # Test 1: Various leverage levels
-    logger.info("Test 1: Leverage Scaling")
-    for leverage in [1, 5, 10, 20, 50, 100]:
-        lsf = engine.compute_leverage_factor(leverage)
-        levels = engine.compute_levels(leverage)
-        valid = engine.validate_levels(levels, leverage)
-        logger.info(
-            f"  {leverage:3d}x → LSF={lsf:.4f}, TP1={levels['tp1']:.3%}, "
-            f"SL={levels['sl']:.3%}, Valid={valid}"
-        )
+    # Test 1: Low leverage should have higher TP1 than high leverage
+    levels_low = engine.compute_levels(0.01, 0.005, 5)
+    levels_high = engine.compute_levels(0.01, 0.005, 50)
     
-    # Test 2: Volatility adjustment
-    logger.info("\nTest 2: Volatility Adjustment (50x leverage)")
-    for vol_factor in [0.5, 1.0, 1.5, 2.0]:
-        levels = engine.compute_levels(50, volatility_factor=vol_factor)
-        logger.info(
-            f"  Volatility {vol_factor:.1f}x → TP1={levels['tp1']:.3%}, "
-            f"TP2={levels['tp2']:.3%}, TP3={levels['tp3']:.3%}"
-        )
+    assert levels_low.tp1_pct > levels_high.tp1_pct, \
+        f"Test 1 FAILED: Low leverage TP1 ({levels_low.tp1_pct:.4f}) should be > high leverage ({levels_high.tp1_pct:.4f})"
+    logger.info(f"✅ Test 1 PASSED: 5x TP1={levels_low.tp1_pct:.4f} > 50x TP1={levels_high.tp1_pct:.4f}")
     
-    # Test 3: Harvest schemes
-    logger.info("\nTest 3: Harvest Schemes")
-    for leverage in [5, 15, 50]:
-        scheme = engine.get_harvest_scheme(leverage)
-        logger.info(f"  {leverage:2d}x → {scheme}")
+    # Test 2: High leverage should have wider SL than low leverage
+    assert levels_high.sl_pct >= levels_low.sl_pct, \
+        f"Test 2 FAILED: High leverage SL ({levels_high.sl_pct:.4f}) should be >= low leverage ({levels_low.sl_pct:.4f})"
+    logger.info(f"✅ Test 2 PASSED: 50x SL={levels_high.sl_pct:.4f} >= 5x SL={levels_low.sl_pct:.4f}")
     
-    # Test 4: PnL optimization
-    logger.info("\nTest 4: PnL-based Optimization")
-    test_cases = [
-        (-0.15, 0.6, "Recent losses, good confidence"),
-        (0.45, 0.8, "Strong profits, high confidence"),
-        (0.05, 0.4, "Break-even, low confidence"),
-    ]
-    for avg_pnl, confidence, desc in test_cases:
-        adjust = engine.optimize_based_on_pnl(avg_pnl, confidence)
-        logger.info(f"  {desc}: PnL={avg_pnl:+.1%}, Conf={confidence:.1%} → Adjust={adjust:.2f}")
+    # Test 3: Clamps work for extreme leverage
+    levels_extreme = engine.compute_levels(0.01, 0.005, 100)
+    assert engine.SL_CLAMP_MIN <= levels_extreme.sl_pct <= engine.SL_CLAMP_MAX, \
+        f"Test 3 FAILED: SL {levels_extreme.sl_pct:.4f} outside clamps [{engine.SL_CLAMP_MIN}, {engine.SL_CLAMP_MAX}]"
+    logger.info(f"✅ Test 3 PASSED: 100x SL={levels_extreme.sl_pct:.4f} within clamps [{engine.SL_CLAMP_MIN}, {engine.SL_CLAMP_MAX}]")
     
-    # Test 5: Complete workflow
-    logger.info("\nTest 5: Complete Workflow (50x leverage, volatile market)")
-    leverage = 50
-    volatility = 1.3
-    avg_pnl = 0.25
-    confidence = 0.75
+    # Test 4: Harvest schemes correct
+    scheme_low = engine.harvest_scheme_for(5)
+    scheme_mid = engine.harvest_scheme_for(20)
+    scheme_high = engine.harvest_scheme_for(50)
     
-    levels = engine.compute_levels(leverage, volatility)
-    adjustment = engine.optimize_based_on_pnl(avg_pnl, confidence)
-    harvest = engine.get_harvest_scheme(leverage)
+    assert scheme_low == [0.3, 0.3, 0.4], f"Test 4a FAILED: Wrong scheme for 5x: {scheme_low}"
+    assert scheme_mid == [0.4, 0.4, 0.2], f"Test 4b FAILED: Wrong scheme for 20x: {scheme_mid}"
+    assert scheme_high == [0.5, 0.3, 0.2], f"Test 4c FAILED: Wrong scheme for 50x: {scheme_high}"
+    logger.info(f"✅ Test 4 PASSED: Harvest schemes correct")
     
-    # Apply adjustment
-    for key in ['tp1', 'tp2', 'tp3', 'sl']:
-        levels[key] *= adjustment
+    # Test 5: TP minimums enforced
+    levels_tiny = engine.compute_levels(0.001, 0.0001, 10)
+    assert levels_tiny.tp1_pct >= engine.TP_MIN, \
+        f"Test 5 FAILED: TP1 {levels_tiny.tp1_pct:.4f} < min {engine.TP_MIN}"
+    logger.info(f"✅ Test 5 PASSED: TP min enforced ({levels_tiny.tp1_pct:.4f} >= {engine.TP_MIN})")
     
-    valid = engine.validate_levels(levels, leverage)
-    
-    logger.info(f"\n  Final Levels:")
-    logger.info(f"    TP1: {levels['tp1']:.3%} (harvest {harvest[0]:.0%})")
-    logger.info(f"    TP2: {levels['tp2']:.3%} (harvest {harvest[1]:.0%})")
-    logger.info(f"    TP3: {levels['tp3']:.3%} (harvest {harvest[2]:.0%})")
-    logger.info(f"    SL:  {levels['sl']:.3%}")
-    logger.info(f"    LSF: {levels['LSF']:.4f}")
-    logger.info(f"    Adjustment: {adjustment:.2f}")
-    logger.info(f"    Valid: {valid}")
-    
-    logger.info("\n✅ All tests completed successfully")
+    logger.info("\n✅ All tests PASSED")
     return True
 
 
@@ -293,4 +226,11 @@ if __name__ == "__main__":
         success = test_adaptive_engine()
         sys.exit(0 if success else 1)
     else:
-        print("Usage: python adaptive_leverage_engine.py --test")
+        from .adaptive_leverage_engine import AdaptiveLeverageEngine
+        print("Usage: python -m microservices.exitbrain_v3_5.adaptive_leverage_engine --test")
+        print("\nQuick test:")
+        engine = AdaptiveLeverageEngine()
+        levels = engine.compute_levels(0.01, 0.005, 20)
+        print(f"20x Leverage: TP1={levels.tp1_pct:.4f}, TP2={levels.tp2_pct:.4f}, TP3={levels.tp3_pct:.4f}, SL={levels.sl_pct:.4f}")
+        print(f"Harvest scheme: {levels.harvest_scheme}")
+
