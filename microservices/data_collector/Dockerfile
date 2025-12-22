@@ -10,7 +10,8 @@ RUN pip install --no-cache-dir \
     pandas \
     numpy \
     orjson \
-    ujson
+    ujson \
+    tenacity
 
 # Copy source files
 COPY . /app/
