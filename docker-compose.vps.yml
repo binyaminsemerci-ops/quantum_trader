@@ -298,6 +298,9 @@ services:
       - EXIT_BRAIN_V3_ENABLED=true
       - POSITION_CHECK_INTERVAL=10
       - LOG_LEVEL=INFO
+      - BINANCE_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET}
+      - BINANCE_TESTNET=${BINANCE_TESTNET:-true}
     volumes:
       - ./logs:/app/logs:rw
     networks:
@@ -571,39 +574,8 @@ services:
           cpus: '0.3'
           memory: 192M
 
-  # Exit Brain v3.5 - Advanced exit strategy management
-  exitbrain-v3-5:
-    build:
-      context: .
-      dockerfile: microservices/exitbrain_v3_5/Dockerfile
-    container_name: quantum_exitbrain_v3_5
-    restart: unless-stopped
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - LOG_LEVEL=INFO
-    ports:
-      - "8015:8015"
-    networks:
-      - quantum_trader
-    depends_on:
-      redis:
-        condition: service_healthy
-      ai-engine:
-        condition: service_started
-    healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8015/health', timeout=5)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '0.3'
-          memory: 192M
-
-  # Position Monitor - Already defined in compose file
-  # (keeping existing definition)
+  # Exit Brain v3.5 integrated as Python module in position-monitor
+  # No separate service needed - used as library
 
 networks:
   quantum_trader:
