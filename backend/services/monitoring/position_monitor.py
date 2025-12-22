@@ -1701,6 +1701,9 @@ class PositionMonitor:
                 logger.error(f"[ALERT] Emergency closed {emergency_closed} positions with failed SL")
                 return {"status": "ok", "positions": 0, "protected": 0, "unprotected": 0}
             
+            # [FIX] Initialize ai_signals to empty list before try block
+            ai_signals = []
+            
             # [ALERT] FIX #3: Re-evaluate AI sentiment for open positions
             if hasattr(self, 'ai_engine') and self.ai_engine:
                 symbols = [p['symbol'] for p in open_positions]
