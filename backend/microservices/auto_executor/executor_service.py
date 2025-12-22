@@ -362,18 +362,18 @@ class AutoExecutor:
         """Process a single trading signal"""
         try:
             symbol = signal.get("symbol", "").upper()
-            action = signal.get("action", "").upper()
+            side = signal.get("side", signal.get("action", "")).upper()  # Support both 'side' and 'action'
             confidence = signal.get("confidence", 0.0)
             pnl = signal.get("pnl", 0.0)
-            price = signal.get("price", 0.0)
+            price = signal.get("entry_price", signal.get("price", 0.0))  # Support both field names
             
             # Validation
-            if not symbol or not action:
-                logger.debug("⚠️ Invalid signal: missing symbol or action")
+            if not symbol or not side:
+                logger.debug("⚠️ Invalid signal: missing symbol or side")
                 return False
             
-            if action not in ["BUY", "SELL", "CLOSE"]:
-                logger.debug(f"⚠️ Invalid action: {action}")
+            if side not in ["BUY", "SELL", "CLOSE"]:
+                logger.debug(f"⚠️ Invalid side: {side}")
                 return False
             
             # Check confidence threshold
@@ -397,11 +397,11 @@ class AutoExecutor:
                 return False
             
             # Place order
-            order = self.place_order(symbol, action, qty, price, MAX_LEVERAGE)
+            order = self.place_order(symbol, side, qty, price, MAX_LEVERAGE)
             
             if order:
                 # Log successful trade
-                self.log_trade(symbol, action, qty, price, confidence, pnl)
+                self.log_trade(symbol, side, qty, price, confidence, pnl)
                 self.trade_count += 1
                 return True
             
