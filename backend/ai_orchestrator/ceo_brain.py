@@ -83,13 +83,13 @@ class CEODecision:
     update_policy_store: bool
     policy_updates: dict[str, any]
     
-    # Alerts
-    alert_level: str                     # "info", "warning", "critical"
-    alert_message: Optional[str] = None
-    
     # Metadata
     decision_timestamp: datetime
     decision_confidence: float           # 0-1 scale
+    
+    # Alerts
+    alert_level: str                     # "info", "warning", "critical"
+    alert_message: Optional[str] = None
     
     def to_dict(self) -> dict:
         """Convert decision to dictionary for event publishing."""
