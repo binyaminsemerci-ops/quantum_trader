@@ -48,6 +48,7 @@ from backend.microservices.ai_engine.services.model_validation_layer import Mode
 from backend.services.ai.drift_detection_manager import DriftDetectionManager
 from backend.services.ai.reinforcement_signal_manager import ReinforcementSignalManager
 from backend.services.risk.funding_rate_filter import FundingRateFilter
+from backend.services.continuous_learning import ContinuousLearningManager, ShadowEvaluator, RetrainingConfig, ModelVersion, ModelStage
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,10 @@ class AIEngineService:
         self.funding_rate_filter = None        # Funding pressure, crowd bias, squeeze detection
         self.drift_detector = None             # Model drift detection & retrain triggers
         self.rl_signal_manager = None          # PnL feedback loop & confidence calibration
+        
+        # 🔥 PHASE 2C: Continuous Learning Manager
+        self.continuous_learning_manager = None  # Auto-retrain models based on real trade data
+        self._clm_trade_buffer: List[Dict] = []   # Buffer for CLM trade outcomes
         
         # State tracking
         self._running = False
@@ -428,8 +433,47 @@ class AIEngineService:
                     logger.warning(f"[AI-ENGINE] ⚠️ RL Signal Manager failed: {e}")
                     self.rl_signal_manager = None
             
+            # 14. Continuous Learning Manager (Phase 2C) - Auto-retraining with real trade data
+            logger.info("[AI-ENGINE] 📚 Initializing Continuous Learning Manager (Phase 2C)...")
+            try:
+                # Use InMemoryEventBus for CLM (separate from Redis EventBus)
+                from backend.services.eventbus import InMemoryEventBus
+                clm_eventbus = InMemoryEventBus()
+                
+                self.continuous_learning_manager = ContinuousLearningManager(
+                    eventbus=clm_eventbus,
+                    evaluator=ShadowEvaluator()
+                )
+                
+                # Register models for continuous learning
+                for model_name in ["ensemble", "lstm", "xgboost", "lightgbm"]:
+                    initial_model = ModelVersion(
+                        model_name=model_name,
+                        version="1.0",
+                        stage=ModelStage.LIVE,
+                        model_type=model_name
+                    )
+                    
+                    retrain_config = RetrainingConfig(
+                        model_name=model_name,
+                        retrain_interval_hours=24.0,
+                        min_training_samples=5000,
+                        shadow_evaluation_hours=2.0
+                    )
+                    
+                    self.continuous_learning_manager.register_model(model_name, initial_model, retrain_config)
+                
+                self._models_loaded += 1
+                logger.info("[AI-ENGINE] ✅ Continuous Learning Manager active")
+                logger.info("[PHASE 2C] CLM: Min samples=5000, shadow eval=2h, registered 4 models")
+            except Exception as e:
+                logger.warning(f"[AI-ENGINE] ⚠️ CLM failed to initialize: {e}")
+                self.continuous_learning_manager = None
+            
             logger.info(f"[AI-ENGINE] ✅ All AI modules loaded ({self._models_loaded} models active)")
             logger.info("[PHASE 1] 🚀 Futures Intelligence Stack: ACTIVATED")
+            if self.continuous_learning_manager:
+                logger.info("[PHASE 2C] 🎓 Continuous Learning: ONLINE")
             
         except Exception as e:
             logger.error(f"[AI-ENGINE] ❌ Failed to load AI modules: {e}", exc_info=True)
@@ -574,6 +618,59 @@ class AIEngineService:
                     logger.info(f"[PHASE 1] RL Signal learned from {symbol} trade: PnL={pnl_percent:.2f}%")
                 except Exception as rl_error:
                     logger.error(f"[AI-ENGINE] RL Signal Manager learning failed: {rl_error}")
+            
+            # 🔥 PHASE 2C: Feed trade outcome to Continuous Learning Manager
+            if self.continuous_learning_manager:
+                try:
+                    # Build trade outcome for CLM
+                    trade_outcome = {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "symbol": symbol,
+                        "action": event_data.get("action", "unknown"),
+                        "confidence": event_data.get("confidence", 0.5),
+                        "pnl_percent": pnl_percent,
+                        "model": model,
+                        "strategy": strategy,
+                        "entry_price": event_data.get("entry_price", 0.0),
+                        "exit_price": event_data.get("exit_price", 0.0),
+                        "position_size": event_data.get("position_size", 0.0)
+                    }
+                    
+                    # Add to buffer
+                    self._clm_trade_buffer.append(trade_outcome)
+                    
+                    # Check if we should trigger retraining
+                    buffer_size = len(self._clm_trade_buffer)
+                    
+                    if buffer_size >= 5000:
+                        logger.info(f"[PHASE 2C] CLM buffer reached {buffer_size} trades - triggering retrain check")
+                        
+                        # Trigger retraining for all registered models
+                        for model_name in ["ensemble", "lstm", "xgboost", "lightgbm"]:
+                            try:
+                                new_model = await self.continuous_learning_manager.retrain_model(
+                                    model_name=model_name,
+                                    training_data=self._clm_trade_buffer
+                                )
+                                logger.info(f"[PHASE 2C] ✅ Retrained {model_name} to v{new_model.version} with {buffer_size} samples")
+                                
+                                # Check if shadow should be promoted
+                                should_promote = await self.continuous_learning_manager.check_shadow_promotion(model_name)
+                                if should_promote:
+                                    logger.info(f"[PHASE 2C] 🎉 Promoted {model_name} v{new_model.version} to LIVE")
+                            except Exception as retrain_error:
+                                logger.error(f"[PHASE 2C] Retraining {model_name} failed: {retrain_error}")
+                        
+                        # Clear buffer after retraining
+                        self._clm_trade_buffer.clear()
+                        logger.info("[PHASE 2C] CLM buffer cleared, waiting for next 5000 trades")
+                    else:
+                        # Log progress every 100 trades
+                        if buffer_size % 100 == 0:
+                            logger.info(f"[PHASE 2C] CLM progress: {buffer_size}/5000 trades collected ({buffer_size/50:.1f}%)")
+                
+                except Exception as clm_error:
+                    logger.error(f"[AI-ENGINE] CLM processing failed: {clm_error}", exc_info=True)
             
         except Exception as e:
             logger.error(f"[AI-ENGINE] Error handling trade.closed: {e}", exc_info=True)
