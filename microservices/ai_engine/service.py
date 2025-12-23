@@ -52,6 +52,7 @@ from backend.services.continuous_learning import ContinuousLearningManager, Shad
 from backend.services.ai.volatility_structure_engine import VolatilityStructureEngine
 from backend.services.ai.orderbook_imbalance_module import OrderbookImbalanceModule
 from backend.services.ai.risk_mode_predictor import RiskModePredictor
+from backend.services.ai.strategy_selector import StrategySelector, TradingStrategy
 from backend.services.binance_market_data import BinanceMarketDataFetcher
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,9 @@ class AIEngineService:
         
         # 🔥 PHASE 3A: Risk Mode Predictor
         self.risk_mode_predictor = None  # ML-based dynamic risk management
+        
+        # 🔥 PHASE 3B: Strategy Selector
+        self.strategy_selector = None  # Intelligent strategy selection
         
         # State tracking
         self._running = False
@@ -560,6 +564,21 @@ class AIEngineService:
             except Exception as e:
                 logger.warning(f"[AI-ENGINE] ⚠️ Risk Mode Predictor failed: {e}")
                 self.risk_mode_predictor = None
+            
+            # 🔥 PHASE 3B: Strategy Selector - Intelligent strategy selection
+            logger.info("[AI-ENGINE] 🎯 Initializing Strategy Selector (Phase 3B)...")
+            try:
+                self.strategy_selector = StrategySelector(
+                    volatility_engine=self.volatility_structure_engine,
+                    orderbook_module=self.orderbook_imbalance,
+                    risk_mode_predictor=self.risk_mode_predictor,
+                    confidence_threshold=0.60
+                )
+                logger.info("[PHASE 3B] SS: Phase 2D + 2B + 3A integration")
+                logger.info("[PHASE 3B] 🎯 Strategy Selector: ONLINE")
+            except Exception as e:
+                logger.warning(f"[AI-ENGINE] ⚠️ Strategy Selector failed: {e}")
+                self.strategy_selector = None
             
         except Exception as e:
             logger.error(f"[AI-ENGINE] ❌ Failed to load AI modules: {e}", exc_info=True)
@@ -1107,6 +1126,30 @@ class AIEngineService:
                     features=features
                 )
                 logger.info(f"[AI-ENGINE] 🎯 Ensemble returned: action='{action}' (type={type(action)}), confidence={ensemble_confidence}")
+                
+                # 🔥 PHASE 3B: Select optimal trading strategy
+                strategy_selection = None
+                selected_strategy = "momentum_conservative"  # Default
+                if self.strategy_selector:
+                    try:
+                        strategy_selection = await asyncio.to_thread(
+                            self.strategy_selector.select_strategy,
+                            symbol=symbol,
+                            current_price=current_price,
+                            ensemble_confidence=ensemble_confidence,
+                            market_conditions={}  # TODO: Add external market data
+                        )
+                        selected_strategy = strategy_selection.primary_strategy.value
+                        
+                        logger.info(f"[PHASE 3B] {symbol} Strategy: {selected_strategy} "
+                                  f"(conf={strategy_selection.confidence:.1%}, "
+                                  f"align={strategy_selection.market_alignment_score:.2f})")
+                        logger.info(f"[PHASE 3B] {symbol} Reasoning: {strategy_selection.reasoning}")
+                        
+                        if strategy_selection.secondary_strategy:
+                            logger.info(f"[PHASE 3B] {symbol} Secondary: {strategy_selection.secondary_strategy.value}")
+                    except Exception as e:
+                        logger.warning(f"[PHASE 3B] Strategy selection failed for {symbol}: {e}")
             
             # FALLBACK: If ML models return HOLD with low confidence, use rule-based signals for testing
             fallback_triggered = False
