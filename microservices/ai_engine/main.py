@@ -218,6 +218,92 @@ async def metrics():
     return Response(content=generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
 
+# ============================================================================
+# PHASE 3C: SYSTEM HEALTH ENDPOINTS
+# ============================================================================
+
+@app.get("/health/detailed", tags=["health", "phase_3c"])
+async def health_detailed():
+    """
+    Phase 3C: Comprehensive health status with module breakdown
+    
+    Returns:
+        - Overall health score and status
+        - Individual module health (2B, 2D, 3A, 3B, ensemble)
+        - Performance metrics
+        - Active alerts
+    """
+    if not service.health_monitor:
+        return {
+            "error": "Health monitor not initialized",
+            "service": "ai-engine",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    
+    current_health = service.health_monitor.get_current_health()
+    
+    if not current_health:
+        # No health check performed yet, trigger one
+        current_health = await service.health_monitor.perform_health_check()
+    
+    return current_health.to_dict()
+
+
+@app.get("/health/alerts", tags=["health", "phase_3c"])
+async def health_alerts(hours: int = 24):
+    """
+    Phase 3C: Get recent health alerts
+    
+    Args:
+        hours: Number of hours of alert history (default: 24)
+    
+    Returns:
+        List of alerts with severity, module, message, and recommendations
+    """
+    if not service.health_monitor:
+        return {
+            "error": "Health monitor not initialized",
+            "alerts": []
+        }
+    
+    alerts = service.health_monitor.get_recent_alerts(hours=hours)
+    active_alerts = service.health_monitor.get_active_alerts()
+    
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "active_alerts_count": len(active_alerts),
+        "total_alerts_count": len(alerts),
+        "active_alerts": [alert.to_dict() for alert in active_alerts],
+        "recent_alerts": [alert.to_dict() for alert in alerts],
+    }
+
+
+@app.get("/health/history", tags=["health", "phase_3c"])
+async def health_history(hours: int = 24):
+    """
+    Phase 3C: Get health metrics history
+    
+    Args:
+        hours: Number of hours of history (default: 24)
+    
+    Returns:
+        Time series of health metrics for trending analysis
+    """
+    if not service.health_monitor:
+        return {
+            "error": "Health monitor not initialized",
+            "history": []
+        }
+    
+    history = service.health_monitor.get_health_history(hours=hours)
+    
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "history_points": len(history),
+        "history": [h.to_dict() for h in history],
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     
