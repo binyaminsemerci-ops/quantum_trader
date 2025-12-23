@@ -12,7 +12,7 @@ import asyncio
 import logging
 import httpx
 import numpy as np
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime, timezone
 import sys
 import os
@@ -50,6 +50,7 @@ from backend.services.ai.reinforcement_signal_manager import ReinforcementSignal
 from backend.services.risk.funding_rate_filter import FundingRateFilter
 from backend.services.continuous_learning import ContinuousLearningManager, ShadowEvaluator, RetrainingConfig, ModelVersion, ModelStage
 from backend.services.ai.volatility_structure_engine import VolatilityStructureEngine
+from backend.services.ai.orderbook_imbalance_module import OrderbookImbalanceModule
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,9 @@ class AIEngineService:
         
         # 🔥 PHASE 2D: Volatility Structure Engine
         self.volatility_structure_engine = None  # ATR-trend, cross-TF volatility analysis
+        
+        # 🔥 PHASE 2B: Orderbook Imbalance Module
+        self.orderbook_imbalance = None  # Real-time orderbook depth analysis
         
         # State tracking
         self._running = False
@@ -492,12 +496,31 @@ class AIEngineService:
                 logger.warning(f"[AI-ENGINE] ⚠️ Volatility Structure Engine failed: {e}")
                 self.volatility_structure_engine = None
             
+            # 16. Orderbook Imbalance Module (Phase 2B) - Real-time orderflow analysis
+            logger.info("[AI-ENGINE] 📖 Initializing Orderbook Imbalance Module (Phase 2B)...")
+            try:
+                self.orderbook_imbalance = OrderbookImbalanceModule(
+                    depth_levels=20,
+                    delta_volume_window=100,
+                    large_order_threshold_pct=0.01,
+                    history_size=50
+                )
+                
+                self._models_loaded += 1
+                logger.info("[AI-ENGINE] ✅ Orderbook Imbalance Module active")
+                logger.info("[PHASE 2B] OBI: Orderflow imbalance, delta volume, depth ratio tracking")
+            except Exception as e:
+                logger.warning(f"[AI-ENGINE] ⚠️ Orderbook Imbalance Module failed: {e}")
+                self.orderbook_imbalance = None
+            
             logger.info(f"[AI-ENGINE] ✅ All AI modules loaded ({self._models_loaded} models active)")
             logger.info("[PHASE 1] 🚀 Futures Intelligence Stack: ACTIVATED")
             if self.continuous_learning_manager:
                 logger.info("[PHASE 2C] 🎓 Continuous Learning: ONLINE")
             if self.volatility_structure_engine:
                 logger.info("[PHASE 2D] 📈 Volatility Structure Engine: ONLINE")
+            if self.orderbook_imbalance:
+                logger.info("[PHASE 2B] 📖 Orderbook Imbalance: ONLINE")
             
         except Exception as e:
             logger.error(f"[AI-ENGINE] ❌ Failed to load AI modules: {e}", exc_info=True)
@@ -534,6 +557,24 @@ class AIEngineService:
                 logger.error(f"[AI-ENGINE] Volatility engine update failed: {vol_error}")
         
         logger.info(f"[AI-ENGINE] ✅ Price history updated: {symbol} @ ${price:.2f} (len={len(self._price_history[symbol])})")
+    
+    async def update_orderbook(self, symbol: str, bids: List[Tuple[float, float]], asks: List[Tuple[float, float]]):
+        """
+        Update orderbook data for orderbook imbalance analysis.
+        
+        Args:
+            symbol: Trading pair
+            bids: List of (price, quantity) tuples for bids
+            asks: List of (price, quantity) tuples for asks
+        """
+        # 🔥 PHASE 2B: Feed orderbook data to Orderbook Imbalance Module
+        if self.orderbook_imbalance:
+            try:
+                self.orderbook_imbalance.update_orderbook(symbol, bids, asks)
+                logger.debug(f"[PHASE 2B] Orderbook updated for {symbol}: {len(bids)} bids, {len(asks)} asks")
+            except Exception as ob_error:
+                logger.error(f"[AI-ENGINE] Orderbook update failed: {ob_error}")
+    
     
     async def _handle_market_tick(self, event_data: Dict[str, Any]):
         """
@@ -921,6 +962,29 @@ class AIEngineService:
                                   f"score={vol_analysis['volatility_score']:.3f}, regime={vol_analysis['overall_regime']}")
                     except Exception as vol_error:
                         logger.warning(f"[PHASE 2D] Volatility feature extraction failed: {vol_error}")
+                
+                # 🔥 PHASE 2B: Add Orderbook Imbalance Features
+                if self.orderbook_imbalance:
+                    try:
+                        orderbook_metrics = await asyncio.to_thread(
+                            self.orderbook_imbalance.get_metrics,
+                            symbol
+                        )
+                        
+                        if orderbook_metrics:
+                            # Add 5 key orderbook metrics to features
+                            features["orderflow_imbalance"] = orderbook_metrics.orderflow_imbalance
+                            features["delta_volume"] = orderbook_metrics.delta_volume
+                            features["bid_ask_spread_pct"] = orderbook_metrics.bid_ask_spread_pct
+                            features["order_book_depth_ratio"] = orderbook_metrics.order_book_depth_ratio
+                            features["large_order_presence"] = orderbook_metrics.large_order_presence
+                            
+                            logger.info(f"[PHASE 2B] Orderbook: imbalance={orderbook_metrics.orderflow_imbalance:.3f}, "
+                                      f"delta={orderbook_metrics.delta_volume:.2f}, "
+                                      f"depth_ratio={orderbook_metrics.order_book_depth_ratio:.3f}, "
+                                      f"large_orders={orderbook_metrics.large_order_presence:.2f}")
+                    except Exception as ob_error:
+                        logger.warning(f"[PHASE 2B] Orderbook feature extraction failed: {ob_error}")
                 
                 logger.info(f"[AI-ENGINE] Features for {symbol}: RSI={features['rsi_14']:.1f}, "
                             f"MACD={features['macd']:.4f}, VolumeRatio={features['volume_ratio']:.2f}, "
