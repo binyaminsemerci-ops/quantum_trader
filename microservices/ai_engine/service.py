@@ -51,6 +51,7 @@ from backend.services.risk.funding_rate_filter import FundingRateFilter
 from backend.services.continuous_learning import ContinuousLearningManager, ShadowEvaluator, RetrainingConfig, ModelVersion, ModelStage
 from backend.services.ai.volatility_structure_engine import VolatilityStructureEngine
 from backend.services.ai.orderbook_imbalance_module import OrderbookImbalanceModule
+from backend.services.binance_market_data import BinanceMarketDataFetcher
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,8 @@ class AIEngineService:
         
         # 🔥 PHASE 2B: Orderbook Imbalance Module
         self.orderbook_imbalance = None  # Real-time orderbook depth analysis
+        self._binance_fetcher = None  # Binance market data fetcher
+        self._active_symbols: List[str] = []  # Symbols to track orderbook for
         
         # State tracking
         self._running = False
@@ -513,9 +516,18 @@ class AIEngineService:
                     history_size=50
                 )
                 
+                # Initialize Binance fetcher for orderbook data
+                self._binance_fetcher = BinanceMarketDataFetcher()
+                
+                # Set active symbols (TODO: make configurable)
+                self._active_symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+                
+                # Start orderbook data feed loop
+                asyncio.create_task(self._fetch_orderbook_loop())
+                
                 self._models_loaded += 1
                 logger.info("[AI-ENGINE] ✅ Orderbook Imbalance Module active")
-                logger.info("[PHASE 2B] OBI: Orderflow imbalance, delta volume, depth ratio tracking")
+                logger.info(f"[PHASE 2B] OBI: Tracking orderbook for {len(self._active_symbols)} symbols")
             except Exception as e:
                 logger.warning(f"[AI-ENGINE] ⚠️ Orderbook Imbalance Module failed: {e}")
                 self.orderbook_imbalance = None
