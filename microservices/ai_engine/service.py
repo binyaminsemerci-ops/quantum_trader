@@ -400,9 +400,8 @@ class AIEngineService:
                 logger.info("[AI-ENGINE] 📊 Initializing Drift Detection Manager (Phase 1)...")
                 try:
                     self.drift_detector = DriftDetectionManager(
-                        psi_threshold_moderate=settings.DRIFT_PSI_THRESHOLD_MODERATE,
-                        psi_threshold_severe=settings.DRIFT_PSI_THRESHOLD_SEVERE,
-                        check_interval=settings.DRIFT_CHECK_INTERVAL_SEC
+                        psi_moderate_threshold=settings.DRIFT_PSI_THRESHOLD_MODERATE,
+                        psi_severe_threshold=settings.DRIFT_PSI_THRESHOLD_SEVERE
                     )
                     
                     self._models_loaded += 1
@@ -857,7 +856,7 @@ class AIEngineService:
             if self.funding_rate_filter:
                 try:
                     funding_check = await asyncio.to_thread(
-                        self.funding_rate_filter.should_block_trade,
+                        self.funding_rate_filter.should_block_trade_simple,
                         symbol
                     )
                     if funding_check.get("blocked", False):

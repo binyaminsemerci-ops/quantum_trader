@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir \
     fastapi uvicorn redis structlog \
     xgboost lightgbm torch numpy pandas scikit-learn \
     aiohttp httpx python-dotenv pydantic-settings prometheus-client \
-    psutil requests sqlalchemy asyncpg python-binance
+    psutil requests sqlalchemy asyncpg python-binance tenacity
 
 # Copy source code
 COPY microservices/ai_engine /app/microservices/ai_engine

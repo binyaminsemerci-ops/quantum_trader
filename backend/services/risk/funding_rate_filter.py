@@ -86,9 +86,9 @@ class FundingRateFilter:
             logger.error(f"Error getting funding features for {symbol}: {e}")
             return None
     
-    def should_block_trade(self, symbol: str) -> Dict:
+    def should_block_trade_simple(self, symbol: str) -> Dict:
         """
-        Check if trade should be blocked due to excessive funding.
+        [PHASE 1] Simple funding check without position size.
         Returns: Dict with blocked (bool), reason (str), funding_rate (float)
         """
         try:
