@@ -32,15 +32,24 @@ SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
 class CrossExchangeAggregator:
     """Aggregate and normalize multi-exchange data"""
     
-    def __init__(self, redis_url: str = REDIS_URL):
+    def __init__(self, symbols: List[str] = None, redis_host: str = None, redis_port: int = 6379):
+        # Use defaults if not provided
+        if redis_host is None:
+            redis_host = os.getenv("REDIS_HOST", "localhost")
+        
+        redis_url = f"redis://{redis_host}:{redis_port}"
+        
         self.redis_url = redis_url
         self.redis_manager = RedisConnectionManager(redis_url=redis_url)
         self.redis_client: Optional[aioredis.Redis] = None
         self.running = False
         
+        # Use provided symbols or default
+        self.symbols = symbols or SYMBOLS
+        
         # Buffer for merging data by timestamp
         self.data_buffer: Dict[str, Dict[int, Dict[str, float]]] = {
-            symbol: defaultdict(dict) for symbol in SYMBOLS
+            symbol: defaultdict(dict) for symbol in self.symbols
         }
         
         # Last processed ID
@@ -131,6 +140,50 @@ class CrossExchangeAggregator:
         # This would be implemented when funding rate data is available
         # For now, we'll set it to 0
         return 0.0
+    
+    def get_latest_features(self, symbol: str) -> Optional[Dict]:
+        """
+        Get latest cross-exchange features for a symbol.
+        Returns: Dict with volatility_factor, divergence, lead_lag
+        """
+        if symbol not in self.data_buffer:
+            return None
+        
+        # Get most recent timestamp
+        if not self.data_buffer[symbol]:
+            return None
+        
+        latest_ts = max(self.data_buffer[symbol].keys())
+        exchange_data = self.data_buffer[symbol][latest_ts]
+        
+        if len(exchange_data) < 2:
+            return None
+        
+        try:
+            prices = list(exchange_data.values())
+            avg_price = np.mean(prices)
+            std_price = np.std(prices)
+            
+            # Compute features
+            volatility_factor = std_price / avg_price if avg_price > 0 else 0.0
+            divergence = std_price
+            
+            # Lead/lag: which exchange is highest (leader)
+            if "binance" in exchange_data and "bybit" in exchange_data:
+                lead_lag = (exchange_data["binance"] - exchange_data["bybit"]) / avg_price
+            else:
+                lead_lag = 0.0
+            
+            return {
+                "volatility_factor": float(volatility_factor),
+                "divergence": float(divergence),
+                "lead_lag": float(lead_lag),
+                "num_exchanges": len(prices),
+                "timestamp": latest_ts
+            }
+        except Exception as e:
+            logger.error(f"Error computing features for {symbol}: {e}")
+            return None
     
     async def process_raw_stream(self):
         """Consume raw exchange stream and aggregate"""

@@ -64,14 +64,18 @@ except ImportError as e:
     logger_trailing.warning(f"[WARNING] Dynamic Trailing not available: {e}")
 
 # [NEW] EXIT BRAIN V3: Unified exit orchestrator
-EXIT_BRAIN_V3_ENABLED = os.getenv("EXIT_BRAIN_V3_ENABLED", "false").lower() == "true"
+from backend.config.exit_mode import get_exit_mode, get_exit_executor_mode, is_exit_brain_live_fully_enabled
+EXIT_MODE = get_exit_mode()
+EXIT_BRAIN_V3_ENABLED = (EXIT_MODE == "EXIT_BRAIN_V3" or os.getenv("EXIT_BRAIN_V3_ENABLED", "false").lower() == "true")
 try:
     from backend.domains.exits.exit_brain_v3 import ExitBrainV3
     from backend.domains.exits.exit_brain_v3.router import ExitRouter
     from backend.domains.exits.exit_brain_v3.integration import to_dynamic_tpsl, to_trailing_config
+    from backend.domains.exits.exit_brain_v3.dynamic_executor import ExitBrainDynamicExecutor
+    from backend.domains.exits.exit_brain_v3.adapter import ExitBrainAdapter
     EXIT_BRAIN_V3_AVAILABLE = True
     logger_exit_brain = logging.getLogger(__name__ + ".exit_brain_v3")
-    logger_exit_brain.info(f"[OK] Exit Brain v3 available (enabled={EXIT_BRAIN_V3_ENABLED})")
+    logger_exit_brain.info(f"[OK] Exit Brain v3 available (mode={EXIT_MODE}, enabled={EXIT_BRAIN_V3_ENABLED})")
 except ImportError as e:
     EXIT_BRAIN_V3_AVAILABLE = False
     EXIT_BRAIN_V3_ENABLED = False
@@ -192,11 +196,51 @@ class PositionMonitor:
             self.tp_tracker = get_tp_performance_tracker()
             logger_trailing.info("[OK] Dynamic Trailing Manager initialized")
         
-        # [NEW] EXIT BRAIN V3: Initialize router
+        # [NEW] EXIT BRAIN V3: Initialize router and executor
         self.exit_router = None
+        self.exit_brain_executor = None
         if EXIT_BRAIN_V3_ENABLED and EXIT_BRAIN_V3_AVAILABLE:
             self.exit_router = ExitRouter()
             logger_exit_brain.info("[OK] Exit Router initialized - Exit Brain v3 ACTIVE")
+            
+            # Initialize Dynamic Executor for active TP/SL monitoring
+            try:
+                planner = ExitBrainV3()
+                adapter = ExitBrainAdapter(planner=planner)
+                
+                # Create exit order gateway wrapper
+                class ExitOrderGatewayWrapper:
+                    def __init__(self, client):
+                        self.client = client
+                    
+                    async def submit_exit_order(self, **kwargs):
+                        if 'client' not in kwargs:
+                            kwargs['client'] = self.client
+                        if EXIT_GATEWAY_AVAILABLE:
+                            return await submit_exit_order(**kwargs)
+                        else:
+                            # Fallback: direct API call
+                            order_params = kwargs.get('order_params', {})
+                            return self.client.futures_create_order(**order_params)
+                
+                exit_gateway = ExitOrderGatewayWrapper(self.client)
+                loop_interval = float(os.getenv("EXIT_BRAIN_CHECK_INTERVAL_SEC", "10"))
+                
+                self.exit_brain_executor = ExitBrainDynamicExecutor(
+                    adapter=adapter,
+                    exit_order_gateway=exit_gateway,
+                    position_source=self.client,
+                    loop_interval_sec=loop_interval,
+                    shadow_mode=False
+                )
+                
+                logger_exit_brain.warning(
+                    f"[EXIT_BRAIN_V3] ✅ Dynamic Executor INITIALIZED "
+                    f"(interval={loop_interval}s, will start with monitor loop)"
+                )
+            except Exception as e:
+                logger_exit_brain.error(f"[EXIT_BRAIN_V3] ❌ Failed to initialize Dynamic Executor: {e}", exc_info=True)
+                self.exit_brain_executor = None
         
         logger.info(f"[SEARCH] Position Monitor initialized: TP={self.tp_pct*100:.1f}% SL={self.sl_pct*100:.1f}% Trail={self.trail_pct*100:.1f}% TrailCallback={self.trail_callback_rate:.1f}%")
         logger.info(f"[FLASH-CRASH] Real-time drawdown monitor active (threshold: {self._flash_crash_threshold_pct*100:.1f}%)")
@@ -540,14 +584,20 @@ class PositionMonitor:
                 f"[EXIT BRAIN V3] {symbol}: Delegating TP/SL management to Exit Brain (profile-based)"
             )
             
-            # [PHASE 1] SOFT GUARD: Warn about missing executor
-            logger_exit_brain.warning(
-                f"[EXIT_GUARD] ⚠️  DELEGATION GAP: {symbol} delegated to Exit Brain v3, "
-                f"but Exit Brain Executor does NOT EXIST. Exit orders will NOT be placed. "
-                f"This is a known architecture gap - see AI_OS_INTEGRATION_SUMMARY.md Phase 2."
-            )
+            # [PHASE 2] Check if executor actually exists
+            if hasattr(self, 'exit_brain_executor') and self.exit_brain_executor is not None:
+                logger_exit_brain.info(
+                    f"[EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - {symbol} will be monitored "
+                    f"for dynamic TP/SL execution every {self.exit_brain_executor.loop_interval_sec}s"
+                )
+            else:
+                logger_exit_brain.warning(
+                    f"[EXIT_GUARD] ⚠️  DELEGATION GAP: {symbol} delegated to Exit Brain v3, "
+                    f"but Exit Brain Executor does NOT EXIST. Exit orders will NOT be placed. "
+                    f"This is a known architecture gap - see AI_OS_INTEGRATION_SUMMARY.md Phase 2."
+                )
             
-            return False  # Don't adjust - Exit Brain will handle via executor (when built)
+            return False  # Don't adjust - Exit Brain will handle via executor
         
         # [LEGACY PATH] Original dynamic adjustment logic
         # [FIX] CRITICAL: Get LIVE mark price from market, NOT cached position data!
@@ -846,7 +896,8 @@ class PositionMonitor:
                         'quantity': qty,
                         'stopPrice': tp_price,
                         'workingType': 'MARK_PRICE',
-                        'positionSide': position_side
+                        'positionSide': position_side,
+                        'reduceOnly': True  # 🔥 CRITICAL FIX: Required for One-Way mode conditional orders
                     }
                     if EXIT_GATEWAY_AVAILABLE:
                         await submit_exit_order(
@@ -1108,7 +1159,8 @@ class PositionMonitor:
                 'stopPrice': tp_price,
                 'quantity': partial_qty,
                 'workingType': 'MARK_PRICE',
-                'positionSide': position_side
+                'positionSide': position_side,
+                'reduceOnly': True  # 🔥 CRITICAL FIX: Required for One-Way mode conditional orders
             }
             if EXIT_GATEWAY_AVAILABLE:
                 tp_order = await submit_exit_order(
@@ -1144,7 +1196,8 @@ class PositionMonitor:
                         'quantity': remaining_qty,
                         'callbackRate': callback_rate,
                         'workingType': 'MARK_PRICE',
-                        'positionSide': position_side
+                        'positionSide': position_side,
+                        'reduceOnly': True  # 🔥 CRITICAL FIX: Required for One-Way mode conditional orders
                     }
                     if EXIT_GATEWAY_AVAILABLE:
                         trail_order = await submit_exit_order(
@@ -1177,7 +1230,8 @@ class PositionMonitor:
                     'type': 'STOP_MARKET',
                     'stopPrice': sl_price,
                     'workingType': 'MARK_PRICE',
-                    'positionSide': position_side
+                    'positionSide': position_side,
+                    'reduceOnly': True  # 🔥 CRITICAL FIX: Required for One-Way mode conditional orders
                 }
                 if EXIT_GATEWAY_AVAILABLE:
                     sl_order = await submit_exit_order(
@@ -1214,6 +1268,8 @@ class PositionMonitor:
                 # Try simplified approach: ONE order only (closePosition SL)
                 logger.info(f"   🔧 Attempting emergency fallback: simple closePosition SL only...")
                 try:
+                    # 🔥 CRITICAL: When using closePosition=True, do NOT include reduceOnly
+                    # (Binance API error: -1106 "Parameter 'reduceonly' sent when not required")
                     emergency_sl_params = {
                         'symbol': symbol,
                         'side': side,
@@ -1222,6 +1278,7 @@ class PositionMonitor:
                         'closePosition': True,
                         'workingType': 'MARK_PRICE',
                         'positionSide': position_side
+                        # NOTE: NO reduceOnly when using closePosition=True
                     }
                     
                     emergency_order = self.client.futures_create_order(**emergency_sl_params)
@@ -1337,8 +1394,31 @@ class PositionMonitor:
         - Self-Healing emergency interventions
         - AI sentiment re-evaluation
         - Meta-Strategy RL reward updates on position close
+        
+        [EXIT BRAIN V3] When Exit Brain Executor is active in LIVE mode,
+        this function delegates ALL exit management to the executor.
+        Position Monitor only handles PIL/PAL analytics and flash crash detection.
         """
         try:
+            # ═══════════════════════════════════════════════════════════════════════
+            # PHASE -1: EXIT BRAIN EXECUTOR GUARD (CRITICAL!)
+            # ═══════════════════════════════════════════════════════════════════════
+            # [CRITICAL] When Exit Brain Executor is running in LIVE mode,
+            # Position Monitor MUST NOT interfere with exit order placement.
+            # Exit Brain Executor is the SINGLE MUSCLE for all exit decisions.
+            
+            exit_brain_is_active = (
+                self.exit_brain_executor is not None 
+                and is_exit_brain_live_fully_enabled()
+            )
+            
+            if exit_brain_is_active:
+                logger_exit_brain.info(
+                    "[EXIT_GUARD] ✅ Exit Brain Executor ACTIVE in LIVE mode - "
+                    "Position Monitor will ONLY handle analytics (PIL/PAL/flash crash), "
+                    "NOT TP/SL placement. Exit Brain Executor owns all exit decisions."
+                )
+            
             logger.info("[DEBUG] check_all_positions() started")
             
             # ═══════════════════════════════════════════════════════════════════════
@@ -1924,41 +2004,52 @@ class PositionMonitor:
                 orders_by_symbol[symbol].append(order)
             
             # [TARGET] STEG 2: BASIC BESKYTTELSE - Check each position for TP/SL existence
-            protected = 0
-            unprotected = 0
-            newly_protected = 0
-            
-            for position in open_positions:
-                symbol = position['symbol']
+            # [EXIT BRAIN GUARD] Skip protection checks if Exit Brain Executor is in LIVE mode
+            if exit_brain_is_active:
+                logger_exit_brain.info(
+                    "[EXIT_GUARD] ⏭️  Skipping TP/SL protection checks - "
+                    "Exit Brain Executor handles all exit orders"
+                )
+                protected = len(open_positions)  # All positions protected by Exit Brain
+                unprotected = 0
+                newly_protected = 0
+            else:
+                # [LEGACY PATH] Position Monitor places TP/SL orders
+                protected = 0
+                unprotected = 0
+                newly_protected = 0
                 
-                # [TARGET] SKIP hvis vi nettopp justerte denne symbolet dynamisk!
-                if symbol in adjusted_symbols:
-                    protected += 1
-                    logger.debug(f"[OK] {symbol} dynamically adjusted (skipping re-check)")
-                    continue
-                
-                orders = orders_by_symbol.get(symbol, [])
-                
-                # Check if position has TP/SL
-                has_tp = any(o['type'] in ['TAKE_PROFIT_MARKET', 'TAKE_PROFIT'] for o in orders)
-                # Check for STOP_MARKET with closePosition=True (the real safety net)
-                has_sl = any(o['type'] == 'STOP_MARKET' and o.get('closePosition', False) for o in orders)
-                
-                if has_tp and has_sl:
-                    protected += 1
-                    logger.debug(f"[OK] {symbol} already protected")
-                else:
-                    unprotected += 1
-                    logger.warning(f"[WARNING] {symbol} UNPROTECTED - setting TP/SL now...")
+                for position in open_positions:
+                    symbol = position['symbol']
                     
-                    # [FIX] Add delay to avoid overwhelming Binance API
-                    if newly_protected > 0:
-                        await asyncio.sleep(1.0)  # 1 second delay between positions
+                    # [TARGET] SKIP hvis vi nettopp justerte denne symbolet dynamisk!
+                    if symbol in adjusted_symbols:
+                        protected += 1
+                        logger.debug(f"[OK] {symbol} dynamically adjusted (skipping re-check)")
+                        continue
                     
-                    # Set TP/SL asynchronously
-                    success = await self._set_tpsl_for_position(position)
-                    if success:
-                        newly_protected += 1
+                    orders = orders_by_symbol.get(symbol, [])
+                    
+                    # Check if position has TP/SL
+                    has_tp = any(o['type'] in ['TAKE_PROFIT_MARKET', 'TAKE_PROFIT'] for o in orders)
+                    # Check for STOP_MARKET with closePosition=True (the real safety net)
+                    has_sl = any(o['type'] == 'STOP_MARKET' and o.get('closePosition', False) for o in orders)
+                    
+                    if has_tp and has_sl:
+                        protected += 1
+                        logger.debug(f"[OK] {symbol} already protected")
+                    else:
+                        unprotected += 1
+                        logger.warning(f"[WARNING] {symbol} UNPROTECTED - setting TP/SL now...")
+                        
+                        # [FIX] Add delay to avoid overwhelming Binance API
+                        if newly_protected > 0:
+                            await asyncio.sleep(1.0)  # 1 second delay between positions
+                        
+                        # Set TP/SL asynchronously
+                        success = await self._set_tpsl_for_position(position)
+                        if success:
+                            newly_protected += 1
             
             logger.info(
                 f"[CHART] Position check: {len(open_positions)} total, "
@@ -2019,6 +2110,22 @@ class PositionMonitor:
     async def monitor_loop(self) -> None:
         """Main monitoring loop"""
         logger.info(f"[SEARCH] Starting Position Monitor (interval: {self.check_interval}s)")
+        
+        # [NEW] Start Exit Brain Dynamic Executor if enabled
+        if self.exit_brain_executor:
+            try:
+                await self.exit_brain_executor.start()
+                logger_exit_brain.warning(
+                    f"[EXIT_BRAIN_V3] ✅ Dynamic Executor STARTED "
+                    f"(monitoring interval: {self.exit_brain_executor.loop_interval_sec}s)"
+                )
+                logger_exit_brain.warning("[EXIT_BRAIN_V3] 🎯 Active monitoring for:")
+                logger_exit_brain.warning("[EXIT_BRAIN_V3]   • Dynamic ATR-based stop-loss")
+                logger_exit_brain.warning("[EXIT_BRAIN_V3]   • Trailing profit protection")
+                logger_exit_brain.warning("[EXIT_BRAIN_V3]   • Automatic partial profit harvesting")
+                logger_exit_brain.warning("[EXIT_BRAIN_V3]   • SL ratcheting after TP hits")
+            except Exception as e:
+                logger_exit_brain.error(f"[EXIT_BRAIN_V3] ❌ Failed to start Dynamic Executor: {e}", exc_info=True)
         
         # [FIX] CRITICAL: Detect position mode on startup (One-Way vs Hedge Mode)
         try:

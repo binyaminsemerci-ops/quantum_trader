@@ -4,6 +4,7 @@ Phase 6: Auto Execution Layer
 Safe, regulated trading execution connecting AI Engine → Exchange
 """
 import os
+import sys
 import time
 import json
 import redis
@@ -11,12 +12,26 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 
-# Configure logging
+# Configure logging FIRST
 logging.basicConfig(
     level=logging.INFO,
     format='[%(asctime)s] %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Add microservices to path for intelligent leverage engine
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../'))
+
+try:
+    from microservices.exitbrain_v3_5.intelligent_leverage_engine import (
+        IntelligentLeverageEngine,
+        LeverageCalculation
+    )
+    LEVERAGE_ENGINE_AVAILABLE = True
+    logger.info("✅ Intelligent Leverage Engine imported successfully")
+except ImportError as e:
+    logger.warning(f"⚠️ Intelligent Leverage Engine not available: {e}")
+    LEVERAGE_ENGINE_AVAILABLE = False
 
 # Redis connection
 r = redis.Redis(
@@ -33,24 +48,32 @@ PAPER_TRADING = os.getenv("PAPER_TRADING", "true").lower() == "true"
 # Binance API (conditional import)
 try:
     from binance.client import Client
-    from binance.enums import *
     
+    # Initialize Binance client
     api_key = os.getenv("BINANCE_API_KEY")
     api_secret = os.getenv("BINANCE_API_SECRET")
     
-    if TESTNET:
-        client = Client(api_key, api_secret, testnet=True)
-        logger.info("🧪 Using Binance TESTNET")
+    if api_key and api_secret:
+        if TESTNET:
+            client = Client(api_key, api_secret, testnet=True)
+            logger.info("🧪 Using Binance Futures TESTNET")
+        else:
+            client = Client(api_key, api_secret)
+            logger.info("📈 Using Binance MAINNET")
+        BINANCE_AVAILABLE = True
     else:
-        client = Client(api_key, api_secret)
-        logger.info("📈 Using Binance MAINNET")
-        
-    BINANCE_AVAILABLE = True
-except ImportError:
-    logger.warning("⚠️ python-binance not installed, using paper trading mode")
+        logger.warning("⚠️ Binance credentials not found - using paper trading mode")
+        client = None
+        BINANCE_AVAILABLE = False
+        PAPER_TRADING = True
+except Exception as e:
+    logger.warning(f"⚠️ Binance client initialization failed: {e}")
     client = None
     BINANCE_AVAILABLE = False
     PAPER_TRADING = True
+
+# Invalid symbols to filter out (not available on Binance testnet)
+INVALID_SYMBOLS = {"KASUSDT", "FTMUSDT", "KAUSUSDT"}  # Add more as needed
 
 # Risk management settings
 RISK_LIMIT = float(os.getenv("MAX_RISK_PER_TRADE", "0.01"))  # 1% risk per trade
@@ -81,6 +104,20 @@ class AutoExecutor:
         self.trade_count = 0
         self.successful_trades = 0
         self.failed_trades = 0
+        self.symbol_info_cache = {}  # Cache for symbol exchange info
+        self.leverage_brackets_cache = {}  # Cache for leverage brackets
+        
+        # Initialize Intelligent Leverage Engine
+        if LEVERAGE_ENGINE_AVAILABLE:
+            self.leverage_engine = IntelligentLeverageEngine(config={
+                "min_leverage": float(os.getenv("MIN_LEVERAGE", "5.0")),
+                "max_leverage": float(os.getenv("MAX_LEVERAGE", "80.0")),
+                "safety_cap": 0.9
+            })
+            logger.info("🧠 Intelligent Leverage Engine initialized (5-80x dynamic)")
+        else:
+            self.leverage_engine = None
+            logger.warning("⚠️ Using fallback MAX_LEVERAGE from environment")
         
         logger.info("=" * 60)
         logger.info("Phase 6: Auto Execution Layer Initialized")
@@ -114,6 +151,102 @@ class AutoExecutor:
             logger.error(f"❌ Error getting balance: {e}")
             return 0.0
 
+    def get_max_leverage(self, symbol: str) -> int:
+        """Get maximum allowed leverage for a symbol from Binance leverage brackets"""
+        # Check cache first
+        if symbol in self.leverage_brackets_cache:
+            return self.leverage_brackets_cache[symbol]
+        
+        try:
+            if not BINANCE_AVAILABLE or not client:
+                return 20  # Safe default
+            
+            # Get leverage brackets
+            brackets = client.futures_leverage_bracket(symbol=symbol)
+            
+            if brackets and len(brackets) > 0:
+                # First bracket contains max leverage for minimum notional
+                symbol_data = brackets[0] if isinstance(brackets, list) else brackets
+                if 'brackets' in symbol_data:
+                    max_lev = symbol_data['brackets'][0]['initialLeverage']
+                    self.leverage_brackets_cache[symbol] = max_lev
+                    return max_lev
+            
+            # Fallback
+            return 20
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to get leverage bracket for {symbol}: {e}")
+            return 20  # Safe default
+
+    def get_symbol_info(self, symbol: str) -> dict:
+        """Get symbol trading rules from Binance (with caching)"""
+        # Check cache first
+        if symbol in self.symbol_info_cache:
+            return self.symbol_info_cache[symbol]
+        
+        try:
+            if not BINANCE_AVAILABLE or not client:
+                # Default fallback values
+                return {
+                    'stepSize': '0.001',
+                    'minQty': '0.001',
+                    'maxQty': '100000',
+                    'tickSize': '0.01',
+                    'precision': 3
+                }
+            
+            # Get exchange info
+            exchange_info = client.futures_exchange_info()
+            
+            for symbol_data in exchange_info['symbols']:
+                if symbol_data['symbol'] == symbol:
+                    # Extract LOT_SIZE filter (quantity rules)
+                    lot_size = next((f for f in symbol_data['filters'] if f['filterType'] == 'LOT_SIZE'), None)
+                    price_filter = next((f for f in symbol_data['filters'] if f['filterType'] == 'PRICE_FILTER'), None)
+                    
+                    # Get max leverage for this symbol (from symbol data, not filters)
+                    max_leverage = symbol_data.get('maxLeverage', 125)  # Default to 125x if not specified
+                    
+                    if lot_size and price_filter:
+                        step_size = lot_size['stepSize']
+                        # Calculate precision from stepSize (e.g., "0.001" = 3 decimals)
+                        precision = len(step_size.rstrip('0').split('.')[-1]) if '.' in step_size else 0
+                        
+                        info = {
+                            'stepSize': step_size,
+                            'minQty': lot_size['minQty'],
+                            'maxQty': lot_size['maxQty'],
+                            'maxLeverage': max_leverage,
+                            'tickSize': price_filter['tickSize'],
+                            'precision': precision
+                        }
+                        
+                        # Cache it
+                        self.symbol_info_cache[symbol] = info
+                        logger.info(f"📏 [{symbol}] Fetched precision: {precision} decimals (stepSize: {step_size}, minQty: {lot_size['minQty']})")
+                        return info
+            
+            # Fallback if symbol not found
+            logger.warning(f"⚠️ Symbol {symbol} not found in exchange info, using defaults")
+            return {
+                'stepSize': '0.001',
+                'minQty': '0.001',
+                'maxQty': '100000',
+                'tickSize': '0.01',
+                'precision': 3
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting symbol info for {symbol}: {e}")
+            return {
+                'stepSize': '0.001',
+                'minQty': '0.001',
+                'maxQty': '100000',
+                'tickSize': '0.01',
+                'precision': 3
+            }
+
     def calculate_position_size(self, symbol: str, balance: float, confidence: float) -> float:
         """Calculate position size based on risk management"""
         # Base risk amount
@@ -124,13 +257,90 @@ class AutoExecutor:
         adjusted_risk = risk_amount * confidence_multiplier
         
         # Apply leverage
-        position_size = adjusted_risk * MAX_LEVERAGE
+        position_value_usdt = adjusted_risk * MAX_LEVERAGE
         
         # Cap at maximum position size
-        position_size = min(position_size, MAX_POSITION_SIZE)
+        position_value_usdt = min(position_value_usdt, MAX_POSITION_SIZE)
         
-        # Round to 3 decimals for most exchanges
-        return round(position_size, 3)
+        # Get current mark price to convert USDT to contracts
+        try:
+            ticker = client.get_symbol_ticker(symbol=symbol)
+            mark_price = float(ticker['price'])
+        except Exception as e:
+            logger.error(f"❌ [{symbol}] Failed to get mark price: {e}")
+            return 0.0
+        
+        # Convert USDT value to number of contracts
+        position_size_contracts = position_value_usdt / mark_price
+        
+        # Get symbol-specific precision
+        symbol_info = self.get_symbol_info(symbol)
+        precision = symbol_info['precision']
+        min_qty = float(symbol_info['minQty'])
+        
+        # Round to correct precision
+        position_size_contracts = round(position_size_contracts, precision)
+        logger.info(f"💰 [{symbol}] Position: {position_size_contracts} contracts (${position_value_usdt:.2f} @ ${mark_price:.4f}) precision={precision} min={min_qty}")
+
+        # Ensure meets minimum
+        if position_size_contracts < min_qty:
+            position_size_contracts = min_qty
+            logger.info(f"⬆️ [{symbol}] Adjusted to minimum: {min_qty} contracts")
+
+        return position_size_contracts
+
+    def calculate_dynamic_leverage(self, symbol: str, confidence: float, volatility: float = 0.02) -> int:
+        """
+        Calculate optimal leverage using Intelligent Leverage Engine
+        
+        Args:
+            symbol: Trading symbol
+            confidence: AI signal confidence [0-1]
+            volatility: Market volatility (default 0.02 = 2%)
+            
+        Returns:
+            Optimal leverage between MIN_LEVERAGE and MAX_LEVERAGE
+        """
+        if not self.leverage_engine:
+            # Fallback to environment variable
+            return MAX_LEVERAGE
+        
+        try:
+            # Calculate recent PnL trend (simplified)
+            pnl_trend = 0.0  # TODO: Calculate from recent trades
+            if self.successful_trades > 0:
+                win_rate = self.successful_trades / max(self.trade_count, 1)
+                pnl_trend = (win_rate - 0.5) * 2  # Convert 0-1 to -1 to +1
+            
+            # Use intelligent leverage engine
+            result = self.leverage_engine.calculate_leverage(
+                confidence=confidence,
+                volatility=volatility,
+                pnl_trend=pnl_trend,
+                symbol_risk=1.0,  # TODO: Add symbol-specific risk weights
+                margin_util=0.0,  # TODO: Calculate actual margin utilization
+                exch_divergence=0.0,  # TODO: Add cross-exchange data
+                funding_rate=0.0  # TODO: Get funding rate from Binance
+            )
+            
+            # Get symbol's actual max leverage from Binance leverage brackets
+            symbol_max_leverage = self.get_max_leverage(symbol)
+            
+            # Cap to symbol's actual max leverage
+            leverage = int(result.leverage)
+            leverage = min(leverage, symbol_max_leverage, MAX_LEVERAGE)
+            
+            logger.info(
+                f"🧠 [{symbol}] Dynamic Leverage: {leverage}x "
+                f"(ILF: {int(result.leverage)}x, max: {symbol_max_leverage}x, "
+                f"confidence={confidence:.2f}, vol={volatility:.3f})"
+            )
+            
+            return leverage
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to calculate dynamic leverage: {e}")
+            return MAX_LEVERAGE
 
     def place_order(
         self, 
@@ -201,18 +411,23 @@ class AutoExecutor:
                 return None
             
             # Get fill price and position details
-            fill_price = float(order.get('avgPrice', price or 0))
+            fill_price = float(order.get('avgPrice', 0))
             contract_qty = float(order.get('executedQty', qty))
+            
+            # If avgPrice not in response, get current market price
+            if fill_price == 0:
+                ticker = client.get_symbol_ticker(symbol=symbol)
+                fill_price = float(ticker['price'])
+            
             notional = fill_price * contract_qty
             
-            logger.info(f"✅ Order placed: {symbol} {side} {contract_qty} contracts ({notional:.2f} USDT) @ {leverage}x")
+            logger.info(f"✅ Order placed: {symbol} {side} {contract_qty} contracts ({notional:.2f} USDT) @ ${fill_price:.4f} with {leverage}x leverage")
             self.successful_trades += 1
             
             # Set TP/SL automatically after order placement
             try:
-                # Get current market price for precision
-                ticker = client.get_symbol_ticker(symbol=symbol)
-                current_price = float(ticker['price'])
+                # Use fill_price for calculations (already fetched above)
+                current_price = fill_price
                 
                 # Dynamic TP/SL based on leverage (LSF-inspired)
                 # Higher leverage = tighter stops
@@ -234,36 +449,38 @@ class AutoExecutor:
                     take_profit_price = fill_price * (1 - tp_pct)
                     stop_loss_price = fill_price * (1 + sl_pct)
                 
-                # Determine price precision dynamically
-                price_str = str(current_price)
-                if '.' in price_str:
-                    decimals = len(price_str.split('.')[1])
-                    # Use appropriate precision (max 8 decimals for crypto)
-                    price_precision = min(decimals, 8)
-                else:
-                    price_precision = 2
+                # Get symbol info for price precision
+                symbol_info = self.get_symbol_info(symbol)
+                tick_size = float(symbol_info.get('tickSize', '0.01'))
                 
-                # Round prices
+                # Calculate price precision from tick size
+                if '.' in str(tick_size):
+                    price_precision = len(str(tick_size).rstrip('0').split('.')[1])
+                else:
+                    price_precision = 0
+                
+                # Round prices to tick size
                 take_profit_price = round(take_profit_price, price_precision)
                 stop_loss_price = round(stop_loss_price, price_precision)
                 
-                # Safety check: Ensure stop loss price is positive and reasonable
-                if stop_loss_price <= 0:
-                    raise ValueError(f"Invalid SL price: {stop_loss_price} (must be > 0)")
+                # Safety check: Ensure prices are positive and reasonable
+                if stop_loss_price <= 0 or fill_price <= 0:
+                    raise ValueError(f"Invalid SL price: {stop_loss_price} or fill price: {fill_price} (must be > 0)")
                 
                 if take_profit_price <= 0:
                     raise ValueError(f"Invalid TP price: {take_profit_price} (must be > 0)")
                 
-                # Validate price spread
+                # Validate price spread (with tolerance for rounding)
+                price_tolerance = tick_size * 2
                 if side.upper() == "BUY":
-                    if stop_loss_price >= fill_price:
+                    if stop_loss_price >= (fill_price - price_tolerance):
                         raise ValueError(f"SL {stop_loss_price} must be < entry {fill_price} for LONG")
-                    if take_profit_price <= fill_price:
+                    if take_profit_price <= (fill_price + price_tolerance):
                         raise ValueError(f"TP {take_profit_price} must be > entry {fill_price} for LONG")
-                else:  # SELL
-                    if stop_loss_price <= fill_price:
+                else:  # SELL (SHORT)
+                    if stop_loss_price <= (fill_price + price_tolerance):
                         raise ValueError(f"SL {stop_loss_price} must be > entry {fill_price} for SHORT")
-                    if take_profit_price >= fill_price:
+                    if take_profit_price >= (fill_price - price_tolerance):
                         raise ValueError(f"TP {take_profit_price} must be < entry {fill_price} for SHORT")
                 
                 # Place Take Profit order
@@ -358,6 +575,26 @@ class AutoExecutor:
         
         return False
 
+    def has_open_position(self, symbol: str) -> bool:
+        """Check if there's already an open position for this symbol"""
+        try:
+            if PAPER_TRADING:
+                return False  # Allow multiple paper trades for testing
+            
+            if not BINANCE_AVAILABLE or not client:
+                return False
+            
+            positions = client.futures_position_information(symbol=symbol)
+            for pos in positions:
+                position_amt = float(pos.get('positionAmt', 0))
+                if abs(position_amt) > 0:
+                    logger.debug(f"📍 [{symbol}] Already has open position: {position_amt}")
+                    return True
+            return False
+        except Exception as e:
+            logger.error(f"❌ Failed to check position for {symbol}: {e}")
+            return False  # Proceed with caution if check fails
+
     def process_signal(self, signal: Dict) -> bool:
         """Process a single trading signal"""
         try:
@@ -384,6 +621,11 @@ class AutoExecutor:
                 )
                 return False
             
+            # Check if position already exists (prevent duplicate orders)
+            if self.has_open_position(symbol):
+                logger.debug(f"⏭️ [{symbol}] Skipping - position already open")
+                return False
+            
             # Check drawdown circuit breaker
             if self.check_drawdown(signal):
                 return False
@@ -396,8 +638,12 @@ class AutoExecutor:
                 logger.warning(f"⚠️ Position size too small: {qty}")
                 return False
             
-            # Place order
-            order = self.place_order(symbol, side, qty, price, MAX_LEVERAGE)
+            # Calculate dynamic leverage based on confidence and market conditions
+            volatility = signal.get("volatility", 0.02)  # Default 2% if not provided
+            leverage = self.calculate_dynamic_leverage(symbol, confidence, volatility)
+            
+            # Place order with dynamic leverage
+            order = self.place_order(symbol, side, qty, price, leverage)
             
             if order:
                 # Log successful trade
@@ -433,8 +679,9 @@ class AutoExecutor:
                     
                     signal = json.loads(payload)
                     
-                    # Filter out HOLD signals
-                    if signal.get('side') != 'HOLD':
+                    # Filter out HOLD signals and invalid symbols
+                    symbol = signal.get('symbol', '')
+                    if signal.get('side') != 'HOLD' and symbol not in INVALID_SYMBOLS:
                         signals.append(signal)
                         
                 except Exception as e:

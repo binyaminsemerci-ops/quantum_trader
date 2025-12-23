@@ -20,6 +20,9 @@ import os
 # Add paths
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
+# Standard library imports
+import os  # Added for environment variables
+
 # Core dependencies
 from backend.core.event_bus import EventBus
 from backend.core.event_buffer import EventBuffer
@@ -40,6 +43,11 @@ from .config import settings
 from backend.microservices.ai_engine.services.model_supervisor_governance import ModelSupervisorGovernance
 from backend.microservices.ai_engine.services.adaptive_retrainer import AdaptiveRetrainer
 from backend.microservices.ai_engine.services.model_validation_layer import ModelValidationLayer
+
+# 🔥 PHASE 1 FUTURES INTELLIGENCE MODULES 🔥
+from backend.services.ai.drift_detection_manager import DriftDetectionManager
+from backend.services.ai.reinforcement_signal_manager import ReinforcementSignalManager
+from backend.services.risk.funding_rate_filter import FundingRateFilter
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +80,12 @@ class AIEngineService:
         self.supervisor_governance = None  # Phase 4D+4E: Model Supervisor & Predictive Governance
         self.adaptive_retrainer = None  # Phase 4F: Adaptive Retraining Pipeline
         self.model_validator = None  # Phase 4G: Model Validation Layer
+        
+        # 🔥 PHASE 1: Futures Intelligence Modules
+        self.cross_exchange_aggregator = None  # Cross-exchange volatility, divergence, lead/lag
+        self.funding_rate_filter = None        # Funding pressure, crowd bias, squeeze detection
+        self.drift_detector = None             # Model drift detection & retrain triggers
+        self.rl_signal_manager = None          # PnL feedback loop & confidence calibration
         
         # State tracking
         self._running = False
@@ -341,7 +355,82 @@ class AIEngineService:
                 logger.info("[AI-ENGINE] ✅ Model Validation Layer active")
                 logger.info(f"[PHASE 4G] Validator initialized - Criteria: 3% MAPE improvement + better Sharpe")
             
+            # 🔥 PHASE 1 MODULES - FUTURES INTELLIGENCE 🔥
+            
+            # 10. Cross-Exchange Normalizer
+            if settings.CROSS_EXCHANGE_ENABLED:
+                logger.info("[AI-ENGINE] 🌐 Initializing Cross-Exchange Normalizer (Phase 1)...")
+                try:
+                    from microservices.ai_engine.cross_exchange_aggregator import CrossExchangeAggregator
+                    
+                    self.cross_exchange_aggregator = CrossExchangeAggregator(
+                        symbols=settings.CROSS_EXCHANGE_SYMBOLS,
+                        redis_host=settings.REDIS_HOST,
+                        redis_port=settings.REDIS_PORT
+                    )
+                    # Start aggregation in background
+                    asyncio.create_task(self.cross_exchange_aggregator.start())
+                    
+                    self._models_loaded += 1
+                    logger.info("[AI-ENGINE] ✅ Cross-Exchange Normalizer active")
+                    logger.info(f"[PHASE 1] Cross-Exchange: {len(settings.CROSS_EXCHANGE_SYMBOLS)} symbols, {len(settings.CROSS_EXCHANGE_EXCHANGES)} exchanges")
+                except Exception as e:
+                    logger.warning(f"[AI-ENGINE] ⚠️ Cross-Exchange failed to load: {e}")
+                    self.cross_exchange_aggregator = None
+            
+            # 11. Funding Rate Filter
+            if settings.FUNDING_RATE_ENABLED:
+                logger.info("[AI-ENGINE] 💰 Initializing Funding Rate Filter (Phase 1)...")
+                try:
+                    self.funding_rate_filter = FundingRateFilter(
+                        max_funding_rate=settings.MAX_FUNDING_RATE,
+                        warn_funding_rate=settings.WARN_FUNDING_RATE,
+                        use_testnet=os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true"
+                    )
+                    
+                    self._models_loaded += 1
+                    logger.info("[AI-ENGINE] ✅ Funding Rate Filter active")
+                    logger.info(f"[PHASE 1] Funding: Max={settings.MAX_FUNDING_RATE*100:.2f}%, Warn={settings.WARN_FUNDING_RATE*100:.2f}%")
+                except Exception as e:
+                    logger.warning(f"[AI-ENGINE] ⚠️ Funding Rate Filter failed: {e}")
+                    self.funding_rate_filter = None
+            
+            # 12. Drift Detection Manager
+            if settings.DRIFT_DETECTION_ENABLED:
+                logger.info("[AI-ENGINE] 📊 Initializing Drift Detection Manager (Phase 1)...")
+                try:
+                    self.drift_detector = DriftDetectionManager(
+                        psi_threshold_moderate=settings.DRIFT_PSI_THRESHOLD_MODERATE,
+                        psi_threshold_severe=settings.DRIFT_PSI_THRESHOLD_SEVERE,
+                        check_interval=settings.DRIFT_CHECK_INTERVAL_SEC
+                    )
+                    
+                    self._models_loaded += 1
+                    logger.info("[AI-ENGINE] ✅ Drift Detection Manager active")
+                    logger.info(f"[PHASE 1] Drift: PSI moderate={settings.DRIFT_PSI_THRESHOLD_MODERATE}, severe={settings.DRIFT_PSI_THRESHOLD_SEVERE}")
+                except Exception as e:
+                    logger.warning(f"[AI-ENGINE] ⚠️ Drift Detection failed: {e}")
+                    self.drift_detector = None
+            
+            # 13. Reinforcement Signal Manager (PnL Feedback Loop)
+            if settings.REINFORCEMENT_SIGNAL_ENABLED:
+                logger.info("[AI-ENGINE] 🎯 Initializing Reinforcement Signal Manager (Phase 1)...")
+                try:
+                    self.rl_signal_manager = ReinforcementSignalManager(
+                        learning_rate=settings.RL_SIGNAL_LEARNING_RATE,
+                        discount_factor=settings.RL_SIGNAL_DISCOUNT_FACTOR,
+                        state_file=settings.RL_SIGNAL_STATE_PATH
+                    )
+                    
+                    self._models_loaded += 1
+                    logger.info("[AI-ENGINE] ✅ Reinforcement Signal Manager active")
+                    logger.info(f"[PHASE 1] RL Signal: lr={settings.RL_SIGNAL_LEARNING_RATE}, discount={settings.RL_SIGNAL_DISCOUNT_FACTOR}")
+                except Exception as e:
+                    logger.warning(f"[AI-ENGINE] ⚠️ RL Signal Manager failed: {e}")
+                    self.rl_signal_manager = None
+            
             logger.info(f"[AI-ENGINE] ✅ All AI modules loaded ({self._models_loaded} models active)")
+            logger.info("[PHASE 1] 🚀 Futures Intelligence Stack: ACTIVATED")
             
         except Exception as e:
             logger.error(f"[AI-ENGINE] ❌ Failed to load AI modules: {e}", exc_info=True)
@@ -466,6 +555,26 @@ class AIEngineService:
             # TODO: Update RL Sizing Q-table
             if self.rl_sizing_agent:
                 pass
+            
+            # 🔥 PHASE 1: Feed trade outcome to Reinforcement Signal Manager
+            if self.rl_signal_manager:
+                try:
+                    from backend.services.ai.reinforcement_signal_manager import TradeOutcome
+                    
+                    outcome = TradeOutcome(
+                        timestamp=datetime.now(timezone.utc),
+                        symbol=symbol,
+                        action=event_data.get("action", "unknown"),
+                        confidence=event_data.get("confidence", 0.5),
+                        pnl=pnl_percent / 100.0,  # Convert to decimal
+                        position_size=event_data.get("position_size", 0.0),
+                        entry_price=event_data.get("entry_price", 0.0)
+                    )
+                    
+                    await asyncio.to_thread(self.rl_signal_manager.learn_from_outcome, outcome)
+                    logger.info(f"[PHASE 1] RL Signal learned from {symbol} trade: PnL={pnl_percent:.2f}%")
+                except Exception as rl_error:
+                    logger.error(f"[AI-ENGINE] RL Signal Manager learning failed: {rl_error}")
             
         except Exception as e:
             logger.error(f"[AI-ENGINE] Error handling trade.closed: {e}", exc_info=True)
@@ -620,14 +729,47 @@ class AIEngineService:
                 
                 logger.info(f"[AI-ENGINE] 📊 Price history: {symbol} has {len(prices)} data points")
                 
+                # Base features
                 features = {
                     "price": current_price,
-                    "price_change": self._calculate_momentum(prices, period=1),  # 1-period price change for LGBM
+                    "price_change": self._calculate_momentum(prices, period=1),
                     "rsi_14": self._calculate_rsi(prices, period=14),
                     "macd": self._calculate_macd(prices, fast=12, slow=26),
                     "volume_ratio": self._calculate_volume_ratio(volumes, window=20),
                     "momentum_10": self._calculate_momentum(prices, period=10),
                 }
+                
+                # 🔥 PHASE 1: Add Cross-Exchange Features
+                if self.cross_exchange_aggregator:
+                    try:
+                        cross_exchange_data = await asyncio.to_thread(
+                            self.cross_exchange_aggregator.get_latest_features,
+                            symbol
+                        )
+                        if cross_exchange_data:
+                            features["volatility_factor"] = cross_exchange_data.get("volatility_factor", 1.0)
+                            features["exchange_divergence"] = cross_exchange_data.get("divergence", 0.0)
+                            features["lead_lag_score"] = cross_exchange_data.get("lead_lag", 0.0)
+                            logger.info(f"[PHASE 1] Cross-Exchange: volatility={features['volatility_factor']:.3f}, "
+                                      f"divergence={features['exchange_divergence']:.4f}")
+                    except Exception as e:
+                        logger.warning(f"[PHASE 1] Cross-Exchange feature extraction failed: {e}")
+                
+                # 🔥 PHASE 1: Add Funding Rate Features
+                if self.funding_rate_filter:
+                    try:
+                        funding_data = await asyncio.to_thread(
+                            self.funding_rate_filter.get_funding_features,
+                            symbol
+                        )
+                        if funding_data:
+                            features["funding_rate"] = funding_data.get("current_funding", 0.0)
+                            features["funding_delta"] = funding_data.get("funding_delta", 0.0)
+                            features["crowded_side_score"] = funding_data.get("crowd_bias", 0.0)
+                            logger.info(f"[PHASE 1] Funding: rate={features['funding_rate']:.5f}, "
+                                      f"crowd_bias={features['crowded_side_score']:.2f}")
+                    except Exception as e:
+                        logger.warning(f"[PHASE 1] Funding rate feature extraction failed: {e}")
                 
                 logger.info(f"[AI-ENGINE] Features for {symbol}: RSI={features['rsi_14']:.1f}, "
                             f"MACD={features['macd']:.4f}, VolumeRatio={features['volume_ratio']:.2f}, "
@@ -696,6 +838,59 @@ class AIEngineService:
             else:
                 model_votes = votes_info.get("votes", {})
                 consensus = votes_info.get("consensus", 0)
+            
+            # 🔥 PHASE 1: Apply RL Signal Manager Confidence Calibration
+            if self.rl_signal_manager and not fallback_triggered:
+                try:
+                    calibrated_confidence = await asyncio.to_thread(
+                        self.rl_signal_manager.calibrate_confidence,
+                        symbol=symbol,
+                        raw_confidence=ensemble_confidence,
+                        action=action
+                    )
+                    logger.info(f"[PHASE 1] RL Calibration: {ensemble_confidence:.3f} → {calibrated_confidence:.3f}")
+                    ensemble_confidence = calibrated_confidence
+                except Exception as e:
+                    logger.warning(f"[PHASE 1] Confidence calibration failed: {e}")
+            
+            # 🔥 PHASE 1: Check Funding Rate Filter (block high-cost trades)
+            if self.funding_rate_filter:
+                try:
+                    funding_check = await asyncio.to_thread(
+                        self.funding_rate_filter.should_block_trade,
+                        symbol
+                    )
+                    if funding_check.get("blocked", False):
+                        logger.warning(
+                            f"[PHASE 1] 🚫 FUNDING FILTER BLOCKED: {symbol} "
+                            f"(rate={funding_check.get('funding_rate', 0):.5f}, "
+                            f"reason={funding_check.get('reason', 'unknown')})"
+                        )
+                        return None
+                except Exception as e:
+                    logger.warning(f"[PHASE 1] Funding filter check failed: {e}")
+            
+            # 🔥 PHASE 1: Check Drift Detection (block if model drifted)
+            if self.drift_detector:
+                try:
+                    drift_status = await asyncio.to_thread(
+                        self.drift_detector.check_drift,
+                        symbol=symbol,
+                        features=features,
+                        prediction=ensemble_confidence
+                    )
+                    if drift_status.get("severity") in ["SEVERE", "CRITICAL"]:
+                        logger.warning(
+                            f"[PHASE 1] 🚫 DRIFT DETECTED: {symbol} "
+                            f"(severity={drift_status.get('severity')}, "
+                            f"psi={drift_status.get('psi', 0):.3f}) - Signal blocked"
+                        )
+                        # Trigger retraining if CLM available
+                        if self.adaptive_retrainer:
+                            logger.info(f"[PHASE 1] Triggering retrain due to drift...")
+                        return None
+                except Exception as e:
+                    logger.warning(f"[PHASE 1] Drift detection check failed: {e}")
             
             # Check minimum confidence
             logger.info(f"[AI-ENGINE] 🔍 Confidence check: {ensemble_confidence:.2f} vs min {settings.MIN_SIGNAL_CONFIDENCE:.2f}")
@@ -1153,7 +1348,7 @@ class AIEngineService:
         
         if exposure_balancer_enabled:
             try:
-                from microservices.exposure_balancer import get_exposure_balancer
+                from microservices.exposure_balancer.exposure_balancer import get_exposure_balancer
                 balancer = get_exposure_balancer(redis_client=None, config=None)  # Gets existing instance
                 balancer_stats = balancer.get_statistics()
                 

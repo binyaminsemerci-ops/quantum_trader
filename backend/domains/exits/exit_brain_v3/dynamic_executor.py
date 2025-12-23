@@ -462,9 +462,10 @@ class ExitBrainDynamicExecutor:
                         )
                 else:
                     # Standard mode: Hard SL disabled (conflicts with legacy modules)
+                    sl_display = f"${state.active_sl:.4f}" if state.active_sl else "None"
                     self.logger.debug(
                         f"[EXIT_BRAIN_EXECUTOR] {state_key}: Hard SL placement disabled - "
-                        f"using soft SL monitoring @ ${state.active_sl:.4f if state.active_sl else 'None'} + loss guard"
+                        f"using soft SL monitoring @ {sl_display} + loss guard"
                     )
                 
             except Exception as e:
@@ -926,13 +927,17 @@ class ExitBrainDynamicExecutor:
         from .precision import format_price_for_binance
         stop_price_str = format_price_for_binance(hard_sl_price, tick_size)
         
-        # Build STOP_MARKET order
+        # Build STOP_MARKET order with reduceOnly (NOT closePosition)
+        # Get current position size for quantity
+        remaining_size = abs(state.initial_size)  # Use initial size as safety net
+        
         order_params = {
             "symbol": state.symbol,
             "side": order_side,
             "type": "STOP_MARKET",
             "stopPrice": stop_price_str,  # Use formatted string
-            "closePosition": True,
+            "quantity": remaining_size,  # Specify quantity instead of closePosition
+            "reduceOnly": True,  # CRITICAL: Use reduceOnly, not closePosition
             "workingType": "MARK_PRICE",
         }
         
@@ -1419,9 +1424,9 @@ class ExitBrainDynamicExecutor:
             # Build MARKET reduce-only order
             order_side = "SELL" if state.side == "LONG" else "BUY"
             
-            # Get precision
-            precision = get_binance_precision(state.symbol)
-            qty = quantize_to_step(state.position_size, precision['stepSize'])
+            # Get precision (returns tuple: tick_size, step_size)
+            tick_size, step_size = get_binance_precision(state.symbol)
+            qty = quantize_to_step(state.position_size, step_size)
             
             if qty <= 0:
                 self.logger.warning(
@@ -1508,9 +1513,9 @@ class ExitBrainDynamicExecutor:
             # Calculate close quantity
             close_qty = state.position_size * fraction
             
-            # Get precision and quantize
-            precision = get_binance_precision(state.symbol)
-            close_qty = quantize_to_step(close_qty, precision['stepSize'])
+            # Get precision and quantize (returns tuple: tick_size, step_size)
+            tick_size, step_size = get_binance_precision(state.symbol)
+            close_qty = quantize_to_step(close_qty, step_size)
             
             if close_qty <= 0:
                 self.logger.warning(
@@ -1720,14 +1725,17 @@ class ExitBrainDynamicExecutor:
             close_qty = quantize_to_step(remaining_size, step_size)
             
             if close_qty <= 0:
-                # Fallback to closePosition if we still have non-zero remaining size
+                # Fallback: use unquantized remaining size with reduceOnly
                 if remaining_size > 0:
                     order_side = "SELL" if state.side == "LONG" else "BUY"
+                    
+                    # Use remaining_size directly without quantization (Binance will handle rounding)
                     order_params = {
                         "symbol": state.symbol,
                         "side": order_side,
                         "type": "MARKET",
-                        "closePosition": True,
+                        "quantity": abs(remaining_size),  # Use actual remaining size
+                        "reduceOnly": True,  # CRITICAL: Use reduceOnly instead of closePosition
                     }
                     
                     # Only include positionSide if hedge mode
@@ -1735,7 +1743,7 @@ class ExitBrainDynamicExecutor:
                         order_params["positionSide"] = state.side
                     self.logger.warning(
                         f"[EXIT_BRAIN_EXECUTOR] {state.symbol} {state.side}: "
-                        f"SL quantized to 0, using closePosition MARKET fallback (remaining={remaining_size})"
+                        f"SL quantized to 0, using MARKET reduceOnly fallback (qty={abs(remaining_size):.8f})"
                     )
                     await self._submit_and_finalize_sl(state, order_params, current_price)
                 else:
@@ -1882,7 +1890,8 @@ class ExitBrainDynamicExecutor:
                         "symbol": state.symbol,
                         "side": order_side,
                         "type": "MARKET",
-                        "closePosition": True,
+                        "quantity": abs(remaining_size),
+                        "reduceOnly": True,
                     }
                     
                     # Only include positionSide if hedge mode
@@ -1890,11 +1899,11 @@ class ExitBrainDynamicExecutor:
                         order_params["positionSide"] = state.side
                     self.logger.warning(
                         f"[EXIT_BRAIN_EXECUTOR] {state.symbol} {state.side}: "
-                        f"TP{leg_index} quantized to 0, using closePosition MARKET fallback "
-                        f"(remaining={remaining_size})"
+                        f"TP{leg_index} quantized to 0, using MARKET reduceOnly fallback "
+                        f"(qty={abs(remaining_size):.8f})"
                     )
                     await self._submit_tp_order_and_update_state(
-                        state, leg_index, order_params, 0.0, current_price, close_position=True
+                        state, leg_index, order_params, 0.0, current_price, close_position=False
                     )
                 else:
                     self.logger.warning(
