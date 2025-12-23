@@ -589,29 +589,29 @@ class AIEngineService:
                 logger.warning(f"[AI-ENGINE] ⚠️ Strategy Selector failed: {e}")
                 self.strategy_selector = None
             
-        # 🔥 PHASE 3C: System Health Monitor - Real-time monitoring
-        logger.info("[AI-ENGINE] 🏥 Initializing System Health Monitor (Phase 3C)...")
-        try:
-            self.health_monitor = SystemHealthMonitor(
-                check_interval_sec=60,        # Check every 60 seconds
-                alert_retention_hours=24,     # Keep alerts for 24 hours
-                metrics_history_size=1000     # Keep 1000 health checks
-            )
-            
-            # Link all modules to health monitor
-            self.health_monitor.set_modules(
-                orderbook_module=self.orderbook_imbalance,
-                volatility_engine=self.volatility_structure_engine,
-                risk_mode_predictor=self.risk_mode_predictor,
-                strategy_selector=self.strategy_selector,
-                ensemble_manager=self.ensemble
-            )
-            
-            logger.info("[PHASE 3C] SHM: All modules linked (2B, 2D, 3A, 3B, ensemble)")
-            logger.info("[PHASE 3C] 🏥 System Health Monitor: ONLINE")
-        except Exception as e:
-            logger.warning(f"[AI-ENGINE] ⚠️ System Health Monitor failed: {e}")
-            self.health_monitor = None
+            # 🔥 PHASE 3C: System Health Monitor - Real-time monitoring
+            logger.info("[AI-ENGINE] 🏥 Initializing System Health Monitor (Phase 3C)...")
+            try:
+                self.health_monitor = SystemHealthMonitor(
+                    check_interval_sec=60,        # Check every 60 seconds
+                    alert_retention_hours=24,     # Keep alerts for 24 hours
+                    metrics_history_size=1000     # Keep 1000 health checks
+                )
+                
+                # Link all modules to health monitor
+                self.health_monitor.set_modules(
+                    orderbook_module=self.orderbook_imbalance,
+                    volatility_engine=self.volatility_structure_engine,
+                    risk_mode_predictor=self.risk_mode_predictor,
+                    strategy_selector=self.strategy_selector,
+                    ensemble_manager=self.ensemble
+                )
+                
+                logger.info("[PHASE 3C] SHM: All modules linked (2B, 2D, 3A, 3B, ensemble)")
+                logger.info("[PHASE 3C] 🏥 System Health Monitor: ONLINE")
+            except Exception as e:
+                logger.warning(f"[AI-ENGINE] ⚠️ System Health Monitor failed: {e}")
+                self.health_monitor = None
         
     # ========================================================================
     
