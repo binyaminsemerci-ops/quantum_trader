@@ -457,7 +457,7 @@ class AIEngineService:
                     retrain_config = RetrainingConfig(
                         model_name=model_name,
                         retrain_interval_hours=24.0,
-                        min_training_samples=5000,
+                        min_new_samples=5000,
                         shadow_evaluation_hours=2.0
                     )
                     
