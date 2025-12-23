@@ -102,6 +102,8 @@ class AIEngineService:
         
         # State tracking
         self._running = False
+        self._active_symbols: List[str] = []  # Symbols to track for orderbook
+        self._orderbook_client = None  # Binance client for orderbook fetching
         self._event_loop_task: Optional[asyncio.Task] = None
         self._regime_update_task: Optional[asyncio.Task] = None
         self._signals_generated = 0
@@ -168,6 +170,11 @@ class AIEngineService:
             # Start EventBus consumer (CRITICAL - starts reading from Redis Streams)
             await self.event_bus.start()
             logger.info("[AI-ENGINE] ✅ EventBus consumer started")
+            
+            # 🔥 PHASE 2B: Start orderbook data feed
+            if self.orderbook_imbalance:
+                asyncio.create_task(self._fetch_orderbook_loop())
+                logger.info("[PHASE 2B] 📖 Orderbook data feed started")
             
             # Start background tasks
             self._running = True
@@ -574,6 +581,52 @@ class AIEngineService:
                 logger.debug(f"[PHASE 2B] Orderbook updated for {symbol}: {len(bids)} bids, {len(asks)} asks")
             except Exception as ob_error:
                 logger.error(f"[AI-ENGINE] Orderbook update failed: {ob_error}")
+    
+    async def _fetch_orderbook_loop(self):
+        """
+        Periodically fetch orderbook data for active symbols.
+        
+        Phase 2B: REST API polling approach (1-2 updates/sec per symbol).
+        Alternative: WebSocket for real-time updates (10-100 updates/sec).
+        """
+        from backend.services.binance_market_data import BinanceMarketDataFetcher
+        
+        try:
+            self._orderbook_client = BinanceMarketDataFetcher()
+            logger.info("[PHASE 2B] 📖 Orderbook client initialized")
+        except Exception as e:
+            logger.error(f"[PHASE 2B] Failed to initialize orderbook client: {e}")
+            return
+        
+        while self._running:
+            try:
+                # Track symbols from price history
+                if not self._active_symbols and self._price_history:
+                    self._active_symbols = list(self._price_history.keys())[:10]  # Limit to 10 symbols
+                    logger.info(f"[PHASE 2B] Tracking {len(self._active_symbols)} symbols for orderbook")
+                
+                for symbol in self._active_symbols:
+                    try:
+                        # Fetch orderbook (limit=20 levels)
+                        book = self._orderbook_client.client.futures_order_book(symbol=symbol, limit=20)
+                        
+                        # Convert to expected format
+                        bids = [(float(p), float(q)) for p, q in book['bids']]
+                        asks = [(float(p), float(q)) for p, q in book['asks']]
+                        
+                        # Update orderbook module
+                        await self.update_orderbook(symbol, bids, asks)
+                        
+                    except Exception as symbol_error:
+                        logger.debug(f"[PHASE 2B] Orderbook fetch failed for {symbol}: {symbol_error}")
+                        continue
+                
+                # Fetch every 1 second (can be adjusted)
+                await asyncio.sleep(1.0)
+                
+            except Exception as e:
+                logger.error(f"[PHASE 2B] Orderbook fetch loop error: {e}")
+                await asyncio.sleep(5.0)  # Back off on error
     
     
     async def _handle_market_tick(self, event_data: Dict[str, Any]):
