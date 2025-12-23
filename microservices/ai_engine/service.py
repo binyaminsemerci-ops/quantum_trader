@@ -418,7 +418,7 @@ class AIEngineService:
                     self.rl_signal_manager = ReinforcementSignalManager(
                         learning_rate=settings.RL_SIGNAL_LEARNING_RATE,
                         discount_factor=settings.RL_SIGNAL_DISCOUNT_FACTOR,
-                        state_file=settings.RL_SIGNAL_STATE_PATH
+                        checkpoint_path=settings.RL_SIGNAL_STATE_PATH
                     )
                     
                     self._models_loaded += 1

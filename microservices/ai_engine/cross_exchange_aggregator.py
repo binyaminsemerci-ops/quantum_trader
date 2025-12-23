@@ -40,7 +40,7 @@ class CrossExchangeAggregator:
         redis_url = f"redis://{redis_host}:{redis_port}"
         
         self.redis_url = redis_url
-        self.redis_manager = RedisConnectionManager(redis_url=redis_url)
+        self.redis_manager = RedisConnectionManager(url=redis_url)
         self.redis_client: Optional[aioredis.Redis] = None
         self.running = False
         
