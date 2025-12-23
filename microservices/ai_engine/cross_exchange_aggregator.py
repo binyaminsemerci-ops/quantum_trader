@@ -59,7 +59,7 @@ class CrossExchangeAggregator:
         """Connect to Redis"""
         try:
             await self.redis_manager.start()
-            self.redis_client = self.redis_manager.redis
+            self.redis_client = self.redis_manager.client
             logger.info("✅ Connected to Redis via RedisConnectionManager")
         except Exception as e:
             logger.error(f"❌ Failed to connect to Redis: {e}")
