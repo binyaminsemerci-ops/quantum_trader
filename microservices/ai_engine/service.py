@@ -53,6 +53,7 @@ from backend.services.ai.volatility_structure_engine import VolatilityStructureE
 from backend.services.ai.orderbook_imbalance_module import OrderbookImbalanceModule
 from backend.services.ai.risk_mode_predictor import RiskModePredictor
 from backend.services.ai.strategy_selector import StrategySelector, TradingStrategy
+from backend.services.ai.system_health_monitor import SystemHealthMonitor
 from backend.services.binance_market_data import BinanceMarketDataFetcher
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,9 @@ class AIEngineService:
         
         # 🔥 PHASE 3B: Strategy Selector
         self.strategy_selector = None  # Intelligent strategy selection
+        
+        # 🔥 PHASE 3C: System Health Monitor
+        self.health_monitor = None  # Real-time system health monitoring
         
         # State tracking
         self._running = False
@@ -186,6 +190,11 @@ class AIEngineService:
             if self.orderbook_imbalance:
                 asyncio.create_task(self._fetch_orderbook_loop())
                 logger.info("[PHASE 2B] 📖 Orderbook data feed started")
+            
+            # 🔥 PHASE 3C: Start health monitoring loop
+            if self.health_monitor:
+                asyncio.create_task(self.health_monitor.start_monitoring())
+                logger.info("[PHASE 3C] 🏥 Health monitoring loop started")
             
             # Start background tasks
             self._running = True
@@ -580,12 +589,30 @@ class AIEngineService:
                 logger.warning(f"[AI-ENGINE] ⚠️ Strategy Selector failed: {e}")
                 self.strategy_selector = None
             
+        # 🔥 PHASE 3C: System Health Monitor - Real-time monitoring
+        logger.info("[AI-ENGINE] 🏥 Initializing System Health Monitor (Phase 3C)...")
+        try:
+            self.health_monitor = SystemHealthMonitor(
+                check_interval_sec=60,        # Check every 60 seconds
+                alert_retention_hours=24,     # Keep alerts for 24 hours
+                metrics_history_size=1000     # Keep 1000 health checks
+            )
+            
+            # Link all modules to health monitor
+            self.health_monitor.set_modules(
+                orderbook_module=self.orderbook_imbalance,
+                volatility_engine=self.volatility_structure_engine,
+                risk_mode_predictor=self.risk_mode_predictor,
+                strategy_selector=self.strategy_selector,
+                ensemble_manager=self.ensemble
+            )
+            
+            logger.info("[PHASE 3C] SHM: All modules linked (2B, 2D, 3A, 3B, ensemble)")
+            logger.info("[PHASE 3C] 🏥 System Health Monitor: ONLINE")
         except Exception as e:
-            logger.error(f"[AI-ENGINE] ❌ Failed to load AI modules: {e}", exc_info=True)
-            raise
-    
-    # ========================================================================
-    # EVENT HANDLERS
+            logger.warning(f"[AI-ENGINE] ⚠️ System Health Monitor failed: {e}")
+            self.health_monitor = None
+        
     # ========================================================================
     
     async def update_price_history(self, symbol: str, price: float, volume: float = 0.0):
@@ -949,6 +976,10 @@ class AIEngineService:
         Returns:
             AIDecisionMadeEvent if signal generated, None otherwise
         """
+        # 🔥 PHASE 3C: Track signal generation for health monitoring
+        start_time = datetime.utcnow()
+        success = False
+        
         try:
             logger.info(f"[AI-ENGINE] 🔍 generate_signal START: {symbol}, price={current_price}")
             
@@ -1475,10 +1506,22 @@ class AIEngineService:
             )
             logger.debug(f"[AI-ENGINE] trade.intent event sent to Execution Service")
             
+            # 🔥 PHASE 3C: Record successful signal generation
+            if self.health_monitor:
+                latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                self.health_monitor.record_signal_attempt(success=True, latency_ms=latency_ms)
+            
             return decision
             
         except Exception as e:
             logger.error(f"[AI-ENGINE] Error generating signal for {symbol}: {e}", exc_info=True)
+            
+            # 🔥 PHASE 3C: Record failed signal generation
+            if self.health_monitor:
+                latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                self.health_monitor.record_signal_attempt(success=False, latency_ms=latency_ms)
+                self.health_monitor.record_error()
+            
             return None
     
     # ========================================================================
