@@ -604,7 +604,7 @@ class AIEngineService:
                     volatility_engine=self.volatility_structure_engine,
                     risk_mode_predictor=self.risk_mode_predictor,
                     strategy_selector=self.strategy_selector,
-                    ensemble_manager=self.ensemble
+                    ensemble_manager=self.ensemble_manager
                 )
                 
                 logger.info("[PHASE 3C] SHM: All modules linked (2B, 2D, 3A, 3B, ensemble)")
