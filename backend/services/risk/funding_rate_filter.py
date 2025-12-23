@@ -78,42 +78,42 @@ class FundingRateFilter:
             crowd_bias = current_funding * 100  # Scale for readability
             
             return {
-                \"current_funding\": current_funding,
-                \"funding_delta\": funding_delta,
-                \"crowd_bias\": crowd_bias
+                "current_funding": current_funding,
+                "funding_delta": funding_delta,
+                "crowd_bias": crowd_bias
             }
         except Exception as e:
-            logger.error(f\"Error getting funding features for {symbol}: {e}\")
+            logger.error(f"Error getting funding features for {symbol}: {e}")
             return None
     
     def should_block_trade(self, symbol: str) -> Dict:
-        \"\"\"
+        """
         Check if trade should be blocked due to excessive funding.
         Returns: Dict with blocked (bool), reason (str), funding_rate (float)
-        \"\"\"
+        """
         try:
             funding_rate = self.get_current_funding_rate(symbol)
             if funding_rate is None:
-                return {\"blocked\": False, \"reason\": \"No funding data available\"}
+                return {"blocked": False, "reason": "No funding data available"}
             
             abs_funding = abs(funding_rate)
             
             if abs_funding >= self.max_funding_rate:
                 return {
-                    \"blocked\": True,
-                    \"reason\": f\"Funding rate too high: {abs_funding:.5f}\",
-                    \"funding_rate\": abs_funding
+                    "blocked": True,
+                    "reason": f"Funding rate too high: {abs_funding:.5f}",
+                    "funding_rate": abs_funding
                 }
             elif abs_funding >= self.warn_funding_rate:
                 logger.warning(
-                    f\"[FUNDING WARNING] {symbol} funding rate: {abs_funding:.5f} \"
-                    f\"(threshold: {self.warn_funding_rate:.5f})\"
+                    f"[FUNDING WARNING] {symbol} funding rate: {abs_funding:.5f} "
+                    f"(threshold: {self.warn_funding_rate:.5f})"
                 )
             
-            return {\"blocked\": False, \"funding_rate\": abs_funding}
+            return {"blocked": False, "funding_rate": abs_funding}
         except Exception as e:
-            logger.error(f\"Error checking funding for {symbol}: {e}\")
-            return {\"blocked\": False, \"reason\": f\"Error: {e}\"}
+            logger.error(f"Error checking funding for {symbol}: {e}")
+            return {"blocked": False, "reason": f"Error: {e}"}
     
     def get_current_funding_rate(self, symbol: str) -> Optional[float]:
         """
