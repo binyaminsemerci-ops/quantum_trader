@@ -612,6 +612,10 @@ class AIEngineService:
             except Exception as e:
                 logger.warning(f"[AI-ENGINE] ⚠️ System Health Monitor failed: {e}")
                 self.health_monitor = None
+                
+        except Exception as e:
+            logger.error(f"[AI-ENGINE] ❌ Critical error loading AI modules: {e}", exc_info=True)
+            raise
         
     # ========================================================================
     
