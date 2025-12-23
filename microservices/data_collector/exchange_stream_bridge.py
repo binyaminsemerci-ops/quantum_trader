@@ -11,7 +11,20 @@ from typing import Optional, Dict, List
 import logging
 import os
 from datetime import datetime
-from redis_manager import RedisConnectionManager
+import sys
+sys.path.append('/app/backend/infrastructure')
+try:
+    from redis_manager import RedisConnectionManager
+except ImportError:
+    # Fallback: Create simple Redis manager if import fails
+    class RedisConnectionManager:
+        def __init__(self, url):
+            self.url = url
+            self._redis = None
+        async def get_connection(self):
+            if not self._redis:
+                self._redis = await aioredis.from_url(self.url)
+            return self._redis
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

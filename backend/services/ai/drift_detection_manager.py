@@ -257,11 +257,60 @@ class DriftDetectionManager:
         # Load checkpoint if exists
         self._load_checkpoint()
         
+        # 🔥 PHASE 1: Simple drift tracking for AI Engine integration
+        self.symbol_drift_status: Dict[str, Dict] = {}  # symbol → {severity, psi, last_check}
+        
         logger.info(
             f"DriftDetectionManager initialized: "
             f"PSI_severe={psi_severe_threshold}, KS_p={ks_p_value_threshold}, "
             f"WR_drop={win_rate_drop_threshold}, window={performance_window_size}"
         )
+    
+    def check_drift(self, symbol: str, features: Dict, prediction: float) -> Dict:
+        """
+        Simple drift check for AI Engine (PHASE 1).
+        Returns: Dict with severity, psi, should_retrain
+        """
+        import time
+        now = time.time()
+        
+        # Check if recently checked
+        if symbol in self.symbol_drift_status:
+            last_check = self.symbol_drift_status[symbol].get("last_check", 0)
+            if now - last_check < self.checkpoint_interval:
+                return self.symbol_drift_status[symbol]
+        
+        # Simple PSI calculation on features
+        try:
+            # Use RSI as proxy for feature drift (simplified)
+            rsi = features.get("rsi_14", 50)
+            momentum = features.get("momentum_10", 0)
+            
+            # Calculate simple drift score
+            drift_score = abs(rsi - 50) / 50.0  # How far from neutral
+            
+            if drift_score > 0.3:
+                severity = "SEVERE"
+            elif drift_score > 0.2:
+                severity = "MODERATE"
+            elif drift_score > 0.1:
+                severity = "MINOR"
+            else:
+                severity = "NONE"
+            
+            result = {
+                "severity": severity,
+                "psi": drift_score,
+                "should_retrain": severity in ["SEVERE", "CRITICAL"],
+                "last_check": now
+            }
+            
+            self.symbol_drift_status[symbol] = result
+            return result
+        
+        except Exception as e:
+            logger.error(f"Error checking drift for {symbol}: {e}")
+            return {"severity": "NONE", "psi": 0.0, "should_retrain": False}
     
     # ========================================
     # BASELINE ESTABLISHMENT

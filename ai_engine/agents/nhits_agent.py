@@ -191,11 +191,21 @@ class NHiTSAgent:
             # Convert to tensor: [1, seq_len, num_features]
             sequence_tensor = torch.FloatTensor(sequence).unsqueeze(0).to(self.device)
             
+            # Validate tensor shape before forward pass
+            expected_shape = (1, self.sequence_length, self.model.num_features if hasattr(self.model, 'num_features') else 12)
+            if sequence_tensor.shape != expected_shape:
+                logger.warning(f"❌ N-HiTS shape mismatch for {symbol}: got {sequence_tensor.shape}, expected {expected_shape}")
+                return self._fallback_prediction(features)
+            
             # Predict
             self.model.eval()
             with torch.no_grad():
-                logits, _ = self.model(sequence_tensor)
-                probs = torch.softmax(logits, dim=1)[0]
+                try:
+                    logits, _ = self.model(sequence_tensor)
+                    probs = torch.softmax(logits, dim=1)[0]
+                except RuntimeError as runtime_err:
+                    logger.error(f"❌ N-HiTS forward pass failed for {symbol}: {runtime_err}")
+                    return self._fallback_prediction(features)
             
             # Get action
             pred_class = torch.argmax(probs).item()

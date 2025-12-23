@@ -72,6 +72,30 @@ class Settings(BaseSettings):
     MIN_SAMPLES_FOR_RETRAIN: int = 50              # Retrain after 50 new samples
     RETRAIN_INTERVAL_HOURS: int = 24               # Auto-retrain every 24 hours
     
+    # 🔥 PHASE 1 MODULES - FUTURES INTELLIGENCE 🔥
+    
+    # Cross-Exchange Normalizer (volatility_factor, divergence, lead/lag)
+    CROSS_EXCHANGE_ENABLED: bool = True
+    CROSS_EXCHANGE_SYMBOLS: List[str] = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    CROSS_EXCHANGE_EXCHANGES: List[str] = ["binance", "bybit", "coinbase"]
+    
+    # Funding Rate Filter (funding_delta, crowded_side_score, squeeze_probability)
+    FUNDING_RATE_ENABLED: bool = True
+    MAX_FUNDING_RATE: float = 0.001  # 0.1% per 8h = max acceptable
+    WARN_FUNDING_RATE: float = 0.0005  # 0.05% per 8h = warning threshold
+    
+    # Drift Detection Manager (drift_flag, retrain_trigger)
+    DRIFT_DETECTION_ENABLED: bool = True
+    DRIFT_PSI_THRESHOLD_MODERATE: float = 0.15  # 15% = moderate drift
+    DRIFT_PSI_THRESHOLD_SEVERE: float = 0.25    # 25% = severe drift
+    DRIFT_CHECK_INTERVAL_SEC: int = 300         # Check every 5 minutes
+    
+    # Reinforcement Signal Manager (PnL feedback, confidence calibration)
+    REINFORCEMENT_SIGNAL_ENABLED: bool = True
+    RL_SIGNAL_LEARNING_RATE: float = 0.05       # 5% learning from each trade
+    RL_SIGNAL_DISCOUNT_FACTOR: float = 0.95     # Temporal discount
+    RL_SIGNAL_STATE_PATH: str = "/app/data/rl_signal_weights.json"
+    
     # Confidence thresholds
     MIN_SIGNAL_CONFIDENCE: float = 0.55   # Block signals <55% (lowered for testing)
     HIGH_CONFIDENCE_THRESHOLD: float = 0.85  # Flag high-confidence signals

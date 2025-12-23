@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir \
 
 # Copy source code
 COPY microservices/ai_engine /app/microservices/ai_engine
+COPY microservices/rl_sizing_agent /app/microservices/rl_sizing_agent
+COPY microservices/exposure_balancer /app/microservices/exposure_balancer
+COPY microservices/exitbrain_v3_5 /app/microservices/exitbrain_v3_5
 COPY backend /app/backend
 COPY ai_engine /app/ai_engine
 

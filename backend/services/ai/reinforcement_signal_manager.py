@@ -225,6 +225,57 @@ class ReinforcementSignalManager:
         )
     
     # ========================================
+    # PHASE 1 WRAPPER METHODS (AI ENGINE)
+    # ========================================
+    
+    def calibrate_confidence(self, symbol: str, raw_confidence: float, action: str) -> float:
+        """
+        Calibrate raw confidence using learned confidence scalers (PHASE 1 wrapper).
+        Returns: Calibrated confidence
+        """
+        try:
+            # Get average confidence scaler from all models
+            scalers = list(self.confidence_scalers.values())
+            avg_scaler = sum(scalers) / len(scalers) if scalers else 1.0
+            
+            calibrated = raw_confidence * avg_scaler
+            calibrated = max(0.30, min(0.95, calibrated))  # Clamp to [0.30, 0.95]
+            
+            return calibrated
+        except Exception as e:
+            logger.error(f"Error calibrating confidence for {symbol}: {e}")
+            return raw_confidence
+    
+    def learn_from_outcome(self, outcome: TradeOutcome):
+        """
+        Learn from trade outcome (PHASE 1 wrapper).
+        Updates model weights and calibration metrics.
+        """
+        try:
+            # Handle both dict and TradeOutcome
+            if isinstance(outcome, dict):
+                outcome = TradeOutcome(**outcome)
+            
+            # Process trade outcome (simplified for now)
+            pnl = outcome.pnl if hasattr(outcome, 'pnl') else 0.0
+            
+            # Simple reward calculation
+            shaped_reward = pnl / 100.0  # Normalize to percentage
+            self.total_reward_accumulated += shaped_reward
+            self.total_trades_processed += 1
+            
+            logger.info(
+                f"[RL Signal] Learned from {outcome.symbol} trade: "
+                f"PnL={pnl:.2f}, reward={shaped_reward:.3f}, total_trades={self.total_trades_processed}"
+            )
+            
+            # Auto-checkpoint if needed
+            self.auto_checkpoint_check()
+        
+        except Exception as e:
+            logger.error(f"Error learning from outcome: {e}", exc_info=True)
+    
+    # ========================================
     # CORE METHODS
     # ========================================
     

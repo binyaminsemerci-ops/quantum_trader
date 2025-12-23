@@ -13,8 +13,11 @@ RUN pip install --no-cache-dir \
     ujson \
     tenacity
 
+# Copy backend infrastructure (for redis_manager)
+COPY backend/infrastructure /app/backend/infrastructure
+
 # Copy source files
-COPY . /app/
+COPY microservices/data_collector /app/
 
 # Default command (can be overridden)
 CMD ["python3", "exchange_stream_bridge.py"]

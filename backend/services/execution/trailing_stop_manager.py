@@ -193,7 +193,8 @@ class TrailingStopManager:
                 'stopPrice': sl_price_rounded,
                 'closePosition': True,
                 'workingType': 'MARK_PRICE',
-                'positionSide': position_side
+                'positionSide': position_side,
+                'reduceOnly': True  # 🔥 CRITICAL FIX: Required for One-Way mode conditional orders
             }
             
             if EXIT_GATEWAY_AVAILABLE:

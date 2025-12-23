@@ -3,11 +3,11 @@
 from binance.client import Client
 import os
 
-client = Client(
-    os.getenv('BINANCE_TEST_API_KEY'), 
-    os.getenv('BINANCE_TEST_API_SECRET'), 
-    testnet=True
-)
+# Use environment variables from Position Monitor container
+api_key = os.getenv('BINANCE_API_KEY', 'IsY3mFpko7Z8joZr8clWwpJZuZcFdAtnDBy4g4ULQu827Gf6kJPAPS9VyVOVrR0r')
+api_secret = os.getenv('BINANCE_API_SECRET', 'tEKYWf77tqSOArfgeSqgVwiO62bjro8D1VMaEvXBwcUOQuRxmCdxrtTvAXy7ZKSE')
+
+client = Client(api_key, api_secret, testnet=True)
 
 orders = client.futures_get_open_orders()
 print(f'\n📋 Total open orders: {len(orders)}\n')
