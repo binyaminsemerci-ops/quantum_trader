@@ -49,6 +49,7 @@ from backend.services.ai.drift_detection_manager import DriftDetectionManager
 from backend.services.ai.reinforcement_signal_manager import ReinforcementSignalManager
 from backend.services.risk.funding_rate_filter import FundingRateFilter
 from backend.services.continuous_learning import ContinuousLearningManager, ShadowEvaluator, RetrainingConfig, ModelVersion, ModelStage
+from backend.services.ai.volatility_structure_engine import VolatilityStructureEngine
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,9 @@ class AIEngineService:
         # 🔥 PHASE 2C: Continuous Learning Manager
         self.continuous_learning_manager = None  # Auto-retrain models based on real trade data
         self._clm_trade_buffer: List[Dict] = []   # Buffer for CLM trade outcomes
+        
+        # 🔥 PHASE 2D: Volatility Structure Engine
+        self.volatility_structure_engine = None  # ATR-trend, cross-TF volatility analysis
         
         # State tracking
         self._running = False
@@ -470,10 +474,30 @@ class AIEngineService:
                 logger.warning(f"[AI-ENGINE] ⚠️ CLM failed to initialize: {e}")
                 self.continuous_learning_manager = None
             
+            # 15. Volatility Structure Engine (Phase 2D) - ATR-trend & cross-TF volatility
+            logger.info("[AI-ENGINE] 📊 Initializing Volatility Structure Engine (Phase 2D)...")
+            try:
+                self.volatility_structure_engine = VolatilityStructureEngine(
+                    atr_period=14,
+                    atr_trend_lookback=5,
+                    volatility_expansion_threshold=1.5,
+                    volatility_contraction_threshold=0.5,
+                    history_size=200
+                )
+                
+                self._models_loaded += 1
+                logger.info("[AI-ENGINE] ✅ Volatility Structure Engine active")
+                logger.info("[PHASE 2D] VSE: ATR trend detection, cross-TF volatility, regime classification")
+            except Exception as e:
+                logger.warning(f"[AI-ENGINE] ⚠️ Volatility Structure Engine failed: {e}")
+                self.volatility_structure_engine = None
+            
             logger.info(f"[AI-ENGINE] ✅ All AI modules loaded ({self._models_loaded} models active)")
             logger.info("[PHASE 1] 🚀 Futures Intelligence Stack: ACTIVATED")
             if self.continuous_learning_manager:
                 logger.info("[PHASE 2C] 🎓 Continuous Learning: ONLINE")
+            if self.volatility_structure_engine:
+                logger.info("[PHASE 2D] 📈 Volatility Structure Engine: ONLINE")
             
         except Exception as e:
             logger.error(f"[AI-ENGINE] ❌ Failed to load AI modules: {e}", exc_info=True)
@@ -501,6 +525,13 @@ class AIEngineService:
         if len(self._price_history[symbol]) > self._history_max_len:
             self._price_history[symbol] = self._price_history[symbol][-self._history_max_len:]
             self._volume_history[symbol] = self._volume_history[symbol][-self._history_max_len:]
+        
+        # 🔥 PHASE 2D: Feed price data to Volatility Structure Engine
+        if self.volatility_structure_engine:
+            try:
+                self.volatility_structure_engine.update_price_data(symbol, price)
+            except Exception as vol_error:
+                logger.error(f"[AI-ENGINE] Volatility engine update failed: {vol_error}")
         
         logger.info(f"[AI-ENGINE] ✅ Price history updated: {symbol} @ ${price:.2f} (len={len(self._price_history[symbol])})")
     
@@ -866,6 +897,30 @@ class AIEngineService:
                                       f"crowd_bias={features['crowded_side_score']:.2f}")
                     except Exception as e:
                         logger.warning(f"[PHASE 1] Funding rate feature extraction failed: {e}")
+                
+                # 🔥 PHASE 2D: Add Volatility Structure Features (ATR-trend, cross-TF)
+                if self.volatility_structure_engine:
+                    try:
+                        vol_analysis = await asyncio.to_thread(
+                            self.volatility_structure_engine.get_complete_volatility_analysis,
+                            symbol
+                        )
+                        
+                        # Add all 11 volatility metrics to features
+                        features["atr"] = vol_analysis["atr"]
+                        features["atr_trend"] = vol_analysis["atr_trend"]
+                        features["atr_acceleration"] = vol_analysis["atr_acceleration"]
+                        features["short_term_vol"] = vol_analysis["short_term_vol"]
+                        features["medium_term_vol"] = vol_analysis["medium_term_vol"]
+                        features["long_term_vol"] = vol_analysis["long_term_vol"]
+                        features["vol_ratio_short_long"] = vol_analysis["vol_ratio_short_long"]
+                        features["volatility_score"] = vol_analysis["volatility_score"]
+                        
+                        logger.info(f"[PHASE 2D] Volatility: ATR={vol_analysis['atr']:.4f}, "
+                                  f"trend={vol_analysis['atr_trend']:.2f} ({vol_analysis['atr_regime']}), "
+                                  f"score={vol_analysis['volatility_score']:.3f}, regime={vol_analysis['overall_regime']}")
+                    except Exception as vol_error:
+                        logger.warning(f"[PHASE 2D] Volatility feature extraction failed: {vol_error}")
                 
                 logger.info(f"[AI-ENGINE] Features for {symbol}: RSI={features['rsi_14']:.1f}, "
                             f"MACD={features['macd']:.4f}, VolumeRatio={features['volume_ratio']:.2f}, "
