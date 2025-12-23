@@ -51,6 +51,7 @@ from backend.services.risk.funding_rate_filter import FundingRateFilter
 from backend.services.continuous_learning import ContinuousLearningManager, ShadowEvaluator, RetrainingConfig, ModelVersion, ModelStage
 from backend.services.ai.volatility_structure_engine import VolatilityStructureEngine
 from backend.services.ai.orderbook_imbalance_module import OrderbookImbalanceModule
+from backend.services.ai.risk_mode_predictor import RiskModePredictor
 from backend.services.binance_market_data import BinanceMarketDataFetcher
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,9 @@ class AIEngineService:
         self.orderbook_imbalance = None  # Real-time orderbook depth analysis
         self._binance_fetcher = None  # Binance market data fetcher
         self._active_symbols: List[str] = []  # Symbols to track orderbook for
+        
+        # 🔥 PHASE 3A: Risk Mode Predictor
+        self.risk_mode_predictor = None  # ML-based dynamic risk management
         
         # State tracking
         self._running = False
@@ -540,6 +544,22 @@ class AIEngineService:
                 logger.info("[PHASE 2D] 📈 Volatility Structure Engine: ONLINE")
             if self.orderbook_imbalance:
                 logger.info("[PHASE 2B] 📖 Orderbook Imbalance: ONLINE")
+            
+            # 🔥 PHASE 3A: Risk Mode Predictor - Dynamic risk management
+            logger.info("[AI-ENGINE] 📊 Initializing Risk Mode Predictor (Phase 3A)...")
+            try:
+                self.risk_mode_predictor = RiskModePredictor(
+                    volatility_engine=self.volatility_structure_engine,
+                    orderbook_module=self.orderbook_imbalance,
+                    vol_threshold_high=0.7,
+                    vol_threshold_low=0.3,
+                    imbalance_threshold=0.3
+                )
+                logger.info("[PHASE 3A] RMP: Volatility + orderbook + market conditions")
+                logger.info("[PHASE 3A] 📊 Risk Mode Predictor: ONLINE")
+            except Exception as e:
+                logger.warning(f"[AI-ENGINE] ⚠️ Risk Mode Predictor failed: {e}")
+                self.risk_mode_predictor = None
             
         except Exception as e:
             logger.error(f"[AI-ENGINE] ❌ Failed to load AI modules: {e}", exc_info=True)
@@ -1055,6 +1075,31 @@ class AIEngineService:
                             f"MACD={features['macd']:.4f}, VolumeRatio={features['volume_ratio']:.2f}, "
                             f"Momentum={features['momentum_10']:.2f}%")
                 
+                # 🔥 PHASE 3A: Predict risk mode
+                risk_signal = None
+                risk_multiplier = 1.0
+                if self.risk_mode_predictor:
+                    try:
+                        risk_signal = await asyncio.to_thread(
+                            self.risk_mode_predictor.predict_risk_mode,
+                            symbol=symbol,
+                            current_price=current_price,
+                            market_conditions={}  # TODO: Add BTC dominance, funding rates, fear/greed
+                        )
+                        risk_multiplier = self.risk_mode_predictor.get_risk_multiplier(risk_signal.mode)
+                        
+                        logger.info(f"[PHASE 3A] {symbol} Risk: {risk_signal.mode.value} "
+                                  f"(confidence={risk_signal.confidence:.1%}, "
+                                  f"regime={risk_signal.regime.value}, "
+                                  f"multiplier={risk_multiplier:.2f}x)")
+                        logger.info(f"[PHASE 3A] {symbol} Scores: vol={risk_signal.volatility_score:.2f}, "
+                                  f"flow={risk_signal.orderflow_score:.2f}, "
+                                  f"market={risk_signal.market_condition_score:.2f}")
+                        logger.info(f"[PHASE 3A] {symbol} Reason: {risk_signal.reason}")
+                    except Exception as e:
+                        logger.warning(f"[PHASE 3A] Risk prediction failed for {symbol}: {e}")
+                        risk_multiplier = 1.0
+                
                 # Call ensemble predict - returns (action, confidence, info_dict)
                 action, ensemble_confidence, votes_info = await asyncio.to_thread(
                     self.ensemble_manager.predict,
@@ -1313,6 +1358,13 @@ class AIEngineService:
                 leverage = int(sizing_decision.leverage)
                 tp_percent = sizing_decision.tp_percent
                 sl_percent = sizing_decision.sl_percent
+                
+                # 🔥 PHASE 3A: Apply risk multiplier
+                original_size = position_size_usd
+                position_size_usd = position_size_usd * risk_multiplier
+                if risk_multiplier != 1.0:
+                    logger.info(f"[PHASE 3A] Risk-adjusted position: ${original_size:.0f} → ${position_size_usd:.0f} "
+                              f"(multiplier={risk_multiplier:.2f}x, mode={risk_signal.mode.value if risk_signal else 'N/A'})")
                 
                 logger.info(
                     f"[AI-ENGINE] ✅ Sizing: {symbol} ${position_size_usd:.0f} @ {leverage}x "
