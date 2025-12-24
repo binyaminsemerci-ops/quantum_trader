@@ -1,0 +1,283 @@
+[
+    {
+        "Id": "ba7425e8c7a57fd00c51443a7e8f761f0d2f4ff3eee5fc4121c2e5e784f7eb64",
+        "Created": "2025-12-24T04:29:06.060927556Z",
+        "Path": "uvicorn",
+        "Args": [
+            "microservices.trading_bot.main:app",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8003"
+        ],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 4164195,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2025-12-24T04:29:06.098376518Z",
+            "FinishedAt": "0001-01-01T00:00:00Z",
+            "Health": {
+                "Status": "healthy",
+                "FailingStreak": 0,
+                "Log": [
+                    {
+                        "Start": "2025-12-24T04:53:17.076190383Z",
+                        "End": "2025-12-24T04:53:17.184597863Z",
+                        "ExitCode": 0,
+                        "Output": ""
+                    },
+                    {
+                        "Start": "2025-12-24T04:53:47.185846912Z",
+                        "End": "2025-12-24T04:53:47.296684898Z",
+                        "ExitCode": 0,
+                        "Output": ""
+                    },
+                    {
+                        "Start": "2025-12-24T04:54:17.297469172Z",
+                        "End": "2025-12-24T04:54:17.421722827Z",
+                        "ExitCode": 0,
+                        "Output": ""
+                    },
+                    {
+                        "Start": "2025-12-24T04:54:47.422966132Z",
+                        "End": "2025-12-24T04:54:47.557847803Z",
+                        "ExitCode": 0,
+                        "Output": ""
+                    },
+                    {
+                        "Start": "2025-12-24T04:55:17.558856339Z",
+                        "End": "2025-12-24T04:55:17.678698838Z",
+                        "ExitCode": 0,
+                        "Output": ""
+                    }
+                ]
+            }
+        },
+        "Image": "sha256:e8bb97c45bd278a924340a5132eea27a8d36a52f8dc14d8be8bbcd76f1274b3f",
+        "ResolvConfPath": "/var/lib/docker/containers/ba7425e8c7a57fd00c51443a7e8f761f0d2f4ff3eee5fc4121c2e5e784f7eb64/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/ba7425e8c7a57fd00c51443a7e8f761f0d2f4ff3eee5fc4121c2e5e784f7eb64/hostname",
+        "HostsPath": "/var/lib/docker/containers/ba7425e8c7a57fd00c51443a7e8f761f0d2f4ff3eee5fc4121c2e5e784f7eb64/hosts",
+        "LogPath": "/var/lib/docker/containers/ba7425e8c7a57fd00c51443a7e8f761f0d2f4ff3eee5fc4121c2e5e784f7eb64/ba7425e8c7a57fd00c51443a7e8f761f0d2f4ff3eee5fc4121c2e5e784f7eb64-json.log",
+        "Name": "/quantum_trading_bot",
+        "RestartCount": 0,
+        "Driver": "overlayfs",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "docker-default",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": null,
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {
+                    "max-file": "5",
+                    "max-size": "20m"
+                }
+            },
+            "NetworkMode": "quantum_trader_quantum_trader",
+            "PortBindings": {
+                "8003/tcp": [
+                    {
+                        "HostIp": "",
+                        "HostPort": "8003"
+                    }
+                ]
+            },
+            "RestartPolicy": {
+                "Name": "unless-stopped",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": null,
+            "CapDrop": null,
+            "CgroupnsMode": "private",
+            "Dns": null,
+            "DnsOptions": [],
+            "DnsSearch": [],
+            "ExtraHosts": null,
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": false,
+            "SecurityOpt": null,
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 0,
+            "NanoCpus": 0,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": [],
+            "BlkioDeviceReadBps": [],
+            "BlkioDeviceWriteBps": [],
+            "BlkioDeviceReadIOps": [],
+            "BlkioDeviceWriteIOps": [],
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": [],
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": 0,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": null,
+            "Ulimits": [],
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "MaskedPaths": [
+                "/proc/acpi",
+                "/proc/asound",
+                "/proc/interrupts",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/sys/devices/virtual/powercap",
+                "/sys/firmware"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ]
+        },
+        "Storage": {
+            "RootFS": {
+                "Snapshot": {
+                    "Name": "overlayfs"
+                }
+            }
+        },
+        "Mounts": [],
+        "Config": {
+            "Hostname": "ba7425e8c7a5",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "ExposedPorts": {
+                "8003/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "REDIS_PORT=6379",
+                "AI_ENGINE_URL=http://quantum_ai_engine:8001",
+                "CHECK_INTERVAL_SECONDS=60",
+                "MIN_CONFIDENCE=0.65",
+                "REDIS_HOST=redis",
+                "PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "LANG=C.UTF-8",
+                "GPG_KEY=A035C8C19219BA821ECEA86B64E628F8D684696D",
+                "PYTHON_VERSION=3.11.14",
+                "PYTHON_SHA256=8d3ed8ec5c88c1c95f5e558612a725450d2452813ddad5e58fdb1a53b1209b78"
+            ],
+            "Cmd": [
+                "uvicorn",
+                "microservices.trading_bot.main:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8003"
+            ],
+            "Healthcheck": {
+                "Test": [
+                    "CMD-SHELL",
+                    "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8003/health')\""
+                ],
+                "Interval": 30000000000,
+                "Timeout": 5000000000,
+                "StartPeriod": 10000000000,
+                "Retries": 3
+            },
+            "Image": "quantum_trading_bot:latest",
+            "Volumes": null,
+            "WorkingDir": "/app",
+            "Entrypoint": null,
+            "Labels": {}
+        },
+        "NetworkSettings": {
+            "SandboxID": "dc7aa6523a9444bc977fccc2b218cc43698bf6eda53372a559e3f7d60faa6e90",
+            "SandboxKey": "/var/run/docker/netns/dc7aa6523a94",
+            "Ports": {
+                "8003/tcp": [
+                    {
+                        "HostIp": "0.0.0.0",
+                        "HostPort": "8003"
+                    },
+                    {
+                        "HostIp": "::",
+                        "HostPort": "8003"
+                    }
+                ]
+            },
+            "Networks": {
+                "quantum_trader_quantum_trader": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": null,
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "754c78246a8b7066d99660c44ce45e7cb37902e28af3456d9fbc0130f79763bb",
+                    "EndpointID": "b20d587662e6d78863d412fdb2247466d828c6226118fd85c8fdada29c69da61",
+                    "Gateway": "172.18.0.1",
+                    "IPAddress": "172.18.0.29",
+                    "MacAddress": "92:3b:80:a6:b1:83",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "DNSNames": [
+                        "quantum_trading_bot",
+                        "ba7425e8c7a5"
+                    ]
+                }
+            }
+        },
+        "ImageManifestDescriptor": {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:c5850fd87b46c374a1d58b9cbf1b408718f488091e6597b243017071dfea424c",
+            "size": 2762,
+            "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+            }
+        }
+    }
+]

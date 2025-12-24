@@ -1,0 +1,84 @@
+Linux quantumtrader-prod-1 6.8.0-88-generic #89-Ubuntu SMP PREEMPT_DYNAMIC Sat Oct 11 01:02:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+---
+Distributor ID:	Ubuntu
+Description:	Ubuntu 24.04.3 LTS
+Release:	24.04
+Codename:	noble
+---
+ 04:55:13 up 6 days, 12:34,  1 user,  load average: 0.28, 0.36, 0.52
+---
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi        12Gi       525Mi        21Mi       2.6Gi       2.8Gi
+Swap:             0B          0B          0B
+---
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs           1.6G  3.9M  1.6G   1% /run
+efivarfs        256K  112K  140K  45% /sys/firmware/efi/efivars
+/dev/sda1       150G  106G   39G  74% /
+tmpfs           7.7G     0  7.7G   0% /dev/shm
+tmpfs           5.0M     0  5.0M   0% /run/lock
+/dev/sda15      253M  146K  252M   1% /boot/efi
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/97de3ee445a3652fa5186ea0f282d05dded7f7cc7c6de0c40b46675e882fafbc
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/d938b110c6513221c42e71fb74febe1d9cbc082e1e3efc34ddb2617bce9c2f42
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/1b649dd60e17924bdf7ea0d6fb005be8f578f78e92c90e32bbbcefc6bba270e7
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/b3a924295c7d237b45bf6f1806cd7fef8a7aabae5dce342b9b995ef83e5bdb2d
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/05f8cd72125ae48caf035c9b262e56d84ee23b05b225b9e2a2e59cd863e2336d
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/128272baf1b1d8293db9560b8383350652804d075d691a2b25dec1cf668dc64c
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/cb1fd027dadda7603f65b0cb9e781b84d18b5e1f2a199658d0b4102d1a545462
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/6cd6cd4185d76a8c0115dfefc10b79f31f3c3368d9bec283ce1da5a3a00ac9a2
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/a42abb6d0a597c9c23d6b8c23e75ae0bbd110af471ebf0382c4edb5975d469f6
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/a41ec857c10208c861a5c1b6f5872f1228ed65fed9956a67f72ea81d6179ca8b
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/6770ae9b4b4cd8ecb21ef2a7d07ed47181c61473dec4ff7707d6207a27bd9e01
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/78035f1f771679e33d1b97e849fd75faef3abd2e5071f7ec2b347bf642ed87e0
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/c947e1c88de39ee0795558039360d8ad117671290b25e3c3c6767cce0b3ed2ed
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/33fa38980e58fc5bf3154ed5b40f0d4d74026467558bdabf4df033defaca0192
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/f89d8aa93cf2fc9fb7149e06d16176adb5c0307da4c52a0d3a63b7dad2ed2aa9
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/7aabd753cf9aba1c3115715d5b32a7dc95d90ca1749eb47087060554b092bac5
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/805ea4348ec6cfa99284e92f7356de836c3a7499946a55b32220243693f6ea88
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/1b4d7d6b6f142728d3d196d90bafe6a5d74e64376aa4402eb404f1e174b09080
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/794c47881978e0731e3ea27e434408139f9b092116c2d1e3cc9fcdde361c34e4
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/30d814e4a3d08ec5d5af02231db4e1fca90216de06235ed92fac6fc87898bc41
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/3a0e96058fa2f557eba6754017638336d770d4309222943ae2066ab02acdd80e
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/e3d3098fe8d430a40dfd917c28cba871e5d9c2dd52ef3e145334ef28e3b3c7e5
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/74ef4c975e605b25adfaa245e902a4d53e50485d5610adf392c60d9adc8effba
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/9494a40fd863b54094af318a2e24e919c5939e25546354cc0756b3c80bf0ae4b
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/8a4ed73124a359682fc08135a2d610c8173f3f8b2cd841c124c1065ecc713d7b
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/67c009e99aa8634eb9b7f036d54b4067b9a486057dd5a7f38feca2cb4783e783
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/362bd5570ba07959817a98025f98c3ffc1397af4dfb87275c4b975cb5f46698c
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/83dee6704ecfe78aa6224d868037ae68981037079d22ca3ceacfb154198c9a05
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/5e9079d0bb64054583e9c7e9c0aa7f2ba70fdd6d74a6488b45e3431c1f2eaa0d
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/9b9d2d8f978824bfa879bb7f04ea166055075fa4eb63bad8ff9a2c79354c7dff
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/fcbdecaf3fa676426d52bfc7137257e189c61a9c2edb9f585d82e0a3aa48fe31
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/ba7425e8c7a57fd00c51443a7e8f761f0d2f4ff3eee5fc4121c2e5e784f7eb64
+overlay         150G  106G   39G  74% /var/lib/docker/rootfs/overlayfs/e3d4b2602992fc2d212f4a7fd079f775cfa0bebf2dacd4f693d9697c69b55d15
+tmpfs           1.6G   12K  1.6G   1% /run/user/0
+---
+Client: Docker Engine - Community
+ Version:           29.1.3
+ API version:       1.52
+ Go version:        go1.25.5
+ Git commit:        f52814d
+ Built:             Fri Dec 12 14:49:32 2025
+ OS/Arch:           linux/amd64
+ Context:           default
+
+Server: Docker Engine - Community
+ Engine:
+  Version:          29.1.3
+  API version:      1.52 (minimum version 1.44)
+  Go version:       go1.25.5
+  Git commit:       fbf3ed2
+  Built:            Fri Dec 12 14:49:32 2025
+  OS/Arch:          linux/amd64
+  Experimental:     false
+ containerd:
+  Version:          v2.2.0
+  GitCommit:        1c4457e00facac03ce1d75f7b6777a7a851e5c41
+ runc:
+  Version:          1.3.4
+  GitCommit:        v1.3.4-0-gd6d73eb8
+ docker-init:
+  Version:          0.19.0
+  GitCommit:        de40ad0
+---
+Docker Compose version v5.0.0

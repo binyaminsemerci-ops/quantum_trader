@@ -1,0 +1,34 @@
+NAMES                            IMAGE                                   STATUS                    PORTS
+quantum_trading_bot              quantum_trading_bot:latest              Up 26 minutes (healthy)   0.0.0.0:8003->8003/tcp, [::]:8003->8003/tcp
+quantum_market_publisher         quantum_trader-market-publisher         Up 6 minutes (healthy)    
+quantum_portfolio_intelligence   quantum_trader-portfolio-intelligence   Up 2 hours (healthy)      0.0.0.0:8004->8004/tcp, [::]:8004->8004/tcp
+quantum_backend                  quantum_trader-backend                  Up 5 minutes (healthy)    0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+quantum_ai_engine                quantum_trader-ai-engine                Up 39 minutes (healthy)   0.0.0.0:8001->8001/tcp, [::]:8001->8001/tcp
+quantum_risk_safety              quantum_trader-risk-safety              Up 2 hours (healthy)      0.0.0.0:8005->8005/tcp, [::]:8005->8005/tcp
+quantum_redis                    redis:7-alpine                          Up 2 hours (healthy)      0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp
+quantum_position_monitor         quantum_position_monitor                Up 2 hours                
+quantum_cross_exchange           quantum_cross_exchange:latest           Up 2 hours                
+quantum_model_supervisor         quantum_trader-model-supervisor         Up 2 hours (healthy)      0.0.0.0:8007->8007/tcp, [::]:8007->8007/tcp
+quantum_universe_os              quantum_trader-universe-os              Up 2 hours (healthy)      0.0.0.0:8006->8006/tcp, [::]:8006->8006/tcp
+quantum_pil                      quantum_trader-pil                      Up 2 hours (healthy)      0.0.0.0:8013->8013/tcp, [::]:8013->8013/tcp
+quantum_strategy_brain           quantum_trader-strategy-brain           Up 2 hours (healthy)      0.0.0.0:8011->8011/tcp, [::]:8011->8011/tcp
+quantum_risk_brain               quantum_trader-risk-brain               Up 2 hours (healthy)      0.0.0.0:8012->8012/tcp, [::]:8012->8012/tcp
+quantum_ceo_brain                quantum_trader-ceo-brain                Up 2 hours (healthy)      0.0.0.0:8010->8010/tcp, [::]:8010->8010/tcp
+quantum_model_federation         quantum_trader-model-federation         Up 2 hours                
+quantum_governance_dashboard     quantum_trader-governance-dashboard     Up 2 hours (healthy)      0.0.0.0:8501->8501/tcp, [::]:8501->8501/tcp
+quantum_strategic_evolution      quantum_strategic_evolution             Up 2 hours                
+quantum_eventbus_bridge          quantum_eventbus_bridge                 Up 2 hours                
+quantum_federation_stub          quantum_trader-federation-stub          Up 2 hours (healthy)      
+quantum_policy_memory            quantum_trader-quantum-policy-memory    Up 2 hours (healthy)      
+quantum_strategy_evolution       quantum_trader-strategy-evolution       Up 2 hours (healthy)      
+quantum_strategy_evaluator       quantum_trader-strategy-evaluator       Up 2 hours (healthy)      
+quantum_rl_optimizer             quantum_trader-rl-optimizer             Up 2 hours (healthy)      
+quantum_trade_journal            quantum_trader-trade-journal            Up 2 hours (healthy)      
+quantum_governance_alerts        quantum_trader-governance-alerts        Up 2 hours (healthy)      
+quantum_clm                      quantum_trader-clm                      Up 2 hours                
+quantum_dashboard                quantum_dashboard:latest                Up 2 hours                0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp
+quantum_nginx                    nginx:alpine                            Up 2 hours (unhealthy)    127.0.0.1:80->80/tcp, 127.0.0.1:443->443/tcp
+quantum_postgres                 postgres:15-alpine                      Up 2 hours (healthy)      127.0.0.1:5432->5432/tcp
+quantum_alertmanager             prom/alertmanager:v0.26.0               Up 2 hours                127.0.0.1:9093->9093/tcp
+quantum_grafana                  grafana/grafana:10.2.3                  Up 2 hours (healthy)      127.0.0.1:3001->3000/tcp
+quantum_prometheus               prom/prometheus:v2.48.1                 Up 2 hours (healthy)      127.0.0.1:9090->9090/tcp

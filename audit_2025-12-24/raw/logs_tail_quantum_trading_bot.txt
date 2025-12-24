@@ -1,0 +1,200 @@
+2025-12-24 04:53:01,094 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for OPUSDT"}, using fallback strategy
+2025-12-24 04:53:01,094 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: OPUSDT SELL @ $0.27 (24h: -1.19%, confidence=51%)
+2025-12-24 04:53:01,095 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ALGOUSDT"}, using fallback strategy
+2025-12-24 04:53:01,095 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ALGOUSDT BUY @ $0.11 (24h: +1.08%, confidence=51%)
+2025-12-24 04:53:01,095 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for WAVESUSDT"}, using fallback strategy
+2025-12-24 04:53:01,095 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: WAVESUSDT BUY @ $1.34 (24h: +1.04%, confidence=51%)
+2025-12-24 04:53:01,096 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for MKRUSDT"}, using fallback strategy
+2025-12-24 04:53:01,096 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: MKRUSDT SELL @ $1650.10 (24h: -3.40%, confidence=53%)
+2025-12-24 04:53:01,096 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for XLMUSDT"}, using fallback strategy
+2025-12-24 04:53:01,096 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: XLMUSDT SELL @ $0.21 (24h: -1.88%, confidence=52%)
+2025-12-24 04:53:01,097 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for FTMUSDT"}, using fallback strategy
+2025-12-24 04:53:01,097 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: FTMUSDT SELL @ $0.77 (24h: -7.36%, confidence=57%)
+2025-12-24 04:53:01,098 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ATOMUSDT"}, using fallback strategy
+2025-12-24 04:53:01,098 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ATOMUSDT HOLD @ $1.94 (24h: +0.15%, confidence=30%)
+2025-12-24 04:53:01,129 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for GALAUSDT"}, using fallback strategy
+2025-12-24 04:53:01,129 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: GALAUSDT SELL @ $0.01 (24h: -1.96%, confidence=52%)
+2025-12-24 04:53:01,172 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for CELOUSDT"}, using fallback strategy
+2025-12-24 04:53:01,172 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: CELOUSDT SELL @ $0.11 (24h: -3.42%, confidence=53%)
+2025-12-24 04:53:01,174 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for SEIUSDT"}, using fallback strategy
+2025-12-24 04:53:01,174 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: SEIUSDT SELL @ $0.11 (24h: -1.99%, confidence=52%)
+2025-12-24 04:53:01,195 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for SNXUSDT"}, using fallback strategy
+2025-12-24 04:53:01,195 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: SNXUSDT HOLD @ $0.42 (24h: +0.24%, confidence=30%)
+2025-12-24 04:53:01,428 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ETCUSDT"}, using fallback strategy
+2025-12-24 04:53:01,428 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ETCUSDT SELL @ $11.92 (24h: -1.84%, confidence=52%)
+2025-12-24 04:53:01,435 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for INJUSDT"}, using fallback strategy
+2025-12-24 04:53:01,435 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: INJUSDT SELL @ $4.52 (24h: -2.29%, confidence=52%)
+INFO:     127.0.0.1:43852 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40170 - "GET /health HTTP/1.1" 200 OK
+2025-12-24 04:54:03,077 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ZECUSDT"}, using fallback strategy
+2025-12-24 04:54:03,077 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ZECUSDT SELL @ $409.98 (24h: -2.15%, confidence=52%)
+2025-12-24 04:54:03,095 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for BNBUSDT"}, using fallback strategy
+2025-12-24 04:54:03,095 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: BNBUSDT SELL @ $840.20 (24h: -1.75%, confidence=52%)
+2025-12-24 04:54:03,098 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for AAVEUSDT"}, using fallback strategy
+2025-12-24 04:54:03,099 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: AAVEUSDT SELL @ $149.18 (24h: -2.40%, confidence=52%)
+2025-12-24 04:54:03,101 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for CRVUSDT"}, using fallback strategy
+2025-12-24 04:54:03,101 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: CRVUSDT SELL @ $0.37 (24h: -2.40%, confidence=52%)
+2025-12-24 04:54:03,102 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for FILUSDT"}, using fallback strategy
+2025-12-24 04:54:03,102 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: FILUSDT HOLD @ $1.28 (24h: +0.16%, confidence=30%)
+2025-12-24 04:54:03,103 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for TRXUSDT"}, using fallback strategy
+2025-12-24 04:54:03,103 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: TRXUSDT HOLD @ $0.28 (24h: -0.32%, confidence=30%)
+2025-12-24 04:54:03,104 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for STRKUSDT"}, using fallback strategy
+2025-12-24 04:54:03,104 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: STRKUSDT BUY @ $0.08 (24h: +1.82%, confidence=52%)
+2025-12-24 04:54:03,105 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ALGOUSDT"}, using fallback strategy
+2025-12-24 04:54:03,105 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ALGOUSDT BUY @ $0.11 (24h: +1.27%, confidence=51%)
+2025-12-24 04:54:03,106 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for NEARUSDT"}, using fallback strategy
+2025-12-24 04:54:03,106 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: NEARUSDT SELL @ $1.47 (24h: -1.55%, confidence=52%)
+2025-12-24 04:54:03,107 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for COMPUSDT"}, using fallback strategy
+2025-12-24 04:54:03,107 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: COMPUSDT BUY @ $24.30 (24h: +1.17%, confidence=51%)
+2025-12-24 04:54:03,108 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for INJUSDT"}, using fallback strategy
+2025-12-24 04:54:03,108 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: INJUSDT SELL @ $4.52 (24h: -2.10%, confidence=52%)
+2025-12-24 04:54:03,109 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for CELOUSDT"}, using fallback strategy
+2025-12-24 04:54:03,109 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: CELOUSDT SELL @ $0.11 (24h: -1.72%, confidence=52%)
+2025-12-24 04:54:03,110 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for RENDERUSDT"}, using fallback strategy
+2025-12-24 04:54:03,110 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: RENDERUSDT SELL @ $1.25 (24h: -1.57%, confidence=52%)
+2025-12-24 04:54:03,110 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for DASHUSDT"}, using fallback strategy
+2025-12-24 04:54:03,111 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: DASHUSDT SELL @ $37.10 (24h: -1.51%, confidence=52%)
+2025-12-24 04:54:03,111 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for APTUSDT"}, using fallback strategy
+2025-12-24 04:54:03,111 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: APTUSDT SELL @ $1.58 (24h: -1.55%, confidence=52%)
+2025-12-24 04:54:03,113 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for TONUSDT"}, using fallback strategy
+2025-12-24 04:54:03,113 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: TONUSDT HOLD @ $1.46 (24h: +0.44%, confidence=30%)
+2025-12-24 04:54:03,119 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for XRPUSDT"}, using fallback strategy
+2025-12-24 04:54:03,119 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: XRPUSDT SELL @ $1.85 (24h: -1.72%, confidence=52%)
+2025-12-24 04:54:03,119 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ETHUSDT"}, using fallback strategy
+2025-12-24 04:54:03,119 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ETHUSDT SELL @ $2935.59 (24h: -1.57%, confidence=52%)
+2025-12-24 04:54:03,120 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ZENUSDT"}, using fallback strategy
+2025-12-24 04:54:03,120 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ZENUSDT HOLD @ $7.63 (24h: -0.57%, confidence=30%)
+2025-12-24 04:54:03,121 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for SUIUSDT"}, using fallback strategy
+2025-12-24 04:54:03,121 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: SUIUSDT SELL @ $1.41 (24h: -2.19%, confidence=52%)
+2025-12-24 04:54:03,122 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for SNXUSDT"}, using fallback strategy
+2025-12-24 04:54:03,122 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: SNXUSDT HOLD @ $0.42 (24h: +0.47%, confidence=30%)
+2025-12-24 04:54:03,124 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for SEIUSDT"}, using fallback strategy
+2025-12-24 04:54:03,124 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: SEIUSDT SELL @ $0.11 (24h: -1.81%, confidence=52%)
+2025-12-24 04:54:03,124 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for BTCUSDT"}, using fallback strategy
+2025-12-24 04:54:03,124 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: BTCUSDT HOLD @ $87132.30 (24h: -0.95%, confidence=30%)
+2025-12-24 04:54:03,125 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for SOLUSDT"}, using fallback strategy
+2025-12-24 04:54:03,125 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: SOLUSDT SELL @ $121.58 (24h: -3.01%, confidence=53%)
+2025-12-24 04:54:03,125 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for AVAXUSDT"}, using fallback strategy
+2025-12-24 04:54:03,125 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: AVAXUSDT SELL @ $12.01 (24h: -2.57%, confidence=53%)
+2025-12-24 04:54:03,126 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for LINKUSDT"}, using fallback strategy
+2025-12-24 04:54:03,126 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: LINKUSDT SELL @ $12.20 (24h: -1.83%, confidence=52%)
+2025-12-24 04:54:03,126 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for UNIUSDT"}, using fallback strategy
+2025-12-24 04:54:03,126 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: UNIUSDT SELL @ $5.71 (24h: -5.99%, confidence=56%)
+2025-12-24 04:54:03,127 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for LTCUSDT"}, using fallback strategy
+2025-12-24 04:54:03,127 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: LTCUSDT HOLD @ $76.30 (24h: -0.69%, confidence=30%)
+2025-12-24 04:54:03,127 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ADAUSDT"}, using fallback strategy
+2025-12-24 04:54:03,127 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ADAUSDT SELL @ $0.36 (24h: -2.35%, confidence=52%)
+2025-12-24 04:54:03,127 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for FTMUSDT"}, using fallback strategy
+2025-12-24 04:54:03,127 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: FTMUSDT SELL @ $0.77 (24h: -7.36%, confidence=57%)
+2025-12-24 04:54:03,128 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for XMRUSDT"}, using fallback strategy
+2025-12-24 04:54:03,128 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: XMRUSDT SELL @ $432.21 (24h: -4.25%, confidence=54%)
+2025-12-24 04:54:03,128 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for HBARUSDT"}, using fallback strategy
+2025-12-24 04:54:03,128 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: HBARUSDT SELL @ $0.11 (24h: -1.68%, confidence=52%)
+2025-12-24 04:54:03,129 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ATOMUSDT"}, using fallback strategy
+2025-12-24 04:54:03,129 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ATOMUSDT HOLD @ $1.94 (24h: +0.15%, confidence=30%)
+2025-12-24 04:54:03,129 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ETCUSDT"}, using fallback strategy
+2025-12-24 04:54:03,129 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ETCUSDT SELL @ $11.93 (24h: -1.71%, confidence=52%)
+2025-12-24 04:54:03,130 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for DOTUSDT"}, using fallback strategy
+2025-12-24 04:54:03,130 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: DOTUSDT SELL @ $1.74 (24h: -1.81%, confidence=52%)
+2025-12-24 04:54:03,130 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for MKRUSDT"}, using fallback strategy
+2025-12-24 04:54:03,130 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: MKRUSDT SELL @ $1650.10 (24h: -3.40%, confidence=53%)
+2025-12-24 04:54:03,130 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for OPUSDT"}, using fallback strategy
+2025-12-24 04:54:03,130 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: OPUSDT SELL @ $0.27 (24h: -1.15%, confidence=51%)
+2025-12-24 04:54:03,133 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for XLMUSDT"}, using fallback strategy
+2025-12-24 04:54:03,133 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: XLMUSDT SELL @ $0.21 (24h: -1.74%, confidence=52%)
+2025-12-24 04:54:03,133 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for WAVESUSDT"}, using fallback strategy
+2025-12-24 04:54:03,133 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: WAVESUSDT BUY @ $1.34 (24h: +1.04%, confidence=51%)
+2025-12-24 04:54:03,134 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ARBUSDT"}, using fallback strategy
+2025-12-24 04:54:03,134 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ARBUSDT HOLD @ $0.19 (24h: +0.43%, confidence=30%)
+2025-12-24 04:54:03,187 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for GALAUSDT"}, using fallback strategy
+2025-12-24 04:54:03,187 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: GALAUSDT SELL @ $0.01 (24h: -1.64%, confidence=52%)
+2025-12-24 04:54:03,197 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ICPUSDT"}, using fallback strategy
+2025-12-24 04:54:03,197 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ICPUSDT HOLD @ $3.00 (24h: -0.69%, confidence=30%)
+INFO:     127.0.0.1:58920 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59944 - "GET /health HTTP/1.1" 200 OK
+2025-12-24 04:55:06,246 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ZECUSDT"}, using fallback strategy
+2025-12-24 04:55:06,246 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ZECUSDT SELL @ $409.80 (24h: -2.13%, confidence=52%)
+2025-12-24 04:55:06,248 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for FILUSDT"}, using fallback strategy
+2025-12-24 04:55:06,248 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: FILUSDT HOLD @ $1.28 (24h: +0.08%, confidence=30%)
+2025-12-24 04:55:06,251 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for STRKUSDT"}, using fallback strategy
+2025-12-24 04:55:06,251 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: STRKUSDT BUY @ $0.08 (24h: +1.95%, confidence=52%)
+2025-12-24 04:55:06,254 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for TRXUSDT"}, using fallback strategy
+2025-12-24 04:55:06,254 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: TRXUSDT HOLD @ $0.28 (24h: -0.31%, confidence=30%)
+2025-12-24 04:55:06,256 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for APTUSDT"}, using fallback strategy
+2025-12-24 04:55:06,256 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: APTUSDT SELL @ $1.58 (24h: -1.69%, confidence=52%)
+2025-12-24 04:55:06,256 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for CELOUSDT"}, using fallback strategy
+2025-12-24 04:55:06,256 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: CELOUSDT SELL @ $0.11 (24h: -3.42%, confidence=53%)
+2025-12-24 04:55:06,257 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for COMPUSDT"}, using fallback strategy
+2025-12-24 04:55:06,257 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: COMPUSDT BUY @ $24.31 (24h: +1.21%, confidence=51%)
+2025-12-24 04:55:06,259 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ZENUSDT"}, using fallback strategy
+2025-12-24 04:55:06,259 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ZENUSDT HOLD @ $7.63 (24h: -0.60%, confidence=30%)
+2025-12-24 04:55:06,259 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for DASHUSDT"}, using fallback strategy
+2025-12-24 04:55:06,259 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: DASHUSDT SELL @ $37.10 (24h: -1.54%, confidence=52%)
+2025-12-24 04:55:06,261 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for SNXUSDT"}, using fallback strategy
+2025-12-24 04:55:06,261 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: SNXUSDT HOLD @ $0.42 (24h: +0.71%, confidence=30%)
+2025-12-24 04:55:06,263 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for SUIUSDT"}, using fallback strategy
+2025-12-24 04:55:06,263 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: SUIUSDT SELL @ $1.41 (24h: -2.24%, confidence=52%)
+2025-12-24 04:55:06,271 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ETHUSDT"}, using fallback strategy
+2025-12-24 04:55:06,271 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ETHUSDT SELL @ $2935.99 (24h: -1.63%, confidence=52%)
+2025-12-24 04:55:06,273 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for AAVEUSDT"}, using fallback strategy
+2025-12-24 04:55:06,273 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: AAVEUSDT SELL @ $149.12 (24h: -2.18%, confidence=52%)
+2025-12-24 04:55:06,274 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ATOMUSDT"}, using fallback strategy
+2025-12-24 04:55:06,274 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ATOMUSDT HOLD @ $1.94 (24h: +0.21%, confidence=30%)
+2025-12-24 04:55:06,274 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ICPUSDT"}, using fallback strategy
+2025-12-24 04:55:06,274 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ICPUSDT HOLD @ $3.00 (24h: -0.76%, confidence=30%)
+2025-12-24 04:55:06,276 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for SOLUSDT"}, using fallback strategy
+2025-12-24 04:55:06,276 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: SOLUSDT SELL @ $121.61 (24h: -3.07%, confidence=53%)
+2025-12-24 04:55:06,277 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for XRPUSDT"}, using fallback strategy
+2025-12-24 04:55:06,277 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: XRPUSDT SELL @ $1.85 (24h: -1.78%, confidence=52%)
+2025-12-24 04:55:06,277 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for BTCUSDT"}, using fallback strategy
+2025-12-24 04:55:06,277 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: BTCUSDT HOLD @ $87140.00 (24h: -0.99%, confidence=30%)
+2025-12-24 04:55:06,278 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for BNBUSDT"}, using fallback strategy
+2025-12-24 04:55:06,278 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: BNBUSDT SELL @ $840.14 (24h: -1.80%, confidence=52%)
+2025-12-24 04:55:06,278 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ADAUSDT"}, using fallback strategy
+2025-12-24 04:55:06,278 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ADAUSDT SELL @ $0.36 (24h: -2.40%, confidence=52%)
+2025-12-24 04:55:06,279 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for AVAXUSDT"}, using fallback strategy
+2025-12-24 04:55:06,279 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: AVAXUSDT SELL @ $12.01 (24h: -2.63%, confidence=53%)
+2025-12-24 04:55:06,279 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for LINKUSDT"}, using fallback strategy
+2025-12-24 04:55:06,279 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: LINKUSDT SELL @ $12.20 (24h: -1.84%, confidence=52%)
+2025-12-24 04:55:06,280 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for UNIUSDT"}, using fallback strategy
+2025-12-24 04:55:06,280 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: UNIUSDT SELL @ $5.71 (24h: -6.11%, confidence=56%)
+2025-12-24 04:55:06,280 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for XLMUSDT"}, using fallback strategy
+2025-12-24 04:55:06,280 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: XLMUSDT SELL @ $0.21 (24h: -1.80%, confidence=52%)
+2025-12-24 04:55:06,281 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for WAVESUSDT"}, using fallback strategy
+2025-12-24 04:55:06,281 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: WAVESUSDT BUY @ $1.34 (24h: +1.04%, confidence=51%)
+2025-12-24 04:55:06,281 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for SEIUSDT"}, using fallback strategy
+2025-12-24 04:55:06,281 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: SEIUSDT SELL @ $0.11 (24h: -1.90%, confidence=52%)
+2025-12-24 04:55:06,282 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for NEARUSDT"}, using fallback strategy
+2025-12-24 04:55:06,282 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: NEARUSDT SELL @ $1.47 (24h: -1.61%, confidence=52%)
+2025-12-24 04:55:06,282 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ETCUSDT"}, using fallback strategy
+2025-12-24 04:55:06,282 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ETCUSDT SELL @ $11.93 (24h: -1.75%, confidence=52%)
+2025-12-24 04:55:06,283 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for MKRUSDT"}, using fallback strategy
+2025-12-24 04:55:06,283 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: MKRUSDT SELL @ $1650.10 (24h: -3.40%, confidence=53%)
+2025-12-24 04:55:06,283 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for DOTUSDT"}, using fallback strategy
+2025-12-24 04:55:06,283 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: DOTUSDT SELL @ $1.74 (24h: -1.75%, confidence=52%)
+2025-12-24 04:55:06,284 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for HBARUSDT"}, using fallback strategy
+2025-12-24 04:55:06,284 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: HBARUSDT SELL @ $0.11 (24h: -1.75%, confidence=52%)
+2025-12-24 04:55:06,284 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for FTMUSDT"}, using fallback strategy
+2025-12-24 04:55:06,284 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: FTMUSDT SELL @ $0.77 (24h: -7.36%, confidence=57%)
+2025-12-24 04:55:06,284 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ARBUSDT"}, using fallback strategy
+2025-12-24 04:55:06,284 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ARBUSDT HOLD @ $0.19 (24h: +0.43%, confidence=30%)
+2025-12-24 04:55:06,285 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for OPUSDT"}, using fallback strategy
+2025-12-24 04:55:06,285 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: OPUSDT SELL @ $0.27 (24h: -1.15%, confidence=51%)
+2025-12-24 04:55:06,286 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for ALGOUSDT"}, using fallback strategy
+2025-12-24 04:55:06,286 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: ALGOUSDT BUY @ $0.11 (24h: +1.08%, confidence=51%)
+2025-12-24 04:55:06,286 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for CRVUSDT"}, using fallback strategy
+2025-12-24 04:55:06,286 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: CRVUSDT SELL @ $0.36 (24h: -2.67%, confidence=53%)
+2025-12-24 04:55:06,287 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for RENDERUSDT"}, using fallback strategy
+2025-12-24 04:55:06,287 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: RENDERUSDT SELL @ $1.25 (24h: -1.65%, confidence=52%)
+2025-12-24 04:55:06,287 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for GALAUSDT"}, using fallback strategy
+2025-12-24 04:55:06,287 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: GALAUSDT SELL @ $0.01 (24h: -1.80%, confidence=52%)
+2025-12-24 04:55:06,289 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for INJUSDT"}, using fallback strategy
+2025-12-24 04:55:06,289 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: INJUSDT SELL @ $4.52 (24h: -2.17%, confidence=52%)
+2025-12-24 04:55:06,289 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for TONUSDT"}, using fallback strategy
+2025-12-24 04:55:06,290 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: TONUSDT HOLD @ $1.46 (24h: +0.39%, confidence=30%)
+2025-12-24 04:55:06,290 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for XMRUSDT"}, using fallback strategy
+2025-12-24 04:55:06,290 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: XMRUSDT SELL @ $432.20 (24h: -4.33%, confidence=54%)
+2025-12-24 04:55:06,290 - microservices.trading_bot.simple_bot - WARNING - [TRADING-BOT] AI Engine unavailable (HTTP 404): {"detail":"No signal generated for LTCUSDT"}, using fallback strategy
+2025-12-24 04:55:06,290 - microservices.trading_bot.simple_bot - INFO - [TRADING-BOT] 🔄 Fallback signal: LTCUSDT HOLD @ $76.33 (24h: -0.73%, confidence=30%)
+INFO:     127.0.0.1:48762 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38116 - "GET /health HTTP/1.1" 200 OK
