@@ -14,6 +14,15 @@ from backend.services.risk_management.global_regime_detector import (
     GlobalRegime
 )
 
+# [PHASE 3C] HEALTH-SCORE GATING
+try:
+    from backend.services.ai.system_health_monitor import SystemHealthMonitor
+    PHASE_3C_AVAILABLE = True
+except ImportError:
+    PHASE_3C_AVAILABLE = False
+    SystemHealthMonitor = None
+    logger.warning("[WARNING] Phase 3C System Health Monitor not available")
+
 logger = logging.getLogger(__name__)
 
 
@@ -60,12 +69,27 @@ class TradeOpportunityFilter:
     def __init__(self, config: TradeFilterConfig):
         self.config = config
         self.global_regime_detector = get_global_regime_detector()
+        
+        # [PHASE 3C] Initialize health monitor
+        self.system_health_monitor = None
+        
         logger.info("[OK] TradeOpportunityFilter initialized")
         logger.info(f"   Min consensus: {[ct.value for ct in config.min_consensus_types]}")
         logger.info(f"   Min confidence: {config.min_confidence:.1%}")
         logger.info(f"   Trend alignment: {config.require_trend_alignment}")
         logger.info(f"   Volatility gate: {config.enable_volatility_gate}")
         logger.info(f"   Global regime safety: ENABLED")
+    
+    def set_health_monitor(self, health_monitor: Optional['SystemHealthMonitor']) -> None:
+        """
+        Inject Phase 3C health monitor for health-score gating.
+        
+        Args:
+            health_monitor: System health monitor instance
+        """
+        self.system_health_monitor = health_monitor
+        if health_monitor:
+            logger.info("[PHASE3C] ✅ Health monitor injected for trade gating")
     
     def evaluate_signal(
         self,
@@ -76,6 +100,7 @@ class TradeOpportunityFilter:
         global_regime: Optional[GlobalRegimeDetectionResult] = None,
         btc_price: Optional[float] = None,
         btc_ema200: Optional[float] = None,
+        signal_source: Optional[str] = None,  # For Phase 3C health tracking
     ) -> FilterResult:
         """
         Evaluate if a trading signal meets quality criteria.
@@ -88,11 +113,58 @@ class TradeOpportunityFilter:
             global_regime: Optional pre-computed global regime (for efficiency)
             btc_price: Optional BTCUSDT price (for regime detection)
             btc_ema200: Optional BTCUSDT EMA200 (for regime detection)
+            signal_source: Module that generated signal (for Phase 3C health tracking)
         
         Returns:
             FilterResult with pass/fail and rejection reason
         """
         warnings = []
+        
+        # [PHASE 3C] CHECK 0: Health-Score Gating
+        if self.system_health_monitor:
+            try:
+                health_report = self.system_health_monitor.get_health_report()
+                overall_health = health_report.get('overall_health_score', 100.0)
+                
+                # Reject if overall AI Engine health < 80
+                if overall_health < 80.0:
+                    logger.warning(
+                        f"[🚨 PHASE3C-HEALTH] {symbol} {action} REJECTED: "
+                        f"AI Engine health {overall_health:.0f}/100 < 80 (degraded performance)"
+                    )
+                    return FilterResult(
+                        passed=False,
+                        rejection_reason=f"AI Engine health degraded ({overall_health:.0f}/100 < 80)",
+                        warnings=warnings
+                    )
+                
+                # Check signal source module health if provided
+                if signal_source:
+                    module_health = health_report.get('modules', {}).get(signal_source, {})
+                    
+                    if module_health and 'health_score' in module_health:
+                        module_score = module_health['health_score']
+                        
+                        # Reject if source module health < 70
+                        if module_score < 70.0:
+                            logger.warning(
+                                f"[🚨 PHASE3C-HEALTH] {symbol} {action} REJECTED: "
+                                f"Signal source '{signal_source}' health {module_score:.0f}/100 < 70"
+                            )
+                            return FilterResult(
+                                passed=False,
+                                rejection_reason=f"Signal source '{signal_source}' unhealthy ({module_score:.0f}/100 < 70)",
+                                warnings=warnings
+                            )
+                
+                # Log health status if all passed
+                logger.info(
+                    f"[PHASE3C-HEALTH] {symbol}: Overall health={overall_health:.0f}/100 ✅"
+                )
+            
+            except Exception as e:
+                logger.warning(f"[PHASE3C-HEALTH] Failed to check health for {symbol}: {e}")
+                # Don't block trade on health check failure
         
         # [SAFETY] CRITICAL: Check global regime for SHORT blocking
         if action == "SHORT":
