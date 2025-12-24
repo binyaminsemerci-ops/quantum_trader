@@ -12,9 +12,8 @@ from datetime import datetime, timezone
 # Redis for event publishing
 import redis.asyncio as redis_async
 
-# Binance websocket for market data
-from binance.client import Client
-from binance.streams import BinanceSocketManager
+# Binance websocket for market data (use python-binance library)
+from binance import AsyncClient, BinanceSocketManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,7 +22,10 @@ logger = logging.getLogger(__name__)
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB = int(os.getenv("REDIS_DB", "0"))
-SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT"]  # Symbols to track
+
+# Parse symbols from environment or use defaults
+symbols_str = os.getenv("MARKET_SYMBOLS", "BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,AVAXUSDT")
+SYMBOLS = [s.strip() for s in symbols_str.split(",")]
 
 redis_client: redis_async.Redis = None
 
@@ -44,18 +46,21 @@ async def publish_market_tick(symbol: str, price: float, volume: float):
             {"data": json.dumps(event_data)},
             maxlen=1000,  # Keep last 1000 events
         )
-        logger.info(f"[MARKET] Published tick: {symbol} @ ${price:.2f}")
+        logger.debug(f"[MARKET] Published tick: {symbol} @ ${price:.2f}")
     except Exception as e:
         logger.error(f"[ERROR] Failed to publish tick: {e}")
 
 
-async def handle_socket_message(msg):
-    """Handle Binance WebSocket message"""
-    if msg["e"] == "trade":
-        symbol = msg["s"]
-        price = float(msg["p"])
-        volume = float(msg["q"])
-        await publish_market_tick(symbol, price, volume)
+async def handle_trade_message(msg):
+    """Handle Binance trade message"""
+    try:
+        if msg.get("e") == "trade":
+            symbol = msg["s"]
+            price = float(msg["p"])
+            volume = float(msg["q"])
+            await publish_market_tick(symbol, price, volume)
+    except Exception as e:
+        logger.error(f"[ERROR] Error handling trade message: {e}")
 
 
 async def start_market_streams():
@@ -63,44 +68,45 @@ async def start_market_streams():
     global redis_client
     
     # Connect to Redis
-    redis_client = await redis_async.Redis(
+    redis_client = redis_async.Redis(
         host=REDIS_HOST,
         port=REDIS_PORT,
         db=REDIS_DB,
         decode_responses=False,
     )
-    logger.info(f"[REDIS] Connected to {REDIS_HOST}:{REDIS_PORT}")
+    await redis_client.ping()
+    logger.info(f"[REDIS] ✅ Connected to {REDIS_HOST}:{REDIS_PORT}")
     
-    # Initialize Binance client
-    client = Client("", "")  # No API keys needed for public streams
+    # Initialize Binance Async Client
+    client = await AsyncClient.create()
     bsm = BinanceSocketManager(client)
     
-    # Start streams for each symbol
-    streams = []
-    for symbol in SYMBOLS:
-        stream = bsm.trade_socket(symbol)
-        streams.append(stream)
-        logger.info(f"[BINANCE] Starting stream for {symbol}")
+    logger.info(f"[BINANCE] Starting streams for {len(SYMBOLS)} symbols")
     
-    # Listen to streams
-    async with streams[0] as stream_0, streams[1] as stream_1, streams[2] as stream_2:
-        while True:
-            # Read from all streams
-            msg0 = await stream_0.recv()
-            await handle_socket_message(msg0)
-            
-            msg1 = await stream_1.recv()
-            await handle_socket_message(msg1)
-            
-            msg2 = await stream_2.recv()
-            await handle_socket_message(msg2)
+    # Create combined stream for all symbols
+    tasks = []
+    for symbol in SYMBOLS:
+        logger.info(f"[BINANCE] Subscribing to {symbol} trade stream")
+        ts = bsm.trade_socket(symbol)
+        tasks.append(ts)
+    
+    # Run all streams concurrently
+    async def handle_stream(socket):
+        async with socket as stream:
+            while True:
+                msg = await stream.recv()
+                await handle_trade_message(msg)
+    
+    await asyncio.gather(*[handle_stream(ts) for ts in tasks])
 
 
 async def main():
     """Main entry point"""
-    logger.info("[START] Simple Market Data Publisher")
-    logger.info(f"[CONFIG] Redis: {REDIS_HOST}:{REDIS_PORT}")
-    logger.info(f"[CONFIG] Symbols: {SYMBOLS}")
+    logger.info("=" * 60)
+    logger.info("📈 SIMPLE MARKET DATA PUBLISHER")
+    logger.info(f"Redis: {REDIS_HOST}:{REDIS_PORT}")
+    logger.info(f"Symbols: {', '.join(SYMBOLS)}")
+    logger.info("=" * 60)
     
     try:
         await start_market_streams()

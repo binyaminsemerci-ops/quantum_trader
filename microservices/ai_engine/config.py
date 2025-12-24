@@ -69,8 +69,8 @@ class Settings(BaseSettings):
     
     # Continuous Learning
     CONTINUOUS_LEARNING_ENABLED: bool = True
-    MIN_SAMPLES_FOR_RETRAIN: int = 50              # Retrain after 50 new samples
-    RETRAIN_INTERVAL_HOURS: int = 24               # Auto-retrain every 24 hours
+    MIN_SAMPLES_FOR_RETRAIN: int = 20              # Retrain after 20 new samples (was 50)
+    RETRAIN_INTERVAL_HOURS: int = 2                # Auto-retrain every 2 hours (was 24)
     
     # 🔥 PHASE 1 MODULES - FUTURES INTELLIGENCE 🔥
     
