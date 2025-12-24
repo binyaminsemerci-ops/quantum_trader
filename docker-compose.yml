@@ -525,6 +525,10 @@ services:
       - RISK_SAFETY_SERVICE_URL=http://risk-safety:8003
       - AI_ENGINE_MIN_SIGNAL_CONFIDENCE=0.65
       - AI_ENGINE_ENSEMBLE_MODELS=["xgb","lgbm","nhits","patchtst"]
+      # 🎓 Continuous Learning & Retraining (Aggressive Schedule)
+      - AI_ENGINE_CONTINUOUS_LEARNING_ENABLED=true
+      - AI_ENGINE_MIN_SAMPLES_FOR_RETRAIN=20   # Retrain after 20 trades
+      - AI_ENGINE_RETRAIN_INTERVAL_HOURS=2     # Auto-retrain every 2 hours
     ports:
       - "8001:8001"
     volumes:
@@ -541,6 +545,8 @@ services:
         condition: service_healthy
       risk-safety:
         condition: service_healthy
+      market-publisher:
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=5)"]
       interval: 30s
@@ -848,6 +854,33 @@ services:
       interval: 60s
       timeout: 10s
       retries: 3
+
+  market-publisher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quantum_market_publisher
+    restart: unless-stopped
+    profiles: ["microservices"]
+    command: python simple_market_publisher.py
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - PYTHONPATH=/app
+      # Market data symbols to track
+      - MARKET_SYMBOLS=BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,AVAXUSDT,ADAUSDT,DOTUSDT,LINKUSDT,MATICUSDT,LTCUSDT
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.Redis(host='redis'); exit(0 if r.ping() else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 networks:
   quantum_trader:
