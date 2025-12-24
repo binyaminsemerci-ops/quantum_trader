@@ -191,16 +191,22 @@ class SimpleTradingBot:
                     "timeframe": "1h"
                 }
                 
+                logger.debug(f"[TRADING-BOT] Calling AI Engine: {url} with payload: {payload}")
+                
                 async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
                     if resp.status == 200:
                         result = await resp.json()
-                        logger.debug(
-                            f"[TRADING-BOT] {symbol}: AI Engine signal {result.get('side', 'UNKNOWN')} "
+                        logger.info(
+                            f"[TRADING-BOT] ✅ AI Engine: {symbol} {result.get('action', 'UNKNOWN')} "
                             f"confidence={result.get('confidence', 0):.2%}"
                         )
                         return result
                     else:
-                        logger.warning(f"[TRADING-BOT] AI Engine unavailable (HTTP {resp.status}), using fallback strategy")
+                        response_text = await resp.text()
+                        logger.warning(
+                            f"[TRADING-BOT] AI Engine unavailable (HTTP {resp.status}): {response_text[:200]}, "
+                            f"using fallback strategy"
+                        )
                         return await self._generate_fallback_signal(symbol, market_data)
         
         except Exception as e:
