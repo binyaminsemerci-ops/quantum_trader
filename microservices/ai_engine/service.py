@@ -217,7 +217,10 @@ class AIEngineService:
             if settings.REGIME_DETECTION_ENABLED:
                 self._regime_update_task = asyncio.create_task(self._regime_update_loop())
             
-            logger.info("[AI-ENGINE] ✅ Service started successfully")
+            # 🔥 FIX: Set running flag to True
+            self._running = True
+            
+            logger.info("[AI-ENGINE] ✅ Service started successfully (running=True)")
             
         except Exception as e:
             logger.error(f"[AI-ENGINE] ❌ Failed to start service: {e}", exc_info=True)
