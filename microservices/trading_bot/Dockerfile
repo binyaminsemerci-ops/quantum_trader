@@ -16,8 +16,9 @@ RUN pip install --no-cache-dir -r /app/microservices/trading_bot/requirements.tx
 # Copy trading bot code
 COPY microservices/trading_bot/*.py /app/microservices/trading_bot/
 
-# Copy backend utils (for EventBus)
+# Copy backend modules (for EventBus and RL Agent)
 COPY backend/utils/ /app/backend/utils/
+COPY backend/services/ /app/backend/services/
 COPY backend/__init__.py /app/backend/
 
 # Create __init__.py files
