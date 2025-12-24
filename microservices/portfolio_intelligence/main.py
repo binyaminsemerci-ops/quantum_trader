@@ -120,7 +120,11 @@ async def health_check():
     if service and service._running:
         if hasattr(service, '_current_snapshot') and service._current_snapshot:
             health_data["positions_count"] = len(service._current_snapshot.positions)
-            health_data["total_pnl"] = service._current_snapshot.total_pnl
+            # Check what attributes are actually available
+            if hasattr(service._current_snapshot, 'total_realized_pnl'):
+                health_data["total_realized_pnl"] = service._current_snapshot.total_realized_pnl
+            if hasattr(service._current_snapshot, 'total_unrealized_pnl'):
+                health_data["total_unrealized_pnl"] = service._current_snapshot.total_unrealized_pnl
     
     return health_data
 
