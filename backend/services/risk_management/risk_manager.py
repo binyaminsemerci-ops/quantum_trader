@@ -29,6 +29,17 @@ except ImportError:
     get_rl_sizing_agent = None
     logger.warning("[WARNING] RL Position Sizing not available, using rule-based sizing only")
 
+# [PHASE 3C] CONFIDENCE CALIBRATION & PERFORMANCE-BASED SIZING
+try:
+    from backend.services.ai.confidence_calibrator import ConfidenceCalibrator
+    from backend.services.ai.performance_benchmarker import PerformanceBenchmarker
+    PHASE_3C_AVAILABLE = True
+except ImportError:
+    PHASE_3C_AVAILABLE = False
+    ConfidenceCalibrator = None
+    PerformanceBenchmarker = None
+    logger.warning("[WARNING] Phase 3C components not available, using standard sizing")
+
 
 @dataclass
 class PositionSize:
@@ -63,6 +74,20 @@ class RiskManager:
         self.config = config
         self.current_policy: Optional[TradingPolicy] = None  # [TARGET] Policy cache
         
+        # [PHASE 3C] Initialize confidence calibrator and performance benchmarker
+        self.confidence_calibrator = None
+        self.performance_benchmarker = None
+        
+        phase3c_enabled = os.getenv("PHASE_3C_ENABLED", "true").lower() == "true"
+        if PHASE_3C_AVAILABLE and phase3c_enabled:
+            try:
+                # These will be injected by AI Engine, but allow lazy init
+                logger.info("[PHASE3C] ✅ Confidence Calibrator & Performance Benchmarker available")
+            except Exception as e:
+                logger.warning(f"[PHASE3C] Failed to initialize: {e}")
+        else:
+            logger.info("[PHASE3C] Using standard sizing (Phase 3C disabled)")
+        
         # [RL] Initialize RL sizing agent if enabled
         rl_enabled = os.getenv("RL_POSITION_SIZING_ENABLED", "true").lower() == "true"
         self.rl_agent = None
@@ -94,6 +119,28 @@ class RiskManager:
         """Update current trading policy for risk scaling."""
         self.current_policy = policy
     
+    def set_phase3c_components(
+        self,
+        confidence_calibrator: Optional['ConfidenceCalibrator'] = None,
+        performance_benchmarker: Optional['PerformanceBenchmarker'] = None
+    ) -> None:
+        """
+        Inject Phase 3C components for adaptive sizing.
+        
+        Args:
+            confidence_calibrator: Confidence calibration engine
+            performance_benchmarker: Performance tracking engine
+        """
+        self.confidence_calibrator = confidence_calibrator
+        self.performance_benchmarker = performance_benchmarker
+        
+        if confidence_calibrator or performance_benchmarker:
+            logger.info(
+                "[PHASE3C] ✅ Components injected: "
+                f"calibrator={'YES' if confidence_calibrator else 'NO'}, "
+                f"benchmarker={'YES' if performance_benchmarker else 'NO'}"
+            )
+    
     def calculate_position_size(
         self,
         symbol: str,
@@ -102,6 +149,7 @@ class RiskManager:
         equity_usd: float,
         signal_confidence: float,
         action: str,  # "LONG" or "SHORT"
+        signal_source: Optional[str] = None  # For Phase 3C tracking
     ) -> PositionSize:
         """
         Calculate position size using ATR-based risk management.
@@ -113,10 +161,31 @@ class RiskManager:
             equity_usd: Current account equity
             signal_confidence: AI confidence (0.0 to 1.0)
             action: "LONG" or "SHORT"
+            signal_source: Module that generated signal (for Phase 3C tracking)
         
         Returns:
             PositionSize with quantity and risk details
         """
+        # [PHASE 3C] STEP 0: Calibrate confidence if available
+        original_confidence = signal_confidence
+        if self.confidence_calibrator and signal_source:
+            try:
+                calibration = self.confidence_calibrator.calibrate_confidence_sync(
+                    signal_source=signal_source,
+                    raw_confidence=signal_confidence,
+                    symbol=symbol
+                )
+                signal_confidence = calibration.calibrated_confidence
+                
+                if abs(original_confidence - signal_confidence) > 0.05:
+                    logger.info(
+                        f"[PHASE3C-CALIB] {symbol} ({signal_source}): "
+                        f"Confidence {original_confidence:.1%} → {signal_confidence:.1%} "
+                        f"(factor={calibration.calibration_factor:.2f}, samples={calibration.sample_count})"
+                    )
+            except Exception as e:
+                logger.warning(f"[PHASE3C-CALIB] Failed for {symbol}: {e}")
+        
         # Step 1: Determine risk percentage
         base_risk_pct = self.config.risk_per_trade_pct
         
@@ -233,6 +302,45 @@ class RiskManager:
                 policy_adjustments.append(f"Low confidence {signal_confidence:.1%} ({(confidence_multiplier-1)*100:.0f}%)")
             
             risk_pct *= confidence_multiplier
+        
+        # [PHASE 3C] STEP 2.5: Performance-based sizing adjustment
+        performance_multiplier = 1.0
+        if self.performance_benchmarker and signal_source:
+            try:
+                # Get module accuracy from Phase 3C-2
+                benchmarks = self.performance_benchmarker.get_current_benchmarks()
+                
+                if signal_source in benchmarks:
+                    module_perf = benchmarks[signal_source]
+                    
+                    if module_perf.accuracy_stats:
+                        accuracy = module_perf.accuracy_stats.accuracy_pct
+                        
+                        # Performance-based multipliers (from enhancement plan)
+                        if accuracy >= 75.0:
+                            performance_multiplier = 1.2  # +20% for high accuracy
+                            policy_adjustments.append(f"High accuracy {accuracy:.1f}% (+20%)")
+                        elif accuracy < 60.0:
+                            performance_multiplier = 0.7  # -30% for low accuracy
+                            policy_adjustments.append(f"Low accuracy {accuracy:.1f}% (-30%)")
+                        else:
+                            policy_adjustments.append(f"Normal accuracy {accuracy:.1f}%")
+                        
+                        # Additional reduction if performance score is very low
+                        if hasattr(module_perf, 'performance_score'):
+                            perf_score = module_perf.performance_score
+                            if perf_score < 50.0:
+                                performance_multiplier *= 0.8  # Additional -20%
+                                policy_adjustments.append(f"Low perf score {perf_score:.0f} (-20%)")
+                        
+                        risk_pct *= performance_multiplier
+                        
+                        logger.info(
+                            f"[PHASE3C-PERF] {symbol} ({signal_source}): "
+                            f"Accuracy={accuracy:.1f}%, Multiplier={performance_multiplier:.2f}x"
+                        )
+            except Exception as e:
+                logger.warning(f"[PHASE3C-PERF] Failed for {symbol}: {e}")
         
         adjustment_reason = "; ".join(policy_adjustments) if policy_adjustments else None
         

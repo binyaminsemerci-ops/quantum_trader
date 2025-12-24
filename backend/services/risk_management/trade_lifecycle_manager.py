@@ -152,6 +152,30 @@ class TradeLifecycleManager:
         # [FIX] Trade state persistence for Trailing Stop Manager
         self.trade_state_path = Path("/app/backend/data/trade_state.json")
         
+        # 🔥 PHASE 3C: Inject components if AI Engine is available
+        if ai_engine and hasattr(ai_engine, 'confidence_calibrator'):
+            logger.info("[PHASE 3C] 🎯 Attempting to inject Phase 3C components...")
+            try:
+                # Inject into Risk Manager
+                if hasattr(self.risk_manager, 'set_phase3c_components'):
+                    self.risk_manager.set_phase3c_components(
+                        confidence_calibrator=getattr(ai_engine, 'confidence_calibrator', None),
+                        performance_benchmarker=getattr(ai_engine, 'performance_benchmarker', None)
+                    )
+                    logger.info("[PHASE 3C] ✅ Phase 3C injected into Risk Manager")
+                
+                # Inject into Trade Filter
+                if hasattr(self.trade_filter, 'set_health_monitor'):
+                    self.trade_filter.set_health_monitor(
+                        health_monitor=getattr(ai_engine, 'health_monitor', None)
+                    )
+                    logger.info("[PHASE 3C] ✅ Phase 3C injected into Trade Filter")
+                    
+            except Exception as e:
+                logger.warning(f"[PHASE 3C] ⚠️ Failed to inject Phase 3C components: {e}")
+        else:
+            logger.info("[INFO] Phase 3C components not available in AI Engine")
+        
         logger.info("[OK] TradeLifecycleManager initialized with all components")
     
     def set_policy(self, policy: Optional[TradingPolicy]) -> None:

@@ -47,6 +47,14 @@ from .adapter import ExitBrainAdapter
 from .router import ExitRouter
 from .precision import quantize_to_tick, quantize_to_step, get_binance_precision
 
+# Phase 3C Integration - Performance-Adaptive Exits
+try:
+    from backend.services.ai.exit_brain_performance_adapter import ExitBrainPerformanceAdapter
+    PERFORMANCE_ADAPTER_AVAILABLE = True
+except ImportError:
+    PERFORMANCE_ADAPTER_AVAILABLE = False
+    ExitBrainPerformanceAdapter = None
+
 logger = logging.getLogger(__name__)
 
 # Maximum loss percentage for hard SL safety net
@@ -108,7 +116,11 @@ class ExitBrainDynamicExecutor:
         exit_order_gateway,
         position_source,
         loop_interval_sec: float = 10.0,
-        shadow_mode: bool = False
+        shadow_mode: bool = False,
+        performance_adapter: Optional['ExitBrainPerformanceAdapter'] = None,
+        system_health_monitor=None,
+        performance_benchmarker=None,
+        adaptive_threshold_manager=None
     ):
         """
         Initialize dynamic executor.
@@ -119,6 +131,10 @@ class ExitBrainDynamicExecutor:
             position_source: Source for position data (BinanceClient)
             loop_interval_sec: Monitoring cycle interval
             shadow_mode: If True, only log decisions (no orders)
+            performance_adapter: Optional ExitBrainPerformanceAdapter (Phase 3C integration)
+            system_health_monitor: Optional Phase 3C-1 health monitor
+            performance_benchmarker: Optional Phase 3C-2 benchmarker
+            adaptive_threshold_manager: Optional Phase 3C-3 threshold manager
         """
         from backend.config.exit_mode import (
             get_exit_mode,
@@ -136,6 +152,22 @@ class ExitBrainDynamicExecutor:
         
         # Initialize logger FIRST (needed for all logging)
         self.logger = logging.getLogger(__name__ + ".executor")
+        
+        # Phase 3C Integration
+        self.performance_adapter = performance_adapter
+        self.system_health_monitor = system_health_monitor
+        self.performance_benchmarker = performance_benchmarker
+        self.adaptive_threshold_manager = adaptive_threshold_manager
+        
+        # Create performance adapter if Phase 3C components available
+        if not self.performance_adapter and PERFORMANCE_ADAPTER_AVAILABLE:
+            if system_health_monitor or performance_benchmarker or adaptive_threshold_manager:
+                self.performance_adapter = ExitBrainPerformanceAdapter(
+                    performance_benchmarker=performance_benchmarker,
+                    adaptive_threshold_manager=adaptive_threshold_manager,
+                    system_health_monitor=system_health_monitor
+                )
+                self.logger.info("[EXIT_BRAIN_EXECUTOR] ✅ Phase 3C Performance Adapter initialized")
         
         # Determine operating mode from config
         if is_exit_brain_live_fully_enabled():
@@ -373,6 +405,25 @@ class ExitBrainDynamicExecutor:
                 
                 # Get AI decision
                 decision = await self.adapter.decide(ctx)
+                
+                # PHASE 3C INTEGRATION: Apply performance-adaptive TP/SL if available
+                # This happens BEFORE updating state from decision, allowing adaptive
+                # levels to override AI planner levels if Phase 3C data suggests better levels
+                if self.performance_adapter and not state.challenge_mode_active:
+                    # Only apply adaptive if position is NEW (no active levels set yet)
+                    if state.active_sl is None and not state.tp_levels:
+                        adaptive_applied = await self._apply_adaptive_tp_sl(state, ctx)
+                        if adaptive_applied:
+                            self.logger.info(
+                                f"[EXIT_BRAIN_PHASE3C] {state_key}: "
+                                f"✅ Applied Phase 3C adaptive TP/SL profile"
+                            )
+                        else:
+                            # Fall back to AI decision if adaptive fails
+                            self.logger.debug(
+                                f"[EXIT_BRAIN_PHASE3C] {state_key}: "
+                                f"Adaptive TP/SL not applied, using AI decision"
+                            )
                 
                 # Update state based on decision
                 await self._update_state_from_decision(state, ctx, decision)
@@ -1254,6 +1305,135 @@ class ExitBrainDynamicExecutor:
                 f"(tp_hits={state.tp_hits_count})"
             )
             state.active_sl = new_sl
+    
+    async def _apply_adaptive_tp_sl(
+        self,
+        state: PositionExitState,
+        ctx: PositionContext,
+        base_atr: Optional[float] = None
+    ) -> bool:
+        """
+        Apply performance-adaptive TP/SL using Phase 3C data.
+        
+        This method queries the performance adapter to get optimized TP/SL levels
+        based on historical hit rates, health scores, and predictive alerts.
+        
+        Args:
+            state: Position exit state to update
+            ctx: Position context
+            base_atr: ATR value for the symbol (optional, will fetch if not provided)
+        
+        Returns:
+            True if adaptive levels were applied, False otherwise
+        """
+        if not self.performance_adapter:
+            return False
+        
+        try:
+            # Get base ATR if not provided
+            if base_atr is None:
+                base_atr = await self._get_atr(state.symbol)
+            
+            if base_atr is None or base_atr <= 0:
+                self.logger.warning(
+                    f"[EXIT_BRAIN_ADAPTIVE] {state.symbol}: "
+                    f"Invalid ATR={base_atr}, skipping adaptive TP/SL"
+                )
+                return False
+            
+            # Get adaptive TP/SL profile from Phase 3C
+            profile = await self.performance_adapter.get_adaptive_tp_sl_profile(
+                symbol=state.symbol,
+                strategy="exit_brain_v3",  # Identify strategy for performance tracking
+                base_atr=base_atr,
+                side=state.side
+            )
+            
+            # Log adaptive profile
+            self.logger.info(
+                f"[EXIT_BRAIN_ADAPTIVE] {state.symbol} {state.side}: "
+                f"Adaptive profile (conf={profile.confidence:.2f}, regime={profile.regime}, "
+                f"health={profile.health_score:.0f}): "
+                f"TP1={profile.tp1_distance:.4f} (hit_rate={profile.tp1_hit_rate:.1%}), "
+                f"TP2={profile.tp2_distance:.4f} (hit_rate={profile.tp2_hit_rate:.1%}), "
+                f"{'TP3=' + str(profile.tp3_distance) + ' (hit_rate=' + str(profile.tp3_hit_rate) + '%),' if profile.tp3_distance else ''}"
+                f"SL={profile.sl_distance:.4f} - {profile.reason}"
+            )
+            
+            # Calculate absolute TP/SL prices from distances
+            entry_price = state.entry_price or ctx.entry_price
+            if entry_price is None or entry_price <= 0:
+                self.logger.warning(
+                    f"[EXIT_BRAIN_ADAPTIVE] {state.symbol}: "
+                    f"Invalid entry_price={entry_price}, cannot apply adaptive levels"
+                )
+                return False
+            
+            if state.side == "LONG":
+                # LONG: SL below entry, TPs above entry
+                new_sl = entry_price - profile.sl_distance
+                tp1_price = entry_price + profile.tp1_distance
+                tp2_price = entry_price + profile.tp2_distance
+                tp3_price = entry_price + profile.tp3_distance if profile.tp3_distance else None
+            else:  # SHORT
+                # SHORT: SL above entry, TPs below entry
+                new_sl = entry_price + profile.sl_distance
+                tp1_price = entry_price - profile.tp1_distance
+                tp2_price = entry_price - profile.tp2_distance
+                tp3_price = entry_price - profile.tp3_distance if profile.tp3_distance else None
+            
+            # Update internal state with adaptive levels
+            state.active_sl = new_sl
+            
+            # Build TP levels list
+            new_tp_levels = [
+                (tp1_price, profile.tp1_size_pct),
+                (tp2_price, profile.tp2_size_pct)
+            ]
+            if tp3_price is not None:
+                new_tp_levels.append((tp3_price, profile.tp3_size_pct))
+            
+            state.tp_levels = new_tp_levels
+            state.triggered_legs.clear()  # New adaptive plan resets executed legs
+            
+            # Log applied levels
+            tp_str = ", ".join([
+                f"${price:.4f}({pct*100:.0f}%)" for price, pct in new_tp_levels
+            ])
+            
+            self.logger.info(
+                f"[EXIT_BRAIN_ADAPTIVE] {state.symbol} {state.side}: "
+                f"Applied adaptive TP/SL - SL=${new_sl:.4f}, TPs=[{tp_str}]"
+            )
+            
+            # Check predictive tightening (Phase 3C-3 alerts)
+            should_tighten, tightened_sl, tighten_reason = \
+                await self.performance_adapter.should_tighten_stops_predictively(
+                    symbol=state.symbol,
+                    current_sl_distance=profile.sl_distance
+                )
+            
+            if should_tighten and tightened_sl is not None:
+                # Predictive alert suggests tightening - apply immediately
+                if state.side == "LONG":
+                    state.active_sl = entry_price - tightened_sl
+                else:  # SHORT
+                    state.active_sl = entry_price + tightened_sl
+                
+                self.logger.warning(
+                    f"[EXIT_BRAIN_PREDICTIVE] {state.symbol} {state.side}: "
+                    f"🚨 Predictive tightening triggered - "
+                    f"SL tightened to ${state.active_sl:.4f} - {tighten_reason}"
+                )
+            
+            return True
+        
+        except Exception as e:
+            self.logger.error(
+                f"[EXIT_BRAIN_ADAPTIVE] {state.symbol}: "
+                f"Error applying adaptive TP/SL: {e}"
+            )
+            return False
     
     async def _update_state_from_decision(
         self,
@@ -2290,6 +2470,20 @@ class ExitBrainDynamicExecutor:
         except Exception as e:
             self.logger.error(f"[CHALLENGE_100] ATR calculation failed for {symbol}: {e}")
             return 0.01  # Fallback
+    
+    async def _get_atr(self, symbol: str) -> Optional[float]:
+        """
+        Get ATR for symbol (wrapper for _calculate_atr).
+        
+        This is a simple wrapper that can be used by other methods that need ATR.
+        Returns None if ATR calculation fails.
+        """
+        try:
+            atr = await self._calculate_atr(symbol)
+            return atr if atr and atr > 0 else None
+        except Exception as e:
+            self.logger.error(f"[EXIT_BRAIN] Failed to get ATR for {symbol}: {e}")
+            return None
     
     async def _place_hard_sl_challenge(self, state: PositionExitState, entry_price: float):
         """

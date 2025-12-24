@@ -119,6 +119,10 @@ class AIEngineService:
         self.performance_benchmarker = None  # Performance tracking and benchmarking
         self.adaptive_threshold_manager = None  # Adaptive threshold learning
         
+        # 🔥 PHASE 3C ADAPTERS: Exit Brain Integration & Confidence Calibration
+        self.exit_brain_performance_adapter = None  # Performance-adaptive TP/SL
+        self.confidence_calibrator = None  # Confidence score calibration
+        
         # State tracking
         self._running = False
         self._active_symbols: List[str] = []  # Symbols to track for orderbook
@@ -665,6 +669,46 @@ class AIEngineService:
             except Exception as e:
                 logger.warning(f"[AI-ENGINE] ⚠️ Adaptive Threshold Manager failed: {e}")
                 self.adaptive_threshold_manager = None
+            
+            # 🔥 PHASE 3C ADAPTERS: Exit Brain Performance Adapter
+            logger.info("[AI-ENGINE] 🎯 Initializing Exit Brain Performance Adapter (Phase 3C)...")
+            try:
+                from backend.services.ai.exit_brain_performance_adapter import ExitBrainPerformanceAdapter
+                
+                self.exit_brain_performance_adapter = ExitBrainPerformanceAdapter(
+                    performance_benchmarker=self.performance_benchmarker,
+                    adaptive_threshold_manager=self.adaptive_threshold_manager,
+                    system_health_monitor=self.health_monitor,
+                    default_tp_multipliers=(1.0, 2.5, 4.0),
+                    default_sl_multiplier=1.5,
+                    min_sample_size=20,
+                    health_threshold=70.0
+                )
+                
+                logger.info("[PHASE 3C] ✅ Exit Brain Performance Adapter initialized")
+                logger.info("[PHASE 3C] 🎯 Features: Adaptive TP/SL, Health gating, Predictive tightening")
+            except Exception as e:
+                logger.warning(f"[AI-ENGINE] ⚠️ Exit Brain Performance Adapter failed: {e}")
+                self.exit_brain_performance_adapter = None
+            
+            # 🔥 PHASE 3C ADAPTERS: Confidence Calibrator
+            logger.info("[AI-ENGINE] 🎯 Initializing Confidence Calibrator (Phase 3C)...")
+            try:
+                from backend.services.ai.confidence_calibrator import ConfidenceCalibrator
+                
+                self.confidence_calibrator = ConfidenceCalibrator(
+                    performance_benchmarker=self.performance_benchmarker,
+                    smoothing_factor=0.7,
+                    min_confidence=0.1,
+                    max_confidence=0.95,
+                    min_sample_size=20
+                )
+                
+                logger.info("[PHASE 3C] ✅ Confidence Calibrator initialized")
+                logger.info("[PHASE 3C] 🎯 Features: Historical accuracy calibration, Module-specific tracking")
+            except Exception as e:
+                logger.warning(f"[AI-ENGINE] ⚠️ Confidence Calibrator failed: {e}")
+                self.confidence_calibrator = None
                 
         except Exception as e:
             logger.error(f"[AI-ENGINE] ❌ Critical error loading AI modules: {e}", exc_info=True)
@@ -1406,12 +1450,32 @@ class AIEngineService:
                 except Exception as e:
                     logger.error(f"[Governance] Error in cycle: {e}", exc_info=True)
             
+            # 🔥 PHASE 3C: Calibrate confidence before publishing signal
+            calibrated_confidence = ensemble_confidence
+            if self.confidence_calibrator:
+                try:
+                    calibration_result = await self.confidence_calibrator.calibrate_confidence(
+                        signal_source="ensemble_manager",
+                        raw_confidence=ensemble_confidence,
+                        symbol=symbol,
+                        metadata={"action": action, "consensus": consensus}
+                    )
+                    calibrated_confidence = calibration_result.calibrated_confidence
+                    
+                    logger.info(
+                        f"[PHASE 3C] 📊 Confidence calibrated for {symbol}: "
+                        f"{ensemble_confidence:.2%} → {calibrated_confidence:.2%} "
+                        f"(factor: {calibration_result.calibration_factor:.3f})"
+                    )
+                except Exception as e:
+                    logger.warning(f"[PHASE 3C] ⚠️ Confidence calibration failed for {symbol}: {e}")
+            
             # Publish intermediate event
             await self.event_bus.publish("ai.signal_generated", AISignalGeneratedEvent(
                 symbol=symbol,
                 action=SignalAction(action.lower()),
-                confidence=ensemble_confidence,
-                ensemble_confidence=ensemble_confidence,
+                confidence=calibrated_confidence,  # Use calibrated confidence
+                ensemble_confidence=ensemble_confidence,  # Keep original for comparison
                 model_votes=model_votes,
                 consensus=consensus,
                 timestamp=datetime.now(timezone.utc).isoformat()
