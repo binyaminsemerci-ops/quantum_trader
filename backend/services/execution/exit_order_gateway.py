@@ -262,11 +262,63 @@ async def submit_exit_order(
                 f"[EXIT_GATEWAY] {symbol} quantity: {original_qty:.8f} -> {quantized_qty:.8f}"
             )
         
+        # [REDUCE-ONLY FIX] Always set reduceOnly=true for exit orders (futures)
+        # This allows small exit orders below minNotional threshold
+        if order_kind in ['tp', 'sl', 'trailing', 'hard_sl', 'partial_tp', 'breakeven', 'partial_close', 'emergency_exit']:
+            # Only add reduceOnly if closePosition is not already set
+            if 'closePosition' not in order_params or not order_params.get('closePosition'):
+                order_params['reduceOnly'] = True
+                logger.debug(
+                    f"[EXIT_GATEWAY] {symbol}: Added reduceOnly=true for {order_kind} order"
+                )
+        
+        # [MIN_NOTIONAL GUARD] Check if order meets minimum notional value
+        min_notional = 5.0  # Binance futures minimum
+        if 'quantity' in order_params:
+            try:
+                # Get current mark price to calculate notional
+                ticker = client.futures_symbol_ticker(symbol=symbol)
+                mark_price = float(ticker.get('price', 0))
+                quantity = float(order_params['quantity'])
+                notional = mark_price * quantity
+                
+                if notional < min_notional:
+                    # If reduceOnly is set, we can proceed (Binance allows small reduce-only orders)
+                    if order_params.get('reduceOnly') or order_params.get('closePosition'):
+                        logger.warning(
+                            f"[EXIT_GATEWAY] {symbol}: Notional ${notional:.2f} < ${min_notional:.2f} "
+                            f"but reduceOnly/closePosition is set, allowing order."
+                        )
+                    else:
+                        # Try to increase quantity to meet minimum
+                        min_qty_needed = min_notional / mark_price
+                        from backend.domains.exits.exit_brain_v3.precision import quantize_quantity
+                        adjusted_qty = quantize_quantity(symbol, min_qty_needed, client)
+                        
+                        if adjusted_qty > 0:
+                            logger.warning(
+                                f"[EXIT_GATEWAY] {symbol}: Notional ${notional:.2f} < ${min_notional:.2f}. "
+                                f"Increasing quantity {quantity} -> {adjusted_qty} to meet minimum."
+                            )
+                            order_params['quantity'] = str(adjusted_qty)
+                        else:
+                            logger.error(
+                                f"[EXIT_GATEWAY] {symbol}: Notional ${notional:.2f} < ${min_notional:.2f} "
+                                f"and cannot increase quantity. Skipping order to avoid -4164 error."
+                            )
+                            return None
+            except Exception as notional_err:
+                logger.warning(
+                    f"[EXIT_GATEWAY] {symbol}: Could not verify minNotional: {notional_err}. "
+                    f"Proceeding with order."
+                )
+        
         # Log order submission attempt (include positionSide if present for hedge mode visibility)
         position_side_str = f", positionSide={order_params.get('positionSide', 'N/A')}" if 'positionSide' in order_params else ""
+        reduce_only_str = f", reduceOnly={order_params.get('reduceOnly', False)}"
         logger.info(
             f"[EXIT_GATEWAY] 📤 Submitting {order_kind} order: "
-            f"module={module_name}, symbol={symbol}, type={order_type}{position_side_str}, "
+            f"module={module_name}, symbol={symbol}, type={order_type}{position_side_str}{reduce_only_str}, "
             f"params_keys={list(order_params.keys())}"
         )
         
