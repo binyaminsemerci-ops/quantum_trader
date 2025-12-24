@@ -16,6 +16,7 @@ Events OUT: ai.decision.made, ai.signal_generated, strategy.selected, sizing.dec
 """
 import asyncio
 import logging
+from logging.handlers import RotatingFileHandler
 import signal
 import sys
 from contextlib import asynccontextmanager
@@ -41,13 +42,24 @@ try:
     OBSERVABILITY_AVAILABLE = True
 except ImportError:
     OBSERVABILITY_AVAILABLE = False
-    # Fallback to basic logging
+    # Fallback to basic logging with rotation
+    # Create rotating file handler: 10MB per file, keep 5 backups = max 50MB
+    rotating_handler = RotatingFileHandler(
+        f'{settings.LOG_DIR}/ai_engine_service.log',
+        maxBytes=10*1024*1024,  # 10 MB
+        backupCount=5,
+        encoding='utf-8'
+    )
+    rotating_handler.setFormatter(
+        logging.Formatter('[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s')
+    )
+    
     logging.basicConfig(
         level=getattr(logging, settings.LOG_LEVEL),
         format='[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s',
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler(f'{settings.LOG_DIR}/ai_engine_service.log')
+            rotating_handler
         ]
     )
 
