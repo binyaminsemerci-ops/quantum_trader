@@ -54,6 +54,8 @@ from backend.services.ai.orderbook_imbalance_module import OrderbookImbalanceMod
 from backend.services.ai.risk_mode_predictor import RiskModePredictor
 from backend.services.ai.strategy_selector import StrategySelector, TradingStrategy
 from backend.services.ai.system_health_monitor import SystemHealthMonitor
+from backend.services.ai.performance_benchmarker import PerformanceBenchmarker
+from backend.services.ai.adaptive_threshold_manager import AdaptiveThresholdManager
 from backend.services.binance_market_data import BinanceMarketDataFetcher
 
 logger = logging.getLogger(__name__)
@@ -114,6 +116,8 @@ class AIEngineService:
         
         # 🔥 PHASE 3C: System Health Monitor
         self.health_monitor = None  # Real-time system health monitoring
+        self.performance_benchmarker = None  # Performance tracking and benchmarking
+        self.adaptive_threshold_manager = None  # Adaptive threshold learning
         
         # State tracking
         self._running = False
@@ -195,10 +199,16 @@ class AIEngineService:
             if self.health_monitor:
                 asyncio.create_task(self.health_monitor.start_monitoring())
                 logger.info("[PHASE 3C] 🏥 Health monitoring loop started")
-            
-            # Start background tasks
-            self._running = True
-            self._event_loop_task = asyncio.create_task(self._event_processing_loop())
+        
+        # 🔥 PHASE 3C-2: Start performance benchmarking loop
+        if self.performance_benchmarker:
+            asyncio.create_task(self.performance_benchmarker.start_benchmarking())
+            logger.info("[PHASE 3C-2] 📊 Performance benchmarking loop started")
+        
+        # 🔥 PHASE 3C-3: Start adaptive learning loop
+        if self.adaptive_threshold_manager:
+            asyncio.create_task(self.adaptive_threshold_manager.start_learning())
+            logger.info("[PHASE 3C-3] 🧠 Adaptive learning loop started")
             if settings.REGIME_DETECTION_ENABLED:
                 self._regime_update_task = asyncio.create_task(self._regime_update_loop())
             
@@ -612,6 +622,48 @@ class AIEngineService:
             except Exception as e:
                 logger.warning(f"[AI-ENGINE] ⚠️ System Health Monitor failed: {e}")
                 self.health_monitor = None
+            
+            # 🔥 PHASE 3C-2: Performance Benchmarker
+            logger.info("[AI-ENGINE] 📊 Initializing Performance Benchmarker (Phase 3C-2)...")
+            try:
+                self.performance_benchmarker = PerformanceBenchmarker(
+                    benchmark_interval_sec=300,      # Benchmark every 5 minutes
+                    history_retention_hours=168,     # Keep 7 days of data
+                    latency_sample_size=1000,        # 1000 latency samples
+                    regression_threshold_pct=20.0    # 20% performance drop = regression
+                )
+                
+                # Link all modules
+                self.performance_benchmarker.set_modules(
+                    orderbook_module=self.orderbook_imbalance,
+                    volatility_engine=self.volatility_structure_engine,
+                    risk_mode_predictor=self.risk_mode_predictor,
+                    strategy_selector=self.strategy_selector,
+                    ensemble_manager=self.ensemble_manager
+                )
+                
+                logger.info("[PHASE 3C-2] PB: Benchmarking all modules (5min interval)")
+                logger.info("[PHASE 3C-2] 📊 Performance Benchmarker: ONLINE")
+            except Exception as e:
+                logger.warning(f"[AI-ENGINE] ⚠️ Performance Benchmarker failed: {e}")
+                self.performance_benchmarker = None
+            
+            # 🔥 PHASE 3C-3: Adaptive Threshold Manager
+            logger.info("[AI-ENGINE] 🧠 Initializing Adaptive Threshold Manager (Phase 3C-3)...")
+            try:
+                self.adaptive_threshold_manager = AdaptiveThresholdManager(
+                    learning_rate=0.1,                  # 10% learning rate
+                    min_samples_for_learning=100,       # Need 100 samples to learn
+                    false_positive_target=0.05,         # Target 5% false positive rate
+                    adjustment_interval_hours=24,       # Review thresholds daily
+                    confidence_threshold=0.7            # 70% confidence to apply
+                )
+                
+                logger.info("[PHASE 3C-3] ATM: Learning optimal thresholds (24h review cycle)")
+                logger.info("[PHASE 3C-3] 🧠 Adaptive Threshold Manager: ONLINE")
+            except Exception as e:
+                logger.warning(f"[AI-ENGINE] ⚠️ Adaptive Threshold Manager failed: {e}")
+                self.adaptive_threshold_manager = None
                 
         except Exception as e:
             logger.error(f"[AI-ENGINE] ❌ Critical error loading AI modules: {e}", exc_info=True)
@@ -980,7 +1032,7 @@ class AIEngineService:
         Returns:
             AIDecisionMadeEvent if signal generated, None otherwise
         """
-        # 🔥 PHASE 3C: Track signal generation for health monitoring
+        # 🔥 PHASE 3C: Track signal generation for health monitoring and benchmarking
         start_time = datetime.utcnow()
         success = False
         
@@ -1511,9 +1563,18 @@ class AIEngineService:
             logger.debug(f"[AI-ENGINE] trade.intent event sent to Execution Service")
             
             # 🔥 PHASE 3C: Record successful signal generation
+            latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+            
             if self.health_monitor:
-                latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
                 self.health_monitor.record_signal_attempt(success=True, latency_ms=latency_ms)
+            
+            # 🔥 PHASE 3C-2: Record performance metrics
+            if self.performance_benchmarker:
+                self.performance_benchmarker.record_latency('ensemble', latency_ms)
+            
+            # 🔥 PHASE 3C-3: Record metric for learning
+            if self.adaptive_threshold_manager:
+                self.adaptive_threshold_manager.record_metric('ensemble', 'latency_ms', latency_ms)
             
             return decision
             
@@ -1521,10 +1582,19 @@ class AIEngineService:
             logger.error(f"[AI-ENGINE] Error generating signal for {symbol}: {e}", exc_info=True)
             
             # 🔥 PHASE 3C: Record failed signal generation
+            latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+            
             if self.health_monitor:
-                latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
                 self.health_monitor.record_signal_attempt(success=False, latency_ms=latency_ms)
                 self.health_monitor.record_error()
+            
+            # 🔥 PHASE 3C-2: Record error
+            if self.performance_benchmarker:
+                self.performance_benchmarker.record_error('ensemble')
+            
+            # 🔥 PHASE 3C-3: Record metric for learning
+            if self.adaptive_threshold_manager:
+                self.adaptive_threshold_manager.record_metric('ensemble', 'error_rate', 1.0)
             
             return None
     
