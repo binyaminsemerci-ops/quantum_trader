@@ -1,0 +1,27 @@
+1766550734062-1
+event_type
+trade.intent
+payload
+{"symbol": "NEARUSDT", "side": "BUY", "confidence": 0.72, "entry_price": 1.465, "stop_loss": 1.4357, "take_profit": 1.4943000000000002, "position_size_usd": 200.0, "leverage": 1, "timestamp": "2025-12-24T04:32:14.062679", "model": "ensemble", "reason": "AI signal", "atr_value": 0.02, "volatility_factor": 0.5513439007580968, "exchange_divergence": 0.0, "funding_rate": 0.0, "regime": "unknown"}
+timestamp
+2025-12-24T04:32:14.062733
+source
+trading-bot
+1766550734062-0
+event_type
+trade.intent
+payload
+{"symbol": "RENDERUSDT", "side": "BUY", "confidence": 0.72, "entry_price": 1.254, "stop_loss": 1.22892, "take_profit": 1.27908, "position_size_usd": 200.0, "leverage": 1, "timestamp": "2025-12-24T04:32:14.062141", "model": "ensemble", "reason": "AI signal", "atr_value": 0.02, "volatility_factor": 0.5, "exchange_divergence": 0.0, "funding_rate": 0.0, "regime": "unknown"}
+timestamp
+2025-12-24T04:32:14.062200
+source
+trading-bot
+1766550734060-1
+event_type
+trade.intent
+payload
+{"symbol": "APTUSDT", "side": "BUY", "confidence": 0.72, "entry_price": 1.5842, "stop_loss": 1.552516, "take_profit": 1.615884, "position_size_usd": 200.0, "leverage": 1, "timestamp": "2025-12-24T04:32:14.060687", "model": "ensemble", "reason": "AI signal", "atr_value": 0.02, "volatility_factor": 0.5488431876606679, "exchange_divergence": 0.0, "funding_rate": 0.0, "regime": "unknown"}
+timestamp
+2025-12-24T04:32:14.060758
+source
+trading-bot

@@ -1,0 +1,200 @@
+04:55:44 - DEBUG - [EXIT_SL_CHECK] CRVUSDT:SHORT: should_trigger_sl=False (price=0.3662, SL=0.3730, side=SHORT)
+04:55:44 - WARNING - [EXIT_TP_CHECK] CRVUSDT:SHORT: price=$0.36624, triggerable=0/3 TPs
+04:55:44 - WARNING -   TP0: price=$0.36754, size=30.0%, triggered=True, should_trigger=True
+04:55:44 - WARNING -   TP1: price=$0.36391, size=30.0%, triggered=False, should_trigger=False
+04:55:44 - WARNING -   TP2: price=$0.35845, size=40.0%, triggered=False, should_trigger=False
+04:55:44 - DEBUG - [EXIT_MONITOR] ETHUSDT:SHORT: price=$2935.9800, SL=$2972.0411, TPs=3, triggered=0
+04:55:44 - DEBUG - [EXIT_SL_CHECK] ETHUSDT:SHORT: should_trigger_sl=False (price=2935.9800, SL=2972.0411, side=SHORT)
+04:55:44 - WARNING - [EXIT_TP_CHECK] ETHUSDT:SHORT: price=$2935.98000, triggerable=0/3 TPs
+04:55:44 - WARNING -   TP0: price=$2922.92772, size=30.0%, triggered=False, should_trigger=False
+04:55:44 - WARNING -   TP1: price=$2894.00619, size=30.0%, triggered=False, should_trigger=False
+04:55:44 - WARNING -   TP2: price=$2850.62391, size=40.0%, triggered=False, should_trigger=False
+04:55:44 - DEBUG - [EXIT_MONITOR] TONUSDT:LONG: price=$1.4634, SL=$1.4548, TPs=3, triggered=0
+04:55:44 - DEBUG - [EXIT_SL_CHECK] TONUSDT:LONG: should_trigger_sl=False (price=1.4634, SL=1.4548, side=LONG)
+04:55:44 - WARNING - [EXIT_TP_CHECK] TONUSDT:LONG: price=$1.46340, triggerable=0/3 TPs
+04:55:44 - WARNING -   TP0: price=$1.47882, size=30.0%, triggered=False, should_trigger=False
+04:55:44 - WARNING -   TP1: price=$1.49303, size=30.0%, triggered=False, should_trigger=False
+04:55:44 - WARNING -   TP2: price=$1.51434, size=40.0%, triggered=False, should_trigger=False
+04:55:44 - DEBUG - [EXIT_MONITOR] AVAXUSDT:SHORT: price=$12.0050, SL=$12.1719, TPs=3, triggered=0
+04:55:44 - DEBUG - [EXIT_SL_CHECK] AVAXUSDT:SHORT: should_trigger_sl=False (price=12.0050, SL=12.1719, side=SHORT)
+04:55:44 - WARNING - [EXIT_TP_CHECK] AVAXUSDT:SHORT: price=$12.00502, triggerable=0/3 TPs
+04:55:44 - WARNING -   TP0: price=$11.94669, size=30.0%, triggered=False, should_trigger=False
+04:55:44 - WARNING -   TP1: price=$11.82848, size=30.0%, triggered=False, should_trigger=False
+04:55:44 - WARNING -   TP2: price=$11.65116, size=40.0%, triggered=False, should_trigger=False
+04:55:44 - DEBUG - [EXIT_MONITOR] AXSUSDT:SHORT: price=$0.8360, SL=$0.8482, TPs=3, triggered=0
+04:55:44 - DEBUG - [EXIT_SL_CHECK] AXSUSDT:SHORT: should_trigger_sl=False (price=0.8360, SL=0.8482, side=SHORT)
+04:55:44 - WARNING - [EXIT_TP_CHECK] AXSUSDT:SHORT: price=$0.83600, triggerable=1/3 TPs
+04:55:44 - WARNING -   TP0: price=$0.83658, size=30.0%, triggered=False, should_trigger=True
+04:55:44 - WARNING -   TP1: price=$0.82831, size=30.0%, triggered=False, should_trigger=False
+04:55:44 - WARNING -   TP2: price=$0.81589, size=40.0%, triggered=False, should_trigger=False
+04:55:44 - WARNING - [EXIT_TP_TRIGGER] 🎯 AXSUSDT:SHORT: TP0 HIT @ $0.83600 (target=$0.83658, size=30.0%)
+04:55:44 - DEBUG - [PRECISION] AXSUSDT: tick_size=0.001, step_size=1.0
+04:55:44 - DEBUG - [PRECISION] Quantity adjusted: 4.80000000 → 5 (step=1.0)
+04:55:44 - INFO - [EXIT_TP_QTY] AXSUSDT SHORT: remaining=16.000000, requested=4.800000, quantized=5.000000, step=1.0
+04:55:44 - WARNING - [EXIT_TP_TRIGGER] 🎯 AXSUSDT SHORT: TP0 HIT @ $0.8360 (TP=$0.8366) - Closing 5.0 (30% of position) with MARKET BUY
+04:55:44 - WARNING - [EXIT_TP_ORDER] 📤 Submitting to Binance: {'symbol': 'AXSUSDT', 'side': 'BUY', 'type': 'MARKET', 'quantity': 5.0}
+04:55:44 - INFO - [EXIT_TP_ORDER] Calling gateway.submit_exit_order...
+04:55:44 - WARNING - [EXIT_GATEWAY] Unknown order_kind='tp_market_leg_0'. Valid kinds: ['tp', 'sl', 'trailing', 'breakeven', 'partial_tp', 'other_exit', 'hard_sl', 'loss_guard_emergency', 'emergency_exit', 'partial_close']
+04:55:44 - WARNING - [EXIT_GUARD] ℹ️  Unknown module 'exit_executor' placing exit order in EXIT_BRAIN_V3 mode. Context: {'module': 'exit_executor', 'symbol': 'AXSUSDT', 'order_kind': 'tp_market_leg_0', 'order_type': 'MARKET', 'exit_mode': 'EXIT_BRAIN_V3', 'timestamp': '2025-12-24T04:55:44.353543', 'explanation': 'TP0 triggered at $0.8360'}
+04:55:44 - DEBUG - [EXIT_GATEWAY] AXSUSDT quantity: 5.00000000 -> 5.00000000
+04:55:44 - INFO - [EXIT_GATEWAY] 📤 Submitting tp_market_leg_0 order: module=exit_executor, symbol=AXSUSDT, type=MARKET, params_keys=['symbol', 'side', 'type', 'quantity']
+04:55:44 - DEBUG - https://testnet.binancefuture.com:443 "GET /fapi/v2/account?recvWindow=10000&timestamp=1766552143744&signature=a6cc2e95a5719b4fff2d4c76e20cd1cf34375677f2ae9994541670f6d7b7246b HTTP/1.1" 200 None
+04:55:44 - INFO - [DEBUG] Flash crash check complete: False
+04:55:44 - INFO - [DEBUG] Fetching positions...
+04:55:45 - DEBUG - https://testnet.binancefuture.com:443 "POST /fapi/v1/order HTTP/1.1" 400 98
+04:55:45 - ERROR - [EXIT_GATEWAY] ❌ Order submission failed: module=exit_executor, symbol=AXSUSDT, kind=tp_market_leg_0, error=APIError(code=-4164): Order's notional must be no smaller than 5 (unless you choose reduce only).
+Traceback (most recent call last):
+  File "/app/backend/services/execution/exit_order_gateway.py", line 274, in submit_exit_order
+    result = client.futures_create_order(**order_params)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/binance/client.py", line 7867, in futures_create_order
+    return self._request_futures_api("post", "order", True, data=params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/binance/client.py", line 143, in _request_futures_api
+    return self._request(method, uri, signed, force_params, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/binance/client.py", line 106, in _request
+    return self._handle_response(self.response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/binance/client.py", line 115, in _handle_response
+    raise BinanceAPIException(response, response.status_code, response.text)
+binance.exceptions.BinanceAPIException: APIError(code=-4164): Order's notional must be no smaller than 5 (unless you choose reduce only).
+04:55:45 - ERROR - [EXIT_BRAIN_EXECUTOR] Error submitting TP order for AXSUSDT SHORT: APIError(code=-4164): Order's notional must be no smaller than 5 (unless you choose reduce only).
+Traceback (most recent call last):
+  File "/app/backend/domains/exits/exit_brain_v3/dynamic_executor.py", line 2152, in _submit_tp_order_and_update_state
+    resp = await self.exit_order_gateway.submit_exit_order(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/backend/main.py", line 332, in submit_exit_order
+    return await submit_exit_order(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/backend/services/execution/exit_order_gateway.py", line 274, in submit_exit_order
+    result = client.futures_create_order(**order_params)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/binance/client.py", line 7867, in futures_create_order
+    return self._request_futures_api("post", "order", True, data=params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/binance/client.py", line 143, in _request_futures_api
+    return self._request(method, uri, signed, force_params, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/binance/client.py", line 106, in _request
+    return self._handle_response(self.response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/binance/client.py", line 115, in _handle_response
+    raise BinanceAPIException(response, response.status_code, response.text)
+binance.exceptions.BinanceAPIException: APIError(code=-4164): Order's notional must be no smaller than 5 (unless you choose reduce only).
+04:55:45 - DEBUG - [EXIT_MONITOR] BNBUSDT:SHORT: price=$840.1962, SL=$849.6521, TPs=3, triggered=0
+04:55:45 - DEBUG - [EXIT_SL_CHECK] BNBUSDT:SHORT: should_trigger_sl=False (price=840.1962, SL=849.6521, side=SHORT)
+04:55:45 - WARNING - [EXIT_TP_CHECK] BNBUSDT:SHORT: price=$840.19624, triggerable=0/3 TPs
+04:55:45 - WARNING -   TP0: price=$836.10054, size=30.0%, triggered=False, should_trigger=False
+04:55:45 - WARNING -   TP1: price=$827.82757, size=30.0%, triggered=False, should_trigger=False
+04:55:45 - WARNING -   TP2: price=$815.41811, size=40.0%, triggered=False, should_trigger=False
+04:55:45 - DEBUG - [EXIT_MONITOR] XLMUSDT:SHORT: price=$0.2147, SL=$0.2174, TPs=3, triggered=0
+04:55:45 - DEBUG - [EXIT_SL_CHECK] XLMUSDT:SHORT: should_trigger_sl=False (price=0.2147, SL=0.2174, side=SHORT)
+04:55:45 - WARNING - [EXIT_TP_CHECK] XLMUSDT:SHORT: price=$0.21471, triggerable=0/3 TPs
+04:55:45 - WARNING -   TP0: price=$0.21361, size=30.0%, triggered=False, should_trigger=False
+04:55:45 - WARNING -   TP1: price=$0.21150, size=30.0%, triggered=False, should_trigger=False
+04:55:45 - WARNING -   TP2: price=$0.20833, size=40.0%, triggered=False, should_trigger=False
+04:55:45 - DEBUG - [EXIT_MONITOR] ATOMUSDT:SHORT: price=$1.9390, SL=$1.9680, TPs=3, triggered=1
+04:55:45 - DEBUG - [EXIT_SL_CHECK] ATOMUSDT:SHORT: should_trigger_sl=False (price=1.9390, SL=1.9680, side=SHORT)
+04:55:45 - WARNING - [EXIT_TP_CHECK] ATOMUSDT:SHORT: price=$1.93900, triggerable=0/3 TPs
+04:55:45 - WARNING -   TP0: price=$1.93922, size=30.0%, triggered=True, should_trigger=True
+04:55:45 - WARNING -   TP1: price=$1.92003, size=30.0%, triggered=False, should_trigger=False
+04:55:45 - WARNING -   TP2: price=$1.89125, size=40.0%, triggered=False, should_trigger=False
+04:55:45 - DEBUG - [EXIT_MONITOR] CELOUSDT:SHORT: price=$0.1135, SL=$0.1150, TPs=3, triggered=0
+04:55:45 - DEBUG - [EXIT_SL_CHECK] CELOUSDT:SHORT: should_trigger_sl=False (price=0.1135, SL=0.1150, side=SHORT)
+04:55:45 - WARNING - [EXIT_TP_CHECK] CELOUSDT:SHORT: price=$0.11350, triggerable=0/3 TPs
+04:55:45 - WARNING -   TP0: price=$0.11135, size=30.0%, triggered=False, should_trigger=False
+04:55:45 - WARNING -   TP1: price=$0.11025, size=30.0%, triggered=False, should_trigger=False
+04:55:45 - WARNING -   TP2: price=$0.10859, size=40.0%, triggered=False, should_trigger=False
+04:55:45 - DEBUG - [EXIT_MONITOR] ADAUSDT:SHORT: price=$0.3579, SL=$0.3645, TPs=3, triggered=0
+04:55:45 - DEBUG - [EXIT_SL_CHECK] ADAUSDT:SHORT: should_trigger_sl=False (price=0.3579, SL=0.3645, side=SHORT)
+04:55:45 - WARNING - [EXIT_TP_CHECK] ADAUSDT:SHORT: price=$0.35790, triggerable=0/3 TPs
+04:55:45 - WARNING -   TP0: price=$0.35759, size=30.0%, triggered=False, should_trigger=False
+04:55:45 - WARNING -   TP1: price=$0.35405, size=30.0%, triggered=False, should_trigger=False
+04:55:45 - WARNING -   TP2: price=$0.34875, size=40.0%, triggered=False, should_trigger=False
+04:55:45 - DEBUG - [EXIT_MONITOR] LINKUSDT:SHORT: price=$12.2040, SL=$12.4070, TPs=3, triggered=1
+04:55:45 - DEBUG - [EXIT_SL_CHECK] LINKUSDT:SHORT: should_trigger_sl=False (price=12.2040, SL=12.4070, side=SHORT)
+04:55:45 - WARNING - [EXIT_TP_CHECK] LINKUSDT:SHORT: price=$12.20400, triggerable=0/3 TPs
+04:55:45 - WARNING -   TP0: price=$12.22555, size=30.0%, triggered=True, should_trigger=True
+04:55:45 - WARNING -   TP1: price=$12.10458, size=30.0%, triggered=False, should_trigger=False
+04:55:45 - WARNING -   TP2: price=$11.92313, size=40.0%, triggered=False, should_trigger=False
+04:55:45 - DEBUG - [EXIT_MONITOR] GRTUSDT:SHORT: price=$0.0360, SL=$0.0365, TPs=3, triggered=0
+04:55:45 - DEBUG - [EXIT_SL_CHECK] GRTUSDT:SHORT: should_trigger_sl=False (price=0.0360, SL=0.0365, side=SHORT)
+04:55:45 - WARNING - [EXIT_TP_CHECK] GRTUSDT:SHORT: price=$0.03597, triggerable=0/3 TPs
+04:55:45 - WARNING -   TP0: price=$0.03589, size=30.0%, triggered=False, should_trigger=False
+04:55:45 - WARNING -   TP1: price=$0.03553, size=30.0%, triggered=False, should_trigger=False
+04:55:45 - WARNING -   TP2: price=$0.03500, size=40.0%, triggered=False, should_trigger=False
+04:55:45 - DEBUG - [EXIT_MONITOR] AAVEUSDT:SHORT: price=$149.1100, SL=$150.8032, TPs=3, triggered=0
+04:55:45 - DEBUG - [EXIT_SL_CHECK] AAVEUSDT:SHORT: should_trigger_sl=False (price=149.1100, SL=150.8032, side=SHORT)
+04:55:45 - WARNING - [EXIT_TP_CHECK] AAVEUSDT:SHORT: price=$149.11000, triggerable=0/3 TPs
+04:55:45 - WARNING -   TP0: price=$147.73727, size=30.0%, triggered=False, should_trigger=False
+04:55:45 - WARNING -   TP1: price=$146.27546, size=30.0%, triggered=False, should_trigger=False
+04:55:45 - WARNING -   TP2: price=$144.08273, size=40.0%, triggered=False, should_trigger=False
+04:55:45 - INFO - [EXIT_BRAIN_LOOP] ✅ Cycle 29 complete
+04:55:45 - DEBUG - [EXIT_BRAIN_LOOP] ⏳ Sleeping 10.0s before cycle 30
+04:55:45 - DEBUG - https://testnet.binancefuture.com:443 "GET /fapi/v3/positionRisk?recvWindow=10000&timestamp=1766552144462&signature=f94040f4cde08b49d09494657b1be6f6eae25f4b5b58d3873a2d73e8544cc741 HTTP/1.1" 200 None
+04:55:45 - INFO - [DEBUG] Got 15 total positions
+04:55:45 - INFO - [DEBUG] Found 15 open positions
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(TRXUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] TRXUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] TRXUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - TRXUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(GALAUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] GALAUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] GALAUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - GALAUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(CRVUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] CRVUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] CRVUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - CRVUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(ETHUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] ETHUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] ETHUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - ETHUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(TONUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] TONUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] TONUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - TONUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(AVAXUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] AVAXUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] AVAXUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - AVAXUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(AXSUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] AXSUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] AXSUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - AXSUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(BNBUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] BNBUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] BNBUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - BNBUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(XLMUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] XLMUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] XLMUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - XLMUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(ATOMUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] ATOMUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] ATOMUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - ATOMUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(CELOUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] CELOUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] CELOUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - CELOUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(ADAUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] ADAUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] ADAUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - ADAUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(LINKUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] LINKUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] LINKUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - LINKUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(GRTUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] GRTUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] GRTUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - GRTUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - [EXIT ROUTER] get_active_plan(AAVEUSDT) called on instance id=132281698297360, cache has 15 plans, returning: True
+04:55:45 - DEBUG - [EXIT BRAIN V3] AAVEUSDT: Exit plan exists (strategy=STANDARD_LADDER)
+04:55:45 - INFO - [EXIT BRAIN V3] AAVEUSDT: Delegating TP/SL management to Exit Brain (profile-based)
+04:55:45 - INFO - [EXIT_GUARD] ✅ Exit Brain Executor ACTIVE - AAVEUSDT will be monitored for dynamic TP/SL execution every 10.0s
+04:55:45 - DEBUG - https://testnet.binancefuture.com:443 "GET /fapi/v1/openOrders?recvWindow=10000&timestamp=1766552145171&signature=4886cecd524cb4e8fff52dc0c091cd21e50473da0c2654dbeb1bb3d6dcc8c2f3 HTTP/1.1" 200 None
+04:55:45 - INFO - [EXIT_GUARD] ⏭️  Skipping TP/SL protection checks - Exit Brain Executor handles all exit orders
+04:55:45 - INFO - [CHART] Position check: 15 total, 15 protected, 0 unprotected, 0 newly protected

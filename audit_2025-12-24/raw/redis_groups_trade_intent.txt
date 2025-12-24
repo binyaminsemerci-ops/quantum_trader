@@ -1,0 +1,12 @@
+name
+quantum:group:execution:trade.intent
+consumers
+34
+pending
+1
+last-delivered-id
+1766219478937-0
+entries-read
+45409
+lag
+10014

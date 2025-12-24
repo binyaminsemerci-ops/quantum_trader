@@ -1,0 +1,317 @@
+[
+    {
+        "Id": "c947e1c88de39ee0795558039360d8ad117671290b25e3c3c6767cce0b3ed2ed",
+        "Created": "2025-12-23T00:33:23.740476558Z",
+        "Path": "docker-entrypoint.sh",
+        "Args": [
+            "redis-server",
+            "--appendonly",
+            "yes",
+            "--appendfsync",
+            "everysec"
+        ],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 4007130,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2025-12-24T02:33:50.468561202Z",
+            "FinishedAt": "2025-12-24T02:33:38.395805112Z",
+            "Health": {
+                "Status": "healthy",
+                "FailingStreak": 0,
+                "Log": [
+                    {
+                        "Start": "2025-12-24T04:54:59.092560301Z",
+                        "End": "2025-12-24T04:54:59.15307242Z",
+                        "ExitCode": 0,
+                        "Output": "PONG\n"
+                    },
+                    {
+                        "Start": "2025-12-24T04:55:09.154078447Z",
+                        "End": "2025-12-24T04:55:09.229251383Z",
+                        "ExitCode": 0,
+                        "Output": "PONG\n"
+                    },
+                    {
+                        "Start": "2025-12-24T04:55:19.230507188Z",
+                        "End": "2025-12-24T04:55:19.281716088Z",
+                        "ExitCode": 0,
+                        "Output": "PONG\n"
+                    },
+                    {
+                        "Start": "2025-12-24T04:55:29.2828415Z",
+                        "End": "2025-12-24T04:55:29.358719589Z",
+                        "ExitCode": 0,
+                        "Output": "PONG\n"
+                    },
+                    {
+                        "Start": "2025-12-24T04:55:39.360135248Z",
+                        "End": "2025-12-24T04:55:39.436229985Z",
+                        "ExitCode": 0,
+                        "Output": "PONG\n"
+                    }
+                ]
+            }
+        },
+        "Image": "sha256:ee64a64eaab618d88051c3ade8f6352d11531fcf79d9a4818b9b183d8c1d18ba",
+        "ResolvConfPath": "/var/lib/docker/containers/c947e1c88de39ee0795558039360d8ad117671290b25e3c3c6767cce0b3ed2ed/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/c947e1c88de39ee0795558039360d8ad117671290b25e3c3c6767cce0b3ed2ed/hostname",
+        "HostsPath": "/var/lib/docker/containers/c947e1c88de39ee0795558039360d8ad117671290b25e3c3c6767cce0b3ed2ed/hosts",
+        "LogPath": "/var/lib/docker/containers/c947e1c88de39ee0795558039360d8ad117671290b25e3c3c6767cce0b3ed2ed/c947e1c88de39ee0795558039360d8ad117671290b25e3c3c6767cce0b3ed2ed-json.log",
+        "Name": "/quantum_redis",
+        "RestartCount": 0,
+        "Driver": "overlayfs",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "docker-default",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": [
+                "quantum_trader_redis_data:/data:rw"
+            ],
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {}
+            },
+            "NetworkMode": "quantum_trader_quantum_trader",
+            "PortBindings": {
+                "6379/tcp": [
+                    {
+                        "HostIp": "",
+                        "HostPort": "6379"
+                    }
+                ]
+            },
+            "RestartPolicy": {
+                "Name": "unless-stopped",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": null,
+            "CapDrop": null,
+            "CgroupnsMode": "private",
+            "Dns": [],
+            "DnsOptions": [],
+            "DnsSearch": [],
+            "ExtraHosts": [],
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": false,
+            "SecurityOpt": null,
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 0,
+            "NanoCpus": 0,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": null,
+            "BlkioDeviceReadBps": null,
+            "BlkioDeviceWriteBps": null,
+            "BlkioDeviceReadIOps": null,
+            "BlkioDeviceWriteIOps": null,
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": null,
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": 0,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": null,
+            "Ulimits": null,
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "MaskedPaths": [
+                "/proc/acpi",
+                "/proc/asound",
+                "/proc/interrupts",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/sys/devices/virtual/powercap",
+                "/sys/firmware"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ]
+        },
+        "Storage": {
+            "RootFS": {
+                "Snapshot": {
+                    "Name": "overlayfs"
+                }
+            }
+        },
+        "Mounts": [
+            {
+                "Type": "volume",
+                "Name": "quantum_trader_redis_data",
+                "Source": "/var/lib/docker/volumes/quantum_trader_redis_data/_data",
+                "Destination": "/data",
+                "Driver": "local",
+                "Mode": "rw",
+                "RW": true,
+                "Propagation": ""
+            }
+        ],
+        "Config": {
+            "Hostname": "c947e1c88de3",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": true,
+            "AttachStderr": true,
+            "ExposedPorts": {
+                "6379/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "GOSU_VERSION=1.17",
+                "REDIS_VERSION=7.4.7",
+                "REDIS_DOWNLOAD_URL=http://download.redis.io/releases/redis-7.4.7.tar.gz",
+                "REDIS_DOWNLOAD_SHA=c97e57b0df330a9e091cacff012bebe763c275398cf36ff44cdba876814b595b"
+            ],
+            "Cmd": [
+                "redis-server",
+                "--appendonly",
+                "yes",
+                "--appendfsync",
+                "everysec"
+            ],
+            "Healthcheck": {
+                "Test": [
+                    "CMD",
+                    "redis-cli",
+                    "ping"
+                ],
+                "Interval": 10000000000,
+                "Timeout": 3000000000,
+                "Retries": 3
+            },
+            "Image": "redis:7-alpine",
+            "Volumes": {
+                "/data": {}
+            },
+            "WorkingDir": "/data",
+            "Entrypoint": [
+                "docker-entrypoint.sh"
+            ],
+            "Labels": {
+                "com.docker.compose.config-hash": "029247c17510d514a2ef6ef6a32ff9c3cb696fcbf858f8c56232f100a8830679",
+                "com.docker.compose.container-number": "1",
+                "com.docker.compose.depends_on": "",
+                "com.docker.compose.image": "sha256:ee64a64eaab618d88051c3ade8f6352d11531fcf79d9a4818b9b183d8c1d18ba",
+                "com.docker.compose.oneoff": "False",
+                "com.docker.compose.project": "quantum_trader",
+                "com.docker.compose.project.config_files": "/home/qt/quantum_trader/docker-compose.yml",
+                "com.docker.compose.project.working_dir": "/home/qt/quantum_trader",
+                "com.docker.compose.replace": "quantum_redis",
+                "com.docker.compose.service": "redis",
+                "com.docker.compose.version": "5.0.0"
+            }
+        },
+        "NetworkSettings": {
+            "SandboxID": "62d95a4052c13dd52659978880e4ca06f5629c3b337eccbb81af55aae78448d2",
+            "SandboxKey": "/var/run/docker/netns/62d95a4052c1",
+            "Ports": {
+                "6379/tcp": [
+                    {
+                        "HostIp": "0.0.0.0",
+                        "HostPort": "6379"
+                    },
+                    {
+                        "HostIp": "::",
+                        "HostPort": "6379"
+                    }
+                ]
+            },
+            "Networks": {
+                "quantum_trader_quantum_trader": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": [
+                        "quantum_redis",
+                        "redis"
+                    ],
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "754c78246a8b7066d99660c44ce45e7cb37902e28af3456d9fbc0130f79763bb",
+                    "EndpointID": "212223724f42efc6672271242e3391bb857546c38b328c5b2426bee5c7ce3cd5",
+                    "Gateway": "172.18.0.1",
+                    "IPAddress": "172.18.0.25",
+                    "MacAddress": "1e:51:65:9b:7c:35",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "DNSNames": [
+                        "quantum_redis",
+                        "redis",
+                        "c947e1c88de3"
+                    ]
+                }
+            }
+        },
+        "ImageManifestDescriptor": {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:4706ecab5371690fecfdd782268929c94ad5b5ce9ce0b35bfdfe191c4ad17851",
+            "size": 2483,
+            "annotations": {
+                "com.docker.official-images.bashbrew.arch": "amd64",
+                "org.opencontainers.image.base.digest": "sha256:41c81533144786e0beb2b148667355a6c7659aa99a14ed837ff15a98ca9d71f3",
+                "org.opencontainers.image.base.name": "alpine:3.21",
+                "org.opencontainers.image.created": "2025-11-03T17:38:49Z",
+                "org.opencontainers.image.revision": "d42d7aec93b1c54dd46f37a66a92f62478456039",
+                "org.opencontainers.image.source": "https://github.com/redis/docker-library-redis.git#d42d7aec93b1c54dd46f37a66a92f62478456039:7.4/alpine",
+                "org.opencontainers.image.url": "https://hub.docker.com/_/redis",
+                "org.opencontainers.image.version": "7.4.7-alpine"
+            },
+            "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+            }
+        }
+    }
+]
