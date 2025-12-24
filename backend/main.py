@@ -301,6 +301,9 @@ async def initialize_phase4():
             from backend.domains.exits.exit_brain_v3.planner import ExitBrainV3
             from backend.services.execution.exit_order_gateway import submit_exit_order
             
+            # Phase 3C Integration - Import adapters
+            from backend.services.ai.exit_brain_performance_adapter import ExitBrainPerformanceAdapter
+            
             # Initialize Binance client for position source
             from binance.client import Client
             api_key = os.getenv("BINANCE_API_KEY")
@@ -333,6 +336,24 @@ async def initialize_phase4():
             adapter = ExitBrainAdapter(planner=planner)
             exit_gateway = ExitOrderGatewayWrapper(binance_client)
             
+            # Phase 3C Integration - Initialize Performance Adapter (will try to connect to AI Engine)
+            performance_adapter = None
+            try:
+                logger.info("[EXIT_BRAIN_V3] 🎯 Initializing Phase 3C Performance Adapter...")
+                performance_adapter = ExitBrainPerformanceAdapter(
+                    performance_benchmarker=None,  # Will fetch from AI Engine via HTTP
+                    adaptive_threshold_manager=None,  # Will fetch from AI Engine via HTTP
+                    system_health_monitor=None,  # Will fetch from AI Engine via HTTP
+                    default_tp_multipliers=(1.0, 2.5, 4.0),
+                    default_sl_multiplier=1.5,
+                    min_sample_size=20,
+                    health_threshold=70.0
+                )
+                logger.info("[EXIT_BRAIN_V3] ✅ Phase 3C Performance Adapter initialized")
+            except Exception as e:
+                logger.warning(f"[EXIT_BRAIN_V3] ⚠️ Phase 3C Performance Adapter failed: {e}")
+                performance_adapter = None
+            
             # Initialize executor
             loop_interval = float(os.getenv("EXIT_BRAIN_CHECK_INTERVAL_SEC", "10"))
             executor = ExitBrainDynamicExecutor(
@@ -340,7 +361,8 @@ async def initialize_phase4():
                 exit_order_gateway=exit_gateway,
                 position_source=binance_client,
                 loop_interval_sec=loop_interval,
-                shadow_mode=False  # LIVE mode (controlled by config)
+                shadow_mode=False,  # LIVE mode (controlled by config)
+                performance_adapter=performance_adapter  # Phase 3C integration
             )
             
             # Start monitoring loop
