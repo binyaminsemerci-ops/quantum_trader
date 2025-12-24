@@ -11,7 +11,15 @@ from backend.core.event_bus import EventBus
 from backend.services.execution.execution import BinanceFuturesExecutionAdapter
 from backend.services.risk.risk_guard import RiskGuardService
 from backend.domains.learning.rl_v3.metrics_v3 import RLv3MetricsStore
-from backend.domains.exits.exit_brain_v3.v35_integration import ExitBrainV35Integration
+
+# Optional: ExitBrain v3.5 integration (may not be available)
+try:
+    from backend.domains.exits.exit_brain_v3.v35_integration import ExitBrainV35Integration
+    EXITBRAIN_V35_AVAILABLE = True
+except ImportError:
+    EXITBRAIN_V35_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("[trade_intent] ⚠️ ExitBrain v3.5 not available - ILF metadata will not be processed")
 
 
 class TradeIntentSubscriber:
@@ -29,7 +37,15 @@ class TradeIntentSubscriber:
         self.risk_guard = risk_guard
         self.logger = logger_instance or logging.getLogger(__name__)
         self.metrics_store = RLv3MetricsStore.instance()
-        self.exitbrain_v35 = ExitBrainV35Integration(enabled=True)  # 🔥 Enable ILF integration
+        
+        # Initialize ExitBrain v3.5 if available
+        if EXITBRAIN_V35_AVAILABLE:
+            self.exitbrain_v35 = ExitBrainV35Integration(enabled=True)
+            self.logger.info("[trade_intent] ✅ ExitBrain v3.5 integration enabled")
+        else:
+            self.exitbrain_v35 = None
+            self.logger.warning("[trade_intent] ⚠️ ExitBrain v3.5 not available - skipping ILF processing")
+        
         self._running = False
         
         # 🛡️ SAFE_DRAIN mode: process backlog WITHOUT executing trades
@@ -226,7 +242,7 @@ class TradeIntentSubscriber:
                 )
                 
                 # 🔥 COMPUTE ADAPTIVE TP/SL LEVELS using ILF metadata
-                if volatility_factor is not None and order_result:
+                if self.exitbrain_v35 and volatility_factor is not None and order_result:
                     try:
                         adaptive_levels = self.exitbrain_v35.compute_adaptive_levels(
                             leverage=leverage,
