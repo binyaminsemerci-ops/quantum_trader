@@ -25,6 +25,9 @@ COPY ai_engine/ ./ai_engine/
 COPY database/ ./database/
 COPY config/ ./config/
 
+# Kopier microservices folder (ExitBrain v3.5 adaptive leverage)
+COPY microservices/ ./microservices/
+
 # Kopier root scripts folder (innehåller testnet_trading.py)
 COPY scripts/ ./scripts/
 
