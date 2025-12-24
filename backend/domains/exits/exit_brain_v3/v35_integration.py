@@ -85,43 +85,26 @@ class ExitBrainV35Integration:
             self.adaptive_engine.base_sl = base_sl
         
         # Compute levels
-        levels = self.adaptive_engine.compute_levels(leverage, volatility_factor)
+        levels = self.adaptive_engine.compute_levels(self.adaptive_engine.base_tp, self.adaptive_engine.base_sl, leverage, volatility_factor)
         
-        # Get harvest scheme
-        harvest_scheme = self.adaptive_engine.get_harvest_scheme(leverage)
-        
-        # Get PnL-based adjustment
+        # Get PnL stats for logging
         avg_pnl = self.pnl_tracker.avg_last_20() if self.pnl_tracker else 0.0
-        adjustment = self.adaptive_engine.optimize_based_on_pnl(avg_pnl, confidence)
         
-        # Apply adjustment to levels
-        for key in ['tp1', 'tp2', 'tp3', 'sl']:
-            levels[key] *= adjustment
-        
-        # Validate levels
-        is_valid = self.adaptive_engine.validate_levels(levels, leverage)
-        
-        if not is_valid:
-            logger.error(f"❌ Invalid levels computed for {leverage}x, using defaults")
-            return {
-                'tp1': 0.01,
-                'tp2': 0.015,
-                'tp3': 0.02,
-                'sl': 0.005,
-                'LSF': 1.0,
-                'harvest_scheme': [0.33, 0.33, 0.34],
-                'adjustment': 1.0
-            }
-        
-        # Add additional fields
-        levels['harvest_scheme'] = harvest_scheme
-        levels['adjustment'] = adjustment
-        levels['avg_pnl_last_20'] = avg_pnl
+        # Convert AdaptiveLevels to dict (levels is AdaptiveLevels dataclass)
+        result = {
+            'tp1': levels.tp1_pct,
+            'tp2': levels.tp2_pct,
+            'tp3': levels.tp3_pct,
+            'sl': levels.sl_pct,
+            'LSF': levels.lsf,
+            'harvest_scheme': levels.harvest_scheme,
+            'avg_pnl_last_20': avg_pnl
+        }
         
         logger.info(
-            f"Adaptive levels for {leverage}x (volatility={volatility_factor:.2f}): "
-            f"TP1={levels['tp1']:.3%}, TP2={levels['tp2']:.3%}, TP3={levels['tp3']:.3%}, "
-            f"SL={levels['sl']:.3%}, Adjustment={adjustment:.2f}"
+            f"✅ Adaptive levels for {leverage}x (volatility={volatility_factor:.2f}): "
+            f"TP1={result['tp1']:.3f}%, TP2={result['tp2']:.3f}%, TP3={result['tp3']:.3f}%, "
+            f"SL={result['sl']:.3f}%, LSF={result['LSF']:.3f}"
         )
         
         return levels
