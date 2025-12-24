@@ -304,6 +304,209 @@ async def health_history(hours: int = 24):
     }
 
 
+# ========================================================================
+# PHASE 3C-2: PERFORMANCE BENCHMARKING ENDPOINTS
+# ========================================================================
+
+@app.get("/performance/current", tags=["performance", "phase_3c_2"])
+async def performance_current():
+    """
+    Phase 3C-2: Get current performance benchmarks
+    
+    Returns:
+        Current performance metrics for all modules
+    """
+    if not service.performance_benchmarker:
+        return {"error": "Performance benchmarker not initialized"}
+    
+    benchmarks = service.performance_benchmarker.get_current_benchmarks()
+    
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "module_count": len(benchmarks),
+        "benchmarks": {k: v.to_dict() for k, v in benchmarks.items()}
+    }
+
+
+@app.get("/performance/comparison", tags=["performance", "phase_3c_2"])
+async def performance_comparison():
+    """
+    Phase 3C-2: Compare module performances
+    
+    Returns:
+        Comparative analysis of all modules
+    """
+    if not service.performance_benchmarker:
+        return {"error": "Performance benchmarker not initialized"}
+    
+    try:
+        comparison = service.performance_benchmarker.compare_modules()
+        return comparison.to_dict()
+    except ValueError as e:
+        return {"error": str(e)}
+
+
+@app.get("/performance/report", tags=["performance", "phase_3c_2"])
+async def performance_report(hours: int = 24):
+    """
+    Phase 3C-2: Generate comprehensive performance report
+    
+    Args:
+        hours: Time window for analysis (default: 24)
+    
+    Returns:
+        Detailed performance report with recommendations
+    """
+    if not service.performance_benchmarker:
+        return {"error": "Performance benchmarker not initialized"}
+    
+    report = await service.performance_benchmarker.generate_performance_report(hours)
+    return report.to_dict()
+
+
+@app.post("/performance/baseline/reset", tags=["performance", "phase_3c_2"])
+async def reset_performance_baseline():
+    """
+    Phase 3C-2: Reset performance baseline
+    
+    Returns:
+        Confirmation message
+    """
+    if not service.performance_benchmarker:
+        return {"error": "Performance benchmarker not initialized"}
+    
+    service.performance_benchmarker.reset_baseline()
+    return {
+        "status": "success",
+        "message": "Performance baseline reset",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+# ========================================================================
+# PHASE 3C-3: ADAPTIVE THRESHOLD ENDPOINTS
+# ========================================================================
+
+@app.get("/thresholds/current", tags=["thresholds", "phase_3c_3"])
+async def thresholds_current():
+    """
+    Phase 3C-3: Get current thresholds
+    
+    Returns:
+        All current threshold values
+    """
+    if not service.adaptive_threshold_manager:
+        return {"error": "Adaptive threshold manager not initialized"}
+    
+    thresholds = service.adaptive_threshold_manager.get_all_thresholds()
+    
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "thresholds": {
+            module_type: {
+                metric: threshold.to_dict()
+                for metric, threshold in metrics.items()
+            }
+            for module_type, metrics in thresholds.items()
+        }
+    }
+
+
+@app.get("/thresholds/adjustments", tags=["thresholds", "phase_3c_3"])
+async def threshold_adjustments(hours: int = 24):
+    """
+    Phase 3C-3: Get threshold adjustment history
+    
+    Args:
+        hours: Number of hours of history (default: 24)
+    
+    Returns:
+        Recent threshold adjustments
+    """
+    if not service.adaptive_threshold_manager:
+        return {"error": "Adaptive threshold manager not initialized"}
+    
+    adjustments = service.adaptive_threshold_manager.get_adjustment_history(hours)
+    
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "adjustment_count": len(adjustments),
+        "adjustments": [adj.to_dict() for adj in adjustments]
+    }
+
+
+@app.get("/thresholds/weights", tags=["thresholds", "phase_3c_3"])
+async def health_weights():
+    """
+    Phase 3C-3: Get current health score weights
+    
+    Returns:
+        Module weights for health score calculation
+    """
+    if not service.adaptive_threshold_manager:
+        return {"error": "Adaptive threshold manager not initialized"}
+    
+    weights = service.adaptive_threshold_manager.get_health_weights()
+    return weights.to_dict()
+
+
+@app.post("/thresholds/override", tags=["thresholds", "phase_3c_3"])
+async def override_threshold(
+    module_type: str,
+    metric_name: str,
+    warning: float,
+    error: float,
+    critical: float
+):
+    """
+    Phase 3C-3: Manually override threshold
+    
+    Args:
+        module_type: Module type (e.g., "phase_2b")
+        metric_name: Metric name (e.g., "latency_ms")
+        warning: Warning threshold value
+        error: Error threshold value
+        critical: Critical threshold value
+    
+    Returns:
+        Confirmation message
+    """
+    if not service.adaptive_threshold_manager:
+        return {"error": "Adaptive threshold manager not initialized"}
+    
+    try:
+        service.adaptive_threshold_manager.override_threshold(
+            module_type, metric_name, warning, error, critical
+        )
+        return {
+            "status": "success",
+            "message": f"Threshold overridden for {module_type}.{metric_name}",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except ValueError as e:
+        return {"error": str(e)}
+
+
+@app.get("/thresholds/predictive", tags=["thresholds", "phase_3c_3"])
+async def predictive_alerts():
+    """
+    Phase 3C-3: Get predictive alerts
+    
+    Returns:
+        Alerts predicting future issues based on trends
+    """
+    if not service.adaptive_threshold_manager:
+        return {"error": "Adaptive threshold manager not initialized"}
+    
+    alerts = await service.adaptive_threshold_manager.generate_predictive_alerts()
+    
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "alert_count": len(alerts),
+        "alerts": [alert.to_dict() for alert in alerts]
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     
