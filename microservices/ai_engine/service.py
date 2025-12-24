@@ -199,16 +199,17 @@ class AIEngineService:
             if self.health_monitor:
                 asyncio.create_task(self.health_monitor.start_monitoring())
                 logger.info("[PHASE 3C] 🏥 Health monitoring loop started")
-        
-        # 🔥 PHASE 3C-2: Start performance benchmarking loop
-        if self.performance_benchmarker:
-            asyncio.create_task(self.performance_benchmarker.start_benchmarking())
-            logger.info("[PHASE 3C-2] 📊 Performance benchmarking loop started")
-        
-        # 🔥 PHASE 3C-3: Start adaptive learning loop
-        if self.adaptive_threshold_manager:
-            asyncio.create_task(self.adaptive_threshold_manager.start_learning())
-            logger.info("[PHASE 3C-3] 🧠 Adaptive learning loop started")
+            
+            # 🔥 PHASE 3C-2: Start performance benchmarking loop
+            if self.performance_benchmarker:
+                asyncio.create_task(self.performance_benchmarker.start_benchmarking())
+                logger.info("[PHASE 3C-2] 📊 Performance benchmarking loop started")
+            
+            # 🔥 PHASE 3C-3: Start adaptive learning loop
+            if self.adaptive_threshold_manager:
+                asyncio.create_task(self.adaptive_threshold_manager.start_learning())
+                logger.info("[PHASE 3C-3] 🧠 Adaptive learning loop started")
+            
             if settings.REGIME_DETECTION_ENABLED:
                 self._regime_update_task = asyncio.create_task(self._regime_update_loop())
             
