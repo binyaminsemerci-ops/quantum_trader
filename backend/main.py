@@ -222,6 +222,60 @@ async def initialize_phase3():
         else:
             logger.info("[PHASE 3] ⚠️ Safety Layer PARTIALLY ACTIVE - Some components unavailable")
         
+        # ====================================================================
+        # PHASE 3B: TRADE INTENT SUBSCRIBER (Critical for execution pipeline)
+        # ====================================================================
+        try:
+            logger.info("[PHASE 3B] 🔄 Initializing Trade Intent Subscriber...")
+            
+            from backend.events.subscribers.trade_intent_subscriber import TradeIntentSubscriber
+            from backend.services.execution.execution import BinanceFuturesExecutionAdapter
+            from backend.services.risk.risk_guard import RiskGuardService
+            
+            # Get required components
+            if not hasattr(app.state, 'event_bus') or app.state.event_bus is None:
+                raise RuntimeError("EventBus not initialized - cannot start Trade Intent Subscriber")
+            
+            # Initialize execution adapter
+            api_key = os.getenv("BINANCE_API_KEY")
+            api_secret = os.getenv("BINANCE_API_SECRET")
+            use_testnet = os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true"
+            
+            if not api_key or not api_secret:
+                logger.warning("[PHASE 3B] ⚠️ Missing BINANCE_API_KEY/SECRET - subscriber will skip execution")
+                execution_adapter = None
+            else:
+                execution_adapter = BinanceFuturesExecutionAdapter(
+                    api_key=api_key,
+                    api_secret=api_secret,
+                    testnet=use_testnet
+                )
+                logger.info(f"[PHASE 3B] ✅ Execution adapter initialized (testnet={use_testnet})")
+            
+            # Initialize risk guard (optional)
+            risk_guard = getattr(app.state, 'safety_governor', None)
+            
+            # Initialize subscriber
+            trade_intent_subscriber = TradeIntentSubscriber(
+                event_bus=app.state.event_bus,
+                execution_adapter=execution_adapter,
+                risk_guard=risk_guard
+            )
+            
+            # Start subscriber (this subscribes to trade.intent stream)
+            await trade_intent_subscriber.start()
+            
+            app.state.trade_intent_subscriber = trade_intent_subscriber
+            
+            logger.info("[PHASE 3B] ✅ Trade Intent Subscriber STARTED")
+            logger.info("[PHASE 3B] 🎯 Now consuming quantum:stream:trade.intent")
+            logger.info("[PHASE 3B] 🔥 ILF metadata will be processed -> ExitBrain v3.5")
+            
+        except Exception as e:
+            logger.error(f"[PHASE 3B] ❌ Failed to initialize Trade Intent Subscriber: {e}", exc_info=True)
+            logger.warning("[PHASE 3B] ⚠️ CRITICAL: Trade execution pipeline is OFFLINE!")
+            app.state.trade_intent_subscriber = None
+        
     except Exception as e:
         logger.error(f"[PHASE 3] ❌ Failed to initialize Safety Layer core: {e}", exc_info=True)
         # Set to None so Phase 4 knows they're unavailable
