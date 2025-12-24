@@ -670,6 +670,8 @@ class AIEngineService:
                 logger.warning(f"[AI-ENGINE] ⚠️ Adaptive Threshold Manager failed: {e}")
                 self.adaptive_threshold_manager = None
             
+            logger.info("[AI-ENGINE] 🔍 DEBUG: Reached adapter initialization section")
+            
             # 🔥 PHASE 3C ADAPTERS: Exit Brain Performance Adapter
             logger.info("[AI-ENGINE] 🎯 Initializing Exit Brain Performance Adapter (Phase 3C)...")
             try:
