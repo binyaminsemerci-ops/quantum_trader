@@ -12,10 +12,19 @@ import asyncio
 import logging
 import os
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import aiohttp
 
 logger = logging.getLogger(__name__)
+
+# 🔥 ILF INTEGRATION: Import RL Position Sizing Agent
+try:
+    from backend.services.ai.rl_position_sizing_agent import RLPositionSizingAgent
+    RL_AGENT_AVAILABLE = True
+    logger.info("[TRADING-BOT] ✅ RL Position Sizing Agent available")
+except ImportError as e:
+    RL_AGENT_AVAILABLE = False
+    logger.warning(f"[TRADING-BOT] ⚠️ RL Position Sizing Agent not available: {e}")
 
 
 class SimpleTradingBot:
@@ -52,9 +61,19 @@ class SimpleTradingBot:
         self._task: Optional[asyncio.Task] = None
         self.signals_generated = 0
         
+        # 🔥 ILF INTEGRATION: Initialize RL Position Sizing Agent
+        self.rl_sizing_agent = None
+        if RL_AGENT_AVAILABLE:
+            try:
+                self.rl_sizing_agent = RLPositionSizingAgent()
+                logger.info("[TRADING-BOT] ✅ RL Position Sizing Agent initialized")
+            except Exception as e:
+                logger.warning(f"[TRADING-BOT] ⚠️ Failed to initialize RL Agent: {e}")
+        
         logger.info(
             f"[TRADING-BOT] Initialized: {len(self.symbols)} symbols, "
-            f"check every {check_interval_seconds}s, min_confidence={min_confidence:.0%}"
+            f"check every {check_interval_seconds}s, min_confidence={min_confidence:.0%}, "
+            f"RL_Agent={'ACTIVE' if self.rl_sizing_agent else 'DISABLED'}"
         )
     
     async def start(self):
@@ -375,21 +394,77 @@ class SimpleTradingBot:
             logger.error(f"[TRADING-BOT] Error handling AI decision: {e}", exc_info=True)
     
     async def _publish_trade_signal(self, symbol: str, prediction: dict, market_data: dict):
-        """Publish trade.intent signal to EventBus."""
+        """Publish trade.intent signal to EventBus with ILF metadata."""
         try:
-            # Build trade intent event from AI Engine response
+            confidence = prediction.get("confidence", 0)
+            
+            # 🔥 ILF INTEGRATION: Calculate AI position sizing with RL Agent
+            position_size_usd = prediction.get("position_size_usd", 200.0)
+            leverage = prediction.get("leverage", 1)
+            
+            # ILF Metadata for ExitBrain v3
+            atr_value = 0.0
+            volatility_factor = 1.0
+            exchange_divergence = 0.0
+            funding_rate = 0.0
+            
+            if self.rl_sizing_agent:
+                try:
+                    # Calculate ATR from market data (simplified)
+                    price_change_24h = abs(market_data.get("price_change_24h", 0.0)) / 100.0
+                    atr_value = max(0.02, min(0.10, price_change_24h))  # Clamp to [2%, 10%]
+                    
+                    # Volatility factor from price range
+                    high = market_data.get("high_24h", market_data["price"])
+                    low = market_data.get("low_24h", market_data["price"])
+                    price = market_data["price"]
+                    if low > 0:
+                        volatility_factor = ((high - low) / low) * 10.0  # Scale to ~1.0-3.0 range
+                        volatility_factor = max(0.5, min(5.0, volatility_factor))
+                    
+                    # Call RL Agent for position sizing
+                    sizing_decision = await asyncio.to_thread(
+                        self.rl_sizing_agent.decide_sizing,
+                        symbol=symbol,
+                        confidence=confidence,
+                        atr_pct=atr_value,
+                        current_exposure_pct=0.0,  # TODO: Get from portfolio tracker
+                        equity_usd=10000.0,  # TODO: Get from execution service
+                        adx=None,
+                        trend_strength=None
+                    )
+                    
+                    # Use RL Agent's position size (ignore its leverage - ExitBrain will calculate)
+                    position_size_usd = sizing_decision.position_size_usd
+                    leverage = 1  # Placeholder - ExitBrain ILF will calculate proper leverage
+                    
+                    logger.info(
+                        f"[TRADING-BOT] [RL-SIZING] {symbol}: ${position_size_usd:.0f} @ {leverage}x "
+                        f"(ATR={atr_value:.2%}, volatility={volatility_factor:.2f})"
+                    )
+                    
+                except Exception as rl_error:
+                    logger.warning(f"[TRADING-BOT] RL Agent failed: {rl_error}, using defaults")
+            
+            # Build trade intent event with ILF metadata
             signal = {
                 "symbol": symbol,
                 "side": prediction.get("action", prediction.get("side", "HOLD")).upper(),  # BUY/SELL/HOLD
-                "confidence": prediction.get("confidence", 0),
+                "confidence": confidence,
                 "entry_price": market_data["price"],
                 "stop_loss": prediction.get("stop_loss", market_data["price"] * 0.98),
                 "take_profit": prediction.get("take_profit", market_data["price"] * 1.02),
-                "position_size_usd": prediction.get("position_size_usd", 100),
-                "leverage": prediction.get("leverage", 1),
+                "position_size_usd": position_size_usd,
+                "leverage": leverage,
                 "timestamp": datetime.utcnow().isoformat(),
                 "model": prediction.get("model", "ensemble"),
-                "reason": prediction.get("reason", "AI signal")
+                "reason": prediction.get("reason", "AI signal"),
+                # 🔥 ILF METADATA for ExitBrain v3:
+                "atr_value": atr_value,
+                "volatility_factor": volatility_factor,
+                "exchange_divergence": exchange_divergence,
+                "funding_rate": funding_rate,
+                "regime": "unknown"  # TODO: Get from regime detector
             }
             
             # Skip HOLD signals
