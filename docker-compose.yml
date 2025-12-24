@@ -858,11 +858,11 @@ services:
   market-publisher:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: backend/Dockerfile
     container_name: quantum_market_publisher
     restart: unless-stopped
     profiles: ["microservices"]
-    command: python simple_market_publisher.py
+    command: python3 /app/simple_market_publisher.py
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -870,13 +870,15 @@ services:
       - PYTHONPATH=/app
       # Market data symbols to track
       - MARKET_SYMBOLS=BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,AVAXUSDT,ADAUSDT,DOTUSDT,LINKUSDT,MATICUSDT,LTCUSDT
+    volumes:
+      - ./simple_market_publisher.py:/app/simple_market_publisher.py
     networks:
       - quantum_trader
     depends_on:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import redis; r=redis.Redis(host='redis'); exit(0 if r.ping() else 1)"]
+      test: ["CMD", "python3", "-c", "import redis; r=redis.Redis(host='redis'); exit(0 if r.ping() else 1)"]
       interval: 30s
       timeout: 10s
       retries: 3
