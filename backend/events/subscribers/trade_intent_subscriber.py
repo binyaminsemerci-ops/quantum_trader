@@ -50,16 +50,24 @@ class TradeIntentSubscriber:
             trace_id = payload.get("trace_id", "")
             symbol = payload.get("symbol", "BTCUSDT")
             side = payload.get("side", "HOLD")
+            
+            # 🔥 AI-CALCULATED VALUES (AUTONOMOUS)
+            position_size_usd = payload.get("position_size_usd")  # AI-calculated USD amount
+            leverage = payload.get("leverage", 1)  # AI-calculated leverage
+            
+            # Fallback to size_pct if position_size_usd not provided (backwards compatibility)
             size_pct = payload.get("size_pct", 0.1)
+            
             source = payload.get("source", "UNKNOWN")
             confidence = payload.get("confidence", 0.0)
-            leverage = payload.get("leverage", 10)
             
             self.logger.info(
-                "[trade_intent] Received trade intent",
+                "[trade_intent] Received AI trade intent",
                 symbol=symbol,
                 side=side,
-                size_pct=size_pct,
+                position_size_usd=position_size_usd,
+                leverage=leverage,
+                size_pct=size_pct if not position_size_usd else "N/A",
                 source=source,
                 confidence=confidence,
                 trace_id=trace_id,
@@ -74,11 +82,20 @@ class TradeIntentSubscriber:
                 )
                 return
             
-            # Get account balance
-            balance = await self.execution_adapter.get_cash_balance()
-            
-            # Calculate position size
-            position_size_usd = balance * size_pct
+            # Calculate position size from AI or fallback to % of balance
+            if position_size_usd:
+                # Use AI-calculated position size (PREFERRED)
+                pass
+            else:
+                # Fallback: Calculate from balance percentage
+                balance = await self.execution_adapter.get_cash_balance()
+                position_size_usd = balance * size_pct
+                self.logger.warning(
+                    "[trade_intent] No AI position_size_usd, using fallback calculation",
+                    balance=balance,
+                    size_pct=size_pct,
+                    calculated=position_size_usd,
+                )
             
             # Calculate quantity (approximate)
             # This should be more sophisticated in production
