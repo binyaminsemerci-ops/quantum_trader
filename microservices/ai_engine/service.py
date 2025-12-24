@@ -1529,30 +1529,41 @@ class AIEngineService:
                     timestamp=datetime.now(timezone.utc).isoformat()
                 ).dict())
             
-            # Step 3: RL Position Sizing
-            position_size_usd = 200.0  # Increased for BTC minimum quantity (0.001 BTC * $107k = $107)
-            leverage = 1
-            tp_percent = 0.06  # 6%
-            sl_percent = 0.025  # 2.5%
+            # Step 3: RL Position Sizing (position_size_usd ONLY)
+            # NOTE: Leverage skal beregnes av ExitBrain v3.5 (ILF), ikke her!
+            position_size_usd = 200.0  # Default fallback
+            leverage = 1  # Placeholder (ExitBrain overstyrer)
+            tp_percent = 0.06  # 6% (ExitBrain overstyrer)
+            sl_percent = 0.025  # 2.5% (ExitBrain overstyrer)
             
-            # TEMPORARY: Bypass RL Sizing to simplify testing
-            # TODO: Re-enable once basic signal flow is working
-            if False and self.rl_sizing_agent:  # Disabled temporarily
+            # 🔥 AI-DETERMINED POSITION SIZE (RL Agent)
+            if self.rl_sizing_agent:
                 logger.debug(f"[AI-ENGINE] Calculating position size for {symbol}...")
                 
-                # TODO: Get portfolio state from execution-service
+                # Get ATR from features (for volatility-based sizing)
+                atr_value = features.get("atr", 0.02)  # Default 2% if not available
+                atr_pct = atr_value  # Already in percentage format
+                
+                # TODO: Get real portfolio state from execution-service
                 portfolio_exposure = 0.0
                 
+                # TODO: Get real account equity from execution-service
+                equity_usd = 10000.0  # Default $10K account
+                
                 sizing_decision = await asyncio.to_thread(
-                    self.rl_sizing_agent.decide_size,
+                    self.rl_sizing_agent.decide_sizing,  # ✅ FIXED: decide_sizing (not decide_size)
                     symbol=symbol,
                     confidence=ensemble_confidence,
-                    regime=regime,
-                    portfolio_exposure=portfolio_exposure
+                    atr_pct=atr_pct,  # ✅ ADDED: ATR percentage
+                    current_exposure_pct=portfolio_exposure,  # ✅ FIXED: parameter name
+                    equity_usd=equity_usd,  # ✅ ADDED: account equity
+                    adx=None,  # Optional: ADX indicator (TODO: add if available)
+                    trend_strength=None  # Optional: trend strength (TODO: calculate)
                 )
                 
                 position_size_usd = sizing_decision.position_size_usd
-                leverage = int(sizing_decision.leverage)
+                # NOTE: Leverage fra RL Agent ignoreres - ExitBrain v3.5 (ILF) bestemmer leverage!
+                leverage = 1  # Placeholder for trade.intent (eksekutor overstyrer med ExitBrain)
                 tp_percent = sizing_decision.tp_percent
                 sl_percent = sizing_decision.sl_percent
                 
@@ -1606,18 +1617,25 @@ class AIEngineService:
             await self.event_bus.publish("ai.decision.made", decision.dict())
             
             # Step 6: Publish trade.intent for Execution Service
+            # NOTE: ExitBrain v3.5 vil beregne leverage via ILF basert på metadata
             trade_intent_payload = {
                 "symbol": symbol,
                 "side": action.upper(),
                 "position_size_usd": position_size_usd,
-                "leverage": leverage,
+                "leverage": leverage,  # Placeholder - ExitBrain overstyrer
                 "entry_price": current_price,
-                "stop_loss": decision.stop_loss,
-                "take_profit": decision.take_profit,
+                "stop_loss": decision.stop_loss,  # Preliminary - ExitBrain overstyrer
+                "take_profit": decision.take_profit,  # Preliminary - ExitBrain overstyrer
                 "confidence": ensemble_confidence,
                 "timestamp": decision.timestamp,
                 "model": "ensemble",
-                "meta_strategy": strategy_id.value
+                "meta_strategy": strategy_id.value,
+                # 🔥 METADATA FOR EXITBRAIN v3.5 (ILF + AdaptiveLeverageEngine)
+                "atr_value": features.get("atr", 0.02),
+                "volatility_factor": features.get("volatility_factor", 1.0),
+                "exchange_divergence": features.get("exchange_divergence", 0.0),
+                "funding_rate": features.get("funding_rate", 0.0),
+                "regime": regime.value if regime != MarketRegime.UNKNOWN else "unknown"
             }
             print(f"[DEBUG] About to publish trade.intent: {trade_intent_payload}")
             await self.event_bus.publish("trade.intent", trade_intent_payload)
