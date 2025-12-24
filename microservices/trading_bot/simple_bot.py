@@ -76,6 +76,59 @@ class SimpleTradingBot:
             f"RL_Agent={'ACTIVE' if self.rl_sizing_agent else 'DISABLED'}"
         )
     
+    async def _get_latest_regime(self, symbol: str) -> str:
+        """
+        Get latest regime from Redis stream.
+        
+        Note: Meta regime is GLOBAL (not per-symbol). Represents overall
+        market conditions.
+        
+        Returns:
+            Regime string: RANGE, TREND, BULL, BEAR, NORMAL, or UNKNOWN
+        """
+        if not self.event_bus or "redis" not in self.event_bus:
+            return "UNKNOWN"
+        
+        try:
+            redis_client = self.event_bus["redis"]
+            
+            # Read last regime event (global, not symbol-specific)
+            regime_events = await redis_client.xrevrange(
+                b"quantum:stream:meta.regime",
+                count=1
+            )
+            
+            if not regime_events:
+                return "UNKNOWN"
+            
+            # Parse the most recent regime event
+            event_id, event_data = regime_events[0]
+            
+            try:
+                # Direct format: {b'regime': b'RANGE', b'volatility': ..., ...}
+                if b'regime' in event_data:
+                    regime = event_data[b'regime'].decode()
+                    confidence = float(event_data.get(b'confidence', b'0').decode())
+                    logger.debug(
+                        f"[TRADING-BOT] Market regime: {regime} (confidence={confidence:.2f})"
+                    )
+                    return regime
+                
+                # Fallback: payload format
+                if b'payload' in event_data:
+                    import json
+                    payload = json.loads(event_data[b'payload'].decode())
+                    return payload.get("regime", "UNKNOWN")
+                
+            except Exception as parse_err:
+                logger.warning(f"[TRADING-BOT] Could not parse regime: {parse_err}")
+            
+            return "UNKNOWN"
+            
+        except Exception as e:
+            logger.warning(f"[TRADING-BOT] Failed to get regime: {e}")
+            return "UNKNOWN"
+    
     async def start(self):
         """Start trading bot loop."""
         if self.running:
@@ -452,6 +505,9 @@ class SimpleTradingBot:
                 except Exception as rl_error:
                     logger.warning(f"[TRADING-BOT] RL Agent failed: {rl_error}, using defaults")
             
+            # Get current market regime from meta.regime stream
+            regime = await self._get_latest_regime(symbol)
+            
             # Build trade intent event with ILF metadata
             signal = {
                 "symbol": symbol,
@@ -470,7 +526,7 @@ class SimpleTradingBot:
                 "volatility_factor": volatility_factor,
                 "exchange_divergence": exchange_divergence,
                 "funding_rate": funding_rate,
-                "regime": "unknown"  # TODO: Get from regime detector
+                "regime": regime  # ✅ FIXED: Now reads from quantum:stream:meta.regime
             }
             
             # Skip HOLD signals

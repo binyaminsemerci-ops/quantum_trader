@@ -286,6 +286,98 @@ async def initialize_phase3():
 
 
 # ============================================================================
+# PHASE 3.5: TRADE INTENT SUBSCRIBER - LIVE EXECUTION PIPELINE
+# ============================================================================
+
+@app.on_event("startup")
+async def initialize_trade_intent_subscriber():
+    """
+    Initialize TradeIntentSubscriber for live trade execution.
+    
+    SAFE START MODE:
+    - Only processes NEW trade.intent events (not historical backlog)
+    - Uses XREADGROUP with ">" to skip existing messages
+    - SAFE_DRAIN mode can be enabled via env var for controlled backlog processing
+    """
+    try:
+        logger.info("[TRADE_INTENT] 🚀 Initializing Trade Intent Subscriber...")
+        
+        # Verify EventBus is available
+        event_bus = getattr(app.state, "event_bus", None)
+        if not event_bus:
+            logger.error("[TRADE_INTENT] ❌ EventBus not available - cannot start subscriber")
+            app.state.trade_intent_subscriber = None
+            return
+        
+        # Import dependencies
+        from backend.events.subscribers.trade_intent_subscriber import TradeIntentSubscriber
+        from backend.services.execution.execution import BinanceFuturesExecutionAdapter
+        from backend.services.risk.risk_guard import RiskGuardService
+        
+        # Initialize execution adapter
+        try:
+            execution_adapter = BinanceFuturesExecutionAdapter()
+            logger.info("[TRADE_INTENT] ✅ Execution adapter initialized")
+        except Exception as e:
+            logger.error(f"[TRADE_INTENT] ❌ Failed to initialize execution adapter: {e}", exc_info=True)
+            app.state.trade_intent_subscriber = None
+            return
+        
+        # Get optional risk guard
+        risk_guard = getattr(app.state, "safety_governor", None)
+        
+        # Initialize TradeIntentSubscriber
+        subscriber = TradeIntentSubscriber(
+            event_bus=event_bus,
+            execution_adapter=execution_adapter,
+            risk_guard=risk_guard,
+            logger_instance=logger
+        )
+        
+        # Store reference
+        app.state.trade_intent_subscriber = subscriber
+        
+        # Start subscriber (subscribes to EventBus, will process new events only)
+        await subscriber.start()
+        
+        # Check mode
+        safe_drain_mode = os.getenv("TRADE_INTENT_SAFE_DRAIN", "false").lower() == "true"
+        max_age_minutes = int(os.getenv("TRADE_INTENT_MAX_AGE_MINUTES", "5"))
+        
+        logger.info("[TRADE_INTENT] ✅ Subscriber started successfully")
+        
+        if safe_drain_mode:
+            logger.warning("[TRADE_INTENT] 🛡️ SAFE_DRAIN mode ENABLED - will NOT execute trades")
+        else:
+            logger.info(f"[TRADE_INTENT] ⚡ LIVE mode - executing trades within {max_age_minutes} min window")
+        
+        logger.info("[TRADE_INTENT] 📡 Listening for trade.intent events...")
+        logger.info("[TRADE_INTENT] 🎯 ILF integration ACTIVE (ExitBrain v3.5)")
+        
+        if risk_guard:
+            logger.info("[TRADE_INTENT] ✅ Risk Guard: CONNECTED")
+        else:
+            logger.info("[TRADE_INTENT] ⚠️  Risk Guard: Not available")
+        
+    except Exception as e:
+        logger.error(f"[TRADE_INTENT] ❌ Failed to initialize: {e}", exc_info=True)
+        app.state.trade_intent_subscriber = None
+
+
+@app.on_event("shutdown")
+async def shutdown_trade_intent_subscriber():
+    """Gracefully stop TradeIntentSubscriber on shutdown"""
+    try:
+        subscriber = getattr(app.state, "trade_intent_subscriber", None)
+        if subscriber:
+            logger.info("[TRADE_INTENT] ⏹️  Stopping subscriber...")
+            await subscriber.stop()
+            logger.info("[TRADE_INTENT] ✅ Subscriber stopped")
+    except Exception as e:
+        logger.error(f"[TRADE_INTENT] Error during shutdown: {e}", exc_info=True)
+
+
+# ============================================================================
 # PHASE 4: ADAPTIVE POLICY REINFORCEMENT LAYER (APRL)
 # ============================================================================
 
