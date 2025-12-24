@@ -3,6 +3,7 @@ Trade Intent Subscriber
 Consumes trade.intent events from orchestrators and routes to execution.
 """
 import logging
+import traceback
 from typing import Dict, Any, Optional
 import asyncio
 import redis.asyncio as redis
@@ -91,7 +92,14 @@ class TradeIntentSubscriber:
             # 🛡️ SAFE_DRAIN: Check event age to avoid executing stale trades
             import time
             current_time_ms = int(time.time() * 1000)
-            event_time_ms = timestamp if timestamp else current_time_ms
+            # Convert timestamp to int if it's a string
+            if isinstance(timestamp, str):
+                try:
+                    event_time_ms = int(timestamp)
+                except (ValueError, TypeError):
+                    event_time_ms = current_time_ms
+            else:
+                event_time_ms = int(timestamp) if timestamp else current_time_ms
             age_minutes = (current_time_ms - event_time_ms) / 1000 / 60
             
             is_stale = age_minutes > self.max_age_minutes
@@ -100,19 +108,13 @@ class TradeIntentSubscriber:
             if should_skip_execution:
                 if self.safe_drain_mode:
                     self.logger.info(
-                        f"[trade_intent] 🛡️ SAFE_DRAIN: Skipping execution (mode=DRAIN)",
-                        symbol=symbol,
-                        side=side,
-                        age_minutes=f"{age_minutes:.1f}",
-                        trace_id=trace_id,
+                        f"[trade_intent] 🛡️ SAFE_DRAIN: Skipping execution (mode=DRAIN) | "
+                        f"symbol={symbol} side={side} age_minutes={age_minutes:.1f} trace_id={trace_id}"
                     )
                 else:
                     self.logger.warning(
-                        f"[trade_intent] ⏰ Skipping STALE trade (age={age_minutes:.1f} min > max={self.max_age_minutes} min)",
-                        symbol=symbol,
-                        side=side,
-                        timestamp=event_time_ms,
-                        trace_id=trace_id,
+                        f"[trade_intent] ⏰ Skipping STALE trade (age={age_minutes:.1f} min > max={self.max_age_minutes} min) | "
+                        f"symbol={symbol} side={side} timestamp={event_time_ms} trace_id={trace_id}"
                     )
                 
                 # Mark as handled WITHOUT executing
@@ -148,26 +150,16 @@ class TradeIntentSubscriber:
             confidence = payload.get("confidence", 0.0)
             
             self.logger.info(
-                "[trade_intent] Received AI trade intent with ILF metadata",
-                symbol=symbol,
-                side=side,
-                position_size_usd=position_size_usd,
-                leverage=leverage,
-                volatility_factor=volatility_factor,
-                atr_value=atr_value,
-                size_pct=size_pct if not position_size_usd else "N/A",
-                source=source,
-                confidence=confidence,
-                trace_id=trace_id,
+                f"[trade_intent] Received AI trade intent with ILF metadata | "
+                f"symbol={symbol} side={side} position_size_usd={position_size_usd} "
+                f"leverage={leverage} volatility_factor={volatility_factor} atr_value={atr_value} "
+                f"size_pct={'N/A' if position_size_usd else size_pct} source={source} "
+                f"confidence={confidence} trace_id={trace_id}"
             )
             
             # Skip HOLD/FLAT actions
             if side in ["HOLD", "FLAT"]:
-                self.logger.info(
-                    "[trade_intent] Skipping HOLD/FLAT action",
-                    side=side,
-                    trace_id=trace_id,
-                )
+                self.logger.info(f"[trade_intent] Skipping HOLD/FLAT action | side={side} trace_id={trace_id}")
                 return
             
             # Calculate position size from AI or fallback to % of balance
@@ -216,20 +208,18 @@ class TradeIntentSubscriber:
                 await self.execution_adapter.set_leverage(symbol, leverage)
             except Exception as e:
                 self.logger.error(
-                    "[trade_intent] Failed to set leverage",
-                    symbol=symbol,
-                    leverage=leverage,
-                    error=str(e),
-                    trace_id=trace_id,
+                    f"[trade_intent] Failed to set leverage | "
+                    f"symbol={symbol} leverage={leverage} error={str(e)} trace_id={trace_id}"
                 )
             
             # Submit order
+            order_result = None
             try:
                 order_result = await self.execution_adapter.submit_order(
                     symbol=symbol,
                     side=order_side,
                     quantity=quantity,
-                    order_type="MARKET",
+                    price=current_price,  # Required even for MARKET orders
                 )
                 
                 self.logger.info(
@@ -240,80 +230,80 @@ class TradeIntentSubscriber:
                     order_result=order_result,
                     trace_id=trace_id,
                 )
-                
-                # 🔥 COMPUTE ADAPTIVE TP/SL LEVELS using ILF metadata
-                if self.exitbrain_v35 and volatility_factor is not None and order_result:
-                    try:
-                        adaptive_levels = self.exitbrain_v35.compute_adaptive_levels(
-                            leverage=leverage,
-                            volatility_factor=volatility_factor,
-                            confidence=confidence
-                        )
-                        
-                        self.logger.info(
-                            "[trade_intent] 🎯 ExitBrain v3.5 Adaptive Levels Calculated",
-                            symbol=symbol,
-                            leverage=leverage,
-                            volatility_factor=volatility_factor,
-                            tp1=f"{adaptive_levels['tp1']:.3%}",
-                            tp2=f"{adaptive_levels['tp2']:.3%}",
-                            tp3=f"{adaptive_levels['tp3']:.3%}",
-                            sl=f"{adaptive_levels['sl']:.3%}",
-                            lsf=adaptive_levels['LSF'],
-                            harvest_scheme=adaptive_levels['harvest_scheme'],
-                            adjustment=adaptive_levels['adjustment'],
-                            trace_id=trace_id,
-                        )
-                        
-                        # Store ILF metadata in Redis for ExitBrain to use
-                        await self._store_ilf_metadata(
-                            symbol=symbol,
-                            order_id=str(order_result.get("orderId")),
-                            ilf_metadata={
+            except Exception as order_error:
+                self.logger.error(
+                    f"[trade_intent] Failed to submit order | "
+                    f"symbol={symbol} side={order_side} quantity={quantity} "
+                    f"error={str(order_error)} trace_id={trace_id}"
+                )
+                self.logger.error(traceback.format_exc())
+            
+            # 🔥 COMPUTE ADAPTIVE TP/SL LEVELS using ILF metadata
+            # (ALWAYS compute, even if order submission failed - for testing/resilience)
+            if self.exitbrain_v35 and volatility_factor is not None:
+                try:
+                    adaptive_levels = self.exitbrain_v35.compute_adaptive_levels(
+                        symbol=symbol,
+                        leverage=leverage,
+                        volatility_factor=volatility_factor,
+                        confidence=confidence
+                    )
+                    
+                    self.logger.info(
+                        f"[trade_intent] 🎯 ExitBrain v3.5 Adaptive Levels Calculated | "
+                        f"symbol={symbol} leverage={leverage} volatility_factor={volatility_factor} "
+                        f"tp1={adaptive_levels['tp1']:.3%} tp2={adaptive_levels['tp2']:.3%} "
+                        f"tp3={adaptive_levels['tp3']:.3%} sl={adaptive_levels['sl']:.3%} "
+                        f"lsf={adaptive_levels['LSF']} harvest_scheme={adaptive_levels['harvest_scheme']} "
+                        f"avg_pnl={adaptive_levels.get('avg_pnl_last_20', 0.0):.3f} trace_id={trace_id}"
+                    )
+                    
+                    # Store ILF metadata in Redis for ExitBrain to use
+                    # (order_id may be None if submission failed)
+                    order_id_str = str(order_result.get("orderId")) if order_result else "SIMULATED"
+                    await self._store_ilf_metadata(
+                        symbol=symbol,
+                        order_id=order_id_str,
+                        ilf_metadata={
+                            "atr_value": atr_value,
+                            "volatility_factor": volatility_factor,
+                            "exchange_divergence": exchange_divergence,
+                            "funding_rate": funding_rate,
+                            "regime": regime,
+                        },
+                        adaptive_levels=adaptive_levels
+                    )
+                    
+                    # Publish event for ExitBrain to consume
+                    await self.event_bus.publish(
+                        "exitbrain.adaptive_levels",
+                        {
+                            "symbol": symbol,
+                            "order_id": order_id_str,
+                            "leverage": leverage,
+                            "volatility_factor": volatility_factor,
+                            "adaptive_levels": adaptive_levels,
+                            "ilf_metadata": {
                                 "atr_value": atr_value,
-                                "volatility_factor": volatility_factor,
                                 "exchange_divergence": exchange_divergence,
                                 "funding_rate": funding_rate,
                                 "regime": regime,
-                            },
-                            adaptive_levels=adaptive_levels
-                        )
-                        
-                        # Publish event for ExitBrain to consume
-                        await self.event_bus.publish(
-                            "exitbrain.adaptive_levels",
-                            {
-                                "symbol": symbol,
-                                "order_id": order_result.get("orderId"),
-                                "leverage": leverage,
-                                "volatility_factor": volatility_factor,
-                                "adaptive_levels": adaptive_levels,
-                                "ilf_metadata": {
-                                    "atr_value": atr_value,
-                                    "exchange_divergence": exchange_divergence,
-                                    "funding_rate": funding_rate,
-                                    "regime": regime,
-                                }
-                            },
-                            trace_id=trace_id,
-                        )
-                        
-                    except Exception as e:
-                        self.logger.error(
-                            "[trade_intent] ❌ Failed to compute adaptive levels",
-                            symbol=symbol,
-                            leverage=leverage,
-                            volatility_factor=volatility_factor,
-                            error=str(e),
-                            trace_id=trace_id,
-                            exc_info=True,
+                            }
+                        },
+                        trace_id=trace_id,
+                    )
+                    
+                except Exception as e:
+                    self.logger.error(
+                        f"[trade_intent] ❌ Failed to compute adaptive levels | "
+                        f"symbol={symbol} leverage={leverage} volatility_factor={volatility_factor} "
+                            f"error={str(e)} trace_id={trace_id}",
+                            exc_info=True
                         )
                 else:
                     self.logger.warning(
-                        "[trade_intent] ⚠️ No ILF metadata available, skipping adaptive levels",
-                        symbol=symbol,
-                        volatility_factor=volatility_factor,
-                        trace_id=trace_id,
+                        f"[trade_intent] ⚠️ No ILF metadata available, skipping adaptive levels | "
+                        f"symbol={symbol} volatility_factor={volatility_factor} trace_id={trace_id}"
                     )
                 
                 # Publish trade.executed event
@@ -334,40 +324,14 @@ class TradeIntentSubscriber:
                 # Update metrics store (mark as executed)
                 # This is a simplified approach - in production, should track by trace_id
                 self.logger.info(
-                    "[trade_intent] Trade executed successfully",
-                    symbol=symbol,
-                    source=source,
-                    trace_id=trace_id,
-                )
-                
-            except Exception as e:
-                self.logger.error(
-                    "[trade_intent] Failed to submit order",
-                    symbol=symbol,
-                    side=order_side,
-                    quantity=quantity,
-                    error=str(e),
-                    trace_id=trace_id,
-                    exc_info=True,
-                )
-                
-                # Publish trade.failed event
-                await self.event_bus.publish(
-                    "trade.failed",
-                    {
-                        "symbol": symbol,
-                        "side": side,
-                        "source": source,
-                        "error": str(e),
-                    },
-                    trace_id=trace_id,
+                    f"[trade_intent] Trade executed successfully | "
+                    f"symbol={symbol} source={source} trace_id={trace_id}"
                 )
         
         except Exception as e:
             self.logger.error(
-                "[trade_intent] Error handling trade intent",
-                error=str(e),
-                trace_id=payload.get("trace_id"),
+                f"[trade_intent] Error handling trade intent | "
+                f"error={str(e)} trace_id={payload.get('trace_id')}",
                 exc_info=True,
             )
     
@@ -379,11 +343,7 @@ class TradeIntentSubscriber:
                 return float(ticker.get("price", 0))
             return None
         except Exception as e:
-            self.logger.error(
-                "[trade_intent] Failed to get ticker price",
-                symbol=symbol,
-                error=str(e),
-            )
+            self.logger.error(f"[trade_intent] Failed to get ticker price | symbol={symbol} error={str(e)}")
             return None
     
     async def _store_ilf_metadata(
@@ -420,24 +380,24 @@ class TradeIntentSubscriber:
                 "tp3": adaptive_levels.get("tp3", 0),
                 "sl": adaptive_levels.get("sl", 0),
                 "lsf": adaptive_levels.get("LSF", 1.0),
-                "adjustment": adaptive_levels.get("adjustment", 1.0),
+                "avg_pnl_last_20": adaptive_levels.get("avg_pnl_last_20", 0.0),
             }
+            
+            # Filter out None values to avoid Redis DataError
+            data = {k: v for k, v in data.items() if v is not None}
             
             # Store in Redis
             await self.redis.hset(redis_key, mapping=data)
             await self.redis.expire(redis_key, 86400)  # Expire after 24 hours
             
             self.logger.info(
-                "[trade_intent] ✅ ILF metadata stored in Redis",
-                redis_key=redis_key,
-                volatility_factor=ilf_metadata.get("volatility_factor"),
+                f"[trade_intent] ✅ ILF metadata stored in Redis | "
+                f"redis_key={redis_key} volatility_factor={ilf_metadata.get('volatility_factor')}"
             )
             
         except Exception as e:
             self.logger.error(
-                "[trade_intent] Failed to store ILF metadata in Redis",
-                symbol=symbol,
-                order_id=order_id,
-                error=str(e),
-                exc_info=True,
+                f"[trade_intent] Failed to store ILF metadata in Redis | "
+                f"symbol={symbol} order_id={order_id} error={str(e)}",
+                exc_info=True
             )
