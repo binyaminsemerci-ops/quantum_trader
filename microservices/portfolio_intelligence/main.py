@@ -101,6 +101,30 @@ async def root():
     }
 
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Docker and monitoring systems."""
+    from datetime import datetime, timezone
+    
+    # Get service status
+    service_status = "healthy" if service and service._running else "starting"
+    
+    health_data = {
+        "service": "portfolio-intelligence",
+        "status": service_status,
+        "version": settings.VERSION,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Add operational metrics if service is running
+    if service and service._running:
+        if hasattr(service, '_current_snapshot') and service._current_snapshot:
+            health_data["positions_count"] = len(service._current_snapshot.positions)
+            health_data["total_pnl"] = service._current_snapshot.total_pnl
+    
+    return health_data
+
+
 def get_service() -> PortfolioIntelligenceService:
     """Get global service instance."""
     return service
