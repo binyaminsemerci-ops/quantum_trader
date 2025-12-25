@@ -82,6 +82,21 @@ except ImportError as e:
     logger_exit_brain = logging.getLogger(__name__ + ".exit_brain_v3")
     logger_exit_brain.warning(f"[WARNING] Exit Brain v3 not available: {e}")
 
+# [NEW] EXIT BRAIN V3.5: Next-gen exit orchestrator with ILFv2
+EXIT_BRAIN_V35_ENABLED = os.getenv("EXIT_BRAIN_V35_ENABLED", "false").lower() == "true"
+try:
+    import sys
+    sys.path.insert(0, '/app/microservices')
+    from exitbrain_v3_5.exit_brain import ExitBrainV35, SignalContext
+    EXIT_BRAIN_V35_AVAILABLE = True
+    logger_exit_brain_v35 = logging.getLogger(__name__ + ".exit_brain_v35")
+    logger_exit_brain_v35.info(f"✅ [OK] Exit Brain v3.5 available (enabled={EXIT_BRAIN_V35_ENABLED})")
+except ImportError as e:
+    EXIT_BRAIN_V35_AVAILABLE = False
+    EXIT_BRAIN_V35_ENABLED = False
+    logger_exit_brain_v35 = logging.getLogger(__name__ + ".exit_brain_v35")
+    logger_exit_brain_v35.warning(f"⚠️ [WARNING] Exit Brain v3.5 not available: {e}")
+
 
 class PositionMonitor:
     """
@@ -203,6 +218,18 @@ class PositionMonitor:
         if EXIT_BRAIN_V3_ENABLED and EXIT_BRAIN_V3_AVAILABLE:
             self.exit_router = ExitRouter()
             logger_exit_brain.info("[OK] Exit Router initialized - Exit Brain v3 ACTIVE")
+        
+        # [NEW] EXIT BRAIN V3.5: Initialize next-gen exit brain with ILFv2
+        self.exit_brain_v35 = None
+        if EXIT_BRAIN_V35_ENABLED and EXIT_BRAIN_V35_AVAILABLE:
+            try:
+                self.exit_brain_v35 = ExitBrainV35()
+                logger_exit_brain_v35.info("✅ [OK] Exit Brain v3.5 initialized with Intelligent Leverage Framework v2")
+                if EXIT_BRAIN_V3_ENABLED:
+                    logger_exit_brain_v35.warning("⚠️ [DUAL MODE] Both Exit Brain v3 and v3.5 enabled - v3.5 will override v3 decisions")
+            except Exception as e:
+                logger_exit_brain_v35.error(f"❌ [ERROR] Failed to initialize Exit Brain v3.5: {e}")
+                self.exit_brain_v35 = None
             
             # Initialize Dynamic Executor for active TP/SL monitoring
             try:
@@ -2127,6 +2154,15 @@ class PositionMonitor:
                 logger_exit_brain.warning("[EXIT_BRAIN_V3]   • SL ratcheting after TP hits")
             except Exception as e:
                 logger_exit_brain.error(f"[EXIT_BRAIN_V3] ❌ Failed to start Dynamic Executor: {e}", exc_info=True)
+        
+        # [NEW] Announce Exit Brain v3.5 status
+        if self.exit_brain_v35:
+            logger_exit_brain_v35.warning("🚀 [EXIT_BRAIN_V3.5] ✅ ACTIVE - Intelligent Leverage Framework v2")
+            logger_exit_brain_v35.warning("[EXIT_BRAIN_V3.5] 🎯 Enhanced features:")
+            logger_exit_brain_v35.warning("[EXIT_BRAIN_V3.5]   • Adaptive leverage scaling with ILFv2")
+            logger_exit_brain_v35.warning("[EXIT_BRAIN_V3.5]   • Cross-exchange intelligence")
+            logger_exit_brain_v35.warning("[EXIT_BRAIN_V3.5]   • PnL feedback integration")
+            logger_exit_brain_v35.warning("[EXIT_BRAIN_V3.5]   • Advanced exit plan optimization")
         
         # [FIX] CRITICAL: Detect position mode on startup (One-Way vs Hedge Mode)
         try:

@@ -296,6 +296,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - EXIT_BRAIN_V3_ENABLED=true
+      - EXIT_BRAIN_V35_ENABLED=true
       - POSITION_CHECK_INTERVAL=10
       - LOG_LEVEL=INFO
       - BINANCE_API_KEY=${BINANCE_API_KEY}
