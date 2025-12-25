@@ -207,11 +207,16 @@ class TradeIntentSubscriber:
             
             quantity = position_size_usd / current_price
             
-            # Determine order side
-            if side == "LONG":
+            # Determine order side (handle both formats)
+            if side in ("LONG", "BUY"):
                 order_side = "BUY"
-            elif side == "SHORT":
+            elif side in ("SHORT", "SELL"):
                 order_side = "SELL"
+            elif side in ("FLAT", "HOLD"):
+                self.logger.info(
+                    f"[trade_intent] Skipping HOLD/FLAT action | symbol={symbol} trace_id={trace_id}"
+                )
+                return
             else:
                 self.logger.warning(
                     f"[trade_intent] Unknown side: {side} | trace_id={trace_id}"
