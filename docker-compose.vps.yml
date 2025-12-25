@@ -614,14 +614,13 @@ services:
       - ./nginx_rl_proxy.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - rl-dashboard
+    networks:
       - quantum_trader
     restart: always
 
   rl-dashboard:
     build: ./microservices/rl_dashboard
     container_name: quantum_rl_dashboard
-    ports:
-      - "8080:8025"
     environment:
       - REDIS_HOST=redis
       - DASHBOARD_PORT=8025
