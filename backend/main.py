@@ -239,17 +239,17 @@ async def initialize_phase3():
             # Initialize execution adapter
             api_key = os.getenv("BINANCE_API_KEY")
             api_secret = os.getenv("BINANCE_API_SECRET")
-            use_testnet = os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true"
             
             if not api_key or not api_secret:
                 logger.warning("[PHASE 3B] ⚠️ Missing BINANCE_API_KEY/SECRET - subscriber will skip execution")
                 execution_adapter = None
             else:
+                # BinanceFuturesExecutionAdapter reads testnet config from STAGING_MODE or BINANCE_TESTNET env vars
                 execution_adapter = BinanceFuturesExecutionAdapter(
                     api_key=api_key,
-                    api_secret=api_secret,
-                    testnet=use_testnet
+                    api_secret=api_secret
                 )
+                use_testnet = os.getenv("STAGING_MODE", "false").lower() == "true" or os.getenv("BINANCE_TESTNET", "false").lower() == "true"
                 logger.info(f"[PHASE 3B] ✅ Execution adapter initialized (testnet={use_testnet})")
             
             # Initialize risk guard (optional)
@@ -316,7 +316,18 @@ async def initialize_trade_intent_subscriber():
         
         # Initialize execution adapter
         try:
-            execution_adapter = BinanceFuturesExecutionAdapter()
+            api_key = os.getenv("BINANCE_API_KEY")
+            api_secret = os.getenv("BINANCE_API_SECRET")
+            
+            if not api_key or not api_secret:
+                logger.warning("[TRADE_INTENT] ⚠️ Missing BINANCE_API_KEY/SECRET")
+                app.state.trade_intent_subscriber = None
+                return
+                
+            execution_adapter = BinanceFuturesExecutionAdapter(
+                api_key=api_key,
+                api_secret=api_secret
+            )
             logger.info("[TRADE_INTENT] ✅ Execution adapter initialized")
         except Exception as e:
             logger.error(f"[TRADE_INTENT] ❌ Failed to initialize execution adapter: {e}", exc_info=True)
