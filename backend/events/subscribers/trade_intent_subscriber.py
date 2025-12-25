@@ -199,9 +199,8 @@ class TradeIntentSubscriber:
             current_price = await self._get_current_price(symbol)
             if not current_price:
                 self.logger.error(
-                    "[trade_intent] Failed to get current price",
-                    symbol=symbol,
-                    trace_id=trace_id,
+                    f"[trade_intent] Failed to get current price | "
+                    f"symbol={symbol} trace_id={trace_id}"
                 )
                 return
             
@@ -243,12 +242,9 @@ class TradeIntentSubscriber:
                 )
                 
                 self.logger.info(
-                    "[trade_intent] Order submitted",
-                    symbol=symbol,
-                    side=order_side,
-                    quantity=quantity,
-                    order_result=order_result,
-                    trace_id=trace_id,
+                    f"[trade_intent] Order submitted | "
+                    f"symbol={symbol} side={order_side} quantity={quantity} "
+                    f"order_result={order_result} trace_id={trace_id}"
                 )
             except Exception as order_error:
                 self.logger.error(
