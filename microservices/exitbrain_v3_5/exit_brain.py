@@ -99,6 +99,11 @@ class ExitBrainV35:
         self.min_sl_pct = self.config.get("min_sl_pct", 0.0015)  # 0.15%
         self.max_sl_pct = self.config.get("max_sl_pct", 0.05)   # 5%
         
+        # Reinforcement Learning - Dynamic reward feedback
+        # When enabled, ExitBrain publishes PnL outcomes to Redis streams
+        # for RL agent to learn optimal TP/SL parameters dynamically
+        self.dynamic_reward = self.config.get("dynamic_reward", True)
+        
         # Statistics
         self.plans_generated = 0
         self.avg_leverage_used = 0.0
@@ -107,6 +112,7 @@ class ExitBrainV35:
             f"[ExitBrain-v3.5] Initialized | "
             f"ILFv2: Enabled | "
             f"AdaptiveLeverage: Enabled | "
+            f"Dynamic Reward: {'Enabled' if self.dynamic_reward else 'Disabled'} | "
             f"Base TP: {self.base_tp_pct*100:.1f}% | "
             f"Base SL: {self.base_sl_pct*100:.1f}%"
         )
@@ -259,7 +265,7 @@ class ExitBrainV35:
         }
         
         # Step 8: Publish to PnL stream (for RL agent feedback)
-        if self.redis:
+        if self.redis and self.dynamic_reward:
             self._publish_pnl_stream(
                 signal=signal,
                 leverage=leverage_calc.leverage,
