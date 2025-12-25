@@ -19,7 +19,7 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes --appendfsync everysec --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --appendfsync everysec --maxmemory 512mb --maxmemory-policy allkeys-lru --notify-keyspace-events Ex
     deploy:
       resources:
         limits:
@@ -599,6 +599,20 @@ services:
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
     volumes:
       - /var/log:/var/log
+    depends_on:
+      - redis
+    networks:
+      - quantum_trader
+    restart: always
+
+  rl-dashboard:
+    build: ./microservices/rl_dashboard
+    container_name: quantum_rl_dashboard
+    ports:
+      - "8025:8025"
+    environment:
+      - REDIS_HOST=redis
+      - DASHBOARD_PORT=8025
     depends_on:
       - redis
     networks:
