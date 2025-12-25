@@ -595,13 +595,24 @@ services:
     build: ./microservices/rl_monitor_daemon
     container_name: quantum_rl_monitor
     environment:
+    environment:
       - REDIS_HOST=redis
-      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
-    volumes:
-      - /var/log:/var/log
+      - DASHBOARD_PORT=8025
     depends_on:
       - redis
     networks:
+      - quantum_trader
+    restart: always
+
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: quantum_nginx_proxy
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./nginx_rl_proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - rl-dashboard
       - quantum_trader
     restart: always
 
