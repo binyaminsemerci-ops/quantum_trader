@@ -86,7 +86,24 @@ class TradeIntentSubscriber:
         try:
             trace_id = payload.get("trace_id", "")
             symbol = payload.get("symbol", "BTCUSDT")
-            side = payload.get("side", "HOLD")
+            
+            # 🔥 HANDLE BOTH OLD AND NEW EVENT FORMATS
+            # Old format: direction=LONG/SHORT (from AI Engine)
+            # New format: side=BUY/SELL (from Trading Bot)
+            direction = payload.get("direction")  # Old format
+            side = payload.get("side")  # New format
+            
+            # Map direction→side if needed
+            if direction and not side:
+                side_mapping = {
+                    "LONG": "BUY",
+                    "SHORT": "SELL",
+                    "FLAT": "HOLD",
+                }
+                side = side_mapping.get(direction, "HOLD")
+            elif not side:
+                side = "HOLD"
+            
             timestamp = payload.get("timestamp")  # Event creation timestamp
             
             # 🛡️ SAFE_DRAIN: Check event age to avoid executing stale trades
@@ -197,9 +214,7 @@ class TradeIntentSubscriber:
                 order_side = "SELL"
             else:
                 self.logger.warning(
-                    "[trade_intent] Unknown side",
-                    side=side,
-                    trace_id=trace_id,
+                    f"[trade_intent] Unknown side: {side} | trace_id={trace_id}"
                 )
                 return
             
