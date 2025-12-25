@@ -609,7 +609,7 @@ services:
     build: ./microservices/rl_dashboard
     container_name: quantum_rl_dashboard
     ports:
-      - "8025:8025"
+      - "8080:8025"
     environment:
       - REDIS_HOST=redis
       - DASHBOARD_PORT=8025
