@@ -595,9 +595,10 @@ services:
     build: ./microservices/rl_monitor_daemon
     container_name: quantum_rl_monitor
     environment:
-    environment:
       - REDIS_HOST=redis
-      - DASHBOARD_PORT=8025
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+    volumes:
+      - /var/log:/var/log
     depends_on:
       - redis
     networks:
