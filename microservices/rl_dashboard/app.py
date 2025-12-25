@@ -38,4 +38,4 @@ def latest():
 
 if __name__ == "__main__":
     threading.Thread(target=redis_listener, daemon=True).start()
-    socketio.run(app, host="0.0.0.0", port=PORT)
+    socketio.run(app, host="0.0.0.0", port=PORT, allow_unsafe_werkzeug=True)
