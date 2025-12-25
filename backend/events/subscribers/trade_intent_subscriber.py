@@ -188,10 +188,8 @@ class TradeIntentSubscriber:
                 balance = await self.execution_adapter.get_cash_balance()
                 position_size_usd = balance * size_pct
                 self.logger.warning(
-                    "[trade_intent] No AI position_size_usd, using fallback calculation",
-                    balance=balance,
-                    size_pct=size_pct,
-                    calculated=position_size_usd,
+                    f"[trade_intent] No AI position_size_usd, using fallback calculation | "
+                    f"balance={balance} size_pct={size_pct} calculated={position_size_usd}"
                 )
             
             # Calculate quantity (approximate)
