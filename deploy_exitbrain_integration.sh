@@ -1,18 +1,24 @@
 #!/bin/bash
+# Deploy ExitBrain v3.5 Integration to Position Monitor
+
 set -e
 cd ~/quantum_trader
 
-echo "🚀 Starting ExitBrain Integration (Module Mode)..."
+CONTAINER="quantum_position_monitor"
+SERVICE_DIR=~/quantum_trader/microservices/position_monitor
 
-# 1️⃣ Pull latest changes
-git pull origin main
+echo "🔄 Deploying ExitBrain v3.5 Integration..."
+echo "========================================="
 
-# 2️⃣ Stop and remove exitbrain container if exists
-if docker ps -a --format '{{.Names}}' | grep -q 'exitbrain'; then
-  echo "🧹 Stopping and removing exitbrain-v3-5 container..."
-  docker compose -f docker-compose.vps.yml stop exitbrain-v3-5 || true
-  docker compose -f docker-compose.vps.yml rm -f exitbrain-v3-5 || true
+# 1️⃣ Backup original main.py
+if [ -f "$SERVICE_DIR/main.py" ]; then
+    echo "📦 Backing up original main.py..."
+    cp "$SERVICE_DIR/main.py" "$SERVICE_DIR/main.py.backup"
 fi
+
+# 2️⃣ Replace main.py with ExitBrain integrated version
+echo "📝 Deploying new main.py with ExitBrain v3.5..."
+cp "$SERVICE_DIR/main_exitbrain.py" "$SERVICE_DIR/main.py"
 
 # 3️⃣ Verify exitbrain_v3_5 module path
 if [ -d "microservices/exitbrain_v3_5" ]; then
@@ -23,16 +29,22 @@ else
 fi
 
 # 4️⃣ Rebuild and restart position-monitor
-echo "🔁 Rebuilding and restarting position-monitor..."
+echo "🔁 Rebuilding position-monitor with new code..."
 docker compose -f docker-compose.vps.yml build position-monitor
 docker compose -f docker-compose.vps.yml up -d position-monitor
 
-# 5️⃣ Health check
-echo "⏳ Waiting 15 seconds for startup..."
+# 5️⃣ Wait for container to be healthy
+echo "⏳ Waiting 15 seconds for container to restart..."
 sleep 15
-docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E 'position_monitor|NAMES'
+
+# 6️⃣ Check logs for ExitBrain initialization
 echo ""
-docker logs --tail 20 quantum_position_monitor
+echo "📊 Checking ExitBrain v3.5 initialization logs..."
+echo "=================================================="
+docker logs --tail=30 $CONTAINER | grep -E "ExitBrain|POSITION MONITOR"
 
 echo ""
-echo "🧩 ExitBrain module integration complete."
+echo "✅ Deployment complete!"
+echo ""
+echo "To verify ExitBrain is active:"
+echo "  docker logs -f $CONTAINER | grep ExitBrain"

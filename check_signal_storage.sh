@@ -1,0 +1,15 @@
+#!/bin/bash
+echo "=== Checking Redis Signal Storage ==="
+echo ""
+echo "1. Stream keys:"
+docker exec quantum_redis redis-cli KEYS "quantum:stream:*"
+echo ""
+echo "2. Signal keys:"
+docker exec quantum_redis redis-cli KEYS "*signal*"
+echo ""
+echo "3. Sample from trade.intent stream (if exists):"
+docker exec quantum_redis redis-cli XLEN "quantum:stream:trade.intent" 2>/dev/null || echo "Stream does not exist"
+echo ""
+echo "4. Sample from live_signals key:"
+docker exec quantum_redis redis-cli GET live_signals | head -c 300
+echo ""
