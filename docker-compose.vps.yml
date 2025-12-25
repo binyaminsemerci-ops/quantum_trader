@@ -578,6 +578,33 @@ services:
   # Exit Brain v3.5 integrated as Python module in position-monitor
   # No separate service needed - used as library
 
+  rl-sizer:
+    build: ./microservices/rl_sizing_agent
+    container_name: quantum_rl_sizing_agent
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ENABLE_RL_LEARNING=true
+    depends_on:
+      - redis
+    networks:
+      - quantum_trader
+    restart: always
+
+  rl-monitor:
+    build: ./microservices/rl_monitor_daemon
+    container_name: quantum_rl_monitor
+    environment:
+      - REDIS_HOST=redis
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+    volumes:
+      - /var/log:/var/log
+    depends_on:
+      - redis
+    networks:
+      - quantum_trader
+    restart: always
+
 networks:
   quantum_trader:
     driver: bridge
