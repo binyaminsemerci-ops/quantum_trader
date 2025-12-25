@@ -18,7 +18,10 @@ COPY config /app/config
 # Copy execution modules (for Exit Brain v3)
 COPY microservices/execution/exit_brain_v3 /app/microservices/execution/exit_brain_v3
 
-ENV PYTHONPATH=/app
+# Copy Exit Brain v3.5 with ILFv2
+COPY microservices/exitbrain_v3_5 /app/microservices/exitbrain_v3_5
+
+ENV PYTHONPATH=/app:/app/microservices
 ENV EXIT_BRAIN_V3_ENABLED=true
 
 CMD ["python", "-m", "microservices.position_monitor.main"]
