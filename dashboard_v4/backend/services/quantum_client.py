@@ -75,15 +75,15 @@ class QuantumServicesClient:
     
     async def get_portfolio_summary(self) -> Optional[Dict[Any, Any]]:
         """Get portfolio summary from Portfolio Intelligence service"""
-        return await self._get('portfolio', '/portfolio/summary')
+        return await self._get('portfolio', '/api/portfolio/snapshot')
     
     async def get_portfolio_positions(self) -> Optional[Dict[Any, Any]]:
         """Get current positions from Portfolio Intelligence"""
-        return await self._get('portfolio', '/portfolio/positions')
+        return await self._get('portfolio', '/api/portfolio/snapshot')
     
     async def get_portfolio_performance(self) -> Optional[Dict[Any, Any]]:
         """Get portfolio performance metrics"""
-        return await self._get('portfolio', '/portfolio/performance')
+        return await self._get('portfolio', '/api/portfolio/snapshot')
     
     async def get_live_trades(self) -> Optional[Dict[Any, Any]]:
         """Get active trades from Trading Bot"""
