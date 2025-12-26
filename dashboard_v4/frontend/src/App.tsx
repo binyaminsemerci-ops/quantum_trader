@@ -1,7 +1,12 @@
 import React from 'react'
 
-// API configuration - use /api prefix which nginx will proxy to backend
-const API_BASE_URL = '/api'
+// API configuration - use environment variables with fallback
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
+const WS_BASE_URL = import.meta.env.VITE_WS_URL || (
+  window.location.protocol === 'https:' 
+    ? `wss://${window.location.host}` 
+    : 'ws://localhost:8000'
+)
 
 interface HealthResponse {
   status: string
@@ -53,9 +58,7 @@ function App() {
       .catch(err => console.error('Health check failed:', err))
 
     // WebSocket for real-time streaming
-    const wsUrl = window.location.protocol === 'https:' 
-      ? `wss://${window.location.host}/stream/live`
-      : `ws://localhost:8000/stream/live`  // Development
+    const wsUrl = `${WS_BASE_URL}/stream/live`
     
     const ws = new WebSocket(wsUrl)
     
