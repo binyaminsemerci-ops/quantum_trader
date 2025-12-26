@@ -5,11 +5,14 @@ from routers import ai_router, portfolio_router, risk_router, system_router, str
 
 app = FastAPI(title="Quantum Trader Dashboard API", version="0.1.0")
 
-# CORS configuration - allow all origins for development
-# Note: WebSocket connections also need CORS
+# CORS configuration - Production settings for quantumfond.com
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://app.quantumfond.com",
+        "http://localhost:5173",  # Local development
+        "http://localhost:8889",  # VPS testing
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
