@@ -164,6 +164,11 @@ services:
       retries: 3
       start_period: 40s
 
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   backend-live:
     build:
       context: .
@@ -193,6 +198,11 @@ services:
       - quantum_trader
 
   # Strategy Generator AI - Continuous Evolution
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   strategy_generator:
     build:
       context: .
@@ -218,6 +228,11 @@ services:
       - quantum_trader
 
   # Shadow Testing & Deployment Service
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   shadow_tester:
     build:
       context: .
@@ -244,6 +259,11 @@ services:
       - strategy_generator
 
   # Prometheus Metrics Service
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   metrics:
     build:
       context: .
@@ -268,6 +288,11 @@ services:
     networks:
       - quantum_trader
 
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   testnet:
     build:
       context: .
@@ -291,6 +316,11 @@ services:
       - quantum_trader
 
   # Dashboard V3.0 - Next.js Frontend (EPIC: DASHBOARD-V3-001)
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   frontend:
     image: node:20-alpine
     container_name: quantum_frontend_v3
@@ -314,6 +344,11 @@ services:
       - backend
   
   # Legacy UI (qt-agent-ui) - Keep for reference
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   frontend-legacy:
     image: node:20-alpine
     container_name: quantum_frontend_legacy
@@ -334,6 +369,11 @@ services:
       - backend
 
   # Redis - Architecture v2 EventBus & PolicyStore Backend
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   redis:
     image: redis:7-alpine
     container_name: quantum_redis
@@ -357,6 +397,11 @@ services:
   # ========================================================================
   
   # Service #1: Risk & Safety Management (PolicyStore + ESS)
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   risk-safety:
     build:
       context: .
@@ -390,6 +435,11 @@ services:
       retries: 3
 
   # Service #2: Execution & Position Monitoring
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   execution:
     build:
       context: .
@@ -429,6 +479,11 @@ services:
       retries: 3
 
   # Service #2b: CLM v3 - Continuous Learning Manager
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   clm:
     build:
       context: .
@@ -459,6 +514,11 @@ services:
         condition: service_healthy
 
   # Service #3: Portfolio Intelligence (Aggregator + PnL + Exposure)
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   portfolio-intelligence:
     build:
       context: .
@@ -509,6 +569,11 @@ services:
       start_period: 60s
 
   # Service #4: AI Engine (Ensemble + Meta-Strategy + RL Sizing)
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   ai-engine:
     build:
       context: .
@@ -554,6 +619,11 @@ services:
       retries: 3
 
   # Service #7: Governance Dashboard (Phase 4H)
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   governance-dashboard:
     build:
       context: .
@@ -579,6 +649,11 @@ services:
       timeout: 5s
       retries: 3
 
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   governance-alerts:
     build:
       context: .
@@ -616,6 +691,11 @@ services:
       timeout: 5s
       retries: 3
 
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   auto-executor:
     build:
       context: .
@@ -651,6 +731,11 @@ services:
       retries: 3
 
   # Service #8: Trade Journal & Performance Analytics (Phase 7)
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   trade-journal:
     build:
       context: .
@@ -681,6 +766,11 @@ services:
       retries: 3
 
   # Service #9: Reinforcement Learning Optimizer (Phase 8)
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   rl-optimizer:
     build:
       context: .
@@ -717,6 +807,11 @@ services:
       retries: 3
 
   # Service #10: Meta-Cognitive Strategy Evaluator (Phase 9)
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   strategy-evaluator:
     build:
       context: .
@@ -759,6 +854,11 @@ services:
   # - Mutates and combines top strategies via genetic crossover
   # - Stores archive of all strategies in /memory_bank/
   # Creates an ecosystem where strategies compete and only the fittest survive
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   strategy-evolution:
     build:
       context: ./backend/microservices/strategy_evolution
@@ -803,6 +903,11 @@ services:
   #   * Policy behavior (when to increase/reduce risk)
   # - Writes predictions to Governance Layer for automatic adjustments
   # - Extends ensemble with meta-forecaster agent
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   quantum-policy-memory:
     build:
       context: ./backend/microservices/quantum_policy_memory
@@ -833,6 +938,11 @@ services:
       timeout: 10s
       retries: 3
 
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   federation-stub:
     build:
       context: ./backend/microservices/federation_stub
@@ -855,6 +965,11 @@ services:
       timeout: 10s
       retries: 3
 
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   market-publisher:
     build:
       context: .
@@ -888,6 +1003,11 @@ services:
   # 📊 QUANTUM TRADER DASHBOARD V4 - AI Hedge Fund Metrics
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   dashboard-backend:
     build:
       context: ./dashboard_v4/backend
@@ -915,6 +1035,11 @@ services:
       retries: 3
       start_period: 5s
 
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   dashboard-frontend:
     build:
       context: ./dashboard_v4/frontend
@@ -934,9 +1059,25 @@ services:
       start_period: 5s
 
 networks:
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   quantum_trader:
     driver: bridge
 
 volumes:
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
   redis_data:
     driver: local
+
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
