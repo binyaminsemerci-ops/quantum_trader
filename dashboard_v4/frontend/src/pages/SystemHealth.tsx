@@ -71,28 +71,28 @@ export default function SystemHealth() {
           title="CPU Usage"
           value={`${data.cpu_usage.toFixed(1)}%`}
           subtitle="Processing load"
-          color={cpuColor}
+          color={cpuColor === 'green' ? 'text-green-400' : cpuColor === 'yellow' ? 'text-yellow-400' : 'text-red-400'}
         />
         
         <InsightCard
           title="RAM Usage"
           value={`${data.ram_usage.toFixed(1)}%`}
           subtitle="Memory consumption"
-          color={ramColor}
+          color={ramColor === 'green' ? 'text-green-400' : ramColor === 'yellow' ? 'text-yellow-400' : 'text-red-400'}
         />
         
         <InsightCard
           title="Disk Usage"
           value={`${data.disk_usage.toFixed(1)}%`}
           subtitle="Storage capacity"
-          color={diskColor}
+          color={diskColor === 'green' ? 'text-green-400' : diskColor === 'yellow' ? 'text-yellow-400' : 'text-red-400'}
         />
         
         <InsightCard
           title="Containers"
           value={data.containers_running.toString()}
           subtitle="Active services"
-          color="blue"
+          color="text-blue-400"
         />
       </div>
 

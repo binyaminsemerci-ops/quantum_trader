@@ -65,28 +65,28 @@ export default function Portfolio() {
           title="Total P&L"
           value={`$${data.total_pnl.toLocaleString()}`}
           subtitle={`Daily: $${data.daily_pnl.toLocaleString()}`}
-          color={data.total_pnl >= 0 ? 'green' : 'red'}
+          color={data.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}
         />
         
         <InsightCard
           title="Active Positions"
           value={data.active_positions.toString()}
           subtitle={`Exposure: ${(data.exposure * 100).toFixed(1)}%`}
-          color="blue"
+          color="text-blue-400"
         />
         
         <InsightCard
           title="Win Rate"
           value={`${winRate}%`}
           subtitle={`${data.winning_trades}/${data.total_trades} trades`}
-          color="purple"
+          color="text-purple-400"
         />
         
         <InsightCard
           title="Net Exposure"
           value={`${(data.exposure * 100).toFixed(1)}%`}
           subtitle={`Long: ${(data.long_exposure * 100).toFixed(1)}% | Short: ${(data.short_exposure * 100).toFixed(1)}%`}
-          color="yellow"
+          color="text-yellow-400"
         />
       </div>
 

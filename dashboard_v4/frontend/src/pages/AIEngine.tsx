@@ -58,21 +58,21 @@ export default function AIEngine() {
           title="Model Accuracy"
           value={`${(data.model_accuracy * 100).toFixed(2)}%`}
           subtitle="Prediction accuracy over 24h"
-          color="blue"
+          color="text-blue-400"
         />
         
         <InsightCard
           title="Sharpe Ratio"
           value={data.sharpe_ratio.toFixed(3)}
           subtitle="Risk-adjusted returns"
-          color="green"
+          color="text-green-400"
         />
         
         <InsightCard
           title="Latency"
           value={`${data.prediction_latency_ms}ms`}
           subtitle="Average prediction time"
-          color="purple"
+          color="text-purple-400"
         />
       </div>
 
