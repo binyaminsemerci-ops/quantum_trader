@@ -920,11 +920,9 @@ services:
     restart: unless-stopped
     profiles: ["dashboard", "prod"]
     ports:
-      - "8888:80"
+      - "8889:80"
     networks:
       - quantum_trader
-    depends_on:
-      - dashboard-backend
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
       interval: 30s
