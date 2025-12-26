@@ -61,3 +61,20 @@ class ControlLog(Base):
     
     def __repr__(self):
         return f"<ControlLog(id={self.id}, action={self.action}, user={self.user}, timestamp={self.timestamp})>"
+
+
+class SystemEvent(Base):
+    """System health events and metrics log"""
+    __tablename__ = "system_events"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    event = Column(String, nullable=False, index=True)  # health_check, container_restart, high_cpu, etc.
+    cpu = Column(Float)
+    ram = Column(Float)
+    disk = Column(Float, nullable=True)
+    details = Column(String, nullable=True)  # Additional context
+    severity = Column(String, default="info")  # info, warning, critical
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    
+    def __repr__(self):
+        return f"<SystemEvent(id={self.id}, event={self.event}, severity={self.severity}, timestamp={self.timestamp})>"
