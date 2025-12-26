@@ -53,3 +53,7 @@ app.include_router(risk_router.router)
 app.include_router(system_router.router)
 app.include_router(stream_router.router)  # WebSocket stream for real-time updates
 app.include_router(ai_insights_router.router)  # AI ensemble analytics and drift detection
+
+# Integration router for direct access to Quantum services
+from routers import integrations_router
+app.include_router(integrations_router.router)
