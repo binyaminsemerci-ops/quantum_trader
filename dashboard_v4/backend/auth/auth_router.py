@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
-from passlib.hash import bcrypt
 from jose import JWTError, jwt
+import hashlib
 
 router = APIRouter(prefix="/auth", tags=["Auth & Security"])
 security = HTTPBearer()
@@ -14,19 +14,22 @@ SECRET_KEY = "QuantumSuperSecretKeyReplaceLater"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 120
 
-# Example in-memory user store (in production, use a database)
-# Note: Passwords are pre-hashed for bcrypt compatibility
+# Utility function for SHA256 password hashing
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# Example in-memory user store (passwords are SHA256-hashed)
 USERS = {
     "admin": {
-        "password": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYIxKTHLG/C",  # AdminPass123
+        "password": hash_password("AdminPass123"),
         "role": "admin"
     },
     "analyst": {
-        "password": "$2b$12$X2wJF/7KtJq9r5RlXzKvFuGVqyJ7z3YvRrXE8Rm5Z0KmQ3x4P8z2G",  # AnalystPass456
+        "password": hash_password("AnalystPass456"),
         "role": "analyst"
     },
     "viewer": {
-        "password": "$2b$12$JnL0C8KpYvHxN5ZqYvWxYeY3Z6T9RxM1WzJ7E3Qx4Y5P6L8K9M0N2",  # ViewerPass789
+        "password": hash_password("ViewerPass789"),
         "role": "viewer"
     },
 }
@@ -79,7 +82,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
 @router.post("/login")
 def login(user: User):
     """Login endpoint - returns JWT token and user role"""
-    if user.username not in USERS or not bcrypt.verify(user.password, USERS[user.username]["password"]):
+    if user.username not in USERS or hash_password(user.password) != USERS[user.username]["password"]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"
