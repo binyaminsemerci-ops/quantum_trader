@@ -1,67 +1,65 @@
 """System Control Endpoints - Protected by JWT Authentication"""
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi_jwt_auth import AuthJWT
+from fastapi import APIRouter, Depends, HTTPException, status
+from auth.auth_router import verify_token, TokenData
 
 router = APIRouter(prefix="/control", tags=["Control & Management"])
 
 
 @router.post("/retrain")
-def retrain(Authorize: AuthJWT = Depends()):
+def retrain(token_data: TokenData = Depends(verify_token)):
     """Initiate model retraining - Requires admin or analyst role"""
-    Authorize.jwt_required()
-    claims = Authorize.get_raw_jwt()
-    
-    if claims.get("role") not in ["admin", "analyst"]:
-        raise HTTPException(status_code=403, detail="Not authorized. Admin or analyst role required.")
+    if token_data.role not in ["admin", "analyst"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized. Admin or analyst role required."
+        )
     
     return {
         "status": "success",
         "message": "Model retraining initiated",
-        "user": Authorize.get_jwt_subject(),
-        "role": claims.get("role")
+        "user": token_data.username,
+        "role": token_data.role
     }
 
 
 @router.post("/heal")
-def heal(Authorize: AuthJWT = Depends()):
+def heal(token_data: TokenData = Depends(verify_token)):
     """Trigger system healing - Requires admin role only"""
-    Authorize.jwt_required()
-    claims = Authorize.get_raw_jwt()
-    
-    if claims.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin privileges required")
+    if token_data.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
     
     return {
         "status": "success",
         "message": "System healing initiated",
-        "user": Authorize.get_jwt_subject()
+        "user": token_data.username
     }
 
 
 @router.post("/mode")
-def switch_mode(Authorize: AuthJWT = Depends()):
+def switch_mode(token_data: TokenData = Depends(verify_token)):
     """Switch trading mode - Requires admin or analyst role"""
-    Authorize.jwt_required()
-    claims = Authorize.get_raw_jwt()
-    
-    if claims.get("role") not in ["admin", "analyst"]:
-        raise HTTPException(status_code=403, detail="Not authorized. Admin or analyst role required.")
+    if token_data.role not in ["admin", "analyst"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized. Admin or analyst role required."
+        )
     
     return {
         "status": "success",
         "message": "Trading mode switch initiated",
-        "user": Authorize.get_jwt_subject(),
-        "role": claims.get("role")
+        "user": token_data.username,
+        "role": token_data.role
     }
 
 
 @router.get("/status")
-def control_status(Authorize: AuthJWT = Depends()):
+def control_status(token_data: TokenData = Depends(verify_token)):
     """Get control system status - All authenticated users"""
-    Authorize.jwt_required()
-    
     return {
         "control_status": "operational",
-        "authenticated_user": Authorize.get_jwt_subject(),
-        "role": Authorize.get_raw_jwt().get("role")
+        "authenticated_user": token_data.username,
+        "role": token_data.role
     }
