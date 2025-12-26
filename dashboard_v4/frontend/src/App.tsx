@@ -248,7 +248,6 @@ function App() {
               </div>
             </div>
           )}
-          </div>
 
           <div className="mt-12 text-gray-400">
             <p>Phase 1 Complete – Base structure operational</p>
