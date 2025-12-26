@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from db.connection import Base, engine
-from routers import ai_router, portfolio_router, risk_router, system_router, stream_router, ai_insights_router, brains_router, events_router, learning_router
+from routers import ai_router, portfolio_router, risk_router, system_router, stream_router, ai_insights_router, brains_router, events_router, learning_router, control_router
+from auth import auth_router
 
 app = FastAPI(title="Quantum Trader Dashboard API", version="0.1.0")
 
@@ -56,6 +57,8 @@ app.include_router(ai_insights_router.router)  # AI ensemble analytics and drift
 app.include_router(brains_router.router)  # Brain states and strategy modes
 app.include_router(events_router.router)  # System events and alerts
 app.include_router(learning_router.router)  # Continuous learning manager
+app.include_router(auth_router.router)  # Authentication and authorization
+app.include_router(control_router.router)  # Protected control endpoints
 
 # Integration router for direct access to Quantum services
 from routers import integrations_router
