@@ -49,75 +49,119 @@ function App() {
   const [systemHealth, setSystemHealth] = React.useState<SystemHealth | null>(null)
   const [wsConnected, setWsConnected] = React.useState(false)
 
-  // WebSocket connection for real-time updates
+  // Fetch real data from REST API endpoints
   React.useEffect(() => {
     // Initial fetch of health endpoint
     fetch(`${API_BASE_URL}/health`)
       .then(res => res.json())
-      .then(data => setHealth(data))
+      .then(data => {
+        setHealth(data)
+        console.log('✅ Health check successful')
+      })
       .catch(err => console.error('Health check failed:', err))
 
-    // WebSocket for real-time streaming
-    const wsUrl = `${WS_BASE_URL}/stream/live`
-    
-    const ws = new WebSocket(wsUrl)
-    
-    ws.onopen = () => {
-      console.log('✅ WebSocket connected')
-      setWsConnected(true)
-    }
-    
-    ws.onmessage = (event) => {
+    // Fetch portfolio data from real service
+    const fetchPortfolio = async () => {
       try {
-        const data = JSON.parse(event.data)
-        console.log('📊 WebSocket update:', data)
-        
-        // Update state with real-time data
-        setSystemHealth({
-          cpu: data.cpu,
-          ram: data.ram,
-          uptime: Math.floor(data.timestamp),
-          containers: data.containers
-        })
-        
-        setAiStatus({
-          accuracy: data.accuracy,
-          sharpe: data.sharpe,
-          latency: data.latency,
-          models: ['XGB', 'LGBM', 'N-HiTS', 'TFT']  // Mock until real data
-        })
-        
-        setPortfolio({
-          pnl: data.pnl,
-          exposure: data.exposure,
-          drawdown: 0.08,  // Mock until real data
-          positions: data.positions
-        })
-        
-        // Mock risk data (not in WebSocket yet)
-        setRisk({
-          var: -0.025,
-          cvar: -0.034,
-          volatility: 0.18,
-          regime: 'Bullish'
-        })
+        const res = await fetch(`${API_BASE_URL}/portfolio/status`)
+        const data = await res.json()
+        setPortfolio(data)
+        console.log('✅ Portfolio data loaded:', data)
       } catch (err) {
-        console.error('Error parsing WebSocket message:', err)
+        console.error('Portfolio fetch failed:', err)
       }
     }
-    
-    ws.onerror = (error) => {
-      console.error('❌ WebSocket error:', error)
-      setWsConnected(false)
+
+    // Fetch AI status
+    const fetchAI = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/ai/status`)
+        const data = await res.json()
+        setAiStatus(data)
+        console.log('✅ AI status loaded:', data)
+      } catch (err) {
+        console.error('AI status fetch failed:', err)
+      }
     }
-    
-    ws.onclose = () => {
-      console.log('⚠️ WebSocket disconnected')
-      setWsConnected(false)
+
+    // Fetch risk metrics
+    const fetchRisk = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/risk/metrics`)
+        const data = await res.json()
+        setRisk(data)
+        console.log('✅ Risk metrics loaded:', data)
+      } catch (err) {
+        console.error('Risk metrics fetch failed:', err)
+      }
     }
-    
+
+    // Fetch system health
+    const fetchSystemHealth = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/system/health`)
+        const data = await res.json()
+        setSystemHealth(data)
+        console.log('✅ System health loaded:', data)
+      } catch (err) {
+        console.error('System health fetch failed:', err)
+      }
+    }
+
+    // Initial fetch
+    fetchPortfolio()
+    fetchAI()
+    fetchRisk()
+    fetchSystemHealth()
+
+    // Refresh every 5 seconds
+    const interval = setInterval(() => {
+      fetchPortfolio()
+      fetchAI()
+      fetchRisk()
+      fetchSystemHealth()
+    }, 5000)
+
+    // Try WebSocket for real-time updates (optional enhancement)
+    let ws: WebSocket | null = null
+    try {
+      const wsUrl = `${WS_BASE_URL}/stream/live`
+      ws = new WebSocket(wsUrl)
+      
+      ws.onopen = () => {
+        console.log('✅ WebSocket connected')
+        setWsConnected(true)
+      }
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          console.log('📊 WebSocket update:', data)
+          
+          // Update with WebSocket data if available
+          if (data.pnl !== undefined) {
+            setPortfolio(prev => ({ ...prev!, pnl: data.pnl, exposure: data.exposure, positions: data.positions }))
+          }
+        } catch (err) {
+          console.error('Error parsing WebSocket message:', err)
+        }
+      }
+      
+      ws.onerror = () => {
+        console.log('⚠️ WebSocket unavailable, using REST API polling')
+        setWsConnected(false)
+      }
+      
+      ws.onclose = () => {
+        setWsConnected(false)
+      }
+    } catch (err) {
+      console.log('⚠️ WebSocket unavailable, using REST API polling')
+    }
+
     return () => {
-      ws.close()
+      clearInterval(interval)
+      if (ws) ws.close()
     }
   }, [])
 
@@ -249,9 +293,22 @@ function App() {
             </div>
           )}
 
-          <div className="mt-12 text-gray-400">
-            <p>Phase 1 Complete – Base structure operational</p>
-            <p className="text-sm mt-2">Next Phase: Database Integration</p>
+          <div className="col-span-full mt-12 text-center">
+            <div className="bg-gray-800 rounded-lg p-6 shadow-2xl inline-block">
+              <p className="text-green-400 font-semibold text-lg">
+                ✅ Real-Time Integration Active
+              </p>
+              <p className="text-gray-400 text-sm mt-2">
+                Connected to {portfolio && aiStatus && risk && systemHealth ? '4' : '0'} services • 
+                Refreshing every 5 seconds
+              </p>
+              <div className="flex gap-2 justify-center mt-3">
+                <span className={`px-3 py-1 rounded text-xs ${portfolio ? 'bg-green-600' : 'bg-gray-600'}`}>Portfolio</span>
+                <span className={`px-3 py-1 rounded text-xs ${aiStatus ? 'bg-green-600' : 'bg-gray-600'}`}>AI</span>
+                <span className={`px-3 py-1 rounded text-xs ${risk ? 'bg-green-600' : 'bg-gray-600'}`}>Risk</span>
+                <span className={`px-3 py-1 rounded text-xs ${systemHealth ? 'bg-green-600' : 'bg-gray-600'}`}>System</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
