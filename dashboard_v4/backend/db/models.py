@@ -45,3 +45,19 @@ class Position(Base):
     
     def __repr__(self):
         return f"<Position(symbol={self.symbol}, qty={self.quantity}, entry={self.entry_price})>"
+
+
+class ControlLog(Base):
+    """Control action audit log for admin/analyst actions"""
+    __tablename__ = "control_log"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    action = Column(String, index=True, nullable=False)  # retrain, heal, mode_switch
+    user = Column(String, nullable=False, index=True)
+    role = Column(String, nullable=False)  # admin, analyst
+    status = Column(String, default="success")  # success, failed
+    details = Column(String, nullable=True)  # Additional context (e.g., mode value)
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    
+    def __repr__(self):
+        return f"<ControlLog(id={self.id}, action={self.action}, user={self.user}, timestamp={self.timestamp})>"
