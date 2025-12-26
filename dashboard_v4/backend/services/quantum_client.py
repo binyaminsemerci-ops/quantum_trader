@@ -3,6 +3,7 @@ Quantum Services Client - Integrates with all Quantum Trader microservices
 """
 import aiohttp
 import asyncio
+import os
 from typing import Optional, Dict, Any
 import logging
 
@@ -11,20 +12,23 @@ logger = logging.getLogger(__name__)
 class QuantumServicesClient:
     """Client for aggregating data from Quantum Trader services"""
     
-    SERVICES = {
-        'portfolio': 'http://localhost:8004',
-        'trading': 'http://localhost:8003',
-        'ai_engine': 'http://localhost:8001',
-        'risk': 'http://localhost:8012',
-        'strategy': 'http://localhost:8011',
-        'ceo': 'http://localhost:8010',
-        'model_supervisor': 'http://localhost:8007',
-        'universe': 'http://localhost:8006',
-        'backend': 'http://localhost:8000'
-    }
-    
     def __init__(self, timeout: int = 5):
         self.timeout = aiohttp.ClientTimeout(total=timeout)
+        
+        # Use host.docker.internal for Docker, fallback to localhost for local dev
+        service_host = os.getenv('QUANTUM_SERVICES_HOST', 'host.docker.internal')
+        
+        self.SERVICES = {
+            'portfolio': f'http://{service_host}:8004',
+            'trading': f'http://{service_host}:8003',
+            'ai_engine': f'http://{service_host}:8001',
+            'risk': f'http://{service_host}:8012',
+            'strategy': f'http://{service_host}:8011',
+            'ceo': f'http://{service_host}:8010',
+            'model_supervisor': f'http://{service_host}:8007',
+            'universe': f'http://{service_host}:8006',
+            'backend': f'http://{service_host}:8000'
+        }
     
     async def _get(self, service: str, endpoint: str) -> Optional[Dict[Any, Any]]:
         """Make GET request to a service"""
