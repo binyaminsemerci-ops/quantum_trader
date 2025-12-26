@@ -20,13 +20,12 @@ async def get_portfolio_status():
         
         if real_data:
             logger.info("✅ Using real portfolio data from Portfolio Intelligence")
-            # Extract data from Portfolio Intelligence response
-            # Adjust field mapping based on actual API response
+            # Extract data from Portfolio Intelligence snapshot response
             return {
-                "pnl": real_data.get("total_pnl", real_data.get("pnl", 0)),
-                "exposure": real_data.get("exposure", real_data.get("total_exposure", 0)),
-                "drawdown": real_data.get("max_drawdown", real_data.get("drawdown", 0)),
-                "positions": real_data.get("position_count", real_data.get("positions", 0))
+                "pnl": real_data.get("daily_pnl", real_data.get("unrealized_pnl", 0)),
+                "exposure": real_data.get("total_exposure", 0) / 100000,  # Normalize to 0-1 range
+                "drawdown": real_data.get("daily_drawdown_pct", 0) / 100,  # Convert percentage to decimal
+                "positions": real_data.get("num_positions", len(real_data.get("positions", [])))
             }
     except Exception as e:
         logger.warning(f"⚠️ Portfolio Intelligence unavailable: {e}")
