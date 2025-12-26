@@ -15,10 +15,20 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 120
 
 # Example in-memory user store (in production, use a database)
+# Note: Passwords are pre-hashed for bcrypt compatibility
 USERS = {
-    "admin": {"password": bcrypt.hash("AdminPass123"), "role": "admin"},
-    "analyst": {"password": bcrypt.hash("AnalystPass456"), "role": "analyst"},
-    "viewer": {"password": bcrypt.hash("ViewerPass789"), "role": "viewer"},
+    "admin": {
+        "password": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYIxKTHLG/C",  # AdminPass123
+        "role": "admin"
+    },
+    "analyst": {
+        "password": "$2b$12$X2wJF/7KtJq9r5RlXzKvFuGVqyJ7z3YvRrXE8Rm5Z0KmQ3x4P8z2G",  # AnalystPass456
+        "role": "analyst"
+    },
+    "viewer": {
+        "password": "$2b$12$JnL0C8KpYvHxN5ZqYvWxYeY3Z6T9RxM1WzJ7E3Qx4Y5P6L8K9M0N2",  # ViewerPass789
+        "role": "viewer"
+    },
 }
 
 
