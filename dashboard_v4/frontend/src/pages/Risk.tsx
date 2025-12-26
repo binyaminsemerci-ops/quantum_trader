@@ -60,28 +60,28 @@ export default function Risk() {
           title="VaR (95%)"
           value={`${(data.var_95 * 100).toFixed(2)}%`}
           subtitle="Value at Risk"
-          color="yellow"
+          color="text-yellow-400"
         />
         
         <InsightCard
           title="CVaR (95%)"
           value={`${(data.cvar_95 * 100).toFixed(2)}%`}
           subtitle="Conditional VaR"
-          color="yellow"
+          color="text-yellow-400"
         />
         
         <InsightCard
           title="Volatility"
           value={`${(data.volatility * 100).toFixed(2)}%`}
           subtitle="Portfolio volatility"
-          color="purple"
+          color="text-purple-400"
         />
         
         <InsightCard
           title="Max Drawdown"
           value={`${(data.max_drawdown * 100).toFixed(2)}%`}
           subtitle="Largest peak-to-trough"
-          color="red"
+          color="text-red-400"
         />
       </div>
 

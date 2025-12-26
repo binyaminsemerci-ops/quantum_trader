@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import InsightCard from '../components/InsightCard';
+import TrendChart from '../components/TrendChart';
+import EventFeed from '../components/EventFeed';
+import ControlPanel from '../components/ControlPanel';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -13,6 +16,7 @@ interface OverviewData {
 export default function Overview() {
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [trendData, setTrendData] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchOverview = async () => {
@@ -23,7 +27,17 @@ export default function Overview() {
           fetch(`${API_BASE_URL}/risk/metrics`).then(r => r.json()),
           fetch(`${API_BASE_URL}/system/health`).then(r => r.json())
         ]);
-        setData({ portfolio, ai, risk, system });
+        const newData = { portfolio, ai, risk, system };
+        setData(newData);
+        
+        // Add to trend data with timestamp
+        setTrendData(prev => [...prev.slice(-20), {
+          timestamp: Date.now() / 1000,
+          accuracy: ai.model_accuracy,
+          cpu: system.cpu_usage,
+          ram: system.ram_usage
+        }]);
+        
         setLoading(false);
       } catch (err) {
         console.error('Failed to load overview:', err);
@@ -56,71 +70,81 @@ export default function Overview() {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-green-400">System Overview</h1>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <InsightCard
-          title="Portfolio PnL"
-          value={`$${data.portfolio.pnl.toLocaleString()}`}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <InsightCard 
+          title="AI Accuracy" 
+          value={`${(data.ai.accuracy * 100).toFixed(1)}%`} 
+          subtitle="Model prediction accuracy"
+          color="text-green-400"
+        />
+        <InsightCard 
+          title="CPU Usage" 
+          value={`${data.system.cpu.toFixed(1)}%`} 
+          subtitle={`${data.system.containers} containers running`}
+          color="text-yellow-400"
+        />
+        <InsightCard 
+          title="RAM Usage" 
+          value={`${data.system.ram.toFixed(1)}%`} 
+          subtitle="Memory consumption"
+          color="text-blue-400"
+        />
+        <InsightCard 
+          title="Portfolio PnL" 
+          value={`$${data.portfolio.pnl.toLocaleString()}`} 
           subtitle={`${data.portfolio.positions} active positions`}
-          color="green"
+          color="text-green-400"
         />
-        
-        <InsightCard
-          title="AI Accuracy"
-          value={`${(data.ai.accuracy * 100).toFixed(1)}%`}
-          subtitle={`Sharpe: ${data.ai.sharpe.toFixed(2)}`}
-          color="blue"
+        <InsightCard 
+          title="Market Regime" 
+          value={data.risk.regime} 
+          subtitle={`VaR: ${(data.risk.var * 100).toFixed(2)}%`}
+          color="text-purple-400"
         />
-        
-        <InsightCard
-          title="Risk (VaR 95%)"
-          value={`${(data.risk.var * 100).toFixed(2)}%`}
-          subtitle={`Regime: ${data.risk.regime}`}
-          color="yellow"
-        />
-        
-        <InsightCard
-          title="System Load"
-          value={`${data.system.cpu.toFixed(1)}%`}
-          subtitle={`RAM: ${data.system.ram.toFixed(1)}% | ${data.system.containers} containers`}
-          color="purple"
+        <InsightCard 
+          title="Sharpe Ratio" 
+          value={data.ai.sharpe.toFixed(3)} 
+          subtitle="Risk-adjusted returns"
+          color="text-cyan-400"
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Portfolio Exposure</h2>
-          <div className="space-y-3">
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-400">Current Exposure</span>
-                <span className="text-white font-bold">
-                  {(data.portfolio.exposure * 100).toFixed(1)}%
-                </span>
-              </div>
-              <div className="w-full bg-gray-700 rounded-full h-2">
-                <div 
-                  className="bg-green-500 h-2 rounded-full"
-                  style={{ width: `${data.portfolio.exposure * 100}%` }}
-                />
-              </div>
-            </div>
-          </div>
+        <div className="bg-gray-800 p-4 rounded-xl">
+          <h2 className="text-xl font-semibold text-white mb-4">AI Accuracy Trend</h2>
+          <TrendChart data={trendData} dataKey="accuracy" color="#00FF99" />
         </div>
 
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Quick Stats</h2>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-gray-400">Active Positions:</span>
-              <span className="text-white font-bold">{data.portfolio.positions}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">AI Models:</span>
-              <span className="text-white font-bold">4</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Market Regime:</span>
-              <span className="text-white font-bold">{data.risk.regime}</span>
+        <div className="bg-gray-800 p-4 rounded-xl">
+          <h2 className="text-xl font-semibold text-white mb-4">CPU Usage Trend</h2>
+          <TrendChart data={trendData} dataKey="cpu" color="#FBBF24" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <EventFeed />
+        
+        <div className="space-y-4">
+          <div className="bg-gray-800 p-4 rounded-xl">
+            <h2 className="text-xl font-semibold text-white mb-4">System Control</h2>
+            <ControlPanel />
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-xl">
+            <h2 className="text-xl font-semibold text-white mb-4">Quick Stats</h2>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Active Positions:</span>
+                <span className="text-white font-bold">{data.portfolio.positions}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Exposure:</span>
+                <span className="text-white font-bold">{(data.portfolio.exposure * 100).toFixed(1)}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Containers:</span>
+                <span className="text-white font-bold">{data.system.containers}</span>
+              </div>
             </div>
           </div>
         </div>
