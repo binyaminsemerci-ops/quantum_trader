@@ -58,28 +58,28 @@ export default function Risk() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <InsightCard
           title="VaR (95%)"
-          value={`${(data.var_95 * 100).toFixed(2)}%`}
+          value={`${((data?.var_95 ?? 0) * 100).toFixed(2)}%`}
           subtitle="Value at Risk"
           color="text-yellow-400"
         />
         
         <InsightCard
           title="CVaR (95%)"
-          value={`${(data.cvar_95 * 100).toFixed(2)}%`}
+          value={`${((data?.cvar_95 ?? 0) * 100).toFixed(2)}%`}
           subtitle="Conditional VaR"
           color="text-yellow-400"
         />
         
         <InsightCard
           title="Volatility"
-          value={`${(data.volatility * 100).toFixed(2)}%`}
+          value={`${((data?.volatility ?? 0) * 100).toFixed(2)}%`}
           subtitle="Portfolio volatility"
           color="text-purple-400"
         />
         
         <InsightCard
           title="Max Drawdown"
-          value={`${(data.max_drawdown * 100).toFixed(2)}%`}
+          value={`${((data?.max_drawdown ?? 0) * 100).toFixed(2)}%`}
           subtitle="Largest peak-to-trough"
           color="text-red-400"
         />
@@ -132,7 +132,7 @@ export default function Risk() {
           <div className="space-y-4">
             <div className="bg-gray-700 rounded-lg p-6 text-center">
               <div className="text-3xl font-bold text-blue-400 mb-2">
-                {data.market_regime}
+                {data?.market_regime ?? 'UNKNOWN'}
               </div>
               <div className="text-sm text-gray-400">Current Market State</div>
             </div>
@@ -140,11 +140,11 @@ export default function Risk() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-gray-400">Sharpe Ratio:</span>
-                <span className="text-white font-bold">{data.sharpe_ratio.toFixed(3)}</span>
+                <span className="text-white font-bold">{(data?.sharpe_ratio ?? 0).toFixed(3)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Volatility:</span>
-                <span className="text-white font-bold">{(data.volatility * 100).toFixed(2)}%</span>
+                <span className="text-white font-bold">{((data?.volatility ?? 0) * 100).toFixed(2)}%</span>
               </div>
             </div>
           </div>
@@ -158,12 +158,12 @@ export default function Risk() {
             <div>
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-gray-400">VaR (95%)</span>
-                <span className="text-white">{(data.var_95 * 100).toFixed(2)}%</span>
+                <span className="text-white">{((data?.var_95 ?? 0) * 100).toFixed(2)}%</span>
               </div>
               <div className="w-full bg-gray-700 rounded-full h-2">
                 <div 
                   className="bg-yellow-500 h-2 rounded-full"
-                  style={{ width: `${Math.min(data.var_95 * 100 * 10, 100)}%` }}
+                  style={{ width: `${Math.min(((data?.var_95 ?? 0) * 100 * 10), 100)}%` }}
                 />
               </div>
             </div>
