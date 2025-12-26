@@ -901,6 +901,9 @@ services:
       - REDIS_PORT=6379
       - REDIS_DB=0
       - PYTHONPATH=/app
+      - QUANTUM_SERVICES_HOST=host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8025:8000"
     networks:
