@@ -23,19 +23,38 @@ export default function Overview() {
       try {
         const [portfolio, ai, risk, system] = await Promise.all([
           fetch(`${API_BASE_URL}/portfolio/status`).then(r => r.json()),
-          fetch(`${API_BASE_URL}/ai/status`).then(r => r.json()),
+          fetch(`${API_BASE_URL}/ai/insights`).then(r => r.json()),
           fetch(`${API_BASE_URL}/risk/metrics`).then(r => r.json()),
           fetch(`${API_BASE_URL}/system/health`).then(r => r.json())
         ]);
-        const newData = { portfolio, ai, risk, system };
+        const newData = {
+          portfolio: {
+            pnl: portfolio?.pnl ?? 0,
+            exposure: portfolio?.exposure ?? 0,
+            positions: portfolio?.positions ?? 0
+          },
+          ai: {
+            accuracy: ai?.accuracy ?? 0.5,
+            sharpe: ai?.sharpe ?? 0
+          },
+          risk: {
+            var: risk?.var_95 ?? 0,
+            regime: risk?.regime ?? 'UNKNOWN'
+          },
+          system: {
+            cpu: system?.metrics?.cpu ?? 0,
+            ram: system?.metrics?.ram ?? 0,
+            containers: system?.container_count ?? 0
+          }
+        };
         setData(newData);
         
         // Add to trend data with timestamp
         setTrendData(prev => [...prev.slice(-20), {
           timestamp: Date.now() / 1000,
-          accuracy: ai.model_accuracy,
-          cpu: system.cpu_usage,
-          ram: system.ram_usage
+          accuracy: ai?.accuracy ?? 0.5,
+          cpu: system?.metrics?.cpu ?? 0,
+          ram: system?.metrics?.ram ?? 0
         }]);
         
         setLoading(false);
@@ -73,37 +92,37 @@ export default function Overview() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <InsightCard 
           title="AI Accuracy" 
-          value={`${(data.ai.accuracy * 100).toFixed(1)}%`} 
+          value={`${((data.ai?.accuracy ?? 0.5) * 100).toFixed(1)}%`} 
           subtitle="Model prediction accuracy"
           color="text-green-400"
         />
         <InsightCard 
           title="CPU Usage" 
-          value={`${data.system.cpu.toFixed(1)}%`} 
-          subtitle={`${data.system.containers} containers running`}
+          value={`${(data.system?.cpu ?? 0).toFixed(1)}%`} 
+          subtitle={`${data.system?.containers ?? 0} containers running`}
           color="text-yellow-400"
         />
         <InsightCard 
           title="RAM Usage" 
-          value={`${data.system.ram.toFixed(1)}%`} 
+          value={`${(data.system?.ram ?? 0).toFixed(1)}%`} 
           subtitle="Memory consumption"
           color="text-blue-400"
         />
         <InsightCard 
           title="Portfolio PnL" 
-          value={`$${data.portfolio.pnl.toLocaleString()}`} 
-          subtitle={`${data.portfolio.positions} active positions`}
+          value={`$${(data.portfolio?.pnl ?? 0).toLocaleString()}`} 
+          subtitle={`${data.portfolio?.positions ?? 0} active positions`}
           color="text-green-400"
         />
         <InsightCard 
           title="Market Regime" 
-          value={data.risk.regime} 
-          subtitle={`VaR: ${(data.risk.var * 100).toFixed(2)}%`}
+          value={data.risk?.regime ?? 'UNKNOWN'} 
+          subtitle={`VaR: ${((data.risk?.var ?? 0) * 100).toFixed(2)}%`}
           color="text-purple-400"
         />
         <InsightCard 
           title="Sharpe Ratio" 
-          value={data.ai.sharpe.toFixed(3)} 
+          value={(data.ai?.sharpe ?? 0).toFixed(3)} 
           subtitle="Risk-adjusted returns"
           color="text-cyan-400"
         />
@@ -135,15 +154,15 @@ export default function Overview() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-gray-400">Active Positions:</span>
-                <span className="text-white font-bold">{data.portfolio.positions}</span>
+                <span className="text-white font-bold">{data.portfolio?.positions ?? 0}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Exposure:</span>
-                <span className="text-white font-bold">{(data.portfolio.exposure * 100).toFixed(1)}%</span>
+                <span className="text-white font-bold">{((data.portfolio?.exposure ?? 0) * 100).toFixed(1)}%</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Containers:</span>
-                <span className="text-white font-bold">{data.system.containers}</span>
+                <span className="text-white font-bold">{data.system?.containers ?? 0}</span>
               </div>
             </div>
           </div>
