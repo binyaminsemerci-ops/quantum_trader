@@ -27,6 +27,11 @@ try:
         IntelligentLeverageEngine,
         LeverageCalculation
     )
+    from microservices.exitbrain_v3_5.exit_brain import (
+        ExitBrainV35,
+        SignalContext,
+        ExitPlan
+    )
     LEVERAGE_ENGINE_AVAILABLE = True
     logger.info("✅ Intelligent Leverage Engine imported successfully")
 except ImportError as e:
