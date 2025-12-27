@@ -497,6 +497,7 @@ class SimpleTradingBot:
                     position_size_usd = sizing_decision.position_size_usd
                     leverage = sizing_decision.leverage  # ✅ Use Math AI's calculated leverage
                     
+                    logger.info(f"🔍 [DEBUG] Received from RL Agent: leverage={leverage}, position_size={position_size_usd}")
                     logger.info(
                         f"[TRADING-BOT] [RL-SIZING] {symbol}: ${position_size_usd:.0f} @ {leverage}x "
                         f"(ATR={atr_value:.2%}, volatility={volatility_factor:.2f})"
