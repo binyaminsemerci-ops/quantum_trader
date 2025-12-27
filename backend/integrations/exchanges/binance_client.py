@@ -30,7 +30,12 @@ async def get_binance_adapter() -> BinanceAdapter:
     # Read config from env
     api_key = os.getenv("BINANCE_API_KEY")
     api_secret = os.getenv("BINANCE_API_SECRET")
-    use_testnet = os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true"
+    # Check multiple env variable names for testnet flag
+    use_testnet = (
+        os.getenv("BINANCE_USE_TESTNET", "").lower() == "true" or
+        os.getenv("BINANCE_TESTNET", "").lower() == "true" or
+        os.getenv("USE_TESTNET", "").lower() == "true"
+    )
     
     if not api_key or not api_secret:
         raise ValueError("BINANCE_API_KEY and BINANCE_API_SECRET must be set in .env")

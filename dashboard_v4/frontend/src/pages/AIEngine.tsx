@@ -68,7 +68,7 @@ export default function AIEngine() {
     const interval = setInterval(() => {
       fetchAI();
       fetchPredictions();
-    }, 10000);
+    }, 65000); // Poll every 65s to match prediction generation interval (60s)
     return () => clearInterval(interval);
   }, []);
 
@@ -179,7 +179,7 @@ export default function AIEngine() {
         <h2 className="text-xl font-semibold text-white mb-4">
           Live AI Predictions 
           <span className="text-sm text-gray-400 ml-2">
-            ({predictions?.count || 0} recent signals)
+            (showing {Math.min(predictions?.predictions.length || 0, 10)} of {predictions?.count || 0} signals)
           </span>
         </h2>
         
@@ -200,7 +200,7 @@ export default function AIEngine() {
                 </tr>
               </thead>
               <tbody>
-                {predictions.predictions.slice(0, 5).map((pred) => (
+                {predictions.predictions.map((pred) => (
                   <tr key={pred.id} className="border-b border-gray-700 text-sm">
                     <td className="py-3 text-gray-300">
                       {new Date(pred.timestamp).toLocaleTimeString()}
