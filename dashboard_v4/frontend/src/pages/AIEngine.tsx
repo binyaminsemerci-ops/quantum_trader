@@ -10,8 +10,32 @@ interface AIData {
   models: string[];
 }
 
+interface Prediction {
+  id: string;
+  timestamp: string;
+  symbol: string;
+  side: string;
+  confidence: number;
+  entry_price: number;
+  stop_loss: number;
+  take_profit: number;
+  leverage: number;
+  model: string;
+  reason: string;
+  volatility: number;
+  regime: string;
+  position_size_usd: number;
+}
+
+interface PredictionsData {
+  predictions: Prediction[];
+  count: number;
+  timestamp: number;
+}
+
 export default function AIEngine() {
   const [data, setData] = useState<AIData | null>(null);
+  const [predictions, setPredictions] = useState<PredictionsData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,8 +52,23 @@ export default function AIEngine() {
       }
     };
 
+    const fetchPredictions = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/ai/predictions`);
+        if (!response.ok) throw new Error('Failed to fetch predictions');
+        const predData = await response.json();
+        setPredictions(predData);
+      } catch (err) {
+        console.error('Failed to load predictions:', err);
+      }
+    };
+
     fetchAI();
-    const interval = setInterval(fetchAI, 10000);
+    fetchPredictions();
+    const interval = setInterval(() => {
+      fetchAI();
+      fetchPredictions();
+    }, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -133,6 +172,90 @@ export default function AIEngine() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* AI Predictions Section */}
+      <div className="bg-gray-800 rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-white mb-4">
+          Live AI Predictions 
+          <span className="text-sm text-gray-400 ml-2">
+            ({predictions?.count || 0} recent signals)
+          </span>
+        </h2>
+        
+        {predictions && predictions.predictions.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-sm text-gray-400 border-b border-gray-700">
+                  <th className="pb-3">Time</th>
+                  <th className="pb-3">Symbol</th>
+                  <th className="pb-3">Side</th>
+                  <th className="pb-3">Confidence</th>
+                  <th className="pb-3">Entry</th>
+                  <th className="pb-3">TP/SL</th>
+                  <th className="pb-3">Leverage</th>
+                  <th className="pb-3">Model</th>
+                  <th className="pb-3">Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {predictions.predictions.slice(0, 5).map((pred) => (
+                  <tr key={pred.id} className="border-b border-gray-700 text-sm">
+                    <td className="py-3 text-gray-300">
+                      {new Date(pred.timestamp).toLocaleTimeString()}
+                    </td>
+                    <td className="py-3">
+                      <span className="font-semibold text-white">{pred.symbol}</span>
+                    </td>
+                    <td className="py-3">
+                      <span className={`font-bold ${pred.side === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>
+                        {pred.side}
+                      </span>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-gray-700 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full ${pred.confidence > 0.7 ? 'bg-green-500' : pred.confidence > 0.5 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                            style={{ width: `${pred.confidence * 100}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs font-semibold ${pred.confidence > 0.7 ? 'text-green-400' : pred.confidence > 0.5 ? 'text-yellow-400' : 'text-red-400'}`}>
+                          {(pred.confidence * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-3 text-white font-mono text-xs">
+                      ${pred.entry_price.toFixed(4)}
+                    </td>
+                    <td className="py-3">
+                      <div className="text-xs">
+                        <div className="text-green-400">TP: ${pred.take_profit.toFixed(4)}</div>
+                        <div className="text-red-400">SL: ${pred.stop_loss.toFixed(4)}</div>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <span className={`px-2 py-1 rounded text-xs font-bold ${pred.leverage > 10 ? 'bg-red-900 text-red-200' : 'bg-blue-900 text-blue-200'}`}>
+                        {pred.leverage}x
+                      </span>
+                    </td>
+                    <td className="py-3 text-xs text-gray-400">
+                      {pred.model}
+                    </td>
+                    <td className="py-3 text-xs text-gray-400 max-w-xs truncate">
+                      {pred.reason}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center text-gray-400 py-8">
+            No predictions available
+          </div>
+        )}
       </div>
     </div>
   );
