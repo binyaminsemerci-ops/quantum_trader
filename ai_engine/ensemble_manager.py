@@ -483,19 +483,10 @@ class EnsembleManager:
         else:
             base_confidence = 0.50
         
-        # Adjust confidence based on consensus
-        if consensus_count >= 4:  # All agree
-            confidence_multiplier = 1.2
-            consensus_str = "unanimous"
-        elif consensus_count >= 3:  # Strong consensus
-            confidence_multiplier = 1.1
-            consensus_str = "strong"
-        elif consensus_count == 2:  # Split - but acceptable if min_consensus=2
-            confidence_multiplier = 1.0  # Don't penalize if we accept 2/4 consensus
-            consensus_str = "split"
-        else:  # Weak (1 model)
-            confidence_multiplier = 0.6
-            consensus_str = "weak"
+        # ✅ AI-DRIVEN: Use adaptive calibrator instead of hardcoded multipliers
+        from .adaptive_confidence import get_calibrator
+        calibrator = get_calibrator()
+        confidence_multiplier, consensus_str = calibrator.get_multiplier(consensus_count, total_models=len(model_actions))
         
         final_confidence = min(0.95, base_confidence * confidence_multiplier)
         
