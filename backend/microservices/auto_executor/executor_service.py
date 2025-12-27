@@ -105,7 +105,8 @@ INVALID_SYMBOLS = {"KASUSDT", "FTMUSDT", "KAUSUSDT"}  # Add more as needed
 
 # Risk management settings
 RISK_LIMIT = float(os.getenv("MAX_RISK_PER_TRADE", "0.01"))  # 1% risk per trade
-MAX_LEVERAGE = int(os.getenv("MAX_LEVERAGE", "3"))
+# ✅ AI-DRIVEN: ILF-v2 dynamically calculates leverage 5-80x based on confidence + volatility
+MAX_LEVERAGE = int(os.getenv("MAX_LEVERAGE", "80"))  # Upper bound for ILF-v2
 MAX_POSITION_SIZE = float(os.getenv("MAX_POSITION_SIZE", "1000"))  # USDT
 # ✅ AI-DRIVEN: Lowered from 0.55 to 0.45 to accept more AI signals
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.45"))
@@ -324,11 +325,16 @@ class AutoExecutor:
         
         # Round to correct precision
         position_size_contracts = round(position_size_contracts, precision)
+        
+        # Convert to int if precision is 0 (whole numbers only)
+        if precision == 0:
+            position_size_contracts = int(position_size_contracts)
+        
         logger.info(f"💰 [{symbol}] Position: {position_size_contracts} contracts (${position_value_usdt:.2f} @ ${mark_price:.4f}) precision={precision} min={min_qty}")
 
         # Ensure meets minimum
         if position_size_contracts < min_qty:
-            position_size_contracts = min_qty
+            position_size_contracts = min_qty if precision > 0 else int(min_qty)
             logger.info(f"⬆️ [{symbol}] Adjusted to minimum: {min_qty} contracts")
 
         return position_size_contracts
@@ -455,6 +461,9 @@ class AutoExecutor:
             else:
                 logger.error(f"❌ Invalid side: {side}")
                 return None
+            
+            # DEBUG: Log full Binance response
+            logger.info(f"🔍 [{symbol}] Binance order response: {order}")
             
             # Get fill price and position details
             fill_price = float(order.get('avgPrice', 0))
