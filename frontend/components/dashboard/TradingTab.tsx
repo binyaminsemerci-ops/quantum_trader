@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from 'react';
 import DashboardCard from '../DashboardCard';
+import { safeNum, safeCurrency, safePercent } from '@/lib/formatters';
 
 interface TradingData {
   timestamp: string;
@@ -98,13 +99,13 @@ export default function TradingTab() {
                         {pos.side}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">{pos.size?.toFixed(4) || '-'}</td>
-                    <td className="px-4 py-3 text-right font-mono">${pos.entry_price?.toFixed(2) || '-'}</td>
-                    <td className="px-4 py-3 text-right font-mono">${pos.current_price?.toFixed(2) || '-'}</td>
+                    <td className="px-4 py-3 text-right">{safeNum(pos.size, 4)}</td>
+                    <td className="px-4 py-3 text-right font-mono">{safeCurrency(pos.entry_price)}</td>
+                    <td className="px-4 py-3 text-right font-mono">{safeCurrency(pos.current_price)}</td>
                     <td className={`px-4 py-3 text-right font-bold ${
                       (pos.pnl || 0) >= 0 ? 'text-success' : 'text-danger'
                     }`}>
-                      ${pos.pnl?.toFixed(2) || '0.00'}
+                      {safeCurrency(pos.pnl)}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{pos.exchange || 'N/A'}</td>
                   </tr>
@@ -148,8 +149,8 @@ export default function TradingTab() {
                         {order.side}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-right">{order.size?.toFixed(4) || '-'}</td>
-                    <td className="px-4 py-2 text-right font-mono">${order.price?.toFixed(2) || '-'}</td>
+                    <td className="px-4 py-2 text-right">{safeNum(order.size, 4)}</td>
+                    <td className="px-4 py-2 text-right font-mono">{safeCurrency(order.price)}</td>
                     <td className="px-4 py-2">
                       <span className={`px-2 py-1 rounded text-xs ${
                         order.status === 'FILLED' ? 'bg-success text-white' :
@@ -188,7 +189,7 @@ export default function TradingTab() {
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-semibold">
-                      Conf: {(signal.confidence * 100).toFixed(0)}%
+                      Conf: {safeNum(signal.confidence * 100, 0)}%
                     </div>
                     <div className="text-xs text-gray-600">
                       {new Date(signal.timestamp).toLocaleTimeString()}
@@ -220,7 +221,7 @@ export default function TradingTab() {
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
                     <div>Positions: {strategy.position_count || 0}</div>
-                    <div>Win Rate: {strategy.win_rate ? `${strategy.win_rate.toFixed(0)}%` : 'N/A'}</div>
+                    <div>Win Rate: {safePercent(strategy.win_rate)}</div>
                   </div>
                 </div>
               ))

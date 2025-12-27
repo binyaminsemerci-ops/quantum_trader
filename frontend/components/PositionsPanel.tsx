@@ -1,6 +1,7 @@
 // Positions Panel - displays open positions with live PnL
 import type { DashboardPosition } from '@/lib/types';
 import { formatCurrency, formatPercent, getPnLColorClass } from '@/lib/utils';
+import { safeNum } from '@/lib/formatters';
 import DashboardCard from './DashboardCard';
 
 interface PositionsPanelProps {
@@ -55,7 +56,7 @@ export default function PositionsPanel({ positions }: PositionsPanelProps) {
                     {position.side}
                   </span>
                 </td>
-                <td className="py-2 px-2 text-right">{position.size.toFixed(4)}</td>
+                <td className="py-2 px-2 text-right">{safeNum(position.size, 4)}</td>
                 <td className="py-2 px-2 text-right">
                   {formatCurrency(position.entry_price)}
                 </td>
