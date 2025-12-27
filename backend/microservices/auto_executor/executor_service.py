@@ -437,7 +437,7 @@ class AutoExecutor:
                     type="MARKET",
                     quantity=qty
                 )
-            else:
+            elif side.upper() == "SELL":
                 order = safe_futures_call('futures_create_order',
                     symbol=symbol,
                     side="SELL",
