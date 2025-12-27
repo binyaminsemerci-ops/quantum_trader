@@ -626,6 +626,8 @@ services:
       - DASHBOARD_PORT=8025
     depends_on:
       - redis
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Mount docker socket for stats
     networks:
       - quantum_trader
     restart: always
