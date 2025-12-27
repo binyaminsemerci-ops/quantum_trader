@@ -4,11 +4,10 @@ import InsightCard from '../components/InsightCard';
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 interface AIData {
-  model_accuracy: number;
-  sharpe_ratio: number;
-  prediction_latency_ms: number;
-  daily_signals: number;
-  ensemble_confidence: number;
+  accuracy: number;
+  sharpe: number;
+  latency: number;
+  models: string[];
 }
 
 export default function AIEngine() {
@@ -19,6 +18,7 @@ export default function AIEngine() {
     const fetchAI = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/ai/status`);
+        if (!response.ok) throw new Error('Failed to fetch');
         const aiData = await response.json();
         setData(aiData);
         setLoading(false);
@@ -29,7 +29,7 @@ export default function AIEngine() {
     };
 
     fetchAI();
-    const interval = setInterval(fetchAI, 5000);
+    const interval = setInterval(fetchAI, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -56,21 +56,21 @@ export default function AIEngine() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <InsightCard
           title="Model Accuracy"
-          value={`${(data.model_accuracy * 100).toFixed(2)}%`}
+          value={`${(data.accuracy * 100).toFixed(1)}%`}
           subtitle="Prediction accuracy over 24h"
           color="text-blue-400"
         />
         
         <InsightCard
           title="Sharpe Ratio"
-          value={data.sharpe_ratio.toFixed(3)}
+          value={data.sharpe.toFixed(2)}
           subtitle="Risk-adjusted returns"
           color="text-green-400"
         />
         
         <InsightCard
           title="Latency"
-          value={`${data.prediction_latency_ms}ms`}
+          value={`${data.latency}ms`}
           subtitle="Average prediction time"
           color="text-purple-400"
         />
@@ -83,25 +83,25 @@ export default function AIEngine() {
             <div>
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-gray-400">Accuracy</span>
-                <span className="text-white">{(data.model_accuracy * 100).toFixed(2)}%</span>
+                <span className="text-white">{(data.accuracy * 100).toFixed(1)}%</span>
               </div>
               <div className="w-full bg-gray-700 rounded-full h-3">
                 <div 
                   className="bg-blue-500 h-3 rounded-full transition-all duration-500"
-                  style={{ width: `${data.model_accuracy * 100}%` }}
+                  style={{ width: `${data.accuracy * 100}%` }}
                 />
               </div>
             </div>
             
             <div>
               <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-400">Confidence</span>
-                <span className="text-white">{(data.ensemble_confidence * 100).toFixed(1)}%</span>
+                <span className="text-gray-400">Sharpe Ratio</span>
+                <span className="text-white">{data.sharpe.toFixed(2)}</span>
               </div>
               <div className="w-full bg-gray-700 rounded-full h-3">
                 <div 
                   className="bg-green-500 h-3 rounded-full transition-all duration-500"
-                  style={{ width: `${data.ensemble_confidence * 100}%` }}
+                  style={{ width: `${Math.min(data.sharpe * 20, 100)}%` }}
                 />
               </div>
             </div>
@@ -109,15 +109,15 @@ export default function AIEngine() {
         </div>
 
         <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Daily Activity</h2>
+          <h2 className="text-xl font-semibold text-white mb-4">Performance Metrics</h2>
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-gray-400">Signals Generated</span>
-              <span className="text-2xl font-bold text-white">{data.daily_signals}</span>
+              <span className="text-gray-400">Active Models</span>
+              <span className="text-2xl font-bold text-white">{data.models?.length || 0}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-400">Avg. Latency</span>
-              <span className="text-2xl font-bold text-white">{data.prediction_latency_ms}ms</span>
+              <span className="text-2xl font-bold text-white">{data.latency}ms</span>
             </div>
           </div>
         </div>
@@ -126,7 +126,7 @@ export default function AIEngine() {
       <div className="bg-gray-800 rounded-lg p-6">
         <h2 className="text-xl font-semibold text-white mb-4">Ensemble Models</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {['XGBoost', 'LightGBM', 'N-HiTS', 'TFT'].map((model) => (
+          {(data.models || []).map((model) => (
             <div key={model} className="bg-gray-700 rounded p-4 text-center">
               <div className="text-sm text-gray-400">{model}</div>
               <div className="text-xl font-bold text-green-400 mt-1">Active</div>
