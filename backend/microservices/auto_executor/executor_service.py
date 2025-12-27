@@ -439,6 +439,7 @@ class AutoExecutor:
                 order = safe_futures_call('futures_create_order',
                     symbol=symbol,
                     side="BUY",
+                    positionSide="LONG",
                     type="MARKET",
                     quantity=qty
                 )
@@ -446,6 +447,7 @@ class AutoExecutor:
                 order = safe_futures_call('futures_create_order',
                     symbol=symbol,
                     side="SELL",
+                    positionSide="SHORT",
                     type="MARKET",
                     quantity=qty
                 )
