@@ -107,7 +107,8 @@ INVALID_SYMBOLS = {"KASUSDT", "FTMUSDT", "KAUSUSDT"}  # Add more as needed
 RISK_LIMIT = float(os.getenv("MAX_RISK_PER_TRADE", "0.01"))  # 1% risk per trade
 MAX_LEVERAGE = int(os.getenv("MAX_LEVERAGE", "3"))
 MAX_POSITION_SIZE = float(os.getenv("MAX_POSITION_SIZE", "1000"))  # USDT
-CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.55"))
+# ✅ AI-DRIVEN: Lowered from 0.55 to 0.45 to accept more AI signals
+CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.45"))
 MAX_DRAWDOWN = float(os.getenv("MAX_DRAWDOWN", "4.0"))  # Circuit breaker at 4%
 
 # Circuit breaker state

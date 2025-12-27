@@ -43,7 +43,7 @@ class SimpleTradingBot:
         ai_engine_url: str = "http://ai-engine:8001",
         symbols: List[str] = None,
         check_interval_seconds: int = 60,
-        min_confidence: float = 0.70,
+        min_confidence: float = None,  # ✅ AI-DRIVEN: Get from env or use 0.45 default
         event_bus = None,
         binance_api_key: str = None,
         binance_api_secret: str = None
@@ -51,7 +51,8 @@ class SimpleTradingBot:
         self.ai_engine_url = ai_engine_url
         self.symbols = symbols or ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
         self.check_interval = check_interval_seconds
-        self.min_confidence = min_confidence
+        # ✅ AI-DRIVEN: Use env variable or adaptive threshold (0.45 default)
+        self.min_confidence = min_confidence if min_confidence is not None else float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.45"))
         self.event_bus = event_bus
         
         self.binance_api_key = binance_api_key
