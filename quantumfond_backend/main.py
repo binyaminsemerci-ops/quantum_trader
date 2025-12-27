@@ -22,6 +22,9 @@ from routers import (
     replay_router
 )
 
+# Import Prometheus metrics endpoint
+from app.api import metrics
+
 # Import AI-Trading integration
 try:
     from routers import ai_trading_link
@@ -76,6 +79,9 @@ except ImportError:
 # Include AI-Trading integration if available
 if AI_TRADING_ENABLED:
     app.include_router(ai_trading_link.router)
+
+# Include Prometheus metrics endpoint
+app.include_router(metrics.router, prefix="/api")
 
 # Background task for auto-triggering AI predictions
 async def auto_trigger():
