@@ -594,6 +594,133 @@ class AutoExecutor:
         except Exception as e:
             logger.error(f"❌ Failed to check position for {symbol}: {e}")
             return False  # Proceed with caution if check fails
+    
+    def has_tp_sl_orders(self, symbol: str) -> bool:
+        """Check if TP/SL orders exist for this symbol"""
+        try:
+            if PAPER_TRADING:
+                return False
+            
+            if not BINANCE_AVAILABLE or not client:
+                return False
+            
+            open_orders = client.futures_get_open_orders(symbol=symbol)
+            
+            # Check if any orders are TP or SL types
+            for order in open_orders:
+                order_type = order.get('type', '')
+                if order_type in ['TAKE_PROFIT_MARKET', 'STOP_MARKET', 'TAKE_PROFIT', 'STOP_LOSS']:
+                    logger.debug(f"🛡️ [{symbol}] Has TP/SL: {order_type}")
+                    return True
+            
+            return False
+        except Exception as e:
+            logger.error(f"❌ Failed to check TP/SL orders for {symbol}: {e}")
+            return False
+    
+    def set_tp_sl_for_existing(self, symbol: str, signal: Dict) -> bool:
+        """Set TP/SL for an existing position based on new signal"""
+        try:
+            if not BINANCE_AVAILABLE or not client:
+                return False
+            
+            # Get current position details
+            positions = client.futures_position_information(symbol=symbol)
+            position = None
+            for pos in positions:
+                if abs(float(pos.get('positionAmt', 0))) > 0:
+                    position = pos
+                    break
+            
+            if not position:
+                logger.warning(f"⚠️ [{symbol}] No position found")
+                return False
+            
+            position_amt = float(position.get('positionAmt', 0))
+            entry_price = float(position.get('entryPrice', 0))
+            current_leverage = int(position.get('leverage', 1))
+            
+            # Determine side
+            side = "BUY" if position_amt > 0 else "SELL"
+            
+            # Get signal's leverage recommendation
+            signal_leverage = int(signal.get('leverage', MAX_LEVERAGE))
+            
+            # Update leverage if different
+            if current_leverage != signal_leverage:
+                try:
+                    client.futures_change_leverage(symbol=symbol, leverage=signal_leverage)
+                    logger.info(f"📊 [{symbol}] Leverage updated: {current_leverage}x → {signal_leverage}x")
+                except Exception as e:
+                    logger.warning(f"⚠️ [{symbol}] Failed to update leverage: {e}")
+            
+            # Calculate TP/SL prices based on entry price
+            volatility = signal.get('volatility_factor', 0.02)
+            
+            # Dynamic TP/SL based on leverage
+            if signal_leverage >= 10:
+                tp_pct = 0.012  # 1.2% TP
+                sl_pct = 0.006  # 0.6% SL
+            elif signal_leverage >= 5:
+                tp_pct = 0.015  # 1.5% TP
+                sl_pct = 0.008  # 0.8% SL
+            else:
+                tp_pct = 0.02   # 2% TP
+                sl_pct = 0.01   # 1% SL
+            
+            # Calculate prices based on position direction
+            if side == "BUY":
+                take_profit_price = entry_price * (1 + tp_pct)
+                stop_loss_price = entry_price * (1 - sl_pct)
+            else:  # SELL (SHORT)
+                take_profit_price = entry_price * (1 - tp_pct)
+                stop_loss_price = entry_price * (1 + sl_pct)
+            
+            # Get symbol info for price precision
+            symbol_info = self.get_symbol_info(symbol)
+            tick_size = float(symbol_info.get('tickSize', '0.01'))
+            
+            # Calculate price precision
+            if '.' in str(tick_size):
+                price_precision = len(str(tick_size).rstrip('0').split('.')[1])
+            else:
+                price_precision = 0
+            
+            # Round prices
+            take_profit_price = round(take_profit_price, price_precision)
+            stop_loss_price = round(stop_loss_price, price_precision)
+            
+            # Place TP order
+            try:
+                tp_order = client.futures_create_order(
+                    symbol=symbol,
+                    side="SELL" if side == "BUY" else "BUY",
+                    type="TAKE_PROFIT_MARKET",
+                    stopPrice=take_profit_price,
+                    closePosition=True
+                )
+                logger.info(f"✅ [{symbol}] TP set @ ${take_profit_price} ({tp_pct*100:+.1f}%)")
+            except Exception as e:
+                logger.error(f"❌ [{symbol}] Failed to set TP: {e}")
+            
+            # Place SL order
+            try:
+                sl_order = client.futures_create_order(
+                    symbol=symbol,
+                    side="SELL" if side == "BUY" else "BUY",
+                    type="STOP_MARKET",
+                    stopPrice=stop_loss_price,
+                    closePosition=True
+                )
+                logger.info(f"✅ [{symbol}] SL set @ ${stop_loss_price} ({-sl_pct*100:.1f}%)")
+            except Exception as e:
+                logger.error(f"❌ [{symbol}] Failed to set SL: {e}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to set TP/SL for existing position {symbol}: {e}")
+            return False
 
     def process_signal(self, signal: Dict) -> bool:
         """Process a single trading signal"""
@@ -621,10 +748,15 @@ class AutoExecutor:
                 )
                 return False
             
-            # Check if position already exists (prevent duplicate orders)
+            # Check if position already exists
             if self.has_open_position(symbol):
-                logger.debug(f"⏭️ [{symbol}] Skipping - position already open")
-                return False
+                # Check if position needs TP/SL protection
+                if not self.has_tp_sl_orders(symbol):
+                    logger.info(f"🛡️ [{symbol}] Setting TP/SL for existing position")
+                    return self.set_tp_sl_for_existing(symbol, signal)
+                else:
+                    logger.debug(f"⏭️ [{symbol}] Position has TP/SL, skipping")
+                    return False
             
             # Check drawdown circuit breaker
             if self.check_drawdown(signal):

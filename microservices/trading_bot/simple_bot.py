@@ -493,9 +493,9 @@ class SimpleTradingBot:
                         trend_strength=None
                     )
                     
-                    # Use RL Agent's position size (ignore its leverage - ExitBrain will calculate)
+                    # Use RL Agent's position size and leverage from Math AI
                     position_size_usd = sizing_decision.position_size_usd
-                    leverage = 1  # Placeholder - ExitBrain ILF will calculate proper leverage
+                    leverage = sizing_decision.leverage  # ✅ Use Math AI's calculated leverage
                     
                     logger.info(
                         f"[TRADING-BOT] [RL-SIZING] {symbol}: ${position_size_usd:.0f} @ {leverage}x "
