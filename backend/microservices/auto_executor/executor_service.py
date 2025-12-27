@@ -565,20 +565,22 @@ class AutoExecutor:
                     if take_profit_price >= (fill_price - price_tolerance):
                         raise ValueError(f"TP {take_profit_price} must be < entry {fill_price} for SHORT")
                 
-                # Place Take Profit order
+# Place Take Profit order with positionSide for hedge mode
                 tp_order = safe_futures_call('futures_create_order',
                     symbol=symbol,
                     side="SELL" if side.upper() == "BUY" else "BUY",
+                    positionSide="LONG" if side.upper() == "BUY" else "SHORT",
                     type="TAKE_PROFIT_MARKET",
                     stopPrice=take_profit_price,
                     closePosition=True
                 )
-                logger.info(f"✅ TP set @ ${take_profit_price} ({tp_pct*100:+.1f}%)")
+                logger.info(f"✅ TP set @ ${take_profit_price} ({tp_pct*100:+.1f}%)")  
                 
-                # Place Stop Loss order
+                # Place Stop Loss order with positionSide for hedge mode
                 sl_order = safe_futures_call('futures_create_order',
                     symbol=symbol,
                     side="SELL" if side.upper() == "BUY" else "BUY",
+                    positionSide="LONG" if side.upper() == "BUY" else "SHORT",
                     type="STOP_MARKET",
                     stopPrice=stop_loss_price,
                     closePosition=True
@@ -812,11 +814,12 @@ class AutoExecutor:
             take_profit_price = round(take_profit_price, price_precision)
             stop_loss_price = round(stop_loss_price, price_precision)
             
-            # Place TP order
+# Place TP order with positionSide for hedge mode support
             try:
                 tp_order = safe_futures_call('futures_create_order',
                     symbol=symbol,
                     side="SELL" if side == "BUY" else "BUY",
+                    positionSide="LONG" if side == "BUY" else "SHORT",
                     type="TAKE_PROFIT_MARKET",
                     stopPrice=take_profit_price,
                     closePosition=True
@@ -825,11 +828,12 @@ class AutoExecutor:
             except Exception as e:
                 logger.error(f"❌ [{symbol}] Failed to set TP: {e}")
             
-            # Place SL order
+# Place SL order with positionSide for hedge mode support
             try:
                 sl_order = safe_futures_call('futures_create_order',
                     symbol=symbol,
                     side="SELL" if side == "BUY" else "BUY",
+                    positionSide="LONG" if side == "BUY" else "SHORT",
                     type="STOP_MARKET",
                     stopPrice=stop_loss_price,
                     closePosition=True
