@@ -48,22 +48,27 @@ PAPER_TRADING = os.getenv("PAPER_TRADING", "true").lower() == "true"
 # Binance API (conditional import)
 try:
     from binance.client import Client
+    from binance.helpers import round_step_size
     
     # Initialize Binance client
     api_key = os.getenv("BINANCE_API_KEY")
     api_secret = os.getenv("BINANCE_API_SECRET")
     
     if api_key and api_secret:
-        # Create client without testnet parameter (it doesn't work correctly)
-        client = Client(api_key, api_secret)
-        
         if TESTNET:
-            # Manually override URLs for testnet (testnet=True doesn't work for futures)
+            # For testnet: use testnet=True + manual URL override
+            client = Client(api_key, api_secret, testnet=True)
+            # Override to futures testnet endpoints
+            client.API_URL = "https://testnet.binancefuture.com"
             client.FUTURES_URL = "https://testnet.binancefuture.com/fapi"
             client.FUTURES_DATA_URL = "https://testnet.binancefuture.com/fapi"
+            # Increase recvWindow for timing tolerance (default is 5000ms)
+            client.timestamp_offset = 1000  # Add 1 second buffer
             logger.info("🧪 Using Binance Futures TESTNET")
+            logger.info(f"📡 API_URL: {client.API_URL}")
             logger.info(f"📡 FUTURES_URL: {client.FUTURES_URL}")
         else:
+            client = Client(api_key, api_secret)
             logger.info("📈 Using Binance MAINNET")
         BINANCE_AVAILABLE = True
     else:
@@ -76,6 +81,19 @@ except Exception as e:
     client = None
     BINANCE_AVAILABLE = False
     PAPER_TRADING = True
+
+# Wrapper functions for Binance API calls with recvWindow
+def safe_futures_call(func_name, *args, **kwargs):
+    """Wrapper to add recvWindow to all Binance futures API calls"""
+    if not client:
+        raise Exception("Binance client not initialized")
+    
+    # Add recvWindow for signed requests (default 5000ms, increase to 10000ms)
+    if 'recvWindow' not in kwargs:
+        kwargs['recvWindow'] = 10000
+    
+    func = getattr(client, func_name)
+    return func(*args, **kwargs)
 
 # Invalid symbols to filter out (not available on Binance testnet)
 INVALID_SYMBOLS = {"KASUSDT", "FTMUSDT", "KAUSUSDT"}  # Add more as needed
@@ -124,6 +142,21 @@ class AutoExecutor:
             self.leverage_engine = None
             logger.warning("⚠️ Using fallback MAX_LEVERAGE from environment")
         
+        # Initialize ExitBrain v3.5 for sophisticated TP/SL formulas
+        try:
+            self.exit_brain = ExitBrainV35(
+                redis_client=r,
+                config={
+                    "base_tp_pct": 0.01,  # 1% base TP
+                    "base_sl_pct": 0.005,  # 0.5% base SL
+                    "dynamic_reward": True  # Enable PnL feedback
+                }
+            )
+            logger.info("🧠 ExitBrain v3.5 initialized with LSF formulas")
+        except Exception as e:
+            self.exit_brain = None
+            logger.error(f"❌ Failed to initialize ExitBrain: {e}")
+        
         logger.info("=" * 60)
         logger.info("Phase 6: Auto Execution Layer Initialized")
         logger.info("=" * 60)
@@ -144,7 +177,7 @@ class AutoExecutor:
         try:
             if BINANCE_AVAILABLE and client:
                 if TESTNET:
-                    info = client.futures_account_balance()
+                    info = safe_futures_call('futures_account_balance')
                     for item in info:
                         if item['asset'] == asset:
                             return float(item['balance'])
@@ -167,7 +200,7 @@ class AutoExecutor:
                 return 20  # Safe default
             
             # Get leverage brackets
-            brackets = client.futures_leverage_bracket(symbol=symbol)
+            brackets = safe_futures_call('futures_leverage_bracket', symbol=symbol)
             
             if brackets and len(brackets) > 0:
                 # First bracket contains max leverage for minimum notional
@@ -394,18 +427,18 @@ class AutoExecutor:
                 return None
             
             # Set leverage
-            client.futures_change_leverage(symbol=symbol, leverage=leverage)
+            safe_futures_call('futures_change_leverage', symbol=symbol, leverage=leverage)
             
             # Place market order
             if side.upper() == "BUY":
-                order = client.futures_create_order(
+                order = safe_futures_call('futures_create_order',
                     symbol=symbol,
                     side="BUY",
                     type="MARKET",
                     quantity=qty
                 )
-            elif side.upper() == "SELL":
-                order = client.futures_create_order(
+            else:
+                order = safe_futures_call('futures_create_order',
                     symbol=symbol,
                     side="SELL",
                     type="MARKET",
@@ -429,22 +462,61 @@ class AutoExecutor:
             logger.info(f"✅ Order placed: {symbol} {side} {contract_qty} contracts ({notional:.2f} USDT) @ ${fill_price:.4f} with {leverage}x leverage")
             self.successful_trades += 1
             
-            # Set TP/SL automatically after order placement
+            # Set TP/SL automatically after order placement using ExitBrain formulas
             try:
                 # Use fill_price for calculations (already fetched above)
                 current_price = fill_price
                 
-                # Dynamic TP/SL based on leverage (LSF-inspired)
-                # Higher leverage = tighter stops
-                if leverage >= 10:
-                    tp_pct = 0.012  # 1.2% TP for ultra-high leverage
-                    sl_pct = 0.006  # 0.6% SL
-                elif leverage >= 5:
-                    tp_pct = 0.015  # 1.5% TP for high leverage
-                    sl_pct = 0.008  # 0.8% SL
-                else:
-                    tp_pct = 0.02   # 2% TP for low leverage
-                    sl_pct = 0.01   # 1% SL
+                # Use ExitBrain v3.5 formulas for intelligent TP/SL calculation
+                # This respects LSF (Leverage Sensitivity Factor) and adaptive formulas
+                tp_pct = None
+                sl_pct = None
+                
+                if self.exit_brain:
+                    try:
+                        # Create signal context for ExitBrain
+                        signal_context = SignalContext(
+                            symbol=symbol,
+                            side="long" if side.upper() == "BUY" else "short",
+                            confidence=0.8,  # Default, should be passed from signal
+                            entry_price=fill_price,
+                            atr_value=0.02,  # Default 2%, should be from market data
+                            timestamp=time.time()
+                        )
+                        
+                        # Build exit plan using ExitBrain v3.5
+                        exit_plan = self.exit_brain.build_exit_plan(
+                            signal=signal_context,
+                            pnl_trend=0.0,  # TODO: Get from PnL tracker
+                            symbol_risk=1.0,  # Default
+                            margin_util=0.0,  # TODO: Calculate from account
+                            exch_divergence=0.0,  # TODO: Get from cross-exchange
+                            funding_rate=0.0  # TODO: Get from Binance
+                        )
+                        
+                        tp_pct = exit_plan.take_profit_pct
+                        sl_pct = exit_plan.stop_loss_pct
+                        
+                        logger.info(
+                            f"🧠 [{symbol}] ExitBrain: TP={tp_pct*100:.2f}% SL={sl_pct*100:.2f}% "
+                            f"Leverage={exit_plan.leverage:.1f}x | {exit_plan.reasoning}"
+                        )
+                        
+                    except Exception as eb_error:
+                        logger.warning(f"⚠️ ExitBrain calculation failed: {eb_error}, using fallback")
+                
+                # Fallback to simple leverage-based TP/SL if ExitBrain unavailable
+                if tp_pct is None or sl_pct is None:
+                    if leverage >= 10:
+                        tp_pct = 0.012  # 1.2% TP
+                        sl_pct = 0.006  # 0.6% SL
+                    elif leverage >= 5:
+                        tp_pct = 0.015  # 1.5% TP
+                        sl_pct = 0.008  # 0.8% SL
+                    else:
+                        tp_pct = 0.02   # 2% TP
+                        sl_pct = 0.01   # 1% SL
+                    logger.info(f"📊 [{symbol}] Fallback TP/SL: {tp_pct*100:.1f}%/{sl_pct*100:.1f}%")
                 
                 # Calculate TP/SL prices based on position direction
                 if side.upper() == "BUY":
@@ -489,7 +561,7 @@ class AutoExecutor:
                         raise ValueError(f"TP {take_profit_price} must be < entry {fill_price} for SHORT")
                 
                 # Place Take Profit order
-                tp_order = client.futures_create_order(
+                tp_order = safe_futures_call('futures_create_order',
                     symbol=symbol,
                     side="SELL" if side.upper() == "BUY" else "BUY",
                     type="TAKE_PROFIT_MARKET",
@@ -499,7 +571,7 @@ class AutoExecutor:
                 logger.info(f"✅ TP set @ ${take_profit_price} ({tp_pct*100:+.1f}%)")
                 
                 # Place Stop Loss order
-                sl_order = client.futures_create_order(
+                sl_order = safe_futures_call('futures_create_order',
                     symbol=symbol,
                     side="SELL" if side.upper() == "BUY" else "BUY",
                     type="STOP_MARKET",
@@ -589,7 +661,7 @@ class AutoExecutor:
             if not BINANCE_AVAILABLE or not client:
                 return False
             
-            positions = client.futures_position_information(symbol=symbol)
+            positions = safe_futures_call('futures_position_information', symbol=symbol)
             for pos in positions:
                 position_amt = float(pos.get('positionAmt', 0))
                 if abs(position_amt) > 0:
@@ -609,7 +681,7 @@ class AutoExecutor:
             if not BINANCE_AVAILABLE or not client:
                 return False
             
-            open_orders = client.futures_get_open_orders(symbol=symbol)
+            open_orders = safe_futures_call('futures_get_open_orders', symbol=symbol)
             
             # Check if any orders are TP or SL types
             for order in open_orders:
@@ -630,7 +702,7 @@ class AutoExecutor:
                 return False
             
             # Get current position details
-            positions = client.futures_position_information(symbol=symbol)
+            positions = safe_futures_call('futures_position_information', symbol=symbol)
             position = None
             for pos in positions:
                 if abs(float(pos.get('positionAmt', 0))) > 0:
@@ -654,24 +726,64 @@ class AutoExecutor:
             # Update leverage if different
             if current_leverage != signal_leverage:
                 try:
-                    client.futures_change_leverage(symbol=symbol, leverage=signal_leverage)
+                    safe_futures_call('futures_change_leverage', symbol=symbol, leverage=signal_leverage)
                     logger.info(f"📊 [{symbol}] Leverage updated: {current_leverage}x → {signal_leverage}x")
                 except Exception as e:
                     logger.warning(f"⚠️ [{symbol}] Failed to update leverage: {e}")
             
-            # Calculate TP/SL prices based on entry price
+            # Calculate TP/SL prices based on entry price using ExitBrain formulas
             volatility = signal.get('volatility_factor', 0.02)
+            confidence = signal.get('confidence', 0.8)
             
-            # Dynamic TP/SL based on leverage
-            if signal_leverage >= 10:
-                tp_pct = 0.012  # 1.2% TP
-                sl_pct = 0.006  # 0.6% SL
-            elif signal_leverage >= 5:
-                tp_pct = 0.015  # 1.5% TP
-                sl_pct = 0.008  # 0.8% SL
-            else:
-                tp_pct = 0.02   # 2% TP
-                sl_pct = 0.01   # 1% SL
+            # Use ExitBrain v3.5 for intelligent TP/SL calculation
+            tp_pct = None
+            sl_pct = None
+            
+            if self.exit_brain:
+                try:
+                    # Create signal context
+                    signal_context = SignalContext(
+                        symbol=symbol,
+                        side="long" if side == "BUY" else "short",
+                        confidence=confidence,
+                        entry_price=entry_price,
+                        atr_value=volatility,
+                        timestamp=time.time()
+                    )
+                    
+                    # Build exit plan
+                    exit_plan = self.exit_brain.build_exit_plan(
+                        signal=signal_context,
+                        pnl_trend=0.0,
+                        symbol_risk=1.0,
+                        margin_util=0.0,
+                        exch_divergence=0.0,
+                        funding_rate=0.0
+                    )
+                    
+                    tp_pct = exit_plan.take_profit_pct
+                    sl_pct = exit_plan.stop_loss_pct
+                    
+                    logger.info(
+                        f"🧠 [{symbol}] ExitBrain TP/SL: {tp_pct*100:.2f}%/{sl_pct*100:.2f}% | "
+                        f"{exit_plan.reasoning}"
+                    )
+                    
+                except Exception as eb_error:
+                    logger.warning(f"⚠️ [{symbol}] ExitBrain failed: {eb_error}, using fallback")
+            
+            # Fallback to leverage-based TP/SL if ExitBrain unavailable
+            if tp_pct is None or sl_pct is None:
+                if signal_leverage >= 10:
+                    tp_pct = 0.012  # 1.2% TP
+                    sl_pct = 0.006  # 0.6% SL
+                elif signal_leverage >= 5:
+                    tp_pct = 0.015  # 1.5% TP
+                    sl_pct = 0.008  # 0.8% SL
+                else:
+                    tp_pct = 0.02   # 2% TP
+                    sl_pct = 0.01   # 1% SL
+                logger.info(f"📊 [{symbol}] Fallback TP/SL: {tp_pct*100:.1f}%/{sl_pct*100:.1f}%")
             
             # Calculate prices based on position direction
             if side == "BUY":
@@ -697,7 +809,7 @@ class AutoExecutor:
             
             # Place TP order
             try:
-                tp_order = client.futures_create_order(
+                tp_order = safe_futures_call('futures_create_order',
                     symbol=symbol,
                     side="SELL" if side == "BUY" else "BUY",
                     type="TAKE_PROFIT_MARKET",
@@ -710,7 +822,7 @@ class AutoExecutor:
             
             # Place SL order
             try:
-                sl_order = client.futures_create_order(
+                sl_order = safe_futures_call('futures_create_order',
                     symbol=symbol,
                     side="SELL" if side == "BUY" else "BUY",
                     type="STOP_MARKET",
