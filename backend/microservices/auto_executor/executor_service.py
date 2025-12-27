@@ -54,11 +54,16 @@ try:
     api_secret = os.getenv("BINANCE_API_SECRET")
     
     if api_key and api_secret:
+        # Create client without testnet parameter (it doesn't work correctly)
+        client = Client(api_key, api_secret)
+        
         if TESTNET:
-            client = Client(api_key, api_secret, testnet=True)
+            # Manually override URLs for testnet (testnet=True doesn't work for futures)
+            client.FUTURES_URL = "https://testnet.binancefuture.com/fapi"
+            client.FUTURES_DATA_URL = "https://testnet.binancefuture.com/fapi"
             logger.info("🧪 Using Binance Futures TESTNET")
+            logger.info(f"📡 FUTURES_URL: {client.FUTURES_URL}")
         else:
-            client = Client(api_key, api_secret)
             logger.info("📈 Using Binance MAINNET")
         BINANCE_AVAILABLE = True
     else:
