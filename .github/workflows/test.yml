@@ -47,6 +47,19 @@ jobs:
           path: frontend/coverage/
           if-no-files-found: ignore
 
+      - name: Notify Slack on Unit Test Failure
+        if: failure()
+        run: node ../scripts/notify_slack.js failure "Vitest unit tests failed - check logs for details" "Unit Tests"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Telegram on Unit Test Failure
+        if: failure() && secrets.TELEGRAM_BOT_TOKEN != ''
+        run: node ../scripts/notify_telegram.js failure "Vitest unit tests failed - check logs for details" "Unit Tests"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
   integration-tests:
     name: Integration Tests (Cypress)
     runs-on: ubuntu-latest
@@ -97,6 +110,19 @@ jobs:
           path: frontend/cypress/videos
           if-no-files-found: ignore
 
+      - name: Notify Slack on Cypress Test Failure
+        if: failure()
+        run: node ../scripts/notify_slack.js failure "Cypress E2E tests failed - check screenshots and videos" "Integration Tests"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Telegram on Cypress Test Failure
+        if: failure() && secrets.TELEGRAM_BOT_TOKEN != ''
+        run: node ../scripts/notify_telegram.js failure "Cypress E2E tests failed - check screenshots and videos" "Integration Tests"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
   lint:
     name: Lint & Format Check
     runs-on: ubuntu-latest
@@ -121,6 +147,19 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
+      - name: Notify Slack on Lint Failure
+        if: failure()
+        run: node ../scripts/notify_slack.js failure "ESLint checks failed - code quality issues detected" "Lint & Format Check"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Telegram on Lint Failure
+        if: failure() && secrets.TELEGRAM_BOT_TOKEN != ''
+        run: node ../scripts/notify_telegram.js failure "ESLint checks failed - code quality issues detected" "Lint & Format Check"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
@@ -128,7 +167,16 @@ jobs:
     if: always()
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Check test results
+        id: test-results
         run: |
           echo "Unit Tests: ${{ needs.unit-tests.result }}"
           echo "Integration Tests: ${{ needs.integration-tests.result }}"
@@ -137,8 +185,36 @@ jobs:
           if [ "${{ needs.unit-tests.result }}" != "success" ] || \
              [ "${{ needs.integration-tests.result }}" != "success" ] || \
              [ "${{ needs.lint.result }}" != "success" ]; then
+            echo "status=failure" >> $GITHUB_OUTPUT
             echo "❌ Tests failed - deployment blocked"
             exit 1
           fi
 
+          echo "status=success" >> $GITHUB_OUTPUT
           echo "✅ All tests passed - ready for deployment"
+
+      - name: Notify Slack on Overall Success
+        if: steps.test-results.outputs.status == 'success'
+        run: node scripts/notify_slack.js success "All tests passed! Unit tests ✅ | Cypress E2E ✅ | Lint ✅ - Ready for deployment" "Pipeline Complete"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Slack on Overall Failure
+        if: steps.test-results.outputs.status == 'failure'
+        run: node scripts/notify_slack.js failure "Pipeline failed! Unit: ${{ needs.unit-tests.result }} | Integration: ${{ needs.integration-tests.result }} | Lint: ${{ needs.lint.result }} - Deployment blocked" "Pipeline Failed"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Telegram on Overall Success
+        if: steps.test-results.outputs.status == 'success' && secrets.TELEGRAM_BOT_TOKEN != ''
+        run: node scripts/notify_telegram.js success "All tests passed! Unit tests ✅ | Cypress E2E ✅ | Lint ✅ - Ready for deployment" "Pipeline Complete"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: Notify Telegram on Overall Failure
+        if: steps.test-results.outputs.status == 'failure' && secrets.TELEGRAM_BOT_TOKEN != ''
+        run: node scripts/notify_telegram.js failure "Pipeline failed! Unit: ${{ needs.unit-tests.result }} | Integration: ${{ needs.integration-tests.result }} | Lint: ${{ needs.lint.result }} - Deployment blocked" "Pipeline Failed"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
