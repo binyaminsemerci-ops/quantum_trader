@@ -1,0 +1,1135 @@
+"""Routers Package"""
+
+"""
+Admin Router
+User management, system configuration, permissions
+"""
+from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
+from .auth_router import require_role, verify_token
+
+router = APIRouter(prefix="/admin", tags=["Administration"])
+
+@router.get("/users")
+def get_all_users(
+    _: str = Depends(require_role(["admin"]))
+):
+    """Get all users (admin only)"""
+    return {
+        "users": [
+            {
+                "id": 1,
+                "username": "admin",
+                "email": "admin@quantumfond.com",
+                "role": "admin",
+                "is_active": True,
+                "last_login": datetime.utcnow().isoformat()
+            },
+            {
+                "id": 2,
+                "username": "riskops",
+                "email": "risk@quantumfond.com",
+                "role": "risk",
+                "is_active": True,
+                "last_login": datetime.utcnow().isoformat()
+            }
+        ]
+    }
+
+@router.get("/audit-log")
+def get_audit_log(
+    limit: int = 100,
+    _: str = Depends(require_role(["admin", "risk"]))
+):
+    """Get audit log of all actions"""
+    return {
+        "logs": [
+            {
+                "id": 1,
+                "user": "admin",
+                "role": "admin",
+                "action": "login",
+                "status": "success",
+                "timestamp": datetime.utcnow().isoformat()
+            },
+            {
+                "id": 2,
+                "user": "trader",
+                "role": "trader",
+                "action": "place_order",
+                "status": "success",
+                "metadata": {"symbol": "BTCUSDT", "quantity": 0.5},
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        ],
+        "total": 2,
+        "limit": limit
+    }
+
+@router.get("/settings")
+def get_system_settings(
+    _: str = Depends(require_role(["admin"]))
+):
+    """Get system settings"""
+    return {
+        "trading": {
+            "enabled": True,
+            "mode": "live",
+            "max_daily_trades": 100
+        },
+        "risk": {
+            "max_position_size": 100000,
+            "max_leverage": 3.0,
+            "circuit_breakers_enabled": True
+        },
+        "ai": {
+            "enabled": True,
+            "auto_retraining": True,
+            "min_confidence": 0.65
+        }
+    }
+
+@router.post("/settings")
+def update_system_settings(
+    settings: dict,
+    _: str = Depends(require_role(["admin"]))
+):
+    """Update system settings (admin only)"""
+    return {
+        "message": "Settings updated successfully",
+        "updated_at": datetime.utcnow().isoformat()
+    }
+
+@router.post("/emergency-stop")
+def emergency_stop(
+    _: str = Depends(require_role(["admin", "risk"]))
+):
+    """Emergency stop - halt all trading"""
+    return {
+        "message": "Emergency stop activated",
+        "all_trading_halted": True,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@router.get("/permissions")
+def get_role_permissions(
+    _: str = Depends(require_role(["admin"]))
+):
+    """Get role-based permissions matrix"""
+    return {
+        "roles": {
+            "admin": ["all"],
+            "risk": ["view_all", "risk_management", "emergency_stop"],
+            "trader": ["view_trades", "place_orders", "view_performance"],
+            "viewer": ["view_only"]
+        }
+    }
+
+"""
+AI Router
+AI model status, predictions, performance metrics
+"""
+from fastapi import APIRouter, Depends
+from datetime import datetime
+
+router = APIRouter(prefix="/ai", tags=["AI & Machine Learning"])
+
+@router.get("/models")
+def get_ai_models():
+    """Get status of all AI models"""
+    Authorize.jwt_required()
+    
+    return {
+        "models": [
+            {
+                "name": "entry_brain_v4",
+                "version": "4.2.1",
+                "status": "active",
+                "accuracy": 0.78,
+                "last_prediction": datetime.utcnow().isoformat()
+            },
+            {
+                "name": "exit_brain_v3",
+                "version": "3.5.0",
+                "status": "active",
+                "accuracy": 0.82,
+                "last_prediction": datetime.utcnow().isoformat()
+            },
+            {
+                "name": "regime_detector",
+                "version": "2.1.0",
+                "status": "active",
+                "accuracy": 0.75,
+                "last_prediction": datetime.utcnow().isoformat()
+            },
+            {
+                "name": "volatility_predictor",
+                "version": "1.8.2",
+                "status": "active",
+                "accuracy": 0.71,
+                "last_prediction": datetime.utcnow().isoformat()
+            }
+        ]
+    }
+
+@router.get("/predictions")
+def get_latest_predictions():
+    """Get latest AI predictions"""
+    Authorize.jwt_required()
+    
+    return {
+        "predictions": [
+            {
+                "model": "entry_brain_v4",
+                "symbol": "BTCUSDT",
+                "signal": "LONG",
+                "confidence": 0.78,
+                "expected_return": 2.5,
+                "timestamp": datetime.utcnow().isoformat()
+            },
+            {
+                "model": "regime_detector",
+                "market_regime": "trending_bullish",
+                "confidence": 0.82,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        ]
+    }
+
+@router.get("/performance")
+def get_ai_performance():
+    """Get AI model performance metrics"""
+    Authorize.jwt_required()
+    
+    return {
+        "overall_accuracy": 0.77,
+        "predictions_today": 145,
+        "correct_predictions": 112,
+        "win_rate": 0.68,
+        "average_confidence": 0.75,
+        "by_model": [
+            {
+                "model": "entry_brain_v4",
+                "accuracy": 0.78,
+                "predictions": 58,
+                "correct": 45
+            },
+            {
+                "model": "exit_brain_v3",
+                "accuracy": 0.82,
+                "predictions": 52,
+                "correct": 43
+            }
+        ],
+        "last_update": datetime.utcnow().isoformat()
+    }
+
+@router.get("/retraining")
+def get_retraining_status():
+    """Get model retraining status"""
+    Authorize.jwt_required()
+    
+    return {
+        "enabled": True,
+        "last_retraining": "2025-12-25T08:00:00Z",
+        "next_scheduled": "2025-12-27T08:00:00Z",
+        "frequency": "daily",
+        "models_in_training": []
+    }
+
+"""
+Authentication Router
+Handles JWT-based authentication and role-based access control
+"""
+from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime, timedelta
+import jwt
+
+router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+# JWT Configuration
+JWT_SECRET = "QUANTUMFOND_SECRET_987"
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRATION_HOURS = 24
+
+security = HTTPBearer()
+
+# Request/Response Models
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    role: str
+    username: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+    role: Optional[str] = None
+
+# Simplified static users (will link to database later)
+USERS_DB = {
+    "admin": {
+        "password": "AdminPass123",
+        "role": "admin",
+        "email": "admin@quantumfond.com"
+    },
+    "riskops": {
+        "password": "Risk123",
+        "role": "risk",
+        "email": "risk@quantumfond.com"
+    },
+    "trader": {
+        "password": "Trade123",
+        "role": "trader",
+        "email": "trader@quantumfond.com"
+    },
+    "viewer": {
+        "password": "View123",
+        "role": "viewer",
+        "email": "viewer@quantumfond.com"
+    }
+}
+
+def create_access_token(username: str, role: str, email: str) -> str:
+    """Create JWT access token"""
+    expiration = datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS)
+    payload = {
+        "sub": username,
+        "role": role,
+        "email": email,
+        "exp": expiration
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+    """Verify and decode JWT token"""
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired"
+        )
+    except jwt.JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+
+@router.post("/login", response_model=LoginResponse)
+def login(user: LoginRequest):
+    """
+    Login endpoint - returns JWT token
+    
+    Roles:
+    - admin: Full system access
+    - risk: Risk management and monitoring
+    - trader: Trading operations
+    - viewer: Read-only access
+    """
+    # Validate credentials
+    if user.username not in USERS_DB:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
+    
+    user_data = USERS_DB[user.username]
+    if user_data["password"] != user.password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
+    
+    # Create access token with user claims
+    access_token = create_access_token(
+        username=user.username,
+        role=user_data["role"],
+        email=user_data["email"]
+    )
+    
+    return LoginResponse(
+        access_token=access_token,
+        role=user_data["role"],
+        username=user.username
+    )
+
+@router.get("/me")
+def get_current_user(payload: dict = Depends(verify_token)):
+    """Get current user information"""
+    return {
+        "username": payload.get("sub"),
+        "role": payload.get("role"),
+        "email": payload.get("email")
+    }
+
+@router.post("/logout")
+def logout(payload: dict = Depends(verify_token)):
+    """Logout - invalidate token (client should remove token)"""
+    return {"message": "Successfully logged out"}
+
+# Helper function for role-based access control
+def require_role(required_roles: list):
+    """Dependency to check user role"""
+    def role_checker(payload: dict = Depends(verify_token)):
+        user_role = payload.get("role")
+        
+        if user_role not in required_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Role {user_role} not authorized for this action"
+            )
+        return user_role
+    return role_checker
+
+"""
+Incident Router
+Incident tracking, alerts, post-mortems
+"""
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
+
+router = APIRouter(prefix="/incidents", tags=["Incident Management"])
+
+class IncidentCreate(BaseModel):
+    title: str
+    description: Optional[str]
+    severity: str  # critical, high, medium, low
+
+class IncidentUpdate(BaseModel):
+    status: Optional[str]
+    assigned_to: Optional[str]
+    notes: Optional[str]
+
+@router.get("/")
+def get_all_incidents(
+    status: Optional[str] = None,
+    severity: Optional[str] = None,
+    ):
+    """Get all incidents with optional filters"""
+    Authorize.jwt_required()
+    
+    return {
+        "incidents": [
+            {
+                "id": 1,
+                "title": "High latency on exchange API",
+                "severity": "high",
+                "status": "investigating",
+                "assigned_to": "ops_team",
+                "created_at": "2025-12-26T10:30:00Z",
+                "updated_at": "2025-12-26T11:00:00Z"
+            },
+            {
+                "id": 2,
+                "title": "Model prediction anomaly",
+                "severity": "medium",
+                "status": "resolved",
+                "assigned_to": "ml_team",
+                "created_at": "2025-12-25T14:15:00Z",
+                "resolved_at": "2025-12-25T16:30:00Z"
+            }
+        ],
+        "filters": {"status": status, "severity": severity}
+    }
+
+@router.get("/{incident_id}")
+def get_incident_details(incident_id: int):
+    """Get detailed information about an incident"""
+    Authorize.jwt_required()
+    
+    return {
+        "id": incident_id,
+        "title": "High latency on exchange API",
+        "description": "Exchange API response times increased to 2000ms",
+        "severity": "high",
+        "status": "investigating",
+        "assigned_to": "ops_team",
+        "created_at": "2025-12-26T10:30:00Z",
+        "updated_at": "2025-12-26T11:00:00Z",
+        "timeline": [
+            {
+                "timestamp": "2025-12-26T10:30:00Z",
+                "action": "Incident created",
+                "user": "system"
+            },
+            {
+                "timestamp": "2025-12-26T10:35:00Z",
+                "action": "Assigned to ops_team",
+                "user": "admin"
+            }
+        ],
+        "impact": {
+            "trades_affected": 12,
+            "estimated_loss": 450.00
+        }
+    }
+
+@router.post("/")
+def create_incident(
+    incident: IncidentCreate,
+    ):
+    """Create a new incident"""
+    Authorize.jwt_required()
+    
+    return {
+        "id": 3,
+        "title": incident.title,
+        "severity": incident.severity,
+        "status": "open",
+        "created_at": datetime.utcnow().isoformat(),
+        "message": "Incident created successfully"
+    }
+
+@router.patch("/{incident_id}")
+def update_incident(
+    incident_id: int,
+    update: IncidentUpdate,
+    ):
+    """Update an existing incident"""
+    Authorize.jwt_required()
+    
+    return {
+        "id": incident_id,
+        "message": "Incident updated successfully",
+        "updated_at": datetime.utcnow().isoformat()
+    }
+
+@router.get("/statistics/summary")
+def get_incident_statistics():
+    """Get incident statistics"""
+    Authorize.jwt_required()
+    
+    return {
+        "total_incidents": 45,
+        "open_incidents": 3,
+        "by_severity": {
+            "critical": 2,
+            "high": 5,
+            "medium": 18,
+            "low": 20
+        },
+        "by_status": {
+            "open": 3,
+            "investigating": 2,
+            "resolved": 38,
+            "closed": 2
+        },
+        "average_resolution_time_hours": 4.5,
+        "mttr_hours": 3.8
+    }
+
+"""
+Overview Router
+Central command center - system status, key metrics, alerts
+"""
+from fastapi import APIRouter, Depends
+from typing import Dict, Any
+from datetime import datetime
+
+router = APIRouter(prefix="/overview", tags=["Overview"])
+
+@router.get("/dashboard")
+def get_dashboard():
+    """Get main dashboard data"""
+    Authorize.jwt_required()
+    
+    return {
+        "system_health": {
+            "status": "operational",
+            "cpu": 45.2,
+            "ram": 62.1,
+            "uptime_hours": 72
+        },
+        "trading_status": {
+            "mode": "LIVE",
+            "active_positions": 12,
+            "daily_pnl": 2450.75,
+            "pnl_percentage": 2.45
+        },
+        "risk_summary": {
+            "portfolio_var": 125000,
+            "max_drawdown": 8.5,
+            "sharpe_ratio": 1.85,
+            "status": "healthy"
+        },
+        "ai_status": {
+            "models_active": 4,
+            "prediction_accuracy": 0.78,
+            "last_update": datetime.utcnow().isoformat()
+        },
+        "alerts": [
+            {"severity": "info", "message": "Market volatility increased", "timestamp": datetime.utcnow().isoformat()},
+            {"severity": "warning", "message": "Position size near limit on BTC", "timestamp": datetime.utcnow().isoformat()}
+        ]
+    }
+
+@router.get("/metrics")
+def get_key_metrics():
+    """Get key performance metrics"""
+    Authorize.jwt_required()
+    
+    return {
+        "total_capital": 1000000,
+        "deployed_capital": 450000,
+        "available_capital": 550000,
+        "daily_pnl": 2450.75,
+        "weekly_pnl": 15230.50,
+        "monthly_pnl": 52100.25,
+        "win_rate": 0.68,
+        "total_trades": 342,
+        "active_strategies": 5
+    }
+
+@router.get("/status")
+def get_system_status():
+    """Get detailed system status"""
+    Authorize.jwt_required()
+    
+    return {
+        "backend": "operational",
+        "database": "operational",
+        "redis": "operational",
+        "ai_engine": "operational",
+        "exchange_connection": "operational",
+        "last_check": datetime.utcnow().isoformat()
+    }
+
+"""
+Performance Router
+Analytics, reporting, benchmarking
+"""
+from fastapi import APIRouter, Depends
+from datetime import datetime
+
+router = APIRouter(prefix="/performance", tags=["Performance Analytics"])
+
+@router.get("/summary")
+def get_performance_summary():
+    """Get overall performance summary"""
+    Authorize.jwt_required()
+    
+    return {
+        "total_return": {
+            "daily": 2.45,
+            "weekly": 8.12,
+            "monthly": 15.23,
+            "ytd": 52.10
+        },
+        "sharpe_ratio": 1.85,
+        "sortino_ratio": 2.12,
+        "max_drawdown": 8.5,
+        "win_rate": 0.68,
+        "profit_factor": 1.92,
+        "total_trades": 342,
+        "winning_trades": 233,
+        "losing_trades": 109,
+        "average_win": 850.50,
+        "average_loss": -425.30,
+        "largest_win": 5250.00,
+        "largest_loss": -2150.00
+    }
+
+@router.get("/timeline")
+def get_performance_timeline(
+    period: str = "1M",
+    ):
+    """Get performance over time"""
+    Authorize.jwt_required()
+    
+    return {
+        "period": period,
+        "data_points": [
+            {"date": "2025-12-01", "pnl": 2450.75, "cumulative": 45000},
+            {"date": "2025-12-02", "pnl": 1850.50, "cumulative": 46850.50}
+        ]
+    }
+
+@router.get("/benchmark")
+def get_benchmark_comparison():
+    """Compare performance against benchmarks"""
+    Authorize.jwt_required()
+    
+    return {
+        "portfolio_return": 52.10,
+        "benchmarks": [
+            {"name": "BTC", "return": 45.5, "outperformance": 6.6},
+            {"name": "ETH", "return": 38.2, "outperformance": 13.9},
+            {"name": "S&P500", "return": 22.1, "outperformance": 30.0}
+        ]
+    }
+
+@router.get("/attribution")
+def get_return_attribution():
+    """Get return attribution analysis"""
+    Authorize.jwt_required()
+    
+    return {
+        "by_strategy": [
+            {"strategy": "momentum_v3", "contribution": 21.5},
+            {"strategy": "mean_reversion", "contribution": 18.2},
+            {"strategy": "breakout_scalper", "contribution": 12.4}
+        ],
+        "by_symbol": [
+            {"symbol": "BTCUSDT", "contribution": 28.3},
+            {"symbol": "ETHUSDT", "contribution": 15.7},
+            {"symbol": "SOLUSDT", "contribution": 8.1}
+        ]
+    }
+
+@router.get("/reports/daily")
+def get_daily_report():
+    """Get daily performance report"""
+    Authorize.jwt_required()
+    
+    return {
+        "date": datetime.utcnow().date().isoformat(),
+        "pnl": 2450.75,
+        "return_percentage": 2.45,
+        "trades": 24,
+        "win_rate": 0.71,
+        "best_trade": {"symbol": "BTCUSDT", "pnl": 850.50},
+        "worst_trade": {"symbol": "ETHUSDT", "pnl": -125.30},
+        "generated_at": datetime.utcnow().isoformat()
+    }
+
+"""
+Risk Router
+Risk metrics, exposure analysis, circuit breakers
+"""
+from fastapi import APIRouter, Depends
+from datetime import datetime
+
+router = APIRouter(prefix="/risk", tags=["Risk Management"])
+
+@router.get("/metrics")
+def get_risk_metrics():
+    """Get current risk metrics"""
+    Authorize.jwt_required()
+    
+    return {
+        "portfolio_var": {
+            "value": 125000,
+            "confidence": 0.95,
+            "horizon_days": 1
+        },
+        "exposure": {
+            "gross_exposure": 450000,
+            "net_exposure": 125000,
+            "leverage": 0.45
+        },
+        "drawdown": {
+            "current": 3.2,
+            "max": 8.5,
+            "threshold": 15.0,
+            "status": "healthy"
+        },
+        "concentration": {
+            "top_position_percentage": 12.5,
+            "top_3_positions_percentage": 32.1
+        },
+        "volatility": {
+            "portfolio_vol": 18.5,
+            "market_vol": 22.3
+        },
+        "last_update": datetime.utcnow().isoformat()
+    }
+
+@router.get("/limits")
+def get_risk_limits():
+    """Get risk limits and thresholds"""
+    Authorize.jwt_required()
+    
+    return {
+        "max_position_size": 100000,
+        "max_leverage": 3.0,
+        "max_drawdown": 15.0,
+        "max_daily_loss": 50000,
+        "position_concentration_limit": 20.0,
+        "var_limit": 150000
+    }
+
+@router.get("/circuit-breakers")
+def get_circuit_breakers():
+    """Get circuit breaker status"""
+    Authorize.jwt_required()
+    
+    return {
+        "enabled": True,
+        "breakers": [
+            {
+                "name": "daily_loss",
+                "threshold": 50000,
+                "current": 12450,
+                "status": "armed",
+                "triggered": False
+            },
+            {
+                "name": "drawdown",
+                "threshold": 15.0,
+                "current": 8.5,
+                "status": "armed",
+                "triggered": False
+            },
+            {
+                "name": "volatility_spike",
+                "threshold": 50.0,
+                "current": 22.3,
+                "status": "armed",
+                "triggered": False
+            }
+        ]
+    }
+
+@router.get("/exposure/breakdown")
+def get_exposure_breakdown():
+    """Get detailed exposure breakdown"""
+    Authorize.jwt_required()
+    
+    return {
+        "by_symbol": [
+            {"symbol": "BTCUSDT", "exposure": 125000, "percentage": 27.8},
+            {"symbol": "ETHUSDT", "exposure": 87500, "percentage": 19.4},
+            {"symbol": "SOLUSDT", "exposure": 62500, "percentage": 13.9}
+        ],
+        "by_strategy": [
+            {"strategy": "momentum_v3", "exposure": 180000, "percentage": 40.0},
+            {"strategy": "mean_reversion", "exposure": 135000, "percentage": 30.0}
+        ],
+        "total_gross": 450000,
+        "total_net": 125000
+    }
+
+"""
+Strategy Router
+Strategy management, backtests, optimization
+"""
+from fastapi import APIRouter, Depends
+from datetime import datetime
+
+router = APIRouter(prefix="/strategy", tags=["Strategy Management"])
+
+@router.get("/active")
+def get_active_strategies():
+    """Get all active trading strategies"""
+    Authorize.jwt_required()
+    
+    return {
+        "strategies": [
+            {
+                "id": 1,
+                "name": "momentum_v3",
+                "status": "active",
+                "allocation": 40.0,
+                "daily_pnl": 1250.50,
+                "win_rate": 0.72,
+                "trades_today": 12
+            },
+            {
+                "id": 2,
+                "name": "mean_reversion",
+                "status": "active",
+                "allocation": 30.0,
+                "daily_pnl": 850.25,
+                "win_rate": 0.65,
+                "trades_today": 8
+            },
+            {
+                "id": 3,
+                "name": "breakout_scalper",
+                "status": "active",
+                "allocation": 20.0,
+                "daily_pnl": 350.00,
+                "win_rate": 0.58,
+                "trades_today": 18
+            }
+        ]
+    }
+
+@router.get("/{strategy_id}")
+def get_strategy_details(strategy_id: int):
+    """Get detailed information about a strategy"""
+    Authorize.jwt_required()
+    
+    return {
+        "id": strategy_id,
+        "name": "momentum_v3",
+        "description": "Momentum-based strategy with ML enhancements",
+        "version": "3.2.1",
+        "status": "active",
+        "allocation_percentage": 40.0,
+        "capital_allocated": 400000,
+        "performance": {
+            "daily_pnl": 1250.50,
+            "weekly_pnl": 6250.00,
+            "monthly_pnl": 18750.00,
+            "win_rate": 0.72,
+            "sharpe_ratio": 2.1,
+            "max_drawdown": 5.2
+        },
+        "parameters": {
+            "lookback_period": 20,
+            "entry_threshold": 0.65,
+            "stop_loss_pct": 2.0,
+            "take_profit_pct": 4.0
+        },
+        "last_updated": datetime.utcnow().isoformat()
+    }
+
+@router.get("/backtests")
+def get_backtests():
+    """Get backtest results"""
+    Authorize.jwt_required()
+    
+    return {
+        "backtests": [
+            {
+                "id": 1,
+                "strategy": "momentum_v3",
+                "period": "2024-06-01 to 2024-12-01",
+                "total_return": 42.5,
+                "sharpe_ratio": 2.1,
+                "max_drawdown": 8.3,
+                "win_rate": 0.68,
+                "status": "completed"
+            }
+        ]
+    }
+
+@router.get("/optimization")
+def get_optimization_status():
+    """Get strategy optimization status"""
+    Authorize.jwt_required()
+    
+    return {
+        "enabled": True,
+        "last_optimization": "2025-12-24T12:00:00Z",
+        "next_scheduled": "2025-12-28T12:00:00Z",
+        "strategies_in_optimization": []
+    }
+
+"""
+System Router
+Infrastructure monitoring, logs, health checks
+"""
+from fastapi import APIRouter, Depends
+from datetime import datetime
+import psutil
+
+router = APIRouter(prefix="/system", tags=["System Monitoring"])
+
+@router.get("/health")
+def get_system_health():
+    """Get system health metrics"""
+    Authorize.jwt_required()
+    
+    return {
+        "status": "operational",
+        "cpu_usage": psutil.cpu_percent() if hasattr(psutil, 'cpu_percent') else 45.2,
+        "ram_usage": 62.1,
+        "disk_usage": 34.5,
+        "uptime_hours": 72,
+        "services": {
+            "api": "operational",
+            "database": "operational",
+            "redis": "operational",
+            "ai_engine": "operational"
+        },
+        "last_check": datetime.utcnow().isoformat()
+    }
+
+@router.get("/metrics")
+def get_system_metrics():
+    """Get detailed system metrics"""
+    Authorize.jwt_required()
+    
+    return {
+        "requests_per_second": 125.5,
+        "average_response_time_ms": 45,
+        "active_connections": 38,
+        "database_connections": 12,
+        "redis_connections": 8,
+        "error_rate": 0.002,
+        "last_hour": {
+            "requests": 450000,
+            "errors": 90,
+            "avg_latency_ms": 42
+        }
+    }
+
+@router.get("/logs")
+def get_system_logs(
+    level: str = "info",
+    limit: int = 100,
+    ):
+    """Get system logs"""
+    Authorize.jwt_required()
+    
+    return {
+        "logs": [
+            {
+                "timestamp": datetime.utcnow().isoformat(),
+                "level": "info",
+                "service": "api",
+                "message": "Request processed successfully"
+            }
+        ],
+        "filters": {"level": level, "limit": limit}
+    }
+
+@router.get("/alerts")
+def get_system_alerts():
+    """Get system alerts"""
+    Authorize.jwt_required()
+    
+    return {
+        "active_alerts": [
+            {
+                "id": 1,
+                "severity": "warning",
+                "component": "database",
+                "message": "Query latency above threshold",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        ],
+        "alert_count": {
+            "critical": 0,
+            "warning": 1,
+            "info": 3
+        }
+    }
+
+@router.get("/services")
+def get_services_status():
+    """Get status of all services"""
+    Authorize.jwt_required()
+    
+    return {
+        "services": [
+            {"name": "FastAPI", "status": "operational", "uptime": "72h"},
+            {"name": "PostgreSQL", "status": "operational", "uptime": "168h"},
+            {"name": "Redis", "status": "operational", "uptime": "168h"},
+            {"name": "AI Engine", "status": "operational", "uptime": "48h"},
+            {"name": "Market Data Feed", "status": "operational", "uptime": "72h"}
+        ]
+    }
+
+@router.get("/configuration")
+def get_system_configuration():
+    """Get system configuration"""
+    Authorize.jwt_required()
+    
+    return {
+        "environment": "production",
+        "version": "1.0.0",
+        "database_url": "postgresql://***:***@localhost/quantumdb",
+        "redis_url": "redis://localhost:6379",
+        "cors_origins": ["https://app.quantumfond.com"],
+        "log_level": "info"
+    }
+
+"""
+Trades Router
+Live trading activity, position management, order flow
+"""
+from fastapi import APIRouter, Depends
+from typing import List, Optional
+from pydantic import BaseModel
+from datetime import datetime
+
+router = APIRouter(prefix="/trades", tags=["Trades"])
+
+class TradeResponse(BaseModel):
+    id: int
+    symbol: str
+    side: str
+    quantity: float
+    price: float
+    pnl: Optional[float]
+    status: str
+    opened_at: str
+
+@router.get("/active", response_model=List[TradeResponse])
+def get_active_trades():
+    """Get all active positions"""
+    Authorize.jwt_required()
+    
+    # Mock data - will connect to database
+    return [
+        {
+            "id": 1,
+            "symbol": "BTCUSDT",
+            "side": "LONG",
+            "quantity": 0.5,
+            "price": 42500.00,
+            "pnl": 850.50,
+            "status": "open",
+            "opened_at": datetime.utcnow().isoformat()
+        },
+        {
+            "id": 2,
+            "symbol": "ETHUSDT",
+            "side": "SHORT",
+            "quantity": 5.0,
+            "price": 2250.00,
+            "pnl": -125.30,
+            "status": "open",
+            "opened_at": datetime.utcnow().isoformat()
+        }
+    ]
+
+@router.get("/history")
+def get_trade_history(
+    limit: int = 50,
+    symbol: Optional[str] = None,
+    ):
+    """Get trade history with optional filters"""
+    Authorize.jwt_required()
+    
+    return {
+        "trades": [],
+        "total": 0,
+        "filters": {"symbol": symbol, "limit": limit}
+    }
+
+@router.get("/{trade_id}")
+def get_trade_details(trade_id: int):
+    """Get detailed information about a specific trade"""
+    Authorize.jwt_required()
+    
+    return {
+        "id": trade_id,
+        "symbol": "BTCUSDT",
+        "side": "LONG",
+        "entry_price": 42500.00,
+        "current_price": 43200.00,
+        "pnl": 850.50,
+        "pnl_percentage": 2.0,
+        "quantity": 0.5,
+        "stop_loss": 41500.00,
+        "take_profit": 44000.00,
+        "opened_at": datetime.utcnow().isoformat(),
+        "strategy": "momentum_v3"
+    }
+
+@router.get("/live/feed")
+def get_live_feed():
+    """Get real-time trade feed"""
+    Authorize.jwt_required()
+    
+    return {
+        "last_update": datetime.utcnow().isoformat(),
+        "recent_trades": [],
+        "execution_speed_ms": 45
+    }
+
