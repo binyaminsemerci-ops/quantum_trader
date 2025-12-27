@@ -1,6 +1,7 @@
 // Signals Panel - displays recent AI signals
 import type { DashboardSignal } from '@/lib/types';
 import { formatTime } from '@/lib/utils';
+import { safeNum, safePercent } from '@/lib/formatters';
 import DashboardCard from './DashboardCard';
 
 interface SignalsPanelProps {
@@ -47,14 +48,14 @@ export default function SignalsPanel({ signals }: SignalsPanelProps) {
             
             <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
               <span>
-                Confidence: <span className="font-medium">{(signal.confidence * 100).toFixed(1)}%</span>
+                Confidence: <span className="font-medium">{safeNum(signal.confidence * 100, 1)}%</span>
               </span>
               <span className="text-xs">{formatTime(signal.timestamp)}</span>
             </div>
             
             <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
               Strategy: {signal.strategy}
-              {signal.target_size && ` • Size: ${signal.target_size.toFixed(4)}`}
+              {signal.target_size && ` • Size: ${safeNum(signal.target_size, 4)}`}
             </div>
           </div>
         ))}

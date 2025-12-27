@@ -1,6 +1,7 @@
 // TP Detail Drawer - displays detailed TP profile, metrics, and recommendations
 import type { TPDashboardEntry } from '@/lib/tpDashboardTypes';
 import { useEffect } from 'react';
+import { safeNum, safePercent } from '@/lib/formatters';
 
 interface TpDetailDrawerProps {
   entry: TPDashboardEntry | null;
@@ -148,10 +149,10 @@ export default function TpDetailDrawer({
                           </div>
                           <div className="text-right">
                             <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {leg.r_multiple.toFixed(2)}R
+                              {safeNum(leg.r_multiple, 2)}R
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                              {(leg.size_fraction * 100).toFixed(0)}% size
+                              {safeNum(leg.size_fraction * 100, 0)}% size
                             </div>
                           </div>
                         </div>
@@ -169,7 +170,7 @@ export default function TpDetailDrawer({
                 <div className="grid grid-cols-2 gap-4">
                   <MetricCard
                     label="TP Hit Rate"
-                    value={`${(entry.metrics.tp_hit_rate * 100).toFixed(1)}%`}
+                    value={safePercent(entry.metrics.tp_hit_rate * 100, 1)}
                     color={entry.metrics.tp_hit_rate > 0.6 ? 'success' : entry.metrics.tp_hit_rate > 0.4 ? 'warning' : 'danger'}
                   />
                   <MetricCard
@@ -190,21 +191,21 @@ export default function TpDetailDrawer({
                   {entry.metrics.avg_slippage_pct !== undefined && (
                     <MetricCard
                       label="Avg Slippage"
-                      value={`${(entry.metrics.avg_slippage_pct * 100).toFixed(2)}%`}
+                      value={safePercent(entry.metrics.avg_slippage_pct * 100, 2)}
                     />
                   )}
 
                   {entry.metrics.max_slippage_pct !== undefined && (
                     <MetricCard
                       label="Max Slippage"
-                      value={`${(entry.metrics.max_slippage_pct * 100).toFixed(2)}%`}
+                      value={safePercent(entry.metrics.max_slippage_pct * 100, 2)}
                     />
                   )}
 
                   {entry.metrics.avg_time_to_tp_minutes !== undefined && (
                     <MetricCard
                       label="Avg Time to TP"
-                      value={`${entry.metrics.avg_time_to_tp_minutes.toFixed(1)} min`}
+                      value={`${safeNum(entry.metrics.avg_time_to_tp_minutes, 1)} min`}
                     />
                   )}
 

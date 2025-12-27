@@ -1,5 +1,6 @@
 // Utility functions for dashboard
 import type { ESSState, ServiceStatus, MarketRegime } from './types';
+import { safeNum, safePercent } from './formatters';
 
 /**
  * Format number as currency
@@ -17,7 +18,8 @@ export function formatCurrency(value: number): string {
  * Format percentage
  */
 export function formatPercent(value: number, decimals: number = 2): string {
-  return `${value >= 0 ? '+' : ''}${value.toFixed(decimals)}%`;
+  const formatted = safeNum(value, decimals);
+  return `${value >= 0 ? '+' : ''}${formatted}%`;
 }
 
 /**
@@ -25,10 +27,10 @@ export function formatPercent(value: number, decimals: number = 2): string {
  */
 export function formatCompact(value: number): string {
   if (Math.abs(value) >= 1_000_000) {
-    return `$${(value / 1_000_000).toFixed(2)}M`;
+    return `$${safeNum(value / 1_000_000, 2)}M`;
   }
   if (Math.abs(value) >= 1_000) {
-    return `$${(value / 1_000).toFixed(1)}K`;
+    return `$${safeNum(value / 1_000, 1)}K`;
   }
   return formatCurrency(value);
 }
