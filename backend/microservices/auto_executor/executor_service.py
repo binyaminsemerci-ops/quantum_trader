@@ -268,7 +268,7 @@ class AutoExecutor:
                         
                         # Cache it
                         self.symbol_info_cache[symbol] = info
-                        logger.info(f"📏 [{symbol}] Fetched precision: {precision} decimals (stepSize: {step_size}, minQty: {lot_size['minQty']})")
+                        logger.info(f"📏 [{symbol}] Precision: qty={precision} (stepSize: {step_size}), price (tickSize: {price_filter['tickSize']})")
                         return info
             
             # Fallback if symbol not found
@@ -807,15 +807,25 @@ class AutoExecutor:
             symbol_info = self.get_symbol_info(symbol)
             tick_size = float(symbol_info.get('tickSize', '0.01'))
             
-            # Calculate price precision
+            # Calculate price precision from tickSize (NOT stepSize!)
             if '.' in str(tick_size):
                 price_precision = len(str(tick_size).rstrip('0').split('.')[1])
             else:
                 price_precision = 0
             
+            # Ensure minimum precision of 2 decimals for prices
+            price_precision = max(price_precision, 2)
+            
             # Round prices
             take_profit_price = round(take_profit_price, price_precision)
             stop_loss_price = round(stop_loss_price, price_precision)
+            
+            # DEBUG: Log calculated prices
+            logger.info(
+                f"🔍 [{symbol}] TP/SL Prices: entry={entry_price}, "
+                f"TP={take_profit_price}, SL={stop_loss_price}, "
+                f"TP%={tp_pct*100:.2f}%, SL%={sl_pct*100:.2f}%"
+            )
             
 # Place TP order with positionSide for hedge mode support
             try:
