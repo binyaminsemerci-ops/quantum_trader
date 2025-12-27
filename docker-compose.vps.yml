@@ -622,10 +622,10 @@ services:
     build: ./microservices/rl_dashboard
     container_name: quantum_rl_dashboard
     ports:
-      - "8026:8026"  # Expose on 8026 to avoid conflict
+      - "8027:8027"  # Use 8027 (8025 and 8026 are taken)
     environment:
       - REDIS_HOST=redis
-      - DASHBOARD_PORT=8026  # Changed from 8025
+      - DASHBOARD_PORT=8027
     depends_on:
       - redis
     volumes:
