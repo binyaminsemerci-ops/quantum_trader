@@ -680,7 +680,7 @@ class RLPositionSizingAgent:
                 self._last_action_key = f"math_ai_{position_size_usd:.0f}_{leverage:.1f}x"
                 
                 # Return Math AI decision
-                return SizingDecision(
+                decision = SizingDecision(
                     position_size_usd=position_size_usd,
                     leverage=leverage,
                     risk_pct=risk_pct,
@@ -695,6 +695,8 @@ class RLPositionSizingAgent:
                     partial_tp_percent=optimal.partial_tp_pct,
                     partial_tp_size=0.5,  # Always take 50% at partial TP
                 )
+                logger.info(f"🔍 [DEBUG] Returning SizingDecision: leverage={decision.leverage}, position_size={decision.position_size_usd}")
+                return decision
                 
             except Exception as e:
                 logger.error(f"❌ Math AI failed: {e}, falling back to RL mode", exc_info=True)
