@@ -813,9 +813,6 @@ class AutoExecutor:
             else:
                 price_precision = 0
             
-            # Ensure minimum precision of 2 decimals for prices
-            price_precision = max(price_precision, 2)
-            
             # Round prices
             take_profit_price = round(take_profit_price, price_precision)
             stop_loss_price = round(stop_loss_price, price_precision)
