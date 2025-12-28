@@ -667,7 +667,7 @@ services:
     container_name: quantum_quantumfond_frontend
     restart: unless-stopped
     ports:
-      - "3001:80"  # Port 3000 taken by old frontend
+      - "3002:80"  # Port 3000 taken by old frontend, 3001 by next-server
     networks:
       - quantum_trader
     healthcheck:
