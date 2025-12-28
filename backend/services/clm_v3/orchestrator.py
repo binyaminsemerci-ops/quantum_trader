@@ -371,7 +371,7 @@ class ClmOrchestrator:
     
     async def _fetch_training_data(self, job: TrainingJob) -> Dict:
         """
-        Fetch training data for the job.
+        Fetch training data for the job from Binance.
         
         Args:
             job: TrainingJob
@@ -379,17 +379,89 @@ class ClmOrchestrator:
         Returns:
             Dict with training data (features, labels, etc.)
         """
-        # TODO: Implement data fetching
-        # For now, return placeholder
-        logger.warning("[CLM v3 Orchestrator] _fetch_training_data not implemented - using placeholder")
-        return {
-            "symbol": job.symbol or "MULTI",
-            "timeframe": job.timeframe,
-            "dataset_span_days": job.dataset_span_days,
-            "features": [],  # Placeholder
-            "labels": [],    # Placeholder
-            "dates": [],     # Placeholder
-        }
+        import sys
+        import numpy as np
+        from pathlib import Path
+        
+        # Add ai_engine to path for imports
+        ai_engine_path = Path(__file__).parent.parent.parent.parent / "ai_engine"
+        if str(ai_engine_path) not in sys.path:
+            sys.path.insert(0, str(ai_engine_path))
+        
+        try:
+            from enhanced_data_collection import fetch_binance_ohlcv
+        except ImportError:
+            logger.error("[CLM v3] Cannot import fetch_binance_ohlcv - using placeholder")
+            return {
+                "symbol": job.symbol or "MULTI",
+                "timeframe": job.timeframe,
+                "dataset_span_days": job.dataset_span_days,
+                "features": [],
+                "labels": [],
+                "dates": [],
+            }
+        
+        symbol = job.symbol or "BTCUSDT"
+        lookback_days = job.dataset_span_days or 30
+        interval = "1h"
+        limit = min(lookback_days * 24, 1000)  # Max 1000 candles from Binance
+        
+        logger.info(f"[CLM v3] Fetching {limit} candles for {symbol} (interval={interval})")
+        
+        try:
+            # Fetch OHLCV data from Binance
+            candles = await fetch_binance_ohlcv(symbol=symbol, interval=interval, limit=limit)
+            
+            if not candles or len(candles) < 10:
+                logger.error(f"[CLM v3] Insufficient data: only {len(candles)} candles")
+                return {
+                    "symbol": symbol,
+                    "features": [],
+                    "labels": [],
+                    "dates": [],
+                }
+            
+            # Extract features and labels
+            features = []
+            labels = []
+            dates = []
+            
+            for i in range(len(candles) - 1):
+                candle = candles[i]
+                next_candle = candles[i + 1]
+                
+                # Features: OHLCV
+                features.append([
+                    float(candle['open']),
+                    float(candle['high']),
+                    float(candle['low']),
+                    float(candle['close']),
+                    float(candle['volume']),
+                ])
+                
+                # Label: 1 if price goes up, 0 if down
+                labels.append(1 if next_candle['close'] > candle['close'] else 0)
+                dates.append(candle['timestamp'])
+            
+            logger.info(f"[CLM v3] ✅ Fetched {len(features)} samples for {symbol}")
+            
+            return {
+                "symbol": symbol,
+                "timeframe": interval,
+                "dataset_span_days": lookback_days,
+                "features": np.array(features),
+                "labels": np.array(labels),
+                "dates": dates,
+            }
+            
+        except Exception as e:
+            logger.error(f"[CLM v3] Error fetching training data: {e}")
+            return {
+                "symbol": symbol,
+                "features": [],
+                "labels": [],
+                "dates": [],
+            }
     
     async def _train_model(self, job: TrainingJob, training_data: Dict) -> ModelVersion:
         """
