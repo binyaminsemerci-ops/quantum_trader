@@ -438,6 +438,15 @@ class AutoExecutor:
                 logger.error("❌ Binance client not available")
                 return None
             
+            # Set margin type to ISOLATED (safer than CROSS)
+            try:
+                safe_futures_call('futures_change_margin_type', symbol=symbol, marginType='ISOLATED')
+                logger.info(f"🛡️ [{symbol}] Margin type set to ISOLATED")
+            except Exception as e:
+                # Ignore error if already in ISOLATED mode
+                if 'No need to change margin type' not in str(e):
+                    logger.warning(f"⚠️ [{symbol}] Could not change margin type: {e}")
+            
             # Set leverage
             safe_futures_call('futures_change_leverage', symbol=symbol, leverage=leverage)
             
@@ -814,17 +823,40 @@ class AutoExecutor:
             
             # Get symbol info for price precision
             symbol_info = self.get_symbol_info(symbol)
-            tick_size = float(symbol_info.get('tickSize', '0.01'))
+            tick_size_str = symbol_info.get('tickSize', '0.01')
+            tick_size = float(tick_size_str)
             
-            # Calculate price precision from tickSize (NOT stepSize!)
-            if '.' in str(tick_size):
-                price_precision = len(str(tick_size).rstrip('0').split('.')[1])
+            # ✅ CRITICAL FIX: Calculate price precision from tickSize string (handles scientific notation)
+            # Use original string from exchange, not float (avoids "1e-05" problem)
+            if '.' in tick_size_str:
+                price_precision = len(tick_size_str.rstrip('0').split('.')[1])
             else:
                 price_precision = 0
             
-            # Round prices
+            # DEBUG: Log BEFORE rounding
+            logger.info(
+                f"🔍 [{symbol}] BEFORE rounding: TP={take_profit_price:.10f}, SL={stop_loss_price:.10f}, "
+                f"tickSize={tick_size}, precision={price_precision}"
+            )
+            
+            # Round prices to exchange precision
             take_profit_price = round(take_profit_price, price_precision)
             stop_loss_price = round(stop_loss_price, price_precision)
+            
+            # ✅ CRITICAL FIX: Validate prices are not zero (would cause "Stop price less than zero" error)
+            if take_profit_price <= 0 or stop_loss_price <= 0:
+                logger.error(
+                    f"❌ [{symbol}] Invalid TP/SL prices after rounding: TP={take_profit_price}, SL={stop_loss_price}. "
+                    f"Entry={entry_price}, TP%={tp_pct*100:.2f}%, SL%={sl_pct*100:.2f}%, precision={price_precision}"
+                )
+                # Try with minimum price movement instead
+                if side == "BUY":
+                    take_profit_price = entry_price + (tick_size * max(1, int(entry_price * tp_pct / tick_size)))
+                    stop_loss_price = entry_price - (tick_size * max(1, int(entry_price * sl_pct / tick_size)))
+                else:  # SHORT
+                    take_profit_price = entry_price - (tick_size * max(1, int(entry_price * tp_pct / tick_size)))
+                    stop_loss_price = entry_price + (tick_size * max(1, int(entry_price * sl_pct / tick_size)))
+                logger.info(f"🔧 [{symbol}] Adjusted to tick-based prices: TP={take_profit_price}, SL={stop_loss_price}")
             
             # DEBUG: Log calculated prices
             logger.info(
