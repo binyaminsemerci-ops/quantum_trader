@@ -625,11 +625,11 @@ class ExecRiskService:
         
         # Calculate TP/SL levels
         if side == "LONG":
-            take_profit = entry_price * 1.05  # +5% profit target
-            stop_loss = entry_price * 0.98    # -2% stop loss
-        else:
-            take_profit = entry_price * 0.95  # +5% profit target
-            stop_loss = entry_price * 1.02    # -2% stop loss
+            take_profit = entry_price * 1.05  # +5% profit target (above entry)
+            stop_loss = entry_price * 0.98    # -2% stop loss (below entry)
+        else:  # SHORT
+            take_profit = entry_price * 0.95  # -5% profit target (below entry)
+            stop_loss = entry_price * 1.02    # +2% stop loss (above entry)
         
         position["take_profit"] = take_profit
         position["stop_loss"] = stop_loss
