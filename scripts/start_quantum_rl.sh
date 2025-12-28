@@ -23,19 +23,19 @@ echo "🔧 Checking Docker..."
 docker info >/dev/null 2>&1 || (echo "Docker not running" && exit 1)
 
 echo "📡 Starting Redis..."
-docker compose -f docker-compose.vps.yml up -d redis
+docker compose -f docker-compose.vps.yml up -d redis --no-build
 wait_for "Redis" "docker exec quantum_redis redis-cli PING | grep -q PONG"
 
 echo "🧩 Starting StrategyOps..."
-docker compose -f docker-compose.vps.yml up -d strategy-ops
+docker compose -f docker-compose.vps.yml up -d strategy-ops --no-build
 wait_for "StrategyOps" "docker logs quantum_strategy_ops 2>&1 | grep -q 'StrategyOps active'"
 
 echo "🧬 Starting RL Feedback Bridge..."
-docker compose -f docker-compose.vps.yml up -d rl-feedback-v2
+docker compose -f docker-compose.vps.yml up -d rl-feedback-v2 --no-build
 wait_for "RL Feedback Bridge" "docker logs quantum_rl_feedback_v2 2>&1 | grep -q 'RL Feedback Bridge v2 running'"
 
 echo "📊 Starting RL Dashboard..."
-docker compose -f docker-compose.vps.yml up -d rl-dashboard
+docker compose -f docker-compose.vps.yml up -d rl-dashboard --no-build
 wait_for "RL Dashboard" "curl -s -o /dev/null -w '%{http_code}' http://localhost:8027 | grep -q 200"
 
 echo "✅ All Quantum RL Services Started Successfully!"

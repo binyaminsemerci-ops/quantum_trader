@@ -49,7 +49,7 @@ useEffect(()=>{const ci={};symbols.forEach(s=>{const ctx=document.getElementById
 ci[s]=new Chart(ctx,{type:"line",data:{labels:[],datasets:[{label:"Reward",data:[],borderColor:"#00ffcc"},{label:"Policy Δ",data:[],borderColor:"#ff00aa"}]},
 options:{scales:{x:{display:false},y:{ticks:{color:"#aaa"}}},plugins:{legend:{labels:{color:"#aaa"}}}}});});
 setCharts(ci);
-const i=setInterval(async()=>{const r=await fetch("http://localhost:8025/data");const j=await r.json();const rewards=j.rewards||{};
+const i=setInterval(async()=>{const r=await fetch("http://localhost:8027/data");const j=await r.json();const rewards=j.rewards||{};
 const np={};symbols.forEach(s=>{const arr=rewards[s]||[0];const val=arr[arr.length-1]||0;
 const c=ci[s];if(c){c.data.labels.push("");c.data.datasets[0].data.push(val);c.data.datasets[1].data.push(val*0.5);
 if(c.data.labels.length>80){c.data.labels.shift();c.data.datasets[0].data.shift();c.data.datasets[1].data.shift();}c.update();}
