@@ -850,17 +850,18 @@ class AutoExecutor:
                     logger.warning(f"⚠️ [{symbol}] ExitBrain failed: {eb_error}, using fallback")
             
             # Fallback to leverage-based TP/SL if ExitBrain unavailable
+            # ⚡ AGGRESSIVE LEVELS - Faster exits for higher trade velocity
             if tp_pct is None or sl_pct is None:
                 if signal_leverage >= 10:
-                    tp_pct = 0.012  # 1.2% TP
-                    sl_pct = 0.006  # 0.6% SL
+                    tp_pct = 0.008  # 0.8% TP (was 1.2%)
+                    sl_pct = 0.004  # 0.4% SL (was 0.6%)
                 elif signal_leverage >= 5:
-                    tp_pct = 0.015  # 1.5% TP
-                    sl_pct = 0.008  # 0.8% SL
+                    tp_pct = 0.010  # 1.0% TP (was 1.5%)
+                    sl_pct = 0.005  # 0.5% SL (was 0.8%)
                 else:
-                    tp_pct = 0.02   # 2% TP
-                    sl_pct = 0.01   # 1% SL
-                logger.info(f"📊 [{symbol}] Fallback TP/SL: {tp_pct*100:.1f}%/{sl_pct*100:.1f}%")
+                    tp_pct = 0.015  # 1.5% TP (was 2.0%)
+                    sl_pct = 0.007  # 0.7% SL (was 1.0%)
+                logger.info(f"⚡ [{symbol}] Aggressive TP/SL: {tp_pct*100:.1f}%/{sl_pct*100:.1f}%")
             
             # Calculate prices based on position direction
             if side == "BUY":
