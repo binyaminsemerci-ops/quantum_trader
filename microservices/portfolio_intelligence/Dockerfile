@@ -2,6 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Create logs directory
+RUN mkdir -p /app/logs
+
 # Copy requirements
 COPY microservices/portfolio_intelligence/requirements.txt /app/requirements.txt
 
@@ -11,6 +14,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # Copy service code
 COPY microservices/portfolio_intelligence/ /app/microservices/portfolio_intelligence/
 COPY backend/core/ /app/backend/core/
+COPY backend/models/ /app/backend/models/
 
 # Expose port
 EXPOSE 8004
