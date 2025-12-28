@@ -34,7 +34,9 @@ async def main():
     logger.info("=" * 60)
     
     # Connect to Redis
-    redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
+    redis_host = os.getenv("REDIS_HOST", "quantum_redis")
+    redis_port = os.getenv("REDIS_PORT", "6379")
+    redis_url = f"redis://{redis_host}:{redis_port}"
     logger.info(f"Connecting to Redis: {redis_url}")
     redis_client = redis_async.from_url(redis_url, decode_responses=False)
     
