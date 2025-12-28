@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import Chart from "chart.js/auto";
+import InsightCard from '../components/InsightCard';
 
 // RL Dashboard URL - bruker VPS backend
 const RL_DASHBOARD_URL = "/api/rl-dashboard";
@@ -197,14 +198,51 @@ export default function RLIntelligence() {
   }, []);
 
   return (
-    <div className="p-6 text-gray-100">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-green-400 mb-2">
-          🧠 RL Intelligence Dashboard
-        </h1>
-        <p className="text-gray-400">
-          Real-time Reinforcement Learning performance metrics from StrategyOps
-        </p>
+    <div>
+      <h1 className="text-3xl font-bold mb-6 text-green-400">
+        🧠 RL Intelligence
+      </h1>
+
+      {/* Insight Cards - Same style as Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <InsightCard
+          title="Symbols Tracked"
+          value={symbols.length}
+          subtitle="Active trading pairs"
+          color="text-green-400"
+        />
+        <InsightCard
+          title="Best Performer"
+          value={(() => {
+            const entries = Object.entries(perf);
+            if (entries.length === 0) return "N/A";
+            const best = entries.reduce((a, b) => (b[1] > a[1] ? b : a));
+            return best[0];
+          })()}
+          subtitle={`+${(Math.max(...Object.values(perf), 0) * 100).toFixed(2)}%`}
+          color="text-green-400"
+        />
+        <InsightCard
+          title="Avg Reward"
+          value={(() => {
+            const vals = Object.values(perf);
+            if (vals.length === 0) return "0.00%";
+            const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+            return `${(avg * 100).toFixed(2)}%`;
+          })()}
+          subtitle="Mean performance"
+          color={
+            Object.values(perf).reduce((a, b) => a + b, 0) > 0
+              ? "text-green-400"
+              : "text-red-400"
+          }
+        />
+        <InsightCard
+          title="Status"
+          value={error ? "Offline" : "Live"}
+          subtitle={error ? "Disconnected" : "Real-time updates"}
+          color={error ? "text-red-400" : "text-green-400"}
+        />
       </div>
 
       {error && (
