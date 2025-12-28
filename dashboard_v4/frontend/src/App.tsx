@@ -4,6 +4,7 @@ import AIEngine from './pages/AIEngine';
 import Portfolio from './pages/Portfolio';
 import Risk from './pages/Risk';
 import SystemHealth from './pages/SystemHealth';
+import RLIntelligence from './pages/RLIntelligence';
 
 function Navigation() {
   const location = useLocation();
@@ -11,6 +12,7 @@ function Navigation() {
   const navItems = [
     { path: '/', label: 'Overview', icon: '🏠' },
     { path: '/ai', label: 'AI Engine', icon: '🤖' },
+    { path: '/rl', label: 'RL Intelligence', icon: '🧠' },
     { path: '/portfolio', label: 'Portfolio', icon: '💼' },
     { path: '/risk', label: 'Risk', icon: '⚠️' },
     { path: '/system', label: 'System', icon: '⚙️' }
@@ -68,6 +70,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Overview />} />
             <Route path="/ai" element={<AIEngine />} />
+            <Route path="/rl" element={<RLIntelligence />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/risk" element={<Risk />} />
             <Route path="/system" element={<SystemHealth />} />
