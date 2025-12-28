@@ -659,6 +659,23 @@ services:
       - quantum_trader
     restart: always
 
+  # QuantumFond Frontend - Main Dashboard UI
+  quantumfond-frontend:
+    build:
+      context: ./quantumfond_frontend
+      dockerfile: Dockerfile
+    container_name: quantum_quantumfond_frontend
+    restart: unless-stopped
+    ports:
+      - "3001:80"  # Port 3000 taken by old frontend
+    networks:
+      - quantum_trader
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 networks:
   quantum_trader:
     driver: bridge
