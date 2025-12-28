@@ -170,6 +170,7 @@ class AIEngineService:
             
             # Subscribe to events
             self.event_bus.subscribe("market.tick", self._handle_market_tick)
+            self.event_bus.subscribe("exchange.raw", self._handle_exchange_raw)  # 🔥 FIX: Use live exchange data
             self.event_bus.subscribe("market.klines", self._handle_market_klines)
             self.event_bus.subscribe("trade.closed", self._handle_trade_closed)
             self.event_bus.subscribe("policy.updated", self._handle_policy_updated)
@@ -854,6 +855,53 @@ class AIEngineService:
             
         except Exception as e:
             logger.error(f"[AI-ENGINE] Error handling market.tick: {e}", exc_info=True)
+    
+    async def _handle_exchange_raw(self, event_data: Dict[str, Any]):
+        """
+        Handle exchange.raw event - LIVE market data from cross-exchange aggregator.
+        
+        🔥 FIX: Since market.tick stream is stale (frozen Dec 16), we now read directly
+        from exchange.raw which has 1.96M live events with current BTC/ETH/SOL prices.
+        
+        Flow:
+        1. Extract symbol + close price from exchange.raw event
+        2. Convert to market.tick format
+        3. Run ensemble inference
+        4. Run meta-strategy selection
+        5. Run RL position sizing
+        6. Publish ai.decision.made event
+        """
+        try:
+            symbol = event_data.get("symbol")
+            close_price = event_data.get("close", 0.0)
+            volume = event_data.get("volume", 0.0)
+            
+            if not symbol or close_price <= 0:
+                logger.debug(f"[AI-ENGINE] Invalid exchange.raw event: symbol={symbol}, close={close_price}")
+                return
+            
+            # Only process key symbols to avoid spam (1.96M events in stream!)
+            if symbol not in ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "ADAUSDT"]:
+                return
+            
+            # Update price history
+            await self.update_price_history(symbol, close_price, volume)
+            
+            logger.info(f"[AI-ENGINE] 🔥 Processing exchange.raw: {symbol} @ ${close_price:.2f} "
+                       f"(history: {len(self._price_history[symbol])} ticks)")
+            
+            # Generate full signal
+            decision = await self.generate_signal(symbol, current_price=close_price)
+            
+            if decision:
+                self._signals_generated += 1
+                logger.info(
+                    f"[AI-ENGINE] 🎯 Decision: {symbol} {decision.side.upper()} "
+                    f"(confidence={decision.confidence:.2f}, size=${decision.position_size_usd:.0f})"
+                )
+            
+        except Exception as e:
+            logger.error(f"[AI-ENGINE] Error handling exchange.raw: {e}", exc_info=True)
     
     async def _handle_market_klines(self, event_data: Dict[str, Any]):
         """Handle market.klines event (candle data)."""
