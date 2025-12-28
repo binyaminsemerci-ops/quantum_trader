@@ -915,7 +915,20 @@ class AutoExecutor:
                 f"TP%={tp_pct*100:.2f}%, SL%={sl_pct*100:.2f}%"
             )
             
-# Place TP order with positionSide for hedge mode support
+            # ⚡ CANCEL existing TP/SL orders first to avoid conflicts
+            try:
+                open_orders = safe_futures_call('futures_get_open_orders', symbol=symbol)
+                for order in open_orders:
+                    if order['type'] in ['TAKE_PROFIT_MARKET', 'STOP_MARKET', 'TAKE_PROFIT', 'STOP']:
+                        try:
+                            safe_futures_call('futures_cancel_order', symbol=symbol, orderId=order['orderId'])
+                            logger.info(f"🗑️ [{symbol}] Cancelled old {order['type']} order")
+                        except Exception as cancel_error:
+                            logger.warning(f"⚠️ [{symbol}] Failed to cancel order: {cancel_error}")
+            except Exception as e:
+                logger.warning(f"⚠️ [{symbol}] Failed to get open orders: {e}")
+            
+            # Place TP order with positionSide for hedge mode support
             try:
                 tp_order = safe_futures_call('futures_create_order',
                     symbol=symbol,
@@ -977,13 +990,9 @@ class AutoExecutor:
             
             # Check if position already exists
             if self.has_open_position(symbol):
-                # Check if position needs TP/SL protection
-                if not self.has_tp_sl_orders(symbol):
-                    logger.info(f"🛡️ [{symbol}] Setting TP/SL for existing position")
-                    return self.set_tp_sl_for_existing(symbol, signal)
-                else:
-                    logger.debug(f"⏭️ [{symbol}] Position has TP/SL, skipping")
-                    return False
+                # ⚡ ALWAYS update TP/SL to aggressive levels when signal arrives
+                logger.info(f"🔄 [{symbol}] Updating TP/SL for existing position to aggressive levels")
+                return self.set_tp_sl_for_existing(symbol, signal)
             
             # Check drawdown circuit breaker
             if self.check_drawdown(signal):
