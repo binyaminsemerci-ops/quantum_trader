@@ -24,12 +24,14 @@ def get_ai_predictions():
     """
     import redis
     import logging
+    import os
     
     logger = logging.getLogger(__name__)
     predictions = []
     
     try:
-        r = redis.Redis(host='redis', port=6379, decode_responses=True)
+        redis_host = os.getenv('REDIS_HOST', 'redis')
+        r = redis.Redis(host=redis_host, port=6379, decode_responses=True)
         
         # Get last 15 trade.intent events from Redis stream
         events = r.xrevrange('quantum:stream:trade.intent', '+', '-', count=15)
