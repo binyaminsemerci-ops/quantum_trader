@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Chart from "chart.js/auto";
 
 // RL Dashboard URL - bruker VPS backend
@@ -71,7 +71,6 @@ function CorrelationMatrix({ perf }: { perf: PerformanceData }) {
 
 export default function RLIntelligence() {
   const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"];
-  const [charts, setCharts] = useState<ChartsState>({});
   const [perf, setPerf] = useState<PerformanceData>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -135,8 +134,6 @@ export default function RLIntelligence() {
       }
     });
 
-    setCharts(chartInstances);
-
     // Fetch data from RL Dashboard
     const fetchData = async () => {
       try {
@@ -154,7 +151,7 @@ export default function RLIntelligence() {
           const val = arr[arr.length - 1] || 0;
 
           const chart = chartInstances[s];
-          if (chart) {
+          if (chart && chart.data.labels) {
             chart.data.labels.push("");
             chart.data.datasets[0].data.push(val);
             chart.data.datasets[1].data.push(val * 0.5);
