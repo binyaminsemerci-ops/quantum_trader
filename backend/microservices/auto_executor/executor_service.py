@@ -748,20 +748,25 @@ class AutoExecutor:
         """Check if TP/SL orders exist for this symbol"""
         try:
             if PAPER_TRADING:
+                logger.info(f"⏭️ [{symbol}] Skipping TP/SL check (PAPER_TRADING)")
                 return False
             
             if not BINANCE_AVAILABLE or not client:
+                logger.warning(f"⚠️ [{symbol}] Cannot check TP/SL (no client)")
                 return False
             
             open_orders = safe_futures_call('futures_get_open_orders', symbol=symbol)
+            logger.info(f"📋 [{symbol}] Checking {len(open_orders)} open orders for TP/SL")
             
             # Check if any orders are TP or SL types
             for order in open_orders:
                 order_type = order.get('type', '')
+                logger.info(f"   Order: {order.get('orderId')} type={order_type} side={order.get('side')}")
                 if order_type in ['TAKE_PROFIT_MARKET', 'STOP_MARKET', 'TAKE_PROFIT', 'STOP_LOSS']:
-                    logger.debug(f"🛡️ [{symbol}] Has TP/SL: {order_type}")
+                    logger.info(f"🛡️ [{symbol}] Has existing TP/SL: {order_type}")
                     return True
             
+            logger.info(f"❗ [{symbol}] NO TP/SL orders found!")
             return False
         except Exception as e:
             logger.error(f"❌ Failed to check TP/SL orders for {symbol}: {e}")
