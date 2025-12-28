@@ -137,3 +137,26 @@ class ExitBrainV35Integration:
             logger.info(f"📊 Recorded trade result: {symbol} @ {leverage}x = {pnl_pct:.2%} PnL")
         except Exception as e:
             logger.error(f"❌ Error recording trade result: {e}")
+
+
+# Singleton instance
+_v35_instance: Optional[ExitBrainV35Integration] = None
+
+
+def get_v35_integration(enabled: bool = True) -> ExitBrainV35Integration:
+    """
+    Get or create singleton ExitBrain v3.5 integration instance
+    
+    Args:
+        enabled: Whether adaptive leverage should be enabled
+        
+    Returns:
+        ExitBrainV35Integration instance
+    """
+    global _v35_instance
+    
+    if _v35_instance is None:
+        _v35_instance = ExitBrainV35Integration(enabled=enabled)
+        logger.info("✅ Created new ExitBrain v3.5 singleton instance")
+    
+    return _v35_instance
