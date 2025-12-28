@@ -13,6 +13,27 @@ class AIStatus(BaseModel):
     latency: int
     models: List[str]
 
+class Prediction(BaseModel):
+    id: str
+    timestamp: str
+    symbol: str
+    side: str
+    confidence: float
+    entry_price: float
+    stop_loss: float
+    take_profit: float
+    leverage: int
+    model: str
+    reason: str
+    volatility: float
+    regime: str
+    position_size_usd: float
+
+class PredictionsResponse(BaseModel):
+    predictions: List[Prediction]
+    count: int
+    timestamp: float
+
 class Portfolio(BaseModel):
     pnl: float
     exposure: float
