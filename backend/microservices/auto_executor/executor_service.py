@@ -662,10 +662,48 @@ class AutoExecutor:
             if pnl > 0:
                 r.hincrby("execution_metrics", "profitable_trades", 1)
             
+            # ✅ NEW: Publish trade.closed event for continuous learning
+            if pnl != 0.0:  # Only publish when PnL is calculated (position closed)
+                self.publish_trade_closed(symbol, action, price, confidence, pnl)
+            
             logger.info(f"📊 Trade logged: {symbol} {action} {qty} conf={confidence:.2f}")
             
         except Exception as e:
             logger.error(f"❌ Failed to log trade: {e}")
+
+    def publish_trade_closed(
+        self,
+        symbol: str,
+        action: str,
+        price: float,
+        confidence: float,
+        pnl: float
+    ):
+        """Publish trade.closed event to Redis stream for continuous learning"""
+        try:
+            event_data = {
+                "event_type": "trade.closed",
+                "symbol": symbol,
+                "side": action,
+                "exit_price": price,
+                "pnl_percent": pnl,
+                "confidence": confidence,
+                "timestamp": datetime.utcnow().isoformat(),
+                "model": "ensemble",
+                "leverage": MAX_LEVERAGE
+            }
+            
+            # Publish to trade.closed stream
+            r.xadd(
+                "quantum:stream:trade.closed",
+                event_data,
+                maxlen=1000  # Keep last 1000 closed trades
+            )
+            
+            logger.info(f"📤 Published trade.closed: {symbol} PnL={pnl:.2f}%")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to publish trade.closed: {e}")
 
     def check_drawdown(self, signal: Dict) -> bool:
         """Check if drawdown exceeds circuit breaker threshold"""
@@ -687,14 +725,20 @@ class AutoExecutor:
                 return False  # Allow multiple paper trades for testing
             
             if not BINANCE_AVAILABLE or not client:
+                logger.warning(f"⚠️ [{symbol}] BINANCE_AVAILABLE={BINANCE_AVAILABLE}, client={client is not None}")
                 return False
             
             positions = safe_futures_call('futures_position_information', symbol=symbol)
+            logger.info(f"🔍 [{symbol}] Checking position - got {len(positions)} results")
+            
             for pos in positions:
                 position_amt = float(pos.get('positionAmt', 0))
+                logger.info(f"   Position {pos.get('symbol')}: amt={position_amt}, entryPrice={pos.get('entryPrice')}")
                 if abs(position_amt) > 0:
-                    logger.debug(f"📍 [{symbol}] Already has open position: {position_amt}")
+                    logger.info(f"📍 [{symbol}] FOUND existing position: {position_amt}")
                     return True
+            
+            logger.info(f"✅ [{symbol}] No existing position found")
             return False
         except Exception as e:
             logger.error(f"❌ Failed to check position for {symbol}: {e}")
