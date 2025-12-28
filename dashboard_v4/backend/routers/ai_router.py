@@ -23,6 +23,9 @@ def get_ai_predictions():
     Returns 15 most recent REAL trading signals from Redis trade.intent stream.
     """
     import redis
+    import logging
+    
+    logger = logging.getLogger(__name__)
     predictions = []
     
     try:
@@ -30,6 +33,7 @@ def get_ai_predictions():
         
         # Get last 15 trade.intent events from Redis stream
         events = r.xrevrange('quantum:stream:trade.intent', '+', '-', count=15)
+        logger.info(f"[AI Router] Fetched {len(events)} events from Redis")
         
         for event_id, event_data in events:
             try:
@@ -75,14 +79,16 @@ def get_ai_predictions():
                     regime=regime,
                     position_size_usd=round(position_size, 2)
                 ))
+                logger.info(f"[AI Router] Parsed prediction: {symbol} {side_formatted}")
             except Exception as e:
-                print(f"[DEBUG] Failed to parse event {event_id}: {e}")
+                logger.error(f"[AI Router] Failed to parse event {event_id}: {e}")
                 continue  # Skip malformed events
         
     except Exception as e:
-        print(f"[DEBUG] Redis connection failed: {e}")
+        logger.error(f"[AI Router] Redis connection failed: {e}")
         pass  # Fallback to empty if Redis unavailable
     
+    logger.info(f"[AI Router] Returning {len(predictions)} predictions")
     return PredictionsResponse(
         predictions=predictions,
         count=len(predictions),
