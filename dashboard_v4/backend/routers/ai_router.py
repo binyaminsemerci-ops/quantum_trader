@@ -75,12 +75,13 @@ def get_ai_predictions():
                     regime=regime,
                     position_size_usd=round(position_size, 2)
                 ))
-            except (json.JSONDecodeError, KeyError, ValueError) as e:
+            except Exception as e:
+                print(f"[DEBUG] Failed to parse event {event_id}: {e}")
                 continue  # Skip malformed events
         
     except Exception as e:
-        # Fallback to empty if Redis unavailable
-        pass
+        print(f"[DEBUG] Redis connection failed: {e}")
+        pass  # Fallback to empty if Redis unavailable
     
     return PredictionsResponse(
         predictions=predictions,
