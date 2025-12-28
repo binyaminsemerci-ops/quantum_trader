@@ -7,10 +7,29 @@ class RiskManager:
         self.take_profit = None
 
     def set_stop_take(
-        self, entry_price: float, stop_loss_pct=0.02, take_profit_pct=0.04
+        self, entry_price: float, stop_loss_pct=0.02, take_profit_pct=0.04, side: str = "LONG"
     ):
-        self.stop_loss = entry_price * (1 - stop_loss_pct)
-        self.take_profit = entry_price * (1 + take_profit_pct)
+        """Calculate stop-loss and take-profit levels.
+        
+        Args:
+            entry_price: Entry price for the position
+            stop_loss_pct: Stop-loss percentage (e.g., 0.02 = 2%)
+            take_profit_pct: Take-profit percentage (e.g., 0.04 = 4%)
+            side: Position side - "LONG" or "SHORT"
+        
+        For LONG: SL below entry, TP above entry
+        For SHORT: SL above entry, TP below entry
+        """
+        if side.upper() == "SHORT":
+            # SHORT: Stop-loss ABOVE entry (price goes up = loss)
+            self.stop_loss = entry_price * (1 + stop_loss_pct)
+            # Take-profit BELOW entry (price goes down = profit)
+            self.take_profit = entry_price * (1 - take_profit_pct)
+        else:  # LONG
+            # LONG: Stop-loss BELOW entry (price goes down = loss)
+            self.stop_loss = entry_price * (1 - stop_loss_pct)
+            # Take-profit ABOVE entry (price goes up = profit)
+            self.take_profit = entry_price * (1 + take_profit_pct)
 
     def check_exit(self, current_price: float, position: int) -> bool:
         if position == 1:  # long
