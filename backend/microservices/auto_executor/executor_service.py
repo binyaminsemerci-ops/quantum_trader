@@ -850,26 +850,31 @@ class AutoExecutor:
                     logger.warning(f"⚠️ [{symbol}] ExitBrain failed: {eb_error}, using fallback")
             
             # Fallback to leverage-based TP/SL if ExitBrain unavailable
-            # ⚡ AGGRESSIVE LEVELS - Faster exits for higher trade velocity
+            # 🎯 SAFE LEVELS - Account for funding costs (-0.75%) + spread (0.3%) = -1.05%
             if tp_pct is None or sl_pct is None:
+                # Higher leverage = tighter ranges, but NEVER below funding costs
                 if signal_leverage >= 10:
-                    tp_pct = 0.008  # 0.8% TP (was 1.2%)
-                    sl_pct = 0.004  # 0.4% SL (was 0.6%)
+                    tp_pct = 0.018  # 1.8% TP (was 0.8%)
+                    sl_pct = 0.012  # 1.2% SL (was 0.4%)
                 elif signal_leverage >= 5:
-                    tp_pct = 0.010  # 1.0% TP (was 1.5%)
-                    sl_pct = 0.005  # 0.5% SL (was 0.8%)
+                    tp_pct = 0.025  # 2.5% TP (was 1.0%)
+                    sl_pct = 0.015  # 1.5% SL (was 0.5%)
                 else:
-                    tp_pct = 0.015  # 1.5% TP (was 2.0%)
-                    sl_pct = 0.007  # 0.7% SL (was 1.0%)
-                logger.info(f"⚡ [{symbol}] Aggressive TP/SL: {tp_pct*100:.1f}%/{sl_pct*100:.1f}%")
+                    tp_pct = 0.035  # 3.5% TP (was 1.5%)
+                    sl_pct = 0.020  # 2.0% SL (was 0.7%)
+                logger.info(f"🎯 [{symbol}] Safe TP/SL (accounts for funding): {tp_pct*100:.1f}%/{sl_pct*100:.1f}%")
             
             # Calculate prices based on position direction
+            # ⚠️ CRITICAL: Add 0.2% buffer to account for mark price vs last price divergence
+            # Mark price can be 2-5% off from last price, causing premature triggers
+            mark_price_buffer = 0.002  # 0.2% safety buffer
+            
             if side == "BUY":
-                take_profit_price = entry_price * (1 + tp_pct)
-                stop_loss_price = entry_price * (1 - sl_pct)
+                take_profit_price = entry_price * (1 + tp_pct + mark_price_buffer)
+                stop_loss_price = entry_price * (1 - sl_pct - mark_price_buffer)
             else:  # SELL (SHORT)
-                take_profit_price = entry_price * (1 - tp_pct)
-                stop_loss_price = entry_price * (1 + sl_pct)
+                take_profit_price = entry_price * (1 - tp_pct - mark_price_buffer)
+                stop_loss_price = entry_price * (1 + sl_pct + mark_price_buffer)
             
             # Get symbol info for price precision
             symbol_info = self.get_symbol_info(symbol)

@@ -83,22 +83,22 @@ class ExitBrainV35:
         )
         
         # Get Adaptive Leverage Engine
-        # ⚡ AGGRESSIVE LEVELS - Faster exits for higher trade velocity
+        # 🎯 SAFE LEVELS - Account for -0.75% funding + 0.3% spread = -1.05% cost
         self.adaptive_engine = AdaptiveLeverageEngine(
-            base_tp=self.config.get("base_tp_pct", 0.008),  # 0.8% (was 1.0%)
-            base_sl=self.config.get("base_sl_pct", 0.004)   # 0.4% (was 0.5%)
+            base_tp=self.config.get("base_tp_pct", 0.020),  # 2.0% (was 0.8%)
+            base_sl=self.config.get("base_sl_pct", 0.012)   # 1.2% (was 0.4%)
         )
         
         # Base exit parameters (kept for backward compatibility)
-        self.base_tp_pct = self.config.get("base_tp_pct", 0.015)  # 1.5% (was 2.0%)
-        self.base_sl_pct = self.config.get("base_sl_pct", 0.007)  # 0.7% (was 1.0%)
-        self.trailing_callback_pct = self.config.get("trailing_callback_pct", 0.004)  # 0.4% (was 0.5%)
+        self.base_tp_pct = self.config.get("base_tp_pct", 0.025)  # 2.5% (was 1.5%)
+        self.base_sl_pct = self.config.get("base_sl_pct", 0.015)  # 1.5% (was 0.7%)
+        self.trailing_callback_pct = self.config.get("trailing_callback_pct", 0.008)  # 0.8% (was 0.4%)
         
-        # Safety limits - tighter ranges for aggressive trading
-        self.min_tp_pct = self.config.get("min_tp_pct", 0.005)  # 0.5% (was 0.3%)
-        self.max_tp_pct = self.config.get("max_tp_pct", 0.03)   # 3% (was 10%)
-        self.min_sl_pct = self.config.get("min_sl_pct", 0.003)  # 0.3% (was 0.15%)
-        self.max_sl_pct = self.config.get("max_sl_pct", 0.015)  # 1.5% (was 5%)
+        # Safety limits - wider ranges to account for funding costs
+        self.min_tp_pct = self.config.get("min_tp_pct", 0.015)  # 1.5% minimum (was 0.5%)
+        self.max_tp_pct = self.config.get("max_tp_pct", 0.10)   # 10% (was 3%)
+        self.min_sl_pct = self.config.get("min_sl_pct", 0.012)  # 1.2% minimum (was 0.3%)
+        self.max_sl_pct = self.config.get("max_sl_pct", 0.05)   # 5% (was 1.5%)
         
         # Reinforcement Learning - Dynamic reward feedback
         # When enabled, ExitBrain publishes PnL outcomes to Redis streams
