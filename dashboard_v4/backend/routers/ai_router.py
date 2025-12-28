@@ -19,47 +19,67 @@ def get_ai_status():
 def get_ai_predictions():
     """Get latest AI predictions/signals
     
-    Returns 15 most recent trading signals with ensemble consensus.
-    Each prediction shows agreement from multiple AI models.
+    Returns 15 most recent REAL trading signals from Redis trade.intent stream.
     """
-    symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT"]
-    all_models = ["XGB", "LGBM", "N-HiTS", "TFT"]
-    regimes = ["Bullish", "Bearish", "Neutral"]
-    
+    import redis
     predictions = []
     
-    for i in range(15):
-        symbol = random.choice(symbols)
-        side = random.choice(["LONG", "SHORT"])
+    try:
+        r = redis.Redis(host='redis', port=6379, decode_responses=True)
         
-        # Ensemble: 2-4 models agree on signal
-        num_models = random.randint(2, 4)
-        agreeing_models = random.sample(all_models, num_models)
-        model_str = "+".join(agreeing_models)
+        # Get last 15 trade.intent events from Redis stream
+        events = r.xrevrange('quantum:stream:trade.intent', '+', '-', count=15)
         
-        # Confidence: higher when more models agree
-        base_confidence = 0.60 + (num_models * 0.08)  # 68-92% range
-        confidence = round(base_confidence + random.uniform(-0.05, 0.05), 2)
-        confidence = min(0.98, max(0.60, confidence))  # clamp 60-98%
+        for event_id, event_data in events:
+            try:
+                # Parse payload JSON
+                payload_json = event_data.get('payload', '{}')
+                payload = json.loads(payload_json)
+                
+                # Extract data
+                symbol = payload.get('symbol', 'UNKNOWN')
+                side = payload.get('side', 'BUY')
+                confidence = payload.get('confidence', 0.5)
+                entry_price = payload.get('entry_price', 0.0)
+                stop_loss = payload.get('stop_loss', 0.0)
+                take_profit = payload.get('take_profit', 0.0)
+                leverage = int(payload.get('leverage', 1))
+                position_size = payload.get('position_size_usd', 0.0)
+                volatility = payload.get('volatility_factor', 0.0)
+                regime = payload.get('regime', 'UNKNOWN').title()
+                timestamp_str = payload.get('timestamp', '')
+                
+                # Format timestamp
+                if 'T' in timestamp_str:
+                    ts = timestamp_str.split('T')[1].split('.')[0]  # Extract HH:MM:SS
+                else:
+                    ts = time.strftime("%H:%M:%S")
+                
+                # Determine side format
+                side_formatted = "LONG" if side in ["BUY", "LONG"] else "SHORT"
+                
+                predictions.append(Prediction(
+                    id=event_id,
+                    timestamp=ts,
+                    symbol=symbol,
+                    side=side_formatted,
+                    confidence=round(confidence, 2),
+                    entry_price=round(entry_price, 4),
+                    stop_loss=round(stop_loss, 4),
+                    take_profit=round(take_profit, 4),
+                    leverage=leverage,
+                    model="ensemble",
+                    reason=f"AI signal from {regime} regime",
+                    volatility=round(volatility, 3),
+                    regime=regime,
+                    position_size_usd=round(position_size, 2)
+                ))
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                continue  # Skip malformed events
         
-        entry_price = round(random.uniform(100, 50000), 2)
-        
-        predictions.append(Prediction(
-            id=f"pred_{int(time.time())}_{i}",
-            timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
-            symbol=symbol,
-            side=side,
-            confidence=confidence,
-            entry_price=entry_price,
-            stop_loss=round(entry_price * (0.97 if side == "LONG" else 1.03), 2),
-            take_profit=round(entry_price * (1.05 if side == "LONG" else 0.95), 2),
-            leverage=random.choice([5, 10, 15, 20]),
-            model=model_str,
-            reason=f"{num_models}/{len(all_models)} models agree: Strong {'bullish' if side == 'LONG' else 'bearish'} signal",
-            volatility=round(random.uniform(0.015, 0.035), 3),
-            regime=random.choice(regimes),
-            position_size_usd=round(random.uniform(500, 2000), 2)
-        ))
+    except Exception as e:
+        # Fallback to empty if Redis unavailable
+        pass
     
     return PredictionsResponse(
         predictions=predictions,
