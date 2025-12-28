@@ -915,46 +915,88 @@ class AutoExecutor:
                 f"TP%={tp_pct*100:.2f}%, SL%={sl_pct*100:.2f}%"
             )
             
-            # ⚡ CANCEL existing TP/SL orders first to avoid conflicts
+            # ⚡ CHECK if TP/SL need updating before cancelling
             try:
                 open_orders = safe_futures_call('futures_get_open_orders', symbol=symbol)
+                existing_tp = None
+                existing_sl = None
+                
                 for order in open_orders:
-                    if order['type'] in ['TAKE_PROFIT_MARKET', 'STOP_MARKET', 'TAKE_PROFIT', 'STOP']:
+                    if order['type'] in ['TAKE_PROFIT_MARKET', 'TAKE_PROFIT']:
+                        existing_tp = float(order.get('stopPrice', 0))
+                    elif order['type'] in ['STOP_MARKET', 'STOP']:
+                        existing_sl = float(order.get('stopPrice', 0))
+                
+                # Check if TP/SL are close enough to target (within 0.1%)
+                tp_needs_update = True
+                sl_needs_update = True
+                
+                if existing_tp:
+                    price_diff_pct = abs(existing_tp - take_profit_price) / entry_price
+                    if price_diff_pct < 0.001:  # Less than 0.1% difference
+                        tp_needs_update = False
+                        logger.debug(f"✓ [{symbol}] TP already correct @ ${existing_tp:.6f}")
+                
+                if existing_sl:
+                    price_diff_pct = abs(existing_sl - stop_loss_price) / entry_price
+                    if price_diff_pct < 0.001:  # Less than 0.1% difference
+                        sl_needs_update = False
+                        logger.debug(f"✓ [{symbol}] SL already correct @ ${existing_sl:.6f}")
+                
+                # Only update if needed
+                if not tp_needs_update and not sl_needs_update:
+                    logger.debug(f"⏭️ [{symbol}] TP/SL already at correct levels, skipping update")
+                    return True
+                
+                # Cancel orders that need updating
+                for order in open_orders:
+                    if order['type'] in ['TAKE_PROFIT_MARKET', 'TAKE_PROFIT'] and tp_needs_update:
                         try:
                             safe_futures_call('futures_cancel_order', symbol=symbol, orderId=order['orderId'])
-                            logger.info(f"🗑️ [{symbol}] Cancelled old {order['type']} order")
+                            logger.info(f"🗑️ [{symbol}] Cancelled old TP order")
                         except Exception as cancel_error:
-                            logger.warning(f"⚠️ [{symbol}] Failed to cancel order: {cancel_error}")
+                            logger.warning(f"⚠️ [{symbol}] Failed to cancel TP: {cancel_error}")
+                    elif order['type'] in ['STOP_MARKET', 'STOP'] and sl_needs_update:
+                        try:
+                            safe_futures_call('futures_cancel_order', symbol=symbol, orderId=order['orderId'])
+                            logger.info(f"🗑️ [{symbol}] Cancelled old SL order")
+                        except Exception as cancel_error:
+                            logger.warning(f"⚠️ [{symbol}] Failed to cancel SL: {cancel_error}")
             except Exception as e:
-                logger.warning(f"⚠️ [{symbol}] Failed to get open orders: {e}")
+                logger.warning(f"⚠️ [{symbol}] Failed to check existing orders: {e}")
+                # Continue anyway to place orders
+                tp_needs_update = True
+                sl_needs_update = True
             
-            # Place TP order with positionSide for hedge mode support
-            try:
-                tp_order = safe_futures_call('futures_create_order',
-                    symbol=symbol,
-                    side="SELL" if side == "BUY" else "BUY",
-                    positionSide="LONG" if side == "BUY" else "SHORT",
-                    type="TAKE_PROFIT_MARKET",
-                    stopPrice=take_profit_price,
-                    closePosition=True
-                )
-                logger.info(f"✅ [{symbol}] TP set @ ${take_profit_price} ({tp_pct*100:+.1f}%)")
-            except Exception as e:
-                logger.error(f"❌ [{symbol}] Failed to set TP: {e}")
+            # Place TP order if needed
+            if tp_needs_update:
+                try:
+                    tp_order = safe_futures_call('futures_create_order',
+                        symbol=symbol,
+                        side="SELL" if side == "BUY" else "BUY",
+                        positionSide="LONG" if side == "BUY" else "SHORT",
+                        type="TAKE_PROFIT_MARKET",
+                        stopPrice=take_profit_price,
+                        closePosition=True
+                    )
+                    logger.info(f"✅ [{symbol}] TP set @ ${take_profit_price} ({tp_pct*100:+.1f}%)")
+                except Exception as e:
+                    logger.error(f"❌ [{symbol}] Failed to set TP: {e}")
             
-# Place SL order with positionSide for hedge mode support
-            try:
-                sl_order = safe_futures_call('futures_create_order',
-                    symbol=symbol,
-                    side="SELL" if side == "BUY" else "BUY",
-                    positionSide="LONG" if side == "BUY" else "SHORT",
-                    type="STOP_MARKET",
-                    stopPrice=stop_loss_price,
-                    closePosition=True
-                )
-                logger.info(f"✅ [{symbol}] SL set @ ${stop_loss_price} ({-sl_pct*100:.1f}%)")
-            except Exception as e:
-                logger.error(f"❌ [{symbol}] Failed to set SL: {e}")
+            # Place SL order if needed
+            if sl_needs_update:
+                try:
+                    sl_order = safe_futures_call('futures_create_order',
+                        symbol=symbol,
+                        side="SELL" if side == "BUY" else "BUY",
+                        positionSide="LONG" if side == "BUY" else "SHORT",
+                        type="STOP_MARKET",
+                        stopPrice=stop_loss_price,
+                        closePosition=True
+                    )
+                    logger.info(f"✅ [{symbol}] SL set @ ${stop_loss_price} ({-sl_pct*100:.1f}%)")
+                except Exception as e:
+                    logger.error(f"❌ [{symbol}] Failed to set SL: {e}")
             
             return True
             
