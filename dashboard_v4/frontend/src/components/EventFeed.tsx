@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 
+const WS_URL = import.meta.env.VITE_WS_URL || "wss://app.quantumfond.com/api/events/stream";
+
 export default function EventFeed() {
   const [events, setEvents] = useState<any[]>([]);
 
   useEffect(() => {
-    const ws = new WebSocket("wss://api.quantumfond.com/events/stream");
+    const ws = new WebSocket(WS_URL);
     
     ws.onmessage = (e) => {
       setEvents((prev) => [JSON.parse(e.data), ...prev].slice(0, 15));
