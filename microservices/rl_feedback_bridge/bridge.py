@@ -58,22 +58,29 @@ while True:
     confidence = float(d.get("confidence", 0.8))
     reward = pnl * confidence
 
-    state = get_cached_state(symbol).float()
+    state = get_cached_state(symbol).float().requires_grad_(False)
     action = torch.tensor(get_cached_action(symbol))
+    reward_tensor = torch.tensor(reward, dtype=torch.float32, requires_grad=False)
+    
+    # Critic update first (to get advantage)
     value = critic(state)
-    advantage = torch.tensor(reward) - value.detach()
-
-    # Actor update
-    probs = actor(state)
-    logprob = torch.log(probs[action])
-    loss_actor = -logprob * advantage
-    opt_a.zero_grad(); loss_actor.backward(); opt_a.step()
-
-    # Critic update
+    advantage = reward_tensor - value.detach()
     value_pred = critic(state)
-    loss_critic = (advantage ** 2)
+    loss_critic = (reward_tensor - value_pred).pow(2)
     opt_c.zero_grad(); loss_critic.backward(); opt_c.step()
 
-    print(f"[{symbol}] Reward={reward:.3f}, Advantage={advantage:.3f}")
-    torch.save(actor.state_dict(), "actor.pth")
-    torch.save(critic.state_dict(), "critic.pth")
+    # Actor update
+    with torch.no_grad():
+        advantage_detached = advantage.detach()
+    probs = actor(state)
+    logprob = torch.log(probs[action] + 1e-8)  # Add epsilon for numerical stability
+    loss_actor = -(logprob * advantage_detached)
+    opt_a.zero_grad(); loss_actor.backward(); opt_a.step()
+
+    advantage_val = advantage.item() if hasattr(advantage, 'item') else advantage
+    print(f"[{symbol}] Reward={reward:.3f}, Advantage={advantage_val:.3f}, Loss_Actor={loss_actor.item():.3f}, Loss_Critic={loss_critic.item():.3f}")
+    
+    # Save models every 10 updates to reduce I/O
+    if int(time.time()) % 10 == 0:
+        torch.save(actor.state_dict(), "actor.pth")
+        torch.save(critic.state_dict(), "critic.pth")

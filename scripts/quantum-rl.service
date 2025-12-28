@@ -1,0 +1,15 @@
+[Unit]
+Description=Quantum Trader RL Auto Startup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=qt
+WorkingDirectory=/home/qt/quantum_trader
+ExecStart=/home/qt/quantum_trader/start_quantum_rl.sh
+TimeoutStartSec=0
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

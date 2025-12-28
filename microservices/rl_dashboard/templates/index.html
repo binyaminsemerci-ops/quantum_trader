@@ -1,50 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="utf-8">
-<title>Quantum Trader RL Dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
-<style>
-body { font-family: Arial, sans-serif; background: #0f1115; color: #eee; margin: 0; }
-h1 { text-align: center; padding: 20px; }
-canvas { width: 90%; max-width: 900px; margin: auto; display: block; }
-.card { background: #1e2128; margin: 20px auto; padding: 20px; border-radius: 10px; width: 80%; }
-</style>
+  <title>RL Dashboard</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>body{font-family:sans-serif;background:#111;color:#0f0;padding:20px;}h1{color:#0ff;}</style>
 </head>
 <body>
-<h1>🧠 RL Learning Dashboard</h1>
-<div class="card">
-  <canvas id="rewardChart"></canvas>
-</div>
-<div class="card" id="logContainer">
-  <h3>Latest Events</h3>
-  <ul id="eventLog"></ul>
-</div>
-<script>
-const ctx = document.getElementById('rewardChart').getContext('2d');
-const rewardChart = new Chart(ctx, {
-  type: 'line',
-  data: { labels: [], datasets: [{ label: 'Reward %', data: [], borderColor: '#29b6f6', tension: 0.3 }] },
-  options: { scales: { x: { ticks: { color:'#ccc' } }, y: { ticks: { color:'#ccc' } } } }
-});
-
-const socket = io();
-socket.on('update', (data) => {
-  const rewards = data.rewards || [];
-  const labels = Array.from({length: rewards.length}, (_,i)=>i+1);
-  rewardChart.data.labels = labels;
-  rewardChart.data.datasets[0].data = rewards;
-  rewardChart.update();
-
-  const log = document.getElementById('eventLog');
-  log.innerHTML = '';
-  (data.events||[]).forEach(ev=>{
-    const li = document.createElement('li');
-    li.textContent = `${ev.timestamp} | ${ev.symbol} | PnL=${ev.pnl}% | conf=${ev.confidence}`;
-    log.appendChild(li);
-  });
-});
-</script>
+  <h1>🧠 RL Dashboard Live</h1>
+  <div id="output"></div>
+  <script>
+    const socket=io();
+    socket.on("update",(data)=>{
+      document.getElementById("output").innerHTML+=`<p>${JSON.stringify(data)}</p>`;
+    });
+  </script>
 </body>
 </html>

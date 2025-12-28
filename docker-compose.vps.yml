@@ -591,6 +591,31 @@ services:
       - quantum_trader
     restart: always
 
+  # RL Strategy Operations - Multi-Strategy Signal Generation
+  strategy-ops:
+    build: ./microservices/strategy_operations
+    container_name: quantum_strategy_ops
+    environment:
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
+    networks:
+      - quantum_trader
+    restart: always
+
+  # RL Feedback Bridge v2 - Policy Adjustment Learning
+  rl-feedback-v2:
+    build: ./microservices/rl_feedback_bridge_v2
+    container_name: quantum_rl_feedback_v2
+    environment:
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
+      - strategy-ops
+    networks:
+      - quantum_trader
+    restart: always
+
   rl-monitor:
     build: ./microservices/rl_monitor_daemon
     container_name: quantum_rl_monitor

@@ -405,8 +405,9 @@ class StrategySelector:
             if self.volatility_engine:
                 vol_analysis = self.volatility_engine.get_complete_volatility_analysis(symbol)
                 if vol_analysis:
-                    volatility_score = vol_analysis.combined_volatility_score
-                    volatility_regime = vol_analysis.volatility_regime.lower()
+                    # ✅ FIX: vol_analysis is a dict, not an object
+                    volatility_score = vol_analysis.get("combined_volatility_score", 0.5)
+                    volatility_regime = vol_analysis.get("overall_regime", "normal").lower()
             
             # 2. Get Phase 2B orderflow analysis
             orderflow_score = 0.0
