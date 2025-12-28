@@ -12,6 +12,7 @@ import Admin from './pages/admin';
 import Incident from './pages/incident';
 import Journal from './pages/journal';
 import Replay from './pages/replay';
+import RLIntelligence from './pages/rl-intelligence';
 import { useState, useEffect } from 'react';
 
 function App() {
@@ -46,6 +47,7 @@ function App() {
               <Route path="/live" element={<Live />} />
               <Route path="/risk" element={<Risk />} />
               <Route path="/ai" element={<AI />} />
+              <Route path="/rl-intelligence" element={<RLIntelligence />} />
               <Route path="/strategy" element={<Strategy />} />
               <Route path="/performance" element={<Performance />} />
               <Route path="/portfolio" element={<Performance />} />

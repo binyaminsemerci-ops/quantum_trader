@@ -10,6 +10,7 @@ export default function Sidebar({}: SidebarProps) {
     { path: '/live', name: 'Live Trades', icon: '⚡' },
     { path: '/risk', name: 'Risk', icon: '🛡️' },
     { path: '/ai', name: 'AI Models', icon: '🤖' },
+    { path: '/rl-intelligence', name: 'RL Intelligence', icon: '🧠' },
     { path: '/strategy', name: 'Strategy', icon: '🎯' },
     { path: '/performance', name: 'Performance', icon: '📈' },
     { path: '/journal', name: 'Trade Journal', icon: '📖' },
