@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from schemas import AIStatus, PredictionsResponse, Prediction
 import time
 import random
+import json
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
