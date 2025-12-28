@@ -676,6 +676,18 @@ services:
       timeout: 10s
       retries: 3
 
+  rl-calibrator:
+    build: ./microservices/rl_calibrator
+    container_name: quantum_rl_calibrator
+    environment:
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
+    restart: always
+    networks:
+      - quantum_trader
+
+
 networks:
   quantum_trader:
     driver: bridge
