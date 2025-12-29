@@ -13,8 +13,8 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     PORT: int = 8004
     
-    # Redis (EventBus)
-    REDIS_HOST: str = "localhost"
+    # Redis (EventBus) - 🔥 FIX: Use env var instead of localhost
+    REDIS_HOST: str = "quantum_redis"  # Override with REDIS_HOST env var
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
     
@@ -23,8 +23,8 @@ class Settings(BaseSettings):
     TRADE_STORE_DB_PATH: str = "data/trades.db"
     TRADE_STORE_REDIS_URL: Optional[str] = None
     
-    # Risk-safety-service (PolicyStore)
-    RISK_SAFETY_SERVICE_URL: str = "http://localhost:8003"
+    # Risk-safety-service (PolicyStore) - 🔥 FIX: Use service name
+    RISK_SAFETY_SERVICE_URL: str = "http://risk-safety:8003"
     
     # Binance (account/balance data)
     BINANCE_API_KEY: str = ""
