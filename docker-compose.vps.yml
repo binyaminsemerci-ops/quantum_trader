@@ -79,7 +79,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://redis:6379
-      - AI_ENGINE_MIN_SIGNAL_CONFIDENCE=0.65
+      - AI_ENGINE_MIN_SIGNAL_CONFIDENCE=0.45  # [PHASE 2.3] Lowered from 0.65 to 0.45
       - AI_ENGINE_ENSEMBLE_MODELS=["xgb","lgbm","nhits","patchtst"]
       - RISK_SAFETY_SERVICE_URL=http://risk-safety:8003
       - LOG_LEVEL=DEBUG
@@ -90,6 +90,10 @@ services:
       - RL_POSITION_SIZING_ENABLED=true
       - EXPOSURE_BALANCER_ENABLED=true
       - PORTFOLIO_GOVERNANCE_ENABLED=true
+      - CEO_BRAIN_URL=http://ceo-brain:8010
+      - STRATEGY_BRAIN_URL=http://strategy-brain:8011
+      - RISK_BRAIN_URL=http://risk-brain:8012
+      - ENABLE_ORCHESTRATION=true
     ports:
       - "8001:8001"
     volumes:
@@ -105,6 +109,12 @@ services:
       redis:
         condition: service_healthy
       cross-exchange:
+        condition: service_started
+      ceo-brain:
+        condition: service_started
+      strategy-brain:
+        condition: service_started
+      risk-brain:
         condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health', timeout=5)"]
@@ -221,6 +231,53 @@ services:
           cpus: '0.05'
           memory: 64M
 
+  # Portfolio Intelligence - Real-time PnL & Exposure Monitoring
+  portfolio-intelligence:
+    build:
+      context: .
+      dockerfile: microservices/portfolio_intelligence/Dockerfile
+    container_name: quantum_portfolio_intelligence
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app/backend
+      - BINANCE_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET}
+      - BINANCE_TESTNET=${BINANCE_TESTNET:-true}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      - RISK_SAFETY_SERVICE_URL=http://risk-safety:8003
+      - TRADE_STORE_TYPE=sqlite
+      - TRADE_STORE_DB_PATH=/app/data/trades.db
+    ports:
+      - "8004:8004"
+    volumes:
+      - ./microservices/portfolio_intelligence:/app/microservices/portfolio_intelligence:ro
+      - ./backend:/app/backend:ro
+      - ./logs:/app/logs:rw
+      - ./data:/app/data:rw
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8004/health', timeout=5)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
   # Strategic Memory Sync - Phase 4S: Pattern Learning & Feedback
   strategic-memory:
     build:
@@ -314,6 +371,141 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  # Trade Intent Consumer - Phase 2.1: ExitBrain v3.5 Integration
+  trade-intent-consumer:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile  # Fixed: Use backend/Dockerfile
+    container_name: quantum_trade_intent_consumer
+    restart: unless-stopped
+    command: python trade_intent_runner.py
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=INFO
+      - BINANCE_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET}
+      - BINANCE_USE_TESTNET=${BINANCE_TESTNET:-true}
+      - TRADE_INTENT_SAFE_DRAIN=false  # Set to true to consume without executing
+      - TRADE_INTENT_MAX_AGE_MINUTES=5  # Only execute recent trades
+    volumes:
+      - ./logs:/app/logs:rw
+      - ./backend:/app/backend:ro
+      - ./microservices/exitbrain_v3_5:/app/microservices/exitbrain_v3_5:ro
+      - ./trade_intent_runner.py:/app/trade_intent_runner.py:ro
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.Redis(host='redis', port=6379); r.ping()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # CEO Brain - Phase 2.2: AI CEO Orchestration
+  ceo-brain:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: quantum_ceo_brain
+    restart: unless-stopped
+    command: python -m uvicorn backend.ai_orchestrator.service:app --host 0.0.0.0 --port 8010
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ENABLE_CEO_BRAIN=true
+      - CEO_MODE=EXPANSION
+    volumes:
+      - ./backend:/app/backend:ro
+      - ./logs:/app/logs:rw
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8010/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+
+  # Strategy Brain - Phase 2.2: Strategy Evaluation (stub)
+  strategy-brain:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: quantum_strategy_brain
+    restart: unless-stopped
+    command: python -m uvicorn backend.strategy_brain.service:app --host 0.0.0.0 --port 8011
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ./backend:/app/backend:ro
+      - ./logs:/app/logs:rw
+    networks:
+      - quantum_trader
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8011/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 128M
+
+  # Risk Brain - Phase 2.2: Risk Assessment & Position Sizing (stub)
+  risk-brain:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: quantum_risk_brain
+    restart: unless-stopped
+    command: python -m uvicorn backend.risk_brain.service:app --host 0.0.0.0 --port 8012
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ./backend:/app/backend:ro
+      - ./logs:/app/logs:rw
+    networks:
+      - quantum_trader
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8012/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 128M
 
   # Model Federation - Phase 4U: Auto-Model Federation & Consensus Layer
   model-federation:
@@ -487,94 +679,6 @@ services:
           cpus: '0.5'
           memory: 256M
 
-  # CEO Brain - Top-level AI orchestration and decision-making
-  ceo-brain:
-    build:
-      context: .
-      dockerfile: backend/ai_orchestrator/Dockerfile
-    container_name: quantum_ceo_brain
-    restart: unless-stopped
-    environment:
-      - ENABLE_CEO_BRAIN=true
-      - CEO_MODE=ACTIVE
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    ports:
-      - "8010:8010"
-    networks:
-      - quantum_trader
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8010/health', timeout=5)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '0.3'
-          memory: 192M
-
-  # Strategy Brain - Strategy performance analysis and recommendations
-  strategy-brain:
-    build:
-      context: .
-      dockerfile: backend/ai_strategy/Dockerfile
-    container_name: quantum_strategy_brain
-    restart: unless-stopped
-    environment:
-      - ENABLE_STRATEGY_BRAIN=true
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    ports:
-      - "8011:8011"
-    networks:
-      - quantum_trader
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8011/health', timeout=5)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '0.3'
-          memory: 192M
-
-  # Risk Brain - Risk analysis and limit recommendations
-  risk-brain:
-    build:
-      context: .
-      dockerfile: backend/ai_risk/Dockerfile
-    container_name: quantum_risk_brain
-    restart: unless-stopped
-    environment:
-      - ENABLE_RISK_BRAIN=true
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    ports:
-      - "8012:8012"
-    networks:
-      - quantum_trader
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8012/health', timeout=5)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '0.3'
-          memory: 192M
-
   # Exit Brain v3.5 integrated as Python module in position-monitor
   # No separate service needed - used as library
 
@@ -647,10 +751,10 @@ services:
     build: ./microservices/rl_dashboard
     container_name: quantum_rl_dashboard
     ports:
-      - "8027:8027"  # Use 8027 (8025 and 8026 are taken)
+      - "8026:8000"  # External 8026 maps to internal 8000
     environment:
       - REDIS_HOST=redis
-      - DASHBOARD_PORT=8027
+      - DASHBOARD_PORT=8000
     depends_on:
       - redis
     volumes:
@@ -675,18 +779,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-  rl-calibrator:
-    build: ./microservices/rl_calibrator
-    container_name: quantum_rl_calibrator
-    environment:
-      - REDIS_HOST=redis
-    depends_on:
-      - redis
-    restart: always
-    networks:
-      - quantum_trader
-
 
 networks:
   quantum_trader:

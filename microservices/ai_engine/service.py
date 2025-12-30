@@ -58,6 +58,9 @@ from backend.services.ai.performance_benchmarker import PerformanceBenchmarker
 from backend.services.ai.adaptive_threshold_manager import AdaptiveThresholdManager
 from backend.services.binance_market_data import BinanceMarketDataFetcher
 
+# 🔥 PHASE 2.2: CEO Brain Orchestration
+from backend.services.orchestration.orchestrator import get_orchestrator
+
 logger = logging.getLogger(__name__)
 
 
@@ -122,6 +125,9 @@ class AIEngineService:
         # 🔥 PHASE 3C ADAPTERS: Exit Brain Integration & Confidence Calibration
         self.exit_brain_performance_adapter = None  # Performance-adaptive TP/SL
         self.confidence_calibrator = None  # Confidence score calibration
+        
+        # 🔥 PHASE 2.2: CEO Brain Orchestrator
+        self.orchestrator = None  # CEO Brain + Strategy Brain + Risk Brain coordination
         
         # State tracking
         self._running = False
@@ -555,8 +561,23 @@ class AIEngineService:
                 # Initialize Binance fetcher for orderbook data
                 self._binance_fetcher = BinanceMarketDataFetcher()
                 
-                # Set active symbols (TODO: make configurable)
-                self._active_symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+                # 🔥 PHASE 1.1 FIX: Use UniverseManager (top coins by 24h volume from main base + L1 + L2)
+                try:
+                    from backend.services.universe_manager import get_universe_manager
+                    max_symbols = int(os.getenv("QT_MAX_SYMBOLS", "20"))
+                    
+                    logger.info("[PHASE 1.1] 🌐 Loading universe from UniverseManager (24h volume: main base + L1 + L2)...")
+                    universe_mgr = get_universe_manager()
+                    await universe_mgr.initialize()
+                    
+                    self._active_symbols = universe_mgr.get_symbols()[:max_symbols]
+                    logger.info(f"[PHASE 1.1] ✅ Loaded {len(self._active_symbols)} symbols by 24h volume")
+                    logger.info(f"[PHASE 1.1] Symbols: {', '.join(self._active_symbols[:10])}...")
+                except Exception as e:
+                    logger.error(f"[PHASE 1.1] ❌ Failed to load UniverseManager: {e}")
+                    logger.warning("[PHASE 1.1] Falling back to top 3 by volume...")
+                    # Fallback to safe defaults (top 3 by volume)
+                    self._active_symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
                 
                 # Start orderbook data feed loop
                 asyncio.create_task(self._fetch_orderbook_loop())
@@ -698,10 +719,13 @@ class AIEngineService:
                 self.exit_brain_performance_adapter = None
             
             # 🔥 PHASE 3C ADAPTERS: Confidence Calibrator
+            print("🔥 DEBUG [LINE 722]: Starting Confidence Calibrator init...", flush=True)
             logger.info("[AI-ENGINE] 🎯 Initializing Confidence Calibrator (Phase 3C)...")
             try:
+                print("🔥 DEBUG [LINE 725]: Importing ConfidenceCalibrator...", flush=True)
                 from backend.services.ai.confidence_calibrator import ConfidenceCalibrator
                 
+                print("🔥 DEBUG [LINE 728]: Creating ConfidenceCalibrator instance...", flush=True)
                 self.confidence_calibrator = ConfidenceCalibrator(
                     performance_benchmarker=self.performance_benchmarker,
                     smoothing_factor=0.7,
@@ -710,15 +734,39 @@ class AIEngineService:
                     min_sample_size=20
                 )
                 
+                print("🔥 DEBUG [LINE 736]: ConfidenceCalibrator created successfully!", flush=True)
                 logger.info("[PHASE 3C] ✅ Confidence Calibrator initialized")
                 logger.info("[PHASE 3C] 🎯 Features: Historical accuracy calibration, Module-specific tracking")
+                print("🔥 DEBUG [LINE 739]: Logged Confidence Calibrator success", flush=True)
             except Exception as e:
+                print(f"🔥 DEBUG [LINE 741]: Confidence Calibrator exception: {e}", flush=True)
                 logger.warning(f"[AI-ENGINE] ⚠️ Confidence Calibrator failed: {e}")
                 self.confidence_calibrator = None
+            
+            print("🔥 DEBUG [LINE 745]: BEFORE ORCHESTRATOR INIT - THIS IS THE CRITICAL LINE!", flush=True)
+            
+            # 🔥 PHASE 2.2: CEO Brain Orchestrator
+            print("🔥 DEBUG [LINE 748]: About to initialize orchestrator...", flush=True)
+            logger.info("[AI-ENGINE] 🧠 Initializing CEO Brain Orchestrator (Phase 2.2)...")
+            try:
+                print("🔥 DEBUG [LINE 751]: Calling get_orchestrator()...", flush=True)
+                self.orchestrator = get_orchestrator()
+                print("🔥 DEBUG [LINE 753]: get_orchestrator() returned successfully!", flush=True)
+                logger.info("[PHASE 2.2] ✅ CEO Brain Orchestrator initialized")
+                logger.info("[PHASE 2.2] 🧠 Features: CEO Brain (mode), Strategy Brain (eval), Risk Brain (sizing)")
+            except Exception as e:
+                print(f"🔥 DEBUG [LINE 757]: Exception in orchestrator init: {e}", flush=True)
+                logger.warning(f"[AI-ENGINE] ⚠️ CEO Brain Orchestrator failed: {e}")
+                self.orchestrator = None
+                
+            print("🔥 DEBUG [LINE 761]: AFTER ORCHESTRATOR INIT BLOCK", flush=True)
                 
         except Exception as e:
+            print(f"🔥 DEBUG: CRITICAL EXCEPTION in _load_ai_modules: {e}", flush=True)
             logger.error(f"[AI-ENGINE] ❌ Critical error loading AI modules: {e}", exc_info=True)
             raise
+            
+        print("🔥 DEBUG: _load_ai_modules() COMPLETED SUCCESSFULLY!", flush=True)
         
     # ========================================================================
     
@@ -1413,15 +1461,24 @@ class AIEngineService:
                         prediction=ensemble_confidence
                     )
                     if drift_status.get("severity") in ["SEVERE", "CRITICAL"]:
-                        logger.warning(
-                            f"[PHASE 1] 🚫 DRIFT DETECTED: {symbol} "
-                            f"(severity={drift_status.get('severity')}, "
-                            f"psi={drift_status.get('psi', 0):.3f}) - Signal blocked"
-                        )
-                        # Trigger retraining if CLM available
-                        if self.adaptive_retrainer:
-                            logger.info(f"[PHASE 1] Triggering retrain due to drift...")
-                        return None
+                        # 🔥 PHASE 1 FIX: Allow signals on testnet for data collection
+                        is_testnet = os.getenv("BINANCE_TESTNET", "false").lower() == "true"
+                        if is_testnet:
+                            logger.warning(
+                                f"[PHASE 1] ⚠️  DRIFT DETECTED: {symbol} "
+                                f"(severity={drift_status.get('severity')}, "
+                                f"psi={drift_status.get('psi', 0):.3f}) - ALLOWING on testnet for data collection"
+                            )
+                        else:
+                            logger.warning(
+                                f"[PHASE 1] 🚫 DRIFT DETECTED: {symbol} "
+                                f"(severity={drift_status.get('severity')}, "
+                                f"psi={drift_status.get('psi', 0):.3f}) - Signal blocked"
+                            )
+                            # Trigger retraining if CLM available
+                            if self.adaptive_retrainer:
+                                logger.info(f"[PHASE 1] Triggering retrain due to drift...")
+                            return None
                 except Exception as e:
                     logger.warning(f"[PHASE 1] Drift detection check failed: {e}")
             
@@ -1647,8 +1704,67 @@ class AIEngineService:
             # Step 5: Publish final decision
             await self.event_bus.publish("ai.decision.made", decision.dict())
             
+            # 🔥 PHASE 2.2: CEO Brain Orchestration Check
+            # Evaluate signal through CEO Brain + Strategy Brain + Risk Brain
+            if self.orchestrator:
+                logger.info(f"[PHASE 2.2] 🧠 Orchestrating signal through CEO Brain pipeline...")
+                try:
+                    orchestration_signal = {
+                        "symbol": symbol,
+                        "direction": action.upper(),
+                        "confidence": ensemble_confidence,
+                        "entry_price": current_price,
+                        "position_size_usd": position_size_usd,
+                        "leverage": leverage,
+                        "regime": regime.value if regime != MarketRegime.UNKNOWN else "unknown",
+                        "strategy": strategy_id.value,
+                    }
+                    
+                    orchestration_result = await self.orchestrator.evaluate_signal(orchestration_signal)
+                    
+                    logger.info(
+                        f"[PHASE 2.2] Orchestration result: {orchestration_result.final_decision} "
+                        f"(CEO mode={orchestration_result.operating_mode}, "
+                        f"strategy_approved={orchestration_result.strategy_approved})"
+                    )
+                    
+                    # If orchestrator rejects, skip publishing trade.intent
+                    if orchestration_result.final_decision == "SKIP":
+                        logger.warning(
+                            f"[PHASE 2.2] 🚫 Signal BLOCKED by orchestrator: {symbol} "
+                            f"Reason: {orchestration_result.decision_reason}"
+                        )
+                        return None
+                    
+                    # If orchestrator delays, log but continue (can be used for future queueing)
+                    if orchestration_result.final_decision == "DELAY":
+                        logger.info(
+                            f"[PHASE 2.2] ⏸️  Signal DELAYED by orchestrator: {symbol} "
+                            f"Reason: {orchestration_result.decision_reason}"
+                        )
+                        # For now, continue with execution (future: implement queue)
+                    
+                    # Update position size and leverage from Risk Brain if provided
+                    if orchestration_result.position_size > 0:
+                        position_size_usd = orchestration_result.position_size
+                        logger.info(f"[PHASE 2.2] Risk Brain adjusted size: ${position_size_usd:.2f}")
+                    
+                    if orchestration_result.leverage > 0:
+                        leverage = orchestration_result.leverage
+                        logger.info(f"[PHASE 2.2] Risk Brain adjusted leverage: {leverage:.1f}x")
+                    
+                except Exception as e:
+                    logger.error(f"[PHASE 2.2] Orchestration failed: {e}", exc_info=True)
+                    # Continue with original signal if orchestration fails
+                    logger.warning("[PHASE 2.2] Falling back to original signal (orchestration failed)")
+            
             # Step 6: Publish trade.intent for Execution Service
             # NOTE: ExitBrain v3.5 vil beregne leverage via ILF basert på metadata
+            
+            # Extract consensus details from votes_info
+            consensus_count = votes_info.get("consensus_count", 0) if not fallback_triggered else 1
+            model_breakdown = votes_info.get("models", {}) if not fallback_triggered else {"fallback": {"action": action, "confidence": ensemble_confidence}}
+            
             trade_intent_payload = {
                 "symbol": symbol,
                 "side": action.upper(),
@@ -1661,6 +1777,10 @@ class AIEngineService:
                 "timestamp": decision.timestamp,
                 "model": "ensemble",
                 "meta_strategy": strategy_id.value,
+                # 🔥 CONSENSUS DETAILS for Dashboard filtering
+                "consensus_count": consensus_count,
+                "total_models": 4,  # XGB, LGBM, N-HiTS, PatchTST
+                "model_breakdown": model_breakdown,
                 # 🔥 METADATA FOR EXITBRAIN v3.5 (ILF + AdaptiveLeverageEngine)
                 "atr_value": features.get("atr", 0.02),
                 "volatility_factor": features.get("volatility_factor", 1.0),
