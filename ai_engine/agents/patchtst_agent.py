@@ -103,7 +103,7 @@ class PatchTSTAgent:
     
     def __init__(
         self,
-        model_path: str = "/app/models/patchtst_model.pth",
+        model_path: str = None,
         sequence_length: int = 128,
         patch_len: int = 16,
         device: str = "cpu"
@@ -112,6 +112,11 @@ class PatchTSTAgent:
         self.sequence_length = sequence_length
         self.patch_len = patch_len
         self.num_patches = sequence_length // patch_len
+        
+        # 🔥 USE LATEST TIMESTAMPED MODEL (not old hardcoded names)
+        retraining_dir = Path("/app/models") if Path("/app/models").exists() else Path("ai_engine/models")
+        latest_model = self._find_latest_model(retraining_dir, "patchtst_v*.pth")
+        self.model_path = model_path or str(latest_model) if latest_model else "/app/models/patchtst_model.pth"
         
         # Initialize model
         self.model = PatchTSTModel(
@@ -125,29 +130,51 @@ class PatchTSTAgent:
             num_patches=self.num_patches
         )
         
-        # Load weights
-        if model_path and Path(model_path).exists():
-            logger.info(f"[PatchTST] Loading model from {model_path}")
-            state_dict = torch.load(model_path, map_location="cpu", weights_only=False)
-            self.model.load_state_dict(state_dict, strict=False)
-            logger.info(f"[PatchTST] ✅ Model weights loaded")
+        # Load weights if model exists
+        model_file = Path(self.model_path)
+        if model_file.exists():
+            try:
+                logger.info(f"[PatchTST] Loading model from {self.model_path}")
+                state_dict = torch.load(self.model_path, map_location="cpu", weights_only=False)
+                self.model.load_state_dict(state_dict, strict=False)
+                logger.info(f"[PatchTST] ✅ Model weights loaded from {model_file.name}")
+                
+                self.model.eval()
+                
+                # Compile with TorchScript for CPU optimization
+                logger.info("[PatchTST] Compiling model with TorchScript...")
+                example_input = torch.randn(1, sequence_length, 8)
+                self.compiled_model = torch.jit.trace(self.model, example_input)
+                self.compiled_model.eval()
+                logger.info("[PatchTST] ✅ TorchScript compilation complete")
+            except Exception as e:
+                logger.error(f"[PatchTST] ❌ Model loading/tracing failed: {e}")
+                logger.info("[PatchTST] Using uncompiled model with random weights")
+                self.model.eval()
+                self.compiled_model = self.model
         else:
-            logger.warning(f"[PatchTST] ⚠️ Model file not found: {model_path}")
-        
-        self.model.eval()
-        
-        # Compile with TorchScript for CPU optimization
-        logger.info("[PatchTST] Compiling model with TorchScript...")
-        example_input = torch.randn(1, sequence_length, 8)
-        self.compiled_model = torch.jit.trace(self.model, example_input)
-        self.compiled_model.eval()
-        logger.info("[PatchTST] ✅ TorchScript compilation complete")
+            logger.warning(f"[PatchTST] ⚠️ Model file not found: {self.model_path}")
+            logger.info("[PatchTST] Using uninitialized model with random weights")
+            self.model.eval()
+            self.compiled_model = self.model
         
         # Feature names for normalization
         self.feature_names = [
             'close', 'high', 'low', 'volume',
             'volatility', 'rsi', 'macd', 'momentum'
         ]
+    
+    def _find_latest_model(self, base_dir: Path, pattern: str):
+        """Find the latest timestamped model file matching pattern."""
+        try:
+            model_files = list(base_dir.glob(pattern))
+            if model_files:
+                latest = sorted(model_files)[-1]
+                logger.info(f"🔍 Found latest PatchTST model: {latest.name}")
+                return latest
+        except Exception as e:
+            logger.warning(f"Failed to find latest model with pattern {pattern}: {e}")
+        return None
     
     def _preprocess(self, market_data: Dict) -> Optional[torch.Tensor]:
         """
