@@ -297,52 +297,49 @@ class PatchTSTAgent:
         
         return ema
     
-    def predict(self, market_data: Dict) -> Optional[Dict]:
+    def predict(self, symbol: str, features: Dict) -> Tuple[str, float, str]:
         """
-        Generate trading prediction.
+        Generate trading prediction (compatible with ensemble manager).
         
+        Args:
+            symbol: Trading symbol (unused, for compatibility)
+            features: Dict of market features
+            
         Returns:
-            {
-                'action': 'BUY' | 'SELL' | 'HOLD',
-                'confidence': float,
-                'price_prediction': float
-            }
+            Tuple of (action, confidence, model_name)
         """
+        # Convert features dict to market_data format
+        market_data = {
+            'close': [features.get('price', 0.0)] * self.sequence_length,
+            'high': [features.get('price', 0.0)] * self.sequence_length,
+            'low': [features.get('price', 0.0)] * self.sequence_length,
+            'volume': [features.get('volume', 0.0)] * self.sequence_length
+        }
+        
         try:
             # Preprocess
-            x = self._preprocess(market_data)
-            if x is None:
-                return None
+            input_tensor = self._preprocess(market_data)
+            if input_tensor is None:
+                return 'HOLD', 0.0, 'patchtst_model'
             
-            # Predict with compiled model
+            # Predict
             with torch.no_grad():
-                output = self.compiled_model(x)
-                price_change = output.item()
+                output = self.compiled_model(input_tensor)
+                prob = torch.sigmoid(output).item()
             
-            # Convert to trading signal
-            if price_change > 0.02:  # >2% predicted increase
+            # Convert to action
+            if prob > 0.6:
                 action = 'BUY'
-                confidence = min(0.95, 0.65 + abs(price_change) * 2)
-            elif price_change < -0.02:  # >2% predicted decrease
+                confidence = prob
+            elif prob < 0.4:
                 action = 'SELL'
-                confidence = min(0.95, 0.65 + abs(price_change) * 2)
+                confidence = 1.0 - prob
             else:
                 action = 'HOLD'
                 confidence = 0.5
             
-            current_price = market_data.get('close', [0])[-1]
-            price_prediction = current_price * (1 + price_change)
-            
-            return {
-                'action': action,
-                'confidence': confidence,
-                'price_prediction': price_prediction
-            }
+            return action, confidence, 'patchtst_model'
             
         except Exception as e:
             logger.error(f"[PatchTST] Prediction error: {e}")
-            return None
-    
-    def batch_predict(self, market_data_list: List[Dict]) -> List[Optional[Dict]]:
-        """Batch prediction for multiple symbols."""
-        return [self.predict(data) for data in market_data_list]
+            return 'HOLD', 0.0, 'patchtst_model'
