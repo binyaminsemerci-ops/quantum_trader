@@ -135,7 +135,14 @@ class PatchTSTAgent:
         if model_file.exists():
             try:
                 logger.info(f"[PatchTST] Loading model from {self.model_path}")
-                state_dict = torch.load(self.model_path, map_location="cpu", weights_only=False)
+                checkpoint = torch.load(self.model_path, map_location="cpu", weights_only=False)
+                
+                # Handle both checkpoint dict and raw state_dict
+                if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+                    state_dict = checkpoint['model_state_dict']
+                else:
+                    state_dict = checkpoint
+                
                 self.model.load_state_dict(state_dict, strict=False)
                 logger.info(f"[PatchTST] ✅ Model weights loaded from {model_file.name}")
                 
@@ -144,12 +151,18 @@ class PatchTSTAgent:
                 # Compile with TorchScript for CPU optimization
                 logger.info("[PatchTST] Compiling model with TorchScript...")
                 example_input = torch.randn(1, sequence_length, 8)
-                self.compiled_model = torch.jit.trace(self.model, example_input)
-                self.compiled_model.eval()
-                logger.info("[PatchTST] ✅ TorchScript compilation complete")
+                try:
+                    self.compiled_model = torch.jit.trace(self.model, example_input)
+                    self.compiled_model.eval()
+                    logger.info("[PatchTST] ✅ TorchScript compilation complete")
+                except Exception as trace_err:
+                    logger.warning(f"[PatchTST] TorchScript tracing failed: {trace_err}")
+                    logger.info("[PatchTST] Using uncompiled model (slower but functional)")
+                    self.compiled_model = self.model
+                    
             except Exception as e:
-                logger.error(f"[PatchTST] ❌ Model loading/tracing failed: {e}")
-                logger.info("[PatchTST] Using uncompiled model with random weights")
+                logger.error(f"[PatchTST] ❌ Model loading failed: {e}")
+                logger.info("[PatchTST] Using uninitialized model with random weights")
                 self.model.eval()
                 self.compiled_model = self.model
         else:
@@ -175,6 +188,10 @@ class PatchTSTAgent:
         except Exception as e:
             logger.warning(f"Failed to find latest model with pattern {pattern}: {e}")
         return None
+    
+    def _ensure_model_loaded(self):
+        """Model is already loaded in __init__, so just return True."""
+        return self.model is not None
     
     def _preprocess(self, market_data: Dict) -> Optional[torch.Tensor]:
         """
