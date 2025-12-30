@@ -719,13 +719,10 @@ class AIEngineService:
                 self.exit_brain_performance_adapter = None
             
             # 🔥 PHASE 3C ADAPTERS: Confidence Calibrator
-            print("🔥 DEBUG [LINE 722]: Starting Confidence Calibrator init...", flush=True)
             logger.info("[AI-ENGINE] 🎯 Initializing Confidence Calibrator (Phase 3C)...")
             try:
-                print("🔥 DEBUG [LINE 725]: Importing ConfidenceCalibrator...", flush=True)
                 from backend.services.ai.confidence_calibrator import ConfidenceCalibrator
                 
-                print("🔥 DEBUG [LINE 728]: Creating ConfidenceCalibrator instance...", flush=True)
                 self.confidence_calibrator = ConfidenceCalibrator(
                     performance_benchmarker=self.performance_benchmarker,
                     smoothing_factor=0.7,
@@ -734,39 +731,25 @@ class AIEngineService:
                     min_sample_size=20
                 )
                 
-                print("🔥 DEBUG [LINE 736]: ConfidenceCalibrator created successfully!", flush=True)
                 logger.info("[PHASE 3C] ✅ Confidence Calibrator initialized")
                 logger.info("[PHASE 3C] 🎯 Features: Historical accuracy calibration, Module-specific tracking")
-                print("🔥 DEBUG [LINE 739]: Logged Confidence Calibrator success", flush=True)
             except Exception as e:
-                print(f"🔥 DEBUG [LINE 741]: Confidence Calibrator exception: {e}", flush=True)
                 logger.warning(f"[AI-ENGINE] ⚠️ Confidence Calibrator failed: {e}")
                 self.confidence_calibrator = None
             
-            print("🔥 DEBUG [LINE 745]: BEFORE ORCHESTRATOR INIT - THIS IS THE CRITICAL LINE!", flush=True)
-            
             # 🔥 PHASE 2.2: CEO Brain Orchestrator
-            print("🔥 DEBUG [LINE 748]: About to initialize orchestrator...", flush=True)
             logger.info("[AI-ENGINE] 🧠 Initializing CEO Brain Orchestrator (Phase 2.2)...")
             try:
-                print("🔥 DEBUG [LINE 751]: Calling get_orchestrator()...", flush=True)
                 self.orchestrator = get_orchestrator()
-                print("🔥 DEBUG [LINE 753]: get_orchestrator() returned successfully!", flush=True)
                 logger.info("[PHASE 2.2] ✅ CEO Brain Orchestrator initialized")
                 logger.info("[PHASE 2.2] 🧠 Features: CEO Brain (mode), Strategy Brain (eval), Risk Brain (sizing)")
             except Exception as e:
-                print(f"🔥 DEBUG [LINE 757]: Exception in orchestrator init: {e}", flush=True)
                 logger.warning(f"[AI-ENGINE] ⚠️ CEO Brain Orchestrator failed: {e}")
                 self.orchestrator = None
                 
-            print("🔥 DEBUG [LINE 761]: AFTER ORCHESTRATOR INIT BLOCK", flush=True)
-                
         except Exception as e:
-            print(f"🔥 DEBUG: CRITICAL EXCEPTION in _load_ai_modules: {e}", flush=True)
             logger.error(f"[AI-ENGINE] ❌ Critical error loading AI modules: {e}", exc_info=True)
             raise
-            
-        print("🔥 DEBUG: _load_ai_modules() COMPLETED SUCCESSFULLY!", flush=True)
         
     # ========================================================================
     
