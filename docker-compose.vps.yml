@@ -123,6 +123,27 @@ services:
       retries: 3
       start_period: 40s
 
+  # Market Publisher - Real-time market data streamer
+  market-publisher:
+    build:
+      context: .
+      dockerfile: microservices/ai_engine/Dockerfile
+    container_name: quantum_market_publisher
+    restart: unless-stopped
+    command: python3 simple_market_publisher.py
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MARKET_SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,DOGEUSDT,AVAXUSDT,ADAUSDT,DOTUSDT,LINKUSDT,MATICUSDT,UNIUSDT,LTCUSDT,AAVEUSDT,ATOMUSDT
+    volumes:
+      - ./simple_market_publisher.py:/app/simple_market_publisher.py:ro
+      - ./logs:/app/logs:rw
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+
   # Exposure Balancer - Phase 4P: Real-time Adaptive Risk Management
   exposure-balancer:
     build:
