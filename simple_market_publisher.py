@@ -81,29 +81,36 @@ async def start_market_streams():
     client = await AsyncClient.create()
     bsm = BinanceSocketManager(client)
     
-    logger.info(f"[BINANCE] Starting combined stream for {len(SYMBOLS)} symbols")
+    # Split symbols into batches of 10 to avoid Binance rate limits
+    batch_size = 10
+    symbol_batches = [SYMBOLS[i:i + batch_size] for i in range(0, len(SYMBOLS), batch_size)]
     
-    # Use multiplex socket for better performance with many symbols
-    # This creates a single WebSocket connection for all symbols
-    streams = [f"{symbol.lower()}@trade" for symbol in SYMBOLS]
+    logger.info(f"[BINANCE] Starting {len(symbol_batches)} multiplex streams for {len(SYMBOLS)} symbols")
     
-    logger.info(f"[BINANCE] Subscribing to {len(streams)} trade streams via multiplex")
-    ms = bsm.multiplex_socket(streams)
+    # Handle one batch stream
+    async def handle_batch_stream(batch_symbols, batch_num):
+        streams = [f"{symbol.lower()}@trade" for symbol in batch_symbols]
+        logger.info(f"[BINANCE] Batch {batch_num}: {len(streams)} symbols - {', '.join(batch_symbols[:3])}...")
+        
+        ms = bsm.multiplex_socket(streams)
+        
+        async with ms as stream:
+            while True:
+                try:
+                    msg = await stream.recv()
+                    
+                    # Multiplex format wraps data
+                    if "data" in msg:
+                        await handle_trade_message(msg["data"])
+                    else:
+                        await handle_trade_message(msg)
+                except Exception as e:
+                    logger.error(f"[ERROR] Batch {batch_num} error: {e}")
+                    await asyncio.sleep(1)
     
-    # Handle combined stream
-    async with ms as stream:
-        while True:
-            try:
-                msg = await stream.recv()
-                
-                # Multiplex format wraps data
-                if "data" in msg:
-                    await handle_trade_message(msg["data"])
-                else:
-                    await handle_trade_message(msg)
-            except Exception as e:
-                logger.error(f"[ERROR] Stream handler error: {e}")
-                await asyncio.sleep(1)
+    # Run all batch streams concurrently
+    tasks = [handle_batch_stream(batch, i+1) for i, batch in enumerate(symbol_batches)]
+    await asyncio.gather(*tasks)
 
 
 async def main():
