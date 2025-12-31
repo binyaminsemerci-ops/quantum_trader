@@ -81,23 +81,29 @@ async def start_market_streams():
     client = await AsyncClient.create()
     bsm = BinanceSocketManager(client)
     
-    logger.info(f"[BINANCE] Starting streams for {len(SYMBOLS)} symbols")
+    logger.info(f"[BINANCE] Starting combined stream for {len(SYMBOLS)} symbols")
     
-    # Create combined stream for all symbols
-    tasks = []
-    for symbol in SYMBOLS:
-        logger.info(f"[BINANCE] Subscribing to {symbol} trade stream")
-        ts = bsm.trade_socket(symbol)
-        tasks.append(ts)
+    # Use multiplex socket for better performance with many symbols
+    # This creates a single WebSocket connection for all symbols
+    streams = [f"{symbol.lower()}@trade" for symbol in SYMBOLS]
     
-    # Run all streams concurrently
-    async def handle_stream(socket):
-        async with socket as stream:
-            while True:
+    logger.info(f"[BINANCE] Subscribing to {len(streams)} trade streams via multiplex")
+    ms = bsm.multiplex_socket(streams)
+    
+    # Handle combined stream
+    async with ms as stream:
+        while True:
+            try:
                 msg = await stream.recv()
-                await handle_trade_message(msg)
-    
-    await asyncio.gather(*[handle_stream(ts) for ts in tasks])
+                
+                # Multiplex format wraps data
+                if "data" in msg:
+                    await handle_trade_message(msg["data"])
+                else:
+                    await handle_trade_message(msg)
+            except Exception as e:
+                logger.error(f"[ERROR] Stream handler error: {e}")
+                await asyncio.sleep(1)
 
 
 async def main():
