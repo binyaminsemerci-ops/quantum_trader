@@ -43,7 +43,7 @@ async def publish_market_tick(symbol: str, price: float, volume: float):
         stream_key = "quantum:stream:market.tick"  # Fixed: Match EventBus stream naming
         await redis_client.xadd(
             stream_key,
-            {"data": json.dumps(event_data)},
+            {"payload": json.dumps(event_data)},  # FIXED: Use "payload" key to match EventBus consumer
             maxlen=10000,  # Keep last 10000 events for high-frequency data
         )
         logger.debug(f"[MARKET] Published tick: {symbol} @ ${price:.2f}")
