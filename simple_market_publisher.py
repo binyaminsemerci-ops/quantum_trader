@@ -23,8 +23,8 @@ REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB = int(os.getenv("REDIS_DB", "0"))
 
-# Parse symbols from environment or use defaults (top 12 most liquid)
-symbols_str = os.getenv("MARKET_SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,DOGEUSDT,AVAXUSDT,ADAUSDT,DOTUSDT,LINKUSDT,MATICUSDT,UNIUSDT")
+# Parse symbols from environment or use defaults (top 30 liquid coins, can handle 200+)
+symbols_str = os.getenv("MARKET_SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,DOGEUSDT,AVAXUSDT,ADAUSDT,DOTUSDT,LINKUSDT,MATICUSDT,UNIUSDT,LTCUSDT,BCHUSDT,FILUSDT,ICPUSDT,NEARUSDT,AAVEUSDT,FETUSDT,TRXUSDT,ATOMUSDT,APTUSDT,OPUSDT,ARBUSDT,SUIUSDT,SEIUSDT,INJUSDT,STXUSDT,RENDERUSDT,TIAUSDT")
 SYMBOLS = [s.strip() for s in symbols_str.split(",")]
 
 redis_client: redis_async.Redis = None
@@ -81,35 +81,25 @@ async def start_market_streams():
     client = await AsyncClient.create()
     bsm = BinanceSocketManager(client)
     
-    # Split symbols into batches of 10 to avoid Binance rate limits
-    batch_size = 10
-    symbol_batches = [SYMBOLS[i:i + batch_size] for i in range(0, len(SYMBOLS), batch_size)]
+    logger.info(f"[BINANCE] Starting individual streams for {len(SYMBOLS)} symbols")
     
-    logger.info(f"[BINANCE] Starting {len(symbol_batches)} multiplex streams for {len(SYMBOLS)} symbols")
-    
-    # Handle one batch stream
-    async def handle_batch_stream(batch_symbols, batch_num):
-        streams = [f"{symbol.lower()}@trade" for symbol in batch_symbols]
-        logger.info(f"[BINANCE] Batch {batch_num}: {len(streams)} symbols - {', '.join(batch_symbols[:3])}...")
+    # Create SEPARATE WebSocket for each symbol (original approach that worked with 200+ symbols)
+    async def handle_symbol_stream(symbol):
+        """Handle trade stream for a single symbol"""
+        logger.info(f"[BINANCE] Subscribing to {symbol} trade stream")
+        ts = bsm.trade_socket(symbol)
         
-        ms = bsm.multiplex_socket(streams)
-        
-        async with ms as stream:
+        async with ts as stream:
             while True:
                 try:
                     msg = await stream.recv()
-                    
-                    # Multiplex format wraps data
-                    if "data" in msg:
-                        await handle_trade_message(msg["data"])
-                    else:
-                        await handle_trade_message(msg)
+                    await handle_trade_message(msg)
                 except Exception as e:
-                    logger.error(f"[ERROR] Batch {batch_num} error: {e}")
+                    logger.error(f"[ERROR] {symbol} stream error: {e}")
                     await asyncio.sleep(1)
     
-    # Run all batch streams concurrently
-    tasks = [handle_batch_stream(batch, i+1) for i, batch in enumerate(symbol_batches)]
+    # Run all symbol streams concurrently
+    tasks = [handle_symbol_stream(symbol) for symbol in SYMBOLS]
     await asyncio.gather(*tasks)
 
 
