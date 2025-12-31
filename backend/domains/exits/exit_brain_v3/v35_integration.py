@@ -137,6 +137,34 @@ class ExitBrainV35Integration:
             logger.info(f"📊 Recorded trade result: {symbol} @ {leverage}x = {pnl_pct:.2%} PnL")
         except Exception as e:
             logger.error(f"❌ Error recording trade result: {e}")
+    
+    def get_pnl_stats(self) -> Dict:
+        """
+        Get PnL statistics for monitoring and adaptive leverage
+        
+        Returns:
+            Dict with keys: avg_pnl, win_rate, total_trades, best_trade, worst_trade
+        """
+        if not self.enabled or not self.pnl_tracker:
+            return {
+                'avg_pnl': 0.0,
+                'win_rate': 0.0,
+                'total_trades': 0,
+                'best_trade': 0.0,
+                'worst_trade': 0.0
+            }
+        
+        try:
+            return self.pnl_tracker.get_stats()
+        except Exception as e:
+            logger.error(f"❌ Error getting PnL stats: {e}")
+            return {
+                'avg_pnl': 0.0,
+                'win_rate': 0.0,
+                'total_trades': 0,
+                'best_trade': 0.0,
+                'worst_trade': 0.0
+            }
 
 
 # Singleton instance
