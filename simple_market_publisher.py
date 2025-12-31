@@ -23,8 +23,8 @@ REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB = int(os.getenv("REDIS_DB", "0"))
 
-# Parse symbols from environment or use defaults
-symbols_str = os.getenv("MARKET_SYMBOLS", "BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,AVAXUSDT")
+# Parse symbols from environment or use defaults (top 12 most liquid)
+symbols_str = os.getenv("MARKET_SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,DOGEUSDT,AVAXUSDT,ADAUSDT,DOTUSDT,LINKUSDT,MATICUSDT,UNIUSDT")
 SYMBOLS = [s.strip() for s in symbols_str.split(",")]
 
 redis_client: redis_async.Redis = None
