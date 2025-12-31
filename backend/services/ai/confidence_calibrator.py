@@ -378,7 +378,7 @@ class ConfidenceCalibrator:
         
         try:
             # Get benchmarks from Phase 3C-2
-            benchmarks = await self.benchmarker.get_current_benchmarks()
+            benchmarks = self.benchmarker.get_current_benchmarks()
             
             if signal_source in benchmarks:
                 module_perf = benchmarks[signal_source]
