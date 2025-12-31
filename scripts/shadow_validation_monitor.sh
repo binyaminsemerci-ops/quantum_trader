@@ -61,7 +61,7 @@ get_pnl_metrics() {
         docker exec quantum_redis redis-cli XREVRANGE quantum:stream:exitbrain.pnl + - COUNT 100 2>/dev/null | \
             awk '
                 /^[0-9]+-[0-9]+$/ {entry_id=$0}
-                /^pnl$/ {getline; pnl=$0; total+=pnl; count++; if(pnl>0) wins++; else losses++}
+                /^pnl_trend$/ {getline; pnl=$0; total+=pnl; count++; if(pnl>0) wins++; else losses++}
                 END {
                     if(count>0) {
                         printf "Total: %.2f | Events: %d | Wins: %d | Losses: %d | Win Rate: %.1f%%\n", 
@@ -77,9 +77,9 @@ get_pnl_metrics() {
         echo "Recent PNL events (last 10):"
         docker exec quantum_redis redis-cli XREVRANGE quantum:stream:exitbrain.pnl + - COUNT 10 2>/dev/null | \
             awk '
-                /^[0-9]+-[0-9]+$/ {if(entry!="") print entry; entry=$0; symbol="?"; pnl="?"; conf="?"}
+                /^[0-9]+-[0-9]+$/ {if(entry!="") printf "%-12s PNL: %8s  Conf: %s\n", symbol, pnl, conf; entry=$0; symbol="?"; pnl="?"; conf="?"}
                 /^symbol$/ {getline; symbol=$0}
-                /^pnl$/ {getline; pnl=$0}
+                /^pnl_trend$/ {getline; pnl=$0}
                 /^confidence$/ {getline; conf=$0}
                 END {if(entry!="") printf "%-12s PNL: %8s  Conf: %s\n", symbol, pnl, conf}
             '
