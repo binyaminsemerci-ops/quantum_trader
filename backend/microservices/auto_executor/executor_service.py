@@ -104,8 +104,12 @@ def safe_futures_call(func_name, *args, **kwargs):
     if not client:
         raise Exception("Binance client not initialized")
     
-    # Add recvWindow for signed requests (default 5000ms, increase to 10000ms)
-    if 'recvWindow' not in kwargs:
+    # List of methods that don't require recvWindow (unsigned endpoints)
+    unsigned_methods = ['futures_time', 'futures_exchange_info', 'futures_ticker', 
+                       'futures_orderbook', 'futures_klines', 'futures_trades']
+    
+    # Add recvWindow for signed requests only (default 5000ms, increase to 10000ms)
+    if func_name not in unsigned_methods and 'recvWindow' not in kwargs:
         kwargs['recvWindow'] = 10000
     
     func = getattr(client, func_name)
