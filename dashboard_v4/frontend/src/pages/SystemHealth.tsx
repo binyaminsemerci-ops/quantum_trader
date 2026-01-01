@@ -3,15 +3,24 @@ import InsightCard from '../components/InsightCard';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
+interface ContainerInfo {
+  name: string;
+  status: string;
+  health: 'healthy' | 'unhealthy' | 'unknown';
+  uptime: string;
+}
+
 interface SystemData {
   cpu_usage: number;
   ram_usage: number;
   disk_usage: number;
   containers_running: number;
   uptime_hours: number;
-  network_latency_ms: number;
-  api_requests_per_min: number;
-  error_rate: number;
+  docker_available_gb: number;
+  docker_storage_note: string;
+  storage_status: string;
+  system_status: string;
+  containers: ContainerInfo[];
 }
 
 export default function SystemHealth() {
@@ -22,17 +31,39 @@ export default function SystemHealth() {
     const fetchSystem = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/system/health`);
+        if (!response.ok) throw new Error('Failed to fetch');
         const systemData = await response.json();
-        // Map API response to expected format
+        
+        // Parse container data
+        const containers: ContainerInfo[] = Object.entries(systemData.containers || {}).map(([name, status]) => {
+          const statusStr = status as string;
+          const isHealthy = statusStr.toLowerCase().includes('healthy');
+          const isUnhealthy = statusStr.toLowerCase().includes('unhealthy');
+          
+          return {
+            name: name.replace('quantum_', ''),
+            status: statusStr,
+            health: isUnhealthy ? 'unhealthy' : isHealthy ? 'healthy' : 'unknown',
+            uptime: statusStr.split('Up ')[1]?.split(' (')[0] || 'Unknown'
+          };
+        });
+
         setData({
           cpu_usage: systemData?.metrics?.cpu ?? 0,
           ram_usage: systemData?.metrics?.ram ?? 0,
           disk_usage: systemData?.metrics?.disk ?? 0,
           containers_running: systemData?.container_count ?? 0,
           uptime_hours: systemData?.metrics?.uptime_hours ?? 0,
-          network_latency_ms: 50,  // Placeholder
-          api_requests_per_min: 120,  // Placeholder
-          error_rate: 0.01  // Placeholder
+          docker_available_gb: systemData?.metrics?.docker_available_gb ?? 0,
+          docker_storage_note: systemData?.metrics?.docker_storage ?? 'N/A',
+          storage_status: systemData?.metrics?.storage_status ?? '',
+          system_status: systemData?.status ?? 'UNKNOWN',
+          containers: containers.sort((a, b) => {
+            // Sort by health status (unhealthy first), then by name
+            if (a.health === 'unhealthy' && b.health !== 'unhealthy') return -1;
+            if (a.health !== 'unhealthy' && b.health === 'unhealthy') return 1;
+            return a.name.localeCompare(b.name);
+          })
         });
         setLoading(false);
       } catch (err) {
@@ -42,7 +73,7 @@ export default function SystemHealth() {
     };
 
     fetchSystem();
-    const interval = setInterval(fetchSystem, 3000); // More frequent for system metrics
+    const interval = setInterval(fetchSystem, 3000); // 3 second refresh for system metrics
     return () => clearInterval(interval);
   }, []);
 
@@ -72,41 +103,60 @@ export default function SystemHealth() {
   const ramColor = getHealthColor(data?.ram_usage ?? 0, { warning: 75, critical: 90 });
   const diskColor = getHealthColor(data?.disk_usage ?? 0, { warning: 80, critical: 95 });
 
+  const healthyContainers = data.containers.filter(c => c.health === 'healthy').length;
+  const unhealthyContainers = data.containers.filter(c => c.health === 'unhealthy').length;
+
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-purple-400">System Health</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-purple-400">System Health</h1>
+        <div className="flex items-center gap-4">
+          <div className={`px-4 py-2 rounded-lg font-bold ${
+            data.system_status === 'HEALTHY' ? 'bg-green-500/20 text-green-400' :
+            data.system_status === 'STRESSED' ? 'bg-yellow-500/20 text-yellow-400' :
+            'bg-red-500/20 text-red-400'
+          }`}>
+            {data.system_status}
+          </div>
+          <div className="text-sm text-gray-400">
+            Last updated: {new Date().toLocaleTimeString()}
+          </div>
+        </div>
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <InsightCard
           title="CPU Usage"
-          value={`${(data?.cpu_usage ?? 0).toFixed(1)}%`}
+          value={`${data.cpu_usage.toFixed(1)}%`}
           subtitle="Processing load"
           color={cpuColor === 'green' ? 'text-green-400' : cpuColor === 'yellow' ? 'text-yellow-400' : 'text-red-400'}
         />
         
         <InsightCard
           title="RAM Usage"
-          value={`${(data?.ram_usage ?? 0).toFixed(1)}%`}
+          value={`${data.ram_usage.toFixed(1)}%`}
           subtitle="Memory consumption"
           color={ramColor === 'green' ? 'text-green-400' : ramColor === 'yellow' ? 'text-yellow-400' : 'text-red-400'}
         />
         
         <InsightCard
           title="Disk Usage"
-          value={`${(data?.disk_usage ?? 0).toFixed(1)}%`}
-          subtitle="Storage capacity"
+          value={`${data.disk_usage.toFixed(1)}%`}
+          subtitle="Storage capacity (OS)"
           color={diskColor === 'green' ? 'text-green-400' : diskColor === 'yellow' ? 'text-yellow-400' : 'text-red-400'}
         />
         
         <InsightCard
           title="Containers"
-          value={(data?.containers_running ?? 0).toString()}
-          subtitle="Active services"
+          value={data.containers_running.toString()}
+          subtitle={`${healthyContainers} healthy, ${unhealthyContainers} issues`}
           color="text-blue-400"
         />
       </div>
 
+      {/* Resource Gauges */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* CPU Gauge */}
         <div className="bg-gray-800 rounded-lg p-6">
           <h2 className="text-xl font-semibold text-white mb-4">CPU</h2>
           <div className="flex justify-center mb-4">
@@ -117,20 +167,21 @@ export default function SystemHealth() {
                   cx="50" cy="50" r="40" fill="none"
                   stroke={cpuColor === 'green' ? '#10b981' : cpuColor === 'yellow' ? '#f59e0b' : '#ef4444'}
                   strokeWidth="8"
-                  strokeDasharray={`${(data?.cpu_usage ?? 0) * 2.51} 251`}
+                  strokeDasharray={`${data.cpu_usage * 2.51} 251`}
                   strokeLinecap="round"
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl font-bold text-white">{(data?.cpu_usage ?? 0).toFixed(1)}%</span>
+                <span className="text-2xl font-bold text-white">{data.cpu_usage.toFixed(1)}%</span>
               </div>
             </div>
           </div>
           <div className="text-center text-sm text-gray-400">
-            {(data?.cpu_usage ?? 0) < 70 ? 'Normal' : (data?.cpu_usage ?? 0) < 85 ? 'Warning' : 'Critical'}
+            {data.cpu_usage < 70 ? 'Normal' : data.cpu_usage < 85 ? 'Warning' : 'Critical'}
           </div>
         </div>
 
+        {/* RAM Gauge */}
         <div className="bg-gray-800 rounded-lg p-6">
           <h2 className="text-xl font-semibold text-white mb-4">RAM</h2>
           <div className="flex justify-center mb-4">
@@ -141,22 +192,23 @@ export default function SystemHealth() {
                   cx="50" cy="50" r="40" fill="none"
                   stroke={ramColor === 'green' ? '#10b981' : ramColor === 'yellow' ? '#f59e0b' : '#ef4444'}
                   strokeWidth="8"
-                  strokeDasharray={`${(data?.ram_usage ?? 0) * 2.51} 251`}
+                  strokeDasharray={`${data.ram_usage * 2.51} 251`}
                   strokeLinecap="round"
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl font-bold text-white">{(data?.ram_usage ?? 0).toFixed(1)}%</span>
+                <span className="text-2xl font-bold text-white">{data.ram_usage.toFixed(1)}%</span>
               </div>
             </div>
           </div>
           <div className="text-center text-sm text-gray-400">
-            {(data?.ram_usage ?? 0) < 75 ? 'Normal' : (data?.ram_usage ?? 0) < 90 ? 'Warning' : 'Critical'}
+            {data.ram_usage < 75 ? 'Normal' : data.ram_usage < 90 ? 'Warning' : 'Critical'}
           </div>
         </div>
 
+        {/* Disk Gauge */}
         <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Disk</h2>
+          <h2 className="text-xl font-semibold text-white mb-4">Disk (OS)</h2>
           <div className="flex justify-center mb-4">
             <div className="relative w-32 h-32">
               <svg className="transform -rotate-90" viewBox="0 0 100 100">
@@ -165,70 +217,161 @@ export default function SystemHealth() {
                   cx="50" cy="50" r="40" fill="none"
                   stroke={diskColor === 'green' ? '#10b981' : diskColor === 'yellow' ? '#f59e0b' : '#ef4444'}
                   strokeWidth="8"
-                  strokeDasharray={`${(data?.disk_usage ?? 0) * 2.51} 251`}
+                  strokeDasharray={`${data.disk_usage * 2.51} 251`}
                   strokeLinecap="round"
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl font-bold text-white">{(data?.disk_usage ?? 0).toFixed(1)}%</span>
+                <span className="text-2xl font-bold text-white">{data.disk_usage.toFixed(1)}%</span>
               </div>
             </div>
           </div>
           <div className="text-center text-sm text-gray-400">
-            {(data?.disk_usage ?? 0) < 80 ? 'Normal' : (data?.disk_usage ?? 0) < 95 ? 'Warning' : 'Critical'}
+            {data.disk_usage < 80 ? 'Normal' : data.disk_usage < 95 ? 'Warning' : 'Critical'}
+          </div>
+        </div>
+      </div>
+
+      {/* Docker Volume Info */}
+      <div className="bg-gradient-to-r from-green-500/20 to-blue-500/20 border border-green-500/30 rounded-lg p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-white mb-2">Docker Storage Volume</h2>
+            <p className="text-gray-300">{data.docker_storage_note}</p>
+            <p className="text-green-400 font-bold text-lg mt-2">{data.storage_status}</p>
+          </div>
+          <div className="text-right">
+            <div className="text-4xl font-bold text-green-400">{data.docker_available_gb}GB</div>
+            <div className="text-sm text-gray-400">Available Space</div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: System Stats */}
         <div className="bg-gray-800 rounded-lg p-6">
           <h2 className="text-xl font-semibold text-white mb-4">System Stats</h2>
           <div className="space-y-3">
             <div className="flex justify-between">
               <span className="text-gray-400">Uptime:</span>
-              <span className="text-white font-bold">{(data?.uptime_hours ?? 0).toFixed(1)} hours</span>
+              <span className="text-white font-bold">{data.uptime_hours.toFixed(1)} hours</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">Containers:</span>
-              <span className="text-white font-bold">{data?.containers_running ?? 0}</span>
+              <span className="text-gray-400">Total Containers:</span>
+              <span className="text-white font-bold">{data.containers_running}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">Network Latency:</span>
-              <span className="text-white font-bold">{data?.network_latency_ms ?? 0}ms</span>
+              <span className="text-gray-400">Healthy Containers:</span>
+              <span className="text-green-400 font-bold">{data.containers.filter(c => c.health === 'healthy').length}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">API Requests:</span>
-              <span className="text-white font-bold">{data?.api_requests_per_min ?? 0}/min</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Error Rate:</span>
-              <span className={`font-bold ${(data?.error_rate ?? 0) > 0.05 ? 'text-red-400' : 'text-green-400'}`}>
-                {((data?.error_rate ?? 0) * 100).toFixed(2)}%
+              <span className="text-gray-400">Unhealthy Containers:</span>
+              <span className={`font-bold ${data.containers.filter(c => c.health === 'unhealthy').length > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                {data.containers.filter(c => c.health === 'unhealthy').length}
               </span>
+            </div>
+            <div className="flex justify-between border-t border-gray-700 pt-3">
+              <span className="text-gray-400">System Status:</span>
+              <span className={`font-bold ${
+                data.system_status === 'HEALTHY' ? 'text-green-400' :
+                data.system_status === 'STRESSED' ? 'text-yellow-400' :
+                'text-red-400'
+              }`}>
+                {data.system_status}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Docker Volume:</span>
+              <span className="text-green-400 font-bold">{data.docker_available_gb}GB free</span>
             </div>
           </div>
         </div>
 
+        {/* Right: Quick Service Overview */}
         <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Service Status</h2>
-          <div className="space-y-2">
-            {[
-              'AI Engine',
-              'Portfolio Manager',
-              'Risk Monitor',
-              'Data Collector',
-              'Dashboard Backend',
-              'Database'
-            ].map((service) => (
-              <div key={service} className="flex items-center justify-between bg-gray-700 rounded p-2">
-                <span className="text-gray-300">{service}</span>
-                <span className="flex items-center">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                  <span className="text-sm text-green-400">Running</span>
-                </span>
+          <h2 className="text-xl font-semibold text-white mb-4">Quick Status Overview</h2>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between bg-gray-700 rounded p-3">
+              <span className="text-gray-300 font-semibold">CPU Load</span>
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  cpuColor === 'green' ? 'bg-green-500' :
+                  cpuColor === 'yellow' ? 'bg-yellow-500' : 'bg-red-500'
+                }`}></div>
+                <span className="text-sm font-bold text-white">{data.cpu_usage.toFixed(1)}%</span>
               </div>
-            ))}
+            </div>
+            <div className="flex items-center justify-between bg-gray-700 rounded p-3">
+              <span className="text-gray-300 font-semibold">Memory</span>
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  ramColor === 'green' ? 'bg-green-500' :
+                  ramColor === 'yellow' ? 'bg-yellow-500' : 'bg-red-500'
+                }`}></div>
+                <span className="text-sm font-bold text-white">{data.ram_usage.toFixed(1)}%</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between bg-gray-700 rounded p-3">
+              <span className="text-gray-300 font-semibold">Storage (OS)</span>
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  diskColor === 'green' ? 'bg-green-500' :
+                  diskColor === 'yellow' ? 'bg-yellow-500' : 'bg-red-500'
+                }`}></div>
+                <span className="text-sm font-bold text-white">{data.disk_usage.toFixed(1)}%</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between bg-gray-700 rounded p-3">
+              <span className="text-gray-300 font-semibold">Docker Volume</span>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <span className="text-sm font-bold text-green-400">{data.docker_available_gb}GB</span>
+              </div>
+            </div>
           </div>
+        </div>
+      </div>
+
+      {/* All Containers Status Table */}
+      <div className="bg-gray-800 rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-white mb-4">
+          Container Status ({data.containers_running} Total)
+        </h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-700">
+                <th className="text-left py-3 px-4 text-gray-400 font-semibold">Service Name</th>
+                <th className="text-left py-3 px-4 text-gray-400 font-semibold">Uptime</th>
+                <th className="text-center py-3 px-4 text-gray-400 font-semibold">Health Status</th>
+                <th className="text-left py-3 px-4 text-gray-400 font-semibold">Full Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.containers.map((container) => (
+                <tr key={container.name} className="border-b border-gray-700 hover:bg-gray-750 transition-colors">
+                  <td className="py-3 px-4 text-white font-medium">
+                    {container.name.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                  </td>
+                  <td className="py-3 px-4 text-gray-300">{container.uptime}</td>
+                  <td className="py-3 px-4 text-center">
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-2 ${
+                      container.health === 'healthy' ? 'bg-green-500/20 text-green-400' :
+                      container.health === 'unhealthy' ? 'bg-red-500/20 text-red-400' :
+                      'bg-gray-500/20 text-gray-400'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        container.health === 'healthy' ? 'bg-green-500' :
+                        container.health === 'unhealthy' ? 'bg-red-500' : 'bg-gray-500'
+                      }`}></div>
+                      {container.health.charAt(0).toUpperCase() + container.health.slice(1)}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-gray-400 text-xs">{container.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
