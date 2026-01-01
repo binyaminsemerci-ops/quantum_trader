@@ -1,0 +1,107 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'quantum-trader-vps'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - '/etc/prometheus/alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # ============================================================
+  # Prometheus itself
+  # ============================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # ============================================================
+  # Node Exporter - Host Metrics
+  # ============================================================
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+          instance: 'vps-hetzner'
+
+  # ============================================================
+  # cAdvisor - Container Metrics
+  # ============================================================
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'cadvisor'
+          instance: 'vps-hetzner'
+
+  # ============================================================
+  # Redis Exporter
+  # ============================================================
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+          instance: 'quantum_redis'
+
+  # ============================================================
+  # Application Health Endpoints (Blackbox-style scraping)
+  # ============================================================
+  - job_name: 'ai-engine-health'
+    metrics_path: '/health'
+    static_configs:
+      - targets: ['quantum_ai_engine:8001']
+        labels:
+          service: 'ai-engine'
+          component: 'trading'
+    # Convert health endpoint JSON to metrics via relabeling
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: .*
+        action: keep
+
+  - job_name: 'dashboard-backend-health'
+    metrics_path: '/system/health'
+    static_configs:
+      - targets: ['quantum_dashboard_backend:8000']
+        labels:
+          service: 'dashboard-backend'
+          component: 'monitoring'
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: .*
+        action: keep
+
+  - job_name: 'portfolio-governance-health'
+    metrics_path: '/health'
+    static_configs:
+      - targets: ['quantum_portfolio_governance:8002']
+        labels:
+          service: 'portfolio-governance'
+          component: 'risk'
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: .*
+        action: keep
+
+  # ============================================================
+  # Alertmanager
+  # ============================================================
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+        labels:
+          service: 'alertmanager'

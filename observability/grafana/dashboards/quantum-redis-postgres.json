@@ -1,0 +1,229 @@
+{
+  "dashboard": {
+    "title": "Quantum Trader - Redis & Postgres",
+    "tags": ["quantum", "redis", "postgres", "database"],
+    "timezone": "utc",
+    "refresh": "30s",
+    "time": {
+      "from": "now-3h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Redis Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "redis_up",
+            "legendFormat": "Redis"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+            ],
+            "color": {"mode": "background"}
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Redis Memory Used",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "redis_memory_used_bytes",
+            "legendFormat": "Used Memory"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bytes"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Connected Clients",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "redis_connected_clients",
+            "legendFormat": "Clients"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Total Keys",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(redis_db_keys)",
+            "legendFormat": "Keys"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Redis Commands/sec",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "targets": [
+          {
+            "expr": "rate(redis_commands_processed_total[5m])",
+            "legendFormat": "Total Commands/sec"
+          },
+          {
+            "expr": "rate(redis_commands_total{cmd!=\"ping\"}[5m])",
+            "legendFormat": "{{cmd}}"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Redis Memory Usage",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "targets": [
+          {
+            "expr": "redis_memory_used_bytes",
+            "legendFormat": "Used"
+          },
+          {
+            "expr": "redis_memory_max_bytes",
+            "legendFormat": "Max"
+          },
+          {
+            "expr": "redis_memory_used_rss_bytes",
+            "legendFormat": "RSS"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bytes"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Redis Keyspace by DB",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "targets": [
+          {
+            "expr": "redis_db_keys",
+            "legendFormat": "DB{{db}} - Keys"
+          },
+          {
+            "expr": "redis_db_keys_expiring",
+            "legendFormat": "DB{{db}} - Expiring"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Redis Hit/Miss Ratio",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "targets": [
+          {
+            "expr": "rate(redis_keyspace_hits_total[5m])",
+            "legendFormat": "Hits/sec"
+          },
+          {
+            "expr": "rate(redis_keyspace_misses_total[5m])",
+            "legendFormat": "Misses/sec"
+          },
+          {
+            "expr": "rate(redis_keyspace_hits_total[5m]) / (rate(redis_keyspace_hits_total[5m]) + rate(redis_keyspace_misses_total[5m])) * 100",
+            "legendFormat": "Hit Ratio %"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Redis Evicted/Expired Keys",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+        "targets": [
+          {
+            "expr": "rate(redis_evicted_keys_total[5m])",
+            "legendFormat": "Evicted/sec"
+          },
+          {
+            "expr": "rate(redis_expired_keys_total[5m])",
+            "legendFormat": "Expired/sec"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Redis Network I/O",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+        "targets": [
+          {
+            "expr": "rate(redis_net_input_bytes_total[5m])",
+            "legendFormat": "Input"
+          },
+          {
+            "expr": "rate(redis_net_output_bytes_total[5m])",
+            "legendFormat": "Output"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "Bps"
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "Postgres Status (if available)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 28},
+        "targets": [
+          {
+            "expr": "up{job=\"postgres-exporter\"}",
+            "legendFormat": "Postgres"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+            ],
+            "color": {"mode": "background"},
+            "noValue": "N/A"
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "Postgres Connections (if available)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 18, "x": 6, "y": 28},
+        "targets": [
+          {
+            "expr": "pg_stat_database_numbackends",
+            "legendFormat": "{{datname}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "noValue": "Postgres not configured"
+          }
+        }
+      }
+    ]
+  }
+}

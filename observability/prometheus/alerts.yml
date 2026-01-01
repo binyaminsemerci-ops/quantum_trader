@@ -1,0 +1,206 @@
+groups:
+  # ============================================================
+  # P0 - CRITICAL ALERTS (Trading System)
+  # ============================================================
+  - name: critical_containers
+    interval: 30s
+    rules:
+      - alert: CriticalContainerUnhealthy
+        expr: |
+          (
+            time() - container_start_time_seconds{
+              name=~"quantum_auto_executor|quantum_ai_engine|quantum_redis|quantum_portfolio_governance"
+            } > 120
+          )
+          and
+          (
+            container_last_seen{
+              name=~"quantum_auto_executor|quantum_ai_engine|quantum_redis|quantum_portfolio_governance"
+            } < (time() - 120)
+            or
+            up{
+              job=~"ai-engine-health|portfolio-governance-health"
+            } == 0
+          )
+        for: 2m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Critical container {{ $labels.name }} is unhealthy"
+          description: "Container {{ $labels.name }} has been unhealthy for more than 2 minutes. Trading operations may be impaired."
+
+      - alert: AutoExecutorDown
+        expr: up{job="cadvisor", name="quantum_auto_executor"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: execution
+        annotations:
+          summary: "Auto Executor is DOWN"
+          description: "The auto executor container is not running. NO ORDERS can be placed!"
+
+      - alert: AIEngineDown
+        expr: up{job="ai-engine-health"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: ai
+        annotations:
+          summary: "AI Engine is DOWN or unreachable"
+          description: "AI Engine health endpoint is not responding. Signal generation stopped."
+
+      - alert: RedisDown
+        expr: redis_up{job="redis-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Redis is DOWN"
+          description: "Redis database is not reachable. All event streaming and caching stopped."
+
+  # ============================================================
+  # P1 - HIGH PRIORITY ALERTS (System Health)
+  # ============================================================
+  - name: system_resources
+    interval: 1m
+    rules:
+      - alert: HostDiskSpaceCritical
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"} 
+            / node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"}
+          ) * 100 < 15
+        for: 5m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Host disk space critically low"
+          description: "Root filesystem has less than 15% available ({{ $value | humanize }}% free). Immediate cleanup required!"
+
+      - alert: HostDiskSpaceWarning
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"} 
+            / node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"}
+          ) * 100 < 20
+        for: 10m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Host disk space low"
+          description: "Root filesystem has less than 20% available ({{ $value | humanize }}% free). Monitor closely."
+
+      - alert: HostMemoryLow
+        expr: |
+          (
+            node_memory_MemAvailable_bytes 
+            / node_memory_MemTotal_bytes
+          ) * 100 < 10
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Host memory critically low"
+          description: "Available memory is less than 10% ({{ $value | humanize }}% available). System may start OOM killing processes."
+
+      - alert: HostCPUHigh
+        expr: |
+          100 - (
+            avg by (instance) (
+              rate(node_cpu_seconds_total{mode="idle"}[5m])
+            ) * 100
+          ) > 90
+        for: 10m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Host CPU usage very high"
+          description: "CPU usage is above 90% for 10 minutes ({{ $value | humanize }}%). System may be overloaded."
+
+  # ============================================================
+  # P1 - CONTAINER HEALTH
+  # ============================================================
+  - name: container_health
+    interval: 30s
+    rules:
+      - alert: ContainerHighMemory
+        expr: |
+          (
+            container_memory_usage_bytes{
+              name=~"quantum_.*"
+            } 
+            / container_spec_memory_limit_bytes{
+              name=~"quantum_.*"
+            }
+          ) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          component: containers
+        annotations:
+          summary: "Container {{ $labels.name }} using >90% memory"
+          description: "Container {{ $labels.name }} is using {{ $value | humanize }}% of its memory limit."
+
+      - alert: ContainerRestarting
+        expr: |
+          rate(container_last_seen{name=~"quantum_.*"}[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: containers
+        annotations:
+          summary: "Container {{ $labels.name }} is restarting"
+          description: "Container {{ $labels.name }} has restarted {{ $value }} times in the last 5 minutes."
+
+  # ============================================================
+  # P1 - MONITORING STACK HEALTH
+  # ============================================================
+  - name: monitoring_health
+    interval: 1m
+    rules:
+      - alert: PrometheusTargetDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: monitoring
+        annotations:
+          summary: "Prometheus target {{ $labels.job }} is down"
+          description: "Prometheus cannot scrape {{ $labels.job }} on {{ $labels.instance }}. Metrics collection stopped."
+
+      - alert: PrometheusTSDBCompactionsFailing
+        expr: rate(prometheus_tsdb_compactions_failed_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: monitoring
+        annotations:
+          summary: "Prometheus TSDB compactions failing"
+          description: "Prometheus TSDB compactions are failing at {{ $value }} failures/sec. Disk or performance issue."
+
+  # ============================================================
+  # P2 - INFO ALERTS (Dashboard Visibility)
+  # ============================================================
+  - name: dashboard_alerts
+    interval: 2m
+    rules:
+      - alert: UnhealthyContainerDetected
+        expr: |
+          count(
+            container_last_seen{
+              name=~"quantum_.*"
+            } < (time() - 300)
+          ) > 0
+        for: 5m
+        labels:
+          severity: info
+          component: monitoring
+        annotations:
+          summary: "{{ $value }} unhealthy containers detected"
+          description: "Dashboard shows {{ $value }} containers in unhealthy state for 5+ minutes."

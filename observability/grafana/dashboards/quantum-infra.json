@@ -1,0 +1,227 @@
+{
+  "dashboard": {
+    "title": "Quantum Trader - Infrastructure",
+    "tags": ["quantum", "infrastructure", "docker"],
+    "timezone": "utc",
+    "refresh": "1m",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Host CPU Cores",
+        "type": "stat",
+        "gridPos": {"h": 3, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "count(node_cpu_seconds_total{mode=\"idle\"})",
+            "legendFormat": "CPU Cores"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Total Memory",
+        "type": "stat",
+        "gridPos": {"h": 3, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "node_memory_MemTotal_bytes",
+            "legendFormat": "Total RAM"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bytes"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Total Disk (Root)",
+        "type": "stat",
+        "gridPos": {"h": 3, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "node_filesystem_size_bytes{mountpoint=\"/\"}",
+            "legendFormat": "Disk Size"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bytes"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Running Containers",
+        "type": "stat",
+        "gridPos": {"h": 3, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "count(container_last_seen{name=~\"quantum_.*\"})",
+            "legendFormat": "Containers"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "CPU Usage per Core",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 3},
+        "targets": [
+          {
+            "expr": "rate(node_cpu_seconds_total[5m]) * 100",
+            "legendFormat": "CPU {{cpu}} - {{mode}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Memory Usage Breakdown",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 3},
+        "targets": [
+          {
+            "expr": "node_memory_MemTotal_bytes",
+            "legendFormat": "Total"
+          },
+          {
+            "expr": "node_memory_MemAvailable_bytes",
+            "legendFormat": "Available"
+          },
+          {
+            "expr": "node_memory_MemFree_bytes",
+            "legendFormat": "Free"
+          },
+          {
+            "expr": "node_memory_Cached_bytes",
+            "legendFormat": "Cached"
+          },
+          {
+            "expr": "node_memory_Buffers_bytes",
+            "legendFormat": "Buffers"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bytes"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Disk I/O",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 11},
+        "targets": [
+          {
+            "expr": "rate(node_disk_read_bytes_total[5m])",
+            "legendFormat": "Read - {{device}}"
+          },
+          {
+            "expr": "rate(node_disk_written_bytes_total[5m])",
+            "legendFormat": "Write - {{device}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "Bps"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Network I/O",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 11},
+        "targets": [
+          {
+            "expr": "rate(node_network_receive_bytes_total{device!=\"lo\"}[5m])",
+            "legendFormat": "Receive - {{device}}"
+          },
+          {
+            "expr": "rate(node_network_transmit_bytes_total{device!=\"lo\"}[5m])",
+            "legendFormat": "Transmit - {{device}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "Bps"
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Top 10 Containers by CPU",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 19},
+        "targets": [
+          {
+            "expr": "topk(10, rate(container_cpu_usage_seconds_total{name=~\"quantum_.*\"}[5m]) * 100)",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {"id": "organize", "options": {"excludeByName": {"Time": true, "instance": true, "id": true, "image": true}}}
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Top 10 Containers by Memory",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 19},
+        "targets": [
+          {
+            "expr": "topk(10, container_memory_usage_bytes{name=~\"quantum_.*\"})",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {"id": "organize", "options": {"excludeByName": {"Time": true, "instance": true, "id": true, "image": true}}}
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bytes"
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "Docker Filesystem Usage",
+        "type": "graph",
+        "gridPos": {"h": 6, "w": 24, "x": 0, "y": 27},
+        "targets": [
+          {
+            "expr": "node_filesystem_size_bytes{mountpoint=~\"/var/lib/docker.*|/mnt/.*\"}",
+            "legendFormat": "{{mountpoint}} - Total"
+          },
+          {
+            "expr": "node_filesystem_avail_bytes{mountpoint=~\"/var/lib/docker.*|/mnt/.*\"}",
+            "legendFormat": "{{mountpoint}} - Available"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bytes"
+          }
+        }
+      }
+    ]
+  }
+}
