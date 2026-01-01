@@ -1,0 +1,216 @@
+{
+  "dashboard": {
+    "title": "Quantum Trader - Execution & Trading Health",
+    "tags": ["quantum", "execution", "trading"],
+    "timezone": "utc",
+    "refresh": "15s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Auto Executor Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "up{name=\"quantum_auto_executor\"}",
+            "legendFormat": "Executor"
+          }
+        ],
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+            ]
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "AI Engine Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "up{job=\"ai-engine-health\"}",
+            "legendFormat": "AI Engine"
+          }
+        ],
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+            ]
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Portfolio Governance Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "up{job=\"portfolio-governance-health\"}",
+            "legendFormat": "Governance"
+          }
+        ],
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+            ]
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Dashboard Backend Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "up{job=\"dashboard-backend-health\"}",
+            "legendFormat": "Dashboard"
+          }
+        ],
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+            ]
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Container Restarts (Last Hour)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "targets": [
+          {
+            "expr": "changes(container_last_seen{name=~\"quantum_.*\"}[1h])",
+            "legendFormat": "{{name}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Container Uptime",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "targets": [
+          {
+            "expr": "(time() - container_start_time_seconds{name=~\"quantum_(auto_executor|ai_engine|redis|portfolio_governance)\"}) / 3600",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {"id": "organize", "options": {"excludeByName": {"Time": true, "instance": true, "id": true, "image": true}}}
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "h"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Executor CPU Usage",
+        "type": "graph",
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 12},
+        "targets": [
+          {
+            "expr": "rate(container_cpu_usage_seconds_total{name=\"quantum_auto_executor\"}[5m]) * 100",
+            "legendFormat": "Executor CPU"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Executor Memory Usage",
+        "type": "graph",
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 12},
+        "targets": [
+          {
+            "expr": "container_memory_usage_bytes{name=\"quantum_auto_executor\"}",
+            "legendFormat": "Executor Memory"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bytes"
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "AI Engine CPU Usage",
+        "type": "graph",
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 18},
+        "targets": [
+          {
+            "expr": "rate(container_cpu_usage_seconds_total{name=\"quantum_ai_engine\"}[5m]) * 100",
+            "legendFormat": "AI Engine CPU"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "AI Engine Memory Usage",
+        "type": "graph",
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 18},
+        "targets": [
+          {
+            "expr": "container_memory_usage_bytes{name=\"quantum_ai_engine\"}",
+            "legendFormat": "AI Engine Memory"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bytes"
+          }
+        }
+      }
+    ]
+  }
+}
