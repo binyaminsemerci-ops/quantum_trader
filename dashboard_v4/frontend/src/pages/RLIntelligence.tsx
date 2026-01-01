@@ -3,7 +3,7 @@ import Chart from "chart.js/auto";
 import InsightCard from '../components/InsightCard';
 
 // RL Dashboard URL - bruker VPS backend
-const RL_DASHBOARD_URL = "/api/rl-dashboard";
+const RL_DASHBOARD_URL = "/api/rl-dashboard/";
 
 interface PerformanceData {
   [symbol: string]: number;
@@ -13,11 +13,18 @@ interface ChartsState {
   [symbol: string]: Chart | null;
 }
 
-interface DashboardData {
-  symbols: string[];
-  rewards: {
-    [symbol: string]: number[];
-  };
+interface RLDashboardResponse {
+  status: string;
+  symbols_tracked: number;
+  symbols: Array<{
+    symbol: string;
+    reward: number;
+    status: string;
+  }>;
+  best_performer: string;
+  best_reward: number;
+  avg_reward: number;
+  message: string;
 }
 
 // Correlation Matrix Component
@@ -71,7 +78,8 @@ function CorrelationMatrix({ perf }: { perf: PerformanceData }) {
 }
 
 export default function RLIntelligence() {
-  const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"];
+  const defaultSymbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"];
+  const [symbols, setSymbols] = useState<string[]>(defaultSymbols);
   const [perf, setPerf] = useState<PerformanceData>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -138,36 +146,44 @@ export default function RLIntelligence() {
     // Fetch data from RL Dashboard
     const fetchData = async () => {
       try {
-        const response = await fetch(`${RL_DASHBOARD_URL}/data`);
+        const response = await fetch(RL_DASHBOARD_URL);
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
-        const data: DashboardData = await response.json();
-        const rewards = data.rewards || {};
+        const data: RLDashboardResponse = await response.json();
+
+        // Update tracked symbols list from backend
+        const allSymbols = data.symbols.map(s => s.symbol);
+        if (allSymbols.length > 0 && JSON.stringify(allSymbols) !== JSON.stringify(symbols)) {
+          setSymbols(allSymbols);
+        }
 
         const newPerf: PerformanceData = {};
         
-        symbols.forEach((s) => {
-          const arr = rewards[s] || [0];
-          const val = arr[arr.length - 1] || 0;
+        // Process real RL data from backend
+        data.symbols.forEach((symbolData) => {
+          const val = symbolData.reward;
+          
+          // Update chart if this symbol is in our tracked list
+          if (symbols.includes(symbolData.symbol)) {
+            const chart = chartInstances[symbolData.symbol];
+            if (chart && chart.data.labels) {
+              chart.data.labels.push("");
+              chart.data.datasets[0].data.push(val);
+              chart.data.datasets[1].data.push(val * 0.5); // Policy delta (simulated)
 
-          const chart = chartInstances[s];
-          if (chart && chart.data.labels) {
-            chart.data.labels.push("");
-            chart.data.datasets[0].data.push(val);
-            chart.data.datasets[1].data.push(val * 0.5);
+              // Keep only last 80 points
+              if (chart.data.labels.length > 80) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+                chart.data.datasets[1].data.shift();
+              }
 
-            // Keep only last 80 points
-            if (chart.data.labels.length > 80) {
-              chart.data.labels.shift();
-              chart.data.datasets[0].data.shift();
-              chart.data.datasets[1].data.shift();
+              chart.update("none"); // Skip animation for performance
             }
-
-            chart.update("none"); // Skip animation for performance
           }
 
-          newPerf[s] = val;
+          newPerf[symbolData.symbol] = val;
         });
 
         setPerf(newPerf);
@@ -201,7 +217,7 @@ export default function RLIntelligence() {
     <div>
       <h1 className="text-3xl font-bold mb-6 text-green-400">
         🧠 RL Intelligence
-      </h1>
+      </h1>Object.keys(perf).length || 
 
       {/* Insight Cards - Same style as Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -325,7 +341,7 @@ export default function RLIntelligence() {
           </div>
           <div>
             <span className="text-gray-400">Update Interval:</span>
-            <br />
+            <br />Object.keys(perf).length || 
             <span className="text-green-400">3 seconds</span>
           </div>
           <div>
