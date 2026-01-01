@@ -165,7 +165,7 @@ services:
     depends_on:
       - prometheus
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9121/metrics"]
+      test: ["CMD-SHELL", "timeout 5 cat < /dev/null > /dev/tcp/localhost/9121 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
