@@ -379,7 +379,7 @@ services:
       - LOG_LEVEL=INFO
       - BINANCE_API_KEY=${BINANCE_API_KEY}
       - BINANCE_API_SECRET=${BINANCE_API_SECRET}
-      - BINANCE_USE_TESTNET=${BINANCE_TESTNET:-true}
+      - BINANCE_USE_TESTNET=${BINANCE_TESTNET:-false}
     volumes:
       - ./logs:/app/logs:rw
     networks:
@@ -410,7 +410,7 @@ services:
       - LOG_LEVEL=INFO
       - BINANCE_API_KEY=${BINANCE_API_KEY}
       - BINANCE_API_SECRET=${BINANCE_API_SECRET}
-      - BINANCE_USE_TESTNET=${BINANCE_TESTNET:-true}
+      - BINANCE_USE_TESTNET=${BINANCE_TESTNET:-false}
       - TRADE_INTENT_SAFE_DRAIN=false  # Set to true to consume without executing
       - TRADE_INTENT_MAX_AGE_MINUTES=5  # Only execute recent trades
     volumes:
