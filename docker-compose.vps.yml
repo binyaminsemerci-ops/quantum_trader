@@ -462,10 +462,11 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8010/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8010/health', timeout=5)"]
       interval: 30s
-      timeout: 5s
-      retries: 3
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -490,10 +491,11 @@ services:
     networks:
       - quantum_trader
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8011/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8011/health', timeout=5)"]
       interval: 30s
-      timeout: 5s
-      retries: 3
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -518,10 +520,11 @@ services:
     networks:
       - quantum_trader
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8012/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8012/health', timeout=5)"]
       interval: 30s
-      timeout: 5s
-      retries: 3
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     deploy:
       resources:
         limits:
