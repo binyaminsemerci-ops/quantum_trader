@@ -40,7 +40,7 @@ except ImportError as e:
 
 # P1-B: Import Execution Policy
 try:
-    from microservices.auto_executor.execution_policy import (
+    from execution_policy import (
         ExecutionPolicy,
         PolicyConfig,
         PolicyDecision,
