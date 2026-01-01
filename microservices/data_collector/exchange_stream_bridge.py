@@ -20,11 +20,27 @@ except ImportError:
     class RedisConnectionManager:
         def __init__(self, url):
             self.url = url
-            self._redis = None
+            self.client = None
+            self.healthy = False
+            self.consecutive_failures = 0
+        
+        async def start(self):
+            """Start connection"""
+            if not self.client:
+                self.client = await aioredis.from_url(self.url)
+                self.healthy = True
+        
+        async def stop(self):
+            """Stop connection"""
+            if self.client:
+                await self.client.close()
+                self.client = None
+                self.healthy = False
+        
         async def get_connection(self):
-            if not self._redis:
-                self._redis = await aioredis.from_url(self.url)
-            return self._redis
+            if not self.client:
+                await self.start()
+            return self.client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
