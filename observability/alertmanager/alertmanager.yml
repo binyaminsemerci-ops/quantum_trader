@@ -81,9 +81,9 @@ receivers:
   # Critical alerts - urgent notification
   - name: 'critical-alerts'
     webhook_configs:
-      # Replace with actual webhook URL via environment variable
-      # Example: ALERT_WEBHOOK_URL=https://hooks.slack.com/services/XXX
-      - url: '${ALERT_WEBHOOK_URL:-http://localhost:9093/webhook/critical}'
+      # Replace with actual webhook URL (e.g., Slack, Discord)
+      # Example: https://hooks.slack.com/services/XXX
+      - url: 'http://localhost:9093/webhook/critical'
         send_resolved: true
         http_config:
           follow_redirects: true
@@ -92,7 +92,7 @@ receivers:
   # Warning alerts - less urgent notification
   - name: 'warning-alerts'
     webhook_configs:
-      - url: '${ALERT_WEBHOOK_URL:-http://localhost:9093/webhook/warning}'
+      - url: 'http://localhost:9093/webhook/warning'
         send_resolved: true
         http_config:
           follow_redirects: true
