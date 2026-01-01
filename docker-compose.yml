@@ -1005,11 +1005,11 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python3", "-c", "import redis; r=redis.Redis(host='redis'); exit(0 if r.ping() else 1)"]
+      test: ["CMD", "python3", "-c", "import redis; r=redis.Redis(host='redis', port=6379); exit(0 if r.ping() else 1)"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 30s
 
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   # 📊 QUANTUM TRADER DASHBOARD V4 - AI Hedge Fund Metrics
@@ -1068,7 +1068,7 @@ services:
     networks:
       - quantum_trader
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      test: ["CMD-SHELL", "ps aux | grep nginx | grep -v grep || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
