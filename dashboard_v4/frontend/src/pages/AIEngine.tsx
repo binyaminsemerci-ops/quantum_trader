@@ -104,6 +104,15 @@ export default function AIEngine() {
       const buyCount = data.sides.filter(s => s === 'LONG' || s === 'BUY').length;
       const sellCount = data.sides.filter(s => s === 'SHORT' || s === 'SELL').length;
       
+      let ensemble_decision: 'BUY' | 'SELL' | 'HOLD';
+      if (buyCount > sellCount) {
+        ensemble_decision = 'BUY';
+      } else if (sellCount > buyCount) {
+        ensemble_decision = 'SELL';
+      } else {
+        ensemble_decision = 'HOLD';
+      }
+      
       return {
         symbol,
         consensus_confidence: avgConfidence,
@@ -111,7 +120,7 @@ export default function AIEngine() {
           'LONG': buyCount,
           'SHORT': sellCount
         },
-        ensemble_decision: buyCount > sellCount ? 'BUY' : sellCount > buyCount ? 'SELL' : 'HOLD',
+        ensemble_decision,
         model_count: data.confidences.length
       };
     }).sort((a, b) => b.consensus_confidence - a.consensus_confidence);
