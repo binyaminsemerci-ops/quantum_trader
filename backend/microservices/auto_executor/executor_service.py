@@ -76,16 +76,27 @@ try:
             client = Client(api_key, api_secret)
             logger.info("📈 Using Binance MAINNET")
         BINANCE_AVAILABLE = True
+        logger.info(f"✅ Binance client initialized | mode={'TESTNET' if TESTNET else 'MAINNET'} | paper={PAPER_TRADING}")
     else:
-        logger.warning("⚠️ Binance credentials not found - using paper trading mode")
+        # P0 FIX: Don't silently fallback if PAPER_TRADING=false
+        if not PAPER_TRADING:
+            logger.error("❌ FATAL_BINANCE_UNAVAILABLE: Credentials missing but PAPER_TRADING=false")
+            logger.error("❌ Set BINANCE_API_KEY and BINANCE_API_SECRET or enable PAPER_TRADING=true")
+            sys.exit(1)
+        else:
+            logger.warning("⚠️ Binance credentials not found - using paper trading mode")
+            client = None
+            BINANCE_AVAILABLE = False
+except Exception as e:
+    # P0 FIX: Don't silently fallback if PAPER_TRADING=false
+    if not PAPER_TRADING:
+        logger.error(f"❌ FATAL_BINANCE_UNAVAILABLE: Client initialization failed: {e}")
+        logger.error("❌ Check credentials and network connectivity or enable PAPER_TRADING=true")
+        sys.exit(1)
+    else:
+        logger.warning(f"⚠️ Binance client initialization failed: {e}")
         client = None
         BINANCE_AVAILABLE = False
-        PAPER_TRADING = True
-except Exception as e:
-    logger.warning(f"⚠️ Binance client initialization failed: {e}")
-    client = None
-    BINANCE_AVAILABLE = False
-    PAPER_TRADING = True
 
 # Wrapper functions for Binance API calls with recvWindow
 def safe_futures_call(func_name, *args, **kwargs):
@@ -450,6 +461,11 @@ class AutoExecutor:
             # Set leverage
             safe_futures_call('futures_change_leverage', symbol=symbol, leverage=leverage)
             
+            # P0 PROOF LOG: About to submit order
+            endpoint_host = client.FUTURES_URL if client else "unknown"
+            logger.info(f"🚀 ORDER_SUBMIT | symbol={symbol} | side={side} | qty={qty} | "
+                      f"type=MARKET | endpoint={endpoint_host} | mode={'TESTNET' if TESTNET else 'MAINNET'}")
+            
             # Place market order
             if side.upper() == "BUY":
                 order = safe_futures_call('futures_create_order',
@@ -470,6 +486,11 @@ class AutoExecutor:
             else:
                 logger.error(f"❌ Invalid side: {side}")
                 return None
+            
+            # P0 PROOF LOG: Order response received
+            logger.info(f"✅ ORDER_RESPONSE | orderId={order.get('orderId')} | "
+                      f"status={order.get('status')} | symbol={symbol} | "
+                      f"updateTime={order.get('updateTime')} | response={json.dumps(order)[:200]}")
             
             # DEBUG: Log full Binance response
             logger.info(f"🔍 [{symbol}] Binance order response: {order}")
@@ -615,6 +636,11 @@ class AutoExecutor:
             return order
             
         except Exception as e:
+            # P0 PROOF LOG: Order error
+            error_type = type(e).__name__
+            binance_code = getattr(e, 'code', 'N/A')
+            logger.error(f"🚨 ORDER_ERROR | symbol={symbol} | error_type={error_type} | "
+                       f"binance_code={binance_code} | message={str(e)[:200]}")
             logger.error(f"❌ Order error: {e}")
             self.failed_trades += 1
             
@@ -1097,6 +1123,9 @@ class AutoExecutor:
                     # Filter out HOLD signals and invalid symbols
                     symbol = signal.get('symbol', '')
                     if signal.get('side') != 'HOLD' and symbol not in INVALID_SYMBOLS:
+                        # P0 PROOF LOG: Intent received
+                        logger.info(f"🎯 INTENT_RECEIVED | stream_id={message_id} | symbol={symbol} | "
+                                  f"side={signal.get('side')} | confidence={signal.get('confidence', 0):.3f}")
                         signals.append(signal)
                         
                 except Exception as e:
@@ -1185,6 +1214,28 @@ class AutoExecutor:
 def main():
     """Entry point"""
     try:
+        # P0 FIX: Startup self-test before running executor
+        if not PAPER_TRADING and BINANCE_AVAILABLE and client:
+            logger.info("🔍 Running startup self-test...")
+            try:
+                # Test 1: Server time
+                server_time = safe_futures_call('futures_time')
+                logger.info(f"✅ Server time: {server_time['serverTime']}")
+                
+                # Test 2: Exchange info
+                exchange_info = safe_futures_call('futures_exchange_info')
+                logger.info(f"✅ Exchange info: {len(exchange_info['symbols'])} symbols available")
+                
+                # Test 3: Account endpoint
+                account = safe_futures_call('futures_account')
+                logger.info(f"✅ Account balance: {account['totalWalletBalance']} USDT")
+                
+                logger.info("✅ Startup self-test PASSED")
+            except Exception as test_error:
+                logger.error(f"❌ FATAL_BINANCE_UNAVAILABLE: Startup self-test FAILED: {test_error}")
+                logger.error("❌ Cannot connect to Binance API - check credentials and network")
+                sys.exit(1)
+        
         executor = AutoExecutor()
         executor.run_execution_loop()
     except Exception as e:
