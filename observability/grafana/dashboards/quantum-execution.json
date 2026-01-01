@@ -1,14 +1,13 @@
 {
-  "dashboard": {
-    "title": "Quantum Trader - Execution & Trading Health",
-    "tags": ["quantum", "execution", "trading"],
-    "timezone": "utc",
-    "refresh": "15s",
-    "time": {
-      "from": "now-1h",
-      "to": "now"
-    },
-    "panels": [
+  "title": "Quantum Trader - Execution & Trading",
+  "tags": ["quantum", "execution", "trading"],
+  "timezone": "utc",
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
       {
         "id": 1,
         "title": "Auto Executor Status",
@@ -212,5 +211,4 @@
         }
       }
     ]
-  }
 }
