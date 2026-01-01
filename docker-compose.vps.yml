@@ -758,6 +758,23 @@ services:
       - quantum_trader
     restart: always
 
+  # Binance PnL Tracker - Real-time position PnL monitoring
+  binance-pnl-tracker:
+    build: ./microservices/binance_pnl_tracker
+    container_name: quantum_binance_pnl_tracker
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - BINANCE_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET}
+      - BINANCE_USE_TESTNET=${BINANCE_USE_TESTNET:-true}
+      - PNL_POLL_INTERVAL=15
+    depends_on:
+      - redis
+    networks:
+      - quantum_trader
+    restart: always
+
   nginx-proxy:
     image: nginx:alpine
     container_name: quantum_nginx_proxy
