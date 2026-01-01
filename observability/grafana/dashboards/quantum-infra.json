@@ -1,14 +1,13 @@
 {
-  "dashboard": {
-    "title": "Quantum Trader - Infrastructure",
-    "tags": ["quantum", "infrastructure", "docker"],
-    "timezone": "utc",
-    "refresh": "1m",
-    "time": {
-      "from": "now-6h",
-      "to": "now"
-    },
-    "panels": [
+  "title": "Quantum Trader - Infrastructure",
+  "tags": ["quantum", "infra", "docker"],
+  "timezone": "utc",
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
       {
         "id": 1,
         "title": "Host CPU Cores",
@@ -223,5 +222,4 @@
         }
       }
     ]
-  }
 }
