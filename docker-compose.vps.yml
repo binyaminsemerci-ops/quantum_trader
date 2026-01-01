@@ -39,8 +39,8 @@ services:
   # Cross-Exchange Intelligence - Multi-Exchange Data Pipeline
   cross-exchange:
     build:
-      context: ./microservices/data_collector
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: microservices/data_collector/Dockerfile
     container_name: quantum_cross_exchange
     restart: unless-stopped
     environment:
