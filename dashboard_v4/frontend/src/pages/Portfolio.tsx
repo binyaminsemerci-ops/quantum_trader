@@ -2,25 +2,98 @@ import { useEffect, useState } from 'react';
 import InsightCard from '../components/InsightCard';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const RL_DASHBOARD_URL = '/rl-dashboard/';
+
+interface SymbolData {
+  symbol: string;
+  reward: number;
+  unrealized_pnl: number;
+  realized_pnl: number;
+  total_pnl: number;
+  unrealized_pct: number;
+  realized_pct: number;
+  realized_trades: number;
+  status: string;
+}
+
+interface RLDashboardData {
+  status: string;
+  symbols_tracked: number;
+  symbols: SymbolData[];
+  best_performer: string;
+  best_reward: number;
+  avg_reward: number;
+  message: string;
+}
 
 interface PortfolioData {
-  pnl: number;
+  totalPnl: number;
+  unrealizedPnl: number;
+  realizedPnl: number;
+  activePositions: number;
   exposure: number;
-  drawdown: number;
-  positions: number;
+  maxDrawdown: number;
+  winningPositions: number;
+  losingPositions: number;
+  bestPerformer: string;
+  worstPerformer: string;
+  avgReward: number;
 }
 
 export default function Portfolio() {
   const [data, setData] = useState<PortfolioData | null>(null);
+  const [symbols, setSymbols] = useState<SymbolData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchPortfolio = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/portfolio/status`);
+        const response = await fetch(RL_DASHBOARD_URL);
         if (!response.ok) throw new Error('Failed to fetch');
-        const portfolioData = await response.json();
-        setData(portfolioData);
+        const rlData: RLDashboardData = await response.json();
+        
+        // Calculate portfolio metrics from RL Dashboard data
+        const totalPnl = rlData.symbols.reduce((sum, s) => sum + s.total_pnl, 0);
+        const unrealizedPnl = rlData.symbols.reduce((sum, s) => sum + s.unrealized_pnl, 0);
+        const realizedPnl = rlData.symbols.reduce((sum, s) => sum + s.realized_pnl, 0);
+        const activePositions = rlData.symbols.filter(s => s.status === 'active').length;
+        
+        // Calculate exposure (simplified: percentage of active positions)
+        const exposure = activePositions > 0 ? (activePositions / rlData.symbols_tracked) : 0;
+        
+        // Calculate max drawdown from negative rewards
+        const negativeRewards = rlData.symbols
+          .filter(s => s.reward < 0)
+          .map(s => Math.abs(s.reward));
+        const maxDrawdown = negativeRewards.length > 0 
+          ? Math.max(...negativeRewards) / 100 
+          : 0;
+        
+        // Count winning/losing positions
+        const winningPositions = rlData.symbols.filter(s => s.total_pnl > 0).length;
+        const losingPositions = rlData.symbols.filter(s => s.total_pnl < 0).length;
+        
+        // Find best and worst performers
+        const sortedByPnl = [...rlData.symbols].sort((a, b) => b.total_pnl - a.total_pnl);
+        const bestPerformer = sortedByPnl[0]?.symbol || 'N/A';
+        const worstPerformer = sortedByPnl[sortedByPnl.length - 1]?.symbol || 'N/A';
+        
+        setData({
+          totalPnl,
+          unrealizedPnl,
+          realizedPnl,
+          activePositions,
+          exposure,
+          maxDrawdown,
+          winningPositions,
+          losingPositions,
+          bestPerformer,
+          worstPerformer,
+          avgReward: rlData.avg_reward
+        });
+        
+        // Store symbols for position details
+        setSymbols(rlData.symbols.sort((a, b) => b.total_pnl - a.total_pnl));
         setLoading(false);
       } catch (err) {
         console.error('Failed to load portfolio:', err);
@@ -29,7 +102,7 @@ export default function Portfolio() {
     };
 
     fetchPortfolio();
-    const interval = setInterval(fetchPortfolio, 10000);
+    const interval = setInterval(fetchPortfolio, 5000); // 5 second refresh
     return () => clearInterval(interval);
   }, []);
 
@@ -49,42 +122,61 @@ export default function Portfolio() {
     );
   }
 
+  const winRate = data.activePositions > 0 
+    ? ((data.winningPositions / data.activePositions) * 100).toFixed(1)
+    : '0.0';
+
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-green-400">Portfolio Overview</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-green-400">Portfolio Overview</h1>
+        <div className="text-sm text-gray-400">
+          Last updated: {new Date().toLocaleTimeString()}
+        </div>
+      </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Main Metrics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <InsightCard
-          title="Portfolio P&L"
-          value={`$${data.pnl.toFixed(2)}`}
-          subtitle="Current unrealized P&L"
-          color={data.pnl >= 0 ? 'text-green-400' : 'text-red-400'}
+          title="Total Portfolio P&L"
+          value={`$${data.totalPnl.toFixed(2)}`}
+          subtitle="Combined realized + unrealized"
+          color={data.totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}
+        />
+        
+        <InsightCard
+          title="Unrealized P&L"
+          value={`$${data.unrealizedPnl.toFixed(2)}`}
+          subtitle="Open positions"
+          color={data.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}
         />
         
         <InsightCard
           title="Active Positions"
-          value={data.positions.toString()}
+          value={data.activePositions.toString()}
           subtitle={`Exposure: ${(data.exposure * 100).toFixed(1)}%`}
           color="text-blue-400"
         />
         
         <InsightCard
-          title="Drawdown"
-          value={`${(data.drawdown * 100).toFixed(2)}%`}
-          subtitle="Current drawdown level"
-          color={data.drawdown > 0.1 ? 'text-red-400' : 'text-yellow-400'}
+          title="Max Drawdown"
+          value={`${(data.maxDrawdown * 100).toFixed(2)}%`}
+          subtitle="Largest loss from peak"
+          color={data.maxDrawdown > 0.1 ? 'text-red-400' : 'text-yellow-400'}
         />
       </div>
 
+      {/* Portfolio Performance Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column: Performance Metrics */}
         <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Portfolio Metrics</h2>
+          <h2 className="text-xl font-semibold text-white mb-4">Performance Metrics</h2>
           <div className="space-y-4">
             <div>
               <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-400">Exposure</span>
+                <span className="text-gray-400">Portfolio Exposure</span>
                 <span className="text-blue-400 font-bold">
-                  {(data.exposure * 100).toFixed(2)}%
+                  {(data.exposure * 100).toFixed(1)}%
                 </span>
               </div>
               <div className="w-full bg-gray-700 rounded-full h-3">
@@ -97,45 +189,131 @@ export default function Portfolio() {
             
             <div>
               <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-400">Drawdown</span>
-                <span className={`font-bold ${data.drawdown > 0.1 ? 'text-red-400' : 'text-yellow-400'}`}>
-                  {(data.drawdown * 100).toFixed(2)}%
+                <span className="text-gray-400">Max Drawdown</span>
+                <span className={`font-bold ${data.maxDrawdown > 0.1 ? 'text-red-400' : 'text-yellow-400'}`}>
+                  {(data.maxDrawdown * 100).toFixed(2)}%
                 </span>
               </div>
               <div className="w-full bg-gray-700 rounded-full h-3">
                 <div 
-                  className={`h-3 rounded-full transition-all duration-500 ${data.drawdown > 0.1 ? 'bg-red-500' : 'bg-yellow-500'}`}
-                  style={{ width: `${Math.min(data.drawdown * 100, 100)}%` }}
+                  className={`h-3 rounded-full transition-all duration-500 ${data.maxDrawdown > 0.1 ? 'bg-red-500' : 'bg-yellow-500'}`}
+                  style={{ width: `${Math.min(data.maxDrawdown * 100, 100)}%` }}
                 />
+              </div>
+            </div>
+            
+            <div className="pt-4 space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Win Rate:</span>
+                <span className="text-green-400 font-bold">{winRate}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Winning Positions:</span>
+                <span className="text-green-400 font-bold">{data.winningPositions}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Losing Positions:</span>
+                <span className="text-red-400 font-bold">{data.losingPositions}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Avg Reward:</span>
+                <span className={`font-bold ${data.avgReward >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {data.avgReward.toFixed(2)}%
+                </span>
               </div>
             </div>
           </div>
         </div>
 
+        {/* Right Column: Summary */}
         <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Performance Summary</h2>
+          <h2 className="text-xl font-semibold text-white mb-4">Portfolio Summary</h2>
           <div className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-gray-400">Current P&L:</span>
-              <span className={`font-bold text-xl ${data.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                ${data.pnl.toFixed(2)}
+              <span className="text-gray-400">Total P&L:</span>
+              <span className={`font-bold text-xl ${data.totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                ${data.totalPnl.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between border-t border-gray-700 pt-2">
+              <span className="text-gray-400 text-sm">Unrealized:</span>
+              <span className={`font-semibold ${data.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                ${data.unrealizedPnl.toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between">
+              <span className="text-gray-400 text-sm">Realized (24h):</span>
+              <span className={`font-semibold ${data.realizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                ${data.realizedPnl.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between border-t border-gray-700 pt-3 mt-3">
               <span className="text-gray-400">Active Positions:</span>
-              <span className="text-white font-bold text-xl">{data.positions}</span>
+              <span className="text-white font-bold text-xl">{data.activePositions}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Portfolio Exposure:</span>
-              <span className="text-blue-400 font-bold">{(data.exposure * 100).toFixed(2)}%</span>
+              <span className="text-blue-400 font-bold">{(data.exposure * 100).toFixed(1)}%</span>
+            </div>
+            <div className="flex justify-between border-t border-gray-700 pt-3 mt-3">
+              <span className="text-gray-400">Best Performer:</span>
+              <span className="text-green-400 font-bold">{data.bestPerformer}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">Max Drawdown:</span>
-              <span className={`font-bold ${data.drawdown > 0.1 ? 'text-red-400' : 'text-yellow-400'}`}>
-                {(data.drawdown * 100).toFixed(2)}%
-              </span>
+              <span className="text-gray-400">Worst Performer:</span>
+              <span className="text-red-400 font-bold">{data.worstPerformer}</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Position Details Table */}
+      <div className="bg-gray-800 rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-white mb-4">Position Details</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-700">
+                <th className="text-left py-3 px-4 text-gray-400 font-semibold">Symbol</th>
+                <th className="text-right py-3 px-4 text-gray-400 font-semibold">Total P&L</th>
+                <th className="text-right py-3 px-4 text-gray-400 font-semibold">Unrealized</th>
+                <th className="text-right py-3 px-4 text-gray-400 font-semibold">Realized</th>
+                <th className="text-right py-3 px-4 text-gray-400 font-semibold">Reward %</th>
+                <th className="text-center py-3 px-4 text-gray-400 font-semibold">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {symbols.slice(0, 15).map((symbol) => (
+                <tr key={symbol.symbol} className="border-b border-gray-700 hover:bg-gray-750 transition-colors">
+                  <td className="py-3 px-4 text-white font-medium">{symbol.symbol}</td>
+                  <td className={`py-3 px-4 text-right font-bold ${symbol.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    ${symbol.total_pnl.toFixed(2)}
+                  </td>
+                  <td className={`py-3 px-4 text-right ${symbol.unrealized_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    ${symbol.unrealized_pnl.toFixed(2)}
+                  </td>
+                  <td className={`py-3 px-4 text-right ${symbol.realized_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    ${symbol.realized_pnl.toFixed(2)}
+                  </td>
+                  <td className={`py-3 px-4 text-right font-semibold ${symbol.reward >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {symbol.reward.toFixed(2)}%
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                      symbol.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-gray-600 text-gray-400'
+                    }`}>
+                      {symbol.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {symbols.length > 15 && (
+            <div className="text-center py-4 text-gray-400 text-sm">
+              Showing top 15 of {symbols.length} positions
+            </div>
+          )}
         </div>
       </div>
     </div>
