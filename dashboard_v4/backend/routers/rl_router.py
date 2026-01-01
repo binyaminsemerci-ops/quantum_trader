@@ -3,6 +3,7 @@ from fastapi import APIRouter
 import redis
 import os
 import logging
+import json
 from typing import List, Dict
 
 logger = logging.getLogger(__name__)
@@ -30,16 +31,26 @@ def get_rl_dashboard():
         for key in rl_keys:
             # Extract symbol from key: quantum:rl:reward:BTCUSDT -> BTCUSDT
             symbol = key.split(':')[-1]
-            reward = r.get(key)
+            value = r.get(key)
             
-            if reward:
-                reward_val = float(reward)
+            if value:
+                # Parse dict string from Binance PnL tracker
+                try:
+                    data = eval(value)  # Safe since we control the source
+                    reward_val = float(data.get('pnl_pct', 0))
+                    pnl_usd = float(data.get('pnl', 0))
+                except:
+                    # Fallback to old format (simple float)
+                    reward_val = float(value)
+                    pnl_usd = 0.0
+                
                 total_reward += reward_val
                 
                 symbols_data.append({
                     "symbol": symbol,
                     "reward": round(reward_val, 4),
-                    "status": "active" if reward_val != 0 else "idle"
+                    "pnl_usd": round(pnl_usd, 2),
+                    "status": "active" if abs(reward_val) > 0.01 else "idle"
                 })
                 
                 if reward_val > best_reward:
