@@ -3,6 +3,54 @@ import InsightCard from '../components/InsightCard';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
+interface ModelHealth {
+  name: string;
+  weight: number;
+  mape: number;
+  avg_pnl: number;
+  drift_count: number;
+  retrain_count: number;
+  samples: number;
+  status: string;
+}
+
+interface AIEngineMetrics {
+  models_loaded: number;
+  signals_generated_total: number;
+  ensemble_enabled: boolean;
+  governance_active: boolean;
+  cross_exchange_intelligence: boolean;
+  intelligent_leverage_v2: boolean;
+  rl_position_sizing: boolean;
+  adaptive_leverage_enabled: boolean;
+}
+
+interface ConsensusData {
+  symbol: string;
+  consensus_confidence: number;
+  model_votes: { [key: string]: number };
+  ensemble_decision: 'BUY' | 'SELL' | 'HOLD';
+  model_count: number;
+}
+
+interface AIHealthData {
+  status: string;
+  version: string;
+  uptime_seconds: number;
+  metrics: AIEngineMetrics;
+  governance: {
+    active_models: number;
+    drift_threshold: number;
+    retrain_interval: number;
+    last_retrain: string;
+    models: { [key: string]: any };
+  };
+  dependencies: {
+    redis: { status: string; latency_ms: number };
+    eventbus: { status: string };
+  };
+}
+
 interface AIData {
   accuracy: number;
   sharpe: number;
@@ -35,8 +83,39 @@ interface PredictionsData {
 
 export default function AIEngine() {
   const [data, setData] = useState<AIData | null>(null);
+  const [healthData, setHealthData] = useState<AIHealthData | null>(null);
   const [predictions, setPredictions] = useState<PredictionsData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Calculate consensus from recent predictions
+  const calculateConsensus = (predictions: Prediction[]): ConsensusData[] => {
+    const symbolMap: { [key: string]: { confidences: number[]; sides: string[] } } = {};
+    
+    predictions.forEach(pred => {
+      if (!symbolMap[pred.symbol]) {
+        symbolMap[pred.symbol] = { confidences: [], sides: [] };
+      }
+      symbolMap[pred.symbol].confidences.push(pred.confidence);
+      symbolMap[pred.symbol].sides.push(pred.side);
+    });
+
+    return Object.entries(symbolMap).map(([symbol, data]) => {
+      const avgConfidence = data.confidences.reduce((a, b) => a + b, 0) / data.confidences.length;
+      const buyCount = data.sides.filter(s => s === 'LONG' || s === 'BUY').length;
+      const sellCount = data.sides.filter(s => s === 'SHORT' || s === 'SELL').length;
+      
+      return {
+        symbol,
+        consensus_confidence: avgConfidence,
+        model_votes: {
+          'LONG': buyCount,
+          'SHORT': sellCount
+        },
+        ensemble_decision: buyCount > sellCount ? 'BUY' : sellCount > buyCount ? 'SELL' : 'HOLD',
+        model_count: data.confidences.length
+      };
+    }).sort((a, b) => b.consensus_confidence - a.consensus_confidence);
+  };
 
   useEffect(() => {
     const fetchAI = async () => {
@@ -52,6 +131,18 @@ export default function AIEngine() {
       }
     };
 
+    const fetchHealth = async () => {
+      try {
+        // Fetch directly from AI Engine health endpoint
+        const response = await fetch('http://46.224.116.254:8001/health');
+        if (!response.ok) throw new Error('Failed to fetch health');
+        const health = await response.json();
+        setHealthData(health);
+      } catch (err) {
+        console.error('Failed to load AI health:', err);
+      }
+    };
+
     const fetchPredictions = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/ai/predictions`);
@@ -64,11 +155,13 @@ export default function AIEngine() {
     };
 
     fetchAI();
+    fetchHealth();
     fetchPredictions();
     const interval = setInterval(() => {
       fetchAI();
+      fetchHealth();
       fetchPredictions();
-    }, 65000); // Poll every 65s to match prediction generation interval (60s)
+    }, 5000); // Refresh every 5s for live updates
     return () => clearInterval(interval);
   }, []);
 
@@ -88,87 +181,214 @@ export default function AIEngine() {
     );
   }
 
+  const consensusData = predictions ? calculateConsensus(predictions.predictions) : [];
+  const modelHealth: ModelHealth[] = healthData?.governance?.models ? 
+    Object.entries(healthData.governance.models).map(([name, data]: [string, any]) => ({
+      name,
+      weight: data.weight || 0,
+      mape: data.last_mape || 0,
+      avg_pnl: data.avg_pnl || 0,
+      drift_count: data.drift_count || 0,
+      retrain_count: data.retrain_count || 0,
+      samples: data.samples || 0,
+      status: data.drift_count > 3 ? 'warning' : 'healthy'
+    })) : [];
+
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-blue-400">AI Engine Status</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-blue-400">AI Engine Status</h1>
+        <div className="text-sm text-gray-400">
+          🔴 Live • {healthData?.status === 'OK' ? '✅ Healthy' : '⚠️ ' + healthData?.status}
+        </div>
+      </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Main Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <InsightCard
-          title="Model Accuracy"
+          title="Ensemble Accuracy"
           value={`${(data.accuracy * 100).toFixed(1)}%`}
-          subtitle="Prediction accuracy over 24h"
+          subtitle={`${data.models.length} models active`}
           color="text-blue-400"
         />
         
         <InsightCard
-          title="Sharpe Ratio"
-          value={data.sharpe.toFixed(2)}
-          subtitle="Risk-adjusted returns"
+          title="Signals Generated"
+          value={healthData?.metrics?.signals_generated_total?.toLocaleString() || '0'}
+          subtitle="Total AI predictions"
           color="text-green-400"
         />
         
         <InsightCard
-          title="Latency"
-          value={`${data.latency}ms`}
-          subtitle="Average prediction time"
+          title="Models Loaded"
+          value={`${healthData?.metrics?.models_loaded || 0}`}
+          subtitle={`Governance: ${healthData?.governance?.active_models || 0} active`}
           color="text-purple-400"
+        />
+        
+        <InsightCard
+          title="Avg Latency"
+          value={`${data.latency}ms`}
+          subtitle={`Redis: ${healthData?.dependencies?.redis?.latency_ms?.toFixed(1) || 'N/A'}ms`}
+          color="text-cyan-400"
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Model Performance</h2>
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-400">Accuracy</span>
-                <span className="text-white">{(data.accuracy * 100).toFixed(1)}%</span>
+      {/* Consensus Confidence Section */}
+      <div className="bg-gray-800 rounded-lg p-6">
+        <h2 className="text-2xl font-bold text-white mb-2">
+          🎯 Ensemble Consensus Confidence
+        </h2>
+        <p className="text-sm text-gray-400 mb-4">
+          Aggregated confidence from multiple AI models - Shows agreement level and ensemble decision
+        </p>
+        
+        {consensusData.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {consensusData.slice(0, 6).map((consensus) => (
+              <div key={consensus.symbol} className="bg-gray-700 rounded-lg p-4 border border-gray-600">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <div className="text-lg font-bold text-white">{consensus.symbol}</div>
+                    <div className="text-xs text-gray-400">{consensus.model_count} model votes</div>
+                  </div>
+                  <div className={`px-3 py-1 rounded text-sm font-bold ${
+                    consensus.ensemble_decision === 'BUY' ? 'bg-green-900 text-green-200' :
+                    consensus.ensemble_decision === 'SELL' ? 'bg-red-900 text-red-200' :
+                    'bg-gray-600 text-gray-200'
+                  }`}>
+                    {consensus.ensemble_decision}
+                  </div>
+                </div>
+                
+                {/* Consensus Confidence Bar */}
+                <div className="mb-3">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-gray-400">Consensus Confidence</span>
+                    <span className={`font-bold ${
+                      consensus.consensus_confidence > 0.7 ? 'text-green-400' :
+                      consensus.consensus_confidence > 0.5 ? 'text-yellow-400' :
+                      'text-red-400'
+                    }`}>
+                      {(consensus.consensus_confidence * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-600 rounded-full h-3">
+                    <div 
+                      className={`h-3 rounded-full transition-all duration-300 ${
+                        consensus.consensus_confidence > 0.7 ? 'bg-green-500' :
+                        consensus.consensus_confidence > 0.5 ? 'bg-yellow-500' :
+                        'bg-red-500'
+                      }`}
+                      style={{ width: `${consensus.consensus_confidence * 100}%` }}
+                    />
+                  </div>
+                </div>
+                
+                {/* Model Votes */}
+                <div className="flex gap-2 text-xs">
+                  <div className="flex-1 bg-green-900/30 rounded px-2 py-1">
+                    <span className="text-green-400">LONG: {consensus.model_votes.LONG || 0}</span>
+                  </div>
+                  <div className="flex-1 bg-red-900/30 rounded px-2 py-1">
+                    <span className="text-red-400">SHORT: {consensus.model_votes.SHORT || 0}</span>
+                  </div>
+                </div>
               </div>
-              <div className="w-full bg-gray-700 rounded-full h-3">
-                <div 
-                  className="bg-blue-500 h-3 rounded-full transition-all duration-500"
-                  style={{ width: `${data.accuracy * 100}%` }}
-                />
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-400">Sharpe Ratio</span>
-                <span className="text-white">{data.sharpe.toFixed(2)}</span>
-              </div>
-              <div className="w-full bg-gray-700 rounded-full h-3">
-                <div 
-                  className="bg-green-500 h-3 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(data.sharpe * 20, 100)}%` }}
-                />
-              </div>
-            </div>
+            ))}
           </div>
-        </div>
-
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Performance Metrics</h2>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">Active Models</span>
-              <span className="text-2xl font-bold text-white">{data.models?.length || 0}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">Avg. Latency</span>
-              <span className="text-2xl font-bold text-white">{data.latency}ms</span>
-            </div>
+        ) : (
+          <div className="text-center text-gray-400 py-8">
+            No consensus data available - Waiting for AI predictions
           </div>
-        </div>
+        )}
       </div>
 
+      {/* Ensemble Model Health */}
       <div className="bg-gray-800 rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-white mb-4">Ensemble Models</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {(data.models || []).map((model) => (
-            <div key={model} className="bg-gray-700 rounded p-4 text-center">
-              <div className="text-sm text-gray-400">{model}</div>
-              <div className="text-xl font-bold text-green-400 mt-1">Active</div>
+        <h2 className="text-2xl font-bold text-white mb-2">
+          🏥 Ensemble Model Health & Performance
+        </h2>
+        <p className="text-sm text-gray-400 mb-4">
+          Live status of each model in the ensemble - Weight, accuracy (MAPE), drift, and retraining history
+        </p>
+        
+        {modelHealth.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {modelHealth.map((model) => (
+              <div key={model.name} className="bg-gray-700 rounded-lg p-5 border-l-4" style={{
+                borderLeftColor: model.status === 'healthy' ? '#10b981' : '#f59e0b'
+              }}>
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-white">{model.name}</h3>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {model.samples} samples • Weight: {(model.weight * 100).toFixed(0)}%
+                    </div>
+                  </div>
+                  <div className={`px-3 py-1 rounded text-xs font-bold ${
+                    model.status === 'healthy' ? 'bg-green-900 text-green-200' : 'bg-yellow-900 text-yellow-200'
+                  }`}>
+                    {model.status === 'healthy' ? '✅ Healthy' : '⚠️ Warning'}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-gray-400">MAPE (Accuracy)</div>
+                    <div className="text-lg font-bold text-green-400">
+                      {(model.mape * 100).toFixed(2)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-400">Avg PnL</div>
+                    <div className={`text-lg font-bold ${model.avg_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      ${model.avg_pnl.toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-400">Drift Events</div>
+                    <div className={`text-lg font-bold ${model.drift_count > 2 ? 'text-yellow-400' : 'text-gray-300'}`}>
+                      {model.drift_count}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-400">Retrains</div>
+                    <div className="text-lg font-bold text-blue-400">
+                      {model.retrain_count}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center text-gray-400 py-8">
+            Model health data unavailable
+          </div>
+        )}
+      </div>
+
+      {/* System Features Status */}
+      <div className="bg-gray-800 rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-white mb-4">🎛️ AI System Features</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { name: 'Ensemble', enabled: healthData?.metrics?.ensemble_enabled, icon: '🔗' },
+            { name: 'Governance', enabled: healthData?.metrics?.governance_active, icon: '👑' },
+            { name: 'Cross-Exchange', enabled: healthData?.metrics?.cross_exchange_intelligence, icon: '🌐' },
+            { name: 'Intelligent Leverage', enabled: healthData?.metrics?.intelligent_leverage_v2, icon: '⚖️' },
+            { name: 'RL Position Sizing', enabled: healthData?.metrics?.rl_position_sizing, icon: '🎯' },
+            { name: 'Adaptive Leverage', enabled: healthData?.metrics?.adaptive_leverage_enabled, icon: '📊' },
+          ].map((feature) => (
+            <div key={feature.name} className={`p-4 rounded-lg border-2 ${
+              feature.enabled ? 'border-green-500 bg-green-900/20' : 'border-gray-600 bg-gray-700'
+            }`}>
+              <div className="text-2xl mb-2">{feature.icon}</div>
+              <div className="text-sm font-semibold text-white">{feature.name}</div>
+              <div className={`text-xs mt-1 ${feature.enabled ? 'text-green-400' : 'text-gray-400'}`}>
+                {feature.enabled ? '✅ Enabled' : '⭕ Disabled'}
+              </div>
             </div>
           ))}
         </div>
