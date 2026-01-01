@@ -37,19 +37,37 @@ def get_rl_dashboard():
                 # Parse dict string from Binance PnL tracker
                 try:
                     data = eval(value)  # Safe since we control the source
-                    reward_val = float(data.get('pnl_pct', 0))
-                    pnl_usd = float(data.get('pnl', 0))
-                except:
+                    unrealized_pct = float(data.get('unrealized_pct', 0))
+                    realized_pct = float(data.get('realized_pct', 0))
+                    unrealized_usd = float(data.get('unrealized_pnl', 0))
+                    realized_usd = float(data.get('realized_pnl', 0))
+                    total_pnl = float(data.get('total_pnl', unrealized_usd + realized_usd))
+                    realized_trades = int(data.get('realized_trades', 0))
+                    
+                    # Use total_pnl percentage for reward (combined unrealized + realized)
+                    reward_val = unrealized_pct + realized_pct
+                except Exception as e:
+                    logger.warning(f"Failed to parse {symbol}: {e}")
                     # Fallback to old format (simple float)
                     reward_val = float(value)
-                    pnl_usd = 0.0
+                    unrealized_usd = 0.0
+                    realized_usd = 0.0
+                    total_pnl = 0.0
+                    unrealized_pct = 0.0
+                    realized_pct = 0.0
+                    realized_trades = 0
                 
                 total_reward += reward_val
                 
                 symbols_data.append({
                     "symbol": symbol,
                     "reward": round(reward_val, 4),
-                    "pnl_usd": round(pnl_usd, 2),
+                    "unrealized_pnl": round(unrealized_usd, 2),
+                    "realized_pnl": round(realized_usd, 2),
+                    "total_pnl": round(total_pnl, 2),
+                    "unrealized_pct": round(unrealized_pct, 4),
+                    "realized_pct": round(realized_pct, 4),
+                    "realized_trades": realized_trades,
                     "status": "active" if abs(reward_val) > 0.01 else "idle"
                 })
                 
