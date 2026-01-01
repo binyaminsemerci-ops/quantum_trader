@@ -312,8 +312,8 @@ docker exec quantum_auto_executor python /scripts/verify_execution_e2e.py
 | **Orders Verified** | 3 concrete examples (20+ in last 5 hours) |
 | **Binance API Verification** | ✅ All orderIds exist in Binance account |
 | **Silent Fallback** | ❌ Eliminated (fails fast if broken) |
-| **Startup Self-Test** | ✅ Added (validates connectivity before start) |
-| **P0 Instrumentation** | ✅ Added (INTENT_RECEIVED, ORDER_SUBMIT, ORDER_RESPONSE, ORDER_ERROR) |
+| **Startup Self-Test** | ✅ Added + PASSING (validated connectivity before start) |
+| **P0 Instrumentation** | ✅ Added + OPERATIONAL (INTENT_RECEIVED, ORDER_SUBMIT, ORDER_RESPONSE, ORDER_ERROR) |
 
 ---
 
@@ -324,6 +324,13 @@ docker exec quantum_auto_executor python /scripts/verify_execution_e2e.py
 **BEVIS:** orderIds 191609626, 144317176, 449943733 (+ 17 more in last 5 hours)  
 **ENDPOINT:** `testnet.binancefuture.com/fapi` (confirmed via logs + API)  
 **MODE:** TESTNET futures (not paper, not mainnet)  
+**STARTUP SELF-TEST:** ✅ PASSING
+```
+[2026-01-01 19:25:39,516] INFO - ✅ Server time: 1767295539399
+[2026-01-01 19:25:39,790] INFO - ✅ Exchange info: 663 symbols available
+[2026-01-01 19:25:40,068] INFO - ✅ Account balance: 10175.76300190 USDT
+[2026-01-01 19:25:40,068] INFO - ✅ Startup self-test PASSED
+```
 
 **HVORFOR INGEN ORDRE FØR:**  
 Executor's early-return logic skipped `place_order()` for 21 symbols with existing positions. All 10,001 AI signals were for those symbols, so only TP/SL updates occurred. **New orders ARE being placed** when signals arrive for symbols without positions (proven by recent 20+ orders).
@@ -340,8 +347,9 @@ docker logs quantum_auto_executor -f | grep -E "INTENT_RECEIVED|ORDER_SUBMIT|ORD
 
 1. `backend/microservices/auto_executor/executor_service.py`
    - Added P0 proof logging (INTENT_RECEIVED, ORDER_SUBMIT, ORDER_RESPONSE, ORDER_ERROR)
-   - Eliminated silent paper trading fallback
-   - Added startup self-test
+   - Eliminated silent paper trading fallback (hard error if PAPER_TRADING=false and Binance unavailable)
+   - Added startup self-test (validates server time, exchange info, account balance)
+   - Fixed safe_futures_call wrapper to exclude unsigned methods from recvWindow parameter
 
 2. `scripts/verify_execution_e2e.py`
    - New E2E verification script
@@ -351,5 +359,13 @@ docker logs quantum_auto_executor -f | grep -E "INTENT_RECEIVED|ORDER_SUBMIT|ORD
    - Complete proof documentation
 
 ---
+
+## DEPLOYMENT STATUS
+
+✅ **Deployed to VPS:** 2026-01-01 19:25:38 UTC  
+✅ **Container:** quantum_auto_executor (running with new instrumentation)  
+✅ **Startup Self-Test:** PASSING (server time, exchange info, account balance verified)  
+✅ **P0 Proof Logs:** OPERATIONAL (INTENT_RECEIVED events logging successfully)  
+✅ **Mode:** TESTNET with PAPER_TRADING=false
 
 **Next Step:** Run `scripts/verify_execution_e2e.py` for fresh E2E proof if needed.
