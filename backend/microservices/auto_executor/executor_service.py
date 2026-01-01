@@ -38,6 +38,20 @@ except ImportError as e:
     logger.warning(f"⚠️ Intelligent Leverage Engine not available: {e}")
     LEVERAGE_ENGINE_AVAILABLE = False
 
+# P1-B: Import Execution Policy
+try:
+    from microservices.auto_executor.execution_policy import (
+        ExecutionPolicy,
+        PolicyConfig,
+        PolicyDecision,
+        PortfolioState
+    )
+    EXECUTION_POLICY_AVAILABLE = True
+    logger.info("✅ Execution Policy imported successfully")
+except ImportError as e:
+    logger.warning(f"⚠️ Execution Policy not available: {e}")
+    EXECUTION_POLICY_AVAILABLE = False
+
 # Redis connection
 r = redis.Redis(
     host=os.getenv("REDIS_HOST", "redis"),
@@ -151,6 +165,14 @@ class AutoExecutor:
         self.failed_trades = 0
         self.symbol_info_cache = {}  # Cache for symbol exchange info
         self.leverage_brackets_cache = {}  # Cache for leverage brackets
+        
+        # P1-B: Initialize Execution Policy
+        if EXECUTION_POLICY_AVAILABLE:
+            self.execution_policy = ExecutionPolicy(PolicyConfig.from_env())
+            logger.info("🛡️ Execution Policy initialized with capital controls")
+        else:
+            self.execution_policy = None
+            logger.warning("⚠️ Execution Policy not available - using legacy logic")
         
         # Initialize Intelligent Leverage Engine
         if LEVERAGE_ENGINE_AVAILABLE:
@@ -747,6 +769,117 @@ class AutoExecutor:
             return True
         
         return False
+    
+    def build_portfolio_state(self) -> 'PortfolioState':
+        """
+        Build current portfolio state for execution policy.
+        
+        Returns:
+            PortfolioState with current positions, exposures, and capital.
+        """
+        try:
+            if not BINANCE_AVAILABLE or not client or PAPER_TRADING:
+                # Fallback to empty portfolio for paper trading
+                balance = self.get_balance()
+                return PortfolioState(
+                    total_positions=0,
+                    positions_by_symbol={},
+                    positions_by_regime={},
+                    total_exposure_usdt=0.0,
+                    exposure_by_symbol={},
+                    available_capital_usdt=balance,
+                    last_trade_time=0.0,
+                    last_trade_by_symbol={}
+                )
+            
+            # Get all positions from Binance
+            all_positions = safe_futures_call('futures_position_information')
+            
+            positions_by_symbol = {}
+            exposure_by_symbol = {}
+            positions_by_regime = {}
+            total_exposure = 0.0
+            total_count = 0
+            
+            for pos in all_positions:
+                position_amt = float(pos.get('positionAmt', 0))
+                if abs(position_amt) == 0:
+                    continue  # Skip empty positions
+                
+                symbol = pos.get('symbol')
+                entry_price = float(pos.get('entryPrice', 0))
+                mark_price = float(pos.get('markPrice', entry_price))
+                
+                # Calculate exposure (notional value)
+                exposure = abs(position_amt * mark_price)
+                
+                # Build position dict
+                position_dict = {
+                    "side": "long" if position_amt > 0 else "short",
+                    "quantity": abs(position_amt),
+                    "entry_price": entry_price,
+                    "mark_price": mark_price,
+                    "exposure_usdt": exposure,
+                    "confidence": 0.8,  # Unknown, default
+                    "leverage": int(pos.get('leverage', 1)),
+                    "regime": "unknown"  # Unknown without signal context
+                }
+                
+                # Add to positions_by_symbol
+                if symbol not in positions_by_symbol:
+                    positions_by_symbol[symbol] = []
+                positions_by_symbol[symbol].append(position_dict)
+                
+                # Track exposure
+                exposure_by_symbol[symbol] = exposure_by_symbol.get(symbol, 0.0) + exposure
+                total_exposure += exposure
+                total_count += 1
+                
+                # Track by regime (unknown for now)
+                regime = position_dict['regime']
+                positions_by_regime[regime] = positions_by_regime.get(regime, 0) + 1
+            
+            # Get available capital
+            balance = self.get_balance()
+            available_capital = max(0, balance - total_exposure * 0.1)  # Reserve 10% margin
+            
+            # Get last trade times (from self.positions cache or default)
+            last_trade_by_symbol = getattr(self, 'last_trade_by_symbol', {})
+            last_trade_time = getattr(self, 'last_trade_time', 0.0)
+            
+            portfolio = PortfolioState(
+                total_positions=total_count,
+                positions_by_symbol=positions_by_symbol,
+                positions_by_regime=positions_by_regime,
+                total_exposure_usdt=total_exposure,
+                exposure_by_symbol=exposure_by_symbol,
+                available_capital_usdt=available_capital,
+                last_trade_time=last_trade_time,
+                last_trade_by_symbol=last_trade_by_symbol
+            )
+            
+            logger.debug(
+                f"📊 Portfolio: {portfolio.total_positions} positions, "
+                f"${portfolio.total_exposure_usdt:.0f} exposure, "
+                f"${portfolio.available_capital_usdt:.0f} available"
+            )
+            
+            return portfolio
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to build portfolio state: {e}")
+            # Return empty portfolio on error
+            balance = self.get_balance()
+            return PortfolioState(
+                total_positions=0,
+                positions_by_symbol={},
+                positions_by_regime={},
+                total_exposure_usdt=0.0,
+                exposure_by_symbol={},
+                available_capital_usdt=balance,
+                last_trade_time=0.0,
+                last_trade_by_symbol={}
+            )
 
     def has_open_position(self, symbol: str) -> bool:
         """Check if there's already an open position for this symbol"""
@@ -1040,13 +1173,18 @@ class AutoExecutor:
             return False
 
     def process_signal(self, signal: Dict) -> bool:
-        """Process a single trading signal"""
+        """
+        Process a single trading signal with P1-B Execution Policy.
+        
+        Flow: signal → allow_new_entry() → compute_order_size() → place_order()
+        """
         try:
             symbol = signal.get("symbol", "").upper()
             side = signal.get("side", signal.get("action", "")).upper()  # Support both 'side' and 'action'
             confidence = signal.get("confidence", 0.0)
             pnl = signal.get("pnl", 0.0)
             price = signal.get("entry_price", signal.get("price", 0.0))  # Support both field names
+            regime = signal.get("regime", "unknown")
             
             # Validation
             if not symbol or not side:
@@ -1057,30 +1195,92 @@ class AutoExecutor:
                 logger.debug(f"⚠️ Invalid side: {side}")
                 return False
             
-            # Check confidence threshold
-            if confidence < CONFIDENCE_THRESHOLD:
-                logger.debug(
-                    f"⚠️ Signal rejected: {symbol} confidence={confidence:.2f} "
-                    f"< {CONFIDENCE_THRESHOLD}"
+            # P1-B: Use Execution Policy if available
+            if self.execution_policy:
+                # Build current portfolio state
+                portfolio = self.build_portfolio_state()
+                
+                # Prepare intent for policy check
+                intent = {
+                    "symbol": symbol,
+                    "side": side,
+                    "confidence": confidence,
+                    "entry_price": price,
+                    "price": price,
+                    "quantity": 0.0,  # Will be calculated by policy if allowed
+                    "regime": regime,
+                    "leverage": signal.get("leverage", MAX_LEVERAGE)
+                }
+                
+                # Check if entry is allowed
+                decision, reason = self.execution_policy.allow_new_entry(intent, portfolio)
+                
+                if decision not in [PolicyDecision.ALLOW_NEW_ENTRY, PolicyDecision.ALLOW_SCALE_IN]:
+                    # Entry blocked - log and return
+                    logger.info(
+                        f"🚫 [{symbol}] Entry blocked: {decision.value} | {reason}"
+                    )
+                    
+                    # If position exists, update TP/SL instead
+                    if decision == PolicyDecision.BLOCK_EXISTING_POSITION and self.has_open_position(symbol):
+                        logger.info(f"🔄 [{symbol}] Updating TP/SL for existing position")
+                        return self.set_tp_sl_for_existing(symbol, signal)
+                    
+                    return False
+                
+                # Entry allowed - compute order size via policy
+                risk_score = signal.get("risk_score", 1.0)
+                qty = self.execution_policy.compute_order_size(intent, portfolio, risk_score)
+                
+                if qty <= 0:
+                    logger.warning(f"⚠️ [{symbol}] Policy returned zero quantity")
+                    return False
+                
+                # Update intent with calculated quantity
+                intent["quantity"] = qty
+                
+                # Update last trade tracking
+                now = time.time()
+                if not hasattr(self, 'last_trade_time'):
+                    self.last_trade_time = 0.0
+                if not hasattr(self, 'last_trade_by_symbol'):
+                    self.last_trade_by_symbol = {}
+                
+                self.last_trade_time = now
+                self.last_trade_by_symbol[symbol] = now
+                
+                logger.info(
+                    f"✅ [{symbol}] Policy approved: {decision.value} | "
+                    f"qty={qty:.4f} | confidence={confidence:.2f} | {reason}"
                 )
-                return False
             
-            # Check if position already exists
-            if self.has_open_position(symbol):
-                # ⚡ ALWAYS update TP/SL to aggressive levels when signal arrives
-                logger.info(f"🔄 [{symbol}] Updating TP/SL for existing position to aggressive levels")
-                return self.set_tp_sl_for_existing(symbol, signal)
+            else:
+                # LEGACY LOGIC (fallback if policy unavailable)
+                logger.warning(f"⚠️ [{symbol}] Using legacy execution logic (no policy)")
+                
+                # Check confidence threshold
+                if confidence < CONFIDENCE_THRESHOLD:
+                    logger.debug(
+                        f"⚠️ Signal rejected: {symbol} confidence={confidence:.2f} "
+                        f"< {CONFIDENCE_THRESHOLD}"
+                    )
+                    return False
+                
+                # Check if position already exists
+                if self.has_open_position(symbol):
+                    logger.info(f"🔄 [{symbol}] Updating TP/SL for existing position")
+                    return self.set_tp_sl_for_existing(symbol, signal)
+                
+                # Get balance and calculate position size (old method)
+                balance = self.get_balance()
+                qty = self.calculate_position_size(symbol, balance, confidence)
+                
+                if qty < 0.001:  # Minimum order size
+                    logger.warning(f"⚠️ Position size too small: {qty}")
+                    return False
             
-            # Check drawdown circuit breaker
+            # Check drawdown circuit breaker (both policy and legacy)
             if self.check_drawdown(signal):
-                return False
-            
-            # Get balance and calculate position size
-            balance = self.get_balance()
-            qty = self.calculate_position_size(symbol, balance, confidence)
-            
-            if qty < 0.001:  # Minimum order size
-                logger.warning(f"⚠️ Position size too small: {qty}")
                 return False
             
             # Calculate dynamic leverage based on confidence and market conditions
