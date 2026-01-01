@@ -5,8 +5,9 @@ WORKDIR /app
 # Copy microservices folder for intelligent leverage engine
 COPY microservices/ ./microservices/
 
-# Copy executor service
+# Copy executor service and policy module
 COPY backend/microservices/auto_executor/executor_service.py .
+COPY backend/microservices/auto_executor/execution_policy.py .
 
 # Install dependencies (add numpy for leverage engine)
 RUN pip install --no-cache-dir \
