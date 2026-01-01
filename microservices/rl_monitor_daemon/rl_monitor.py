@@ -44,9 +44,20 @@ with open(OUTFILE, "a", newline="") as f:
         pnl = float(d.get("pnl", 0))
         reward = pnl * float(d.get("confidence", 0.8))
         rewards.append(reward)
-        writer.writerow([datetime.datetime.utcnow().isoformat(), d.get("symbol",""), pnl, reward])
+        
+        # Write reward to Redis for dashboard
+        symbol = d.get("symbol", "UNKNOWN")
+        r.set(f"quantum:rl:reward:{symbol}", reward)
+        r.expire(f"quantum:rl:reward:{symbol}", 3600)  # 1 hour TTL
+        
+        # Also store in sorted set for history
+        timestamp = time.time()
+        r.zadd(f"quantum:rl:history:{symbol}", {f"{timestamp}:{reward}": timestamp})
+        r.expire(f"quantum:rl:history:{symbol}", 86400)  # 24 hours
+        
+        writer.writerow([datetime.datetime.utcnow().isoformat(), symbol, pnl, reward])
         f.flush()
-        print(f"[{datetime.datetime.utcnow()}] {d.get('symbol')} → pnl={pnl:.2f}% → reward={reward:.3f}")
+        print(f"[{datetime.datetime.utcnow()}] {symbol} → pnl={pnl:.2f}% → reward={reward:.3f}")
         if len(rewards) % 10 == 0:
             avg = statistics.mean(rewards[-10:])
             save_plot()
