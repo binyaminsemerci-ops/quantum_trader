@@ -212,13 +212,13 @@ fi
 
 # Test /fapi/v1/exchangeInfo
 echo -n "Testing /fapi/v1/exchangeInfo... "
-EXCHANGE_INFO=$(curl -s https://fapi.binance.com/fapi/v1/exchangeInfo | head -c 200)
-if echo "$EXCHANGE_INFO" | grep -q "symbols"; then
-    echo -e "${GREEN}✅ PASS${NC}"
-    echo "- [x] **/fapi/v1/exchangeInfo**: ✅ Accessible" >> "$PROOF_FILE"
+EXCHANGE_STATUS=$(curl -s -w "%{http_code}" -o /dev/null https://fapi.binance.com/fapi/v1/exchangeInfo)
+if [ "$EXCHANGE_STATUS" = "200" ]; then
+    echo -e "${GREEN}✅ PASS${NC} (HTTP $EXCHANGE_STATUS)"
+    echo "- [x] **/fapi/v1/exchangeInfo**: ✅ Accessible (HTTP $EXCHANGE_STATUS)" >> "$PROOF_FILE"
 else
-    echo -e "${RED}❌ FAIL${NC}"
-    echo "- [ ] **/fapi/v1/exchangeInfo**: ❌ Not accessible" >> "$PROOF_FILE"
+    echo -e "${RED}❌ FAIL${NC} (HTTP $EXCHANGE_STATUS)"
+    echo "- [ ] **/fapi/v1/exchangeInfo**: ❌ HTTP $EXCHANGE_STATUS" >> "$PROOF_FILE"
     FAILED_CHECKS=$((FAILED_CHECKS + 1))
 fi
 
