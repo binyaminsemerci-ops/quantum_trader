@@ -709,6 +709,7 @@ services:
       # Exchange configuration
       - EXCHANGE=${EXCHANGE:-binance}
       - TESTNET=${TESTNET:-false}
+      - BINANCE_USE_TESTNET=${BINANCE_USE_TESTNET:-false}
       - PAPER_TRADING=${PAPER_TRADING:-false}
       # Binance API credentials (use testnet keys first!)
       - BINANCE_API_KEY=${BINANCE_API_KEY:-}
