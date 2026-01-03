@@ -5,6 +5,7 @@ import Portfolio from './pages/Portfolio';
 import Risk from './pages/Risk';
 import SystemHealth from './pages/SystemHealth';
 import RLIntelligence from './pages/RLIntelligence';
+import Grafana from './pages/Grafana';
 
 function Navigation() {
   const location = useLocation();
@@ -15,7 +16,8 @@ function Navigation() {
     { path: '/rl', label: 'RL Intelligence', icon: '🧠' },
     { path: '/portfolio', label: 'Portfolio', icon: '💼' },
     { path: '/risk', label: 'Risk', icon: '⚠️' },
-    { path: '/system', label: 'System', icon: '⚙️' }
+    { path: '/system', label: 'System', icon: '⚙️' },
+    { path: '/grafana', label: 'Grafana', icon: '📊' }
   ];
 
   return (
@@ -74,6 +76,7 @@ function App() {
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/risk" element={<Risk />} />
             <Route path="/system" element={<SystemHealth />} />
+            <Route path="/grafana" element={<Grafana />} />
           </Routes>
         </main>
       </div>
