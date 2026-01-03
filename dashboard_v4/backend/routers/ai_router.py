@@ -58,6 +58,64 @@ def get_ai_status():
         models=["XGB", "LGBM", "N-HiTS", "TFT"]
     )
 
+@router.get("/health")
+def get_ai_health():
+    """Proxy endpoint for AI Engine /health to avoid CORS issues.
+    
+    Returns full AI Engine health data including metrics with feature flags.
+    """
+    import requests
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Call AI Engine health endpoint (internal Docker network)
+        response = requests.get('http://ai-engine:8001/health', timeout=10.0)
+        response.raise_for_status()
+        health_data = response.json()
+        
+        logger.info("✅ AI Engine health data fetched successfully")
+        return health_data
+        
+    except requests.exceptions.Timeout:
+        logger.error("❌ AI Engine /health timeout")
+        return {
+            "status": "ERROR",
+            "error": "AI Engine health check timeout",
+            "metrics": {
+                "ensemble_enabled": False,
+                "governance_active": False,
+                "intelligent_leverage_v2": False,
+                "rl_position_sizing": False,
+                "adaptive_leverage_enabled": False,
+                "cross_exchange_intelligence": False
+            }
+        }
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch AI Engine health: {e}")
+        return {
+            "status": "ERROR", 
+            "error": str(e),
+            "metrics": {
+                "ensemble_enabled": False,
+                "governance_active": False,
+                "intelligent_leverage_v2": False,
+                "rl_position_sizing": False,
+                "adaptive_leverage_enabled": False,
+                "cross_exchange_intelligence": False
+            }
+        }
+    
+    # Fallback: Default testnet values
+    logger.info("🧪 TESTNET - Using default AI metrics")
+    return AIStatus(
+        accuracy=0.72,
+        sharpe=0.0,
+        latency=184,
+        models=["XGB", "LGBM", "N-HiTS", "TFT"]
+    )
+
 @router.get("/predictions", response_model=PredictionsResponse)
 def get_ai_predictions():
     """Get latest AI predictions/signals
