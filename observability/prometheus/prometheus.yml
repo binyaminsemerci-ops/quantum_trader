@@ -15,6 +15,7 @@ alerting:
 # Load rules once and periodically evaluate them
 rule_files:
   - '/etc/prometheus/alerts.yml'
+  - '/etc/prometheus/rules/p1b_alerts.yml'  # P1-B: Ops Hardening alert rules
 
 # Scrape configurations
 scrape_configs:

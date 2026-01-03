@@ -23,9 +23,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 # P1-B: JSON logging with correlation_id
 from shared.logging_config import setup_json_logging, set_correlation_id, get_correlation_id
 
-# Setup JSON logging (will be initialized in main())
-_logger_setup = False
-
 # Standard library imports
 import os  # Added for environment variables
 
@@ -162,6 +159,10 @@ class AIEngineService:
         if self._running:
             logger.warning("[AI-ENGINE] Service already running")
             return
+        
+        # P1-B: Setup JSON logging with correlation_id
+        setup_json_logging('ai_engine')
+        logger.info("[AI-ENGINE] JSON logging initialized")
         
         try:
             # Initialize Redis client
