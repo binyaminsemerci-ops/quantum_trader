@@ -59,6 +59,16 @@ scrape_configs:
           instance: 'quantum_redis'
 
   # ============================================================
+  # P1-B: Promtail Metrics (for log-based alerts)
+  # ============================================================
+  - job_name: 'promtail'
+    static_configs:
+      - targets: ['promtail:9080']
+        labels:
+          service: 'promtail'
+          instance: 'quantum_promtail'
+
+  # ============================================================
   # Application Health Endpoints (Blackbox-style scraping)
   # ============================================================
   - job_name: 'ai-engine-health'
