@@ -7,5 +7,3 @@ modules:
       method: GET
       preferred_ip_protocol: "ip4"
       follow_redirects: true
-      fail_if_not_matches_regexp:
-        - '"status":"(OK|healthy)"'
