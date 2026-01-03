@@ -30,6 +30,7 @@ services:
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./observability/prometheus/rules:/etc/prometheus/rules:ro  # P1-B: Alert rules directory
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
