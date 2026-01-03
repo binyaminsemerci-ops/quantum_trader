@@ -5,6 +5,9 @@ WORKDIR /app
 # Copy microservices folder for intelligent leverage engine
 COPY microservices/ ./microservices/
 
+# Copy shared logging config
+COPY shared/ ./shared/
+
 # Copy executor service and policy module
 COPY backend/microservices/auto_executor/executor_service.py .
 COPY backend/microservices/auto_executor/execution_policy.py .

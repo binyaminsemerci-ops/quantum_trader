@@ -23,6 +23,7 @@ COPY microservices/exposure_balancer /app/microservices/exposure_balancer
 COPY microservices/exitbrain_v3_5 /app/microservices/exitbrain_v3_5
 COPY backend /app/backend
 COPY ai_engine /app/ai_engine
+COPY shared /app/shared
 
 # Add backend to PYTHONPATH
 ENV PYTHONPATH=/app/backend:/app:$PYTHONPATH
