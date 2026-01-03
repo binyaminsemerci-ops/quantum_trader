@@ -113,3 +113,8 @@ volumes:
     driver: local
   grafana_data:
     driver: local
+
+networks:
+  quantum_trader:
+    name: quantum_trader_quantum_trader
+    external: true
