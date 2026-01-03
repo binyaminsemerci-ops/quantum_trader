@@ -10,7 +10,7 @@ groups:
       # High Error Rate Alert
       - alert: HighErrorRate
         expr: |
-          sum(rate(container_log_entries_total{container=~"quantum_.*",level="ERROR"}[5m])) > 10
+          sum(rate(promtail_read_lines_total{level="ERROR"}[2m])) > 10
         for: 2m
         labels:
           severity: critical
@@ -18,7 +18,7 @@ groups:
           category: p1b
         annotations:
           summary: "High error rate detected ({{ $value }} errors/sec)"
-          description: "Container {{ $labels.container }} is logging >10 errors per second for 2+ minutes"
+          description: "Services are logging >10 errors per second for 2+ minutes"
           runbook: "RUNBOOKS/P1B_logging_stack.md"
 
       # Order Submit Without Response (Prometheus counter method)
@@ -43,15 +43,15 @@ groups:
       # Container Restart Loop
       - alert: ContainerRestartLoop
         expr: |
-          rate(container_last_seen{container=~"quantum_.*"}[5m]) > 0.01
+          rate(container_restart_count{name=~"quantum_.*"}[10m]) > 0.01
         for: 5m
         labels:
           severity: warning
           component: infrastructure
           category: p1b
         annotations:
-          summary: "Container {{ $labels.container }} is restarting frequently"
-          description: "Container has restarted {{ $value }} times in the last 5 minutes"
+          summary: "Container {{ $labels.name }} is restarting frequently"
+          description: "Container has restarted in the last 10 minutes"
           runbook: "RUNBOOKS/P1B_logging_stack.md#container-crashes"
 
   - name: p1b_execution_alerts
