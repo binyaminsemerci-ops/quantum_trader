@@ -1,7 +1,7 @@
 export default function ControlPanel() {
   const handleAction = async (endpoint: string) => {
     try {
-      await fetch(`https://api.quantumfond.com/control/${endpoint}`, { method: "POST" });
+      await fetch(`/api/control/${endpoint}`, { method: "POST" });
       alert(`Action sent: ${endpoint}`);
     } catch (err) {
       console.error(`Failed to send action: ${endpoint}`, err);
