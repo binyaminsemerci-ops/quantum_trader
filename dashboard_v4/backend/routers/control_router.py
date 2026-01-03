@@ -103,6 +103,7 @@ def control_status():
     """Get control system status - Public endpoint (no auth required for dashboard)"""
     import redis
     import os
+    import requests
     
     # Connect to Redis to get actual system state
     redis_host = os.getenv("REDIS_HOST", "redis")
@@ -115,8 +116,7 @@ def control_status():
         governance_policy = r.get("quantum:governance:policy") or "BALANCED"
         
         # Check AI Engine health for feature status
-        import httpx
-        ai_health = httpx.get("http://ai-engine:8001/health", timeout=2.0).json()
+        ai_health = requests.get("http://ai-engine:8001/health", timeout=2.0).json()
         
         return {
             "trading_enabled": True,
