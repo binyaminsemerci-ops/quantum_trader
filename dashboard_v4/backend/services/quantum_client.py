@@ -4,6 +4,7 @@ Quantum Services Client - Integrates with all Quantum Trader microservices
 import aiohttp
 import asyncio
 import os
+import redis
 from typing import Optional, Dict, Any
 import logging
 
@@ -14,6 +15,24 @@ class QuantumServicesClient:
     
     def __init__(self, timeout: int = 5):
         self.timeout = aiohttp.ClientTimeout(total=timeout)
+        
+        # Redis connection for direct data access
+        redis_host = os.getenv('REDIS_HOST', 'redis')
+        redis_port = int(os.getenv('REDIS_PORT', '6379'))
+        try:
+            self.redis_client = redis.Redis(
+                host=redis_host,
+                port=redis_port,
+                decode_responses=False,  # Keep as bytes for flexibility
+                socket_connect_timeout=2,
+                socket_timeout=2
+            )
+            # Test connection
+            self.redis_client.ping()
+            logger.info(f"✅ Connected to Redis at {redis_host}:{redis_port}")
+        except Exception as e:
+            logger.warning(f"⚠️ Redis connection failed: {e}")
+            self.redis_client = None
         
         # Use container names for Docker inter-container communication
         # Falls back to host.docker.internal for non-Docker environments
@@ -137,6 +156,24 @@ class QuantumServicesClient:
         """Check if a service is healthy"""
         result = await self._get(service, '/health')
         return result is not None
+    
+    def get_portfolio_status(self) -> Optional[bytes]:
+        """Get portfolio status from Redis quantum:portfolio:realtime key"""
+        if not self.redis_client:
+            logger.warning("Redis client not available")
+            return None
+        
+        try:
+            data = self.redis_client.get('quantum:portfolio:realtime')
+            if data:
+                logger.info("✅ Fetched portfolio data from Redis")
+                return data
+            else:
+                logger.warning("⚠️ No data in quantum:portfolio:realtime")
+                return None
+        except Exception as e:
+            logger.error(f"❌ Redis fetch error: {e}")
+            return None
 
 # Global client instance
 quantum_client = QuantumServicesClient()
