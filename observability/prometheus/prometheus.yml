@@ -69,44 +69,79 @@ scrape_configs:
           instance: 'quantum_promtail'
 
   # ============================================================
-  # Application Health Endpoints (Blackbox-style scraping)
+  # Application Health Endpoints (via Blackbox Exporter)
   # ============================================================
   - job_name: 'ai-engine-health'
-    metrics_path: '/health'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
     static_configs:
-      - targets: ['quantum_ai_engine:8001']
+      - targets:
+          - http://quantum_ai_engine:8001/health
         labels:
           service: 'ai-engine'
           component: 'trading'
-    # Convert health endpoint JSON to metrics via relabeling
-    metric_relabel_configs:
-      - source_labels: [__name__]
-        regex: .*
-        action: keep
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
 
   - job_name: 'dashboard-backend-health'
-    metrics_path: '/system/health'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
     static_configs:
-      - targets: ['quantum_dashboard_backend:8000']
+      - targets:
+          - http://quantum_dashboard_backend:8000/system/health
         labels:
           service: 'dashboard-backend'
           component: 'monitoring'
-    metric_relabel_configs:
-      - source_labels: [__name__]
-        regex: .*
-        action: keep
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
 
   - job_name: 'portfolio-governance-health'
-    metrics_path: '/health'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
     static_configs:
-      - targets: ['quantum_portfolio_governance:8002']
+      - targets:
+          - http://quantum_portfolio_governance:8002/health
         labels:
           service: 'portfolio-governance'
           component: 'risk'
-    metric_relabel_configs:
-      - source_labels: [__name__]
-        regex: .*
-        action: keep
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+
+  - job_name: 'auto-executor-health'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://quantum_auto_executor:8003/health
+        labels:
+          service: 'auto-executor'
+          component: 'execution'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
 
   # ============================================================
   # Alertmanager
