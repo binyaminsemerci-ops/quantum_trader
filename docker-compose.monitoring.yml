@@ -78,11 +78,16 @@ services:
     user: "0"  # Run as root to write to volume
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-QuantumTrader2024!}
-      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-quantum2026secure}
+      - GF_SERVER_ROOT_URL=https://app.quantumfond.com/grafana
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
       - GF_INSTALL_PLUGINS=redis-datasource
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_SECURITY_COOKIE_SAMESITE=none
     ports:
       - "127.0.0.1:3001:3000"  # Internal only (access via nginx /grafana)
     volumes:
