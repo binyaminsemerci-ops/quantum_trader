@@ -50,11 +50,11 @@ export default function Grafana() {
           <div className="bg-gray-800 rounded-lg p-6">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h2 className="text-2xl font-semibold text-white">P1-C: Performance Baseline</h2>
-                <p className="text-gray-400 mt-1">System resources, containers, Redis, and network metrics</p>
+                <h2 className="text-2xl font-semibold text-white">Quantum System Overview</h2>
+                <p className="text-gray-400 mt-1">Comprehensive system metrics across all services</p>
               </div>
               <a
-                href="/grafana/d/p1c-baseline"
+                href="/grafana/d/ab96d298-397c-489a-92ba-ee0a74a620d7"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-white text-sm font-medium transition-colors"
@@ -65,11 +65,11 @@ export default function Grafana() {
             
             <div className="bg-gray-900 rounded-lg overflow-hidden shadow-2xl" style={{ height: '900px' }}>
               <iframe
-                src="/grafana/d/p1c-baseline?kiosk=tv&refresh=30s&from=now-6h&to=now"
+                src="/grafana/d/ab96d298-397c-489a-92ba-ee0a74a620d7?kiosk=tv&refresh=30s&from=now-6h&to=now"
                 width="100%"
                 height="100%"
                 frameBorder="0"
-                title="P1-C Performance Baseline"
+                title="Quantum System Overview"
                 className="w-full h-full"
               />
             </div>
@@ -77,7 +77,7 @@ export default function Grafana() {
             <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
               <div className="bg-gray-700 rounded-lg p-4">
                 <div className="text-gray-400 mb-1">Dashboard</div>
-                <div className="text-white font-semibold">P1-C Performance Baseline</div>
+                <div className="text-white font-semibold">Quantum System Overview</div>
               </div>
               <div className="bg-gray-700 rounded-lg p-4">
                 <div className="text-gray-400 mb-1">Auto-Refresh</div>
