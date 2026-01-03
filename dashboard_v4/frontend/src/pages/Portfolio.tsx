@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import InsightCard from '../components/InsightCard';
 
-const RL_DASHBOARD_URL = '/rl-dashboard/';
+const API_BASE_URL = '/api';
 
 interface SymbolData {
   symbol: string;
@@ -13,16 +13,6 @@ interface SymbolData {
   realized_pct: number;
   realized_trades: number;
   status: string;
-}
-
-interface RLDashboardData {
-  status: string;
-  symbols_tracked: number;
-  symbols: SymbolData[];
-  best_performer: string;
-  best_reward: number;
-  avg_reward: number;
-  message: string;
 }
 
 interface PortfolioData {
@@ -47,52 +37,29 @@ export default function Portfolio() {
   useEffect(() => {
     const fetchPortfolio = async () => {
       try {
-        const response = await fetch(RL_DASHBOARD_URL);
+        // Fetch from backend API instead of HTML page
+        const response = await fetch(`${API_BASE_URL}/portfolio/status`);
         if (!response.ok) throw new Error('Failed to fetch');
-        const rlData: RLDashboardData = await response.json();
+        const portfolioData = await response.json();
         
-        // Calculate portfolio metrics from RL Dashboard data
-        const totalPnl = rlData.symbols.reduce((sum, s) => sum + s.total_pnl, 0);
-        const unrealizedPnl = rlData.symbols.reduce((sum, s) => sum + s.unrealized_pnl, 0);
-        const realizedPnl = rlData.symbols.reduce((sum, s) => sum + s.realized_pnl, 0);
-        const activePositions = rlData.symbols.filter(s => s.status === 'active').length;
-        
-        // Calculate exposure (simplified: percentage of active positions)
-        const exposure = activePositions > 0 ? (activePositions / rlData.symbols_tracked) : 0;
-        
-        // Calculate max drawdown from negative rewards
-        const negativeRewards = rlData.symbols
-          .filter(s => s.reward < 0)
-          .map(s => Math.abs(s.reward));
-        const maxDrawdown = negativeRewards.length > 0 
-          ? Math.max(...negativeRewards) / 100 
-          : 0;
-        
-        // Count winning/losing positions
-        const winningPositions = rlData.symbols.filter(s => s.total_pnl > 0).length;
-        const losingPositions = rlData.symbols.filter(s => s.total_pnl < 0).length;
-        
-        // Find best and worst performers
-        const sortedByPnl = [...rlData.symbols].sort((a, b) => b.total_pnl - a.total_pnl);
-        const bestPerformer = sortedByPnl[0]?.symbol || 'N/A';
-        const worstPerformer = sortedByPnl[sortedByPnl.length - 1]?.symbol || 'N/A';
-        
+        // portfolioData structure: { pnl, exposure, drawdown, positions }
+        // Map backend data to frontend PortfolioData structure
         setData({
-          totalPnl,
-          unrealizedPnl,
-          realizedPnl,
-          activePositions,
-          exposure,
-          maxDrawdown,
-          winningPositions,
-          losingPositions,
-          bestPerformer,
-          worstPerformer,
-          avgReward: rlData.avg_reward
+          totalPnl: portfolioData.pnl || 0,
+          unrealizedPnl: portfolioData.pnl || 0, // Backend returns combined PnL
+          realizedPnl: 0, // Not available from backend
+          activePositions: portfolioData.positions || 0,
+          exposure: portfolioData.exposure || 0,
+          maxDrawdown: portfolioData.drawdown || 0,
+          winningPositions: 0, // Not available - would need positions endpoint
+          losingPositions: 0,
+          bestPerformer: 'N/A',
+          worstPerformer: 'N/A',
+          avgReward: 0
         });
         
-        // Store symbols for position details
-        setSymbols(rlData.symbols.sort((a, b) => b.total_pnl - a.total_pnl));
+        // Clear symbols since backend doesn't provide per-symbol breakdown
+        setSymbols([]);
         setLoading(false);
       } catch (err) {
         console.error('Failed to load portfolio:', err);
