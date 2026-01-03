@@ -743,6 +743,54 @@ services:
       timeout: 5s
       retries: 3
 
+  # Exit Brain V3.5 Dynamic Executor - Active TP/SL Monitoring & Execution
+  exit-brain-executor:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.exit_brain_executor
+    container_name: quantum_exit_brain_executor
+    restart: unless-stopped
+    profiles: ["microservices"]
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Exchange configuration
+      - TESTNET=${TESTNET:-false}
+      - BINANCE_USE_TESTNET=${BINANCE_USE_TESTNET:-false}
+      # Binance API credentials
+      - BINANCE_API_KEY=${BINANCE_API_KEY:-}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET:-}
+      # Exit Brain V3.5 configuration
+      - EXIT_MODE=EXIT_BRAIN_V3
+      - EXIT_EXECUTOR_MODE=${EXIT_EXECUTOR_MODE:-LIVE}
+      - EXIT_BRAIN_V3_LIVE_ROLLOUT=${EXIT_BRAIN_V3_LIVE_ROLLOUT:-ENABLED}
+      - EXIT_BRAIN_CHECK_INTERVAL_SEC=${EXIT_BRAIN_CHECK_INTERVAL_SEC:-10}
+      - EXIT_BRAIN_PROFILE=${EXIT_BRAIN_PROFILE:-DEFAULT}
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PYTHONUNBUFFERED=1
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
   # Service #8: Trade Journal & Performance Analytics (Phase 7)
     logging:
       driver: json-file
