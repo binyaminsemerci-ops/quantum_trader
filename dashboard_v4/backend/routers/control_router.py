@@ -115,8 +115,8 @@ def control_status():
         mode = r.get("quantum:mode") or "LIVE"
         governance_policy = r.get("quantum:governance:policy") or "BALANCED"
         
-        # Check AI Engine health for feature status
-        ai_health = requests.get("http://ai-engine:8001/health", timeout=2.0).json()
+        # Check AI Engine health for feature status  
+        ai_health = requests.get("http://ai-engine:8001/health", timeout=10.0).json()
         
         return {
             "trading_enabled": True,
