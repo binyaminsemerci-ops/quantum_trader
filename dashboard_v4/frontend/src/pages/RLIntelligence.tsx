@@ -287,7 +287,7 @@ export default function RLIntelligence() {
     <div>
       <h1 className="text-3xl font-bold mb-6 text-green-400">
         🧠 RL Intelligence
-      </h1>Object.keys(perf).length || 
+      </h1>
 
       {/* Insight Cards - Same style as Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -411,7 +411,7 @@ export default function RLIntelligence() {
           </div>
           <div>
             <span className="text-gray-400">Update Interval:</span>
-            <br />Object.keys(perf).length || 
+            <br />
             <span className="text-green-400">3 seconds</span>
           </div>
           <div>
