@@ -169,6 +169,7 @@ class EventBus:
         event_type: str,
         payload: dict[str, Any],
         trace_id: Optional[str] = None,
+        correlation_id: Optional[str] = None,  # P1-B: Add correlation_id param
     ) -> str:
         """
         Publish event to Redis Stream.
@@ -177,6 +178,7 @@ class EventBus:
             event_type: Event type (e.g., "ai.signal.generated")
             payload: Event data (must be JSON-serializable)
             trace_id: Optional trace ID for distributed tracing
+            correlation_id: P1-B correlation_id for cross-service tracking
         
         Returns:
             Message ID from Redis Stream or "buffered" if disk fallback
@@ -184,9 +186,9 @@ class EventBus:
         Raises:
             redis.RedisError: If publish fails and disk buffer also fails
         """
-        # SPRINT 1 - D2: Use RedisStreamBus wrapper
+        # P1-B: Pass correlation_id to redis_stream
         message_id = await self.redis_stream.publish(
-            event_type, payload, trace_id, self.service_name
+            event_type, payload, trace_id, self.service_name, correlation_id
         )
         
         if message_id:

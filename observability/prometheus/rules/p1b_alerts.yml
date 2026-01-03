@@ -1,0 +1,135 @@
+# P1-B: Production Alert Rules
+# 
+# These rules trigger alerts for critical operational issues
+# including high error rates and stuck order execution
+
+groups:
+  - name: p1b_logging_alerts
+    interval: 30s
+    rules:
+      # High Error Rate Alert
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(container_log_entries_total{container=~"quantum_.*",level="ERROR"}[5m])) > 10
+        for: 2m
+        labels:
+          severity: critical
+          component: logging
+          category: p1b
+        annotations:
+          summary: "High error rate detected ({{ $value }} errors/sec)"
+          description: "Container {{ $labels.container }} is logging >10 errors per second for 2+ minutes"
+          runbook: "RUNBOOKS/P1B_logging_stack.md"
+
+      # Order Submit Without Response (Prometheus counter method)
+      - alert: OrderSubmitWithoutResponse
+        expr: |
+          (
+            sum(increase(orders_submitted_total[5m])) 
+            - 
+            sum(increase(orders_responded_total[5m]))
+          ) > 5
+        for: 1m
+        labels:
+          severity: critical
+          component: execution
+          category: p1b
+        annotations:
+          summary: "{{ $value }} orders submitted but not responded"
+          description: "Auto-executor has submitted orders that have not received responses from Binance within 5 minutes"
+          runbook: "RUNBOOKS/P0_execution_stuck.md"
+          action: "Check auto_executor logs for ORDER_SUBMIT events without matching ORDER_RESPONSE"
+
+      # Container Restart Loop
+      - alert: ContainerRestartLoop
+        expr: |
+          rate(container_last_seen{container=~"quantum_.*"}[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+          category: p1b
+        annotations:
+          summary: "Container {{ $labels.container }} is restarting frequently"
+          description: "Container has restarted {{ $value }} times in the last 5 minutes"
+          runbook: "RUNBOOKS/P1B_logging_stack.md#container-crashes"
+
+  - name: p1b_execution_alerts
+    interval: 30s
+    rules:
+      # Execution Latency High
+      - alert: ExecutionLatencyHigh
+        expr: |
+          histogram_quantile(0.95, 
+            rate(order_execution_latency_seconds_bucket{container="quantum_auto_executor"}[5m])
+          ) > 5
+        for: 3m
+        labels:
+          severity: warning
+          component: execution
+          category: p1b
+        annotations:
+          summary: "P95 execution latency is {{ $value }}s (threshold: 5s)"
+          description: "Order execution is taking >5 seconds at P95 for 3+ minutes"
+          runbook: "RUNBOOKS/P0_execution_stuck.md#slow-execution"
+
+      # No Orders Submitted (Dead Executor)
+      - alert: NoOrdersSubmitted
+        expr: |
+          increase(orders_submitted_total[30m]) == 0 
+          and 
+          up{job="auto_executor"} == 1
+        for: 15m
+        labels:
+          severity: warning
+          component: execution
+          category: p1b
+        annotations:
+          summary: "No orders submitted in 30 minutes"
+          description: "Auto-executor is UP but has not submitted any orders. Possible: no signals, filters blocking, or logic bug"
+          runbook: "RUNBOOKS/P0_execution_stuck.md#no-orders"
+
+  - name: p1b_infrastructure_alerts
+    interval: 60s
+    rules:
+      # Redis Connection Loss
+      - alert: RedisConnectionLoss
+        expr: |
+          redis_connected_clients{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: infrastructure
+          category: p1b
+        annotations:
+          summary: "Redis has no connected clients"
+          description: "Redis is running but no services are connected. Event bus is down."
+          runbook: "RUNBOOKS/P1B_logging_stack.md#redis-issues"
+
+      # Loki Down
+      - alert: LokiDown
+        expr: |
+          up{job="loki"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: observability
+          category: p1b
+        annotations:
+          summary: "Loki log aggregation is down"
+          description: "Loki service is unreachable. Logs are still being written to disk but not aggregated."
+          runbook: "RUNBOOKS/P1B_logging_stack.md#loki-down"
+
+      # Promtail Down
+      - alert: PromtailDown
+        expr: |
+          up{job="promtail"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: observability
+          category: p1b
+        annotations:
+          summary: "Promtail log collector is down"
+          description: "Promtail is not scraping logs. Log aggregation is broken."
+          runbook: "RUNBOOKS/P1B_logging_stack.md#promtail-down"

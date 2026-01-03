@@ -108,6 +108,7 @@ class RedisStreamBus:
         payload: dict[str, Any],
         trace_id: Optional[str] = None,
         source: Optional[str] = None,
+        correlation_id: Optional[str] = None,
     ) -> Optional[str]:
         """
         Publish event to Redis Stream.
@@ -117,16 +118,23 @@ class RedisStreamBus:
             payload: Event data (must be JSON-serializable)
             trace_id: Optional trace ID
             source: Optional source identifier
+            correlation_id: P1-B correlation_id for cross-service tracking
         
         Returns:
             Message ID from Redis, or None if failed
         """
         stream_name = self._get_stream_name(event_type)
         
+        # P1-B: Ensure correlation_id is present
+        if not correlation_id:
+            import uuid
+            correlation_id = str(uuid.uuid4())
+        
         message = {
             "event_type": event_type,
             "payload": json.dumps(payload),
             "trace_id": trace_id or "",
+            "correlation_id": correlation_id,  # P1-B: Add correlation_id
             "timestamp": datetime.utcnow().isoformat(),
             "source": source or self.service_name,
         }

@@ -12,12 +12,16 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 
-# Configure logging FIRST
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(asctime)s] %(levelname)s - %(message)s'
+# P1-B: JSON logging with correlation_id
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../..'))
+from shared.logging_config import (
+    setup_json_logging, set_correlation_id, get_correlation_id,
+    log_intent_received, log_order_submit, log_order_response, log_order_error,
+    log_corr_assigned
 )
-logger = logging.getLogger(__name__)
+
+# Setup JSON logging
+logger = setup_json_logging('auto_executor', level=os.getenv('LOG_LEVEL', 'INFO'))
 
 # Add microservices to path for intelligent leverage engine
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../'))

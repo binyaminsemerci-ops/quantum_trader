@@ -11,3 +11,24 @@ datasources:
       httpMethod: POST
     editable: false
     version: 1
+
+  # P1-B: Loki datasource for log aggregation
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        # Extract correlation_id as a link
+        - datasourceUid: loki
+          matcherRegex: "correlation_id\":\"([^\"]+)"
+          name: correlation_id
+          url: "/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Loki%22,%7B%22expr%22:%22%7Bcontainer%3D~%5C%22quantum_.*%5C%22%7D%20%7C%3D%20%5C%22$${__value.raw}%5C%22%22%7D%5D"
+        # Extract order_id as a link
+        - datasourceUid: loki
+          matcherRegex: "order_id\":\"([^\"]+)"
+          name: order_id
+          url: "/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Loki%22,%7B%22expr%22:%22%7Bcontainer%3D~%5C%22quantum_.*%5C%22%7D%20%7C%3D%20%5C%22$${__value.raw}%5C%22%22%7D%5D"
+    editable: false
+    version: 1

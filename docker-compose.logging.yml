@@ -1,0 +1,57 @@
+# P1-B: Logging Stack - Loki + Promtail
+# 
+# Loki: Log aggregation engine (like Prometheus but for logs)
+# Promtail: Log collector that scrapes container logs
+#
+# Usage:
+#   docker compose -f docker-compose.logging.yml up -d
+#   docker compose -f docker-compose.yml -f docker-compose.logging.yml up -d
+
+version: '3.8'
+
+services:
+  # Loki - Log aggregation engine
+  loki:
+    image: grafana/loki:2.9.3
+    container_name: quantum_loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    networks:
+      - quantum_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Promtail - Log collector
+  promtail:
+    image: grafana/promtail:2.9.3
+    container_name: quantum_promtail
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./observability/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail_positions:/tmp/positions
+    networks:
+      - quantum_net
+    restart: unless-stopped
+    depends_on:
+      - loki
+
+volumes:
+  loki_data:
+    driver: local
+  promtail_positions:
+    driver: local
+
+networks:
+  quantum_net:
+    external: true
