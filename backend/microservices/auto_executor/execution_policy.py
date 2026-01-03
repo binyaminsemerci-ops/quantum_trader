@@ -9,11 +9,16 @@ Policy Decision Flow:
 All entry decisions centralized. No silent blocks.
 """
 import os
+import sys
 import time
 import logging
 from enum import Enum
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
+
+# Add exit_brain_v3 to path for precision utilities
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../execution/exit_brain_v3'))
+from precision import quantize_to_step
 
 logger = logging.getLogger(__name__)
 
@@ -107,8 +112,9 @@ class ExecutionPolicy:
         - Handle observability
     """
     
-    def __init__(self, config: Optional[PolicyConfig] = None):
+    def __init__(self, config: Optional[PolicyConfig] = None, executor=None):
         self.config = config or PolicyConfig.from_env()
+        self.executor = executor  # Reference to AutoExecutor for symbol info
         logger.info(f"🛡️ Execution Policy initialized")
         logger.info(f"   Max positions: {self.config.max_open_positions_total} total, "
                    f"{self.config.max_open_positions_per_symbol} per symbol")
@@ -330,7 +336,17 @@ class ExecutionPolicy:
         notional_value = allocation_usdt * leverage
         quantity = notional_value / price
         
-        # 5. Validate minimum allocation
+        # 5. Round quantity to symbol's step size (prevent Binance precision errors)
+        if self.executor:
+            try:
+                symbol_info = self.executor.get_symbol_info(symbol)
+                step_size = float(symbol_info['stepSize'])
+                quantity = quantize_to_step(quantity, step_size)
+                logger.debug(f"[{symbol}] Quantity rounded: step={step_size}, final_qty={quantity}")
+            except Exception as e:
+                logger.warning(f"⚠️ [{symbol}] Could not round quantity: {e}, using raw value")
+        
+        # 6. Validate minimum allocation
         min_allocation_usdt = 10.0  # $10 minimum trade
         if allocation_usdt < min_allocation_usdt:
             logger.warning(

@@ -172,7 +172,7 @@ class AutoExecutor:
         
         # P1-B: Initialize Execution Policy
         if EXECUTION_POLICY_AVAILABLE:
-            self.execution_policy = ExecutionPolicy(PolicyConfig.from_env())
+            self.execution_policy = ExecutionPolicy(PolicyConfig.from_env(), executor=self)
             logger.info("🛡️ Execution Policy initialized with capital controls")
         else:
             self.execution_policy = None
