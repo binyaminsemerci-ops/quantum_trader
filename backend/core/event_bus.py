@@ -30,6 +30,9 @@ from redis.asyncio import Redis
 # SPRINT 1 - D2: Import modular components
 from backend.core.eventbus import DiskBuffer, RedisStreamBus
 
+# P1-B: Correlation ID tracking
+from shared.logging_config import set_correlation_id, get_correlation_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -439,6 +442,7 @@ class EventBus:
         Process single message from stream.
         
         - Deserializes payload
+        - P1-B: Extracts and sets correlation_id for tracking
         - Calls all registered handlers
         - Acknowledges message on success
         - Sends to DLQ on repeated failures
@@ -460,6 +464,16 @@ class EventBus:
             if isinstance(trace_id, bytes):
                 trace_id = trace_id.decode("utf-8")
             
+            # P1-B: Extract correlation_id from message
+            correlation_id = message_data.get("correlation_id") or message_data.get(b"correlation_id")
+            if isinstance(correlation_id, bytes):
+                correlation_id = correlation_id.decode("utf-8")
+            
+            # P1-B: Set correlation_id in thread-local context for this handler execution
+            if correlation_id:
+                set_correlation_id(correlation_id)
+                logger.info(f"📎 correlation_id set: {correlation_id} for event_type={event_type}")
+            
             # Call all handlers for this event type
             handlers = self._handlers.get(event_type, [])
             
@@ -476,7 +490,7 @@ class EventBus:
             await self.redis.xack(stream_name, group_name, message_id)
             
             logger.debug(
-                f"Message processed and acknowledged: event_type={event_type}, message_id={message_id}, trace_id={trace_id}"
+                f"Message processed and acknowledged: event_type={event_type}, message_id={message_id}, trace_id={trace_id}, correlation_id={correlation_id}"
             )
         
         except json.JSONDecodeError as e:
