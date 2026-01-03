@@ -142,8 +142,8 @@ export default function AIEngine() {
 
     const fetchHealth = async () => {
       try {
-        // Fetch directly from AI Engine health endpoint
-        const response = await fetch('http://46.224.116.254:8001/health');
+        // Fetch from dashboard backend proxy to avoid CORS issues
+        const response = await fetch(`${API_BASE_URL}/ai/health`);
         if (!response.ok) throw new Error('Failed to fetch health');
         const health = await response.json();
         setHealthData(health);
