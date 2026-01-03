@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import InsightCard from '../components/InsightCard';
 
-const RL_DASHBOARD_URL = '/rl-dashboard/';
+const API_BASE_URL = '/api';
 
 interface SymbolData {
   symbol: string;
@@ -91,46 +91,25 @@ export default function Risk() {
   useEffect(() => {
     const fetchRisk = async () => {
       try {
-        const response = await fetch(RL_DASHBOARD_URL);
+        const response = await fetch(`${API_BASE_URL}/risk/metrics`);
         if (!response.ok) throw new Error('Failed to fetch');
-        const rlData: RLDashboardData = await response.json();
+        const riskMetrics = await response.json();
         
-        // Extract returns (rewards) from all symbols
-        const returns = rlData.symbols.map(s => s.reward);
-        const pnls = rlData.symbols.map(s => s.total_pnl);
+        // Backend returns: { var, cvar, volatility, regime }
+        const var95 = riskMetrics.var ? Math.abs(riskMetrics.var) * 100 : 0;
+        const cvar95 = riskMetrics.cvar ? Math.abs(riskMetrics.cvar) * 100 : 0;
+        const volatility = riskMetrics.volatility ? riskMetrics.volatility * 100 : 0;
+        const regime = riskMetrics.regime || 'Unknown';
         
-        // Calculate risk metrics
-        const var95 = calculateVaR(returns, 0.95);
-        const cvar95 = calculateCVaR(returns, 0.95);
-        const volatility = calculateVolatility(returns);
-        const avgReturn = rlData.avg_reward;
-        const regime = determineMarketRegime(avgReturn, volatility);
-        const sharpeRatio = calculateSharpeRatio(returns, volatility);
+        // Calculate risk score (0-100 based on volatility)
+        const riskScore = Math.min(Math.round(volatility), 100);
         
-        // Calculate risk score (0-100 based on multiple factors)
-        const volatilityScore = Math.min(volatility / 50 * 100, 100);
-        const varScore = Math.min(Math.abs(var95) / 50 * 100, 100);
-        const riskScore = Math.round((volatilityScore + varScore) / 2);
-        
-        // Calculate max drawdown
-        const negativeRewards = returns.filter(r => r < 0);
-        const maxDrawdown = negativeRewards.length > 0 
-          ? Math.min(...negativeRewards) 
-          : 0;
-        
-        // Calculate concentration risk (top 3 positions as % of total)
-        const sortedByPnl = [...rlData.symbols].sort((a, b) => 
-          Math.abs(b.total_pnl) - Math.abs(a.total_pnl)
-        );
-        const top3Exposure = sortedByPnl.slice(0, 3)
-          .reduce((sum, s) => sum + Math.abs(s.total_pnl), 0);
-        const totalExposure = pnls.reduce((sum, p) => sum + Math.abs(p), 0);
-        const concentrationRisk = totalExposure > 0 
-          ? (top3Exposure / totalExposure) * 100 
-          : 0;
-        
-        // Count positions at risk (negative P&L)
-        const positionsAtRisk = rlData.symbols.filter(s => s.total_pnl < 0).length;
+        // Simplified metrics using backend data
+        const maxDrawdown = var95;
+        const sharpeRatio = 0; // Would need additional endpoint
+        const concentrationRisk = 0; // Would need position breakdown
+        const totalExposure = var95;
+        const positionsAtRisk = 0; // Would need position breakdown
         
         setData({
           var95,
@@ -145,12 +124,8 @@ export default function Risk() {
           positionsAtRisk
         });
         
-        // Store top 5 risky positions (most negative rewards)
-        const risky = [...rlData.symbols]
-          .filter(s => s.reward < 0)
-          .sort((a, b) => a.reward - b.reward)
-          .slice(0, 5);
-        setTopRisks(risky);
+        // Clear top risks (would need separate endpoint)
+        setTopRisks([]);
         
         setLoading(false);
       } catch (err) {
