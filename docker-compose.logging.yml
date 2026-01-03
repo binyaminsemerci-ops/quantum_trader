@@ -35,6 +35,8 @@ services:
     image: grafana/promtail:2.9.3
     container_name: quantum_promtail
     command: -config.file=/etc/promtail/promtail-config.yml
+    environment:
+      - DOCKER_API_VERSION=1.44
     volumes:
       - ./observability/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
