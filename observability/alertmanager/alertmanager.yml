@@ -78,6 +78,35 @@ receivers:
           follow_redirects: true
         max_alerts: 0
 
+  # P1-B: Critical alerts receiver
+  - name: 'critical-alerts'
+    # Webhook (configure CRITICAL_ALERT_WEBHOOK_URL env var)
+    webhook_configs:
+      - url: '${CRITICAL_ALERT_WEBHOOK_URL:-http://localhost:9093/webhook/critical}'
+        send_resolved: true
+        http_config:
+          follow_redirects: true
+    # Email (optional - configure SMTP settings)
+    email_configs:
+      - to: '${ALERT_EMAIL_TO:-ops@example.com}'
+        from: '${ALERT_EMAIL_FROM:-alertmanager@quantum-trader.com}'
+        smarthost: '${SMTP_HOST:-smtp.gmail.com:587}'
+        auth_username: '${SMTP_USER:-}'
+        auth_password: '${SMTP_PASS:-}'
+        require_tls: true
+        send_resolved: true
+        headers:
+          Subject: '🚨 [CRITICAL] {{ .GroupLabels.alertname }}'
+
+  # P1-B: Warning alerts receiver  
+  - name: 'warning-alerts'
+    webhook_configs:
+      - url: '${WARNING_ALERT_WEBHOOK_URL:-http://localhost:9093/webhook/warning}'
+        send_resolved: true
+
+  # Null receiver (no notifications)
+  - name: 'null'
+
   # Critical alerts - urgent notification
   - name: 'critical-alerts'
     webhook_configs:
