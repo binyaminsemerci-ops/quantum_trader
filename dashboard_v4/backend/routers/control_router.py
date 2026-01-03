@@ -99,13 +99,56 @@ def switch_mode(mode: str, token_data: TokenData = Depends(verify_token), db: Se
 
 
 @router.get("/status")
-def control_status(token_data: TokenData = Depends(verify_token)):
-    """Get control system status - All authenticated users"""
-    return {
-        "control_status": "operational",
-        "authenticated_user": token_data.username,
-        "role": token_data.role
-    }
+def control_status():
+    """Get control system status - Public endpoint (no auth required for dashboard)"""
+    import redis
+    import os
+    
+    # Connect to Redis to get actual system state
+    redis_host = os.getenv("REDIS_HOST", "redis")
+    redis_port = int(os.getenv("REDIS_PORT", 6379))
+    r = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
+    
+    try:
+        # Get actual system mode and config from Redis
+        mode = r.get("quantum:mode") or "LIVE"
+        governance_policy = r.get("quantum:governance:policy") or "BALANCED"
+        
+        # Check AI Engine health for feature status
+        import httpx
+        ai_health = httpx.get("http://ai-engine:8001/health", timeout=2.0).json()
+        
+        return {
+            "trading_enabled": True,
+            "auto_mode_enabled": True,
+            "mode": mode,
+            "risk_level": governance_policy,
+            "active_strategies": ["ensemble", "governance", "intelligent_leverage", "rl_sizing", "adaptive_leverage"],
+            "ensemble_enabled": ai_health.get("metrics", {}).get("ensemble_enabled", False),
+            "governance_enabled": ai_health.get("metrics", {}).get("governance_active", False),
+            "cross_exchange_enabled": ai_health.get("metrics", {}).get("cross_exchange_intelligence", False),
+            "intelligent_leverage_enabled": ai_health.get("metrics", {}).get("intelligent_leverage", {}).get("enabled", False),
+            "rl_sizing_enabled": ai_health.get("metrics", {}).get("rl_agent", {}).get("enabled", False),
+            "adaptive_leverage_enabled": ai_health.get("metrics", {}).get("adaptive_leverage_status", {}).get("enabled", False),
+            "control_status": "operational"
+        }
+    except Exception as e:
+        print(f"Error fetching system status: {e}")
+        return {
+            "trading_enabled": None,
+            "auto_mode_enabled": None,
+            "mode": None,
+            "risk_level": None,
+            "active_strategies": None,
+            "ensemble_enabled": None,
+            "governance_enabled": None,
+            "cross_exchange_enabled": None,
+            "intelligent_leverage_enabled": None,
+            "rl_sizing_enabled": None,
+            "adaptive_leverage_enabled": None,
+            "control_status": "error",
+            "error": str(e)
+        }
 
 
 @router.get("/logs")
