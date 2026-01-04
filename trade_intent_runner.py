@@ -94,16 +94,19 @@ async def main():
         logger.info("✅ Execution adapter initialized")
         
         # Create subscriber
+        logger.info("📦 Creating TradeIntentSubscriber...")
         subscriber = TradeIntentSubscriber(
             event_bus=event_bus,
             execution_adapter=execution_adapter,
             risk_guard=None  # Optional
         )
+        logger.info("✅ Subscriber created")
         
         logger.info("🎯 Starting subscriber (will consume NEW events only)")
         
         # Start consumer (registers handler)
         await subscriber.start()
+        logger.info("✅ Subscriber started")
         
         # Start EventBus processing loop (spawns background tasks)
         logger.info("🚀 Starting EventBus processing loop...")
@@ -111,6 +114,7 @@ async def main():
         logger.info(f"🔧 RESET_CONSUMER_GROUP_OFFSET={os.getenv('RESET_CONSUMER_GROUP_OFFSET')}")
         
         await event_bus.start()
+        logger.info("✅ EventBus started")
         
         logger.info(f"✅ Consumer running - monitoring {len(event_bus._consumer_tasks)} tasks...")
         logger.info(f"📋 Active tasks: {list(event_bus._consumer_tasks.keys())}")
