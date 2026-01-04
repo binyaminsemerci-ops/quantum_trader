@@ -105,15 +105,43 @@ async def main():
         # Start consumer (registers handler)
         await subscriber.start()
         
-        # Start EventBus processing loop
+        # Start EventBus processing loop (spawns background tasks)
         logger.info("🚀 Starting EventBus processing loop...")
         await event_bus.start()
         
-        logger.info("✅ Consumer running - waiting for new events...")
-        # EventBus.start() runs forever, but if it returns, keep alive
+        logger.info("✅ Consumer running - monitoring tasks...")
+        
+        # Keep alive and monitor background tasks
+        # EventBus creates tasks in event_bus._consumer_tasks
         while True:
             await asyncio.sleep(60)
-            logger.debug("💓 Consumer heartbeat")
+            
+            # Check if any consumer tasks died
+            dead_tasks = [
+                event_type for event_type, task in event_bus._consumer_tasks.items()
+                if task.done()
+            ]
+            
+            if dead_tasks:
+                logger.error(f"❌ Consumer tasks DIED: {dead_tasks}")
+                # Log exceptions from dead tasks
+                for event_type in dead_tasks:
+                    task = event_bus._consumer_tasks[event_type]
+                    try:
+                        exc = task.exception()
+                        if exc:
+                            logger.error(f"❌ Task '{event_type}' exception: {exc}", exc_info=exc)
+                    except Exception as e:
+                        logger.error(f"❌ Could not get exception from task '{event_type}': {e}")
+                
+                # Restart EventBus
+                logger.warning("🔄 Restarting EventBus due to dead tasks...")
+                await event_bus.stop()
+                await asyncio.sleep(2)
+                await event_bus.start()
+                logger.info("✅ EventBus restarted")
+            else:
+                logger.debug("💓 Consumer heartbeat - all tasks alive")
             
     except KeyboardInterrupt:
         logger.info("🛑 Shutdown requested")

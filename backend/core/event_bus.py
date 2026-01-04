@@ -343,11 +343,29 @@ class EventBus:
         
         except redis.ResponseError as e:
             if "BUSYGROUP" in str(e):
-                # Group already exists
-                logger.debug(
-                    "Consumer group already exists",
-                    stream=stream_name,
-                    group=group_name,
+                # Group already exists - reset to beginning if requested
+                import os
+                reset_to_beginning = os.getenv("EVENTBUS_RESET_TO_BEGINNING", "false").lower() == "true"
+                
+                if reset_to_beginning:
+                    logger.warning(
+                        f"🔄 Resetting consumer group to beginning: stream={stream_name}, "
+                        f"group={group_name}"
+                    )
+                    try:
+                        await self.redis.xgroup_setid(
+                            stream_name,
+                            group_name,
+                            id="0"  # Reset to beginning
+                        )
+                        logger.info(f"✅ Consumer group reset to beginning")
+                    except Exception as reset_error:
+                        logger.error(f"❌ Failed to reset consumer group: {reset_error}")
+                else:
+                    logger.debug(
+                        "Consumer group already exists",
+                        stream=stream_name,
+                        group=group_name,
                 )
             else:
                 logger.error(
