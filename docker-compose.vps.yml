@@ -423,10 +423,10 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - LOG_LEVEL=INFO
-      - BINANCE_API_KEY
-      - BINANCE_API_SECRET
-      - BINANCE_USE_TESTNET=${BINANCE_TESTNET:-false}
-      - BINANCE_TESTNET=${BINANCE_TESTNET:-false}  # Alias for code compatibility
+      - BINANCE_API_KEY=e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD
+      - BINANCE_API_SECRET=ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja
+      - BINANCE_USE_TESTNET=true
+      - BINANCE_TESTNET=true
       - TRADE_INTENT_SAFE_DRAIN=false  # Set to true to consume without executing
       - TRADE_INTENT_MAX_AGE_MINUTES=60  # Process events up to 60 min old (backlog)
       - RESET_CONSUMER_GROUP_OFFSET=true  # Reset consumer group to process ALL events from start
