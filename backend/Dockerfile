@@ -21,6 +21,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 # Kopier backend kode inn i image
 COPY backend/ ./backend/
+COPY shared/ ./shared/
 COPY ai_engine/ ./ai_engine/
 COPY database/ ./database/
 COPY config/ ./config/
