@@ -414,9 +414,7 @@ services:
       dockerfile: backend/Dockerfile  # Fixed: Use backend/Dockerfile
     container_name: quantum_trade_intent_consumer
     restart: unless-stopped
-    command: python trade_intent_runner.py
-    env_file:
-      - .env
+    command: bash /mnt/code/consumer_entrypoint.sh
     environment:
       - PYTHONPATH=/app
       - PYTHONDONTWRITEBYTECODE=1  # Disable bytecode cache for volume-mounted code
@@ -433,7 +431,8 @@ services:
       - ./logs:/app/logs:rw
       - ./backend:/app/backend:ro
       - ./microservices/exitbrain_v3_5:/app/microservices/exitbrain_v3_5:ro
-      - ./trade_intent_runner.py:/app/trade_intent_runner.py:ro
+      - ./trade_intent_runner.py:/mnt/code/trade_intent_runner.py:ro
+      - ./scripts/consumer_entrypoint.sh:/mnt/code/consumer_entrypoint.sh:ro
     networks:
       - quantum_trader
     depends_on:
