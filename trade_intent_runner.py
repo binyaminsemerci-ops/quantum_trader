@@ -17,6 +17,10 @@ logger = logging.getLogger("trade_intent_runner")
 async def main():
     """Main runner - NEW EVENTS ONLY mode"""
     try:
+        logger.info("=" * 80)
+        logger.info("🚀🚀🚀 TRADE INTENT CONSUMER STARTING - VERSION 2026-01-04-18:04 🚀🚀🚀")
+        logger.info("=" * 80)
+        
         # Import with error handling
         logger.info("🚀 Starting Trade Intent Consumer (NEW EVENTS ONLY)")
         logger.info(f"SAFE_DRAIN mode: {os.getenv('TRADE_INTENT_SAFE_DRAIN', 'false')}")
