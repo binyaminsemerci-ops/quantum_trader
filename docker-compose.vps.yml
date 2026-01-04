@@ -423,8 +423,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - LOG_LEVEL=INFO
-      - BINANCE_API_KEY=e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD
-      - BINANCE_API_SECRET=ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja
+      - "BINANCE_API_KEY=e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD"
+      - "BINANCE_API_SECRET=ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja"
       - BINANCE_USE_TESTNET=true
       - BINANCE_TESTNET=true
       - TRADE_INTENT_SAFE_DRAIN=false  # Set to true to consume without executing
