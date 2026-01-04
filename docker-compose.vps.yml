@@ -415,6 +415,8 @@ services:
     container_name: quantum_trade_intent_consumer
     restart: unless-stopped
     command: bash /mnt/code/consumer_entrypoint.sh
+    env_file:
+      - .env
     environment:
       - PYTHONPATH=/app
       - PYTHONDONTWRITEBYTECODE=1  # Disable bytecode cache for volume-mounted code
