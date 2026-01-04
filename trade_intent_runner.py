@@ -107,9 +107,14 @@ async def main():
         
         # Start EventBus processing loop (spawns background tasks)
         logger.info("🚀 Starting EventBus processing loop...")
+        
+        import os
+        logger.info(f"🔧 RESET_CONSUMER_GROUP_OFFSET={os.getenv('RESET_CONSUMER_GROUP_OFFSET')}")
+        
         await event_bus.start()
         
-        logger.info("✅ Consumer running - monitoring tasks...")
+        logger.info(f"✅ Consumer running - monitoring {len(event_bus._consumer_tasks)} tasks...")
+        logger.info(f"📋 Active tasks: {list(event_bus._consumer_tasks.keys())}")
         
         # Keep alive and monitor background tasks
         # EventBus creates tasks in event_bus._consumer_tasks
