@@ -427,7 +427,7 @@ services:
       - BINANCE_USE_TESTNET=${BINANCE_TESTNET:-false}
       - TRADE_INTENT_SAFE_DRAIN=false  # Set to true to consume without executing
       - TRADE_INTENT_MAX_AGE_MINUTES=60  # Process events up to 60 min old (backlog)
-      - EVENTBUS_RESET_TO_BEGINNING=true  # Reset consumer group to process ALL events from start
+      - RESET_CONSUMER_GROUP_OFFSET=true  # Reset consumer group to process ALL events from start
     volumes:
       - ./logs:/app/logs:rw
       - ./backend:/app/backend:ro
