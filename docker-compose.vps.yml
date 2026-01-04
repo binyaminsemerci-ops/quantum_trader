@@ -421,8 +421,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - LOG_LEVEL=INFO
-      - BINANCE_API_KEY=${BINANCE_API_KEY}
-      - BINANCE_API_SECRET=${BINANCE_API_SECRET}
+      - BINANCE_API_KEY
+      - BINANCE_API_SECRET
       - BINANCE_USE_TESTNET=${BINANCE_TESTNET:-false}
       - BINANCE_TESTNET=${BINANCE_TESTNET:-false}  # Alias for code compatibility
       - TRADE_INTENT_SAFE_DRAIN=false  # Set to true to consume without executing
