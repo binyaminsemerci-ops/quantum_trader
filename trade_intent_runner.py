@@ -90,7 +90,7 @@ async def main():
         
         # Initialize execution adapter
         api_key = os.getenv("BINANCE_API_KEY", "")
-        api_secret = os.getenv("BINANCE_SECRET_KEY", "")
+        api_secret = os.getenv("BINANCE_API_SECRET", "")
         execution_adapter = BinanceFuturesExecutionAdapter(
             api_key=api_key,
             api_secret=api_secret
