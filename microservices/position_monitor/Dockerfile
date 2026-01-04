@@ -12,6 +12,9 @@ COPY microservices/position_monitor /app/microservices/position_monitor
 # Copy backend modules (needed for dependencies)
 COPY backend /app/backend
 
+# Copy shared modules (needed for logging)
+COPY shared /app/shared
+
 # Copy config module (needed for position monitor)
 COPY config /app/config
 
