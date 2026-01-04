@@ -108,7 +108,6 @@ async def main():
         # Start EventBus processing loop (spawns background tasks)
         logger.info("🚀 Starting EventBus processing loop...")
         
-        import os
         logger.info(f"🔧 RESET_CONSUMER_GROUP_OFFSET={os.getenv('RESET_CONSUMER_GROUP_OFFSET')}")
         
         await event_bus.start()
