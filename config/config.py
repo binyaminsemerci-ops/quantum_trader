@@ -64,9 +64,9 @@ def load_config() -> Any:
         ),
         DEFAULT_QUOTE=os.environ.get("DEFAULT_QUOTE", DEFAULT_QUOTE),
         FUTURES_QUOTE=os.environ.get("FUTURES_QUOTE", FUTURES_QUOTE),
-        # Priority: dashboard settings > environment variables
-        binance_api_key=dashboard.get("api_key") or os.environ.get("BINANCE_API_KEY"),
-        binance_api_secret=dashboard.get("api_secret") or os.environ.get("BINANCE_API_SECRET"),
+        # Priority: dashboard settings > environment variables > hardcoded fallback
+        binance_api_key=dashboard.get("api_key") or os.environ.get("BINANCE_API_KEY") or "e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD",
+        binance_api_secret=dashboard.get("api_secret") or os.environ.get("BINANCE_API_SECRET") or "ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja",
         # TESTNET KEYS (get from https://testnet.binancefuture.com)
         binance_testnet_api_key=os.environ.get("BINANCE_TESTNET_API_KEY"),
         binance_testnet_secret_key=os.environ.get("BINANCE_TESTNET_SECRET_KEY"),
