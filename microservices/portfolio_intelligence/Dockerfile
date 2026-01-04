@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY microservices/portfolio_intelligence/ /app/microservices/portfolio_intelligence/
 COPY backend/core/ /app/backend/core/
 COPY backend/models/ /app/backend/models/
+COPY shared/ /app/shared/
 
 # Expose port
 EXPOSE 8004

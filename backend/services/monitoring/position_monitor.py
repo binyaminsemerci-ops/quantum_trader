@@ -159,16 +159,16 @@ class PositionMonitor:
         use_testnet = os.getenv("STAGING_MODE", "false").lower() == "true" or os.getenv("BINANCE_TESTNET", "false").lower() == "true"
         
         if use_testnet:
-            api_key = os.getenv("BINANCE_API_KEY")
-            api_secret = os.getenv("BINANCE_API_SECRET")
+            api_key = os.getenv("BINANCE_API_KEY") or "e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD"
+            api_secret = os.getenv("BINANCE_API_SECRET") or "ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja"
             if not api_key or not api_secret:
                 raise ValueError("Missing Binance TESTNET credentials (BINANCE_API_KEY, BINANCE_API_SECRET)")
             logger.info("[TEST_TUBE] Position Monitor: Using Binance Testnet API")
             self.client = Client(api_key, api_secret, testnet=True)
             self.client.API_URL = 'https://testnet.binancefuture.com'
         else:
-            api_key = os.getenv("BINANCE_API_KEY")
-            api_secret = os.getenv("BINANCE_API_SECRET")
+            api_key = os.getenv("BINANCE_API_KEY") or "e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD"
+            api_secret = os.getenv("BINANCE_API_SECRET") or "ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja"
             if not api_key or not api_secret:
                 raise ValueError("Missing Binance credentials")
             logger.info("[RED_CIRCLE] Position Monitor: Using Binance Live API")
