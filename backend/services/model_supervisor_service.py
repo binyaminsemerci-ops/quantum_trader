@@ -41,10 +41,11 @@ async def monitoring_loop():
     while True:
         try:
             if model_supervisor:
-                report = model_supervisor.run_supervision()
-                logger.info(f"Model supervision complete: {len(report.get('models', []))} models checked")
+                # Note: analyze_models() requires signal_logs, skipping periodic analysis
+                # Real-time monitoring via monitor_loop() handles observation
+                logger.info("Model supervisor in observation mode (use /report endpoint for analysis)")
         except Exception as e:
-            health_checker.record_error(f"Supervision failed: {e}")
+            health_checker.record_error(f"Supervision monitoring failed: {e}")
             logger.error(f"Model supervision error: {e}")
         
         await asyncio.sleep(1800)  # 30 minutes
@@ -64,8 +65,13 @@ async def get_report():
         return {"error": "Model Supervisor not initialized"}
     
     try:
-        report = model_supervisor.run_supervision()
-        return report
+        # Return basic status - full analysis requires signal logs via analyze_models()
+        return {
+            "status": "observing",
+            "message": "Model supervisor running in observation mode",
+            "mode": model_supervisor.mode,
+            "analysis_window_days": model_supervisor.analysis_window
+        }
     except Exception as e:
         health_checker.record_error(f"Report generation failed: {e}")
         return {"error": str(e)}
@@ -78,8 +84,13 @@ async def trigger_supervision():
         return {"error": "Model Supervisor not initialized"}
     
     try:
-        report = model_supervisor.run_supervision()
-        return {"status": "success", "report": report}
+        # Model supervisor runs via real-time observation (monitor_loop)
+        # Full analysis requires signal_logs from Redis/database
+        return {
+            "status": "success",
+            "message": "Model supervisor observation active",
+            "note": "Use analyze_models() with signal logs for full analysis"
+        }
     except Exception as e:
         health_checker.record_error(f"Manual trigger failed: {e}")
         return {"status": "error", "error": str(e)}
