@@ -1,0 +1,7 @@
+[Unit]
+Description=Complete trading system
+After=quantum-core.target quantum-state.target quantum-brains.target quantum-ai.target quantum-exec.target quantum-obs.target
+Wants=quantum-core.target quantum-state.target quantum-brains.target quantum-ai.target quantum-exec.target quantum-obs.target
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+[Unit]
+Description=Strategy and risk management
+Requires=quantum-state.target
+After=quantum-state.target
+
+[Install]
+WantedBy=quantum-trader.target

@@ -1,0 +1,7 @@
+[Unit]
+Description=Order execution
+Requires=quantum-brains.target quantum-ai.target
+After=quantum-brains.target quantum-ai.target
+
+[Install]
+WantedBy=quantum-trader.target

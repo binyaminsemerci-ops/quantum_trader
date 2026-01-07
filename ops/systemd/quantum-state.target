@@ -1,0 +1,7 @@
+[Unit]
+Description=State tracking (positions, portfolio)
+Requires=quantum-core.target
+After=quantum-core.target
+
+[Install]
+WantedBy=quantum-trader.target
