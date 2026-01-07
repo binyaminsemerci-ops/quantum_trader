@@ -20,7 +20,6 @@ TasksMax=128
 # Restart policy
 Restart=always
 RestartSec=5s
-StartLimitIntervalSec=300
 StartLimitBurst=5
 
 # Logging
