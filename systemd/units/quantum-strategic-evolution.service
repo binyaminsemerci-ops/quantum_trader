@@ -1,0 +1,39 @@
+[Unit]
+Description=Quantum Trader - Strategic Evolution (AI Client)
+After=network.target quantum-redis.service quantum-ai-engine.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-strategic-evolution
+Group=quantum-strategic-evolution
+WorkingDirectory=/opt/quantum/microservices/strategic_evolution
+
+EnvironmentFile=/etc/quantum/strategic-evolution.env
+
+ExecStart=/opt/quantum/venvs/strategic-evolution/bin/python main.py
+
+MemoryHigh=230M
+MemoryMax=256M
+CPUQuota=40%
+TasksMax=64
+
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-strategic-evolution
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

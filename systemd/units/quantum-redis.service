@@ -1,0 +1,39 @@
+[Unit]
+Description=Quantum Trader - Redis EventBus & Cache
+Documentation=https://redis.io/
+After=network.target
+
+[Service]
+Type=notify
+User=quantum-redis
+Group=quantum-redis
+WorkingDirectory=/var/lib/quantum/redis
+
+ExecStart=/usr/bin/redis-server /etc/quantum/redis.conf
+
+# Resource limits
+MemoryHigh=480M
+MemoryMax=512M
+CPUQuota=50%
+TasksMax=128
+
+# Restart policy
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-redis
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/quantum/redis /run/quantum
+ProtectHome=true
+
+[Install]
+WantedBy=quantum-trader.target

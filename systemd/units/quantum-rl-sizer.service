@@ -1,0 +1,44 @@
+[Unit]
+Description=Quantum Trader - RL Position Sizing Agent (Model Server)
+After=network.target quantum-redis.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-rl-sizer
+Group=quantum-rl-sizer
+WorkingDirectory=/opt/quantum
+
+EnvironmentFile=/etc/quantum/rl-sizer.env
+
+ExecStart=/opt/quantum/venvs/rl-sizer/bin/python -m \
+    microservices.rl_sizing_agent.pnl_feedback_listener
+
+# Resource limits (MODEL SERVER - MEDIUM)
+MemoryHigh=350M
+MemoryMax=384M
+CPUQuota=100%
+TasksMax=128
+
+# Restart policy
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-rl-sizer
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

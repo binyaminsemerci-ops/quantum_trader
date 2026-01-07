@@ -1,0 +1,46 @@
+[Unit]
+Description=Quantum Trader - Execution Service (AI Client)
+After=network.target quantum-redis.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-execution
+Group=quantum-execution
+WorkingDirectory=/opt/quantum
+
+EnvironmentFile=/etc/quantum/execution.env
+
+ExecStart=/opt/quantum/venvs/execution/bin/python -m uvicorn \
+    microservices.execution.main:app \
+    --host 127.0.0.1 \
+    --port 8002
+
+# Resource limits
+MemoryHigh=900M
+MemoryMax=1024M
+CPUQuota=100%
+TasksMax=128
+
+# Restart policy
+Restart=always
+RestartSec=10s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-execution
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

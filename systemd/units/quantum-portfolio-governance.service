@@ -1,0 +1,39 @@
+[Unit]
+Description=Quantum Trader - Portfolio Governance (AI Client)
+After=network.target quantum-redis.service quantum-ai-engine.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-portfolio-governance
+Group=quantum-portfolio-governance
+WorkingDirectory=/opt/quantum/microservices/portfolio_governance
+
+EnvironmentFile=/etc/quantum/portfolio-governance.env
+
+ExecStart=/opt/quantum/venvs/portfolio-governance/bin/python main.py
+
+MemoryHigh=100M
+MemoryMax=128M
+CPUQuota=20%
+TasksMax=64
+
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-portfolio-governance
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

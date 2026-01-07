@@ -1,0 +1,46 @@
+[Unit]
+Description=Quantum Trader - CEO Brain (AI Client)
+After=network.target quantum-redis.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-ceo-brain
+Group=quantum-ceo-brain
+WorkingDirectory=/opt/quantum
+
+EnvironmentFile=/etc/quantum/ceo-brain.env
+
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python -m uvicorn \
+    backend.ai_orchestrator.service:app \
+    --host 127.0.0.1 \
+    --port 8010
+
+# Resource limits
+MemoryHigh=230M
+MemoryMax=256M
+CPUQuota=20%
+TasksMax=64
+
+# Restart policy
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-ceo-brain
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

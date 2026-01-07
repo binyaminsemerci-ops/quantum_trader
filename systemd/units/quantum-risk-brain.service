@@ -1,0 +1,45 @@
+[Unit]
+Description=Quantum Trader - Risk Brain (AI Client)
+After=network.target
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-risk-brain
+Group=quantum-risk-brain
+WorkingDirectory=/opt/quantum
+
+EnvironmentFile=/etc/quantum/risk-brain.env
+
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python -m uvicorn \
+    backend.risk_brain.service:app \
+    --host 127.0.0.1 \
+    --port 8012
+
+# Resource limits
+MemoryHigh=100M
+MemoryMax=128M
+CPUQuota=10%
+TasksMax=64
+
+# Restart policy
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-risk-brain
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

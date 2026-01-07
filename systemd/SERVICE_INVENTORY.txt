@@ -1,0 +1,36 @@
+# COMPLETE SERVICE INVENTORY
+# Extracted from docker-compose.vps.yml
+# Total: 32 services
+
+1. redis - INFRA - deps: none
+2. cross-exchange - AI-CLIENT - deps: redis
+3. ai-engine - MODEL-SERVER - deps: redis, cross-exchange, ceo-brain, strategy-brain, risk-brain
+4. market-publisher - INFRA - deps: redis
+5. exposure-balancer - AI-CLIENT - deps: redis, ai-engine
+6. portfolio-governance - AI-CLIENT - deps: redis, ai-engine
+7. meta-regime - AI-CLIENT - deps: redis, cross-exchange
+8. portfolio-intelligence - AI-CLIENT - deps: redis
+9. strategic-memory - AI-CLIENT - deps: redis
+10. strategic-evolution - AI-CLIENT - deps: redis, ai-engine
+11. position-monitor - AI-CLIENT - deps: redis
+12. trade-intent-consumer - AI-CLIENT - deps: redis
+13. ceo-brain - AI-CLIENT - deps: redis
+14. strategy-brain - AI-CLIENT - deps: none
+15. risk-brain - AI-CLIENT - deps: none
+16. model-federation - AI-CLIENT - deps: redis, ai-engine
+17. frontend - INFRA - deps: ai-engine
+18. retraining-worker - AI-CLIENT - deps: redis, ai-engine
+19. universe-os - AI-CLIENT - deps: redis
+20. pil - AI-CLIENT - deps: redis
+21. model-supervisor - AI-CLIENT - deps: redis, ai-engine
+22. rl-sizer - MODEL-SERVER - deps: redis
+23. strategy-ops - MODEL-SERVER - deps: redis
+24. rl-feedback-v2 - AI-CLIENT - deps: redis, strategy-ops
+25. rl-monitor - AI-CLIENT - deps: redis
+26. binance-pnl-tracker - AI-CLIENT - deps: redis
+27. nginx-proxy - INFRA - deps: rl-dashboard
+28. rl-dashboard - INFRA - deps: redis
+29. quantumfond-frontend - INFRA - deps: none
+30. risk-safety - AI-CLIENT - deps: redis (from docker-compose.services.yml)
+31. execution - AI-CLIENT - deps: redis (from docker-compose.services.yml)
+32. clm - AI-CLIENT - deps: redis (optional, not in vps but in main)

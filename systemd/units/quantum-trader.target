@@ -1,0 +1,32 @@
+[Unit]
+Description=Quantum Trader - All Services Target
+Requires=quantum-redis.service
+Wants=quantum-ai-engine.service \
+      quantum-rl-sizer.service \
+      quantum-strategy-ops.service \
+      quantum-cross-exchange.service \
+      quantum-market-publisher.service \
+      quantum-exposure-balancer.service \
+      quantum-portfolio-governance.service \
+      quantum-meta-regime.service \
+      quantum-portfolio-intelligence.service \
+      quantum-strategic-memory.service \
+      quantum-strategic-evolution.service \
+      quantum-position-monitor.service \
+      quantum-trade-intent-consumer.service \
+      quantum-ceo-brain.service \
+      quantum-strategy-brain.service \
+      quantum-risk-brain.service \
+      quantum-model-federation.service \
+      quantum-retraining-worker.service \
+      quantum-universe-os.service \
+      quantum-pil.service \
+      quantum-model-supervisor.service \
+      quantum-rl-feedback-v2.service \
+      quantum-rl-monitor.service \
+      quantum-binance-pnl-tracker.service \
+      quantum-risk-safety.service \
+      quantum-execution.service
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,43 @@
+[Unit]
+Description=Quantum Trader - Cross-Exchange Data Collector (AI Client)
+After=network.target quantum-redis.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-cross-exchange
+Group=quantum-cross-exchange
+WorkingDirectory=/opt/quantum/microservices/data_collector
+
+EnvironmentFile=/etc/quantum/cross-exchange.env
+
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python main.py
+
+# Resource limits (AI CLIENT)
+MemoryHigh=230M
+MemoryMax=256M
+CPUQuota=30%
+TasksMax=64
+
+# Restart policy
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-cross-exchange
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target
