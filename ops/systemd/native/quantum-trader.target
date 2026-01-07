@@ -1,0 +1,7 @@
+[Unit]
+Description=Quantum Trader - Full System (native)
+Wants=quantum-core.target quantum-ai.target quantum-exec.target
+After=network.target
+
+[Install]
+WantedBy=multi-user.target
