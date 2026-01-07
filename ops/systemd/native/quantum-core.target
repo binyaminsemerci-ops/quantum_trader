@@ -1,0 +1,7 @@
+[Unit]
+Description=Quantum Core (native redis)
+Requires=redis-server.service
+After=redis-server.service
+
+[Install]
+WantedBy=quantum-trader.target

@@ -117,6 +117,9 @@ class ExecutionService:
         self.positions: Dict[str, Dict] = {}  # symbol -> position_data
         self.order_counter = 1
         
+        # [GOVERNOR GATE] Redis client for kill switch and governor checks
+        self.redis_client: Optional[Any] = None
+        
         # [EXIT BRAIN V3] Initialize Exit Router for exit strategy orchestration
         self.exit_router = None
         self.exit_brain_enabled = os.getenv("EXIT_BRAIN_V3_ENABLED", "true").lower() == "true"
@@ -185,6 +188,10 @@ class ExecutionService:
             )
             await self.event_bus.initialize()
             logger.info("[EXECUTION-V2] ✅ EventBus connected")
+            
+            # [GOVERNOR GATE] Store Redis client for governor checks
+            self.redis_client = redis_client
+            logger.info("[EXECUTION-V2] ✅ Governor Gate enabled - will check quantum:kill before each order")
             
             # 2. Initialize RiskStub
             logger.info("[EXECUTION-V2] Initializing RiskStub...")
@@ -331,10 +338,55 @@ class ExecutionService:
             
             logger.info(f"[EXECUTION-V2] {trade_id} - ✅ Risk check passed")
             
-            # 2. Rate limiting
+            # 2. Governor Gate - Check kill switch BEFORE execution
+            try:
+                kill_switch = await self.redis_client.get("quantum:kill")
+                mode = await self.redis_client.get("quantum:mode")
+                governor_enabled = await self.redis_client.get("quantum:governor:execution")
+                
+                # Convert to int/str with defaults
+                kill_switch = int(kill_switch) if kill_switch else 0
+                mode = str(mode) if mode else "UNKNOWN"
+                governor_enabled = str(governor_enabled) if governor_enabled else "DISABLED"
+                
+                logger.info(f"[GOVERNOR] Checking... kill={kill_switch}, mode={mode}, enabled={governor_enabled}")
+                
+                if governor_enabled.upper() == "ENABLED" and kill_switch == 1:
+                    logger.warning(
+                        f"[GOVERNOR] 🛑 BLOCKED {trade_id} - quantum:kill=1 (KILL MODE)"
+                    )
+                    await self._publish_execution_result({
+                        "trade_id": trade_id,
+                        "status": "BLOCKED",
+                        "reason": "Governor kill switch active (quantum:kill=1)",
+                        "signal": signal.dict(),
+                        "governor_status": {
+                            "kill": kill_switch,
+                            "mode": mode,
+                            "enabled": governor_enabled
+                        },
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    return
+                
+                logger.info(f"[GOVERNOR] ✅ PASSED {trade_id} - kill={kill_switch}, mode={mode}")
+                
+            except Exception as gov_error:
+                # Fail-safe: if governor check fails, BLOCK execution
+                logger.error(f"[GOVERNOR] ❌ CHECK FAILED for {trade_id}: {gov_error}", exc_info=True)
+                await self._publish_execution_result({
+                    "trade_id": trade_id,
+                    "status": "BLOCKED",
+                    "reason": f"Governor check failed: {gov_error}",
+                    "signal": signal.dict(),
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                return
+            
+            # 3. Rate limiting
             await self.rate_limiter.acquire()
             
-            # 3. Calculate quantity
+            # 4. Calculate quantity
             # For futures: quantity = position_size_usd / entry_price
             quantity = signal.position_size_usd / signal.entry_price
             
@@ -345,7 +397,7 @@ class ExecutionService:
                 f"{quantity:.6f} @ ~{signal.entry_price} (leverage: {signal.leverage}x)"
             )
             
-            # 4. Execute order
+            # 5. Execute order
             order_result = await self.binance.place_market_order(
                 symbol=signal.symbol,
                 side=signal.side.upper(),
@@ -353,7 +405,7 @@ class ExecutionService:
                 leverage=signal.leverage or 1
             )
             
-            # 5. Store trade
+            # 6. Store trade
             trade_data = {
                 "trade_id": trade_id,
                 "order_id": order_result["order_id"],
@@ -372,7 +424,7 @@ class ExecutionService:
             
             self.trades[trade_id] = trade_data
             
-            # 6. Update position tracking and create exit plan
+            # 7. Update position tracking and create exit plan
             # Note: For testnet, order_result["price"] may be 0, so use signal.entry_price as fallback
             actual_price = order_result["price"] if order_result["price"] and order_result["price"] > 0 else signal.entry_price
             order_is_filled = order_result["status"] in ["FILLED", "NEW", "PARTIALLY_FILLED"] and order_result["order_id"]

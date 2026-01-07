@@ -1,0 +1,8 @@
+[Unit]
+Description=Quantum AI Layer (native)
+Requires=quantum-core.target
+After=quantum-core.target
+Wants=quantum-ai-engine.service
+
+[Install]
+WantedBy=quantum-trader.target

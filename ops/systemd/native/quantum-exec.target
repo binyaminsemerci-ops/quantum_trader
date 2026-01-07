@@ -1,0 +1,8 @@
+[Unit]
+Description=Quantum Execution Layer (native with governor)
+Requires=quantum-core.target quantum-ai.target
+After=quantum-core.target quantum-ai.target
+Wants=quantum-execution.service
+
+[Install]
+WantedBy=quantum-trader.target
