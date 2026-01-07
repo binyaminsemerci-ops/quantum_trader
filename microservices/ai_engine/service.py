@@ -8,12 +8,14 @@ Orchestrates AI inference pipeline:
 4. Signal + Strategy → RL Position Sizing → Size + Leverage
 5. Publish ai.decision.made event → execution-service
 """
+import time
 import asyncio
 import logging
 import httpx
 import numpy as np
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime, timezone
+from collections import deque, defaultdict
 import sys
 import os
 
@@ -87,6 +89,12 @@ class AIEngineService:
         
         # AI modules (lazy-loaded)
         self.ensemble_manager = None
+        
+        # 🔥 RATE LIMITING STATE
+        self.signal_times = deque(maxlen=20)  # Last 20 signal timestamps
+        self.last_signal_by_symbol = defaultdict(float)  # symbol -> timestamp
+        self.max_signals_per_min = int(os.getenv("MAX_SIGNALS_PER_MINUTE", "6"))
+        self.symbol_cooldown_sec = int(os.getenv("SYMBOL_COOLDOWN_SECONDS", "120"))
         self.meta_strategy_selector = None
         self.rl_sizing_agent = None
         self.regime_detector = None
@@ -1425,7 +1433,7 @@ class AIEngineService:
                 consensus = 1
             else:
                 model_votes = votes_info.get("votes", {})
-                consensus = votes_info.get("consensus", 0)
+                consensus = votes_info.get("consensus_count", 0)  # FIX: int not str
             
             # 🔥 PHASE 1: Apply RL Signal Manager Confidence Calibration
             if self.rl_signal_manager and not fallback_triggered:
@@ -1665,6 +1673,13 @@ class AIEngineService:
                 # 🔥 PHASE 3A: Apply risk multiplier
                 original_size = position_size_usd
                 position_size_usd = position_size_usd * risk_multiplier
+            # 🔥 TESTNET SIZING: Cap position size
+            if os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true":
+                original_size = position_size_usd
+                position_size_usd = min(position_size_usd, 10.0)  # Max 0 on testnet
+                if position_size_usd != original_size:
+                    logger.info(f"[TESTNET] Capped position:  → ")
+            
                 if risk_multiplier != 1.0:
                     logger.info(f"[PHASE 3A] Risk-adjusted position: ${original_size:.0f} → ${position_size_usd:.0f} "
                               f"(multiplier={risk_multiplier:.2f}x, mode={risk_signal.mode.value if risk_signal else 'N/A'})")
@@ -1772,6 +1787,10 @@ class AIEngineService:
             consensus_count = votes_info.get("consensus_count", 0) if not fallback_triggered else 1
             model_breakdown = votes_info.get("models", {}) if not fallback_triggered else {"fallback": {"action": action, "confidence": ensemble_confidence}}
             
+                        # TESTNET SIZING: Cap position size
+            if os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true":
+                position_size_usd = min(position_size_usd, 10.0)
+            
             trade_intent_payload = {
                 "symbol": symbol,
                 "side": action.upper(),
@@ -1795,6 +1814,35 @@ class AIEngineService:
                 "funding_rate": features.get("funding_rate", 0.0),
                 "regime": regime.value if regime != MarketRegime.UNKNOWN else "unknown"
             }
+            # 🔥 RATE LIMITING: Global + Per-Symbol
+            now = time.time()
+            symbol = trade_intent_payload.get("symbol", "UNKNOWN")
+            confidence = trade_intent_payload.get("confidence", 0)
+            min_confidence = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.75"))
+            
+            # Filter 1: Confidence threshold
+            if confidence < min_confidence:
+                logger.debug(f"[RATE-LIMIT] ⛔ {symbol} skipped: confidence {confidence:.2f} < {min_confidence}")
+                return None
+            
+            # Filter 2: Per-symbol cooldown
+            last_time = self.last_signal_by_symbol.get(symbol, 0)
+            if now - last_time < self.symbol_cooldown_sec:
+                wait_sec = int(self.symbol_cooldown_sec - (now - last_time))
+                logger.debug(f"[RATE-LIMIT] ⛔ {symbol} skipped: cooldown ({wait_sec}s remaining)")
+                return None
+            
+            # Filter 3: Global rate limit (sliding window - last 60 seconds)
+            self.signal_times = deque([t for t in self.signal_times if now - t < 60], maxlen=20)
+            if len(self.signal_times) >= self.max_signals_per_min:
+                logger.debug(f"[RATE-LIMIT] ⛔ {symbol} skipped: global limit ({len(self.signal_times)}/{self.max_signals_per_min})")
+                return None
+            
+            # ALLOWED - record signal
+            self.signal_times.append(now)
+            self.last_signal_by_symbol[symbol] = now
+            logger.info(f"[RATE-LIMIT] ✅ {symbol} allowed (confidence={confidence:.2f}, rate={len(self.signal_times)}/min)")
+            
             print(f"[DEBUG] About to publish trade.intent: {trade_intent_payload}")
             await self.event_bus.publish("trade.intent", trade_intent_payload)
             print(f"[DEBUG] trade.intent published to Redis!")
