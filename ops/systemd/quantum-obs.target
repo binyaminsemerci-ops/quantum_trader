@@ -1,0 +1,7 @@
+[Unit]
+Description=Observability and logging
+Requires=quantum-core.target
+After=quantum-core.target
+
+[Install]
+WantedBy=quantum-trader.target

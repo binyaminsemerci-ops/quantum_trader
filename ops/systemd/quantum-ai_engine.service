@@ -1,0 +1,18 @@
+[Unit]
+Description=AI signal generation engine with multi-model ensemble
+Requires=quantum-core.target quantum-state.target
+After=quantum-core.target quantum-state.target
+
+[Service]
+Type=simple
+User=qt
+WorkingDirectory=/home/qt/quantum_trader
+EnvironmentFile=/etc/quantum/ai_engine.env
+ExecStart=/home/qt/.local/bin/uv run python microservices/ai_engine/main.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=quantum-ai.target

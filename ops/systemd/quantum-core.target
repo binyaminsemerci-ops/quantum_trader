@@ -1,0 +1,7 @@
+[Unit]
+Description=Core infrastructure (Redis, market data)
+
+
+
+[Install]
+WantedBy=quantum-trader.target

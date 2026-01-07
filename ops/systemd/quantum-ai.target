@@ -1,0 +1,7 @@
+[Unit]
+Description=AI and RL components
+Requires=quantum-state.target
+After=quantum-state.target
+
+[Install]
+WantedBy=quantum-trader.target

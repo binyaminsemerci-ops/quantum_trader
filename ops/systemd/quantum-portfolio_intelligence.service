@@ -1,0 +1,18 @@
+[Unit]
+Description=Portfolio analytics
+Requires=quantum-core.target
+After=quantum-core.target
+
+[Service]
+Type=simple
+User=qt
+WorkingDirectory=/home/qt/quantum_trader
+EnvironmentFile=/etc/quantum/portfolio_intelligence.env
+ExecStart=/home/qt/.local/bin/uv run python microservices/portfolio_intelligence/main.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=quantum-state.target
