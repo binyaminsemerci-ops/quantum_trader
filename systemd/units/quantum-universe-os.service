@@ -1,0 +1,42 @@
+[Unit]
+Description=Quantum Trader - Universe OS (AI Client)
+After=network.target quantum-redis.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-universe-os
+Group=quantum-universe-os
+WorkingDirectory=/opt/quantum
+
+EnvironmentFile=/etc/quantum/universe-os.env
+
+ExecStart=/opt/quantum/venvs/universe-os/bin/python -m uvicorn \
+    backend.services.universe_os:app \
+    --host 127.0.0.1 \
+    --port 8006
+
+MemoryHigh=230M
+MemoryMax=256M
+CPUQuota=50%
+TasksMax=64
+
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-universe-os
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

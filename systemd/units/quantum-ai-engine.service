@@ -1,0 +1,48 @@
+[Unit]
+Description=Quantum Trader - AI Engine (Model Server)
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+After=network.target quantum-redis.service quantum-ceo-brain.service quantum-strategy-brain.service quantum-risk-brain.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-ai-engine
+Group=quantum-ai-engine
+WorkingDirectory=/opt/quantum
+
+EnvironmentFile=/etc/quantum/ai-engine.env
+
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python -m uvicorn \
+    microservices.ai_engine.main:app \
+    --host 127.0.0.1 \
+    --port 8001 \
+    --log-level info
+
+# Resource limits (MODEL SERVER - HEAVY)
+MemoryHigh=1800M
+MemoryMax=2048M
+CPUQuota=200%
+TasksMax=256
+
+# Restart policy
+Restart=always
+RestartSec=10s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-ai-engine
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

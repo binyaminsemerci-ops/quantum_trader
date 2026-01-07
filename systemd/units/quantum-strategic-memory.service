@@ -1,0 +1,39 @@
+[Unit]
+Description=Quantum Trader - Strategic Memory (AI Client)
+After=network.target quantum-redis.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-strategic-memory
+Group=quantum-strategic-memory
+WorkingDirectory=/opt/quantum/microservices/strategic_memory
+
+EnvironmentFile=/etc/quantum/strategic-memory.env
+
+ExecStart=/opt/quantum/venvs/strategic-memory/bin/python main.py
+
+MemoryHigh=230M
+MemoryMax=256M
+CPUQuota=30%
+TasksMax=64
+
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-strategic-memory
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

@@ -1,0 +1,42 @@
+[Unit]
+Description=Quantum Trader - Portfolio Intelligence (AI Client)
+After=network.target quantum-redis.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-portfolio-intelligence
+Group=quantum-portfolio-intelligence
+WorkingDirectory=/opt/quantum
+
+EnvironmentFile=/etc/quantum/portfolio-intelligence.env
+
+ExecStart=/opt/quantum/venvs/portfolio-intelligence/bin/python -m uvicorn \
+    microservices.portfolio_intelligence.main:app \
+    --host 127.0.0.1 \
+    --port 8004
+
+MemoryHigh=230M
+MemoryMax=256M
+CPUQuota=50%
+TasksMax=64
+
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-portfolio-intelligence
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

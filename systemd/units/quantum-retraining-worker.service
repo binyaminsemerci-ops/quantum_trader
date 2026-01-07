@@ -1,0 +1,39 @@
+[Unit]
+Description=Quantum Trader - Retraining Worker (AI Client)
+After=network.target quantum-redis.service quantum-ai-engine.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-retraining-worker
+Group=quantum-retraining-worker
+WorkingDirectory=/opt/quantum/microservices/training_worker
+
+EnvironmentFile=/etc/quantum/retraining-worker.env
+
+ExecStart=/opt/quantum/venvs/retraining-worker/bin/python main.py
+
+MemoryHigh=480M
+MemoryMax=512M
+CPUQuota=100%
+TasksMax=128
+
+Restart=always
+RestartSec=10s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-retraining-worker
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum /opt/quantum/models
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

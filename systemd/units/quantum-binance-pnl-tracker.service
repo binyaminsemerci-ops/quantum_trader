@@ -1,0 +1,39 @@
+[Unit]
+Description=Quantum Trader - Binance PnL Tracker (AI Client)
+After=network.target quantum-redis.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-binance-pnl-tracker
+Group=quantum-binance-pnl-tracker
+WorkingDirectory=/opt/quantum
+
+EnvironmentFile=/etc/quantum/binance-pnl-tracker.env
+
+ExecStart=/opt/quantum/venvs/binance-pnl-tracker/bin/python pnl_tracker_runner.py
+
+MemoryHigh=230M
+MemoryMax=256M
+CPUQuota=30%
+TasksMax=64
+
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-binance-pnl-tracker
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

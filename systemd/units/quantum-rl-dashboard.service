@@ -1,0 +1,38 @@
+[Unit]
+Description=Quantum Trader - RL Dashboard (Infrastructure)
+After=network.target quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-rl-dashboard
+Group=quantum-rl-dashboard
+WorkingDirectory=/opt/quantum/rl_dashboard
+
+EnvironmentFile=/etc/quantum/rl-dashboard.env
+
+ExecStart=/opt/quantum/venvs/rl-dashboard/bin/python app.py
+
+MemoryHigh=230M
+MemoryMax=256M
+CPUQuota=50%
+TasksMax=64
+
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-rl-dashboard
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

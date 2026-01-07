@@ -1,0 +1,40 @@
+[Unit]
+Description=Quantum Trader - Position Monitor (AI Client)
+After=network.target quantum-redis.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-position-monitor
+Group=quantum-position-monitor
+WorkingDirectory=/opt/quantum
+
+EnvironmentFile=/etc/quantum/position-monitor.env
+
+ExecStart=/opt/quantum/venvs/position-monitor/bin/python \
+    microservices/position_monitor/main.py
+
+MemoryHigh=230M
+MemoryMax=256M
+CPUQuota=30%
+TasksMax=64
+
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-position-monitor
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

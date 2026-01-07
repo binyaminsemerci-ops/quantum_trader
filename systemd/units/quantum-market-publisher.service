@@ -1,0 +1,43 @@
+[Unit]
+Description=Quantum Trader - Market Data Publisher (INFRA)
+After=network.target quantum-redis.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-market-publisher
+Group=quantum-market-publisher
+WorkingDirectory=/opt/quantum
+
+EnvironmentFile=/etc/quantum/market-publisher.env
+
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python simple_market_publisher.py
+
+# Resource limits
+MemoryHigh=230M
+MemoryMax=256M
+CPUQuota=30%
+TasksMax=64
+
+# Restart policy
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-market-publisher
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target

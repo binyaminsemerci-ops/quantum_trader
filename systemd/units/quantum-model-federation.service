@@ -1,0 +1,39 @@
+[Unit]
+Description=Quantum Trader - Model Federation (AI Client)
+After=network.target quantum-redis.service quantum-ai-engine.service
+Requires=quantum-redis.service
+PartOf=quantum-trader.target
+
+[Service]
+Type=simple
+User=quantum-model-federation
+Group=quantum-model-federation
+WorkingDirectory=/opt/quantum/microservices/model_federation
+
+EnvironmentFile=/etc/quantum/model-federation.env
+
+ExecStart=/opt/quantum/venvs/model-federation/bin/python main.py
+
+MemoryHigh=170M
+MemoryMax=192M
+CPUQuota=30%
+TasksMax=64
+
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-model-federation
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/quantum /var/log/quantum
+ReadOnlyPaths=/opt/quantum
+
+[Install]
+WantedBy=quantum-trader.target
