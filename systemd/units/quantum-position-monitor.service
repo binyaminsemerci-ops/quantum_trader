@@ -22,7 +22,6 @@ TasksMax=64
 
 Restart=always
 RestartSec=5s
-StartLimitIntervalSec=300
 StartLimitBurst=5
 
 StandardOutput=journal
