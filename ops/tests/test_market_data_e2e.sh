@@ -25,8 +25,8 @@ check "service is active" systemctl is-active --quiet "$SERVICE"
 
 check "redis ping" bash -c 'redis-cli PING | grep -q PONG'
 
-tick_before=$(redis-cli XLEN "$STREAM_TICK" || echo 0)
-kline_before=$(redis-cli XLEN "$STREAM_KLINES" || echo 0)
+tick_before=$(redis-cli XLEN "$STREAM_TICK" 2>/dev/null || echo 0)
+kline_before=$(redis-cli XLEN "$STREAM_KLINES" 2>/dev/null || echo 0)
 log "Before: tick=$tick_before klines=$kline_before"
 echo
 
