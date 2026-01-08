@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Set PATH for non-interactive execution (systemd oneshot)
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 SERVICE="quantum-ai-engine.service"
 STREAM_INTENT="quantum:stream:trade.intent"
 TIMEOUT=60
@@ -58,25 +61,64 @@ check "wait for trade.intent to increase within ${TIMEOUT}s" bash -c "
   exit 1
 "
 
-# Verify last event is NOT from manual/ops test
-log "Last trade.intent event:"
-last_event=$(redis-cli XREVRANGE "$STREAM_INTENT" + - COUNT 1)
-echo "$last_event"
+# Verify last event is real signal (fail-closed parsing)
+log "Last trade.intent event (raw):"
+last_raw=$(redis-cli XREVRANGE "$STREAM_INTENT" + - COUNT 1)
+echo "$last_raw"
 echo
 
-check "verify event source is NOT manual/ops test" bash -c "
-  source=\$(redis-cli XREVRANGE $STREAM_INTENT + - COUNT 1 | grep -oP 'source \K[^ ]+' || echo 'unknown')
-  confidence=\$(redis-cli XREVRANGE $STREAM_INTENT + - COUNT 1 | grep -oP 'confidence \K[^ ]+' || echo '0')
-  
-  echo \"Event source: \$source, confidence: \$confidence\"
-  
-  if [[ \$source == *manual* ]] || [[ \$source == *ops-test* ]] || [[ \$source == *inject* ]]; then
-    echo \"⚠️  Event source is manual/test (\$source)\"
-    exit 1
-  fi
-  
-  exit 0
-"
+log "Parsing source and confidence..."
+
+# Extract source field - it's on the line AFTER "source" line
+src=$(echo "$last_raw" | grep -A1 "^source$" | tail -1 | tr -d '[:space:]')
+
+# Extract payload field - it's on the line AFTER "payload" line
+payload=$(echo "$last_raw" | grep -A1 "^payload$" | tail -1)
+
+# FAIL if source missing (fail-closed)
+if [[ -z "$src" ]]; then
+  log "❌ FAIL: source field missing in stream entry"
+  log "❌ SOME TESTS FAILED"
+  exit 1
+fi
+
+log "Source: $src"
+
+# FAIL if payload missing (fail-closed)
+if [[ -z "$payload" ]]; then
+  log "❌ FAIL: payload field missing in stream entry"
+  log "❌ SOME TESTS FAILED"
+  exit 1
+fi
+
+# FAIL if source is manual/ops-test (block known non-real sources)
+if echo "$src" | grep -Eq '^(manual-inject|ops-test|inject)$'; then
+  log "❌ FAIL: non-real source detected: $src"
+  log "❌ SOME TESTS FAILED"
+  exit 1
+fi
+
+# Parse confidence from JSON payload (fail-closed)
+conf=$(echo "$payload" | python3 -c 'import json,sys; obj=json.loads(sys.stdin.read()); print(obj.get("confidence", ""))')
+
+# FAIL if confidence parsing failed (fail-closed)
+if [[ -z "$conf" ]]; then
+  log "❌ FAIL: could not parse confidence from payload"
+  log "❌ SOME TESTS FAILED"
+  exit 1
+fi
+
+log "Confidence: $conf"
+
+# Validate confidence > 0
+if ! python3 -c "conf=float('$conf'); assert conf > 0.0, 'confidence must be > 0'; print('✅ Confidence OK:', conf)"; then
+  log "❌ FAIL: confidence must be > 0, got: $conf"
+  log "❌ SOME TESTS FAILED"
+  exit 1
+fi
+
+log "✅ PASS: real signal detected (source=$src, confidence=$conf)"
+echo
 
 log "Latest AI Engine HEALTH:"
 journalctl -u "$SERVICE" --since "5 minutes ago" --no-pager | grep -E "HEALTH|signals_generated|drift_passed" | tail -5 || true
