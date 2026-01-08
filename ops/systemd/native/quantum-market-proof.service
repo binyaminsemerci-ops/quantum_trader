@@ -6,6 +6,8 @@ Wants=redis-server.service quantum-market-publisher.service
 [Service]
 Type=oneshot
 RemainAfterExit=no
+StandardOutput=journal
+StandardError=journal
 WorkingDirectory=/home/qt/quantum_trader
 ExecStartPre=/bin/systemctl is-active --quiet quantum-market-publisher.service
 ExecStart=/bin/bash /home/qt/quantum_trader/ops/tests/test_market_data_e2e.sh
