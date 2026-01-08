@@ -402,7 +402,8 @@ class ExecutionService:
                 symbol=signal.symbol,
                 side=signal.side.upper(),
                 quantity=quantity,
-                leverage=signal.leverage or 1
+                leverage=signal.leverage or 1,
+                entry_price=signal.entry_price
             )
             
             # 6. Store trade
