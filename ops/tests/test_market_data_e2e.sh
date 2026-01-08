@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Set PATH for non-interactive execution (systemd oneshot)
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 SERVICE="quantum-market-publisher.service"
 STREAM_TICK="quantum:stream:market.tick"
 STREAM_KLINES="quantum:stream:market.klines"
