@@ -156,10 +156,14 @@ class BinanceAdapter:
         symbol: str,
         side: str,  # BUY/SELL
         quantity: float,
-        leverage: int = 1
+        leverage: int = 1,
+        entry_price: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Place market order.
+        
+        Args:
+            entry_price: Expected entry price from signal (used in PAPER mode)
         
         Returns:
             {
@@ -173,7 +177,7 @@ class BinanceAdapter:
             }
         """
         if self.mode == ExecutionMode.PAPER:
-            return await self._paper_market_order(symbol, side, quantity, leverage)
+            return await self._paper_market_order(symbol, side, quantity, leverage, entry_price)
         
         # Real Binance API call
         try:
@@ -233,15 +237,20 @@ class BinanceAdapter:
         symbol: str,
         side: str,
         quantity: float,
-        leverage: int
+        leverage: int,
+        entry_price: Optional[float] = None
     ) -> Dict[str, Any]:
         """Simulated market order execution"""
         order_id = f"PAPER_{self.paper_order_id}"
         self.paper_order_id += 1
         
-        # Simulate price (would need price feed in real implementation)
-        # For now, use placeholder
-        simulated_price = 50000.0 if "BTC" in symbol else 3000.0
+        # Use entry_price from signal if available, else placeholder
+        if entry_price and entry_price > 0:
+            simulated_price = entry_price
+            price_source = "entry_price"
+        else:
+            simulated_price = 50000.0 if "BTC" in symbol else 3000.0
+            price_source = "placeholder"
         
         order = {
             "order_id": order_id,
@@ -259,7 +268,7 @@ class BinanceAdapter:
         
         logger.info(
             f"[BINANCE-ADAPTER] PAPER ORDER: {symbol} {side} {quantity} @ {simulated_price} "
-            f"(leverage: {leverage}x)"
+            f"(leverage: {leverage}x, price_source={price_source})"
         )
         
         return order

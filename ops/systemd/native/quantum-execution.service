@@ -1,22 +1,33 @@
 [Unit]
-Description=Quantum Trader - Execution (native with governor protection)
-After=network.target redis-server.service quantum-ai-engine.service
-Requires=redis-server.service
+Description=Quantum Trader Execution Service
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+After=quantum-core.target quantum-ai.target
 PartOf=quantum-exec.target
+Requires=redis-server.service
 
 [Service]
 Type=simple
-User=qt
-Group=qt
+User=root
 WorkingDirectory=/home/qt/quantum_trader
-EnvironmentFile=-/etc/quantum/execution.env
 Environment="PYTHONPATH=/home/qt/quantum_trader"
+EnvironmentFile=/etc/quantum/execution.env
+ExecStart=/opt/quantum/venvs/execution/bin/uvicorn microservices.execution.service_v2:app --host 0.0.0.0 --port 8003 --log-level info
 
-# Using main_v2.py with Governor Gate
-ExecStart=/opt/quantum/venvs/execution/bin/python -m uvicorn microservices.execution.main_v2:app --host 127.0.0.1 --port 8003
-
+# Restart policy
 Restart=always
-RestartSec=5
+RestartSec=2
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+# Resource limits
+MemoryMax=1G
+MemoryHigh=900M
+
+# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=quantum-execution

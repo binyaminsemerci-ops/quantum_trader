@@ -1,21 +1,33 @@
 [Unit]
-Description=Quantum Trader - AI Engine (native uvicorn)
-After=network.target redis-server.service
-Requires=redis-server.service
+Description=Quantum Trader AI Engine Service
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+After=quantum-core.target
 PartOf=quantum-ai.target
+Requires=redis-server.service
 
 [Service]
 Type=simple
-User=qt
-Group=qt
+User=root
 WorkingDirectory=/home/qt/quantum_trader
-EnvironmentFile=-/etc/quantum/ai-engine.env
 Environment="PYTHONPATH=/home/qt/quantum_trader"
+EnvironmentFile=/etc/quantum/ai-engine.env
+ExecStart=/opt/quantum/venvs/ai-engine/bin/uvicorn microservices.ai_engine.service:app --host 0.0.0.0 --port 8001 --log-level info
 
-ExecStart=/opt/quantum/venvs/ai-engine/bin/python -m uvicorn microservices.ai_engine.main:app --host 127.0.0.1 --port 8001
-
+# Restart policy
 Restart=always
-RestartSec=5
+RestartSec=2
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+# Resource limits
+MemoryMax=2G
+MemoryHigh=1.8G
+
+# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=quantum-ai-engine
