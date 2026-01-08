@@ -1,0 +1,18 @@
+[Unit]
+Description=Quantum AI Engine Publish Proof (Real signals test)
+After=redis-server.service quantum-ai-engine.service
+Wants=redis-server.service quantum-ai-engine.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+StandardOutput=journal
+StandardError=journal
+WorkingDirectory=/home/qt/quantum_trader
+ExecStartPre=/bin/systemctl is-active --quiet quantum-ai-engine.service
+ExecStart=/bin/bash /home/qt/quantum_trader/ops/tests/test_ai_engine_publish.sh
+TimeoutStartSec=90
+User=root
+
+[Install]
+WantedBy=multi-user.target
