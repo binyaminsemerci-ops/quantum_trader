@@ -1,0 +1,20 @@
+[Unit]
+Description=Quantum Trader Proof Runner (Governor E2E Test)
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+After=redis-server.service quantum-execution.service
+Wants=redis-server.service quantum-execution.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/qt/quantum_trader
+ExecStart=/bin/bash /home/qt/quantum_trader/ops/tests/test_governor_e2e.sh
+User=root
+Group=root
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+TimeoutStartSec=120
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-proof
+
+[Install]
+WantedBy=multi-user.target

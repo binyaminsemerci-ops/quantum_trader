@@ -351,6 +351,28 @@ class ExecutionService:
                 
                 logger.info(f"[GOVERNOR] Checking... kill={kill_switch}, mode={mode}, enabled={governor_enabled}")
                 
+                # [HARDENING V2] MODE GATE - Fail-closed: only TESTNET allowed
+                # Normalize mode string safely
+                mode_str = str(mode).strip().upper() if mode else "UNKNOWN"
+                
+                if governor_enabled.upper() == "ENABLED" and mode_str != "TESTNET":
+                    logger.warning(
+                        f"[GOVERNOR] 🛑 BLOCKED {trade_id} - quantum:mode={mode_str} (MODE_NOT_TESTNET)"
+                    )
+                    await self._publish_execution_result({
+                        "trade_id": trade_id,
+                        "status": "BLOCKED",
+                        "reason": f"Mode gate: Only TESTNET allowed, got mode={mode_str}",
+                        "signal": signal.dict(),
+                        "governor_status": {
+                            "kill": kill_switch,
+                            "mode": mode_str,
+                            "enabled": governor_enabled
+                        },
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    return
+                
                 if governor_enabled.upper() == "ENABLED" and kill_switch == 1:
                     logger.warning(
                         f"[GOVERNOR] 🛑 BLOCKED {trade_id} - quantum:kill=1 (KILL MODE)"
