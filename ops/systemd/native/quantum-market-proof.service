@@ -1,0 +1,14 @@
+[Unit]
+Description=Quantum Market Data Proof (E2E streams test)
+After=redis-server.service quantum-market-publisher.service
+Wants=redis-server.service quantum-market-publisher.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/qt/quantum_trader
+ExecStart=/bin/bash /home/qt/quantum_trader/ops/tests/test_market_data_e2e.sh
+TimeoutStartSec=120
+User=root
+
+[Install]
+WantedBy=multi-user.target
