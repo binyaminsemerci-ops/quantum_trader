@@ -34,8 +34,8 @@ class Settings(BaseSettings):
     
     # Model paths
     MODELS_DIR: str = "models"
-    XGB_MODEL_PATH: str = "models/xgb_futures_model.joblib"
-    XGB_SCALER_PATH: str = "models/xgb_futures_scaler.joblib"
+    XGB_MODEL_PATH: str = "/opt/quantum/ai_engine/models/xgb_model.pkl"
+    XGB_SCALER_PATH: str = "/opt/quantum/ai_engine/models/scaler.pkl"
     LGBM_MODEL_PATH: str = "models/lgbm_model.txt"
     NHITS_MODEL_PATH: str = "models/nhits_model.pt"
     PATCHTST_MODEL_PATH: str = "models/patchtst_model.pt"
