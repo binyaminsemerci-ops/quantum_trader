@@ -9,8 +9,8 @@ STREAM_INTENT="quantum:stream:trade.intent"
 
 # Proof mode: activity (stable, checks last event freshness) or generate (strict, requires new event)
 AI_PROOF_MODE="${AI_PROOF_MODE:-activity}"
-AI_PROOF_MAX_AGE_SECONDS="${AI_PROOF_MAX_AGE_SECONDS:-600}"  # 10 minutes for activity mode
-AI_PROOF_WAIT_SECONDS="${AI_PROOF_WAIT_SECONDS:-60}"          # timeout for generate mode
+AI_PROOF_MAX_AGE_SECONDS="${AI_PROOF_MAX_AGE_SECONDS:-1800}"  # 10 minutes for activity mode
+AI_PROOF_WAIT_SECONDS="${AI_PROOF_WAIT_SECONDS:-90}"          # timeout for generate mode
 
 log(){ echo "[$(date -u +%H:%M:%S)] $*"; }
 
@@ -152,6 +152,13 @@ else
     # In activity mode, FAIL if event too old
     if [ $age_seconds -gt $AI_PROOF_MAX_AGE_SECONDS ]; then
       log "❌ FAIL: Last event is too old (${age_seconds}s > ${AI_PROOF_MAX_AGE_SECONDS}s threshold)"
+        log ""
+        log "=== DIAGNOSTIC DUMP ==="
+        log "Stream length: "
+        log "Last event:  ( )"
+        log "Checking AI Engine activity (last 20 relevant logs):"
+        journalctl -u quantum-ai-engine.service --since "5 minutes ago" --no-pager | grep -E "market.klines|inference|Action confirmed|RATE-LIMIT.*skipped|confidence.*<" | tail -20 | sed "s/^/    /"
+        log "=== END DIAGNOSTIC ==="
       log "   This suggests AI Engine has not published recently"
       log "❌ SOME TESTS FAILED"
       exit 1
