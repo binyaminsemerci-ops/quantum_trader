@@ -4,6 +4,8 @@ import pickle
 import logging
 import asyncio
 import numpy as np
+import time
+import hashlib
 
 try:
     from backend.utils.twitter_client import TwitterClient
@@ -13,6 +15,10 @@ except ImportError:
     TwitterClient = None
 
 logger = logging.getLogger(__name__)
+
+# Rate limiter for confidence forensics logging
+_last_forensic_log_time = 0
+_FORENSIC_LOG_INTERVAL = 30  # seconds
 
 
 class XGBAgent:
@@ -96,6 +102,14 @@ class XGBAgent:
                 with open(self.model_path, "rb") as f:
                     self.model = pickle.load(f)
                     logger.info("✅ Loaded XGBoost model from %s", os.path.basename(self.model_path))
+                    
+                    # 🔬 FORENSICS: Log model metadata for diagnostics
+                    if hasattr(self.model, 'classes_'):
+                        logger.info(f"[XGB-FORENSIC] Model classes: {self.model.classes_} (n={len(self.model.classes_)})")
+                    elif hasattr(self.model, 'n_classes_'):
+                        logger.info(f"[XGB-FORENSIC] Model n_classes: {self.model.n_classes_}")
+                    else:
+                        logger.info("[XGB-FORENSIC] Model type: no classes_ attribute (may be regressor)")
             else:
                 logger.warning("[XGB] Model file not found at: %s", self.model_path)
                 self.model = None
@@ -334,13 +348,44 @@ class XGBAgent:
             # Predict
             prediction = self.model.predict(feature_array)[0]
             proba = self.model.predict_proba(feature_array)[0]
-            confidence = float(max(proba))
+            
+            # Get top 2 probabilities for forensics and calibration
+            sorted_proba = sorted(proba, reverse=True)
+            proba_top1 = sorted_proba[0]
+            proba_top2 = sorted_proba[1] if len(sorted_proba) > 1 else 0.0
+            margin = proba_top1 - proba_top2
+            
+            # Confidence mode: "max" (default) or "margin" (calibrated)
+            conf_mode = os.getenv('XGB_CONF_MODE', 'max').lower()
+            
+            if conf_mode == 'margin':
+                # Margin-based calibration: [0, 1] → [0.50, 0.95]
+                confidence = float(0.50 + min(margin, 1.0) * 0.45)
+            else:
+                # Original: max probability (may be overconfident)
+                confidence = float(max(proba))
             
             # Map prediction to action
             action_map = {0: 'HOLD', 1: 'BUY', 2: 'SELL'}
             action = action_map.get(prediction, 'HOLD')
             
-            # DEBUG: Log every 10th prediction
+            # 🔬 FORENSICS: Rate-limited debug logging (max once per 30s)
+            global _last_forensic_log_time
+            now = time.time()
+            if now - _last_forensic_log_time >= _FORENSIC_LOG_INTERVAL:
+                _last_forensic_log_time = now
+                
+                # Feature vector fingerprint (length only, no raw data)
+                feat_hash = hashlib.md5(str(feature_array.shape).encode()).hexdigest()[:8]
+                
+                logger.info(
+                    f"[XGB-FORENSIC] {symbol} | action={action} pred={prediction} | "
+                    f"top1={proba_top1:.4f} top2={proba_top2:.4f} margin={margin:.4f} | "
+                    f"max_proba={max(proba):.4f} conf_final={confidence:.4f} | "
+                    f"mode={conf_mode} feat_dim={feature_array.shape[1]} hash={feat_hash}"
+                )
+            
+            # DEBUG: Log every 10th prediction (existing code)
             import random
             if random.random() < 0.1:  # 10% sampling
                 logger.info(f"XGB {symbol}: {action} {confidence:.2%} (pred={prediction})")
