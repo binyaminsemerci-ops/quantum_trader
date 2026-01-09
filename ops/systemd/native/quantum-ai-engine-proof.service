@@ -13,8 +13,8 @@ WorkingDirectory=/home/qt/quantum_trader
 # Environment variables
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=AI_PROOF_MODE=activity
-Environment=AI_PROOF_MAX_AGE_SECONDS=600
-Environment=AI_PROOF_WAIT_SECONDS=60
+Environment=AI_PROOF_MAX_AGE_SECONDS=1800
+Environment=AI_PROOF_WAIT_SECONDS=90
 
 # Pre-check and execution
 ExecStartPre=/bin/systemctl is-active --quiet quantum-ai-engine.service
