@@ -3,6 +3,7 @@ PatchTST AGENT - CPU-OPTIMIZED with TorchScript
 Patch-based Transformer for trading (Phase 4C+)
 Expected WIN rate: 68-73%
 """
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -113,10 +114,24 @@ class PatchTSTAgent:
         self.patch_len = patch_len
         self.num_patches = sequence_length // patch_len
         
-        # 🔥 USE LATEST TIMESTAMPED MODEL (not old hardcoded names)
-        retraining_dir = Path("/app/models") if Path("/app/models").exists() else Path("ai_engine/models")
-        latest_model = self._find_latest_model(retraining_dir, "patchtst_v*.pth")
-        self.model_path = model_path or str(latest_model) if latest_model else "/app/models/patchtst_model.pth"
+        # 🔥 PATCHTST_MODEL_PATH FEATURE FLAG (P0.4)
+        # Priority: 1) model_path arg, 2) PATCHTST_MODEL_PATH env, 3) latest timestamped, 4) fallback
+        env_model_path = os.getenv('PATCHTST_MODEL_PATH')
+        
+        if model_path:
+            # Explicit path passed to constructor
+            self.model_path = model_path
+            logger.info(f"[PatchTST] Using explicit model path: {model_path}")
+        elif env_model_path:
+            # Environment variable override (for deployment)
+            self.model_path = env_model_path
+            logger.info(f"[PatchTST] Using PATCHTST_MODEL_PATH env var: {env_model_path}")
+        else:
+            # Auto-discover latest model or fallback to default
+            retraining_dir = Path("/app/models") if Path("/app/models").exists() else Path("ai_engine/models")
+            latest_model = self._find_latest_model(retraining_dir, "patchtst_v*.pth")
+            self.model_path = str(latest_model) if latest_model else "/app/models/patchtst_model.pth"
+            logger.info(f"[PatchTST] Auto-discovered model: {self.model_path}")
         
         # Initialize model
         self.model = PatchTSTModel(
