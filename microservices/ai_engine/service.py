@@ -1785,7 +1785,16 @@ class AIEngineService:
             
             # Extract consensus details from votes_info
             consensus_count = votes_info.get("consensus_count", 0) if not fallback_triggered else 1
-            model_breakdown = votes_info.get("models", {}) if not fallback_triggered else {"fallback": {"action": action, "confidence": ensemble_confidence}}
+            
+            # ALWAYS preserve per-model telemetry - augment with fallback if needed
+            model_breakdown = votes_info.get("models", {})
+            if fallback_triggered:
+                model_breakdown["fallback"] = {
+                    "action": action,
+                    "confidence": ensemble_confidence,
+                    "reason": "consensus_not_met_or_hold_signal",
+                    "triggered_by": "rsi_macd_rules" if not self.testnet_mode else "testnet_hash_pattern"
+                }
             
                         # TESTNET SIZING: Cap position size
             if os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true":
@@ -1842,6 +1851,14 @@ class AIEngineService:
             self.signal_times.append(now)
             self.last_signal_by_symbol[symbol] = now
             logger.info(f"[RATE-LIMIT] ✅ {symbol} allowed (confidence={confidence:.2f}, rate={len(self.signal_times)}/min)")
+            
+            # Log telemetry visibility before publishing
+            model_keys = list(model_breakdown.keys())
+            logger.info(
+                f"[TELEMETRY] Publishing trade.intent: {symbol} | "
+                f"breakdown_keys={model_keys} | fallback_used={fallback_triggered} | "
+                f"consensus={consensus_count}/{trade_intent_payload.get('total_models', 4)} | action={action}"
+            )
             
             print(f"[DEBUG] About to publish trade.intent: {trade_intent_payload}")
             await self.event_bus.publish("trade.intent", trade_intent_payload)
