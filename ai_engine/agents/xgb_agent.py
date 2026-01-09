@@ -96,8 +96,11 @@ class XGBAgent:
                 with open(self.model_path, "rb") as f:
                     self.model = pickle.load(f)
                     logger.info("✅ Loaded XGBoost model from %s", os.path.basename(self.model_path))
+            else:
+                logger.warning("[XGB] Model file not found at: %s", self.model_path)
+                self.model = None
         except Exception as e:
-            logger.debug("Failed to load model: %s", e)
+            logger.warning("[XGB] Failed to load model from %s: %s", self.model_path, e)
             self.model = None
 
         try:
@@ -105,8 +108,11 @@ class XGBAgent:
                 with open(self.scaler_path, "rb") as f:
                     self.scaler = pickle.load(f)
                     logger.info("✅ Loaded XGBoost scaler from %s", os.path.basename(self.scaler_path))
+            else:
+                logger.warning("[XGB] Scaler file not found at: %s", self.scaler_path)
+                self.scaler = None
         except Exception as e:
-            logger.debug("Failed to load scaler: %s", e)
+            logger.warning("[XGB] Failed to load scaler from %s: %s", self.scaler_path, e)
             self.scaler = None
 
     def _features_from_ohlcv(self, df) -> Any:
@@ -252,6 +258,10 @@ class XGBAgent:
             logger.error("RSI calculation failed: %s", e)
             import pandas as pd
             return pd.Series([50] * len(series))  # Return neutral RSI
+
+    def is_ready(self) -> bool:
+        """Check if model and scaler are loaded and ready for predictions."""
+        return self.model is not None and self.scaler is not None
 
     def predict(self, symbol: str, features: Dict[str, float]) -> tuple[str, float, str]:
         """

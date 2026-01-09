@@ -138,7 +138,10 @@ class EnsembleManager:
             model_path=xgb_model_path,
             scaler_path=xgb_scaler_path
         )
-        logger.info(f"[OK] XGBoost agent loaded (weight: {self.weights['xgb']*100}%)")
+        if self.xgb_agent.is_ready():
+            logger.info(f"[OK] XGBoost agent loaded (weight: {self.weights['xgb']*100}%)")
+        else:
+            logger.warning(f"[WARN] XGBoost agent initialized but model NOT loaded (will output xgb_no_model)")
         
         self.lgbm_agent = LightGBMAgent()
         logger.info(f"[OK] LightGBM agent loaded (weight: {self.weights['lgbm']*100}%)")
