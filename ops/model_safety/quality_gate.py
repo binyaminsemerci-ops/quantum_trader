@@ -247,7 +247,7 @@ def generate_report(model_name, analysis, failures, report_path):
 def main():
     # Config
     db_path = Path('/opt/quantum/data/quantum_trader.db')
-    model_path = Path('/opt/quantum/models/patchtst_v20260109_233444.pth')  # P0.4 shadow model
+    model_path = Path('/opt/quantum/ai_engine/models/patchtst_v20260109_233444.pth')  # P0.4 shadow model
     model_type = 'patchtst'
     report_dir = Path('reports/safety')
     report_dir.mkdir(parents=True, exist_ok=True)
