@@ -363,8 +363,9 @@ class PatchTSTAgent:
                 # FAIL-CLOSED: prob in dead zone - raise error instead of HOLD 0.5
                 raise ValueError(f"PatchTST probability {prob:.4f} in dead zone [0.4, 0.6] - no clear signal")
             
-            # 🔍 SHADOW MODE (P0.4) - Enhanced logging + return marker
-            shadow_mode = os.getenv('PATCHTST_SHADOW_ONLY', 'false').lower() == 'true'
+            # 🔍 SHADOW MODE (P0.4) - DISABLED FOR QSC CANARY DEPLOYMENT
+            # QSC MODE: All models must actively vote for quality gates to be valid
+            shadow_mode = False  # Was: os.getenv('PATCHTST_SHADOW_ONLY', 'false').lower() == 'true'
             
             if shadow_mode:
                 # Rate-limited detailed logging
