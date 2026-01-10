@@ -1,62 +1,125 @@
 #!/usr/bin/env python3
 """
-Scoreboard - Combined model status overview
+Scoreboard - Combined model status overview (TELEMETRY-ONLY)
+
+Uses same Redis stream telemetry as quality_gate.py
 
 STATUS LOGIC:
 - GO = passes quality gate + agreement 55-80% + hard_disagree <20%
-- WAIT = passes gate but missing agreement data
+- WAIT = passes gate but missing agreement data or outside range
 - NO-GO = fails quality gate
 
 OUTPUT: reports/safety/scoreboard_latest.md
 """
 
 import sys
-import sqlite3
 import json
+import subprocess
 import numpy as np
 from pathlib import Path
-from datetime import datetime, timedelta
-import subprocess
-
-MODEL_BREAKDOWN = [
-    {'name': 'XGBoost', 'type': 'xgb', 'shadow': False},
-    {'name': 'LightGBM', 'type': 'lgbm', 'shadow': False},
-    {'name': 'NHiTS', 'type': 'nhits', 'shadow': False},
-    {'name': 'PatchTST', 'type': 'patchtst', 'shadow': True},
-]
+from datetime import datetime
+from collections import defaultdict
 
 
-def get_recent_predictions(db_path, model_name, hours=24):
-    """Get recent predictions for agreement calculation"""
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
-    
-    cursor.execute("""
-        SELECT action, confidence, metadata
-        FROM trade_intents
-        WHERE model_source LIKE ?
-        AND created_at > ?
-        ORDER BY created_at DESC
-        LIMIT 200
-    """, (f'%{model_name}%', cutoff.strftime('%Y-%m-%d %H:%M:%S')))
-    
-    rows = cursor.fetchall()
-    conn.close()
-    
-    return rows
+def read_redis_stream(stream_key='quantum:stream:trade.intent', count=2000):
+    """Read last N events from Redis stream using redis-cli"""
+    try:
+        cmd = [
+            'redis-cli',
+            'XREVRANGE',
+            stream_key,
+            '+',
+            '-',
+            'COUNT',
+            str(count)
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        
+        if result.returncode != 0:
+            raise RuntimeError(f"redis-cli failed: {result.stderr}")
+        
+        return result.stdout
+    except Exception as e:
+        raise RuntimeError(f"Failed to read Redis stream: {e}")
 
 
-def calculate_model_stats(db_path, model_info):
-    """Calculate action%, conf_std, agreement for one model"""
-    predictions = get_recent_predictions(db_path, model_info['name'], hours=24)
+def parse_redis_output(output):
+    """Parse redis-cli XREVRANGE output into list of events"""
+    lines = output.strip().split('\n')
+    events = []
     
+    i = 0
+    while i < len(lines):
+        if not lines[i].strip():
+            i += 1
+            continue
+        
+        if lines[i].startswith(('1)', '2)', '3)', '4)', '5)', '6)', '7)', '8)', '9)')):
+            event_id_line = lines[i]
+            event_id = event_id_line.split(')')[1].strip().strip('"')
+            
+            i += 1
+            
+            fields = {}
+            while i < len(lines) and not lines[i].startswith(('1)', '2)', '3)', '4)', '5)', '6)', '7)', '8)', '9)')):
+                line = lines[i].strip()
+                
+                if line and not line.startswith(('1)', '2)', '3)', '4)', '5)', '6)', '7)', '8)', '9)')):
+                    if i > 0:
+                        prev_line = lines[i-1].strip()
+                        if prev_line and prev_line.split(')')[-1].strip().strip('"'):
+                            key = prev_line.split(')')[-1].strip().strip('"')
+                            value = line.strip('"')
+                            fields[key] = value
+                
+                i += 1
+            
+            if fields:
+                events.append({
+                    'id': event_id,
+                    'fields': fields
+                })
+        else:
+            i += 1
+    
+    return events
+
+
+def extract_model_predictions(events):
+    """Extract per-model predictions from events"""
+    model_data = defaultdict(list)
+    
+    for event in events:
+        fields = event.get('fields', {})
+        
+        breakdown_json = fields.get('model_breakdown', '{}')
+        try:
+            breakdown = json.loads(breakdown_json)
+        except:
+            continue
+        
+        for model_name, model_info in breakdown.items():
+            if isinstance(model_info, dict):
+                action = model_info.get('action')
+                confidence = model_info.get('confidence')
+                
+                if action and confidence is not None:
+                    model_data[model_name].append({
+                        'action': action,
+                        'confidence': float(confidence)
+                    })
+    
+    return model_data
+
+
+def calculate_model_stats(predictions):
+    """Calculate action%, conf_std, p10-p90 for one model"""
     if not predictions:
         return None
     
-    actions = [row[0] for row in predictions]
-    confidences = [row[1] for row in predictions]
+    actions = [p['action'] for p in predictions]
+    confidences = [p['confidence'] for p in predictions]
     
     action_counts = {
         'BUY': actions.count('BUY'),
@@ -79,51 +142,42 @@ def calculate_model_stats(db_path, model_info):
     }
 
 
-def calculate_ensemble_agreement(db_path, hours=24):
-    """Calculate agreement between active models (exclude shadow)"""
-    # Get recent ensemble votes
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
-    
-    cursor.execute("""
-        SELECT action, metadata
-        FROM trade_intents
-        WHERE model_source = 'ENSEMBLE'
-        AND created_at > ?
-        LIMIT 100
-    """, (cutoff.strftime('%Y-%m-%d %H:%M:%S'),))
-    
-    rows = cursor.fetchall()
-    conn.close()
-    
-    if not rows:
-        return None, None
-    
+def calculate_ensemble_agreement(events):
+    """Calculate agreement between models from ensemble votes"""
     agreements = []
     hard_disagrees = []
     
-    for action, metadata_json in rows:
+    for event in events:
+        fields = event.get('fields', {})
+        
+        breakdown_json = fields.get('model_breakdown', '{}')
         try:
-            metadata = json.loads(metadata_json) if metadata_json else {}
-            vote_counts = metadata.get('vote_counts', {})
-            total_votes = sum(vote_counts.values())
-            
-            if total_votes > 0:
-                max_votes = max(vote_counts.values())
-                agreement_pct = max_votes / total_votes * 100
-                agreements.append(agreement_pct)
-                
-                # Hard disagree: BUY vs SELL split
-                buy_votes = vote_counts.get('BUY', 0)
-                sell_votes = vote_counts.get('SELL', 0)
-                if buy_votes > 0 and sell_votes > 0:
-                    hard_disagrees.append(1)
-                else:
-                    hard_disagrees.append(0)
+            breakdown = json.loads(breakdown_json)
         except:
             continue
+        
+        # Count votes
+        vote_counts = defaultdict(int)
+        for model_info in breakdown.values():
+            if isinstance(model_info, dict):
+                action = model_info.get('action')
+                if action:
+                    vote_counts[action] += 1
+        
+        total_votes = sum(vote_counts.values())
+        
+        if total_votes > 0:
+            max_votes = max(vote_counts.values())
+            agreement_pct = max_votes / total_votes * 100
+            agreements.append(agreement_pct)
+            
+            # Hard disagree: BUY vs SELL split
+            buy_votes = vote_counts.get('BUY', 0)
+            sell_votes = vote_counts.get('SELL', 0)
+            if buy_votes > 0 and sell_votes > 0:
+                hard_disagrees.append(1)
+            else:
+                hard_disagrees.append(0)
     
     if not agreements:
         return None, None
@@ -134,8 +188,34 @@ def calculate_ensemble_agreement(db_path, hours=24):
     return avg_agreement, hard_disagree_pct
 
 
-def determine_status(stats, agreement, hard_disagree, quality_gate_pass):
+def check_quality_gate(stats):
+    """Quick quality gate check (same logic as quality_gate.py)"""
+    if not stats:
+        return False
+    
+    # Check 1: No class >70%
+    for pct in stats['action_pcts'].values():
+        if pct > 70:
+            return False
+    
+    # Check 2: Confidence spread
+    if stats['conf_std'] < 0.05:
+        return False
+    
+    if stats['p10_p90_range'] < 0.12:
+        return False
+    
+    # Check 3: HOLD collapse
+    if stats['action_pcts']['HOLD'] > 85:
+        return False
+    
+    return True
+
+
+def determine_status(stats, agreement, hard_disagree):
     """Determine GO/WAIT/NO-GO status"""
+    quality_gate_pass = check_quality_gate(stats)
+    
     if not quality_gate_pass:
         return 'NO-GO'
     
@@ -148,115 +228,196 @@ def determine_status(stats, agreement, hard_disagree, quality_gate_pass):
         return 'WAIT'
 
 
-def run_quality_gate_check(model_name):
-    """Run quality gate for model (returns True if passes)"""
-    # Simplified check - in production would call quality_gate.py
-    # For now, return True for non-shadow models
-    return True
-
-
-def generate_scoreboard(models_data, agreement, hard_disagree):
-    """Generate scoreboard markdown"""
-    report_dir = Path('reports/safety')
-    report_dir.mkdir(parents=True, exist_ok=True)
-    report_path = report_dir / 'scoreboard_latest.md'
+def generate_scoreboard(model_stats, agreement, hard_disagree, telemetry_info):
+    """Generate scoreboard markdown report"""
+    timestamp = datetime.utcnow().isoformat() + 'Z'
     
-    timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+    lines = [
+        "# Model Scoreboard (Telemetry-Only)",
+        f"Generated: {timestamp}",
+        "",
+        "## Telemetry Info",
+        f"- Redis stream: {telemetry_info['stream_key']}",
+        f"- Events analyzed: {telemetry_info['event_count']}",
+        f"- Time window: Last {telemetry_info['event_window']} events",
+        "",
+        "## Overall Status",
+        ""
+    ]
     
-    with open(report_path, 'w') as f:
-        f.write(f"# Model Safety Scoreboard\n\n")
-        f.write(f"**Updated:** {timestamp}\n\n")
+    # Determine overall status
+    all_go = True
+    any_nogo = False
+    
+    for model_name, stats in model_stats.items():
+        status = determine_status(stats['stats'], agreement, hard_disagree)
+        if status != 'GO':
+            all_go = False
+        if status == 'NO-GO':
+            any_nogo = True
+    
+    if any_nogo:
+        overall = "🔴 NO-GO"
+    elif all_go:
+        overall = "🟢 ALL-GO"
+    else:
+        overall = "🟡 WAIT"
+    
+    lines.append(f"**{overall}**")
+    lines.append("")
+    
+    # Ensemble agreement
+    lines.append("## Ensemble Agreement")
+    if agreement is not None:
+        lines.append(f"- Agreement: {agreement:.1f}%")
+        lines.append(f"- Hard Disagree: {hard_disagree:.1f}%")
         
-        f.write(f"## Ensemble Metrics (Last 24h)\n\n")
-        if agreement is not None:
-            f.write(f"- **Agreement:** {agreement:.1f}%\n")
-            f.write(f"- **Hard Disagree:** {hard_disagree:.1f}%\n\n")
+        if 55 <= agreement <= 80:
+            lines.append("- ✅ Agreement in target range [55-80%]")
         else:
-            f.write(f"- **Agreement:** N/A (insufficient data)\n")
-            f.write(f"- **Hard Disagree:** N/A\n\n")
+            lines.append("- ⚠️ Agreement outside target range")
         
-        f.write(f"## Model Breakdown\n\n")
-        f.write(f"| Model | Action% (B/S/H) | Conf Std | P10-P90 | Agreement | Hard Disagree | Status |\n")
-        f.write(f"|-------|-----------------|----------|---------|-----------|---------------|--------|\n")
-        
-        for data in models_data:
-            name = data['name']
-            if data['stats']:
-                s = data['stats']
-                buy_pct = s['action_pcts']['BUY']
-                sell_pct = s['action_pcts']['SELL']
-                hold_pct = s['action_pcts']['HOLD']
-                action_str = f"{buy_pct:.0f}/{sell_pct:.0f}/{hold_pct:.0f}"
-                conf_std = s['conf_std']
-                p10_p90 = s['p10_p90_range']
-            else:
-                action_str = "N/A"
-                conf_std = 0.0
-                p10_p90 = 0.0
-            
-            agr_str = f"{agreement:.0f}%" if agreement is not None else "N/A"
-            hd_str = f"{hard_disagree:.0f}%" if hard_disagree is not None else "N/A"
-            status = data['status']
-            
-            status_icon = {
-                'GO': '✅',
-                'WAIT': '⏳',
-                'NO-GO': '❌'
-            }.get(status, '❓')
-            
-            shadow_note = " (shadow)" if data['shadow'] else ""
-            
-            f.write(f"| {name}{shadow_note} | {action_str} | {conf_std:.3f} | {p10_p90:.3f} | {agr_str} | {hd_str} | {status_icon} {status} |\n")
-        
-        f.write(f"\n## Status Legend\n\n")
-        f.write(f"- **GO** ✅: Passes quality gate + agreement 55-80% + hard_disagree <20%\n")
-        f.write(f"- **WAIT** ⏳: Passes gate but outside agreement range or insufficient data\n")
-        f.write(f"- **NO-GO** ❌: Fails quality gate (BLOCKER)\n")
+        if hard_disagree < 20:
+            lines.append("- ✅ Hard disagree below 20%")
+        else:
+            lines.append("- ⚠️ Hard disagree above 20%")
+    else:
+        lines.append("- ⚠️ Insufficient data")
     
-    return report_path
+    lines.append("")
+    
+    # Per-model status
+    lines.append("## Model Status")
+    lines.append("")
+    
+    for model_name, stats in sorted(model_stats.items()):
+        status = determine_status(stats['stats'], agreement, hard_disagree)
+        
+        if status == 'GO':
+            icon = "🟢"
+        elif status == 'WAIT':
+            icon = "🟡"
+        else:
+            icon = "🔴"
+        
+        lines.append(f"### {icon} {model_name} - {status}")
+        lines.append("")
+        
+        model_data = stats['stats']
+        
+        lines.append("**Action Distribution:**")
+        for action in ['BUY', 'SELL', 'HOLD']:
+            pct = model_data['action_pcts'][action]
+            lines.append(f"- {action}: {pct:.1f}%")
+        
+        lines.append("")
+        lines.append("**Confidence Stats:**")
+        lines.append(f"- Std: {model_data['conf_std']:.4f}")
+        lines.append(f"- P10-P90 Range: {model_data['p10_p90_range']:.4f}")
+        
+        lines.append("")
+        lines.append("**Quality Gate:**")
+        
+        gate_pass = check_quality_gate(model_data)
+        if gate_pass:
+            lines.append("- ✅ PASS")
+        else:
+            lines.append("- ❌ FAIL")
+            
+            # Show failures
+            for pct in model_data['action_pcts'].values():
+                if pct > 70:
+                    lines.append(f"  - ❌ Action class >70% (collapse)")
+            
+            if model_data['conf_std'] < 0.05:
+                lines.append(f"  - ❌ Confidence std <0.05 (flat)")
+            
+            if model_data['p10_p90_range'] < 0.12:
+                lines.append(f"  - ❌ P10-P90 range <0.12 (narrow)")
+            
+            if model_data['action_pcts']['HOLD'] > 85:
+                lines.append(f"  - ❌ HOLD >85% (dead zone collapse)")
+        
+        lines.append("")
+        lines.append(f"Sample size: {model_data['sample_count']} events")
+        lines.append("")
+    
+    return '\n'.join(lines)
 
 
 def main():
-    db_path = Path('/opt/quantum/data/quantum_trader.db')
+    """Main scoreboard entry point"""
     
-    print(f"{'='*70}")
-    print(f"MODEL SAFETY SCOREBOARD")
-    print(f"{'='*70}\n")
+    STREAM_KEY = 'quantum:stream:trade.intent'
+    EVENT_COUNT = 2000
+    MIN_EVENTS = 200
     
-    # Calculate ensemble agreement
-    print(f"Calculating ensemble agreement...")
-    agreement, hard_disagree = calculate_ensemble_agreement(db_path, hours=24)
+    # Setup paths
+    reports_dir = Path('reports/safety')
+    reports_dir.mkdir(parents=True, exist_ok=True)
     
-    if agreement is not None:
-        print(f"  Agreement: {agreement:.1f}%")
-        print(f"  Hard Disagree: {hard_disagree:.1f}%\n")
-    else:
-        print(f"  Agreement: N/A (insufficient data)\n")
+    output_path = reports_dir / 'scoreboard_latest.md'
     
-    # Calculate per-model stats
-    models_data = []
-    for model_info in MODEL_BREAKDOWN:
-        print(f"Processing {model_info['name']}...")
-        stats = calculate_model_stats(db_path, model_info)
-        quality_gate_pass = run_quality_gate_check(model_info['name'])
-        status = determine_status(stats, agreement, hard_disagree, quality_gate_pass)
+    print(f"📊 Reading telemetry from Redis stream: {STREAM_KEY}")
+    
+    try:
+        # Read Redis stream
+        redis_output = read_redis_stream(STREAM_KEY, EVENT_COUNT)
+        events = parse_redis_output(redis_output)
         
-        models_data.append({
-            'name': model_info['name'],
-            'shadow': model_info['shadow'],
-            'stats': stats,
-            'status': status
-        })
-    
-    # Generate report
-    report_path = generate_scoreboard(models_data, agreement, hard_disagree)
-    
-    print(f"\n{'='*70}")
-    print(f"Scoreboard generated: {report_path}")
-    print(f"{'='*70}")
-    
-    return 0
+        telemetry_info = {
+            'stream_key': STREAM_KEY,
+            'event_count': len(events),
+            'event_window': EVENT_COUNT
+        }
+        
+        print(f"📦 Parsed {len(events)} events")
+        
+        # FAIL-CLOSED: Check minimum data
+        if len(events) < MIN_EVENTS:
+            print(f"⚠️  WARNING: Only {len(events)} events (need {MIN_EVENTS})")
+            print("⚠️  Scoreboard may be inaccurate")
+        
+        # Extract model predictions
+        model_data = extract_model_predictions(events)
+        
+        if not model_data:
+            print("❌ No model_breakdown found in events")
+            print("❌ Cannot generate scoreboard")
+            return 1
+        
+        # Calculate per-model stats
+        model_stats = {}
+        for model_name, predictions in model_data.items():
+            stats = calculate_model_stats(predictions)
+            if stats:
+                model_stats[model_name] = {
+                    'stats': stats
+                }
+        
+        # Calculate ensemble agreement
+        agreement, hard_disagree = calculate_ensemble_agreement(events)
+        
+        # Generate report
+        report = generate_scoreboard(model_stats, agreement, hard_disagree, telemetry_info)
+        
+        # Write report
+        output_path.write_text(report)
+        
+        print(f"\n✅ Scoreboard saved: {output_path}")
+        print("\n" + "="*60)
+        print(report)
+        print("="*60)
+        
+        return 0
+        
+    except Exception as e:
+        print(f"❌ ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
 
 
 if __name__ == '__main__':
     sys.exit(main())
+
