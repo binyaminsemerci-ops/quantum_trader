@@ -1,0 +1,186 @@
+# Quantum Service Template
+# DO NOT MODIFY THIS FILE - Use as template only
+# Copy to /etc/systemd/system/quantum-<service>.service
+
+[Unit]
+# Service description (CUSTOMIZE THIS)
+Description=Quantum Trading System - <SERVICE_NAME>
+
+# Documentation link
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+
+# Dependency chain (DO NOT CHANGE)
+After=network-online.target redis-server.service
+Wants=network-online.target
+
+# Bind to Redis - service stops if Redis stops (CRITICAL SERVICES ONLY)
+# Uncomment for services that cannot run without Redis:
+# BindsTo=redis-server.service
+
+[Service]
+# Service type (DO NOT CHANGE)
+# simple = Long-running process
+# oneshot = One-time execution (for ops jobs)
+Type=simple
+
+# User and group (DO NOT CHANGE - PRINCIPLE OF LEAST PRIVILEGE)
+User=qt
+Group=qt
+
+# Working directory (DO NOT CHANGE - GOLDEN CONTRACT)
+WorkingDirectory=/home/qt/quantum_trader
+
+# Environment file (CUSTOMIZE PATH)
+# Path: /etc/quantum/<service>.env
+# Must exist before service starts
+EnvironmentFile=/etc/quantum/<service>.env
+
+# Execution command (CUSTOMIZE)
+# ALWAYS use full venv path: /opt/quantum/venvs/<service>/bin/python
+# NEVER use: python, python3, or /usr/bin/python3
+#
+# Example for runtime service:
+# ExecStart=/opt/quantum/venvs/ai-engine/bin/python -m src.ai_engine.main
+#
+# Example for FastAPI:
+# ExecStart=/opt/quantum/venvs/backend/bin/uvicorn src.backend.main:app --host 0.0.0.0 --port 8000
+#
+# Example for ops job:
+# ExecStart=/opt/quantum/venvs/ai-engine/bin/python ops/training/train_patchtst.py
+ExecStart=/opt/quantum/venvs/<SERVICE_VENV>/bin/python <SCRIPT_PATH>
+
+# Restart policy (CUSTOMIZE)
+# Runtime services: always
+# Ops jobs: no
+Restart=always
+RestartSec=10
+
+# Logging (DO NOT CHANGE)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-<service>
+
+# Resource limits (OPTIONAL - UNCOMMENT IF NEEDED)
+# Prevent runaway processes
+# MemoryMax=4G
+# CPUQuota=200%
+
+# Security hardening (OPTIONAL - UNCOMMENT IF NEEDED)
+# Restrict service capabilities
+# NoNewPrivileges=true
+# PrivateTmp=true
+# ProtectSystem=strict
+# ProtectHome=true
+# ReadWritePaths=/opt/quantum/data /opt/quantum/ai_engine/models
+
+[Install]
+# Target (DO NOT CHANGE)
+WantedBy=multi-user.target
+
+# ============================================================================
+# CUSTOMIZATION CHECKLIST
+# ============================================================================
+#
+# [ ] Replace <SERVICE_NAME> in Description
+# [ ] Replace <service> in EnvironmentFile path
+# [ ] Replace <SERVICE_VENV> in ExecStart
+# [ ] Replace <SCRIPT_PATH> in ExecStart
+# [ ] Set Restart=always (runtime) or Restart=no (ops)
+# [ ] Uncomment BindsTo if service requires Redis
+# [ ] Uncomment resource limits if needed
+# [ ] Copy to /etc/systemd/system/quantum-<service>.service
+# [ ] Run: sudo systemctl daemon-reload
+# [ ] Run: sudo systemctl enable quantum-<service>
+# [ ] Run: sudo systemctl start quantum-<service>
+# [ ] Verify: journalctl -u quantum-<service> -f
+#
+# ============================================================================
+
+# ============================================================================
+# COMMON SERVICE EXAMPLES
+# ============================================================================
+
+# --- AI Engine (Runtime Service) ---
+# Description=Quantum Trading System - AI Engine
+# EnvironmentFile=/etc/quantum/ai-engine.env
+# ExecStart=/opt/quantum/venvs/ai-engine/bin/python -m src.ai_engine.main
+# Restart=always
+# BindsTo=redis-server.service
+
+# --- Backend API (Runtime Service) ---
+# Description=Quantum Trading System - Backend API
+# EnvironmentFile=/etc/quantum/backend.env
+# ExecStart=/opt/quantum/venvs/backend/bin/uvicorn src.backend.main:app --host 0.0.0.0 --port 8000
+# Restart=always
+# BindsTo=redis-server.service
+
+# --- Position Execution (Runtime Service) ---
+# Description=Quantum Trading System - Position Execution
+# EnvironmentFile=/etc/quantum/execution.env
+# ExecStart=/opt/quantum/venvs/execution/bin/python -m src.execution.main
+# Restart=always
+# BindsTo=redis-server.service
+
+# --- RL Sizing Agent (Runtime Service) ---
+# Description=Quantum Trading System - RL Sizing Agent
+# EnvironmentFile=/etc/quantum/rl-agent.env
+# ExecStart=/opt/quantum/venvs/rl-agent/bin/python -m src.rl_sizing.agent
+# Restart=always
+# BindsTo=redis-server.service
+
+# --- Training Job (Ops Job) ---
+# Type=oneshot
+# Description=Quantum Trading System - PatchTST Training
+# EnvironmentFile=/etc/quantum/ai-engine.env
+# ExecStart=/opt/quantum/venvs/ai-engine/bin/python ops/training/train_patchtst.py
+# Restart=no
+
+# --- Quality Gate (Ops Job) ---
+# Type=oneshot
+# Description=Quantum Trading System - Quality Gate Check
+# EnvironmentFile=/etc/quantum/ai-engine.env
+# ExecStart=/opt/quantum/venvs/ai-engine/bin/python ops/model_safety/quality_gate.py
+# Restart=no
+
+# ============================================================================
+# FORBIDDEN PATTERNS (DO NOT USE)
+# ============================================================================
+#
+# ❌ User=root                        # Use User=qt
+# ❌ ExecStart=python script.py       # Use full venv path
+# ❌ ExecStart=python3 script.py      # Use full venv path
+# ❌ WorkingDirectory=/opt/quantum    # Use /home/qt/quantum_trader
+# ❌ No EnvironmentFile               # Always required
+# ❌ Environment=PATH=...             # Use EnvironmentFile
+# ❌ ExecStart=/bin/bash -c "..."     # Use direct python call
+# ❌ After=docker.service             # NO DOCKER
+# ❌ Restart=on-failure               # Use always or no
+#
+# ============================================================================
+
+# ============================================================================
+# TROUBLESHOOTING
+# ============================================================================
+#
+# Service won't start:
+# 1. Check env file exists: ls -l /etc/quantum/<service>.env
+# 2. Check venv exists: ls -l /opt/quantum/venvs/<service>/bin/python
+# 3. Check Redis: systemctl status redis-server
+# 4. Check logs: journalctl -u quantum-<service> -n 50
+# 5. Run audit: ops/audit_contract.py
+#
+# Service crashes immediately:
+# 1. Check Python syntax: /opt/quantum/venvs/<service>/bin/python -m py_compile <script>
+# 2. Check dependencies: /opt/quantum/venvs/<service>/bin/pip list
+# 3. Check Redis connection: redis-cli PING
+# 4. Check database: ls -l /opt/quantum/data/quantum_trader.db
+# 5. Check working directory: pwd from ExecStart script
+#
+# Permission errors:
+# 1. Check file ownership: ls -la /home/qt/quantum_trader
+# 2. Check data ownership: ls -la /opt/quantum/data
+# 3. Fix ownership: sudo chown -R qt:qt /home/qt/quantum_trader /opt/quantum/data
+# 4. Check env file: sudo chmod 640 /etc/quantum/<service>.env
+# 5. Verify qt user: id qt
+#
+# ============================================================================
