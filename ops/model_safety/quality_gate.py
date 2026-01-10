@@ -186,9 +186,13 @@ def extract_model_predictions(events):
     Stream format:
     - fields['event_type'] = 'trade.intent'
     - fields['payload'] = JSON string with model_breakdown
+    
+    Returns: dict {model_name: {
+        'predictions': [...],
+        'normalization_stats': {...}
+    }}
     """
-    model_data = defaultdict(list)
-    normalization_stats = defaultdict(lambda: {'count': 0, 'normalized': 0, 'violations': []})
+    model_data = defaultdict(lambda: {'predictions': [], 'normalization_stats': {'count': 0, 'normalized': 0, 'violations': []}})
     
     for event in events:
         fields = event.get('fields', {})
@@ -218,13 +222,13 @@ def extract_model_predictions(events):
                     norm_result = normalize_confidence(raw_confidence, model_name)
                     
                     # Track stats
-                    normalization_stats[model_name]['count'] += 1
+                    model_data[model_name]['normalization_stats']['count'] += 1
                     if norm_result['normalization_applied']:
-                        normalization_stats[model_name]['normalized'] += 1
+                        model_data[model_name]['normalization_stats']['normalized'] += 1
                     if norm_result['violation']:
-                        normalization_stats[model_name]['violations'].append(norm_result['violation'])
+                        model_data[model_name]['normalization_stats']['violations'].append(norm_result['violation'])
                     
-                    model_data[model_name].append({
+                    model_data[model_name]['predictions'].append({
                         'action': action,
                         'confidence': norm_result['normalized_prob'],  # Use normalized [0, 1]
                         'raw_confidence': norm_result['raw_value'],
@@ -232,11 +236,7 @@ def extract_model_predictions(events):
                         'violation': norm_result['violation']
                     })
     
-    # Attach normalization stats to each model's data
-    for model_name in model_data:
-        model_data[model_name].normalization_stats = normalization_stats[model_name]
-    
-    return model_data
+    return dict(model_data)
 
 
 def analyze_predictions(predictions):
@@ -538,7 +538,8 @@ def main():
             pre_events = read_redis_stream(STREAM_KEY, EVENT_COUNT, after_ts=None)
             pre_model_data = extract_model_predictions(pre_events)
             pre_results = {}
-            for model_name, predictions in pre_model_data.items():
+            for model_name, model_info in pre_model_data.items():
+                predictions = model_info['predictions']
                 analysis = analyze_predictions(predictions)
                 failures = check_quality_gate(analysis)
                 pre_results[model_name] = {'analysis': analysis, 'failures': failures}
@@ -566,11 +567,12 @@ def main():
         model_data = extract_model_predictions(events)
         
         # Calculate normalization summary
-        total_preds = sum(len(preds) for preds in model_data.values())
+        total_preds = sum(len(model_info['predictions']) for model_info in model_data.values())
         total_normalized = 0
         all_violations = []
         
-        for model_name, predictions in model_data.items():
+        for model_name, model_info in model_data.items():
+            predictions = model_info['predictions']
             total_normalized += sum(1 for p in predictions if p.get('normalization_applied'))
             all_violations.extend([p['violation'] for p in predictions if p.get('violation')])
         
@@ -623,7 +625,8 @@ def main():
         model_results = {}
         any_failures = False
         
-        for model_name, predictions in model_data.items():
+        for model_name, model_info in model_data.items():
+            predictions = model_info['predictions']
             print(f"Analyzing {model_name}...")
             analysis = analyze_predictions(predictions)
             failures = check_quality_gate(analysis)
