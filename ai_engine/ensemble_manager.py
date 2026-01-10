@@ -421,30 +421,53 @@ class EnsembleManager:
                 logger.error(f"PatchTST prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
                 # Don't add to predictions - let ensemble work with remaining models
         
-        # 🔍 SHADOW MODE: Mark PatchTST predictions for telemetry-only if in shadow mode
-        shadow_predictions = {}
+        # 🔍 QSC FAIL-CLOSED: Exclude degraded models from voting
+        inactive_predictions = {}  # shadow, fallback, or error models
         active_predictions = {}
+        inactive_reasons = {}
         
         for model_name, prediction in predictions.items():
-            # Check if model is in shadow mode (marked by agent)
-            if model_name == 'patchtst' and len(prediction) >= 3 and 'shadow' in str(prediction[2]):
-                shadow_predictions[model_name] = prediction
-                logger.debug(f"[SHADOW] {model_name} in shadow mode - excluded from voting")
+            action_pred, conf_pred, model_info = prediction[0], prediction[1], prediction[2]
+            
+            # Check degradation markers
+            is_shadow = 'shadow' in str(model_info)
+            is_fallback = 'fallback' in str(model_info)
+            
+            if is_shadow:
+                inactive_predictions[model_name] = prediction
+                inactive_reasons[model_name] = "shadow_mode"
+                logger.warning(f"[QSC] {model_name} INACTIVE: shadow mode - excluded from voting")
+            elif is_fallback:
+                inactive_predictions[model_name] = prediction
+                inactive_reasons[model_name] = "fallback_rules"
+                logger.warning(f"[QSC] {model_name} INACTIVE: fallback rules - excluded from voting")
             else:
                 active_predictions[model_name] = prediction
+        
+        # QSC: Log active vs inactive models
+        logger.info(
+            f"[QSC] ACTIVE: {list(active_predictions.keys())} | "
+            f"INACTIVE: {inactive_reasons}"
+        )
         
         # Aggregate with smart voting (only active models)
         action, confidence, info = self._aggregate_predictions(active_predictions, features)
         
-        # Re-add shadow predictions to info['models'] for telemetry
-        if shadow_predictions:
-            for model_name, (act, conf, model_info) in shadow_predictions.items():
+        # Re-add inactive predictions to info['models'] for telemetry
+        if inactive_predictions:
+            for model_name, (act, conf, model_info) in inactive_predictions.items():
                 info['models'][model_name] = {
                     'action': act,
                     'confidence': conf,
                     'model': model_info,
-                    'shadow': True  # Mark as shadow in telemetry
+                    'inactive': True,  # Mark as inactive in telemetry
+                    'inactive_reason': inactive_reasons.get(model_name, 'unknown')
                 }
+        
+        # QSC: Log effective weights (active models only)
+        if active_predictions:
+            active_weights = {k: v for k, v in info.get('weights', {}).items() if k in active_predictions}
+            logger.info(f"[QSC] EFFECTIVE_WEIGHTS: {active_weights}")
         
         # DEBUG: Log predictions with any signal
         if action != 'HOLD' or confidence > 0.50:
