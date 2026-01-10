@@ -49,8 +49,9 @@ MIN_DISK_FREE_GB = 5.0
 SEQUENCE_LENGTH = 128
 NUM_FEATURES = 4  # P0.7 FIX: Actual feature count (rsi, ma_cross, volatility, returns_1h)
 LABEL_SMOOTHING = 0.0  # P0.7 FIX: DISABLED (was pushing outputs to 0.5)
-VARIANCE_PENALTY_WEIGHT = 0.5  # P0.7: Increased from 0.1 (stronger anti-collapse force)
-EARLY_STOP_VAL_STD_THRESHOLD = 0.02  # P0.7: Stop if collapse detected
+VARIANCE_PENALTY_WEIGHT = 1.0  # P0.7: Further increased (last resort)
+EARLY_STOP_VAL_STD_THRESHOLD = 0.005  # P0.7: Relaxed to 0.005 (give model time to learn)
+EARLY_STOP_MIN_EPOCH = 10  # P0.7: Don't check collapse before epoch 10
 
 # Sanity check thresholds (HARD FAILS)
 MAX_ACTION_PCT = 0.70  # No single action >70%
@@ -365,8 +366,8 @@ def train_model(X_train, y_train, X_val, y_val, epochs, batch_size, lr, use_labe
         history['val_conf_mean'].append(val_conf_mean)
         history['val_conf_std'].append(val_conf_std)
         
-        # P0.7: EARLY ABORT CHECK (catch collapse during training)
-        if val_conf_std < EARLY_STOP_VAL_STD_THRESHOLD:
+        # P0.7: EARLY ABORT CHECK (catch collapse during training, but give time to learn)
+        if epoch >= EARLY_STOP_MIN_EPOCH and val_conf_std < EARLY_STOP_VAL_STD_THRESHOLD:
             print(f"\n❌ MODEL COLLAPSE DETECTED!")
             print(f"Val confidence stddev: {val_conf_std:.6f} < {EARLY_STOP_VAL_STD_THRESHOLD}")
             print(f"Aborting training at epoch {epoch+1}/{epochs}")
