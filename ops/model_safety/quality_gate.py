@@ -505,7 +505,7 @@ def generate_report(model_results, telemetry_info, report_path, pre_results=None
 
 
 def main():
-    """Main quality gate entry point""
+    """Main quality gate entry point"""
     
     # Parse arguments
     args = parse_args()
