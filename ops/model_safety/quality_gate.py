@@ -35,6 +35,75 @@ from collections import defaultdict
 PATCH_CUTOVER_TS = "2026-01-10T05:43:15Z"  # 1736486595 Unix timestamp
 
 
+def sigmoid(x):
+    """Compute sigmoid for logit normalization"""
+    return 1.0 / (1.0 + np.exp(-x))
+
+
+def normalize_confidence(raw_value, model_name="unknown"):
+    """
+    Normalize confidence to [0, 1] range per QSC telemetry contract.
+    
+    Rules:
+    - If value in [0, 1]: Return as-is (already probability)
+    - If value > 1: Treat as logit/score, apply sigmoid
+    - If value < 0 or NaN: BLOCKER (invalid confidence)
+    
+    Returns:
+        dict: {
+            'normalized_prob': float in [0, 1],
+            'raw_value': original value,
+            'normalization_applied': bool,
+            'violation': str or None (BLOCKER if out-of-range)
+        }
+    """
+    try:
+        val = float(raw_value)
+        
+        # Check for invalid values (BLOCKER)
+        if np.isnan(val) or np.isinf(val):
+            return {
+                'normalized_prob': 0.5,  # Fallback for reporting
+                'raw_value': raw_value,
+                'normalization_applied': False,
+                'violation': f"BLOCKER: Invalid confidence (NaN/Inf) from {model_name}"
+            }
+        
+        if val < 0:
+            return {
+                'normalized_prob': 0.0,
+                'raw_value': val,
+                'normalization_applied': False,
+                'violation': f"BLOCKER: Negative confidence {val} from {model_name}"
+            }
+        
+        # Valid probability range [0, 1]
+        if 0 <= val <= 1:
+            return {
+                'normalized_prob': val,
+                'raw_value': val,
+                'normalization_applied': False,
+                'violation': None
+            }
+        
+        # Logit/score (>1): Apply sigmoid
+        normalized = sigmoid(val)
+        return {
+            'normalized_prob': normalized,
+            'raw_value': val,
+            'normalization_applied': True,
+            'violation': None  # Not a blocker, just needs normalization
+        }
+    
+    except (TypeError, ValueError) as e:
+        return {
+            'normalized_prob': 0.5,
+            'raw_value': raw_value,
+            'normalization_applied': False,
+            'violation': f"BLOCKER: Cannot parse confidence '{raw_value}' from {model_name}: {e}"
+        }
+
+
 def parse_args():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description='Quality Gate - Telemetry-Only Model Safety Check')
@@ -55,7 +124,7 @@ def timestamp_to_stream_id(ts_str):
     return f"{unix_ms}-0"  # Use sequence 0 as minimum
 
 
-def read_redis_stream(stream_key='quantum:stream:trade.intent', count=2000, after_ts=None, after_ts=None):
+def read_redis_stream(stream_key='quantum:stream:trade.intent', count=2000, after_ts=None):
     """
     Read last N events from Redis stream using Python redis client
     
@@ -111,13 +180,15 @@ def read_redis_stream(stream_key='quantum:stream:trade.intent', count=2000, afte
 
 def extract_model_predictions(events):
     """
-    Extract per-model predictions from events
+    Extract per-model predictions from events.
+    Normalizes confidence values to [0, 1] per QSC contract.
     
     Stream format:
     - fields['event_type'] = 'trade.intent'
     - fields['payload'] = JSON string with model_breakdown
     """
     model_data = defaultdict(list)
+    normalization_stats = defaultdict(lambda: {'count': 0, 'normalized': 0, 'violations': []})
     
     for event in events:
         fields = event.get('fields', {})
@@ -136,29 +207,53 @@ def extract_model_predictions(events):
         # Extract model_breakdown
         breakdown = payload.get('model_breakdown', {})
         
-        # Extract per-model predictions
+        # Extract per-model predictions with normalization
         for model_name, model_info in breakdown.items():
             if isinstance(model_info, dict):
                 action = model_info.get('action')
-                confidence = model_info.get('confidence')
+                raw_confidence = model_info.get('confidence')
                 
-                if action and confidence is not None:
+                if action and raw_confidence is not None:
+                    # Normalize confidence to [0, 1]
+                    norm_result = normalize_confidence(raw_confidence, model_name)
+                    
+                    # Track stats
+                    normalization_stats[model_name]['count'] += 1
+                    if norm_result['normalization_applied']:
+                        normalization_stats[model_name]['normalized'] += 1
+                    if norm_result['violation']:
+                        normalization_stats[model_name]['violations'].append(norm_result['violation'])
+                    
                     model_data[model_name].append({
                         'action': action,
-                        'confidence': float(confidence)
+                        'confidence': norm_result['normalized_prob'],  # Use normalized [0, 1]
+                        'raw_confidence': norm_result['raw_value'],
+                        'normalization_applied': norm_result['normalization_applied'],
+                        'violation': norm_result['violation']
                     })
+    
+    # Attach normalization stats to each model's data
+    for model_name in model_data:
+        model_data[model_name].normalization_stats = normalization_stats[model_name]
     
     return model_data
 
 
 def analyze_predictions(predictions):
-    """Calculate action distribution and confidence stats"""
+    """
+    Calculate action distribution and confidence stats.
+    Collects confidence violations for BLOCKER reporting.
+    """
     if not predictions:
         return None
     
-    # Extract actions and confidences
+    # Extract actions and confidences (already normalized)
     actions = [p['action'] for p in predictions]
-    confidences = [p['confidence'] for p in predictions]
+    confidences = [p['confidence'] for p in predictions]  # Already normalized [0, 1]
+    
+    # Collect violations
+    violations = [p['violation'] for p in predictions if p.get('violation')]
+    normalized_count = sum(1 for p in predictions if p.get('normalization_applied'))
     
     # Action distribution
     action_counts = {
@@ -187,7 +282,9 @@ def analyze_predictions(predictions):
             'p90': conf_p90,
             'p10_p90_range': p10_p90_range
         },
-        'sample_count': total
+        'sample_count': total,
+        'confidence_violations': violations,
+        'normalized_count': normalized_count
     }
 
 
@@ -201,6 +298,16 @@ def check_quality_gate(analysis):
         return ['No data to analyze']
     
     failures = []
+    
+    # Check 0: Confidence violations (BLOCKER)
+    violations = analysis.get('confidence_violations', [])
+    if violations:
+        failures.append(f"CONFIDENCE VIOLATIONS ({len(violations)} found)")
+        for violation in violations[:5]:  # Show first 5
+            failures.append(f"  - {violation}")
+        if len(violations) > 5:
+            failures.append(f"  - ... and {len(violations) - 5} more violations")
+        return failures  # BLOCKER: Don't check other thresholds
     
     # Check 1: Majority bias (any class >70%)
     for action, pct in analysis['action_pcts'].items():
@@ -248,6 +355,32 @@ def generate_report(model_results, telemetry_info, report_path, pre_results=None
         lines.append(f"**Cutover Timestamp:** {telemetry_info['cutover_ts']}")
         lines.append(f"**Mode:** Post-cutover analysis (events after patch deployment)")
         lines.append("")
+    
+    # Confidence normalization audit
+    if telemetry_info.get('normalization_summary'):
+        lines.append("## Confidence Normalization Audit")
+        lines.append("")
+        summary = telemetry_info['normalization_summary']
+        lines.append(f"**Total predictions:** {summary['total_predictions']}")
+        lines.append(f"**Normalized (logit → prob):** {summary['normalized_count']} ({summary['normalized_pct']:.1f}%)")
+        lines.append(f"**Violations (BLOCKER):** {summary['violation_count']}")
+        lines.append("")
+        
+        if summary['violation_count'] > 0:
+            lines.append("### ⚠️ CONFIDENCE VIOLATIONS")
+            lines.append("")
+            for violation in summary['violations'][:10]:  # Show first 10
+                lines.append(f"- {violation}")
+            if summary['violation_count'] > 10:
+                lines.append(f"- ... and {summary['violation_count'] - 10} more violations")
+            lines.append("")
+        
+        if summary['normalized_count'] > 0:
+            lines.append("**Normalization applied:**")
+            lines.append("- Values >1.0 treated as logits")
+            lines.append("- Sigmoid applied: prob = 1 / (1 + exp(-logit))")
+            lines.append("- Quality gate uses normalized [0, 1] range only")
+            lines.append("")
     
     lines.extend([
         "## Telemetry Info",
@@ -319,6 +452,21 @@ def generate_report(model_results, telemetry_info, report_path, pre_results=None
             lines.append("")
             
             if analysis:
+                # Normalization info
+                if analysis.get('normalized_count', 0) > 0:
+                    norm_pct = (analysis['normalized_count'] / analysis['sample_count']) * 100
+                    lines.append(f"**Normalization:** {analysis['normalized_count']}/{analysis['sample_count']} predictions ({norm_pct:.1f}%) normalized from logits")
+                    lines.append("")
+                
+                # Violations
+                if analysis.get('confidence_violations'):
+                    lines.append(f"**⚠️ VIOLATIONS:** {len(analysis['confidence_violations'])} confidence errors")
+                    for violation in analysis['confidence_violations'][:3]:
+                        lines.append(f"  - {violation}")
+                    if len(analysis['confidence_violations']) > 3:
+                        lines.append(f"  - ... and {len(analysis['confidence_violations']) - 3} more")
+                    lines.append("")
+                
                 lines.append("**Action Distribution:**")
                 for action in ['BUY', 'SELL', 'HOLD']:
                     pct = analysis['action_pcts'][action]
@@ -413,6 +561,34 @@ def main():
         print(f"Found {len(events)} events")
         print()
         
+        # Extract model predictions (with normalization)
+        print("Extracting model predictions...")
+        model_data = extract_model_predictions(events)
+        
+        # Calculate normalization summary
+        total_preds = sum(len(preds) for preds in model_data.values())
+        total_normalized = 0
+        all_violations = []
+        
+        for model_name, predictions in model_data.items():
+            total_normalized += sum(1 for p in predictions if p.get('normalization_applied'))
+            all_violations.extend([p['violation'] for p in predictions if p.get('violation')])
+        
+        telemetry_info['normalization_summary'] = {
+            'total_predictions': total_preds,
+            'normalized_count': total_normalized,
+            'normalized_pct': (total_normalized / total_preds * 100) if total_preds > 0 else 0,
+            'violation_count': len(all_violations),
+            'violations': all_violations
+        }
+        
+        print(f"✅ Extracted {total_preds} predictions from {len(model_data)} models")
+        if total_normalized > 0:
+            print(f"   📊 Normalized {total_normalized} logits → probabilities ({telemetry_info['normalization_summary']['normalized_pct']:.1f}%)")
+        if len(all_violations) > 0:
+            print(f"   ⚠️  Found {len(all_violations)} confidence violations (BLOCKER)")
+        print()
+        
         # FAIL-CLOSED: Check minimum data
         if len(events) < MIN_EVENTS:
             print(f"❌ INSUFFICIENT DATA (FAIL-CLOSED)")
@@ -429,10 +605,7 @@ def main():
             print("Missing data = NO ACTIVATION")
             return 2
         
-        # Extract model predictions
-        print(f"Extracting model predictions...")
-        model_data = extract_model_predictions(events)
-        
+        # Check for model data
         if not model_data:
             print(f"❌ No model_breakdown found in events")
             generate_report({}, telemetry_info, report_path)
