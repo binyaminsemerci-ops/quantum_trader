@@ -254,19 +254,12 @@ class NHiTSAgent:
         if sequence.shape[-1] == target_len:
             return sequence
 
-        if sequence.shape[-1] > target_len:
-            adjusted = sequence[..., :target_len]
-        else:
-            pad_width = target_len - sequence.shape[-1]
-            pad = np.zeros((sequence.shape[0], pad_width))
-            adjusted = np.concatenate([sequence, pad], axis=-1)
-
-        logger.warning(
-            "[NHITS] Adjusted feature dimension %d -> %d to match scaler/model",
-            sequence.shape[-1],
-            target_len,
+        # QSC FAIL-CLOSED: No auto-padding/truncation - raise exception
+        raise ValueError(
+            f"[NHITS] QSC FAIL-CLOSED: Feature dimension mismatch {sequence.shape[-1]} != {target_len}. "
+            f"Model expects {target_len} features. Fix feature engineering to produce correct dimension. "
+            f"Auto-padding/truncation disabled to prevent silent data corruption."
         )
-        return adjusted
 
     def _match_vector(self, vec: np.ndarray, target_len: int) -> np.ndarray:
         """Trim or pad a vector to target_len."""
