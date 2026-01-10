@@ -12,25 +12,57 @@ Identifies WHERE variance collapses and WHY:
 NO training, NO activation, NO model loading.
 Pure telemetry analysis using Redis stream only.
 
-Usage: ops/run.sh ai-engine ops/model_safety/diagnose_collapse.py
+Usage: 
+  ops/run.sh ai-engine ops/model_safety/diagnose_collapse.py
+  ops/run.sh ai-engine ops/model_safety/diagnose_collapse.py --after 2026-01-10T05:43:15Z
 """
 
 import sys
 import json
 import redis
+import argparse
 import numpy as np
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict, Counter
 
+# PATCH CUTOVER: AI engine restart after hardcoded confidence removal
+PATCH_CUTOVER_TS = "2026-01-10T05:43:15Z"  # 1736486595 Unix timestamp
 
-def read_redis_stream(stream_key='quantum:stream:trade.intent', count=2000):
+
+def parse_args():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description='Diagnose Collapse - Telemetry Flow Tracer')
+    parser.add_argument(
+        '--after',
+        type=str,
+        default=None,
+        help=f'Analyze only events after timestamp (ISO 8601 format). Use {PATCH_CUTOVER_TS} for post-patch analysis'
+    )
+    return parser.parse_args()
+
+
+def timestamp_to_stream_id(ts_str):
+    """Convert ISO 8601 timestamp to Redis stream ID"""
+    from datetime import datetime
+    dt = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+    unix_ms = int(dt.timestamp() * 1000)
+    return f"{unix_ms}-0"
+
+
+def read_redis_stream(stream_key='quantum:stream:trade.intent', count=2000, after_ts=None):
     """Read telemetry events from Redis stream (QSC: localhost:6379)"""
     try:
         r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=False)
         r.ping()
         
-        raw_events = r.xrevrange(stream_key, count=count)
+        if after_ts:
+            # Read all events after cutover timestamp
+            min_stream_id = timestamp_to_stream_id(after_ts)
+            raw_events = r.xrange(stream_key, min=min_stream_id, max='+', count=count)
+            raw_events = list(reversed(raw_events))  # Newest first
+        else:
+            raw_events = r.xrevrange(stream_key, count=count)
         
         events = []
         for event_id, fields in raw_events:
@@ -544,8 +576,17 @@ def generate_diagnosis_report(telemetry_data, threshold_analysis, confidence_ana
 def main():
     """Main diagnosis entry point"""
     
+    # Parse arguments
+    args = parse_args()
+    
     STREAM_KEY = 'quantum:stream:trade.intent'
     EVENT_COUNT = 2000
+    
+    # Setup paths
+    reports_dir = Path('reports/safety')
+    timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+    report_suffix = '_post_cutover' if args.after else ''
+    report_path = reports_dir / f'diagnosis_{timestamp_str}{report_suffix}.md'
     
     print("="*80)
     print("DIAGNOSIS MODE - Telemetry Flow Analysis (QSC-Compliant)")
@@ -553,12 +594,23 @@ def main():
     print()
     print(f"Reading Redis stream: {STREAM_KEY}")
     print(f"Requested events: {EVENT_COUNT}")
+    if args.after:
+        print(f"Cutover filter: Events after {args.after}")
     print()
     
     try:
-        # Read telemetry
-        print("Fetching telemetry events...")
-        events = read_redis_stream(STREAM_KEY, EVENT_COUNT)
+        # If cutover analysis, get pre-cutover data first for comparison
+        pre_telemetry = None
+        if args.after:
+            print("Step 1: Analyzing pre-cutover data for comparison...")
+            pre_events = read_redis_stream(STREAM_KEY, EVENT_COUNT, after_ts=None)
+            pre_telemetry = extract_telemetry_data(pre_events)
+            print(f"   Found {len(pre_events)} pre-cutover events")
+            print()
+        
+        # Read Redis stream (with cutover filter if specified)
+        print(f"Step {'2' if args.after else '1'}: Analyzing {'post-cutover' if args.after else 'all'} data...")
+        events = read_redis_stream(STREAM_KEY, EVENT_COUNT, after_ts=args.after)
         print(f"✅ Retrieved {len(events)} events")
         print()
         
