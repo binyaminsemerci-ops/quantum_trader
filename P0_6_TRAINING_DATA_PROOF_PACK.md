@@ -88,6 +88,31 @@ training_tasks                0         Empty
 - Last save: 2026-01-10 03:22:47 UTC
 - Save status: OK
 
+### F) RL (Reinforcement Learning) Data
+**Location**: `/opt/quantum/data/rl_v3/`  
+**Size**: 1.2 MB  
+**Type**: PyTorch model files  
+**Status**: Available but NOT used for PatchTST
+
+**Contents**:
+- `ppo_model.pt` (607 KB) - PPO (Proximal Policy Optimization) trained model
+- `sandbox_model.pt` (608 KB) - Sandbox/test model
+
+**Policy Observations** (RL feedback data):
+- Location: `/opt/quantum/data/policy_observations/`
+- `policy_obs_2025-11-22.jsonl` (104 KB, 88 observations)
+- `signals_2025-11-22.jsonl` (399 KB, 510 signal decisions)
+- Format: JSON Lines with regime, risk state, policy decisions, actual outcomes
+
+**Analysis**: RL data is for position sizing and risk management, NOT for time series forecasting. PatchTST requires historical price features + WIN/LOSS labels from `ai_training_samples`.
+
+### G) CLM (Continuous Learning Module) Data
+**Service Status**: `inactive` (not deployed)  
+**Config**: `/etc/quantum/clm.env`  
+**Purpose**: Continuous model retraining based on live performance
+
+**Analysis**: CLM service is configured but not running. No CLM-specific training data found. CLM would use the same `ai_training_samples` table as P0.6 for model updates.
+
 ---
 
 ## 3. AI_TRAINING_SAMPLES SCHEMA
@@ -362,5 +387,55 @@ Update P0.6 script line 84 (or similar) to use correct database path, then execu
 
 ---
 
-**Delivered**: 2026-01-10 03:35 UTC  
-**Status**: ✅ PROOF PACK COMPLETE — READY TO PROCEED
+## 11. CLM & RL DATA ASSESSMENT
+
+### Question: Can CLM or RL data be used for PatchTST training?
+
+**Answer: NO** - Different data types and purposes.
+
+### Data Type Comparison
+
+| Dataset | Type | Purpose | Suitable for PatchTST? |
+|---------|------|---------|------------------------|
+| **ai_training_samples** | Time series features + WIN/LOSS labels | Price prediction training | ✅ **YES** (primary) |
+| **RL models** | PyTorch policy networks | Position sizing decisions | ❌ NO (different model type) |
+| **Policy observations** | JSONL with regime/risk state | RL training feedback | ❌ NO (not time series) |
+| **CLM service** | Continuous retraining orchestrator | Automated model updates | ❌ NO (uses ai_training_samples) |
+
+### Why RL/CLM Data Cannot Be Used
+
+1. **RL Models** (`ppo_model.pt`, `sandbox_model.pt`):
+   - Purpose: Position sizing based on risk state (Kelly Criterion, regime detection)
+   - Input: Current portfolio state, market regime, drawdown
+   - Output: Position size multiplier (e.g., 0.5x, 1.0x, 2.0x)
+   - **Not usable**: PatchTST needs price sequences, not policy networks
+
+2. **Policy Observations** (JSONL files):
+   - Purpose: RL training feedback (state → action → reward)
+   - Format: JSON with regime tags, risk metrics, confidence thresholds
+   - **Not usable**: PatchTST needs numerical time series (OHLCV + indicators)
+
+3. **CLM Service**:
+   - Purpose: Orchestrate periodic retraining using **same data** as P0.6
+   - Data source: `ai_training_samples` table (same as P0.6)
+   - **Conclusion**: CLM is a workflow tool, not a data source
+
+### Correct Training Data for PatchTST P0.6
+
+**ONLY** use: `/opt/quantum/data/quantum_trader.db` → `ai_training_samples` table
+
+This contains:
+- ✅ Time series feature vectors (price, volume, indicators)
+- ✅ WIN/LOSS labels (trade outcomes)
+- ✅ 6,000 samples (sufficient for balanced retraining)
+- ✅ 5 symbols with recent data (30 days)
+
+**RL and CLM are separate systems** that work alongside PatchTST in the trading pipeline:
+- **PatchTST**: Predicts BUY/SELL/HOLD actions
+- **RL Sizer**: Determines position size based on risk state
+- **CLM**: Automates periodic retraining of PatchTST
+
+---
+
+**Delivered**: 2026-01-10 03:40 UTC  
+**Status**: ✅ PROOF PACK COMPLETE — CLM/RL ASSESSED — READY TO PROCEED
