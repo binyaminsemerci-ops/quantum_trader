@@ -360,8 +360,8 @@ class PatchTSTAgent:
                 action = 'SELL'
                 confidence = 1.0 - prob
             else:
-                action = 'HOLD'
-                confidence = 0.5
+                # FAIL-CLOSED: prob in dead zone - raise error instead of HOLD 0.5
+                raise ValueError(f"PatchTST probability {prob:.4f} in dead zone [0.4, 0.6] - no clear signal")
             
             # 🔍 SHADOW MODE (P0.4) - Enhanced logging + return marker
             shadow_mode = os.getenv('PATCHTST_SHADOW_ONLY', 'false').lower() == 'true'

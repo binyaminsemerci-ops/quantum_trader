@@ -392,33 +392,34 @@ class EnsembleManager:
         # Get predictions from all models
         predictions = {}
         
+        # FAIL-CLOSED: If any model fails, exclude it from ensemble (don't use HOLD 0.5 fallback)
         try:
             predictions['xgb'] = self.xgb_agent.predict(symbol, features)
         except Exception as e:
-            logger.warning(f"XGBoost prediction failed: {e}")
-            predictions['xgb'] = ('HOLD', 0.50, 'xgb_error')
+            logger.error(f"XGBoost prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
+            # Don't add to predictions - let ensemble work with remaining models
         
         try:
             predictions['lgbm'] = self.lgbm_agent.predict(symbol, features)
         except Exception as e:
-            logger.warning(f"LightGBM prediction failed: {e}")
-            predictions['lgbm'] = ('HOLD', 0.50, 'lgbm_error')
+            logger.error(f"LightGBM prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
+            # Don't add to predictions - let ensemble work with remaining models
         
         # N-HiTS: Only predict if agent is loaded
         if self.nhits_agent is not None:
             try:
                 predictions['nhits'] = self.nhits_agent.predict(symbol, features)
             except Exception as e:
-                logger.warning(f"N-HiTS prediction failed: {e}")
-                predictions['nhits'] = ('HOLD', 0.50, 'nhits_error')
+                logger.error(f"N-HiTS prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
+                # Don't add to predictions - let ensemble work with remaining models
         
         # PatchTST: Only predict if agent is loaded
         if self.patchtst_agent is not None:
             try:
                 predictions['patchtst'] = self.patchtst_agent.predict(symbol, features)
             except Exception as e:
-                logger.warning(f"PatchTST prediction failed: {e}")
-                predictions['patchtst'] = ('HOLD', 0.50, 'patchtst_error')
+                logger.error(f"PatchTST prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
+                # Don't add to predictions - let ensemble work with remaining models
         
         # 🔍 SHADOW MODE: Mark PatchTST predictions for telemetry-only if in shadow mode
         shadow_predictions = {}
