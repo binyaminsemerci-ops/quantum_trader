@@ -26,16 +26,48 @@ import sys
 import json
 import redis
 import numpy as np
+import argparse
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
 
+# PATCH CUTOVER: AI engine restart after hardcoded confidence removal
+PATCH_CUTOVER_TS = "2026-01-10T05:43:15Z"  # 1736486595 Unix timestamp
 
-def read_redis_stream(stream_key='quantum:stream:trade.intent', count=2000):
+
+def parse_args():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description='Quality Gate - Telemetry-Only Model Safety Check')
+    parser.add_argument(
+        '--after',
+        type=str,
+        default=None,
+        help=f'Analyze only events after timestamp (ISO 8601 format). Use {PATCH_CUTOVER_TS} for post-patch analysis'
+    )
+    return parser.parse_args()
+
+
+def timestamp_to_stream_id(ts_str):
+    """Convert ISO 8601 timestamp to Redis stream ID (milliseconds-sequenceNumber)"""
+    from datetime import datetime
+    dt = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+    unix_ms = int(dt.timestamp() * 1000)
+    return f"{unix_ms}-0"  # Use sequence 0 as minimum
+
+
+def read_redis_stream(stream_key='quantum:stream:trade.intent', count=2000, after_ts=None, after_ts=None):
     """
     Read last N events from Redis stream using Python redis client
     
     SYSTEMD-ONLY: Assumes Redis on localhost:6379
+    
+    Args:
+        stream_key: Redis stream name
+        count: Maximum events to read
+        after_ts: If provided (ISO 8601), filter events after this timestamp
+    
+    Returns:
+        list of events (filtered by timestamp if after_ts provided)
     """
     try:
         # Connect to Redis (localhost only)
@@ -44,9 +76,16 @@ def read_redis_stream(stream_key='quantum:stream:trade.intent', count=2000):
         # Test connection
         r.ping()
         
-        # XREVRANGE returns events in reverse order (newest first)
-        # Returns: [(event_id, {field: value, ...}), ...]
-        raw_events = r.xrevrange(stream_key, count=count)
+        if after_ts:
+            # Read all events after cutover timestamp
+            min_stream_id = timestamp_to_stream_id(after_ts)
+            # Use XRANGE to get events after cutover (forward order)
+            raw_events = r.xrange(stream_key, min=min_stream_id, max='+', count=count)
+            # Reverse to maintain newest-first ordering
+            raw_events = list(reversed(raw_events))
+        else:
+            # XREVRANGE returns events in reverse order (newest first)
+            raw_events = r.xrevrange(stream_key, count=count)
         
         # Convert bytes to strings and parse
         events = []
@@ -191,21 +230,32 @@ def check_quality_gate(analysis):
     return failures
 
 
-def generate_report(model_results, telemetry_info, report_path):
-    """Generate markdown report"""
+def generate_report(model_results, telemetry_info, report_path, pre_results=None):
+    """Generate markdown report with optional pre/post comparison"""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
     
     lines = [
         "# Quality Gate Report (Telemetry-Only)",
         "",
         f"**Timestamp:** {timestamp}",
-        "",
+        ""
+    ]
+    
+    # Cutover info
+    if telemetry_info.get('cutover_ts'):
+        lines.append("## Cutover Analysis")
+        lines.append("")
+        lines.append(f"**Cutover Timestamp:** {telemetry_info['cutover_ts']}")
+        lines.append(f"**Mode:** Post-cutover analysis (events after patch deployment)")
+        lines.append("")
+    
+    lines.extend([
         "## Telemetry Info",
         f"- Redis stream: {telemetry_info['stream_key']}",
         f"- Events analyzed: {telemetry_info['event_count']}",
         f"- Events requested: {telemetry_info['event_requested']}",
         ""
-    ]
+    ])
     
     # Check if insufficient data
     if telemetry_info['event_count'] < telemetry_info['min_events']:
@@ -221,6 +271,43 @@ def generate_report(model_results, telemetry_info, report_path):
     if model_results:
         lines.append("## Model Breakdown")
         lines.append("")
+        
+        # Add delta comparison if pre_results provided
+        if pre_results:
+            lines.append("### Pre/Post Cutover Comparison")
+            lines.append("")
+            lines.append("| Model | Metric | Before Patch | After Patch | Delta |")
+            lines.append("|-------|--------|--------------|-------------|-------|")
+            
+            for model_name in sorted(model_results.keys()):
+                post = model_results[model_name]['analysis']
+                pre = pre_results.get(model_name, {}).get('analysis')
+                
+                if post and pre:
+                    # HOLD% delta
+                    hold_pre = pre['action_pcts']['HOLD']
+                    hold_post = post['action_pcts']['HOLD']
+                    hold_delta = hold_post - hold_pre
+                    lines.append(f"| {model_name} | HOLD% | {hold_pre:.1f}% | {hold_post:.1f}% | {hold_delta:+.1f}% |")
+                    
+                    # Confidence std delta
+                    std_pre = pre['confidence']['std']
+                    std_post = post['confidence']['std']
+                    std_delta = std_post - std_pre
+                    lines.append(f"| {model_name} | Conf Std | {std_pre:.4f} | {std_post:.4f} | {std_delta:+.4f} |")
+                    
+                    # P10-P90 range delta
+                    range_pre = pre['confidence']['p10_p90_range']
+                    range_post = post['confidence']['p10_p90_range']
+                    range_delta = range_post - range_pre
+                    lines.append(f"| {model_name} | P10-P90 | {range_pre:.4f} | {range_post:.4f} | {range_delta:+.4f} |")
+            
+            lines.append("")
+            lines.append("**Improvement indicators:**")
+            lines.append("- HOLD% decrease = Less dead zone trap ✅")
+            lines.append("- Conf Std increase = More variance ✅")
+            lines.append("- P10-P90 increase = Wider distribution ✅")
+            lines.append("")
         
         for model_name, result in sorted(model_results.items()):
             analysis = result['analysis']
@@ -270,7 +357,10 @@ def generate_report(model_results, telemetry_info, report_path):
 
 
 def main():
-    """Main quality gate entry point"""
+    """Main quality gate entry point""
+    
+    # Parse arguments
+    args = parse_args()
     
     STREAM_KEY = 'quantum:stream:trade.intent'
     EVENT_COUNT = 2000
@@ -279,7 +369,8 @@ def main():
     # Setup paths
     reports_dir = Path('reports/safety')
     timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
-    report_path = reports_dir / f'quality_gate_{timestamp_str}.md'
+    report_suffix = '_post_cutover' if args.after else ''
+    report_path = reports_dir / f'quality_gate_{timestamp_str}{report_suffix}.md'
     
     print("="*80)
     print("QUALITY GATE - TELEMETRY-ONLY (FAIL-CLOSED)")
@@ -287,16 +378,35 @@ def main():
     print()
     print(f"Reading Redis stream: {STREAM_KEY}")
     print(f"Requested events: {EVENT_COUNT}")
+    if args.after:
+        print(f"Cutover filter: Events after {args.after}")
+    print()
     
     try:
-        # Read Redis stream
-        events = read_redis_stream(STREAM_KEY, EVENT_COUNT)
+        # If cutover analysis, get pre-cutover data first for comparison
+        pre_results = None
+        if args.after:
+            print("Step 1: Analyzing pre-cutover data for comparison...")
+            pre_events = read_redis_stream(STREAM_KEY, EVENT_COUNT, after_ts=None)
+            pre_model_data = extract_model_predictions(pre_events)
+            pre_results = {}
+            for model_name, predictions in pre_model_data.items():
+                analysis = analyze_predictions(predictions)
+                failures = check_quality_gate(analysis)
+                pre_results[model_name] = {'analysis': analysis, 'failures': failures}
+            print(f"   Found {len(pre_events)} pre-cutover events")
+            print()
+        
+        # Read Redis stream (with cutover filter if specified)
+        print(f"Step {'2' if args.after else '1'}: Analyzing {'post-cutover' if args.after else 'all'} data...")
+        events = read_redis_stream(STREAM_KEY, EVENT_COUNT, after_ts=args.after)
         
         telemetry_info = {
             'stream_key': STREAM_KEY,
             'event_count': len(events),
             'event_requested': EVENT_COUNT,
-            'min_events': MIN_EVENTS
+            'min_events': MIN_EVENTS,
+            'cutover_ts': args.after
         }
         
         print(f"Parsing events...")
@@ -360,7 +470,7 @@ def main():
             print()
         
         # Generate report
-        generate_report(model_results, telemetry_info, report_path)
+        generate_report(model_results, telemetry_info, report_path, pre_results=pre_results)
         print(f"Report: {report_path}")
         print()
         print("="*80)
