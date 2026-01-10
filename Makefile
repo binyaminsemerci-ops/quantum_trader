@@ -1,7 +1,7 @@
 # Makefile for Quantum Trading System
 # ALL operations use ops/run.sh wrapper (Golden Contract)
 
-.PHONY: help quality-gate scoreboard build-patchtst-dataset audit train-patchtst
+.PHONY: help quality-gate scoreboard diagnose build-patchtst-dataset audit train-patchtst
 
 # Service name for AI Engine operations
 SERVICE := ai-engine
@@ -14,6 +14,7 @@ help:
 	@echo ""
 	@echo "Model Safety:"
 	@echo "  quality-gate           - Check model quality (telemetry-only, BLOCKER)"
+	@echo "  diagnose               - Diagnose variance collapse (NO training/activation)"
 	@echo "  scoreboard             - View all models status"
 	@echo ""
 	@echo "Training:"
@@ -28,6 +29,10 @@ help:
 quality-gate:
 	@echo "Running quality gate (BLOCKER)..."
 	$(RUN) ops/model_safety/quality_gate.py
+
+diagnose:
+	@echo "Running diagnosis mode (NO training/activation)..."
+	$(RUN) ops/model_safety/diagnose_collapse.py
 
 scoreboard:
 	@echo "Generating model scoreboard..."
