@@ -420,8 +420,30 @@ class EnsembleManager:
                 logger.warning(f"PatchTST prediction failed: {e}")
                 predictions['patchtst'] = ('HOLD', 0.50, 'patchtst_error')
         
-        # Aggregate with smart voting
-        action, confidence, info = self._aggregate_predictions(predictions, features)
+        # 🔍 SHADOW MODE: Mark PatchTST predictions for telemetry-only if in shadow mode
+        shadow_predictions = {}
+        active_predictions = {}
+        
+        for model_name, prediction in predictions.items():
+            # Check if model is in shadow mode (marked by agent)
+            if model_name == 'patchtst' and len(prediction) >= 3 and 'shadow' in str(prediction[2]):
+                shadow_predictions[model_name] = prediction
+                logger.debug(f"[SHADOW] {model_name} in shadow mode - excluded from voting")
+            else:
+                active_predictions[model_name] = prediction
+        
+        # Aggregate with smart voting (only active models)
+        action, confidence, info = self._aggregate_predictions(active_predictions, features)
+        
+        # Re-add shadow predictions to info['models'] for telemetry
+        if shadow_predictions:
+            for model_name, (act, conf, model_info) in shadow_predictions.items():
+                info['models'][model_name] = {
+                    'action': act,
+                    'confidence': conf,
+                    'model': model_info,
+                    'shadow': True  # Mark as shadow in telemetry
+                }
         
         # DEBUG: Log predictions with any signal
         if action != 'HOLD' or confidence > 0.50:

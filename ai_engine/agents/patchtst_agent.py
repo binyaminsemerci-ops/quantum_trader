@@ -2,8 +2,13 @@
 PatchTST AGENT - CPU-OPTIMIZED with TorchScript
 Patch-based Transformer for trading (Phase 4C+)
 Expected WIN rate: 68-73%
+
+SHADOW MODE (P0.4):
+- PATCHTST_SHADOW_ONLY=true → evaluate but don't vote
+- Full inference + telemetry, zero ensemble impact
 """
 import os
+import time
 import numpy as np
 import torch
 import torch.nn as nn
@@ -12,6 +17,10 @@ from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Shadow mode rate limiter
+_last_shadow_log_time = 0
+_SHADOW_LOG_INTERVAL = 30  # seconds
 
 
 class PatchTSTModel(nn.Module):
@@ -337,9 +346,10 @@ class PatchTSTAgent:
             if input_tensor is None:
                 return 'HOLD', 0.0, 'patchtst_model'
             
-            # Predict
+            # Predict (full inference always)
             with torch.no_grad():
                 output = self.compiled_model(input_tensor)
+                logit = output.item()
                 prob = torch.sigmoid(output).item()
             
             # Convert to action
@@ -352,6 +362,23 @@ class PatchTSTAgent:
             else:
                 action = 'HOLD'
                 confidence = 0.5
+            
+            # 🔍 SHADOW MODE (P0.4) - Enhanced logging + return marker
+            shadow_mode = os.getenv('PATCHTST_SHADOW_ONLY', 'false').lower() == 'true'
+            
+            if shadow_mode:
+                # Rate-limited detailed logging
+                global _last_shadow_log_time
+                now = time.time()
+                if now - _last_shadow_log_time >= _SHADOW_LOG_INTERVAL:
+                    logger.info(
+                        f"[SHADOW] PatchTST | {symbol} | action={action} conf={confidence:.4f} | "
+                        f"prob={prob:.4f} logit={logit:.4f} | mode=SHADOW_ONLY"
+                    )
+                    _last_shadow_log_time = now
+                
+                # Return with shadow marker (tuple becomes dict in ensemble)
+                return action, confidence, 'patchtst_shadow'
             
             return action, confidence, 'patchtst_model'
             
