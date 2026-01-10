@@ -49,7 +49,7 @@ MIN_DISK_FREE_GB = 5.0
 SEQUENCE_LENGTH = 128
 NUM_FEATURES = 4  # P0.7 FIX: Actual feature count (rsi, ma_cross, volatility, returns_1h)
 LABEL_SMOOTHING = 0.0  # P0.7 FIX: DISABLED (was pushing outputs to 0.5)
-VARIANCE_PENALTY_WEIGHT = 0.1  # P0.7: NEW anti-collapse regularization
+VARIANCE_PENALTY_WEIGHT = 0.5  # P0.7: Increased from 0.1 (stronger anti-collapse force)
 EARLY_STOP_VAL_STD_THRESHOLD = 0.02  # P0.7: Stop if collapse detected
 
 # Sanity check thresholds (HARD FAILS)
