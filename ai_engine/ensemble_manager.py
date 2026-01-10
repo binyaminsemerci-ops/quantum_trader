@@ -469,18 +469,19 @@ class EnsembleManager:
             active_weights = {k: v for k, v in info.get('weights', {}).items() if k in active_predictions}
             logger.info(f"[QSC] EFFECTIVE_WEIGHTS: {active_weights}")
         
-        # DEBUG: Log predictions with any signal
+        # DEBUG: Log predictions with any signal (QSC: only log active predictions)
         if action != 'HOLD' or confidence > 0.50:
-            pred_str = (
-                f"XGB:{predictions['xgb'][0]}/{predictions['xgb'][1]:.2f} "
-                f"LGBM:{predictions['lgbm'][0]}/{predictions['lgbm'][1]:.2f}"
-            )
-            if 'nhits' in predictions:
-                pred_str += f" NH:{predictions['nhits'][0]}/{predictions['nhits'][1]:.2f}"
-            if 'patchtst' in predictions:
-                pred_str += f" PT:{predictions['patchtst'][0]}/{predictions['patchtst'][1]:.2f}"
+            pred_str = ""
+            if 'xgb' in active_predictions:
+                pred_str += f"XGB:{active_predictions['xgb'][0]}/{active_predictions['xgb'][1]:.2f} "
+            if 'lgbm' in active_predictions:
+                pred_str += f"LGBM:{active_predictions['lgbm'][0]}/{active_predictions['lgbm'][1]:.2f} "
+            if 'nhits' in active_predictions:
+                pred_str += f"NH:{active_predictions['nhits'][0]}/{active_predictions['nhits'][1]:.2f} "
+            if 'patchtst' in active_predictions:
+                pred_str += f"PT:{active_predictions['patchtst'][0]}/{active_predictions['patchtst'][1]:.2f}"
             
-            logger.info(f"[CHART] ENSEMBLE {symbol}: {action} {confidence:.2%} | {pred_str}")
+            logger.info(f"[CHART] ENSEMBLE {symbol}: {action} {confidence:.2%} | {pred_str.strip()}")
         
         return action, confidence, info
     
