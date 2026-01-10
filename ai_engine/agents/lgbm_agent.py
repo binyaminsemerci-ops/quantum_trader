@@ -66,6 +66,10 @@ class LightGBMAgent:
             model_file = Path(self.model_path)
             scaler_file = Path(self.scaler_path)
             
+            # QSC FAIL-CLOSED: Log exact load attempt
+            logger.info(f"[LGBM] Loading model from: {model_file} (exists={model_file.exists()})")
+            logger.info(f"[LGBM] Loading scaler from: {scaler_file} (exists={scaler_file.exists()})")
+            
             # Load model (required)
             if model_file.exists():
                 with open(model_file, 'rb') as f:
@@ -120,15 +124,24 @@ class LightGBMAgent:
             - confidence: 0.0 to 1.0
             - model_name: 'lgbm_model'
         """
+        # QSC FAIL-CLOSED: Raise exception if model not loaded (ensemble will exclude)
         if self.model is None:
-            return self._fallback_prediction(features)
+            raise RuntimeError(
+                "[LGBM] QSC FAIL-CLOSED: Model not loaded. "
+                f"Check model path: {self.model_path}. "
+                "Model must load successfully or be excluded from ensemble."
+            )
         
         try:
             # Convert features to array
             feature_values = self._extract_features(features)
             
+            # QSC FAIL-CLOSED: Raise exception if features invalid
             if feature_values is None:
-                return self._fallback_prediction(features)
+                raise RuntimeError(
+                    "[LGBM] QSC FAIL-CLOSED: Feature extraction returned None. "
+                    "Fix feature engineering or exclude from ensemble."
+                )
             
             # Scale features
             feature_values = feature_values.reshape(1, -1)

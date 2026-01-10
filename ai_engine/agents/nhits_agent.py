@@ -78,10 +78,14 @@ class NHiTSAgent:
             return True
         
         model_file = Path(self.model_path)
+        # QSC FAIL-CLOSED: Log exact load attempt
+        logger.info(f"[NHITS] Loading model from: {model_file} (exists={model_file.exists()})")
+        
         if not model_file.exists():
-            logger.warning(f"[WARNING]  N-HiTS model not found: {model_file}")
-            logger.warning("    Run: python scripts/train_nhits.py")
-            return False
+            raise RuntimeError(
+                f"[NHITS] QSC FAIL-CLOSED: Model file not found: {model_file}. "
+                "Run: python scripts/train_nhits.py or exclude from ensemble."
+            )
         
         try:
             checkpoint = torch.load(str(model_file), map_location=self.device, weights_only=False)
