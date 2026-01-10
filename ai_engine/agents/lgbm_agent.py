@@ -221,23 +221,23 @@ class LightGBMAgent:
             action = 'HOLD'
             confidence = 0.50
             
-            # RSI-based signals (conservative)
+            # RSI-based signals (conservative) - REMOVED 0.75 CAP
             if rsi < 30:  # Oversold
                 action = 'BUY'
-                confidence = min(0.75, 0.55 + (30 - rsi) / 60)
+                confidence = 0.55 + (30 - rsi) / 60  # Real confidence (no cap)
             elif rsi > 70:  # Overbought
                 action = 'SELL'
-                confidence = min(0.75, 0.55 + (rsi - 70) / 60)
+                confidence = 0.55 + (rsi - 70) / 60  # Real confidence (no cap)
             
-            # EMA-based signals (strong trends only)
+            # EMA-based signals (strong trends only) - REMOVED 0.75 CAP
             if ema_10_20_cross > 1.5:  # Strong uptrend
                 if action == 'HOLD':
                     action = 'BUY'
-                    confidence = min(0.75, 0.55 + min(0.20, abs(ema_10_20_cross) / 10))
+                    confidence = 0.55 + min(0.20, abs(ema_10_20_cross) / 10)  # Real confidence (no cap)
             elif ema_10_20_cross < -1.5:  # Strong downtrend
                 if action == 'HOLD':
                     action = 'SELL'
-                    confidence = min(0.75, 0.55 + min(0.20, abs(ema_10_20_cross) / 10))
+                    confidence = 0.55 + min(0.20, abs(ema_10_20_cross) / 10)  # Real confidence (no cap)
             
             logger.debug(
                 f"LightGBM fallback: {action} (conf={confidence:.2f}, "

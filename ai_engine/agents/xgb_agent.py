@@ -291,7 +291,7 @@ class XGBAgent:
         """
         try:
             if self.model is None:
-                return ('HOLD', 0.50, 'xgb_no_model')
+                raise ValueError("XGBoost model not loaded - FAIL-CLOSED")  # FAIL-CLOSED: no model = no prediction
             
             # Load feature names from model training if available
             import os
@@ -393,8 +393,8 @@ class XGBAgent:
             return (action, confidence, 'xgboost')
             
         except Exception as e:
-            logger.warning(f"XGBoost predict failed: {e}")
-            return ('HOLD', 0.50, 'xgb_error')
+            logger.error(f"XGBoost predict failed: {e} - FAIL-CLOSED (no fallback)")
+            raise  # FAIL-CLOSED: propagate error instead of returning HOLD 0.5
 
     def predict_for_symbol(self, ohlcv) -> Dict[str, Any]:
         """BULLETPROOF prediction - ALWAYS returns valid response, NEVER raises.
