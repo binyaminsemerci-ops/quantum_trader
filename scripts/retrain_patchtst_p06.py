@@ -655,8 +655,8 @@ def main():
     train_dir.mkdir(parents=True, exist_ok=True)
     print(f"\n[TRAIN DIR] {train_dir}")
     
-    # Load data
-    db_path = "/home/qt/quantum.db"
+    # Load data (FIXED: Use correct database path with 6,000 training samples)
+    db_path = "/opt/quantum/data/quantum_trader.db"
     df = load_training_data(db_path, TRAINING_WINDOW_DAYS)
     
     # Prepare features with P0.6 balanced sampling
