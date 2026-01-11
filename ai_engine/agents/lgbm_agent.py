@@ -34,8 +34,8 @@ class LightGBMAgent:
         retraining_dir = Path("/app/models") if Path("/app/models").exists() else (
             Path("models") if Path("models").exists() else Path("ai_engine/models")
         )
-        latest_model = self._find_latest_model(retraining_dir, "lightgbm_v*.pkl")
-        latest_scaler = self._find_latest_model(retraining_dir, "lightgbm_scaler_v*.pkl")
+        latest_model = self._find_latest_model(retraining_dir, "lightgbm_v*_v2.pkl")
+        latest_scaler = self._find_latest_model(retraining_dir, "lightgbm_scaler_v*_v2.pkl")
         
         self.model_path = model_path or str(latest_model) if latest_model else "models/lightgbm_v20251228_154858.pkl"
         self.scaler_path = scaler_path or str(latest_scaler) if latest_scaler else "models/lightgbm_scaler_v20251230_223627.pkl"

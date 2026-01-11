@@ -39,7 +39,7 @@ class NHiTSAgent:
         # Retraining saves to /app/models/, agents default to ai_engine/models
         retraining_dir = Path("/app/models") if Path("/app/models").exists() else Path("ai_engine/models")
         # Search for .pth files (PyTorch format)
-        latest_model = self._find_latest_model(retraining_dir, "nhits_v*.pth")
+        latest_model = self._find_latest_model(retraining_dir, "nhits_v*_v2.pth")
         self.model_path = model_path or str(latest_model) if latest_model else "ai_engine/models/nhits_model.pth"
         
         # Auto-detect device
