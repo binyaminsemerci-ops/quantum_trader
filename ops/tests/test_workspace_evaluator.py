@@ -56,7 +56,13 @@ class TestWorkspaceEvaluator:
     
     def test_calculate_agreement_insufficient_models(self):
         """Test agreement calculation with insufficient models"""
-        evaluator = WorkspaceEvaluator.__new__(WorkspaceEvaluator)
+        # Create evaluator with mocked Redis
+        with patch('ops.evaluation.workspace_evaluator.redis.Redis') as mock_redis:
+            mock_client = Mock()
+            mock_client.ping.return_value = True
+            mock_redis.return_value = mock_client
+            
+            evaluator = WorkspaceEvaluator()
         
         model_results = {
             'model1': {
@@ -74,7 +80,13 @@ class TestWorkspaceEvaluator:
     
     def test_calculate_agreement_healthy(self):
         """Test agreement calculation with healthy ensemble"""
-        evaluator = WorkspaceEvaluator.__new__(WorkspaceEvaluator)
+        # Create evaluator with mocked Redis
+        with patch('ops.evaluation.workspace_evaluator.redis.Redis') as mock_redis:
+            mock_client = Mock()
+            mock_client.ping.return_value = True
+            mock_redis.return_value = mock_client
+            
+            evaluator = WorkspaceEvaluator()
         
         model_results = {
             'model1': {
@@ -104,7 +116,13 @@ class TestWorkspaceEvaluator:
     
     def test_check_degeneracy_constant_confidence(self):
         """Test degeneracy detection for constant confidence"""
-        evaluator = WorkspaceEvaluator.__new__(WorkspaceEvaluator)
+        # Create evaluator with mocked Redis
+        with patch('ops.evaluation.workspace_evaluator.redis.Redis') as mock_redis:
+            mock_client = Mock()
+            mock_client.ping.return_value = True
+            mock_redis.return_value = mock_client
+            
+            evaluator = WorkspaceEvaluator()
         
         model_results = {
             'stuck_model': {
@@ -132,7 +150,13 @@ class TestWorkspaceEvaluator:
     
     def test_check_degeneracy_hold_collapse(self):
         """Test degeneracy detection for HOLD collapse"""
-        evaluator = WorkspaceEvaluator.__new__(WorkspaceEvaluator)
+        # Create evaluator with mocked Redis
+        with patch('ops.evaluation.workspace_evaluator.redis.Redis') as mock_redis:
+            mock_client = Mock()
+            mock_client.ping.return_value = True
+            mock_redis.return_value = mock_client
+            
+            evaluator = WorkspaceEvaluator()
         
         model_results = {
             'hold_model': {
@@ -144,7 +168,7 @@ class TestWorkspaceEvaluator:
                         'p90': 0.6,
                         'p10_p90_range': 0.2
                     },
-                    'action_pcts': {'BUY': 5, 'SELL': 3, 'HOLD': 92},  # >90% HOLD
+                    'action_pcts': {'BUY': 5, 'SELL': 3, 'HOLD': 92},  # 85-95% HOLD
                     'action_counts': {'BUY': 10, 'SELL': 6, 'HOLD': 184},
                     'confidence_violations': []
                 }
@@ -159,7 +183,13 @@ class TestWorkspaceEvaluator:
     
     def test_check_degeneracy_single_action_dominance(self):
         """Test degeneracy detection for single action dominance"""
-        evaluator = WorkspaceEvaluator.__new__(WorkspaceEvaluator)
+        # Create evaluator with mocked Redis
+        with patch('ops.evaluation.workspace_evaluator.redis.Redis') as mock_redis:
+            mock_client = Mock()
+            mock_client.ping.return_value = True
+            mock_redis.return_value = mock_client
+            
+            evaluator = WorkspaceEvaluator()
         
         model_results = {
             'buy_only_model': {
@@ -186,7 +216,13 @@ class TestWorkspaceEvaluator:
     
     def test_check_degeneracy_healthy_models(self):
         """Test degeneracy detection with healthy models"""
-        evaluator = WorkspaceEvaluator.__new__(WorkspaceEvaluator)
+        # Create evaluator with mocked Redis
+        with patch('ops.evaluation.workspace_evaluator.redis.Redis') as mock_redis:
+            mock_client = Mock()
+            mock_client.ping.return_value = True
+            mock_redis.return_value = mock_client
+            
+            evaluator = WorkspaceEvaluator()
         
         model_results = {
             'healthy_model': {
@@ -213,7 +249,13 @@ class TestWorkspaceEvaluator:
     
     def test_determine_status_pass(self):
         """Test status determination for passing workspace"""
-        evaluator = WorkspaceEvaluator.__new__(WorkspaceEvaluator)
+        # Create evaluator with mocked Redis
+        with patch('ops.evaluation.workspace_evaluator.redis.Redis') as mock_redis:
+            mock_client = Mock()
+            mock_client.ping.return_value = True
+            mock_redis.return_value = mock_client
+            
+            evaluator = WorkspaceEvaluator()
         
         model_results = {
             'model1': {'status': 'PASS', 'failures': []},
@@ -239,7 +281,13 @@ class TestWorkspaceEvaluator:
     
     def test_determine_status_fail_with_blockers(self):
         """Test status determination with blockers"""
-        evaluator = WorkspaceEvaluator.__new__(WorkspaceEvaluator)
+        # Create evaluator with mocked Redis
+        with patch('ops.evaluation.workspace_evaluator.redis.Redis') as mock_redis:
+            mock_client = Mock()
+            mock_client.ping.return_value = True
+            mock_redis.return_value = mock_client
+            
+            evaluator = WorkspaceEvaluator()
         
         model_results = {
             'model1': {'status': 'FAIL', 'failures': ['Too much HOLD']},
@@ -265,7 +313,13 @@ class TestWorkspaceEvaluator:
     
     def test_determine_status_pass_with_warnings(self):
         """Test status determination with warnings but no blockers"""
-        evaluator = WorkspaceEvaluator.__new__(WorkspaceEvaluator)
+        # Create evaluator with mocked Redis
+        with patch('ops.evaluation.workspace_evaluator.redis.Redis') as mock_redis:
+            mock_client = Mock()
+            mock_client.ping.return_value = True
+            mock_redis.return_value = mock_client
+            
+            evaluator = WorkspaceEvaluator()
         
         model_results = {
             'model1': {'status': 'PASS', 'failures': []},

@@ -239,23 +239,34 @@ class WorkspaceEvaluator:
         if not action_distributions:
             return {'agreement_pct': 0, 'hard_disagree_pct': 0}
         
-        # Calculate average divergence
-        # Agreement = 100 - avg_divergence
-        # This is a simplified metric; real implementation would compare predictions directly
+        # Calculate agreement based on action distribution similarity
+        # Agreement = How much models align on the dominant action
         avg_buy = np.mean([d['BUY'] for d in action_distributions.values()])
         avg_sell = np.mean([d['SELL'] for d in action_distributions.values()])
         avg_hold = np.mean([d['HOLD'] for d in action_distributions.values()])
         
-        # Calculate variance
-        buy_var = np.var([d['BUY'] for d in action_distributions.values()])
-        sell_var = np.var([d['SELL'] for d in action_distributions.values()])
+        # Calculate standard deviation of each action across models
+        buy_std = np.std([d['BUY'] for d in action_distributions.values()])
+        sell_std = np.std([d['SELL'] for d in action_distributions.values()])
+        hold_std = np.std([d['HOLD'] for d in action_distributions.values()])
         
-        # Agreement heuristic: lower variance = higher agreement
-        avg_variance = (buy_var + sell_var) / 2
-        agreement_pct = max(0, 100 - (avg_variance / 2))  # Normalize
+        # Agreement: Lower std = higher agreement (models closer together)
+        # Normalize to [0, 100] range: std of 0 = 100% agreement, std of 50 = 0% agreement
+        avg_std = (buy_std + sell_std + hold_std) / 3
+        agreement_pct = max(0, min(100, 100 - (avg_std * 2)))  # std of 50 → 0%, std of 0 → 100%
         
-        # Hard disagree: significant BUY/SELL conflict
-        hard_disagree_pct = min(avg_buy, avg_sell)  # Overlapping BUY/SELL
+        # Hard disagree: Models producing opposite signals (high BUY in some, high SELL in others)
+        # Measure coefficient of variation for BUY and SELL
+        buy_values = [d['BUY'] for d in action_distributions.values()]
+        sell_values = [d['SELL'] for d in action_distributions.values()]
+        
+        # If models have high BUY% and high SELL% simultaneously, that's hard disagree
+        # Use max of each minus min of each as proxy for conflict
+        buy_range = max(buy_values) - min(buy_values)
+        sell_range = max(sell_values) - min(sell_values)
+        
+        # Hard disagree when both BUY and SELL have wide ranges (conflicting signals)
+        hard_disagree_pct = min(buy_range, sell_range)  # Conflict is limited by smaller range
         
         return {
             'agreement_pct': agreement_pct,
@@ -270,7 +281,7 @@ class WorkspaceEvaluator:
         Degeneracy indicators:
         - Constant confidence (std < 0.01)
         - Single-action dominance (>95%)
-        - HOLD collapse (>90%)
+        - HOLD collapse (>85% but ≤95% to avoid overlap with dominance check)
         - Confidence violations
         """
         degenerate_models = []
@@ -289,16 +300,17 @@ class WorkspaceEvaluator:
                 is_degenerate = True
                 reasons.append(f"Constant confidence (std={conf_std:.4f})")
             
-            # Check 2: Single action dominance
+            # Check 2: Single action dominance (>95%)
             for action, pct in analysis['action_pcts'].items():
                 if pct > 95:
                     is_degenerate = True
                     reasons.append(f"{action} dominance ({pct:.1f}%)")
             
-            # Check 3: HOLD collapse
-            if analysis['action_pcts']['HOLD'] > 90:
+            # Check 3: HOLD collapse (85-95% range, catches dead zone without overlapping with dominance)
+            hold_pct = analysis['action_pcts']['HOLD']
+            if 85 < hold_pct <= 95:
                 is_degenerate = True
-                reasons.append(f"HOLD collapse ({analysis['action_pcts']['HOLD']:.1f}%)")
+                reasons.append(f"HOLD collapse ({hold_pct:.1f}%)")
             
             # Check 4: Confidence violations
             if analysis.get('confidence_violations'):
