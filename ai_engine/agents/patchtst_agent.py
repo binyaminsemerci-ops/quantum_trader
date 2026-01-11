@@ -138,7 +138,7 @@ class PatchTSTAgent:
         else:
             # Auto-discover latest model or fallback to default
             retraining_dir = Path("/app/models") if Path("/app/models").exists() else Path("ai_engine/models")
-            latest_model = self._find_latest_model(retraining_dir, "patchtst_v*.pth")
+            latest_model = self._find_latest_model(retraining_dir, "patchtst_v*_v2.pth")
             self.model_path = str(latest_model) if latest_model else "/app/models/patchtst_model.pth"
             logger.info(f"[PatchTST] Auto-discovered model: {self.model_path}")
         
