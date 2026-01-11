@@ -60,17 +60,16 @@ class SimpleNHiTS(nn.Module):
         self.output_layer = nn.Linear(64, 3)
 
     def forward(self, x):
-        # x shape: (batch, features) - no sequence dimension for simplified version
-        if len(x.shape) == 1:
-            x = x.unsqueeze(0)  # (features,) -> (1, features)
+        # Training: x shape is (batch, features) where features=23
+        # We need to treat it as (batch, seq_len=1, num_features=23) for compatibility
+        # Production: x shape is (batch, seq_len=120, num_features=23)
         
-        # For sequence-based: flatten (batch, seq, feat) -> (batch, seq*feat)
-        # For single-step: treat input_size as 1, expand to (batch, 1, features)
         if len(x.shape) == 2:
-            batch_size, features = x.shape
-            x = x.unsqueeze(1)  # (batch, features) -> (batch, 1, features)
+            # Training mode: (batch, features) -> (batch, 1, features)
+            x = x.unsqueeze(1)
         
-        x = self.flatten(x)  # (batch, 1, features) -> (batch, 1*features)
+        # Now x is (batch, seq_len, num_features)
+        x = self.flatten(x)  # (batch, seq_len * num_features)
         
         for block in self.blocks:
             x = block(x)
@@ -81,8 +80,8 @@ class SimpleNHiTS(nn.Module):
         return logits, dummy_forecast
 
 # === Initialiser model ===
-# Note: input_size is sequence length (1 for single-step), num_features is feature dimension
-model = SimpleNHiTS(input_size=1, hidden_size=HIDDEN_SIZE, num_features=input_size, num_classes=NUM_CLASSES, dropout=DROPOUT)
+# Note: input_size is sequence length (120 for 2 hours of 1-minute candles), num_features is feature dimension
+model = SimpleNHiTS(input_size=120, hidden_size=HIDDEN_SIZE, num_features=input_size, num_classes=NUM_CLASSES, dropout=DROPOUT)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
@@ -117,7 +116,7 @@ model_path = OUTPUT_DIR / f"nhits_v{timestamp}_v2.pth"
 
 torch.save({
     "model_state_dict": model.state_dict(),
-    "input_size": 1,  # Sequence length (single-step classification)
+    "input_size": 120,  # Sequence length (120 candles = 2 hours)
     "hidden_size": HIDDEN_SIZE,
     "num_classes": NUM_CLASSES,
     "num_features": input_size,  # Feature dimension (23)
@@ -126,5 +125,5 @@ torch.save({
 }, model_path)
 
 print("\n✅ Model saved:", model_path)
-print("🧠 Architecture: input_size=1 × num_features={} → {} → 64 → 3".format(input_size, HIDDEN_SIZE))
+print("🧠 Architecture: input_size=120 × num_features={} → {} → 64 → 3".format(input_size, HIDDEN_SIZE))
 print("📈 feature_mean/std:", feature_mean.shape)
