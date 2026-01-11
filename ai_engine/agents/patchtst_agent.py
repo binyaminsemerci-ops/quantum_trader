@@ -183,17 +183,19 @@ class PatchTSTAgent:
                     logger.warning(f"[PatchTST] TorchScript tracing failed: {trace_err}")
                     logger.info("[PatchTST] Using uncompiled model (slower but functional)")
                     self.compiled_model = self.model
+                
+                # 🔒 FAIL-CLOSED: Log model metadata
+                logger.info(f"[PatchTST-INIT] Model file: {model_file.name}")
+                logger.info(f"[PatchTST-INIT] Device: {self.device}")
+                logger.info(f"[PatchTST-INIT] Input shape: (batch, {self.sequence_length}, 8)")
+                logger.info(f"[PatchTST-INIT] Patch config: {self.num_patches} patches x {self.patch_len} timesteps")
                     
             except Exception as e:
                 logger.error(f"[PatchTST] ❌ Model loading failed: {e}")
-                logger.info("[PatchTST] Using uninitialized model with random weights")
-                self.model.eval()
-                self.compiled_model = self.model
+                raise RuntimeError(f"[PatchTST] QSC FAIL-CLOSED: Model loading failed from {self.model_path}. Error: {e}")
         else:
             logger.warning(f"[PatchTST] ⚠️ Model file not found: {self.model_path}")
-            logger.info("[PatchTST] Using uninitialized model with random weights")
-            self.model.eval()
-            self.compiled_model = self.model
+            raise FileNotFoundError(f"[PatchTST] QSC FAIL-CLOSED: Model file not found at {self.model_path}. Cannot predict without model.")
         
         # Feature names for normalization
         self.feature_names = [
@@ -341,10 +343,27 @@ class PatchTSTAgent:
         }
         
         try:
+            # 🔒 FAIL-CLOSED: Validate features
+            if not features or features.get('price', 0.0) == 0.0:
+                raise ValueError("[PatchTST] QSC FAIL-CLOSED: Features invalid or price is zero.")
+            
             # Preprocess
             input_tensor = self._preprocess(market_data)
             if input_tensor is None:
-                return 'HOLD', 0.0, 'patchtst_model'
+                raise RuntimeError("[PatchTST] QSC FAIL-CLOSED: Preprocessing failed - returned None.")
+            
+            # 🔒 FAIL-CLOSED: Validate tensor shape and values
+            expected_shape = (1, self.sequence_length, 8)
+            if input_tensor.shape != expected_shape:
+                raise ValueError(
+                    f"[PatchTST] QSC FAIL-CLOSED: Input tensor shape mismatch. "
+                    f"Expected {expected_shape}, got {input_tensor.shape}"
+                )
+            
+            if torch.isnan(input_tensor).any():
+                raise ValueError("[PatchTST] QSC FAIL-CLOSED: Input tensor contains NaN values.")
+            if torch.isinf(input_tensor).any():
+                raise ValueError("[PatchTST] QSC FAIL-CLOSED: Input tensor contains Inf values.")
             
             # Predict (full inference always)
             with torch.no_grad():
@@ -384,5 +403,5 @@ class PatchTSTAgent:
             return action, confidence, 'patchtst_model'
             
         except Exception as e:
-            logger.error(f"[PatchTST] Prediction error: {e}")
-            return 'HOLD', 0.0, 'patchtst_model'
+            logger.error(f"[PatchTST] Prediction error: {e}", exc_info=True)
+            raise RuntimeError(f"[PatchTST] QSC FAIL-CLOSED: Prediction failed for {symbol}. Error: {e}")

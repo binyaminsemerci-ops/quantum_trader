@@ -113,6 +113,13 @@ def parse_args():
         default=None,
         help=f'Analyze only events after timestamp (ISO 8601 format). Use {PATCH_CUTOVER_TS} for post-patch analysis'
     )
+    parser.add_argument(
+        '--mode',
+        type=str,
+        choices=['collection', 'canary'],
+        default='canary',
+        help='Quality gate mode: collection (min_events=100, exit 3) or canary (min_events=200, can exit 0)'
+    )
     return parser.parse_args()
 
 
@@ -147,11 +154,46 @@ def read_redis_stream(stream_key='quantum:stream:trade.intent', count=2000, afte
         
         if after_ts:
             # Read all events after cutover timestamp
+            # NOTE: Python redis client has a bug where xrange with large count returns incomplete results
+            # Workaround: Use redis-cli XRANGE directly
+            import subprocess
             min_stream_id = timestamp_to_stream_id(after_ts)
-            # Use XRANGE to get events after cutover (forward order)
-            raw_events = r.xrange(stream_key, min=min_stream_id, max='+', count=count)
-            # Reverse to maintain newest-first ordering
-            raw_events = list(reversed(raw_events))
+            
+            # Use redis-cli to get ALL events after cutover
+            cmd = f"redis-cli XRANGE {stream_key} {min_stream_id} +"
+            result = subprocess.check_output(cmd, shell=True, text=True)
+            
+            # Parse redis-cli output: ID, field1, value1, field2, value2, ...
+            # Fields can have empty values (e.g., trace_id is often empty)
+            lines = result.strip().split('\n')
+            raw_events = []
+            i = 0
+            while i < len(lines):
+                line = lines[i].strip()
+                # Check if line is an event ID (format: 1234567890-0)
+                if '-' in line and line.replace('-', '').isdigit():
+                    event_id = line
+                    fields = {}
+                    i += 1
+                    # Read field-value pairs until next ID or EOF
+                    while i < len(lines):
+                        next_line = lines[i].strip()
+                        # Stop if next line is an ID
+                        if '-' in next_line and next_line.replace('-', '').isdigit():
+                            break
+                        # Read key
+                        key = lines[i]
+                        i += 1
+                        # Read value (may be empty string)
+                        value = lines[i] if i < len(lines) else ""
+                        i += 1
+                        fields[key] = value
+                    raw_events.append((event_id, fields))
+                else:
+                    i += 1
+            
+            # Limit to requested count and reverse to newest-first
+            raw_events = list(reversed(raw_events[:count]))
         else:
             # XREVRANGE returns events in reverse order (newest first)
             raw_events = r.xrevrange(stream_key, count=count)
@@ -159,6 +201,7 @@ def read_redis_stream(stream_key='quantum:stream:trade.intent', count=2000, afte
         # Convert bytes to strings and parse
         events = []
         for event_id, fields in raw_events:
+            # Handle both string (redis-cli) and bytes (xrevrange) formats
             event_id_str = event_id.decode('utf-8') if isinstance(event_id, bytes) else event_id
             
             # Decode fields
@@ -512,13 +555,27 @@ def main():
     
     STREAM_KEY = 'quantum:stream:trade.intent'
     EVENT_COUNT = 2000
-    MIN_EVENTS = 200
+    
+    # 🔒 FAIL-CLOSED: Collection vs Canary modes
+    # collection: Lower threshold for data gathering, exit 3 (never promotes)
+    # canary: Full threshold for deployment, exit 0 only if safe
+    if args.mode == 'collection':
+        MIN_EVENTS = 100
+        print(f"\n{'='*80}")
+        print("📦 COLLECTION MODE: min_events={MIN_EVENTS}, will exit 3 (NO PROMOTION)")
+        print(f"{'='*80}\n")
+    else:  # canary
+        MIN_EVENTS = 200
+        print(f"\n{'='*80}")
+        print("🚀 CANARY MODE: min_events={MIN_EVENTS}, exit 0 enables promotion")
+        print(f"{'='*80}\n")
     
     # Setup paths
     reports_dir = Path('reports/safety')
     timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+    mode_suffix = f'_{args.mode}' if args.mode == 'collection' else ''
     report_suffix = '_post_cutover' if args.after else ''
-    report_path = reports_dir / f'quality_gate_{timestamp_str}{report_suffix}.md'
+    report_path = reports_dir / f'quality_gate_{timestamp_str}{mode_suffix}{report_suffix}.md'
     
     print("="*80)
     print("QUALITY GATE - TELEMETRY-ONLY (FAIL-CLOSED)")
@@ -658,6 +715,15 @@ def main():
             print("Quality violations detected = NO ACTIVATION")
             return 2
         else:
+            # 🔒 FAIL-CLOSED: Collection mode NEVER promotes (exit 3)
+            if args.mode == 'collection':
+                print("📦 QUALITY GATE: COLLECTION COMPLETE")
+                print("="*80)
+                print()
+                print("Collection mode: Data gathered, but CANNOT PROMOTE")
+                print("Rerun with --mode canary and >=200 events to enable deployment")
+                return 3  # Special exit code: collection only, no promotion
+            
             print("✅ QUALITY GATE: PASS")
             print("="*80)
             print()
