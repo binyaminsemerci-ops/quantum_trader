@@ -293,10 +293,20 @@ class PatchTSTAgent:
                 np.full(self.sequence_length, momentum)
             ], axis=1)
             
-            # Min-max normalization per feature
-            features_min = features.min(axis=0, keepdims=True)
-            features_max = features.max(axis=0, keepdims=True)
-            features = (features - features_min) / (features_max - features_min + 1e-8)
+            # Normalization: Use StandardScaler if available (v3), else min-max (v2)
+            if self.scaler is not None:
+                # v3 models: Apply StandardScaler across ALL features (flatten and reshape)
+                # Training: X_scaled = scaler.fit_transform(X)  # X shape: (n_samples, 23 features)
+                # Inference: Need to flatten (seq_len, 8) → (1, seq_len*8) then reshape back
+                original_shape = features.shape  # (seq_len, 8)
+                features_flat = features.flatten().reshape(1, -1)  # (1, seq_len*8)
+                features_scaled = self.scaler.transform(features_flat)  # StandardScaler
+                features = features_scaled.reshape(original_shape)  # Back to (seq_len, 8)
+            else:
+                # v2 models: Min-max normalization per feature (legacy)
+                features_min = features.min(axis=0, keepdims=True)
+                features_max = features.max(axis=0, keepdims=True)
+                features = (features - features_min) / (features_max - features_min + 1e-8)
             
             # Convert to tensor: (1, seq_len, 8)
             tensor = torch.FloatTensor(features).unsqueeze(0)
@@ -360,6 +370,112 @@ class PatchTSTAgent:
             
         Returns:
             Tuple of (action, confidence, model_name)
+        """
+        try:
+            # 🔒 FAIL-CLOSED: Validate features
+            if not features or features.get('price', 0.0) == 0.0:
+                raise ValueError("[PatchTST] QSC FAIL-CLOSED: Features invalid or price is zero.")
+            
+            # Check if v3 model (expects 23 flat features)
+            if self.scaler is not None and hasattr(self.scaler, 'n_features_in_'):
+                return self._predict_v3(symbol, features)
+            else:
+                return self._predict_v2(symbol, features)
+            
+        except Exception as e:
+            msg = str(e)
+            if "[PatchTST] QSC FAIL-CLOSED:" in msg:
+                raise
+            else:
+                raise RuntimeError(f"[PatchTST] QSC FAIL-CLOSED: Prediction failed for {symbol}. Error: {msg} - excluding from ensemble (FAIL-CLOSED)")
+    
+    def _predict_v3(self, symbol: str, features: Dict) -> Tuple[str, float, str]:
+        """
+        V3 prediction path: Uses 23 flat features (same as XGBoost v3).
+        Expected features dict keys match train_full.csv columns:
+        open, high, low, close, volume, price_change, rsi_14, macd, volume_ratio,
+        momentum_10, high_low_range, volume_change, volume_ma_ratio, ema_10,
+        ema_20, ema_50, ema_10_20_cross, ema_10_50_cross, volatility_20,
+        macd_signal, macd_hist, bb_position, momentum_20
+        """
+        # Extract 23 features in the exact order as training data
+        feature_list = [
+            features.get('open', features.get('price', 0.0)),
+            features.get('high', features.get('price', 0.0)),
+            features.get('low', features.get('price', 0.0)),
+            features.get('close', features.get('price', 0.0)),
+            features.get('volume', 0.0),
+            features.get('price_change', 0.0),
+            features.get('rsi_14', 50.0),
+            features.get('macd', 0.0),
+            features.get('volume_ratio', 1.0),
+            features.get('momentum_10', 0.0),
+            features.get('high_low_range', 0.0),
+            features.get('volume_change', 0.0),
+            features.get('volume_ma_ratio', 1.0),
+            features.get('ema_10', features.get('price', 0.0)),
+            features.get('ema_20', features.get('price', 0.0)),
+            features.get('ema_50', features.get('price', 0.0)),
+            features.get('ema_10_20_cross', 0.0),
+            features.get('ema_10_50_cross', 0.0),
+            features.get('volatility_20', 0.01),
+            features.get('macd_signal', 0.0),
+            features.get('macd_hist', 0.0),
+            features.get('bb_position', 0.5),
+            features.get('momentum_20', 0.0),
+        ]
+        
+        # Convert to numpy array (1, 23)
+        X = np.array([feature_list], dtype=np.float32)
+        
+        # Apply StandardScaler normalization
+        X_scaled = self.scaler.transform(X)
+        
+        # Convert to tensor
+        input_tensor = torch.FloatTensor(X_scaled).to(self.device)
+        
+        # Predict (model expects (batch, 23) and outputs (batch, 3) logits)
+        with torch.no_grad():
+            logits = self.model(input_tensor)  # (1, 3)
+            probs = torch.softmax(logits, dim=1)[0]  # (3,)
+            
+            action_idx = torch.argmax(probs).item()
+            confidence = probs[action_idx].item()
+            
+            # Map to action names
+            action_map = {0: 'SELL', 1: 'HOLD', 2: 'BUY'}
+            action = action_map[action_idx]
+        
+        # 🔍 DEGENERACY DETECTION (testnet only)
+        if self._is_testnet:
+            self._prediction_history.append((action, confidence))
+            
+            if len(self._prediction_history) >= self._degeneracy_window:
+                actions = [a for a, _ in self._prediction_history]
+                confidences = [c for _, c in self._prediction_history]
+                
+                from collections import Counter
+                action_counts = Counter(actions)
+                most_common_action, most_common_count = action_counts.most_common(1)[0]
+                action_pct = (most_common_count / len(actions)) * 100
+                
+                conf_std = np.std(confidences)
+                
+                if action_pct > 95.0 and conf_std < 0.02:
+                    raise RuntimeError(
+                        f"[PatchTST] QSC FAIL-CLOSED: Degenerate output detected. "
+                        f"Action '{most_common_action}' occurs {action_pct:.1f}% of time "
+                        f"with confidence_std={conf_std:.4f} (threshold: >95% and <0.02). "
+                        f"This indicates likely OOD input or collapsed model weights. "
+                        f"Model marked INACTIVE."
+                    )
+        
+        return action, confidence, "patchtst_v3"
+    
+    def _predict_v2(self, symbol: str, features: Dict) -> Tuple[str, float, str]:
+        """
+        V2 prediction path: Uses temporal sequence (seq_len, 8 features).
+        Legacy code path for backward compatibility with v2 models.
         """
         # Convert features dict to market_data format
         market_data = {
