@@ -202,14 +202,14 @@ class LightGBMAgent:
                     'bb_position', 'momentum_10', 'momentum_20'
                 ]
             
-            # Extract values
+            # Extract values (use default 0.0 if feature missing, like XGBoost does)
             values = []
             for name in self.feature_names:
                 if name in features:
                     values.append(features[name])
                 else:
-                    logger.warning(f"Missing feature: {name}")
-                    return None
+                    logger.warning(f"Missing feature '{name}' - using default 0.0")
+                    values.append(0.0)  # Default value instead of returning None
             
             return np.array(values, dtype=np.float32)
             
