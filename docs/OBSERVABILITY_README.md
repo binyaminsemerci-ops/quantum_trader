@@ -136,7 +136,7 @@ Distributed tracing enabled when OpenTelemetry is installed:
 | `SERVICE_NAME` | Service identifier for metrics/logs |
 | `SERVICE_VERSION` | Deployment version (defaults to 1.0.0) |
 | `ENVIRONMENT` | Deployment env (dev / staging / prod) |
-| `OTLP_ENDPOINT` | Optional tracing endpoint (e.g., `http://jaeger:4317`) |
+| `OTLP_ENDPOINT` | Optional tracing endpoint (systemd: `http://localhost:4317`, docker: `http://jaeger:4317`) |
 | `ENABLE_TRACING` | Enable distributed tracing (default: true) |
 ---
 
