@@ -51,9 +51,9 @@ print(f"⚖️ Class distribution: {counts.tolist()}")
 
 # === Tensor datasets ===
 X_train_t = torch.tensor(X_train, dtype=torch.float32)
-y_train_t = torch.tensor(y_train, dtype=torch.long)
+y_train_t = torch.tensor(y_train.values, dtype=torch.long)
 X_val_t = torch.tensor(X_val, dtype=torch.float32)
-y_val_t = torch.tensor(y_val, dtype=torch.long)
+y_val_t = torch.tensor(y_val.values, dtype=torch.long)
 
 # === Define PatchTST model ===
 # This model structure should match ai_engine/patchtst_simple.py
