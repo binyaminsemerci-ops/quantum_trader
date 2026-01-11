@@ -18,9 +18,38 @@ from backend.logging_config import setup_logging
 from backend.performance_monitor import add_monitoring_middleware
 import os
 
+# Initialize observability (tracing, metrics, structured logging)
+try:
+    from backend.infra.observability import (
+        init_observability,
+        get_logger,
+        instrument_fastapi,
+    )
+    OBSERVABILITY_AVAILABLE = True
+except ImportError:
+    OBSERVABILITY_AVAILABLE = False
+
 # Setup logging
 log_level = os.getenv("LOG_LEVEL", "INFO")
 setup_logging(log_level=log_level)
+
+# Initialize observability if available
+if OBSERVABILITY_AVAILABLE:
+    enable_tracing = os.getenv("ENABLE_TRACING", "true").lower() == "true"
+    init_observability(
+        service_name=os.getenv("SERVICE_NAME", "quantum-backend"),
+        log_level=log_level,
+        enable_tracing=enable_tracing,
+        enable_metrics=True,
+    )
+    logger = get_logger(__name__)
+    logger.info("Observability initialized for quantum-backend", extra={
+        "tracing_enabled": enable_tracing,
+        "otlp_endpoint": os.getenv("OTLP_ENDPOINT", "not_set"),
+    })
+else:
+    import logging
+    logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Quantum Trader API",
@@ -68,6 +97,11 @@ add_exception_handlers(app)
 
 # Add performance monitoring
 add_monitoring_middleware(app)
+
+# Instrument FastAPI with OpenTelemetry tracing
+if OBSERVABILITY_AVAILABLE:
+    instrument_fastapi(app)
+    logger.info("FastAPI instrumented with OpenTelemetry tracing")
 
 app.add_middleware(
     CORSMiddleware,
