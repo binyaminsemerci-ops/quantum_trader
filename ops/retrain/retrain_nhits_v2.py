@@ -27,9 +27,16 @@ print(f"Samples: {len(X)}, Features: {input_size}, Classes: {df['label'].nunique
 
 # === Definer SimpleNHiTS arkitektur (MUST match ai_engine/nhits_simple.py) ===
 class SimpleNHiTS(nn.Module):
-    def __init__(self, input_size=23, hidden_size=64, num_features=23, num_classes=3, dropout=0.2):
+    """Training uses seq_len=1, Production uses seq_len=120
+    
+    Training: input_size=1 (single candle) × num_features=23 = 23 input neurons
+    Production: Agent loads with input_size=120 (120 candles) × 23 = 2760 input neurons
+    
+    Solution: Train with input_size=1, then agent will resize first layer on load
+    """
+    def __init__(self, seq_len=1, hidden_size=256, num_features=23, num_classes=3, dropout=0.2):
         super().__init__()
-        self.input_size = input_size
+        self.seq_len = seq_len
         self.num_features = num_features
         self.hidden_size = hidden_size
         self.num_classes = num_classes
@@ -39,17 +46,17 @@ class SimpleNHiTS(nn.Module):
         # Block-based MLP (matches nhits_simple.py ModuleList structure)
         self.blocks = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(input_size * num_features, hidden_size),
+                nn.Linear(seq_len * num_features, hidden_size),  # 1×23=23 -> 256
                 nn.LayerNorm(hidden_size),
                 nn.ReLU(),
                 nn.Dropout(dropout),
-                nn.Linear(hidden_size, hidden_size // 2),
+                nn.Linear(hidden_size, hidden_size // 2),  # 256 -> 128
                 nn.LayerNorm(hidden_size // 2),
                 nn.ReLU()
             ),
             nn.Sequential(
                 nn.Dropout(dropout),
-                nn.Linear(hidden_size // 2, 64),
+                nn.Linear(hidden_size // 2, 64),  # 128 -> 64
                 nn.LayerNorm(64),
                 nn.ReLU()
             ),
@@ -57,7 +64,7 @@ class SimpleNHiTS(nn.Module):
                 nn.Dropout(dropout)
             )
         ])
-        self.output_layer = nn.Linear(64, 3)
+        self.output_layer = nn.Linear(64, num_classes)
 
     def forward(self, x):
         # Training: x shape is (batch, features) where features=23
@@ -80,8 +87,8 @@ class SimpleNHiTS(nn.Module):
         return logits, dummy_forecast
 
 # === Initialiser model ===
-# Note: input_size is sequence length (120 for 2 hours of 1-minute candles), num_features is feature dimension
-model = SimpleNHiTS(input_size=120, hidden_size=HIDDEN_SIZE, num_features=input_size, num_classes=NUM_CLASSES, dropout=DROPOUT)
+# Train with seq_len=1 (single candle), Agent will load with seq_len=120 (120 candles)
+model = SimpleNHiTS(seq_len=1, hidden_size=HIDDEN_SIZE, num_features=input_size, num_classes=NUM_CLASSES, dropout=DROPOUT)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
@@ -116,7 +123,7 @@ model_path = OUTPUT_DIR / f"nhits_v{timestamp}_v2.pth"
 
 torch.save({
     "model_state_dict": model.state_dict(),
-    "input_size": 120,  # Sequence length (120 candles = 2 hours)
+    "seq_len": 1,  # Training seq_len (agent loads with 120)
     "hidden_size": HIDDEN_SIZE,
     "num_classes": NUM_CLASSES,
     "num_features": input_size,  # Feature dimension (23)
@@ -125,5 +132,5 @@ torch.save({
 }, model_path)
 
 print("\n✅ Model saved:", model_path)
-print("🧠 Architecture: input_size=120 × num_features={} → {} → 64 → 3".format(input_size, HIDDEN_SIZE))
+print("🧠 Architecture: seq_len=1 (train) × num_features={} → {} → 64 → 3 (agent loads with seq_len=120)".format(input_size, HIDDEN_SIZE))
 print("📈 feature_mean/std:", feature_mean.shape)

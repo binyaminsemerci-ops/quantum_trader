@@ -89,17 +89,52 @@ class NHiTSAgent:
         
         try:
             checkpoint = torch.load(str(model_file), map_location=self.device, weights_only=False)
+            
+            # Check if training used seq_len=1 but we need seq_len=120
+            train_seq_len = checkpoint.get('seq_len') or checkpoint.get('input_size', 1)
+            prod_seq_len = 120  # Always use 120 for production
+            num_features = checkpoint.get('num_features', 23)
+            
+            # Initialize model with production seq_len
             self.model = SimpleNHiTS(
-                input_size=checkpoint.get('input_size', 120),
+                input_size=prod_seq_len,
                 hidden_size=256,
-                num_features=checkpoint.get('num_features', 12)
+                num_features=num_features
             )
-            self.model.load_state_dict(checkpoint['model_state_dict'])
+            
+            # If trained with different seq_len, resize first layer weights
+            if train_seq_len != prod_seq_len:
+                logger.info(f"🔧 Resizing first layer: train_seq_len={train_seq_len} -> prod_seq_len={prod_seq_len}")
+                state_dict = checkpoint['model_state_dict']
+                
+                # Get trained first layer weights: (hidden_size, train_seq_len * num_features)
+                old_weight = state_dict['blocks.0.0.weight']  # (256, 23) from seq_len=1
+                old_bias = state_dict['blocks.0.0.bias']      # (256,)
+                
+                # Create new first layer weights: (hidden_size, prod_seq_len * num_features)
+                # Strategy: Repeat/tile the weights to match new input size
+                hidden_size = old_weight.shape[0]
+                old_input_size = train_seq_len * num_features
+                new_input_size = prod_seq_len * num_features
+                
+                # Tile the old weights to fill new input dimension
+                repeats = (new_input_size + old_input_size - 1) // old_input_size
+                new_weight = old_weight.repeat(1, repeats)[:, :new_input_size]
+                new_weight = new_weight / repeats  # Scale down to preserve magnitude
+                
+                state_dict['blocks.0.0.weight'] = new_weight
+                # Bias stays the same
+                
+                self.model.load_state_dict(state_dict)
+                logger.info(f"✅ First layer resized from {old_weight.shape} to {new_weight.shape}")
+            else:
+                self.model.load_state_dict(checkpoint['model_state_dict'])
+            
             self.model.to(self.device)
             self.model.eval()
             self.feature_mean = checkpoint.get('feature_mean')
             self.feature_std = checkpoint.get('feature_std')
-            logger.info(f"✅ N-HiTS model loaded from {model_file.name}")
+            logger.info(f"✅ N-HiTS model loaded from {model_file.name} (seq_len={prod_seq_len})")
             return True
             
         except Exception as e:
