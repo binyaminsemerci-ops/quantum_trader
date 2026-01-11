@@ -47,9 +47,9 @@ print(f"🧠 Train: {len(X_train)}, Val: {len(X_val)}")
 
 # === Tensor datasets ===
 X_train_t = torch.tensor(X_train, dtype=torch.float32)
-y_train_t = torch.tensor(y_train, dtype=torch.long)
+y_train_t = torch.tensor(y_train.values if hasattr(y_train, 'values') else y_train, dtype=torch.long)
 X_val_t = torch.tensor(X_val, dtype=torch.float32)
-y_val_t = torch.tensor(y_val, dtype=torch.long)
+y_val_t = torch.tensor(y_val.values if hasattr(y_val, 'values') else y_val, dtype=torch.long)
 
 # === Define PatchTST model ===
 # This model structure should match ai_engine/patchtst_simple.py
