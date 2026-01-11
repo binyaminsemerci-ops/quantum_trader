@@ -25,32 +25,61 @@ input_size = X.shape[1]
 print(f"📊 Training SimpleNHiTS v2")
 print(f"Samples: {len(X)}, Features: {input_size}, Classes: {df['label'].nunique()}")
 
-# === Definer SimpleNHiTS arkitektur ===
+# === Definer SimpleNHiTS arkitektur (MUST match ai_engine/nhits_simple.py) ===
 class SimpleNHiTS(nn.Module):
-    def __init__(self, input_size=23, hidden_size=64, num_classes=3, dropout=0.2):
+    def __init__(self, input_size=23, hidden_size=64, num_features=23, num_classes=3, dropout=0.2):
         super().__init__()
         self.input_size = input_size
-        self.num_features = input_size
+        self.num_features = num_features
         self.hidden_size = hidden_size
         self.num_classes = num_classes
 
-        self.blocks = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_size, hidden_size),
-            nn.ReLU(),
-            nn.Dropout(dropout)
-        )
-        self.output_layer = nn.Linear(hidden_size, num_classes)
+        self.flatten = nn.Flatten()
+        
+        # Block-based MLP (matches nhits_simple.py ModuleList structure)
+        self.blocks = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(input_size * num_features, hidden_size),
+                nn.LayerNorm(hidden_size),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_size, hidden_size // 2),
+                nn.LayerNorm(hidden_size // 2),
+                nn.ReLU()
+            ),
+            nn.Sequential(
+                nn.Dropout(dropout),
+                nn.Linear(hidden_size // 2, 64),
+                nn.LayerNorm(64),
+                nn.ReLU()
+            ),
+            nn.Sequential(
+                nn.Dropout(dropout)
+            )
+        ])
+        self.output_layer = nn.Linear(64, 3)
 
     def forward(self, x):
-        x = self.blocks(x)
+        # x shape: (batch, features) - no sequence dimension for simplified version
+        if len(x.shape) == 1:
+            x = x.unsqueeze(0)  # (features,) -> (1, features)
+        
+        # For sequence-based: flatten (batch, seq, feat) -> (batch, seq*feat)
+        # For single-step: treat input_size as 1, expand to (batch, 1, features)
+        if len(x.shape) == 2:
+            batch_size, features = x.shape
+            x = x.unsqueeze(1)  # (batch, features) -> (batch, 1, features)
+        
+        x = self.flatten(x)  # (batch, 1, features) -> (batch, 1*features)
+        
+        for block in self.blocks:
+            x = block(x)
         x = self.output_layer(x)
         return x
 
 # === Initialiser model ===
-model = SimpleNHiTS(input_size=input_size, hidden_size=HIDDEN_SIZE, num_classes=NUM_CLASSES, dropout=DROPOUT)
+# Note: input_size is sequence length (1 for single-step), num_features is feature dimension
+model = SimpleNHiTS(input_size=1, hidden_size=HIDDEN_SIZE, num_features=input_size, num_classes=NUM_CLASSES, dropout=DROPOUT)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
@@ -85,14 +114,14 @@ model_path = OUTPUT_DIR / f"nhits_v{timestamp}_v2.pth"
 
 torch.save({
     "model_state_dict": model.state_dict(),
-    "input_size": input_size,
+    "input_size": 1,  # Sequence length (single-step classification)
     "hidden_size": HIDDEN_SIZE,
     "num_classes": NUM_CLASSES,
-    "num_features": input_size,
+    "num_features": input_size,  # Feature dimension (23)
     "feature_mean": feature_mean,
     "feature_std": feature_std
 }, model_path)
 
 print("\n✅ Model saved:", model_path)
-print("🧠 Architecture:", f"{input_size} → {HIDDEN_SIZE} → {HIDDEN_SIZE} → {NUM_CLASSES}")
+print("🧠 Architecture: input_size=1 × num_features={} → {} → 64 → 3".format(input_size, HIDDEN_SIZE))
 print("📈 feature_mean/std:", feature_mean.shape)
