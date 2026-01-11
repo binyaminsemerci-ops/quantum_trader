@@ -202,6 +202,12 @@ class PatchTSTAgent:
             'close', 'high', 'low', 'volume',
             'volatility', 'rsi', 'macd', 'momentum'
         ]
+        
+        # 🔒 DEGENERACY DETECTION (testnet only - QSC fail-closed)
+        from collections import deque
+        self._prediction_history = deque(maxlen=100)  # Last 100 predictions
+        self._degeneracy_window = 100
+        self._is_testnet = os.getenv('BINANCE_TESTNET', 'false').lower() == 'true'
     
     def _find_latest_model(self, base_dir: Path, pattern: str):
         """Find the latest timestamped model file matching pattern."""
@@ -382,7 +388,31 @@ class PatchTSTAgent:
                 # FAIL-CLOSED: prob in dead zone - raise error instead of HOLD 0.5
                 raise ValueError(f"PatchTST probability {prob:.4f} in dead zone [0.4, 0.6] - no clear signal")
             
-            # 🔍 SHADOW MODE (P0.4) - DISABLED FOR QSC CANARY DEPLOYMENT
+            # � DEGENERACY DETECTION (testnet only)
+            if self._is_testnet:
+                self._prediction_history.append((action, confidence))
+                
+                if len(self._prediction_history) >= self._degeneracy_window:
+                    actions = [a for a, _ in self._prediction_history]
+                    confidences = [c for _, c in self._prediction_history]
+                    
+                    from collections import Counter
+                    action_counts = Counter(actions)
+                    most_common_action, most_common_count = action_counts.most_common(1)[0]
+                    action_pct = (most_common_count / len(actions)) * 100
+                    
+                    conf_std = np.std(confidences)
+                    
+                    if action_pct > 95.0 and conf_std < 0.02:
+                        raise RuntimeError(
+                            f"[PatchTST] QSC FAIL-CLOSED: Degenerate output detected. "
+                            f"Action '{most_common_action}' occurs {action_pct:.1f}% of time "
+                            f"with confidence_std={conf_std:.4f} (threshold: >95% and <0.02). "
+                            f"This indicates likely OOD input or collapsed model weights. "
+                            f"Model marked INACTIVE."
+                        )
+            
+            # �🔍 SHADOW MODE (P0.4) - DISABLED FOR QSC CANARY DEPLOYMENT
             # QSC MODE: All models must actively vote for quality gates to be valid
             shadow_mode = False  # Was: os.getenv('PATCHTST_SHADOW_ONLY', 'false').lower() == 'true'
             

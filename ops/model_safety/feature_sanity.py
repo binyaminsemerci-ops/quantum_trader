@@ -120,6 +120,30 @@ def analyze_features(features_list):
     print(f"FEATURE SANITY CHECK - {len(features_list)} intents analyzed")
     print(f"{'='*80}\n")
     
+    # 🔒 FEATURE HASH CHECK (ultra-kontrollpunkt)
+    import hashlib
+    feature_hashes = []
+    for features in features_list[-50:]:  # Last 50 events
+        # Round to 4 decimals for stable hash
+        rounded = {k: round(v, 4) for k, v in features.items()}
+        feature_str = str(sorted(rounded.items()))
+        feature_hash = hashlib.sha256(feature_str.encode()).hexdigest()[:8]
+        feature_hashes.append(feature_hash)
+    
+    unique_hashes = len(set(feature_hashes))
+    duplicate_pct = (1 - unique_hashes / len(feature_hashes)) * 100 if feature_hashes else 0
+    
+    print(f"Feature Hash Check (last {len(feature_hashes)} events):")
+    print(f"  Unique hashes: {unique_hashes}/{len(feature_hashes)} ({100 - duplicate_pct:.1f}% unique)")
+    
+    if duplicate_pct > 50:
+        print(f"  ⚠️  WARNING: {duplicate_pct:.1f}% duplicate feature vectors (possible upstream flatline)")
+        # Note: This is a warning, not a hard fail (some duplication is OK in steady markets)
+    else:
+        print(f"  ✅ Feature diversity looks healthy")
+    
+    print()
+    
     # Check each feature
     issues = []
     flatlines = []

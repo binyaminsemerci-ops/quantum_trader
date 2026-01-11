@@ -387,8 +387,8 @@ def generate_report(model_results, telemetry_info, report_path, pre_results=None
     lines = [
         "# Quality Gate Report (Telemetry-Only)",
         "",
-        f"**Timestamp:** {timestamp}",
-        ""
+        f"**Timestamp:** {timestamp}",        "",
+        f"**MODE:** {'🔒 COLLECTION (DATA GATHERING ONLY)' if telemetry_info.get('mode') == 'collection' else '🚀 CANARY (DEPLOYMENT ELIGIBLE)'}",        ""
     ]
     
     # Cutover info
@@ -612,7 +612,8 @@ def main():
             'event_count': len(events),
             'event_requested': EVENT_COUNT,
             'min_events': MIN_EVENTS,
-            'cutover_ts': args.after
+            'cutover_ts': args.after,
+            'mode': args.mode  # 🔒 PASS MODE TO REPORT
         }
         
         print(f"Parsing events...")
