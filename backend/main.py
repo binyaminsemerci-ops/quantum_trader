@@ -17,6 +17,7 @@ from backend.exceptions import add_exception_handlers
 from backend.logging_config import setup_logging
 from backend.performance_monitor import add_monitoring_middleware
 import os
+import logging as stdlib_logging
 
 # Initialize observability (tracing, metrics, structured logging)
 try:
@@ -26,8 +27,14 @@ try:
         instrument_fastapi,
     )
     OBSERVABILITY_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     OBSERVABILITY_AVAILABLE = False
+    # Log warning about missing observability module
+    stdlib_logging.warning(
+        f"Observability module not available: {e}. "
+        "Tracing and advanced observability features will be disabled. "
+        "To enable, install: pip install -r backend/infra/observability/requirements.txt"
+    )
 
 # Setup logging
 log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -36,20 +43,24 @@ setup_logging(log_level=log_level)
 # Initialize observability if available
 if OBSERVABILITY_AVAILABLE:
     enable_tracing = os.getenv("ENABLE_TRACING", "true").lower() == "true"
-    init_observability(
-        service_name=os.getenv("SERVICE_NAME", "quantum-backend"),
-        log_level=log_level,
-        enable_tracing=enable_tracing,
-        enable_metrics=True,
-    )
-    logger = get_logger(__name__)
-    logger.info("Observability initialized for quantum-backend", extra={
-        "tracing_enabled": enable_tracing,
-        "otlp_endpoint": os.getenv("OTLP_ENDPOINT", "not_set"),
-    })
+    try:
+        init_observability(
+            service_name=os.getenv("SERVICE_NAME", "quantum-backend"),
+            log_level=log_level,
+            enable_tracing=enable_tracing,
+            enable_metrics=True,
+        )
+        logger = get_logger(__name__)
+        logger.info("Observability initialized for quantum-backend", extra={
+            "tracing_enabled": enable_tracing,
+            "otlp_endpoint": os.getenv("OTLP_ENDPOINT", "not_set"),
+        })
+    except Exception as e:
+        stdlib_logging.error(f"Failed to initialize observability: {e}", exc_info=True)
+        logger = stdlib_logging.getLogger(__name__)
 else:
-    import logging
-    logger = logging.getLogger(__name__)
+    logger = stdlib_logging.getLogger(__name__)
+    logger.warning("Observability features disabled due to missing dependencies")
 
 app = FastAPI(
     title="Quantum Trader API",
