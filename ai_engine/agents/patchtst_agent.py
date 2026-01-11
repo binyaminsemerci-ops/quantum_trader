@@ -138,8 +138,19 @@ class PatchTSTAgent:
         else:
             # Auto-discover latest model or fallback to default
             retraining_dir = Path("/app/models") if Path("/app/models").exists() else Path("ai_engine/models")
-            latest_model = self._find_latest_model(retraining_dir, "patchtst_v*_v2.pth")
+            # Try v3 (with scaler), then v2, then v1
+            latest_model = self._find_latest_model(retraining_dir, "patchtst_v*_v3.pth") or \
+                          self._find_latest_model(retraining_dir, "patchtst_v*_v2.pth")
             self.model_path = str(latest_model) if latest_model else "/app/models/patchtst_model.pth"
+            
+            # Look for scaler for v3 models
+            self.scaler_path = None
+            if latest_model and "_v3.pth" in str(latest_model):
+                scaler_path = str(latest_model).replace(".pth", "_scaler.pkl")
+                if Path(scaler_path).exists():
+                    self.scaler_path = scaler_path
+                    logger.info(f"[PatchTST] Found scaler: {Path(scaler_path).name}")
+            
             logger.info(f"[PatchTST] Auto-discovered model: {self.model_path}")
         
         # Initialize model
@@ -196,6 +207,16 @@ class PatchTSTAgent:
         else:
             logger.warning(f"[PatchTST] ⚠️ Model file not found: {self.model_path}")
             raise FileNotFoundError(f"[PatchTST] QSC FAIL-CLOSED: Model file not found at {self.model_path}. Cannot predict without model.")
+        
+        # Load scaler for v3 models
+        self.scaler = None
+        if hasattr(self, 'scaler_path') and self.scaler_path and Path(self.scaler_path).exists():
+            try:
+                import joblib
+                self.scaler = joblib.load(self.scaler_path)
+                logger.info(f"[PatchTST] ✅ Scaler loaded from {Path(self.scaler_path).name}")
+            except Exception as e:
+                logger.warning(f"[PatchTST] Failed to load scaler: {e}. Using raw features.")
         
         # Feature names for normalization
         self.feature_names = [
