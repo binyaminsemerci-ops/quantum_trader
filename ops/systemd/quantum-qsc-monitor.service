@@ -1,0 +1,19 @@
+[Unit]
+Description=QSC Monitor - Canary Violation Detection (6h)
+After=quantum-ai_engine.service
+Requires=quantum-ai_engine.service
+
+[Service]
+Type=simple
+User=qt
+WorkingDirectory=/home/qt/quantum_trader
+ExecStart=/home/qt/.local/bin/uv run python ops/model_safety/qsc_monitor.py
+Restart=no
+StandardOutput=journal
+StandardError=journal
+
+# Stop monitoring after 6h
+RuntimeMaxSec=21600
+
+[Install]
+WantedBy=multi-user.target

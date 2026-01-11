@@ -59,6 +59,10 @@ class XGBAgent:
         self.use_ensemble = use_ensemble
         self.use_advanced_features = use_advanced_features
         
+        # 🔒 FAIL-CLOSED: Degeneracy detection (testnet only)
+        self._prediction_history = []  # Rolling window of (action, confidence)
+        self._degeneracy_window = 100
+        
         # helper clients
         self.twitter: Optional[TwitterClient] = None
         if TWITTER_AVAILABLE:
@@ -68,6 +72,9 @@ class XGBAgent:
                 logger.debug("Failed to init Twitter client: %s", e)
                 self.twitter = None
         self._load()
+        
+        # 🔒 FAIL-CLOSED: Log model metadata for diagnostics
+        self._log_model_metadata()
 
     def _find_latest_model(self, base_dir: str, pattern: str) -> Optional[str]:
         """Find the latest timestamped model file matching pattern."""
@@ -128,6 +135,39 @@ class XGBAgent:
         except Exception as e:
             logger.warning("[XGB] Failed to load scaler from %s: %s", self.scaler_path, e)
             self.scaler = None
+    
+    def _log_model_metadata(self) -> None:
+        """🔒 FAIL-CLOSED: Log model metadata at initialization"""
+        if self.model is None:
+            logger.warning("[XGB-INIT] ⚠️  Model not loaded - predictions will fail (FAIL-CLOSED)")
+            return
+        
+        # Log model file info
+        logger.info(f"[XGB-INIT] Model file: {os.path.basename(self.model_path)}")
+        logger.info(f"[XGB-INIT] Scaler file: {os.path.basename(self.scaler_path) if self.scaler else 'None'}")
+        
+        # Try to log expected feature dimension
+        feature_names_path = os.path.join(
+            os.path.dirname(self.model_path), 
+            'xgboost_features.pkl'
+        )
+        if os.path.exists(feature_names_path):
+            try:
+                with open(feature_names_path, 'rb') as f:
+                    expected_features = pickle.load(f)
+                logger.info(f"[XGB-INIT] Expected feature_dim: {len(expected_features)}")
+            except Exception as e:
+                logger.warning(f"[XGB-INIT] Could not read feature names: {e}")
+        else:
+            logger.info("[XGB-INIT] Expected feature_dim: 9 (SPOT model, no features.pkl)")
+        
+        # Compute SHA256 fingerprint of model file
+        try:
+            with open(self.model_path, 'rb') as f:
+                model_hash = hashlib.sha256(f.read()).hexdigest()[:16]
+            logger.info(f"[XGB-INIT] Model SHA256: {model_hash}...")
+        except Exception as e:
+            logger.warning(f"[XGB-INIT] Could not compute model hash: {e}")
 
     def _features_from_ohlcv(self, df) -> Any:
         """Turn raw OHLCV (DataFrame or list-of-dicts) into model features (last row).
@@ -282,6 +322,8 @@ class XGBAgent:
         Prediction interface for ensemble compatibility.
         Supports both SPOT features (9) and FUTURES features (22).
         
+        🔒 FAIL-CLOSED: Validates features, detects degeneracy, raises on error.
+        
         Args:
             symbol: Trading pair (unused but kept for interface compatibility)
             features: Dict of technical indicators
@@ -291,7 +333,10 @@ class XGBAgent:
         """
         try:
             if self.model is None:
-                raise ValueError("XGBoost model not loaded - FAIL-CLOSED")  # FAIL-CLOSED: no model = no prediction
+                raise RuntimeError("[XGB] QSC FAIL-CLOSED: Model not loaded. Cannot predict without model.")
+            
+            if features is None or not features:
+                raise ValueError("[XGB] QSC FAIL-CLOSED: Features dict is None or empty.")
             
             # Load feature names from model training if available
             import os
@@ -321,10 +366,29 @@ class XGBAgent:
                     features.get('volatility_20', 0.01)
                 ]
             
+            # 🔒 FAIL-CLOSED: Validate feature array before scaling
+            import numpy as np
+            feature_array = np.array(feature_list).reshape(1, -1)
+            
+            # Check for NaN/Inf
+            if np.any(np.isnan(feature_array)):
+                raise ValueError(f"[XGB] QSC FAIL-CLOSED: Feature array contains NaN values for {symbol}")
+            if np.any(np.isinf(feature_array)):
+                raise ValueError(f"[XGB] QSC FAIL-CLOSED: Feature array contains Inf values for {symbol}")
+            
+            # Check dimension match if scaler available
+            if self.scaler and hasattr(self.scaler, 'n_features_in_'):
+                expected_dim = self.scaler.n_features_in_
+                actual_dim = feature_array.shape[1]
+                if actual_dim != expected_dim:
+                    raise ValueError(
+                        f"[XGB] QSC FAIL-CLOSED: Feature dimension mismatch for {symbol}. "
+                        f"Expected {expected_dim}, got {actual_dim}. "
+                        f"Feature engineering must produce correct dimension."
+                    )
+            
             # Scale if scaler available
             if self.scaler:
-                import numpy as np
-                feature_array = np.array(feature_list).reshape(1, -1)
                 try:
                     import pandas as pd
                     if hasattr(self.scaler, "feature_names_in_"):
@@ -389,6 +453,36 @@ class XGBAgent:
             import random
             if random.random() < 0.1:  # 10% sampling
                 logger.info(f"XGB {symbol}: {action} {confidence:.2%} (pred={prediction})")
+            
+            # 🔒 FAIL-CLOSED: Degeneracy detection (testnet/collection only)
+            is_testnet = os.getenv('BINANCE_TESTNET', 'false').lower() == 'true'
+            if is_testnet:
+                self._prediction_history.append((action, confidence))
+                if len(self._prediction_history) > self._degeneracy_window:
+                    self._prediction_history.pop(0)
+                
+                # Check for degeneracy: >95% same action + low confidence variance
+                if len(self._prediction_history) >= self._degeneracy_window:
+                    actions = [a for a, c in self._prediction_history]
+                    confidences = [c for a, c in self._prediction_history]
+                    
+                    # Count most common action
+                    from collections import Counter
+                    action_counts = Counter(actions)
+                    most_common_action, most_common_count = action_counts.most_common(1)[0]
+                    action_pct = (most_common_count / len(actions)) * 100
+                    
+                    # Calculate confidence std
+                    conf_std = np.std(confidences)
+                    
+                    # FAIL-CLOSED: If >95% same action AND low variance
+                    if action_pct > 95 and conf_std < 0.02:
+                        raise RuntimeError(
+                            f"[XGB] QSC FAIL-CLOSED: Degenerate output detected. "
+                            f"Action '{most_common_action}' occurs {action_pct:.1f}% of time "
+                            f"with confidence_std={conf_std:.6f} < 0.02. "
+                            f"Model is not producing varied predictions - likely OOD input or collapsed weights."
+                        )
             
             return (action, confidence, 'xgboost')
             
