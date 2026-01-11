@@ -4,7 +4,6 @@ Trading Bot Microservice - Main FastAPI application.
 
 import os
 import logging
-import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Response

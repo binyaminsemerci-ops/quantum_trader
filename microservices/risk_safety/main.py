@@ -47,9 +47,11 @@ except ImportError:
 
 # Initialize observability at module level (before service starts)
 if OBSERVABILITY_AVAILABLE:
+    # Use getattr to safely access LOG_LEVEL, default to INFO if not present
+    log_level = getattr(settings, 'LOG_LEVEL', 'INFO')
     init_observability(
         service_name="risk-safety",
-        log_level=settings.LOG_LEVEL if hasattr(settings, 'LOG_LEVEL') else "INFO",
+        log_level=log_level,
         enable_tracing=True,
         enable_metrics=True,
     )

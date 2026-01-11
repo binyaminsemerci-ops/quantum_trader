@@ -4,7 +4,6 @@ Portfolio Intelligence Service - Main Entry Point
 import asyncio
 import logging
 import signal
-import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Response
@@ -166,9 +165,15 @@ async def liveness_probe():
 @app.get("/health/ready")
 async def readiness_probe():
     """Kubernetes readiness probe."""
-    if service is None or not service._running:
+    if service is None:
         return {"status": "not_ready", "ready": False}
-    return {"status": "ready", "ready": True}
+    # Check if service has a public running status
+    is_running = getattr(service, 'is_running', lambda: getattr(service, '_running', False))
+    if callable(is_running):
+        ready = is_running()
+    else:
+        ready = is_running
+    return {"status": "ready" if ready else "not_ready", "ready": ready}
 
 
 @app.get("/metrics")

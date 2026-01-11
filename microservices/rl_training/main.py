@@ -12,7 +12,6 @@ Responsibilities:
 import asyncio
 import logging
 import signal
-import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
@@ -251,9 +250,15 @@ async def liveness_probe():
 @app.get("/health/ready")
 async def readiness_probe():
     """Kubernetes readiness probe."""
-    if service_instance is None or not service_instance._running:
+    if service_instance is None:
         return {"status": "not_ready", "ready": False}
-    return {"status": "ready", "ready": True}
+    # Check if service has a public running status
+    is_running = getattr(service_instance, 'is_running', lambda: getattr(service_instance, '_running', False))
+    if callable(is_running):
+        ready = is_running()
+    else:
+        ready = is_running
+    return {"status": "ready" if ready else "not_ready", "ready": ready}
 
 
 @app.get("/metrics")
