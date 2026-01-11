@@ -1,7 +1,7 @@
 # Makefile for Quantum Trading System
 # ALL operations use ops/run.sh wrapper (Golden Contract)
 
-.PHONY: help quality-gate scoreboard diagnose build-patchtst-dataset audit train-patchtst
+.PHONY: help quality-gate scoreboard diagnose build-patchtst-dataset audit train-patchtst eval-workspace eval-cutover
 
 # Service name for AI Engine operations
 SERVICE := ai-engine
@@ -16,6 +16,10 @@ help:
 	@echo "  quality-gate           - Check model quality (telemetry-only, BLOCKER)"
 	@echo "  diagnose               - Diagnose variance collapse (NO training/activation)"
 	@echo "  scoreboard             - View all models status"
+	@echo ""
+	@echo "Workspace Evaluation:"
+	@echo "  eval-workspace         - Comprehensive workspace evaluation (models + ensemble)"
+	@echo "  eval-cutover           - Post-cutover evaluation (requires CUTOVER_TS=<timestamp>)"
 	@echo ""
 	@echo "Training:"
 	@echo "  build-patchtst-dataset - Build temporal sequences for PatchTST"
@@ -49,3 +53,16 @@ train-patchtst:
 audit:
 	@echo "Running contract compliance audit..."
 	$(RUN) ops/audit_contract.py
+
+eval-workspace:
+	@echo "Running comprehensive workspace evaluation..."
+	$(RUN) ops/evaluation/workspace_evaluator.py --mode full
+
+eval-cutover:
+	@echo "Running post-cutover evaluation..."
+	@if [ -z "$(CUTOVER_TS)" ]; then \
+		echo "ERROR: CUTOVER_TS not set"; \
+		echo "Usage: make eval-cutover CUTOVER_TS=2026-01-10T05:43:15Z"; \
+		exit 1; \
+	fi
+	$(RUN) ops/evaluation/workspace_evaluator.py --after $(CUTOVER_TS)
