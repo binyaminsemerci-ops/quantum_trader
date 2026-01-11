@@ -112,10 +112,9 @@ class NHiTSAgent:
             self.history_buffer[symbol] = []
         
         # Extract feature values in consistent order
+        # Updated Jan 11, 2026: 5-feature schema matching production
         feature_order = [
-            'price_change', 'high_low_range', 'volume_change', 'volume_ma_ratio',
-            'ema_10', 'ema_20', 'ema_50', 'ema_10_20_cross', 'ema_10_50_cross',
-            'rsi_14', 'volatility_20', 'macd', 'macd_signal', 'macd_hist'
+            'price_change', 'rsi_14', 'macd', 'volume_ratio', 'momentum_10'
         ]
         
         values = []

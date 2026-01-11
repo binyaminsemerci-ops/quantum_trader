@@ -194,12 +194,10 @@ class LightGBMAgent:
         """Extract feature values in correct order."""
         try:
             if not self.feature_names:
-                # Default feature order (same as training)
+                # Production feature order (6f retraining Jan 11, 2026)
+                # Matches service.py base features
                 self.feature_names = [
-                    'price_change', 'high_low_range', 'volume_change', 'volume_ma_ratio',
-                    'ema_10', 'ema_20', 'ema_50', 'ema_10_20_cross', 'ema_10_50_cross',
-                    'rsi_14', 'volatility_20', 'macd', 'macd_signal', 'macd_hist',
-                    'bb_position', 'momentum_10', 'momentum_20'
+                    'price_change', 'rsi_14', 'macd', 'volume_ratio', 'momentum_10'
                 ]
             
             # Extract values (use default 0.0 if feature missing, like XGBoost does)
