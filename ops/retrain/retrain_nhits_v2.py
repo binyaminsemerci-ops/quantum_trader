@@ -10,7 +10,7 @@ DATA_PATH = "ops/retrain/train_full.csv"
 OUTPUT_DIR = Path("models")
 OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
 N_EPOCHS = 50
-HIDDEN_SIZE = 64
+HIDDEN_SIZE = 256  # Must match nhits_agent.py (line 94)
 NUM_CLASSES = 3
 LEARNING_RATE = 0.001
 DROPOUT = 0.2
