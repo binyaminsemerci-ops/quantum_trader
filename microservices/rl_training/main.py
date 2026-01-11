@@ -12,11 +12,13 @@ Responsibilities:
 import asyncio
 import logging
 import signal
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
+from prometheus_client import REGISTRY, generate_latest, CONTENT_TYPE_LATEST
 import uvicorn
 
 from microservices.rl_training.config import settings
@@ -30,12 +32,34 @@ from microservices.rl_training.scheduler import TrainingScheduler
 from microservices.rl_training.dependencies import create_fake_dependencies
 
 
-# Setup logging
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# [EPIC-OBS-001] Initialize observability (tracing, metrics, structured logging)
+try:
+    from backend.infra.observability import (
+        init_observability,
+        get_logger,
+        instrument_fastapi,
+        add_metrics_middleware,
+    )
+    OBSERVABILITY_AVAILABLE = True
+except ImportError:
+    OBSERVABILITY_AVAILABLE = False
+    # Fallback to basic logging
+    logging.basicConfig(
+        level=getattr(logging, settings.LOG_LEVEL),
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+
+# Initialize observability at module level (before service starts)
+if OBSERVABILITY_AVAILABLE:
+    init_observability(
+        service_name="rl-training",
+        log_level=settings.LOG_LEVEL,
+        enable_tracing=True,
+        enable_metrics=True,
+    )
+    logger = get_logger(__name__)
+else:
+    logger = logging.getLogger(__name__)
 
 # Global service instance
 service_instance: Optional["RLTrainingService"] = None
@@ -192,6 +216,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# [EPIC-OBS-001] Instrument FastAPI with tracing & metrics
+if OBSERVABILITY_AVAILABLE:
+    instrument_fastapi(app)
+    add_metrics_middleware(app)
+
 # Include API router
 app.include_router(router)
 
@@ -211,6 +240,26 @@ async def root():
             "drift_history": "/api/training/drift/history"
         }
     }
+
+
+@app.get("/health/live")
+async def liveness_probe():
+    """Kubernetes liveness probe."""
+    return {"status": "ok"}
+
+
+@app.get("/health/ready")
+async def readiness_probe():
+    """Kubernetes readiness probe."""
+    if service_instance is None or not service_instance._running:
+        return {"status": "not_ready", "ready": False}
+    return {"status": "ready", "ready": True}
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint."""
+    return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
 
 def handle_shutdown_signal(signum, frame):

@@ -19,12 +19,29 @@ import redis.asyncio as redis_async
 from backend.core.event_bus import EventBus
 from backend.services.clm_v3.main import ClmV3Service
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - [%(name)s] [%(levelname)s] %(message)s'
-)
-logger = logging.getLogger(__name__)
+# [EPIC-OBS-001] Initialize observability (tracing, metrics, structured logging)
+try:
+    from backend.infra.observability import init_observability, get_logger
+    OBSERVABILITY_AVAILABLE = True
+except ImportError:
+    OBSERVABILITY_AVAILABLE = False
+    # Fallback to basic logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - [%(name)s] [%(levelname)s] %(message)s'
+    )
+
+# Initialize observability at module level
+if OBSERVABILITY_AVAILABLE:
+    init_observability(
+        service_name="clm",
+        log_level=os.getenv("LOG_LEVEL", "INFO"),
+        enable_tracing=True,
+        enable_metrics=True,
+    )
+    logger = get_logger(__name__)
+else:
+    logger = logging.getLogger(__name__)
 
 
 async def main():

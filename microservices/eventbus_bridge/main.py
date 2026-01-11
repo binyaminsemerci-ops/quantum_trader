@@ -6,8 +6,25 @@ import sys
 sys.path.append("/app")
 from backend.infrastructure.redis_manager import RedisConnectionManager
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# [EPIC-OBS-001] Initialize observability (tracing, metrics, structured logging)
+try:
+    from backend.infra.observability import init_observability, get_logger
+    OBSERVABILITY_AVAILABLE = True
+except ImportError:
+    OBSERVABILITY_AVAILABLE = False
+    logging.basicConfig(level=logging.INFO)
+
+# Initialize observability at module level
+if OBSERVABILITY_AVAILABLE:
+    init_observability(
+        service_name="eventbus-bridge",
+        log_level="INFO",
+        enable_tracing=True,
+        enable_metrics=True,
+    )
+    logger = get_logger(__name__)
+else:
+    logger = logging.getLogger(__name__)
 
 async def main():
     logger.info('[BRIDGE] Starting EventBus → Redis signal bridge...')
