@@ -88,6 +88,18 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     logger.info("🤖 AI ENGINE SERVICE STARTING")
     logger.info(f"Version: {settings.VERSION}")
+    
+    # 🔒 GIT BUILD VERSION (deployment verification)
+    import subprocess
+    try:
+        git_sha = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'], 
+                                          cwd='/home/qt/quantum_trader', 
+                                          text=True, 
+                                          stderr=subprocess.DEVNULL).strip()
+        logger.info(f"AI_ENGINE_BUILD: {git_sha}")
+    except Exception:
+        logger.info("AI_ENGINE_BUILD: <unknown>")
+    
     logger.info(f"Port: {settings.PORT}")
     logger.info(f"Ensemble Models: {settings.ENSEMBLE_MODELS}")
     logger.info("=" * 60)

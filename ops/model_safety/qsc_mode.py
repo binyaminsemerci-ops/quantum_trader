@@ -79,7 +79,7 @@ def run_quality_gate(cutover_ts: str, mode: str = "canary") -> tuple[int, int]:
     if result.stderr:
         print(result.stderr, file=sys.stderr)
     
-    # 🔒 FAIL-CLOSED: Block collection mode
+    # 🔒 FAIL-CLOSED: Block collection mode (returncode 3)
     if result.returncode == 3:
         print()
         print("=" * 80)
@@ -87,6 +87,28 @@ def run_quality_gate(cutover_ts: str, mode: str = "canary") -> tuple[int, int]:
         print("=" * 80)
         print()
         print("Rerun quality_gate.py with --mode canary and >=200 events to enable deployment")
+        return result.returncode, event_count
+    
+    # 🔒 BELT + SUSPENDERS: Check report content for MODE: collection
+    if result.returncode == 0:
+        # Find latest report
+        report_dir = Path("reports/safety")
+        if report_dir.exists():
+            reports = sorted(report_dir.glob("quality_gate_*.md"))
+            if reports:
+                latest_report = reports[-1]
+                with open(latest_report, 'r') as f:
+                    report_content = f.read()
+                
+                if 'MODE:** 🔒 COLLECTION' in report_content or 'collection' in latest_report.name:
+                    print()
+                    print("=" * 80)
+                    print("🚫 QSC FAIL-CLOSED: Report contains MODE: collection")
+                    print("=" * 80)
+                    print()
+                    print(f"Report: {latest_report}")
+                    print("Cannot activate canary from collection-mode report (belt + suspenders check)")
+                    return 3, event_count  # Override to RC=3
     
     return result.returncode, event_count
 
