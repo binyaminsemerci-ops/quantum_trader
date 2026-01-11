@@ -74,8 +74,11 @@ class SimpleNHiTS(nn.Module):
         
         for block in self.blocks:
             x = block(x)
-        x = self.output_layer(x)
-        return x
+        logits = self.output_layer(x)
+        
+        # Return tuple (logits, dummy_forecast) for compatibility with nhits_agent.py
+        dummy_forecast = logits[:, :1]  # Just take first logit
+        return logits, dummy_forecast
 
 # === Initialiser model ===
 # Note: input_size is sequence length (1 for single-step), num_features is feature dimension
@@ -96,8 +99,8 @@ for epoch in range(N_EPOCHS):
         idx = perm[i:i+BATCH_SIZE]
         xb, yb = X_tensor[idx], y_tensor[idx]
         optimizer.zero_grad()
-        outputs = model(xb)
-        loss = criterion(outputs, yb)
+        logits, _ = model(xb)  # Model returns (logits, dummy_forecast)
+        loss = criterion(logits, yb)
         loss.backward()
         optimizer.step()
         epoch_loss += loss.item()
