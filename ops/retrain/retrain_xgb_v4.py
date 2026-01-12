@@ -25,8 +25,8 @@ df = pd.read_csv(DATA_PATH)
 log(f"Loaded dataset: {df.shape}")
 
 # === BASIC PREP ===
-X = df.drop(columns=["target"])
-y = df["target"]
+X = df.drop(columns=["label"])
+y = df["label"]
 
 log(f"Class distribution before balancing:\n{y.value_counts(normalize=True)}")
 
