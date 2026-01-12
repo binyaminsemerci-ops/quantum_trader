@@ -7,6 +7,7 @@ Key features:
 - Consensus checking (requires 3/4 agreement for strong signals)
 - Confidence aggregation
 - Market regime adaptation
+- EventBus publishing (Tier 1 Core Loop integration)
 """
 from typing import Dict, Tuple, List, Optional, Any
 import asyncio
@@ -15,6 +16,13 @@ import numpy as np
 import os
 from datetime import datetime
 from pathlib import Path
+
+# Import EventBus for Tier 1 integration
+try:
+    from ai_engine.services.eventbus_bridge import EventBusClient, TradeSignal
+    EVENTBUS_AVAILABLE = True
+except ImportError:
+    EVENTBUS_AVAILABLE = False
 
 # Import unified agent system
 from ai_engine.agents.unified_agents import XGBoostAgent, LightGBMAgent, NHiTSAgent, PatchTSTAgent
@@ -239,7 +247,22 @@ class EnsembleManager:
         if self.governer_agent:
             logger.info(f"[GOVERNER] Risk management: ACTIVE (Kelly + Circuit Breakers)")
         logger.info("[FIX #2] Dynamic weight loading: {'ENABLED' if self.supervisor_weights_file.exists() else 'DISABLED (using defaults)'}")
+        if EVENTBUS_AVAILABLE:
+            logger.info("[EVENTBUS] Tier 1 Core Loop: ENABLED (signals will be published to Redis)")
+        else:
+            logger.info("[EVENTBUS] Tier 1 Core Loop: DISABLED (eventbus_bridge not found)")
         logger.info("=" * 60)
+        
+        # Initialize EventBus client for async signal publishing
+        self.eventbus = None
+        self.eventbus_enabled = EVENTBUS_AVAILABLE
+        if self.eventbus_enabled:
+            try:
+                # EventBus will be initialized async in publish_to_eventbus()
+                logger.info("[EVENTBUS] Client will connect on first signal publish")
+            except Exception as e:
+                logger.warning(f"[EVENTBUS] Initialization failed: {e} - Disabled")
+                self.eventbus_enabled = False
         
         # ====================================================================
         # MODULE 1: MEMORY STATES
@@ -645,7 +668,68 @@ class EnsembleManager:
             
             logger.info(f"[CHART] ENSEMBLE {symbol}: {action} {confidence:.2%} | {pred_str.strip()}")
         
+        # TIER 1: Publish signal to EventBus (async, non-blocking)
+        if self.eventbus_enabled and (action == 'BUY' or action == 'SELL'):
+            try:
+                # Use asyncio to publish without blocking
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Create task to publish asynchronously
+                    asyncio.create_task(self._publish_to_eventbus(symbol, action, confidence, info))
+                else:
+                    # If no loop, run sync (fallback)
+                    asyncio.run(self._publish_to_eventbus(symbol, action, confidence, info))
+                    
+                logger.info(f"[EVENTBUS] Signal published: {symbol} {action} (conf={confidence:.3f})")
+            except Exception as e:
+                logger.warning(f"[EVENTBUS] Publish failed: {e} - continuing without EventBus")
+        
         return action, confidence, info
+    
+    async def _publish_to_eventbus(self, symbol: str, action: str, confidence: float, info: Dict[str, Any]):
+        """
+        Publish signal to EventBus (Tier 1 Core Loop).
+        
+        Non-blocking async method that publishes trade signals to Redis Streams
+        for processing by Risk Safety → Execution → Position Monitor pipeline.
+        
+        Args:
+            symbol: Trading pair (e.g., "BTCUSDT")
+            action: "BUY" or "SELL"
+            confidence: 0.0-1.0
+            info: Additional metadata (ensemble votes, meta override, etc.)
+        """
+        try:
+            # Create EventBus client (lazy initialization)
+            async with EventBusClient() as bus:
+                # Prepare signal payload
+                signal = TradeSignal(
+                    symbol=symbol,
+                    action=action,
+                    confidence=confidence,
+                    timestamp=datetime.utcnow().isoformat() + "Z",
+                    source="ensemble_v5",
+                    # Optional metadata for telemetry
+                    ensemble_votes=info.get('models', {}),
+                    meta_override=info.get('meta_override', False),
+                    meta_confidence=info.get('meta_confidence', None),
+                    governer_approved=info.get('governer', {}).get('approved', True),
+                    position_size_pct=info.get('governer', {}).get('position_size_pct', 0.10),
+                    consensus=info.get('consensus', 'unknown')
+                )
+                
+                # Publish to trade.signal.v5 topic
+                message_id = await bus.publish_signal(signal)
+                
+                logger.info(
+                    f"[EVENTBUS] ✅ Published: {symbol} {action} | "
+                    f"Confidence={confidence:.3f} | "
+                    f"MessageID={message_id}"
+                )
+                
+        except Exception as e:
+            logger.error(f"[EVENTBUS] ❌ Publish error: {e}")
+            # Don't raise - signal publishing should not block trading logic
     
     def _aggregate_predictions(
         self,
