@@ -16,10 +16,11 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from ai_engine.agents.xgb_agent import XGBAgent
-from ai_engine.agents.lgbm_agent import LightGBMAgent
-from ai_engine.agents.nhits_agent import NHiTSAgent
-from ai_engine.agents.patchtst_agent import PatchTSTAgent
+# Import unified agent system
+from ai_engine.agents.unified_agents import XGBoostAgent, LightGBMAgent, NHiTSAgent, PatchTSTAgent
+
+# Backward compatibility
+XGBAgent = XGBoostAgent
 
 # Module 1: Memory States
 try:
@@ -127,24 +128,30 @@ class EnsembleManager:
         if enabled_models is None:
             enabled_models = ['xgb', 'lgbm', 'nhits', 'patchtst']
         
-        # Initialize agents (disable their own ensemble loading - we handle it here)
+        # Initialize agents with unified system
         logger.info("=" * 60)
-        logger.info("[TARGET] INITIALIZING 4-MODEL ENSEMBLE")
+        logger.info("[TARGET] INITIALIZING 4-MODEL ENSEMBLE (Unified Agent System v2.0)")
         logger.info(f"[ENABLED] Models to load: {enabled_models}")
         logger.info("=" * 60)
         
-        self.xgb_agent = XGBAgent(
-            use_ensemble=False,
-            model_path=xgb_model_path,
-            scaler_path=xgb_scaler_path
-        )
-        if self.xgb_agent.is_ready():
+        # XGBoost - always try to load
+        try:
+            self.xgb_agent = XGBAgent()
             logger.info(f"[OK] XGBoost agent loaded (weight: {self.weights['xgb']*100}%)")
-        else:
-            logger.warning(f"[WARN] XGBoost agent initialized but model NOT loaded (will output xgb_no_model)")
+        except Exception as e:
+            logger.error(f"[ERROR] XGBoost loading failed: {e}")
+            self.xgb_agent = None
         
-        self.lgbm_agent = LightGBMAgent()
-        logger.info(f"[OK] LightGBM agent loaded (weight: {self.weights['lgbm']*100}%)")
+        # LightGBM
+        self.lgbm_agent = None
+        if 'lgbm' in enabled_models:
+            try:
+                self.lgbm_agent = LightGBMAgent()
+                logger.info(f"[OK] LightGBM agent loaded (weight: {self.weights['lgbm']*100}%)")
+            except Exception as e:
+                logger.warning(f"[WARNING] LightGBM loading failed: {e} - Disabled")
+        else:
+            logger.info("[SKIP] LightGBM agent disabled (not in enabled_models)")
         
         # N-HiTS and PatchTST are optional (heavy models, may cause OOM)
         self.nhits_agent = None
@@ -153,7 +160,6 @@ class EnsembleManager:
         if 'nhits' in enabled_models:
             try:
                 self.nhits_agent = NHiTSAgent()
-                self.nhits_agent._ensure_model_loaded()  # Force load
                 logger.info(f"[OK] N-HiTS agent loaded (weight: {self.weights['nhits']*100}%)")
             except Exception as e:
                 logger.warning(f"[WARNING] N-HiTS loading failed: {e} - Disabled")
@@ -164,7 +170,6 @@ class EnsembleManager:
         if 'patchtst' in enabled_models:
             try:
                 self.patchtst_agent = PatchTSTAgent()
-                self.patchtst_agent._ensure_model_loaded()  # Force load
                 logger.info(f"[OK] PatchTST agent loaded (weight: {self.weights['patchtst']*100}%)")
             except Exception as e:
                 logger.warning(f"[WARNING] PatchTST loading failed: {e} - Disabled")
@@ -427,7 +432,13 @@ class EnsembleManager:
         inactive_reasons = {}
         
         for model_name, prediction in predictions.items():
-            action_pred, conf_pred, model_info = prediction[0], prediction[1], prediction[2]
+            # Handle both dict (unified agents) and tuple (legacy) formats
+            if isinstance(prediction, dict):
+                action_pred = prediction.get('action')
+                conf_pred = prediction.get('confidence')
+                model_info = f"v{prediction.get('version', 'unknown')}"
+            else:
+                action_pred, conf_pred, model_info = prediction[0], prediction[1], prediction[2]
             
             # Check degradation markers
             is_shadow = 'shadow' in str(model_info)
@@ -472,14 +483,16 @@ class EnsembleManager:
         # DEBUG: Log predictions with any signal (QSC: only log active predictions)
         if action != 'HOLD' or confidence > 0.50:
             pred_str = ""
-            if 'xgb' in active_predictions:
-                pred_str += f"XGB:{active_predictions['xgb'][0]}/{active_predictions['xgb'][1]:.2f} "
-            if 'lgbm' in active_predictions:
-                pred_str += f"LGBM:{active_predictions['lgbm'][0]}/{active_predictions['lgbm'][1]:.2f} "
-            if 'nhits' in active_predictions:
-                pred_str += f"NH:{active_predictions['nhits'][0]}/{active_predictions['nhits'][1]:.2f} "
-            if 'patchtst' in active_predictions:
-                pred_str += f"PT:{active_predictions['patchtst'][0]}/{active_predictions['patchtst'][1]:.2f}"
+            for model_key in ['xgb', 'lgbm', 'nhits', 'patchtst']:
+                if model_key in active_predictions:
+                    pred = active_predictions[model_key]
+                    if isinstance(pred, dict):
+                        act, conf = pred.get('action', '?'), pred.get('confidence', 0)
+                    else:
+                        act, conf = pred[0], pred[1]
+                    
+                    model_abbrev = {'xgb': 'XGB', 'lgbm': 'LGBM', 'nhits': 'NH', 'patchtst': 'PT'}[model_key]
+                    pred_str += f"{model_abbrev}:{act}/{conf:.2f} "
             
             logger.info(f"[CHART] ENSEMBLE {symbol}: {action} {confidence:.2%} | {pred_str.strip()}")
         
@@ -506,7 +519,15 @@ class EnsembleManager:
         model_actions = []
         
         # Collect weighted votes (EXCLUDE insufficient_history models)
-        for model_name, (action, conf, model_info) in predictions.items():
+        for model_name, prediction in predictions.items():
+            # Handle both dict (unified agents) and tuple (legacy) formats
+            if isinstance(prediction, dict):
+                action = prediction.get('action')
+                conf = prediction.get('confidence')
+                model_info = f"v{prediction.get('version', 'unknown')}"
+            else:
+                action, conf, model_info = prediction[0], prediction[1], prediction[2]
+            
             # Skip models without enough data
             if isinstance(model_info, str) and 'insufficient' in model_info.lower():
                 logger.info(f"[SKIP] Skipping {model_name} - {model_info}")  # Changed to INFO
@@ -554,10 +575,12 @@ class EnsembleManager:
         #         consensus_str = f"{consensus_str}_high_vol"
         
         # Build info dict with model details
-        model_details = {
-            k: {'action': v[0], 'confidence': v[1], 'model': v[2]}
-            for k, v in predictions.items()
-        }
+        model_details = {}
+        for k, v in predictions.items():
+            if isinstance(v, dict):
+                model_details[k] = {'action': v.get('action'), 'confidence': v.get('confidence'), 'model': f"v{v.get('version', 'unknown')}"}
+            else:
+                model_details[k] = {'action': v[0], 'confidence': v[1], 'model': v[2]}
         
         info = {
             'consensus': consensus_str,
