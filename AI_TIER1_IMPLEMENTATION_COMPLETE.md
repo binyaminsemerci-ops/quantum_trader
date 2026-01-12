@@ -89,7 +89,7 @@
 
 ### ✅ 4. Position Monitor
 **File**: `services/position_monitor.py` (400 lines)
-- **Port**: 8004
+- **Port**: 8005
 - **Framework**: FastAPI + uvicorn
 - **Function**: Track open positions and calculate PnL
 
