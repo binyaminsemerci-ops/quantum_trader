@@ -41,11 +41,7 @@ echo -e "\n${YELLOW}[1/8]${NC} Installing Python dependencies..."
 cd /home/qt/quantum_trader
 source /opt/quantum/venvs/ai-engine/bin/activate
 
-pip install --quiet --upgrade \
-    redis-asyncio \
-    fastapi \
-    uvicorn \
-    pydantic
+pip install --quiet --upgrade redis fastapi uvicorn pydantic aiofiles
 
 echo -e "${GREEN}✅ Dependencies installed${NC}"
 
