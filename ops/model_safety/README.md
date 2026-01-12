@@ -11,6 +11,33 @@
 
 ## Components
 
+### 0. Workspace Evaluator (NEW - Comprehensive Assessment)
+**Script:** `ops/evaluation/workspace_evaluator.py`
+
+**Purpose:** Holistic workspace evaluation combining:
+- Model quality gates (all models)
+- Degeneracy detection (stuck models)
+- Ensemble health metrics
+- Event count validation
+- Pre/post-cutover comparison
+
+**Usage:**
+```bash
+# Full evaluation
+make eval-workspace
+
+# Post-cutover analysis
+make eval-cutover CUTOVER_TS=2026-01-10T05:43:15Z
+```
+
+**Documentation:** See `ops/evaluation/README.md` for full guide
+
+**Exit codes:**
+- `0` = PASS (or PASS_WITH_WARNINGS)
+- `2` = FAIL (blockers detected)
+
+---
+
 ### 1. Quality Gate (BLOCKER)
 **Script:** `ops/model_safety/quality_gate.py`
 
