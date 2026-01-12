@@ -19,6 +19,14 @@ from pathlib import Path
 # Import unified agent system
 from ai_engine.agents.unified_agents import XGBoostAgent, LightGBMAgent, NHiTSAgent, PatchTSTAgent
 
+# Import meta agent
+try:
+    from ai_engine.agents.meta_agent import MetaPredictorAgent
+    META_AVAILABLE = True
+except ImportError:
+    META_AVAILABLE = False
+    MetaPredictorAgent = None
+
 # Backward compatibility
 XGBAgent = XGBoostAgent
 
@@ -177,9 +185,26 @@ class EnsembleManager:
         else:
             logger.info("[SKIP] PatchTST agent disabled (not in enabled_models)")
         
+        # Meta Agent (5th agent - meta-learning layer)
+        self.meta_agent = None
+        if META_AVAILABLE:
+            try:
+                self.meta_agent = MetaPredictorAgent()
+                if self.meta_agent.is_ready():
+                    logger.info(f"[OK] Meta-learning agent loaded (5th layer)")
+                else:
+                    logger.info("[INFO] Meta agent initialized but no model found (will train later)")
+            except Exception as e:
+                logger.warning(f"[WARNING] Meta agent initialization failed: {e}")
+                self.meta_agent = None
+        else:
+            logger.info("[SKIP] Meta agent not available (install required)")
+        
         active_models = len([m for m in [self.xgb_agent, self.lgbm_agent, self.nhits_agent, self.patchtst_agent] if m is not None])
         logger.info("=" * 60)
         logger.info(f"[TARGET] Ensemble ready! Min consensus: {min_consensus}/{active_models} models")
+        if self.meta_agent and self.meta_agent.is_ready():
+            logger.info(f"[META] Meta-learning layer: ACTIVE (5-agent ensemble)")
         logger.info("[FIX #2] Dynamic weight loading: {'ENABLED' if self.supervisor_weights_file.exists() else 'DISABLED (using defaults)'}")
         logger.info("=" * 60)
         
@@ -463,6 +488,54 @@ class EnsembleManager:
         
         # Aggregate with smart voting (only active models)
         action, confidence, info = self._aggregate_predictions(active_predictions, features)
+        
+        # META-LEARNING LAYER: Let meta agent make final decision if available
+        if self.meta_agent and self.meta_agent.is_ready() and len(active_predictions) >= 2:
+            try:
+                # Prepare ensemble vector for meta agent
+                ensemble_vector = {}
+                for model_key in ['xgb', 'lgbm', 'patch', 'nhits']:
+                    # Map patchtst -> patch for meta agent
+                    pred_key = 'patchtst' if model_key == 'patch' else model_key
+                    
+                    if pred_key in active_predictions:
+                        pred = active_predictions[pred_key]
+                        if isinstance(pred, dict):
+                            ensemble_vector[model_key] = {
+                                'action': pred.get('action', 'HOLD'),
+                                'confidence': pred.get('confidence', 0.5)
+                            }
+                        else:
+                            ensemble_vector[model_key] = {
+                                'action': pred[0],
+                                'confidence': pred[1]
+                            }
+                    else:
+                        # Fill missing models with neutral HOLD
+                        ensemble_vector[model_key] = {
+                            'action': 'HOLD',
+                            'confidence': 0.5
+                        }
+                
+                # Get meta prediction
+                meta_result = self.meta_agent.predict(ensemble_vector, symbol)
+                
+                # Use meta prediction as final decision
+                if meta_result['confidence'] > 0.6:  # Only override if meta is confident
+                    logger.info(
+                        f"[META] {symbol} override: {action}→{meta_result['action']} "
+                        f"(conf={meta_result['confidence']:.3f})"
+                    )
+                    action = meta_result['action']
+                    confidence = meta_result['confidence']
+                    info['meta_override'] = True
+                    info['meta_confidence'] = meta_result['confidence']
+                else:
+                    info['meta_override'] = False
+                    info['meta_confidence'] = meta_result['confidence']
+                    
+            except Exception as e:
+                logger.error(f"[META] Prediction error: {e} - using base ensemble")
         
         # Re-add inactive predictions to info['models'] for telemetry
         if inactive_predictions:
