@@ -292,6 +292,8 @@ async def process_execution(result_data: Dict[str, Any]):
     3. Update balance
     """
     try:
+        # Remove EventBus metadata
+        result_data = {k: v for k, v in result_data.items() if not k.startswith('_')}
         result = ExecutionResult(**result_data)
         
         logger.info(
