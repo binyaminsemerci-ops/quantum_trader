@@ -157,6 +157,9 @@ async def process_signal(signal_data: Dict[str, Any]):
     global stats
     
     try:
+        # Remove EventBus metadata
+        signal_data = {k: v for k, v in signal_data.items() if not k.startswith('_')}
+        
         # Parse signal
         signal = TradeSignal(**signal_data)
         stats["signals_received"] += 1

@@ -300,6 +300,8 @@ async def order_consumer():
     
     try:
         async for signal_data in eventbus.subscribe("trade.signal.safe"):
+            # Remove EventBus metadata
+            signal_data = {k: v for k, v in signal_data.items() if not k.startswith('_')}
             # Parse signal
             signal = RiskApprovedSignal(**signal_data)
             await execute_order(signal)
