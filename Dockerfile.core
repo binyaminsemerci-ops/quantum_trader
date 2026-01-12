@@ -1,0 +1,61 @@
+# ============================================================================
+# Dockerfile for Tier 1 Core Services
+# ============================================================================
+# Builds:
+# - Risk Safety Service
+# - Execution Service
+# - Position Monitor
+#
+# Base image: Python 3.10 slim
+# Includes: redis-asyncio, fastapi, uvicorn
+#
+# Usage:
+#   docker build -f Dockerfile.core -t quantum-trader/core:v1 .
+#
+# Author: Quantum Trader Team
+# Date: 2026-01-12
+# ============================================================================
+
+FROM python:3.10-slim
+
+# Metadata
+LABEL maintainer="Quantum Trader Team"
+LABEL description="Tier 1 Core Execution Loop Services"
+LABEL version="1.0.0"
+
+# Environment
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /app
+
+# Copy requirements first (for caching)
+COPY requirements_core.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements_core.txt
+
+# Copy application code
+COPY ai_engine/ /app/ai_engine/
+COPY services/ /app/services/
+COPY models/ /app/models/
+
+# Create directories
+RUN mkdir -p /var/log/quantum /app/data && \
+    chmod 755 /var/log/quantum /app/data
+
+# Health check (will be overridden per service)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:${SERVICE_PORT}/health || exit 1
+
+# Default command (will be overridden per service)
+CMD ["python3", "-u", "services/risk_safety_service.py"]
