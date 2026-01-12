@@ -27,6 +27,15 @@ except ImportError:
     META_AVAILABLE = False
     MetaPredictorAgent = None
 
+# Import governer agent (risk management)
+try:
+    from ai_engine.agents.governer_agent import GovernerAgent, RiskConfig
+    GOVERNER_AVAILABLE = True
+except ImportError:
+    GOVERNER_AVAILABLE = False
+    GovernerAgent = None
+    RiskConfig = None
+
 # Backward compatibility
 XGBAgent = XGBoostAgent
 
@@ -200,11 +209,35 @@ class EnsembleManager:
         else:
             logger.info("[SKIP] Meta agent not available (install required)")
         
+        # Governer Agent (Risk Management & Capital Allocation)
+        self.governer_agent = None
+        if GOVERNER_AVAILABLE:
+            try:
+                # Load risk config from file or use defaults
+                risk_config = RiskConfig(
+                    max_position_size_pct=0.10,
+                    max_total_exposure_pct=0.50,
+                    max_drawdown_pct=0.15,
+                    min_confidence_threshold=0.65,
+                    kelly_fraction=0.25,
+                    cooldown_after_loss_minutes=60,
+                    max_daily_trades=20
+                )
+                self.governer_agent = GovernerAgent(config=risk_config)
+                logger.info(f"[OK] Governer agent loaded (Risk Management Layer)")
+            except Exception as e:
+                logger.warning(f"[WARNING] Governer agent initialization failed: {e}")
+                self.governer_agent = None
+        else:
+            logger.info("[SKIP] Governer agent not available")
+        
         active_models = len([m for m in [self.xgb_agent, self.lgbm_agent, self.nhits_agent, self.patchtst_agent] if m is not None])
         logger.info("=" * 60)
         logger.info(f"[TARGET] Ensemble ready! Min consensus: {min_consensus}/{active_models} models")
         if self.meta_agent and self.meta_agent.is_ready():
             logger.info(f"[META] Meta-learning layer: ACTIVE (5-agent ensemble)")
+        if self.governer_agent:
+            logger.info(f"[GOVERNER] Risk management: ACTIVE (Kelly + Circuit Breakers)")
         logger.info("[FIX #2] Dynamic weight loading: {'ENABLED' if self.supervisor_weights_file.exists() else 'DISABLED (using defaults)'}")
         logger.info("=" * 60)
         
@@ -536,6 +569,49 @@ class EnsembleManager:
                     
             except Exception as e:
                 logger.error(f"[META] Prediction error: {e} - using base ensemble")
+        
+        # GOVERNER LAYER: Risk management and position sizing
+        if self.governer_agent and (action == 'BUY' or action == 'SELL'):
+            try:
+                # Get position allocation from governer
+                allocation = self.governer_agent.allocate_position(
+                    symbol=symbol,
+                    action=action,
+                    confidence=confidence,
+                    balance=None,  # Uses tracked balance
+                    meta_override=info.get('meta_override', False)
+                )
+                
+                # Add governer decision to info
+                info['governer'] = {
+                    'approved': allocation.approved,
+                    'position_size_usd': allocation.position_size_usd,
+                    'position_size_pct': allocation.position_size_pct,
+                    'risk_amount_usd': allocation.risk_amount_usd,
+                    'reason': allocation.reason,
+                    'kelly_optimal': allocation.kelly_optimal
+                }
+                
+                # If governer rejects trade, override to HOLD
+                if not allocation.approved:
+                    logger.info(
+                        f"[GOVERNER] {symbol} REJECTED: {action} → HOLD | "
+                        f"Reason: {allocation.reason}"
+                    )
+                    action = "HOLD"
+                    confidence = 0.0
+                else:
+                    logger.info(
+                        f"[GOVERNER] {symbol} APPROVED: {action} | "
+                        f"Size=${allocation.position_size_usd:.2f} ({allocation.position_size_pct:.1%}) | "
+                        f"Risk=${allocation.risk_amount_usd:.2f}"
+                    )
+                
+            except Exception as e:
+                logger.error(f"[GOVERNER] Error: {e} - defaulting to HOLD for safety")
+                action = "HOLD"
+                confidence = 0.0
+                info['governer'] = {'approved': False, 'reason': f'ERROR: {e}'}
         
         # Re-add inactive predictions to info['models'] for telemetry
         if inactive_predictions:
