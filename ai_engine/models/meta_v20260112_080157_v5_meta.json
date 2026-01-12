@@ -1,0 +1,25 @@
+{
+  "version": "v5",
+  "timestamp": "20260112_080157",
+  "input_dim": 8,
+  "hidden_dim": 32,
+  "output_dim": 3,
+  "train_samples": 4202,
+  "test_accuracy": 0.9244444444444444,
+  "best_val_accuracy": 0.923162583518931,
+  "features": [
+    "xgb_conf",
+    "lgbm_conf",
+    "patch_conf",
+    "nhits_conf",
+    "xgb_action",
+    "lgbm_action",
+    "patch_action",
+    "nhits_action"
+  ],
+  "classes": [
+    "SELL",
+    "HOLD",
+    "BUY"
+  ]
+}
