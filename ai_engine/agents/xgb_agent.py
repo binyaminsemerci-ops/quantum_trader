@@ -46,12 +46,14 @@ class XGBAgent:
         # 🔥 USE LATEST TIMESTAMPED MODEL (not old hardcoded names)
         # Retraining saves to /app/models/, agents default to ai_engine/models
         retraining_dir = "/app/models" if os.path.exists("/app/models") else base
-        # Try v3 (with scaler), then v2, then old naming
-        latest_model = self._find_latest_model(retraining_dir, "xgb_v*_v3.pkl") or \
+        # Try v4 (balanced with RandomOverSampler), then v3, then v2, then old naming
+        latest_model = self._find_latest_model(retraining_dir, "xgb_v*_v4.pkl") or \
+                       self._find_latest_model(retraining_dir, "xgb_v*_v3.pkl") or \
                        self._find_latest_model(retraining_dir, "xgb_v*_v2.pkl") or \
                        self._find_latest_model(retraining_dir, "xgboost_v*_v2.pkl")
-        # For v3 models, scaler is named model_name_scaler.pkl
-        latest_scaler = self._find_latest_model(retraining_dir, "xgb_v*_v3_scaler.pkl") or \
+        # For v3/v4 models, scaler is named model_name_scaler.pkl
+        latest_scaler = self._find_latest_model(retraining_dir, "xgb_v*_v4_scaler.pkl") or \
+                       self._find_latest_model(retraining_dir, "xgb_v*_v3_scaler.pkl") or \
                        self._find_latest_model(retraining_dir, "xgboost_scaler_v*_v2.pkl")
         
         self.model_path = model_path or latest_model or os.path.join(base, "xgb_model.pkl")
