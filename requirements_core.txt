@@ -6,8 +6,7 @@
 # ============================================================================
 
 # Core dependencies
-redis==5.0.1
-redis-asyncio==2.0.0
+redis[asyncio]==5.0.1
 
 # Web framework
 fastapi==0.109.0
