@@ -463,7 +463,7 @@ async def shutdown():
 
 def main():
     """Run service"""
-    port = int(os.getenv("SERVICE_PORT", "8004"))
+    port = int(os.getenv("SERVICE_PORT", "8005"))
     
     uvicorn.run(
         app,

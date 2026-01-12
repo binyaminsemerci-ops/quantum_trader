@@ -147,7 +147,7 @@ Group=qt
 WorkingDirectory=/home/qt/quantum_trader
 Environment="PYTHONPATH=/home/qt/quantum_trader"
 Environment="REDIS_URL=redis://localhost:6379"
-Environment="SERVICE_PORT=8004"
+Environment="SERVICE_PORT=8005"
 ExecStart=/opt/quantum/venvs/ai-engine/bin/python3 services/position_monitor.py
 Restart=always
 RestartSec=10
