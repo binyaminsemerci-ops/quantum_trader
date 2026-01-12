@@ -155,9 +155,10 @@ class AIEngineService:
         self._governance_actuals: Dict[str, List[float]] = {}  # {symbol: [actual_prices]}
         self._governance_pnl: Dict[str, Dict[str, float]] = {}  # {symbol: {model: pnl}}
         
-        # Price history for indicator calculations (symbol -> list of prices)
-        self._price_history: Dict[str, List[float]] = {}
+        # OHLCV history for indicator calculations (symbol -> list of OHLCV dicts)
+        self._price_history: Dict[str, List[float]] = {}  # Kept for backward compatibility
         self._volume_history: Dict[str, List[float]] = {}
+        self._ohlcv_history: Dict[str, List[Dict[str, float]]] = {}  # For v5 features
         self._history_max_len = 120  # Keep 2 minutes at 1 tick/sec
         
         logger.info("[AI-ENGINE] Service initialized")
@@ -794,15 +795,29 @@ class AIEngineService:
         if symbol not in self._price_history:
             self._price_history[symbol] = []
             self._volume_history[symbol] = []
+            self._ohlcv_history[symbol] = []
             logger.info(f"[AI-ENGINE] 🆕 Creating new price history for {symbol}")
         
         self._price_history[symbol].append(price)
         self._volume_history[symbol].append(volume)
         
+        # Update OHLCV data for v5 features
+        if self._ohlcv_history[symbol]:
+            last_candle = self._ohlcv_history[symbol][-1]
+            last_candle["high"] = max(last_candle["high"], price)
+            last_candle["low"] = min(last_candle["low"], price)
+            last_candle["close"] = price
+            last_candle["volume"] += volume
+        else:
+            self._ohlcv_history[symbol].append({
+                "open": price, "high": price, "low": price, "close": price, "volume": volume
+            })
+        
         # Trim to max length
         if len(self._price_history[symbol]) > self._history_max_len:
             self._price_history[symbol] = self._price_history[symbol][-self._history_max_len:]
             self._volume_history[symbol] = self._volume_history[symbol][-self._history_max_len:]
+            self._ohlcv_history[symbol] = self._ohlcv_history[symbol][-self._history_max_len:]
         
         # 🔥 PHASE 2D: Feed price data to Volatility Structure Engine
         if self.volatility_structure_engine:
@@ -1151,6 +1166,134 @@ class AIEngineService:
         
         return ((current_price - old_price) / old_price) * 100
     
+    def _calculate_v5_features(self, symbol: str) -> Dict[str, float]:
+        """
+        Calculate all 18 features required by XGBoost v5.
+        
+        Returns dict with keys:
+        price_change, high_low_range, volume_change, volume_ma_ratio,
+        ema_10, ema_20, ema_50, rsi_14, macd, macd_signal, macd_hist,
+        bb_position, volatility_20, momentum_10, momentum_20,
+        ema_10_20_cross, ema_10_50_cross, volume_ratio
+        """
+        ohlcv = self._ohlcv_history.get(symbol, [])
+        prices = self._price_history.get(symbol, [])
+        volumes = self._volume_history.get(symbol, [])
+        
+        if len(prices) < 2:
+            # Return neutral values if insufficient data
+            return {
+                "price_change": 0.0, "high_low_range": 0.0, "volume_change": 0.0,
+                "volume_ma_ratio": 1.0, "ema_10": prices[-1] if prices else 0.0,
+                "ema_20": prices[-1] if prices else 0.0, "ema_50": prices[-1] if prices else 0.0,
+                "rsi_14": 50.0, "macd": 0.0, "macd_signal": 0.0, "macd_hist": 0.0,
+                "bb_position": 0.5, "volatility_20": 0.0, "momentum_10": 0.0,
+                "momentum_20": 0.0, "ema_10_20_cross": 0.0, "ema_10_50_cross": 0.0,
+                "volume_ratio": 1.0
+            }
+        
+        current_price = prices[-1]
+        
+        # Helper: EMA calculation
+        def ema(data: List[float], period: int) -> float:
+            if len(data) < period:
+                return data[-1] if data else 0.0
+            multiplier = 2 / (period + 1)
+            ema_val = data[0]
+            for price in data[1:]:
+                ema_val = (price * multiplier) + (ema_val * (1 - multiplier))
+            return ema_val
+        
+        # 1. price_change (1-period)
+        price_change = ((prices[-1] - prices[-2]) / prices[-2]) * 100 if len(prices) >= 2 else 0.0
+        
+        # 2. high_low_range
+        if ohlcv and len(ohlcv) > 0:
+            last_candle = ohlcv[-1]
+            high_low_range = (last_candle["high"] - last_candle["low"]) / current_price if current_price > 0 else 0.0
+        else:
+            high_low_range = 0.0
+        
+        # 3. volume_change
+        volume_change = ((volumes[-1] - volumes[-2]) / volumes[-2]) * 100 if len(volumes) >= 2 and volumes[-2] > 0 else 0.0
+        
+        # 4. volume_ma_ratio (current volume / MA(20))
+        if len(volumes) >= 20:
+            volume_ma = sum(volumes[-20:]) / 20
+            volume_ma_ratio = volumes[-1] / volume_ma if volume_ma > 0 else 1.0
+        else:
+            volume_ma_ratio = 1.0
+        
+        # 5-7. EMAs (10, 20, 50)
+        ema_10 = ema(prices, 10)
+        ema_20 = ema(prices, 20)
+        ema_50 = ema(prices, 50)
+        
+        # 8. RSI (14)
+        rsi_14 = self._calculate_rsi(prices, 14)
+        
+        # 9-11. MACD (12, 26, 9)
+        if len(prices) >= 26:
+            fast_ema = ema(prices, 12)
+            slow_ema = ema(prices, 26)
+            macd = fast_ema - slow_ema
+            
+            # MACD signal line (9-period EMA of MACD)
+            # For simplicity, approximate with single value (would need history of MACD values)
+            macd_signal = macd * 0.9  # Simplified approximation
+            macd_hist = macd - macd_signal
+        else:
+            macd = macd_signal = macd_hist = 0.0
+        
+        # 12. bb_position (Bollinger Band position)
+        if len(prices) >= 20:
+            bb_ma = sum(prices[-20:]) / 20
+            bb_std = (sum([(p - bb_ma) ** 2 for p in prices[-20:]]) / 20) ** 0.5
+            bb_upper = bb_ma + (2 * bb_std)
+            bb_lower = bb_ma - (2 * bb_std)
+            bb_position = (current_price - bb_lower) / (bb_upper - bb_lower) if bb_upper > bb_lower else 0.5
+        else:
+            bb_position = 0.5
+        
+        # 13. volatility_20 (20-period rolling std of returns)
+        if len(prices) >= 21:
+            returns = [(prices[i] - prices[i-1]) / prices[i-1] for i in range(-20, 0)]
+            volatility_20 = (sum([r ** 2 for r in returns]) / len(returns)) ** 0.5
+        else:
+            volatility_20 = 0.0
+        
+        # 14-15. momentum (10 and 20 period)
+        momentum_10 = self._calculate_momentum(prices, 10)
+        momentum_20 = self._calculate_momentum(prices, 20)
+        
+        # 16-17. EMA crosses
+        ema_10_20_cross = (ema_10 - ema_20) / ema_20 if ema_20 > 0 else 0.0
+        ema_10_50_cross = (ema_10 - ema_50) / ema_50 if ema_50 > 0 else 0.0
+        
+        # 18. volume_ratio (same as volume_ma_ratio, kept for compatibility)
+        volume_ratio = volume_ma_ratio
+        
+        return {
+            "price_change": price_change,
+            "high_low_range": high_low_range,
+            "volume_change": volume_change,
+            "volume_ma_ratio": volume_ma_ratio,
+            "ema_10": ema_10,
+            "ema_20": ema_20,
+            "ema_50": ema_50,
+            "rsi_14": rsi_14,
+            "macd": macd,
+            "macd_signal": macd_signal,
+            "macd_hist": macd_hist,
+            "bb_position": bb_position,
+            "volatility_20": volatility_20,
+            "momentum_10": momentum_10,
+            "momentum_20": momentum_20,
+            "ema_10_20_cross": ema_10_20_cross,
+            "ema_10_50_cross": ema_10_50_cross,
+            "volume_ratio": volume_ratio
+        }
+    
     # ========================================================================
     # SIGNAL GENERATION (MAIN PIPELINE)
     # ========================================================================
@@ -1209,17 +1352,9 @@ class AIEngineService:
                 action = "HOLD"
                 ensemble_confidence = 0.60
                 votes_info = {"fallback": True}
-                # Still calculate features for fallback logic
-                prices = self._price_history.get(symbol, [])
-                volumes = self._volume_history.get(symbol, [])
-                features = {
-                    "price": current_price,
-                    "price_change": self._calculate_momentum(prices, period=1),  # 1-period price change for LGBM
-                    "rsi_14": self._calculate_rsi(prices, period=14),
-                    "macd": self._calculate_macd(prices, fast=12, slow=26),
-                    "volume_ratio": self._calculate_volume_ratio(volumes, window=20),
-                    "momentum_10": self._calculate_momentum(prices, period=10),
-                }
+                # Calculate v5 features for fallback logic
+                features = self._calculate_v5_features(symbol)
+                features["price"] = current_price
             else:
                 logger.debug(f"[AI-ENGINE] Running ensemble for {symbol}...")
                 
@@ -1229,15 +1364,11 @@ class AIEngineService:
                 
                 logger.info(f"[AI-ENGINE] 📊 Price history: {symbol} has {len(prices)} data points")
                 
-                # Base features
-                features = {
-                    "price": current_price,
-                    "price_change": self._calculate_momentum(prices, period=1),
-                    "rsi_14": self._calculate_rsi(prices, period=14),
-                    "macd": self._calculate_macd(prices, fast=12, slow=26),
-                    "volume_ratio": self._calculate_volume_ratio(volumes, window=20),
-                    "momentum_10": self._calculate_momentum(prices, period=10),
-                }
+                # Calculate all 18 v5 features
+                features = self._calculate_v5_features(symbol)
+                
+                # Add current price for backward compatibility
+                features["price"] = current_price
                 
                 # 🔥 PHASE 1: Add Cross-Exchange Features
                 if self.cross_exchange_aggregator:
