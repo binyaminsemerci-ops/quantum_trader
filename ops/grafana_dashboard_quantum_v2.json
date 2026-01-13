@@ -1,0 +1,176 @@
+{
+  "dashboard": {
+    "title": "Quantum Trader - Core Loop Monitoring",
+    "tags": ["quantum", "tier1", "core-loop"],
+    "timezone": "utc",
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Signal Flow Rate",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(quantum_signals_total[1m])",
+            "legendFormat": "Signals/sec - {{symbol}} {{action}}"
+          }
+        ],
+        "yaxes": [{"label": "signals/sec", "show": true}]
+      },
+      {
+        "id": 2,
+        "title": "Approval Rate",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "quantum_approval_rate",
+            "legendFormat": "Approval %"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 0.6, "color": "green"},
+                {"value": 0.85, "color": "yellow"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Fill Rate",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "quantum_fill_rate",
+            "legendFormat": "Fill %"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 0.95, "color": "yellow"},
+                {"value": 0.99, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Total Signals by Action",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "sum by (action) (quantum_signals_total)",
+            "legendFormat": "{{action}}"
+          }
+        ],
+        "yaxes": [{"label": "Total Signals", "show": true}]
+      },
+      {
+        "id": 5,
+        "title": "Execution Success",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "sum(quantum_executions_total)",
+            "legendFormat": "Executed"
+          },
+          {
+            "expr": "sum(quantum_approvals_total)",
+            "legendFormat": "Approved"
+          }
+        ],
+        "yaxes": [{"label": "Count", "show": true}]
+      },
+      {
+        "id": 6,
+        "title": "Position Updates",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "sum(quantum_position_updates_total)",
+            "legendFormat": "Total Updates"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Open Positions",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 16},
+        "targets": [
+          {
+            "expr": "quantum_positions_open",
+            "legendFormat": "Open"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "PnL (Unrealized)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 16},
+        "targets": [
+          {
+            "expr": "quantum_pnl_unrealized",
+            "legendFormat": "Unrealized PnL"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD"
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "PnL (Realized)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 16},
+        "targets": [
+          {
+            "expr": "quantum_pnl_realized",
+            "legendFormat": "Realized PnL"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD"
+          }
+        }
+      }
+    ],
+    "schemaVersion": 16,
+    "version": 1
+  },
+  "overwrite": true
+}
