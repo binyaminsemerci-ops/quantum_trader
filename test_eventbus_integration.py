@@ -63,16 +63,20 @@ async def test_ensemble_eventbus():
         length = await bus.get_stream_length('trade.signal.v5')
         print(f"✅ Stream trade.signal.v5 has {length} messages")
         
-        # Read last signal
-        messages = await bus.get_stream_messages('trade.signal.v5', count=1)
+        # Read last signal using XREVRANGE (most recent)
+        import redis.asyncio as aioredis
+        redis_client = await aioredis.from_url("redis://localhost:6379", decode_responses=True)
+        messages = await redis_client.xrevrange('trade.signal.v5', count=1)
+        await redis_client.close()
+        
         if messages:
-            last_msg = messages[0]
-            print(f"\nLast signal:")
-            print(f"  Symbol: {last_msg.get('symbol')}")
-            print(f"  Action: {last_msg.get('action')}")
-            print(f"  Confidence: {last_msg.get('confidence')}")
-            print(f"  Source: {last_msg.get('source')}")
-            print(f"  Timestamp: {last_msg.get('timestamp')}")
+            msg_id, msg_data = messages[0]
+            print(f"\nLast signal (ID: {msg_id}):")
+            print(f"  Symbol: {msg_data.get('symbol')}")
+            print(f"  Action: {msg_data.get('action')}")
+            print(f"  Confidence: {msg_data.get('confidence')}")
+            print(f"  Source: {msg_data.get('source')}")
+            print(f"  Timestamp: {msg_data.get('timestamp')}")
     
     print("\n" + "=" * 60)
     print("✅ TEST PASSED: EnsembleManager → EventBus integration working")
