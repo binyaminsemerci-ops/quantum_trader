@@ -16,7 +16,7 @@ def simulate_training_log():
     }
 
 @router.get("/status")
-def get_learning_status():
+async def get_learning_status():
     """
     Get continuous learning manager status
     

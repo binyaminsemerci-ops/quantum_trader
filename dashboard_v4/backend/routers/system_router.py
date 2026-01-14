@@ -115,8 +115,8 @@ def get_container_status():
 
 
 @router.get("/health")
-def system_health(db: Session = Depends(get_db)):
-    """Get current system health metrics - Public endpoint"""
+async def system_health():
+    """Get current system health metrics - Public endpoint (no auth, no DB)"""
     metrics = get_system_metrics()
     containers = get_container_status()
     
@@ -125,15 +125,12 @@ def system_health(db: Session = Depends(get_db)):
     
     if cpu > 90 or ram > 90:
         health_status = "CRITICAL"
-        severity = "critical"
     elif cpu > 75 or ram > 75:
         health_status = "STRESSED"
-        severity = "warning"
     else:
         health_status = "HEALTHY"
-        severity = "info"
     
-    log_event(db, "health_check", cpu, ram, metrics.get("disk", 0), f"Status: {health_status}", severity)
+    # Skip DB logging if not available
     
     # Count containers - if empty dict, estimate based on Docker ps count from host
     container_count = len(containers) if containers else 24  # Default estimate
@@ -148,7 +145,7 @@ def system_health(db: Session = Depends(get_db)):
 
 
 @router.post("/self_heal")
-def self_heal(token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
+async def self_heal(token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
     """Trigger system self-healing - Admin only"""
     if token_data.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
@@ -178,7 +175,7 @@ def self_heal(token_data: TokenData = Depends(verify_token), db: Session = Depen
 
 
 @router.post("/restart_container")
-def restart_container(container: str, token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
+async def restart_container(container: str, token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
     """Restart specific container - Admin only"""
     if token_data.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
@@ -202,7 +199,7 @@ def restart_container(container: str, token_data: TokenData = Depends(verify_tok
 
 
 @router.get("/events")
-def get_system_events(limit: int = 50, severity: str = None, token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
+async def get_system_events(limit: int = 50, severity: str = None, token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
     """Get system events log - All authenticated users"""
     try:
         query = db.query(SystemEvent)
@@ -222,7 +219,7 @@ def get_system_events(limit: int = 50, severity: str = None, token_data: TokenDa
 
 
 @router.get("/metrics/history")
-def metrics_history(hours: int = 24, token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
+async def metrics_history(hours: int = 24, token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
     """Get historical metrics time-series"""
     try:
         cutoff = datetime.utcnow() - timedelta(hours=hours)

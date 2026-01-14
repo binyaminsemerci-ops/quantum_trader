@@ -13,7 +13,7 @@ def compute_drift_score(history: List[float]) -> float:
     return float(np.var(history) / np.mean(history))
 
 @router.get("/insights")
-def get_ai_insights():
+async def get_ai_insights():
     # Simulate 10 latest accuracy samples
     accuracy_series = [round(random.uniform(0.65, 0.85), 3) for _ in range(10)]
     sharpe = round(random.uniform(0.9, 1.4), 2)

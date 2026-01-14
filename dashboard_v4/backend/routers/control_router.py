@@ -31,7 +31,7 @@ def log_action(db: Session, user: str, role: str, action: str, status_msg: str =
 
 
 @router.post("/retrain")
-def retrain(token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
+async def retrain(token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
     """Initiate model retraining - Requires admin or analyst role"""
     if token_data.role not in ["admin", "analyst"]:
         raise HTTPException(
@@ -51,7 +51,7 @@ def retrain(token_data: TokenData = Depends(verify_token), db: Session = Depends
 
 
 @router.post("/heal")
-def heal(token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
+async def heal(token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
     """Trigger system healing - Requires admin role only"""
     if token_data.role != "admin":
         raise HTTPException(
@@ -70,7 +70,7 @@ def heal(token_data: TokenData = Depends(verify_token), db: Session = Depends(ge
 
 
 @router.post("/mode")
-def switch_mode(mode: str, token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
+async def switch_mode(mode: str, token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
     """Switch trading mode - Requires admin or analyst role"""
     if token_data.role not in ["admin", "analyst"]:
         raise HTTPException(
@@ -99,7 +99,7 @@ def switch_mode(mode: str, token_data: TokenData = Depends(verify_token), db: Se
 
 
 @router.get("/status")
-def control_status():
+async def control_status():
     """Get control system status - Public endpoint (no auth required for dashboard)"""
     import redis
     import os
@@ -152,7 +152,7 @@ def control_status():
 
 
 @router.get("/logs")
-def get_control_logs(limit: int = 50, token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
+async def get_control_logs(limit: int = 50, token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
     """Get recent control action logs - All authenticated users"""
     try:
         logs = db.query(ControlLog).order_by(ControlLog.timestamp.desc()).limit(limit).all()

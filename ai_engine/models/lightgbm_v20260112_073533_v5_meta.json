@@ -1,0 +1,52 @@
+{
+  "version": "v5",
+  "timestamp": "20260112_073533",
+  "features": [
+    "price_change",
+    "high_low_range",
+    "volume_change",
+    "volume_ma_ratio",
+    "ema_10",
+    "ema_20",
+    "ema_50",
+    "rsi_14",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "bb_position",
+    "volatility_20",
+    "momentum_10",
+    "momentum_20",
+    "ema_10_20_cross",
+    "ema_10_50_cross",
+    "volume_ratio"
+  ],
+  "num_features": 18,
+  "class_mapping": {
+    "0": "SELL",
+    "1": "HOLD",
+    "2": "BUY"
+  },
+  "params": {
+    "objective": "multiclass",
+    "num_class": 3,
+    "learning_rate": 0.05,
+    "num_leaves": 31,
+    "max_depth": -1,
+    "feature_fraction": 0.9,
+    "bagging_fraction": 0.9,
+    "bagging_freq": 5,
+    "metric": "multi_logloss",
+    "verbosity": 1,
+    "random_state": 42
+  },
+  "best_iteration": 239,
+  "accuracy": 0.8185714285714286,
+  "training_samples": 3265,
+  "test_samples": 700,
+  "class_distribution": {
+    "SELL": 301,
+    "HOLD": 2675,
+    "BUY": 289
+  }
+}

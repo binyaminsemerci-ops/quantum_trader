@@ -1,0 +1,63 @@
+{
+  "version": "v5",
+  "timestamp": "20260112_073234",
+  "features": [
+    "price_change",
+    "rsi_14",
+    "macd",
+    "volume_ratio",
+    "momentum_10",
+    "high_low_range",
+    "volume_change",
+    "volume_ma_ratio",
+    "ema_10",
+    "ema_20",
+    "ema_50",
+    "ema_10_20_cross",
+    "ema_10_50_cross",
+    "volatility_20",
+    "macd_signal",
+    "macd_hist",
+    "bb_position",
+    "momentum_20"
+  ],
+  "class_mapping": {
+    "0": "SELL",
+    "1": "HOLD",
+    "2": "BUY"
+  },
+  "train_samples": 2905,
+  "valid_samples": 834,
+  "test_samples": 412,
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "SOLUSDT",
+    "ADAUSDT"
+  ],
+  "params": {
+    "objective": "multi:softprob",
+    "num_class": 3,
+    "learning_rate": 0.025,
+    "max_depth": 6,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "gamma": 1.2,
+    "reg_lambda": 2.0,
+    "reg_alpha": 0.4,
+    "n_estimators": 800,
+    "eval_metric": "mlogloss",
+    "early_stopping_rounds": 40,
+    "verbosity": 1,
+    "random_state": 42
+  },
+  "class_weights": {
+    "0": 4.1738505747126435,
+    "1": 0.3957226535894292,
+    "2": 4.284660766961652
+  },
+  "best_iteration": 798,
+  "best_score": 0.5265568225707064,
+  "test_report": "              precision    recall  f1-score   support\n\n           0     0.3333    0.5152    0.4048        33\n           1     0.9293    0.8329    0.8784       347\n           2     0.4200    0.6562    0.5122        32\n\n    accuracy                         0.7937       412\n   macro avg     0.5609    0.6681    0.5985       412\nweighted avg     0.8420    0.7937    0.8120       412\n"
+}

@@ -16,7 +16,7 @@ def generate_brain_state():
     return {"mode": mode, "confidence": confidence, "transition_log": transition_log}
 
 @router.get("/state")
-def get_brain_states():
+async def get_brain_states():
     """
     Get current operational state for CEO, Strategy, and Risk Brains
     

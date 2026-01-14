@@ -27,7 +27,7 @@ def generate_event():
 
 # REST endpoint for latest events
 @router.get("/feed")
-def get_latest_events():
+async def get_latest_events():
     """
     Return 10 simulated system events
     

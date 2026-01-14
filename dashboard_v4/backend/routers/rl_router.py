@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/rl-dashboard", tags=["RL Intelligence"])
 
 @router.get("/")
-def get_rl_dashboard():
+async def get_rl_dashboard():
     """Get RL Intelligence dashboard data from Redis
     
     Returns RL agent performance metrics for tracked symbols.
@@ -103,7 +103,7 @@ def get_rl_dashboard():
         }
 
 @router.get("/history/{symbol}")
-def get_rl_history(symbol: str, limit: int = 100):
+async def get_rl_history(symbol: str, limit: int = 100):
     """Get RL reward history for a specific symbol"""
     try:
         redis_host = os.getenv('REDIS_HOST', 'redis')

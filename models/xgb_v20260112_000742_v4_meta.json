@@ -1,0 +1,45 @@
+{
+  "version": "v4",
+  "timestamp": "20260112_000742",
+  "features": [
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "price_change",
+    "rsi_14",
+    "macd",
+    "volume_ratio",
+    "momentum_10",
+    "high_low_range",
+    "volume_change",
+    "volume_ma_ratio",
+    "ema_10",
+    "ema_20",
+    "ema_50",
+    "ema_10_20_cross",
+    "ema_10_50_cross",
+    "volatility_20",
+    "macd_signal",
+    "macd_hist",
+    "bb_position",
+    "momentum_20"
+  ],
+  "num_features": 23,
+  "num_classes": 3,
+  "train_shape": [
+    3231,
+    23
+  ],
+  "val_shape": [
+    225,
+    23
+  ],
+  "balanced_distribution": {
+    "1": 1077,
+    "2": 1077,
+    "0": 1077
+  },
+  "scaler": "models/xgb_v20260112_000742_v4_scaler.pkl"
+}

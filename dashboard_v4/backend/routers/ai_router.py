@@ -7,7 +7,7 @@ import json
 router = APIRouter(prefix="/ai", tags=["AI"])
 
 @router.get("/status", response_model=AIStatus)
-def get_ai_status():
+async def get_ai_status():
     """Get AI engine status with model performance metrics
     
     TESTNET MODE: Reads REAL accuracy from latest AI signals in Redis.
@@ -59,7 +59,7 @@ def get_ai_status():
     )
 
 @router.get("/health")
-def get_ai_health():
+async def get_ai_health():
     """Proxy endpoint for AI Engine /health to avoid CORS issues.
     
     Returns full AI Engine health data including metrics with feature flags.
@@ -117,7 +117,7 @@ def get_ai_health():
     )
 
 @router.get("/predictions", response_model=PredictionsResponse)
-def get_ai_predictions():
+async def get_ai_predictions():
     """Get latest AI predictions/signals
     
     Returns 15 most recent REAL trading signals from Redis trade.intent stream.
