@@ -1,3 +1,4 @@
+from ai_engine.grafana_metrics_push import GrafanaMetricsPusher
 """
 ENSEMBLE MANAGER - Smart 4-Model Voting System
 Combines: XGBoost + LightGBM + N-HiTS + PatchTST
@@ -14,15 +15,8 @@ import asyncio
 import logging
 import numpy as np
 import os
-import time
 from datetime import datetime
 from pathlib import Path
-
-# Optional Redis client for RL experience streaming
-try:
-    import redis
-except ImportError:  # pragma: no cover - redis may be absent in some envs
-    redis = None
 
 # Import EventBus for Tier 1 integration
 try:
@@ -242,6 +236,9 @@ class EnsembleManager:
                 logger.info(f"[OK] Governer agent loaded (Risk Management Layer)")
             except Exception as e:
                 logger.warning(f"[WARNING] Governer agent initialization failed: {e}")
+        # Grafana metrics pusher (direct HTTP push)
+        self.grafana_pusher = GrafanaMetricsPusher()
+        logger.info("[GRAFANA] Metrics pusher initialized")
                 self.governer_agent = None
         else:
             logger.info("[SKIP] Governer agent not available")
@@ -270,22 +267,6 @@ class EnsembleManager:
             except Exception as e:
                 logger.warning(f"[EVENTBUS] Initialization failed: {e} - Disabled")
                 self.eventbus_enabled = False
-
-        # RL experience stream (shadow learning)
-        self.rl_redis = None
-        self.rl_experience_stream = os.getenv("RL_EXPERIENCE_STREAM", "quantum:rl:experience")
-        if redis is not None:
-            try:
-                self.rl_redis = redis.Redis(
-                    host=os.getenv("REDIS_HOST", "127.0.0.1"),
-                    port=int(os.getenv("REDIS_PORT", "6379")),
-                    decode_responses=True,
-                )
-                logger.info(f"[RL] Experience stream enabled -> {self.rl_experience_stream}")
-            except Exception as e:
-                logger.warning(f"[RL] Redis unavailable, RL shadow stream disabled: {e}")
-        else:
-            logger.info("[RL] Redis client not installed; skipping RL experience stream")
         
         # ====================================================================
         # MODULE 1: MEMORY STATES
@@ -704,6 +685,15 @@ class EnsembleManager:
                     asyncio.run(self._publish_to_eventbus(symbol, action, confidence, info))
                     
                 logger.info(f"[EVENTBUS] Signal published: {symbol} {action} (conf={confidence:.3f})")
+                # Push metrics to Grafana
+                try:
+                    asyncio.create_task(self.grafana_pusher.push_metrics(
+                        symbol=symbol, action=action, confidence=confidence,
+                        info=info, active_predictions=active_predictions,
+                        weights=self.weights
+                    ))
+                except Exception as e:
+                    logger.debug(f"[GRAFANA] Metrics push failed: {e}")
             except Exception as e:
                 logger.warning(f"[EVENTBUS] Publish failed: {e} - continuing without EventBus")
         
@@ -753,34 +743,6 @@ class EnsembleManager:
         except Exception as e:
             logger.error(f"[EVENTBUS] ❌ Publish error: {e}")
             # Don't raise - signal publishing should not block trading logic
-
-    def _publish_rl_experience(self, symbol: str, action: str, confidence: float, pnl: float = 0.0) -> None:
-        """Publish ensemble decision as RL experience event.
-
-        Args:
-            symbol: Trading pair
-            action: BUY/SELL/HOLD
-            confidence: Signal confidence (0-1)
-            pnl: Realized or immediate PnL signal (defaults to 0 when not available)
-        """
-        if not self.rl_redis:
-            return
-
-        try:
-            event = {
-                "timestamp": time.time(),
-                "symbol": symbol,
-                "action": action,
-                "pnl": round(float(pnl), 6),
-                "confidence": round(float(confidence), 6),
-            }
-            self.rl_redis.xadd(self.rl_experience_stream, event, maxlen=10000)
-            logger.debug(
-                f"[RL] Experience published -> {self.rl_experience_stream} | "
-                f"{symbol} {action} pnl={event['pnl']:.6f} conf={event['confidence']:.3f}"
-            )
-        except Exception as e:
-            logger.debug(f"[RL] Failed to publish experience: {e}")
     
     def _aggregate_predictions(
         self,
