@@ -65,5 +65,19 @@ app.include_router(control_router.router)  # Protected control endpoints
 app.include_router(rl_router.router)  # RL Intelligence dashboard
 
 # Integration router for direct access to Quantum services
+@app.post("/grafana/api/quantum/ensemble/metrics")
+async def ensemble_metrics(payload: dict):
+    try:
+        from datetime import datetime
+        import json, os
+        log_file = "/opt/quantum/audit/ensemble_metrics.log"
+        timestamp = datetime.utcnow().isoformat()
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        with open(log_file, "a") as f:
+            f.write(json.dumps({"timestamp": timestamp, **payload}) + "\n")
+        return {"status": "received", "timestamp": timestamp}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 from routers import integrations_router
 app.include_router(integrations_router.router)
