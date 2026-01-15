@@ -1070,9 +1070,10 @@ class AIEngineService:
                 latest = self._cross_exchange_features.get(last_symbol) if (consumed and last_symbol) else None
                 if consumed and latest and (now_ts - self._xchg_log_last) >= 5:
                     self._xchg_log_last = now_ts
+                    cache_size = len(self._cross_exchange_features)
                     logger.info(
                         f"[AI-ENGINE] xchg-consumed {consumed} msgs, last_id={last_seen_id}, "
-                        f"divergence={latest.get('price_divergence', 0.0):.5f}, "
+                        f"cache_size={cache_size}, divergence={latest.get('price_divergence', 0.0):.5f}, "
                         f"spread_bps={latest.get('xchg_spread_bps', 0.0):.2f}"
                     )
 
@@ -1186,6 +1187,45 @@ class AIEngineService:
         age = (datetime.utcnow() - received_at).total_seconds()
         return age <= max_age_seconds
     
+    def _apply_cross_exchange_features(self, symbol: str, features: dict) -> dict:
+        """
+        Merge cross-exchange normalized features into the feature map, regardless of ensemble/fallback path.
+        """
+        try:
+            cross = self._cross_exchange_features.get(symbol)
+            if not cross:
+                return features
+
+            received_at = cross.get("received_at")
+            if not received_at or not self._is_cross_exchange_data_fresh(cross, self._xchg_stale_sec):
+                return features
+
+            # Canonical key used by trade.intent: exchange_divergence must be non-zero when xchg is present
+            features["exchange_divergence"] = float(cross.get("price_divergence") or 0.0)
+
+            # Optional richer signals
+            features["xchg_avg_price"] = float(cross.get("avg_price") or 0.0)
+            features["xchg_price_divergence"] = float(cross.get("price_divergence") or 0.0)
+            features["xchg_num_exchanges"] = int(cross.get("num_exchanges") or 0)
+
+            # Spread metrics if available
+            if "spread_abs" in cross:
+                features["xchg_spread_abs"] = float(cross.get("spread_abs") or 0.0)
+            if "spread_bps" in cross:
+                features["xchg_spread_bps"] = float(cross.get("spread_bps") or 0.0)
+
+            # Optional prices (string/None safe)
+            features["xchg_binance_price"] = cross.get("binance_price")
+            features["xchg_bybit_price"] = cross.get("bybit_price")
+            features["xchg_coinbase_price"] = cross.get("coinbase_price")
+
+            logger.debug(f"[AI-ENGINE] Cross-Exchange merged for {symbol}: div={features['exchange_divergence']:.4f}")
+            return features
+
+        except Exception as e:
+            logger.warning(f"[AI-ENGINE] xchg merge failed for {symbol}: {e}")
+            return features
+
     async def _handle_market_klines(self, event_data: Dict[str, Any]):
         """Handle market.klines event (candle data)."""
         try:
@@ -1583,6 +1623,8 @@ class AIEngineService:
                 # Calculate v5 features for fallback logic
                 features = self._calculate_v5_features(symbol)
                 features["price"] = current_price
+                # Apply cross-exchange features (critical fix)
+                features = self._apply_cross_exchange_features(symbol, features)
             else:
                 logger.debug(f"[AI-ENGINE] Running ensemble for {symbol}...")
                 
@@ -1598,40 +1640,17 @@ class AIEngineService:
                 # Add current price for backward compatibility
                 features["price"] = current_price
                 
-                # 🔥 PHASE 1: Add Cross-Exchange Features
-                cross_exchange_data = self._cross_exchange_features.get(symbol)
-                if cross_exchange_data and self._is_cross_exchange_data_fresh(cross_exchange_data, self._xchg_stale_sec):
-                    features["volatility_factor"] = cross_exchange_data.get("volatility_factor", 1.0)
-                    features["exchange_divergence"] = cross_exchange_data.get("exchange_divergence", 0.0)
-                    features["lead_lag_score"] = cross_exchange_data.get("lead_lag_score", 0.0)
-                    features["funding_delta"] = cross_exchange_data.get("funding_delta", 0.0)
-                    features["xchg_avg_price"] = cross_exchange_data.get("xchg_avg_price", 0.0)
-                    features["xchg_price_divergence"] = cross_exchange_data.get("xchg_price_divergence", 0.0)
-                    features["xchg_num_exchanges"] = cross_exchange_data.get("xchg_num_exchanges", 0.0)
-                    features["xchg_binance_price"] = cross_exchange_data.get("xchg_binance_price", 0.0)
-                    features["xchg_bybit_price"] = cross_exchange_data.get("xchg_bybit_price", 0.0)
-                    features["xchg_spread_abs"] = cross_exchange_data.get("xchg_spread_abs", 0.0)
-                    features["xchg_spread_bps"] = cross_exchange_data.get("xchg_spread_bps", 0.0)
-                    logger.info(
-                        f"[PHASE 1] Cross-Exchange: volatility={features['volatility_factor']:.3f}, "
-                        f"divergence={features['exchange_divergence']:.4f}, "
-                        f"lead_lag={features['lead_lag_score']:.4f}, "
-                        f"spread_bps={features['xchg_spread_bps']:.2f}"
-                    )
-                else:
-                    now_ts = time.time()
-                    if (now_ts - self._xchg_stale_log) >= 60:
-                        self._xchg_stale_log = now_ts
-                        logger.info("[PHASE 1] Cross-Exchange data stale or unavailable - using defaults")
-                features.setdefault("volatility_factor", 1.0)
+                # Apply cross-exchange features (unified with fallback path)
+                features = self._apply_cross_exchange_features(symbol, features)
+                
+                # Set defaults for any missing xchg features
                 features.setdefault("exchange_divergence", 0.0)
-                features.setdefault("lead_lag_score", 0.0)
-                features.setdefault("funding_delta", 0.0)
                 features.setdefault("xchg_avg_price", 0.0)
                 features.setdefault("xchg_price_divergence", 0.0)
-                features.setdefault("xchg_num_exchanges", 0.0)
-                features.setdefault("xchg_binance_price", 0.0)
-                features.setdefault("xchg_bybit_price", 0.0)
+                features.setdefault("xchg_num_exchanges", 0)
+                features.setdefault("xchg_binance_price", None)
+                features.setdefault("xchg_bybit_price", None)
+                features.setdefault("xchg_coinbase_price", None)
                 features.setdefault("xchg_spread_abs", 0.0)
                 features.setdefault("xchg_spread_bps", 0.0)
                 
