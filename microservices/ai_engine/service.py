@@ -1023,6 +1023,7 @@ class AIEngineService:
 
                 ack_ids: List[Any] = []
                 consumed = 0
+                last_symbol: Optional[str] = None
 
                 for _, entries in messages:
                     for message_id, raw_data in entries:
@@ -1032,9 +1033,10 @@ class AIEngineService:
                         if not parsed:
                             continue
 
-                        parsed["last_id"] = last_id
+                        parsed["last_id"] = last_seen_id
                         parsed["received_at"] = datetime.utcnow()
                         symbol = parsed["symbol"]
+                        last_symbol = symbol
                         self._cross_exchange_features[symbol] = parsed
                         ack_ids.append(message_id)
                         consumed += 1
@@ -1062,7 +1064,7 @@ class AIEngineService:
                     self._normalized_stream_last_id = last_seen_id
 
                 now_ts = time.time()
-                latest = self._cross_exchange_features.get(symbol) if self._cross_exchange_features else None
+                latest = self._cross_exchange_features.get(last_symbol) if (consumed and last_symbol) else None
                 if consumed and latest and (now_ts - self._xchg_log_last) >= 5:
                     self._xchg_log_last = now_ts
                     logger.info(
