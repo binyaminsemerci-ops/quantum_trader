@@ -14,6 +14,7 @@ import logging
 import httpx
 import numpy as np
 from typing import Dict, Any, Optional, List, Tuple
+from microservices.ai_engine.rl_influence import RLInfluenceV2
 from datetime import datetime, timezone
 from collections import deque, defaultdict
 import sys
@@ -173,6 +174,20 @@ class AIEngineService:
         self._ohlcv_history: Dict[str, List[Dict[str, float]]] = {}  # For v5 features
         self._history_max_len = 120  # Keep 2 minutes at 1 tick/sec
         
+        # 🔥 RL Confidence Calibration
+        self._rl_cal_enabled = os.getenv("RL_CALIBRATION_ENABLED", "true").lower() == "true"
+        self._rl_cal_window = int(os.getenv("RL_CALIBRATION_WINDOW_TRADES", "200"))
+        self._rl_cal_min_trades = int(os.getenv("RL_CALIBRATION_MIN_TRADES", "40"))
+        self._rl_cal_decay = float(os.getenv("RL_CALIBRATION_DECAY", "0.985"))
+        self._rl_cal_alpha = float(os.getenv("RL_CALIBRATION_SMOOTH_ALPHA", "0.25"))
+        self._rl_cal_floor = float(os.getenv("RL_CALIBRATION_CONF_FLOOR", "0.35"))
+        self._rl_cal_ceil = float(os.getenv("RL_CALIBRATION_CONF_CEIL", "0.90"))
+        self._rl_cal_key = os.getenv("RL_CALIBRATION_KEY", "quantum:rl:calibration:v1")
+        self._rl_cal_stream = os.getenv("RL_CALIBRATION_SOURCE_STREAM", "quantum:stream:trade.closed")
+        self._rl_cal_group = os.getenv("RL_CALIBRATION_CONSUMER_GROUP", "quantum:group:ai-engine:trade.closed")
+        self._rl_cal_consumer = os.getenv("RL_CALIBRATION_CONSUMER", f"ai-engine-rlcal-{os.getpid()}")
+        self._rl_cal_task: Optional[asyncio.Task] = None
+        
         logger.info("[AI-ENGINE] Service initialized")
     
     async def start(self):
@@ -197,6 +212,7 @@ class AIEngineService:
             )
             await self.redis_client.ping()
             logger.info("[AI-ENGINE] ✅ Redis connected")
+            self.rl_influence = RLInfluenceV2(self.redis_client, logger)
             
             # Initialize EventBus
             logger.info("[AI-ENGINE] Initializing EventBus...")
@@ -260,6 +276,12 @@ class AIEngineService:
                 asyncio.create_task(self.adaptive_threshold_manager.start_learning())
                 logger.info("[PHASE 3C-3] 🧠 Adaptive learning loop started")
             
+            # 🔥 RL Calibration Consumer
+            if self._rl_cal_enabled:
+                await self._ensure_rl_calibration_group()
+                self._rl_cal_task = asyncio.create_task(self._consume_rl_calibration_stream())
+                logger.info(f"[RL-CAL] ✅ Calibration consumer started (stream={self._rl_cal_stream}, group={self._rl_cal_group})")
+            
             if settings.REGIME_DETECTION_ENABLED:
                 self._regime_update_task = asyncio.create_task(self._regime_update_loop())
             
@@ -279,6 +301,15 @@ class AIEngineService:
         
         logger.info("[AI-ENGINE] Stopping service...")
         self._running = False
+        
+        # Stop RL calibration consumer
+        if self._rl_cal_task and not self._rl_cal_task.done():
+            self._rl_cal_task.cancel()
+            try:
+                await self._rl_cal_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("[RL-CAL] Consumer stopped")
         
         # Stop EventBus consumer
         if self.event_bus:
@@ -1187,6 +1218,45 @@ class AIEngineService:
         age = (datetime.utcnow() - received_at).total_seconds()
         return age <= max_age_seconds
     
+    def _apply_cross_exchange_features(self, symbol: str, features: dict) -> dict:
+        """
+        Merge cross-exchange normalized features into the feature map, regardless of ensemble/fallback path.
+        """
+        try:
+            cross = self._cross_exchange_features.get(symbol)
+            if not cross:
+                return features
+
+            received_at = cross.get("received_at")
+            if not received_at or not self._is_cross_exchange_data_fresh(cross, self._xchg_stale_sec):
+                return features
+
+            # Canonical key used by trade.intent: exchange_divergence must be non-zero when xchg is present
+            features["exchange_divergence"] = float(cross.get("price_divergence") or 0.0)
+
+            # Optional richer signals
+            features["xchg_avg_price"] = float(cross.get("avg_price") or 0.0)
+            features["xchg_price_divergence"] = float(cross.get("price_divergence") or 0.0)
+            features["xchg_num_exchanges"] = int(cross.get("num_exchanges") or 0)
+
+            # Spread metrics if available
+            if "spread_abs" in cross:
+                features["xchg_spread_abs"] = float(cross.get("spread_abs") or 0.0)
+            if "spread_bps" in cross:
+                features["xchg_spread_bps"] = float(cross.get("spread_bps") or 0.0)
+
+            # Optional prices (string/None safe)
+            features["xchg_binance_price"] = cross.get("binance_price")
+            features["xchg_bybit_price"] = cross.get("bybit_price")
+            features["xchg_coinbase_price"] = cross.get("coinbase_price")
+
+            logger.debug(f"[AI-ENGINE] Cross-Exchange merged for {symbol}: div={features['exchange_divergence']:.4f}")
+            return features
+
+        except Exception as e:
+            logger.warning(f"[AI-ENGINE] xchg merge failed for {symbol}: {e}")
+            return features
+
     async def _handle_market_klines(self, event_data: Dict[str, Any]):
         """Handle market.klines event (candle data)."""
         try:
@@ -1584,6 +1654,8 @@ class AIEngineService:
                 # Calculate v5 features for fallback logic
                 features = self._calculate_v5_features(symbol)
                 features["price"] = current_price
+                # Apply cross-exchange features (critical fix)
+                features = self._apply_cross_exchange_features(symbol, features)
             else:
                 logger.debug(f"[AI-ENGINE] Running ensemble for {symbol}...")
                 
@@ -1599,43 +1671,17 @@ class AIEngineService:
                 # Add current price for backward compatibility
                 features["price"] = current_price
                 
-                # 🔥 PHASE 1: Add Cross-Exchange Features
-                cross_exchange_data = self._cross_exchange_features.get(symbol)
-                if cross_exchange_data and self._is_cross_exchange_data_fresh(cross_exchange_data, self._xchg_stale_sec):
-                    features["volatility_factor"] = cross_exchange_data.get("volatility_factor", 1.0)
-                    features["exchange_divergence"] = cross_exchange_data.get("exchange_divergence", 0.0)
-                    features["lead_lag_score"] = cross_exchange_data.get("lead_lag_score", 0.0)
-                    features["funding_delta"] = cross_exchange_data.get("funding_delta", 0.0)
-                    features["xchg_avg_price"] = cross_exchange_data.get("xchg_avg_price", 0.0)
-                    features["xchg_price_divergence"] = cross_exchange_data.get("xchg_price_divergence", 0.0)
-                    features["xchg_num_exchanges"] = cross_exchange_data.get("xchg_num_exchanges", 0.0)
-                    features["xchg_binance_price"] = cross_exchange_data.get("xchg_binance_price", 0.0)
-                    features["xchg_bybit_price"] = cross_exchange_data.get("xchg_bybit_price", 0.0)
-                    features["xchg_spread_abs"] = cross_exchange_data.get("xchg_spread_abs", 0.0)
-                    features["xchg_spread_bps"] = cross_exchange_data.get("xchg_spread_bps", 0.0)
-                    logger.info(
-                        f"[PHASE 1] {symbol} Cross-Exchange merged: volatility={features['volatility_factor']:.3f}, "
-                        f"divergence={features['exchange_divergence']:.4f}, "
-                        f"lead_lag={features['lead_lag_score']:.4f}, "
-                        f"spread_bps={features['xchg_spread_bps']:.2f}"
-                    )
-                else:
-                    # Log why merge didn't happen
-                    if cross_exchange_data:
-                        age_sec = (datetime.utcnow() - cross_exchange_data.get("received_at", datetime.utcnow())).total_seconds()
-                        logger.debug(f"[PHASE 1] {symbol} xchg data stale: age={age_sec:.1f}s > {self._xchg_stale_sec}s")
-                    else:
-                        logger.debug(f"[PHASE 1] {symbol} no xchg data cached")
-
-                features.setdefault("volatility_factor", 1.0)
+                # Apply cross-exchange features (unified with fallback path)
+                features = self._apply_cross_exchange_features(symbol, features)
+                
+                # Set defaults for any missing xchg features
                 features.setdefault("exchange_divergence", 0.0)
-                features.setdefault("lead_lag_score", 0.0)
-                features.setdefault("funding_delta", 0.0)
                 features.setdefault("xchg_avg_price", 0.0)
                 features.setdefault("xchg_price_divergence", 0.0)
-                features.setdefault("xchg_num_exchanges", 0.0)
-                features.setdefault("xchg_binance_price", 0.0)
-                features.setdefault("xchg_bybit_price", 0.0)
+                features.setdefault("xchg_num_exchanges", 0)
+                features.setdefault("xchg_binance_price", None)
+                features.setdefault("xchg_bybit_price", None)
+                features.setdefault("xchg_coinbase_price", None)
                 features.setdefault("xchg_spread_abs", 0.0)
                 features.setdefault("xchg_spread_bps", 0.0)
                 
@@ -2207,6 +2253,15 @@ class AIEngineService:
                 "funding_rate": features.get("funding_rate", 0.0),
                 "regime": regime.value if regime != MarketRegime.UNKNOWN else "unknown"
             }
+            
+            # RL Bootstrap v2 (shadow_gated)
+            rl_meta = {}
+            try:
+                rl_data = await self.rl_influence.fetch(symbol) if getattr(self, 'rl_influence', None) else None
+                action, rl_meta = self.rl_influence.apply_shadow(symbol, action, float(ensemble_confidence), rl_data) if getattr(self, 'rl_influence', None) else (action, {})
+            except Exception:
+                rl_meta = {}
+            
             # 🔥 RATE LIMITING: Global + Per-Symbol
             now = time.time()
             symbol = trade_intent_payload.get("symbol", "UNKNOWN")
@@ -2217,6 +2272,9 @@ class AIEngineService:
             if confidence < min_confidence:
                 logger.debug(f"[RATE-LIMIT] ⛔ {symbol} skipped: confidence {confidence:.2f} < {min_confidence}")
                 return None
+            
+            # Merge RL metadata
+            trade_intent_payload = {**trade_intent_payload, **rl_meta}
             
             # Filter 2: Per-symbol cooldown
             last_time = self.last_signal_by_symbol.get(symbol, 0)
@@ -2289,6 +2347,184 @@ class AIEngineService:
                 self.adaptive_threshold_manager.record_metric('ensemble', 'error_rate', 1.0)
             
             return None
+    
+    # ========================================================================
+    # RL CONFIDENCE CALIBRATION
+    # ========================================================================
+    
+    async def _ensure_rl_calibration_group(self):
+        """Ensure Redis consumer group exists for RL calibration stream."""
+        try:
+            await self.redis_client.xgroup_create(
+                name=self._rl_cal_stream,
+                groupname=self._rl_cal_group,
+                id='0',
+                mkstream=True
+            )
+            logger.info(f"[RL-CAL] Created consumer group: {self._rl_cal_group}")
+        except Exception as e:
+            if "BUSYGROUP" in str(e):
+                logger.debug(f"[RL-CAL] Consumer group already exists: {self._rl_cal_group}")
+            else:
+                logger.error(f"[RL-CAL] Failed to create consumer group: {e}")
+    
+    async def _consume_rl_calibration_stream(self):
+        """Consume trade.closed events for RL confidence calibration."""
+        logger.info(f"[RL-CAL] Consumer started: {self._rl_cal_consumer}")
+        last_id = ">"
+        
+        while self._running:
+            try:
+                # Read from stream
+                result = await self.redis_client.xreadgroup(
+                    groupname=self._rl_cal_group,
+                    consumername=self._rl_cal_consumer,
+                    streams={self._rl_cal_stream: last_id},
+                    count=10,
+                    block=5000
+                )
+                
+                if not result:
+                    await asyncio.sleep(1)
+                    continue
+                
+                for stream_name, messages in result:
+                    for msg_id, data in messages:
+                        try:
+                            await self._process_calibration_event(msg_id, data)
+                            # ACK after successful processing
+                            await self.redis_client.xack(self._rl_cal_stream, self._rl_cal_group, msg_id)
+                        except Exception as e:
+                            logger.error(f"[RL-CAL] Error processing event {msg_id}: {e}")
+                            # Still ACK to avoid blocking stream
+                            await self.redis_client.xack(self._rl_cal_stream, self._rl_cal_group, msg_id)
+            
+            except asyncio.CancelledError:
+                logger.info("[RL-CAL] Consumer task cancelled")
+                break
+            except Exception as e:
+                logger.error(f"[RL-CAL] Consumer error: {e}", exc_info=True)
+                await asyncio.sleep(5)
+    
+    async def _process_calibration_event(self, msg_id: str, data: Dict):
+        """Process single trade.closed event for calibration stats update."""
+        import json
+        
+        try:
+            # Parse event data
+            symbol = data.get(b'symbol', b'').decode('utf-8') if isinstance(data.get(b'symbol'), bytes) else data.get('symbol', '')
+            pnl = float(data.get(b'pnl', 0) if isinstance(data.get(b'pnl'), bytes) else data.get('pnl', 0))
+            
+            if not symbol:
+                return
+            
+            # Determine win/loss
+            is_win = pnl > 0
+            new_win = 1.0 if is_win else 0.0
+            
+            # Load existing stats
+            cal_key = f"{self._rl_cal_key}:{symbol}"
+            stats = await self.redis_client.hgetall(cal_key)
+            
+            if stats:
+                # Decode existing stats
+                trades = int(stats.get(b'trades', 0) if isinstance(stats.get(b'trades'), bytes) else stats.get('trades', 0))
+                wins = int(stats.get(b'wins', 0) if isinstance(stats.get(b'wins'), bytes) else stats.get('wins', 0))
+                losses = int(stats.get(b'losses', 0) if isinstance(stats.get(b'losses'), bytes) else stats.get('losses', 0))
+                ema_winrate = float(stats.get(b'ema_winrate', 0.5) if isinstance(stats.get(b'ema_winrate'), bytes) else stats.get('ema_winrate', 0.5))
+            else:
+                trades = 0
+                wins = 0
+                losses = 0
+                ema_winrate = 0.5  # Start neutral
+            
+            # Update stats
+            trades += 1
+            if is_win:
+                wins += 1
+            else:
+                losses += 1
+            
+            # Update EMA winrate
+            ema_winrate = ema_winrate * self._rl_cal_decay + new_win * (1 - self._rl_cal_decay)
+            
+            # Save updated stats
+            await self.redis_client.hset(cal_key, mapping={
+                'trades': trades,
+                'wins': wins,
+                'losses': losses,
+                'ema_winrate': ema_winrate,
+                'updated_ts': int(time.time())
+            })
+            
+            logger.debug(f"[RL-CAL] Updated {symbol}: trades={trades}, ema_winrate={ema_winrate:.3f}")
+        
+        except Exception as e:
+            logger.error(f"[RL-CAL] Error processing calibration event: {e}", exc_info=True)
+    
+    def _calibrate_rl_confidence(self, symbol: str, raw_conf: float) -> Tuple[float, Dict[str, Any]]:
+        """
+        Calibrate RL confidence based on historical win/loss EMA.
+        
+        Args:
+            symbol: Trading symbol
+            raw_conf: Raw RL confidence from policy
+            
+        Returns:
+            (calibrated_confidence, metadata)
+        """
+        try:
+            # Check if calibration enabled
+            if not self._rl_cal_enabled:
+                return raw_conf, {"cal": "off"}
+            
+            # Load calibration stats (sync Redis call - use blocking)
+            import redis
+            sync_client = redis.Redis(
+                host=self.redis_client.connection_pool.connection_kwargs['host'],
+                port=self.redis_client.connection_pool.connection_kwargs['port'],
+                db=self.redis_client.connection_pool.connection_kwargs['db'],
+                decode_responses=False
+            )
+            
+            cal_key = f"{self._rl_cal_key}:{symbol}"
+            stats = sync_client.hgetall(cal_key)
+            
+            if not stats:
+                return raw_conf, {"cal": "insufficient", "trades": 0}
+            
+            # Parse stats
+            trades = int(stats.get(b'trades', 0))
+            ema_winrate = float(stats.get(b'ema_winrate', 0.5))
+            
+            # Check minimum trades threshold
+            if trades < self._rl_cal_min_trades:
+                return raw_conf, {"cal": "insufficient", "trades": trades}
+            
+            # Compute calibrated confidence
+            # Map winrate (0..1) to multiplier (0.5..1.5)
+            multiplier = 0.5 + ema_winrate
+            
+            # Apply smoothing
+            cal_conf = raw_conf * (1 - self._rl_cal_alpha) + (raw_conf * multiplier) * self._rl_cal_alpha
+            
+            # Clamp to floor/ceil
+            cal_conf = max(self._rl_cal_floor, min(self._rl_cal_ceil, cal_conf))
+            
+            meta = {
+                "cal": "on",
+                "trades": trades,
+                "ema_winrate": round(ema_winrate, 3),
+                "mult": round(multiplier, 3),
+                "raw": round(raw_conf, 3),
+                "calibrated": round(cal_conf, 3)
+            }
+            
+            return cal_conf, meta
+        
+        except Exception as e:
+            logger.error(f"[RL-CAL] Calibration error for {symbol}: {e}")
+            return raw_conf, {"cal": "error", "error": str(e)}
     
     # ========================================================================
     # BACKGROUND TASKS
@@ -2793,6 +3029,19 @@ class AIEngineService:
                 logger.error(f"[Validator] Error getting status: {e}")
                 metrics["model_validator"] = {"error": str(e)}
                 metrics["adaptive_retrainer"] = {"error": str(e)}
+        
+        # Add RL calibration stats
+        if self._rl_cal_enabled:
+            try:
+                cal_keys = await self.redis_client.keys(f"{self._rl_cal_key}:*")
+                metrics["rl_calibration"] = {
+                    "enabled": True,
+                    "symbols_tracked": len(cal_keys),
+                    "stream": self._rl_cal_stream,
+                    "min_trades": self._rl_cal_min_trades
+                }
+            except Exception as e:
+                logger.error(f"[RL-CAL] Error getting stats: {e}")
         
         # Build standardized health response
         try:
