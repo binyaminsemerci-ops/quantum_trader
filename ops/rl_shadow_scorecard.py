@@ -181,6 +181,11 @@ def print_report(stats, global_stats, config):
     for rank, (symbol, s) in enumerate(top_symbols, 1):
         pass_rate = (s['gate_pass'] / s['total'] * 100) if s['total'] > 0 else 0
         
+        # Eligible rate (pass + cooldown_active)
+        cooldown_count = s['gate_reasons'].get('cooldown_active', 0)
+        eligible_passes = s['gate_pass'] + cooldown_count
+        eligible_rate = (eligible_passes / s['total'] * 100) if s['total'] > 0 else 0
+        
         # Calculate effect rates
         total_effects = sum(s['rl_effects'].values())
         would_flip_rate = (s['rl_effects']['would_flip'] / total_effects * 100) if total_effects > 0 else 0
@@ -208,7 +213,7 @@ def print_report(stats, global_stats, config):
         # Average policy age
         avg_age = sum(s['policy_ages']) / len(s['policy_ages']) if s['policy_ages'] else 0
         
-        print(f"{rank}. {symbol:12s} | intents={s['total']:4d} | pass_rate={pass_rate:5.1f}% | top_reasons={reasons_str}")
+        print(f"{rank}. {symbol:12s} | intents={s['total']:4d} | pass_rate={pass_rate:5.1f}% | eligible_rate={eligible_rate:5.1f}% | top_reasons={reasons_str}")
         
         if s['gate_pass'] > 0:
             print(f"   └─ RL effects: would_flip={would_flip_rate:.1f}% | reinforce={reinforce_rate:.1f}%")
@@ -221,8 +226,14 @@ def print_report(stats, global_stats, config):
     total_passes = sum(s['gate_pass'] for s in stats.values())
     overall_pass_rate = (total_passes / total_intents * 100) if total_intents > 0 else 0
     
+    # Eligible passes (pass + cooldown_active)
+    total_cooldown = global_stats['all_gate_reasons'].get('cooldown_active', 0)
+    eligible_passes = total_passes + total_cooldown
+    eligible_rate = (eligible_passes / total_intents * 100) if total_intents > 0 else 0
+    
     print(f"{'='*80}")
     print(f"SUMMARY: {total_intents} total intents | {total_passes} gate passes ({overall_pass_rate:.1f}%)")
+    print(f"ELIGIBLE: {eligible_passes} eligible passes (pass + cooldown) | eligible_rate={eligible_rate:.1f}%")
     
     # Global gate reason distribution (Top 8)
     print(f"\nGlobal Gate Reason Distribution (Top 8):")
