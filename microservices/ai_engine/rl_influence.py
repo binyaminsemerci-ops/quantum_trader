@@ -19,6 +19,9 @@ class RLInfluenceV2:
         self.max_age = int(os.getenv("RL_POLICY_MAX_AGE_SEC", "600"))
         self._cool: Dict[str, float] = {}
         self._last_log = 0.0
+        
+        # Init logging for observability
+        logger.info(f"[RL-INFLUENCE] 🚀 Initialized: enabled={self.enabled}, kill_switch={self.kill}, mode={self.mode}, min_conf={self.min_conf}, max_age={self.max_age}s, cooldown={self.cool}s")
 
     async def fetch(self, sym: str) -> Optional[Dict]:
         if (not self.enabled) or self.kill:
