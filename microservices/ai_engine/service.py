@@ -188,6 +188,10 @@ class AIEngineService:
         self._rl_cal_consumer = os.getenv("RL_CALIBRATION_CONSUMER", f"ai-engine-rlcal-{os.getpid()}")
         self._rl_cal_task: Optional[asyncio.Task] = None
         
+        # 🔥 RL_PROOF logging throttle (observability only)
+        self._rl_proof_last_log: Dict[str, float] = {}  # {symbol: timestamp}
+        self._rl_proof_throttle_sec = 30
+        
         logger.info("[AI-ENGINE] Service initialized")
     
     async def start(self):
@@ -2256,9 +2260,32 @@ class AIEngineService:
             
             # RL Bootstrap v2 (shadow_gated)
             rl_meta = {}
+            rl_data = None
             try:
                 rl_data = await self.rl_influence.fetch(symbol) if getattr(self, 'rl_influence', None) else None
+                
+                # 🔍 RL_PROOF: Log RL block execution (observability only)
+                now_proof = time.time()
+                last_proof = self._rl_proof_last_log.get(symbol, 0)
+                if now_proof - last_proof > self._rl_proof_throttle_sec:
+                    self._rl_proof_last_log[symbol] = now_proof
+                    logger.info(
+                        f"[AI-ENGINE] RL_PROOF symbol={symbol}, ens_action={action}, "
+                        f"ens_conf={ensemble_confidence:.2f}, rl_data={'FOUND' if rl_data else 'NONE'}"
+                    )
+                
                 action, rl_meta = self.rl_influence.apply_shadow(symbol, action, float(ensemble_confidence), rl_data) if getattr(self, 'rl_influence', None) else (action, {})
+                
+                # 🔍 RL_PROOF: Log shadow result (observability only)
+                if now_proof - last_proof > self._rl_proof_throttle_sec:
+                    gate_reason = rl_meta.get('rl_gate_reason', 'unknown')
+                    rl_effect = rl_meta.get('rl_effect', 'none')
+                    rl_policy_age = rl_meta.get('rl_policy_age_sec', -1)
+                    rl_conf = rl_meta.get('rl_confidence', 0.0)
+                    logger.info(
+                        f"[AI-ENGINE] RL_PROOF_RESULT symbol={symbol}, gate_reason={gate_reason}, "
+                        f"rl_effect={rl_effect}, policy_age={rl_policy_age}s, rl_conf={rl_conf:.2f}"
+                    )
             except Exception:
                 rl_meta = {}
             
