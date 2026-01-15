@@ -159,6 +159,9 @@ class AIEngineService:
         self._xchg_log_last = 0.0
         self._xchg_stale_log = 0.0
         
+        # Testnet mode flag
+        self.testnet_mode = os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true"
+        
         # Governance tracking (Phase 4D+4E)
         self._governance_predictions: Dict[str, Dict[str, np.ndarray]] = {}  # {symbol: {model: predictions}}
         self._governance_actuals: Dict[str, List[float]] = {}  # {symbol: [actual_prices]}
@@ -1067,9 +1070,10 @@ class AIEngineService:
                 latest = self._cross_exchange_features.get(last_symbol) if (consumed and last_symbol) else None
                 if consumed and latest and (now_ts - self._xchg_log_last) >= 5:
                     self._xchg_log_last = now_ts
+                    cache_size = len(self._cross_exchange_features)
                     logger.info(
                         f"[AI-ENGINE] xchg-consumed {consumed} msgs, last_id={last_seen_id}, "
-                        f"divergence={latest.get('price_divergence', 0.0):.5f}, "
+                        f"cache_size={cache_size}, divergence={latest.get('price_divergence', 0.0):.5f}, "
                         f"spread_bps={latest.get('xchg_spread_bps', 0.0):.2f}"
                     )
 
@@ -1610,11 +1614,18 @@ class AIEngineService:
                     features["xchg_spread_abs"] = cross_exchange_data.get("xchg_spread_abs", 0.0)
                     features["xchg_spread_bps"] = cross_exchange_data.get("xchg_spread_bps", 0.0)
                     logger.info(
-                        f"[PHASE 1] Cross-Exchange: volatility={features['volatility_factor']:.3f}, "
+                        f"[PHASE 1] {symbol} Cross-Exchange merged: volatility={features['volatility_factor']:.3f}, "
                         f"divergence={features['exchange_divergence']:.4f}, "
                         f"lead_lag={features['lead_lag_score']:.4f}, "
                         f"spread_bps={features['xchg_spread_bps']:.2f}"
                     )
+                else:
+                    # Log why merge didn't happen
+                    if cross_exchange_data:
+                        age_sec = (datetime.utcnow() - cross_exchange_data.get("received_at", datetime.utcnow())).total_seconds()
+                        logger.debug(f"[PHASE 1] {symbol} xchg data stale: age={age_sec:.1f}s > {self._xchg_stale_sec}s")
+                    else:
+                        logger.debug(f"[PHASE 1] {symbol} no xchg data cached")
                 else:
                     now_ts = time.time()
                     if (now_ts - self._xchg_stale_log) >= 60:
