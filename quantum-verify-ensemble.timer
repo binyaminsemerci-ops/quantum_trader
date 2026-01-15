@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Quantum Ensemble Verify every 10 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=10min
+Persistent=true
+Unit=quantum-verify-ensemble.service
+
+[Install]
+WantedBy=timers.target

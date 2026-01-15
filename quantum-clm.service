@@ -1,0 +1,21 @@
+[Unit]
+Description=Continuous learning module
+After=network.target quantum-core.target quantum-state.target
+PartOf=quantum-ai.target
+Requires=quantum-core.target
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+Environment="PATH=/opt/quantum/venvs/ai-engine/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python microservices/clm/main.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-clm
+
+[Install]
+WantedBy=quantum-ai.target

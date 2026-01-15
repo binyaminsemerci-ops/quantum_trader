@@ -1,0 +1,11 @@
+[Unit]
+Description=Quantum RL Verify Task
+After=network.target redis.service
+
+[Service]
+Type=oneshot
+Environment="API_ENDPOINT=http://localhost:3000/api/quantum/rl/metrics"
+ExecStart=/opt/quantum/ops/verify_rl_system.sh
+WorkingDirectory=/opt/quantum/ops
+StandardOutput=append:/opt/quantum/rl/logs/rl_diag_auto.log
+StandardError=append:/opt/quantum/rl/logs/rl_diag_auto.log

@@ -1,0 +1,22 @@
+[Unit]
+Description=Exposure balancer service
+After=network.target quantum-core.target redis.service
+PartOf=quantum-exec.target
+Requires=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+Environment="PATH=/opt/quantum/venvs/ai-engine/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/home/qt/quantum_trader"
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python -m microservices.exposure_balancer.service
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-exposure-balancer
+
+[Install]
+WantedBy=quantum-exec.target

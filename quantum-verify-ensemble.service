@@ -1,0 +1,13 @@
+[Unit]
+Description=Quantum Ensemble Health Verify Task
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/quantum/ops/verify_ensemble_health.sh
+WorkingDirectory=/opt/quantum/ops
+StandardOutput=append:/opt/quantum/ensemble/logs/ensemble_health_auto.log
+StandardError=append:/opt/quantum/ensemble/logs/ensemble_health_auto.log
+
+[Install]
+WantedBy=multi-user.target

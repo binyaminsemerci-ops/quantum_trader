@@ -1,0 +1,62 @@
+{
+  "id": null,
+  "uid": "quantum-ensemble-health",
+  "title": "Quantum Ensemble Health",
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["quantum", "ensemble", "health"],
+  "panels": [
+    {
+      "type": "gauge",
+      "title": "Voting Health",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {"url": "https://app.quantumfond.com/grafana/api/quantum/ensemble/metrics", "refId": "A"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": 0},
+              {"color": "orange", "value": 0.8},
+              {"color": "green", "value": 0.95}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Active Models",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 8},
+      "targets": [
+        {"url": "https://app.quantumfond.com/grafana/api/quantum/ensemble/metrics", "refId": "B"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Confidence Spread (10 min)",
+      "gridPos": {"x": 0, "y": 8, "w": 18, "h": 8},
+      "targets": [
+        {"url": "https://app.quantumfond.com/grafana/api/quantum/ensemble/metrics", "refId": "C"}
+      ]
+    },
+    {
+      "type": "text",
+      "title": "Model Hash & Timestamp",
+      "gridPos": {"x": 0, "y": 16, "w": 18, "h": 6},
+      "options": {
+        "content": "Model Hash: ${model_hash}<br>Timestamp: ${timestamp}",
+        "mode": "html"
+      }
+    }
+  ],
+  "time": {"from": "now-1h", "to": "now"},
+  "editable": true
+}

@@ -74,6 +74,14 @@ class CEOBrainClient:
             data = response.json()
             
             mode = data.get("mode", "EXPANSION")
+            
+            # Map CEO Brain modes to orchestrator modes
+            if mode == "ACTIVE":
+                mode = "EXPANSION"  # ACTIVE maps to EXPANSION (full trading)
+            elif mode == "PASSIVE":
+                mode = "PRESERVATION"  # PASSIVE maps to PRESERVATION (conservative)
+            # EMERGENCY stays as EMERGENCY
+            
             confidence = data.get("confidence", 0.8)
             
             logger.debug(f"CEO Brain mode: {mode} (confidence={confidence:.2f})")
@@ -132,9 +140,27 @@ class StrategyBrainClient:
             Tuple of (approved, reason)
         """
         try:
+            # Transform signal to Strategy Brain schema
+            side = (signal.get("side") or signal.get("direction") or "").upper()
+            direction = "BUY" if side in ("LONG", "BUY") else "SELL" if side in ("SHORT", "SELL") else "BUY"
+            
+            payload = {
+                "symbol": signal["symbol"],
+                "direction": direction,
+                "confidence": float(signal.get("confidence", 0.5)),
+            }
+            
+            # Add entry_price if available
+            entry_price = (signal.get("entry_price") or 
+                          signal.get("price") or 
+                          signal.get("mark_price") or 
+                          signal.get("last_price"))
+            if entry_price is not None:
+                payload["entry_price"] = float(entry_price)
+            
             response = await self._client.post(
                 f"{self.base_url}/evaluate",
-                json=signal
+                json=payload
             )
             response.raise_for_status()
             data = response.json()

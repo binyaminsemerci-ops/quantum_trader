@@ -1,0 +1,10 @@
+[Unit]
+Description=Quantum System Diagnostic
+After=network.target quantum-core.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/quantum/ops/quantum_diagnostic.sh
+WorkingDirectory=/opt/quantum/ops
+StandardOutput=append:/opt/quantum/audit/quantum_diagnostic.log
+StandardError=append:/opt/quantum/audit/quantum_diagnostic.log
