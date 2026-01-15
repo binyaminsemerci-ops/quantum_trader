@@ -14,6 +14,16 @@ services:
       - GO_LIVE=true
       - QT_ADMIN_TOKEN=${QT_ADMIN_TOKEN:-dev-admin}
       
+      # 🔍 OBSERVABILITY - DISTRIBUTED TRACING
+      - SERVICE_NAME=quantum-backend
+      - SERVICE_VERSION=1.0.0
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - ENABLE_TRACING=${ENABLE_TRACING:-true}
+      - OTLP_ENDPOINT=http://jaeger:4317
+      - OTLP_INSECURE=true
+      - TRACE_SAMPLE_RATE=1.0
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      
       # 🔐 BINANCE TESTNET API CREDENTIALS
       - BINANCE_API_KEY=IsY3mFpko7Z8joZr8clWwpJZuZcFdAtnDBy4g4ULQu827Gf6kJPAPS9VyVOVrR0r
       - BINANCE_API_SECRET=tEKYWf77tqSOArfgeSqgVwiO62bjro8D1VMaEvXBwcUOQuRxmCdxrtTvAXy7ZKSE
@@ -1122,6 +1132,37 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 🔍 DISTRIBUTED TRACING - JAEGER
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Jaeger all-in-one for collecting and visualizing distributed traces
+  # from all microservices using OpenTelemetry
+  jaeger:
+    image: jaegertracing/all-in-one:1.52
+    container_name: quantum_jaeger
+    restart: unless-stopped
+    profiles: ["observability", "dev", "prod"]
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4317:4317"    # OTLP gRPC receiver
+      - "4318:4318"    # OTLP HTTP receiver
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - LOG_LEVEL=info
+    networks:
+      - quantum_trader
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:16686 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
 
 networks:
   quantum_trader:
