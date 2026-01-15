@@ -1,0 +1,14 @@
+[Unit]
+Description=Quantum RL Reward Publisher (synthetic live data)
+After=network.target redis.service
+
+[Service]
+Type=oneshot
+Environment=REDIS_HOST=127.0.0.1
+ExecStart=/opt/quantum/ops/rl_reward_publisher.sh
+WorkingDirectory=/opt/quantum/ops
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

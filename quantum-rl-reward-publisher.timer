@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Quantum RL Reward Publisher every 15 seconds
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=15s
+Persistent=true
+Unit=quantum-rl-reward-publisher.service
+
+[Install]
+WantedBy=timers.target

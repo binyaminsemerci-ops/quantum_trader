@@ -670,6 +670,19 @@ class TradeLifecycleManager:
                         )
             except Exception as e:
                 logger.debug(f"[CL] Failed to record trade outcome: {e}")
+
+        # Publish RL experience (shadow mode)
+        if self.ai_engine and getattr(self.ai_engine, "agent", None):
+            try:
+                confidence = getattr(getattr(trade, "signal_quality", None), "confidence", 0.0) or 0.0
+                self.ai_engine.agent._publish_rl_experience(
+                    symbol=trade.symbol,
+                    action=trade.action,
+                    confidence=confidence,
+                    pnl=trade.realized_pnl_usd,
+                )
+            except Exception as e:
+                logger.debug(f"[RL] Failed to publish experience: {e}")
         
         # Remove closed trade from active_trades to prevent memory leak
         del self.active_trades[trade_id]

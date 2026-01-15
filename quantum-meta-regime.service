@@ -1,0 +1,23 @@
+[Unit]
+Description=Quantum Meta Regime Detector
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+After=network.target quantum-core.target quantum-ai-engine.service
+PartOf=quantum-ai.target
+Requires=quantum-core.target
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+Environment="PATH=/opt/quantum/venvs/ai-engine/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/home/qt/quantum_trader"
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python microservices/meta_regime/meta_regime_service.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-meta-regime
+
+[Install]
+WantedBy=quantum-ai.target
