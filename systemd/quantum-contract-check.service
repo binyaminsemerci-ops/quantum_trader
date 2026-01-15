@@ -1,0 +1,31 @@
+[Unit]
+Description=Quantum Trading - Daily Contract Verification
+After=network-online.target quantum-ai-engine.service
+Wants=network-online.target quantum-ai-engine.service
+
+[Service]
+Type=oneshot
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+Environment=PYTHONPATH=/home/qt/quantum_trader
+Environment=PATH=/opt/quantum/venvs/ai-engine/bin:/usr/bin:/bin
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python3 /opt/quantum/tests/orchestrator_contract_test_clean.py
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-contract-check
+
+MemoryHigh=512M
+MemoryMax=1G
+CPUQuota=25%
+RuntimeMaxSec=300
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/tmp
+
+[Install]
+WantedBy=multi-user.target

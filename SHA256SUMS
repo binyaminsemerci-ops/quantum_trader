@@ -1,0 +1,8 @@
+f45dfcf38eae3b3484d1799c663c0554ff5d1aa2d79b9ac3a376c08c341581cf  ./etc/training-worker.env
+e7c03f9667d4662f3d598f907e7f7763c180a59e20185fa85140451995528541  ./ops/healthcheck.sh
+938c66de5a45dbd922f860ac4cb4fc08dcbfff56012c502ca71fca436cb9bdb2  ./SHA256SUMS
+f2229ac8fa677817fc24c47d4352711e9bb32288ae0c6cba1196c2c66619f9b8  ./systemd/quantum-contract-check.service
+a7f8459595b7fd87c494504b6e1e24cbea4f2321c3eb2f868524bae5baf182e5  ./systemd/quantum-contract-check.timer
+efe4863234b8f5bfeb4d19ab0e1cf7e48d9eaa828c18aa69b934517a259867b5  ./systemd/quantum-training-worker.service
+cca1f64128bdc110ed950bd46a44bc44b8c06fa108f01d5f7d0b31e8ea29b8af  ./systemd/quantum-training-worker.timer
+616a605de61dd32ca4404d0c6ab8824605cae1ee6edcf577600118a216d25e16  ./tests/orchestrator_contract_test_clean.py

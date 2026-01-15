@@ -1,0 +1,16 @@
+[Unit]
+Description=Quantum Trading - Training Worker Timer
+Requires=quantum-training-worker.service
+
+[Timer]
+# Run every 30 minutes
+OnCalendar=*-*-* *:0/30:00
+# Run 2 minutes after boot
+OnBootSec=2min
+# Prevent accumulation if system is down
+Persistent=true
+# Small randomization to avoid system load spikes
+RandomizedDelaySec=60s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Quantum Trading - Daily Contract Verification Timer
+Requires=quantum-contract-check.service
+
+[Timer]
+OnCalendar=*-*-* 03:10:00
+Timezone=Europe/Oslo
+Persistent=true
+RandomizedDelaySec=60s
+
+[Install]
+WantedBy=timers.target
