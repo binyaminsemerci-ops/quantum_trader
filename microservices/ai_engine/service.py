@@ -1626,11 +1626,7 @@ class AIEngineService:
                         logger.debug(f"[PHASE 1] {symbol} xchg data stale: age={age_sec:.1f}s > {self._xchg_stale_sec}s")
                     else:
                         logger.debug(f"[PHASE 1] {symbol} no xchg data cached")
-                else:
-                    now_ts = time.time()
-                    if (now_ts - self._xchg_stale_log) >= 60:
-                        self._xchg_stale_log = now_ts
-                        logger.info("[PHASE 1] Cross-Exchange data stale or unavailable - using defaults")
+
                 features.setdefault("volatility_factor", 1.0)
                 features.setdefault("exchange_divergence", 0.0)
                 features.setdefault("lead_lag_score", 0.0)
