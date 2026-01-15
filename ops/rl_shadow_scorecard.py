@@ -88,16 +88,26 @@ def parse_intent(entry):
 
 
 def aggregate_stats(intents):
-    """Aggregate statistics per symbol"""
+    """Aggregate statistics per symbol and globally"""
     stats = defaultdict(lambda: {
         'total': 0,
         'gate_pass': 0,
+        'gate_fail': 0,
         'gate_reasons': Counter(),
         'rl_effects': Counter(),
         'rl_confidences': [],
         'ens_confidences': [],
+        'ens_confidences_pass': [],
+        'ens_confidences_fail': [],
         'policy_ages': []
     })
+    
+    # Global stats
+    global_stats = {
+        'total_intents': 0,
+        'ens_conf_present': 0,
+        'all_gate_reasons': Counter()
+    }
     
     for intent in intents:
         if not intent or not intent.get('symbol'):
@@ -107,30 +117,49 @@ def aggregate_stats(intents):
         s = stats[symbol]
         
         s['total'] += 1
+        global_stats['total_intents'] += 1
         
-        if intent.get('rl_gate_pass') is True:
+        # Gate pass/fail tracking
+        gate_passed = intent.get('rl_gate_pass') is True
+        if gate_passed:
             s['gate_pass'] += 1
+        else:
+            s['gate_fail'] += 1
         
+        # Gate reasons (global tracking)
         if intent.get('rl_gate_reason'):
-            s['gate_reasons'][intent['rl_gate_reason']] += 1
+            reason = intent['rl_gate_reason']
+            s['gate_reasons'][reason] += 1
+            global_stats['all_gate_reasons'][reason] += 1
         
+        # RL effects
         if intent.get('rl_effect'):
             s['rl_effects'][intent['rl_effect']] += 1
         
+        # RL confidence
         if intent.get('rl_confidence') is not None:
             s['rl_confidences'].append(intent['rl_confidence'])
         
-        if intent.get('confidence') is not None:
-            s['ens_confidences'].append(intent['confidence'])
+        # Ensemble confidence tracking (global + per pass/fail)
+        ens_conf = intent.get('confidence')
+        if ens_conf is not None:
+            s['ens_confidences'].append(ens_conf)
+            global_stats['ens_conf_present'] += 1
+            
+            if gate_passed:
+                s['ens_confidences_pass'].append(ens_conf)
+            else:
+                s['ens_confidences_fail'].append(ens_conf)
         
+        # Policy age
         if intent.get('rl_policy_age_sec') is not None:
             s['policy_ages'].append(intent['rl_policy_age_sec'])
     
-    return stats
+    return stats, global_stats
 
 
-def print_report(stats, config):
-    """Print scorecard report"""
+def print_report(stats, global_stats, config):
+    """Print enhanced scorecard report"""
     timestamp = datetime.utcnow().isoformat() + 'Z'
     
     print(f"\n{'='*80}")
@@ -157,11 +186,20 @@ def print_report(stats, config):
         would_flip_rate = (s['rl_effects']['would_flip'] / total_effects * 100) if total_effects > 0 else 0
         reinforce_rate = (s['rl_effects']['reinforce'] / total_effects * 100) if total_effects > 0 else 0
         
-        # Most common gate reason
-        most_common_reason = s['gate_reasons'].most_common(1)
-        main_reason = most_common_reason[0][0] if most_common_reason else 'none'
-        reason_count = most_common_reason[0][1] if most_common_reason else 0
-        reason_pct = (reason_count / s['total'] * 100) if s['total'] > 0 else 0
+        # Top 2 gate reasons for this symbol
+        top_2_reasons = s['gate_reasons'].most_common(2)
+        if len(top_2_reasons) >= 2:
+            r1, c1 = top_2_reasons[0]
+            r2, c2 = top_2_reasons[1]
+            r1_pct = (c1 / s['total'] * 100) if s['total'] > 0 else 0
+            r2_pct = (c2 / s['total'] * 100) if s['total'] > 0 else 0
+            reasons_str = f"{r1}({r1_pct:.1f}%), {r2}({r2_pct:.1f}%)"
+        elif len(top_2_reasons) == 1:
+            r1, c1 = top_2_reasons[0]
+            r1_pct = (c1 / s['total'] * 100) if s['total'] > 0 else 0
+            reasons_str = f"{r1}({r1_pct:.1f}%)"
+        else:
+            reasons_str = "none"
         
         # Average confidences
         avg_rl_conf = sum(s['rl_confidences']) / len(s['rl_confidences']) if s['rl_confidences'] else 0
@@ -170,8 +208,7 @@ def print_report(stats, config):
         # Average policy age
         avg_age = sum(s['policy_ages']) / len(s['policy_ages']) if s['policy_ages'] else 0
         
-        print(f"{rank}. {symbol:12s} | intents={s['total']:4d} | pass_rate={pass_rate:5.1f}%")
-        print(f"   └─ Main gate_reason: {main_reason} ({reason_pct:.1f}%)")
+        print(f"{rank}. {symbol:12s} | intents={s['total']:4d} | pass_rate={pass_rate:5.1f}% | top_reasons={reasons_str}")
         
         if s['gate_pass'] > 0:
             print(f"   └─ RL effects: would_flip={would_flip_rate:.1f}% | reinforce={reinforce_rate:.1f}%")
@@ -180,22 +217,42 @@ def print_report(stats, config):
         print()
     
     # Summary stats
-    total_intents = sum(s['total'] for s in stats.values())
+    total_intents = global_stats['total_intents']
     total_passes = sum(s['gate_pass'] for s in stats.values())
     overall_pass_rate = (total_passes / total_intents * 100) if total_intents > 0 else 0
     
     print(f"{'='*80}")
     print(f"SUMMARY: {total_intents} total intents | {total_passes} gate passes ({overall_pass_rate:.1f}%)")
     
-    # Global gate reason distribution
-    all_reasons = Counter()
-    for s in stats.values():
-        all_reasons.update(s['gate_reasons'])
-    
-    print(f"\nGlobal Gate Reason Distribution:")
-    for reason, count in all_reasons.most_common(5):
+    # Global gate reason distribution (Top 8)
+    print(f"\nGlobal Gate Reason Distribution (Top 8):")
+    for reason, count in global_stats['all_gate_reasons'].most_common(8):
         pct = (count / total_intents * 100) if total_intents > 0 else 0
         print(f"  {reason:20s}: {count:5d} ({pct:5.1f}%)")
+    
+    # Ensemble confidence insights
+    print(f"\nEnsemble Confidence Insights:")
+    ens_present_rate = (global_stats['ens_conf_present'] / total_intents * 100) if total_intents > 0 else 0
+    
+    if global_stats['ens_conf_present'] > 0:
+        print(f"  ens_conf_present_rate: {ens_present_rate:.1f}% ({global_stats['ens_conf_present']}/{total_intents})")
+        
+        # Calculate avg ens_conf when pass vs fail
+        all_pass_confs = []
+        all_fail_confs = []
+        for s in stats.values():
+            all_pass_confs.extend(s['ens_confidences_pass'])
+            all_fail_confs.extend(s['ens_confidences_fail'])
+        
+        if all_pass_confs:
+            avg_ens_pass = sum(all_pass_confs) / len(all_pass_confs)
+            print(f"  ens_conf_avg_when_pass: {avg_ens_pass:.3f} (n={len(all_pass_confs)})")
+        
+        if all_fail_confs:
+            avg_ens_fail = sum(all_fail_confs) / len(all_fail_confs)
+            print(f"  ens_conf_avg_when_fail: {avg_ens_fail:.3f} (n={len(all_fail_confs)})")
+    else:
+        print(f"  ens_conf not present in payloads")
     
     print(f"{'='*80}\n")
 
@@ -232,11 +289,11 @@ def main():
         
         print(f"[RL-SCORECARD] ✅ Parsed {len(intents)} valid intents")
         
-        # Aggregate stats
-        stats = aggregate_stats(intents)
+        # Aggregate stats (returns tuple now)
+        stats, global_stats = aggregate_stats(intents)
         
-        # Print report
-        print_report(stats, config)
+        # Print enhanced report
+        print_report(stats, global_stats, config)
         
         print(f"[RL-SCORECARD] ✅ Report complete\n")
         
