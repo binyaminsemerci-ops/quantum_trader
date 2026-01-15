@@ -14,6 +14,7 @@ import logging
 import httpx
 import numpy as np
 from typing import Dict, Any, Optional, List, Tuple
+from microservices.ai_engine.rl_influence import RLInfluenceV2
 from datetime import datetime, timezone
 from collections import deque, defaultdict
 import sys
@@ -211,6 +212,7 @@ class AIEngineService:
             )
             await self.redis_client.ping()
             logger.info("[AI-ENGINE] ✅ Redis connected")
+            self.rl_influence = RLInfluenceV2(self.redis_client, logger)
             
             # Initialize EventBus
             logger.info("[AI-ENGINE] Initializing EventBus...")
@@ -2251,6 +2253,15 @@ class AIEngineService:
                 "funding_rate": features.get("funding_rate", 0.0),
                 "regime": regime.value if regime != MarketRegime.UNKNOWN else "unknown"
             }
+            
+            # RL Bootstrap v2 (shadow_gated)
+            rl_meta = {}
+            try:
+                rl_data = await self.rl_influence.fetch(symbol) if getattr(self, 'rl_influence', None) else None
+                action, rl_meta = self.rl_influence.apply_shadow(symbol, action, float(ensemble_confidence), rl_data) if getattr(self, 'rl_influence', None) else (action, {})
+            except Exception:
+                rl_meta = {}
+            
             # 🔥 RATE LIMITING: Global + Per-Symbol
             now = time.time()
             symbol = trade_intent_payload.get("symbol", "UNKNOWN")
@@ -2261,6 +2272,9 @@ class AIEngineService:
             if confidence < min_confidence:
                 logger.debug(f"[RATE-LIMIT] ⛔ {symbol} skipped: confidence {confidence:.2f} < {min_confidence}")
                 return None
+            
+            # Merge RL metadata
+            trade_intent_payload = {**trade_intent_payload, **rl_meta}
             
             # Filter 2: Per-symbol cooldown
             last_time = self.last_signal_by_symbol.get(symbol, 0)
