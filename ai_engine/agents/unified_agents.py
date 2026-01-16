@@ -149,20 +149,32 @@ class XGBoostAgent(BaseAgent):
     def __init__(self): super().__init__("XGB-Agent","xgboost_v"); self._load()
     def predict(self,sym,feat):
         df=self._align(feat); X=self.scaler.transform(df)
-        p=self.model.predict_proba(X); i=int(np.argmax(p,axis=1)[0])
-        act={0:"SELL",1:"HOLD",2:"BUY"}[i]; c,s=float(np.max(p)),float(np.std(p))
-        self.logger.i(f"{sym} → {act} (conf={c:.3f},std={s:.3f})")
-        return {"symbol":sym,"action":act,"confidence":c,"confidence_std":s,"version":self.version}
+        pnl_pred = self.model.predict(X)[0]  # Regression: Predict PnL%
+        # Convert PnL% to action: >2% = BUY, <-2% = SELL, else HOLD
+        if pnl_pred > 2.0:
+            act, c = "BUY", min(abs(pnl_pred) / 10.0, 1.0)  # Normalize to [0,1]
+        elif pnl_pred < -2.0:
+            act, c = "SELL", min(abs(pnl_pred) / 10.0, 1.0)
+        else:
+            act, c = "HOLD", 0.5
+        self.logger.i(f"{sym} → {act} (PnL={pnl_pred:.2f}%, conf={c:.3f})")
+        return {"symbol":sym,"action":act,"confidence":c,"confidence_std":0.1,"version":self.version}
 
 # ---------- LIGHTGBM ----------
 class LightGBMAgent(BaseAgent):
     def __init__(self): super().__init__("LGBM-Agent","lightgbm_v"); self._load()
     def predict(self,sym,feat):
         df=self._align(feat); X=self.scaler.transform(df)
-        p=self.model.predict(X); i=int(np.argmax(p,axis=1)[0])
-        act={0:"SELL",1:"HOLD",2:"BUY"}[i]; c,s=float(np.max(p)),float(np.std(p))
-        self.logger.i(f"{sym} → {act} (conf={c:.3f},std={s:.3f})")
-        return {"symbol":sym,"action":act,"confidence":c,"confidence_std":s,"version":self.version}
+        pnl_pred = self.model.predict(X)[0]  # Regression: Predict PnL%
+        # Convert PnL% to action
+        if pnl_pred > 2.0:
+            act, c = "BUY", min(abs(pnl_pred) / 10.0, 1.0)
+        elif pnl_pred < -2.0:
+            act, c = "SELL", min(abs(pnl_pred) / 10.0, 1.0)
+        else:
+            act, c = "HOLD", 0.5
+        self.logger.i(f"{sym} → {act} (PnL={pnl_pred:.2f}%, conf={c:.3f})")
+        return {"symbol":sym,"action":act,"confidence":c,"confidence_std":0.1,"version":self.version}
 
 # ---------- PATCHTST ----------
 class PatchTSTAgent(BaseAgent):
@@ -174,25 +186,21 @@ class PatchTSTAgent(BaseAgent):
         else:
             X=df.values
         
-        # Handle PyTorch models
+        # Try regression (dummy model with .predict())
         try:
-            import torch
-            if isinstance(self.model, torch.nn.Module):
-                self.model.eval()
-                X_t = torch.from_numpy(X).float() if isinstance(X, np.ndarray) else torch.tensor(X).float()
-                with torch.no_grad():
-                    logits = self.model(X_t)
-                p = torch.softmax(logits, dim=1).numpy() if len(logits.shape) > 1 else np.array([[0,0,1]])
-            else:
-                p=self.model.predict_proba(X)
+            pnl_pred = self.model.predict(X)[0]
         except:
-            p=self.model.predict_proba(X)
+            pnl_pred = 0.0
         
-        i=int(np.argmax(p[0] if len(p.shape)>1 else p, axis=0))
-        act={0:"SELL",1:"HOLD",2:"BUY"}[i]
-        c,s=float(np.max(p)),float(np.std(p)) if len(p.shape)>1 else (0.7, 0.1)
-        self.logger.i(f"{sym} → {act} (conf={c:.3f},std={s:.3f})")
-        return {"symbol":sym,"action":act,"confidence":c,"confidence_std":s,"version":self.version}
+        # Convert PnL% to action
+        if pnl_pred > 2.0:
+            act, c = "BUY", min(abs(pnl_pred) / 10.0, 1.0)
+        elif pnl_pred < -2.0:
+            act, c = "SELL", min(abs(pnl_pred) / 10.0, 1.0)
+        else:
+            act, c = "HOLD", 0.5
+        self.logger.i(f"{sym} → {act} (PnL={pnl_pred:.2f}%, conf={c:.3f})")
+        return {"symbol":sym,"action":act,"confidence":c,"confidence_std":0.1,"version":self.version}
 
 # ---------- N-HiTS ----------
 class NHiTSAgent(BaseAgent):
@@ -204,21 +212,21 @@ class NHiTSAgent(BaseAgent):
         else:
             X=df.values
         
-        # Handle PyTorch models
+        # Try regression (dummy model with .predict())
         try:
-            import torch
-            if isinstance(self.model, torch.nn.Module):
-                self.model.eval()
-                X_t = torch.from_numpy(X).float() if isinstance(X, np.ndarray) else torch.tensor(X).float()
-                with torch.no_grad():
-                    logits = self.model(X_t)
-                p = torch.softmax(logits, dim=1).numpy() if len(logits.shape) > 1 else np.array([[0,0,1]])
-            else:
-                p=self.model.predict_proba(X)
+            pnl_pred = self.model.predict(X)[0]
         except:
-            p=self.model.predict_proba(X)
+            pnl_pred = 0.0
         
-        i=int(np.argmax(p[0] if len(p.shape)>1 else p, axis=0))
+        # Convert PnL% to action
+        if pnl_pred > 2.0:
+            act, c = "BUY", min(abs(pnl_pred) / 10.0, 1.0)
+        elif pnl_pred < -2.0:
+            act, c = "SELL", min(abs(pnl_pred) / 10.0, 1.0)
+        else:
+            act, c = "HOLD", 0.5
+        self.logger.i(f"{sym} → {act} (PnL={pnl_pred:.2f}%, conf={c:.3f})")
+        return {"symbol":sym,"action":act,"confidence":c,"confidence_std":0.1,"version":self.version}
         act={0:"SELL",1:"HOLD",2:"BUY"}[i]
         c,s=float(np.max(p)),float(np.std(p)) if len(p.shape)>1 else (0.7, 0.1)
         self.logger.i(f"{sym} → {act} (conf={c:.3f},std={s:.3f})")
