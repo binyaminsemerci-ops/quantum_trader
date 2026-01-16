@@ -55,6 +55,31 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# Dummy models at module level (for pickle compatibility)
+class DummyNHiTS:
+    """Dummy N-HiTS model for pickle compatibility"""
+    def __init__(self, mean_pred=0.0):
+        self.mean_pred = mean_pred
+    
+    def predict(self, X):
+        return np.full(len(X), self.mean_pred)
+    
+    def __call__(self, X):
+        return self.predict(X)
+
+
+class DummyPatchTST:
+    """Dummy PatchTST model for pickle compatibility"""
+    def __init__(self, mean_pred=0.0):
+        self.mean_pred = mean_pred
+    
+    def predict(self, X):
+        return np.full(len(X), self.mean_pred)
+    
+    def __call__(self, X):
+        return self.predict(X)
+
+
 class SyntheticDataGenerator:
     """Generate realistic OHLCV data around trade outcomes"""
     
@@ -267,10 +292,10 @@ class ModelTrainer:
     def save_model(self, model, scaler, feature_names: List[str], model_name: str, prefix: str) -> str:
         """Save model with correct format for unified_agents.py"""
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        version = f"v{timestamp}"
         
         # CRITICAL: Use correct prefix format (xgboost_v, lightgbm_v, nhits_v, patchtst_v)
-        base_name = f"{prefix}{version}"
+        # Don't add extra 'v' - prefix already includes it!
+        base_name = f"{prefix}{timestamp}"
         
         model_path = self.models_dir / f"{base_name}.pkl"
         scaler_path = self.models_dir / f"{base_name}_scaler.pkl"
@@ -373,18 +398,7 @@ class ModelTrainer:
             scaler = StandardScaler()
             X_scaled = scaler.fit_transform(X)
             
-            # Create a simple wrapper that mimics PyTorch model behavior
-            class DummyNHiTS:
-                def __init__(self):
-                    self.mean_pred = y.mean()
-                
-                def predict(self, X):
-                    return np.full(len(X), self.mean_pred)
-                
-                def __call__(self, X):
-                    return self.predict(X)
-            
-            model = DummyNHiTS()
+            model = DummyNHiTS(mean_pred=y.mean())
             
             logger.info(f"   Mean prediction = {model.mean_pred:.4f}")
             
@@ -405,18 +419,7 @@ class ModelTrainer:
             scaler = StandardScaler()
             X_scaled = scaler.fit_transform(X)
             
-            # Create a simple wrapper that mimics PyTorch model behavior
-            class DummyPatchTST:
-                def __init__(self):
-                    self.mean_pred = y.mean()
-                
-                def predict(self, X):
-                    return np.full(len(X), self.mean_pred)
-                
-                def __call__(self, X):
-                    return self.predict(X)
-            
-            model = DummyPatchTST()
+            model = DummyPatchTST(mean_pred=y.mean())
             
             logger.info(f"   Mean prediction = {model.mean_pred:.4f}")
             
