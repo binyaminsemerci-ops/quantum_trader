@@ -72,6 +72,12 @@ def load_config() -> Any:
         binance_testnet_secret_key=os.environ.get("BINANCE_TESTNET_SECRET_KEY"),
         coinbase_api_key=dashboard.get("COINBASE_API_KEY") or os.environ.get("COINBASE_API_KEY"),
         coinbase_api_secret=dashboard.get("COINBASE_API_SECRET") or os.environ.get("COINBASE_API_SECRET"),
+        # AI Engine Ensemble Configuration
+        ENSEMBLE_MODELS=['xgb', 'lgbm', 'nhits', 'patchtst'],  # All 4 models enabled
+        ENSEMBLE_WEIGHTS=None,  # Use default equal weights (25% each)
+        MIN_CONSENSUS=3,  # Require 3/4 models to agree for high confidence
+        XGB_MODEL_PATH=None,  # Use default model paths
+        XGB_SCALER_PATH=None,  # Use default scaler paths
     )
 
     # Attach convenience helpers to the namespace so tests that import
