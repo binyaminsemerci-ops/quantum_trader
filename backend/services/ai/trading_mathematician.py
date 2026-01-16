@@ -105,6 +105,7 @@ class TradingMathematician:
         account: AccountState,
         market: MarketConditions,
         performance: PerformanceMetrics,
+        signal_confidence: float = 0.70,  # AI ensemble confidence
     ) -> OptimalParameters:
         """
         Calculate optimal trading parameters using AI-driven math.
@@ -128,8 +129,8 @@ class TradingMathematician:
         tp_pct = self._calculate_optimal_tp(sl_pct, performance, market)
         logger.info(f"🎯 Optimal TP: {tp_pct*100:.2f}% (R:R={tp_pct/sl_pct:.2f}:1)")
         
-        # Step 4: Calculate optimal leverage
-        leverage = self._calculate_optimal_leverage(market, performance, account)
+        # Step 4: Calculate optimal leverage WITH confidence adjustment
+        leverage = self._calculate_optimal_leverage(market, performance, account, signal_confidence)
         logger.info(f"⚡ Optimal Leverage: {leverage:.1f}x")
         
         # Step 5: Use margin target directly (no complex formula)
@@ -290,6 +291,7 @@ class TradingMathematician:
         market: MarketConditions,
         performance: PerformanceMetrics,
         account: AccountState,
+        signal_confidence: float = 0.70,  # Signal confidence from AI ensemble
     ) -> float:
         """
         Calculate optimal leverage using Kelly Criterion.
@@ -359,6 +361,18 @@ class TradingMathematician:
         if self.conservative_mode:
             adjusted_lev *= 0.6
             logger.debug(f"   Conservative mode: reducing by 40%")
+        
+        # 🆕 CONFIDENCE ADJUSTMENT: Scale leverage by signal confidence
+        # High confidence (>80%) → Full leverage
+        # Medium confidence (60-80%) → 70-100% leverage  
+        # Low confidence (<60%) → 50-70% leverage
+        if signal_confidence < 0.80:
+            confidence_mult = 0.5 + (signal_confidence * 0.625)  # 0.5 at 0%, 1.0 at 80%
+            adjusted_lev *= confidence_mult
+            logger.info(
+                f"   🎯 CONFIDENCE ADJUSTMENT: {signal_confidence*100:.0f}% confidence "
+                f"→ {confidence_mult*100:.0f}% of Kelly leverage"
+            )
         
         # Apply limits: Binance max, safety cap, minimum 5x
         binance_max = self.binance_max_leverage.get(market.symbol, 50)
