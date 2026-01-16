@@ -15,8 +15,9 @@ echo "⏳ Waiting for startup..."
 sleep 5
 
 echo "📋 Checking logs..."
-docker logs quantum_auto_executor --tail 30
+journalctl -u quantum_auto_executor --tail 30
 
 echo ""
 echo "✅ Deployment complete!"
-echo "Monitor with: docker logs quantum_auto_executor -f"
+echo "Monitor with: journalctl -u quantum_auto_executor -f"
+

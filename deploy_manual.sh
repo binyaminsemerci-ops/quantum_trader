@@ -1,5 +1,5 @@
 #!/bin/bash
-# Manual deployment script - bypass docker-compose state corruption
+# Manual deployment script - bypass systemctl state corruption
 # Usage: bash deploy_manual.sh
 
 set -e
@@ -13,7 +13,7 @@ echo "🚀 Starting deployment..."
 docker network inspect $NETWORK >/dev/null 2>&1 || docker network create $NETWORK
 
 # Redis already running - check
-if docker ps | grep -q quantum_redis; then
+if systemctl list-units | grep -q quantum_redis; then
     echo "✅ Redis already running"
 else
     echo "Starting Redis..."
@@ -29,7 +29,7 @@ fi
 
 # Wait for Redis
 echo "⏳ Waiting for Redis..."
-until docker exec quantum_redis redis-cli ping 2>/dev/null; do
+until python3 quantum_redis redis-cli ping 2>/dev/null; do
     sleep 1
 done
 echo "✅ Redis healthy"
@@ -60,7 +60,7 @@ for service in "${SERVICES[@]}"; do
     IFS=':' read -r image container port <<< "$service"
     
     # Remove if exists
-    docker rm -f $container 2>/dev/null || true
+    # No rm needed -f $container 2>/dev/null || true
     
     echo "Starting $container..."
     docker run -d \
@@ -75,4 +75,5 @@ done
 echo ""
 echo "✅ Deployment complete!"
 echo ""
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | head -20
+systemctl list-units --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | head -20
+

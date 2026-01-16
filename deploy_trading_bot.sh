@@ -28,8 +28,8 @@ ssh $VPS "cd $BASE_DIR && docker build -f microservices/trading_bot/Dockerfile -
 
 # 4. Stop existing container (if any)
 echo "🛑 Stopping existing container..."
-ssh $VPS "docker stop quantum_trading_bot 2>/dev/null || true"
-ssh $VPS "docker rm quantum_trading_bot 2>/dev/null || true"
+ssh $VPS "systemctl stop quantum_trading_bot 2>/dev/null || true"
+ssh $VPS "# No rm needed quantum_trading_bot 2>/dev/null || true"
 
 # 5. Start new container
 echo "🚀 Starting Trading Bot..."
@@ -53,7 +53,7 @@ sleep 5
 # 7. Check logs
 echo ""
 echo "📋 Recent logs:"
-ssh $VPS "docker logs --tail 20 quantum_trading_bot"
+ssh $VPS "journalctl -u --tail 20 quantum_trading_bot"
 
 # 8. Health check
 echo ""
@@ -63,4 +63,5 @@ ssh $VPS "curl -s http://localhost:8003/health | python3 -m json.tool"
 echo ""
 echo "✅ Trading Bot deployed successfully!"
 echo ""
-echo "Monitor logs: ssh $VPS 'docker logs -f quantum_trading_bot'"
+echo "Monitor logs: ssh $VPS 'journalctl -u -f quantum_trading_bot'"
+

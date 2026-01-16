@@ -167,7 +167,7 @@ test_redis_integrity() {
     
     # Check Redis memory usage
     log_info "Sjekker Redis minnebruk..."
-    MEMORY=$(docker exec redis redis-cli info memory 2>/dev/null | grep used_memory_human | cut -d: -f2 | tr -d '\r')
+    MEMORY=$(redis-cli info memory 2>/dev/null | grep used_memory_human | cut -d: -f2 | tr -d '\r')
     if [ -n "$MEMORY" ]; then
         log_success "Redis minnebruk: $MEMORY"
     else
@@ -187,7 +187,7 @@ test_redis_integrity() {
         "system_ssi"
     )
     
-    ALL_KEYS=$(docker exec redis redis-cli keys "*" 2>/dev/null)
+    ALL_KEYS=$(redis-cli keys "*" 2>/dev/null)
     
     for key in "${REQUIRED_KEYS[@]}"; do
         if echo "$ALL_KEYS" | grep -q "$key"; then
@@ -247,7 +247,7 @@ test_regime_forecast() {
     
     log_info "Sjekker quantum_regime_forecast..."
     
-    FORECAST=$(docker exec redis redis-cli hgetall quantum_regime_forecast 2>/dev/null)
+    FORECAST=$(redis-cli hgetall quantum_regime_forecast 2>/dev/null)
     
     if [ -n "$FORECAST" ]; then
         echo "$FORECAST"
@@ -292,7 +292,7 @@ test_governance_ssi() {
     
     # Check System Stress Index
     log_info "Sjekker System Stress Index (SSI)..."
-    SSI=$(docker exec redis redis-cli get system_ssi 2>/dev/null)
+    SSI=$(redis-cli get system_ssi 2>/dev/null)
     
     if [ -n "$SSI" ]; then
         log_success "SSI verdi: $SSI"
@@ -314,7 +314,7 @@ test_governance_ssi() {
     
     # Check Governance Weights
     log_info "Sjekker governance_weights..."
-    WEIGHTS=$(docker exec redis redis-cli hgetall governance_weights 2>/dev/null)
+    WEIGHTS=$(redis-cli hgetall governance_weights 2>/dev/null)
     
     if [ -n "$WEIGHTS" ]; then
         echo "$WEIGHTS"
@@ -403,7 +403,7 @@ test_logs() {
     
     log_info "Søker etter kritiske feil i logger (siste 1000 linjer)..."
     
-    ERROR_COUNT=$(docker compose logs --tail=1000 2>/dev/null | grep -c -E "ERROR|CRITICAL|Exception" || echo "0")
+    ERROR_COUNT=$(journalctl --since '1 hour ago' --no-pager | grep -c -E "ERROR|CRITICAL|Exception" || echo "0")
     
     if [ "$ERROR_COUNT" -eq 0 ]; then
         log_success "Ingen kritiske feil funnet i logger"
@@ -411,7 +411,7 @@ test_logs() {
         log_warning "Fant $ERROR_COUNT linjer med ERROR/CRITICAL/Exception"
         echo ""
         log_info "Viser de siste 10 feilene:"
-        docker compose logs --tail=1000 2>/dev/null | grep -E "ERROR|CRITICAL|Exception" | tail -10
+        journalctl --since '1 hour ago' --no-pager | grep -E "ERROR|CRITICAL|Exception" | tail -10
     fi
 }
 
@@ -451,7 +451,7 @@ main() {
         echo "   MODE=testnet"
         echo ""
         echo "3. Start systemet på nytt:"
-        echo "   docker compose down && docker compose up -d"
+        echo "   sudo systemctl restart quantum-*.service"
         echo ""
         echo -e "${YELLOW}⚠️  VIKTIG: Bruk kun små posisjoner på testnet!${NC}"
         echo -e "${YELLOW}⚠️  Aldri bruk live-nøkler før full bekreftet oppførsel!${NC}"

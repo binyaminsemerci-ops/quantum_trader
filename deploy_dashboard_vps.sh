@@ -65,3 +65,4 @@ echo "🔍 View logs:"
 echo "   docker compose --profile dashboard logs -f dashboard-backend"
 echo "   docker compose --profile dashboard logs -f dashboard-frontend"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
