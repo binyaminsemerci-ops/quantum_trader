@@ -90,7 +90,7 @@ try:
     # Check recent training runs from logs
     import subprocess
     result = subprocess.run(
-        ["docker", "logs", "quantum_backend", "--tail", "100"],
+        ["journalctl", "-u", "quantum-backend.service", "--tail", "100"],
         capture_output=True,
         text=True
     )
@@ -261,7 +261,7 @@ try:
     import json
     
     result = subprocess.run(
-        ["docker", "logs", "quantum_backend", "--tail", "500"],
+        ["journalctl", "-u", "quantum-backend.service", "--tail", "500"],
         capture_output=True,
         text=True
     )
@@ -350,3 +350,4 @@ print("""
 print("=" * 80)
 print(f"Completed: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
 print("=" * 80)
+

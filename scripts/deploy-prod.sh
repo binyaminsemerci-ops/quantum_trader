@@ -75,14 +75,14 @@ ssh "$VPS_USER@$VPS_HOST" << 'EOF'
     set -e
     cd ~/quantum_trader
     
-    echo "🔨 Building Docker images..."
-    docker-compose build --no-cache
+    echo "� Restarting systemd services..."
+    sudo systemctl daemon-reload
     
-    echo "🛑 Stopping old containers..."
-    docker-compose down
+    echo "🛑 Stopping services..."
+    sudo systemctl stop 'quantum-*.service'
     
-    echo "🚀 Starting new containers..."
-    docker-compose up -d
+    echo "🚀 Starting services..."
+    sudo systemctl start 'quantum-*.service'
     
     echo "⏳ Waiting for services to start..."
     sleep 10
@@ -91,8 +91,8 @@ ssh "$VPS_USER@$VPS_HOST" << 'EOF'
     HEALTH=$(curl -s http://localhost:8000/health || echo "failed")
     echo "Backend health: $HEALTH"
     
-    echo "📊 Container status:"
-    docker-compose ps
+    echo "📊 Service status:"
+    systemctl list-units 'quantum-*.service' --no-pager --no-legend | head -10
 EOF
 
 # Verify deployment
@@ -106,7 +106,7 @@ if [[ $HEALTH_CHECK == *"healthy"* ]]; then
     log_info "❤️ Health: https://$VPS_HOST/health"
 else
     log_error "❌ Deployment verification failed"
-    log_warn "Check logs with: ssh $VPS_USER@$VPS_HOST 'cd quantum_trader && docker-compose logs'"
+    log_warn "Check logs with: ssh $VPS_USER@$VPS_HOST 'journalctl -u quantum-backend.service -n 100'"
     exit 1
 fi
 

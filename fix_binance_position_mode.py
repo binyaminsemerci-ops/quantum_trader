@@ -164,7 +164,7 @@ def main():
         print("🎯 Position Monitor can now place TP/SL orders!")
         print()
         print("📊 To verify, check Position Monitor logs:")
-        print("   docker logs -f quantum_backend | grep POSITION-MONITOR")
+        print("   journalctl -u -f quantum_backend | grep POSITION-MONITOR")
         print()
     else:
         print()
@@ -180,3 +180,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

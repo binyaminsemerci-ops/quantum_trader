@@ -22,7 +22,7 @@ print("   - The drawdown calculation is comparing against zero instead of actual
 print("\n💡 SOLUTION OPTIONS:")
 print("\n   Option 1: Increase daily drawdown limit (TEMPORARY FIX)")
 print("   - Change RM_MAX_DAILY_DD_PCT from 0.03 (3%) to 0.10 (10%)")
-print("   - Add to docker-compose.yml:")
+print("   - Add to systemd service config:")
 print("     environment:")
 print("       - RM_MAX_DAILY_DD_PCT=0.10")
 
@@ -35,15 +35,16 @@ print("   - Set RM_MAX_DAILY_DD_PCT=1.0 (100% - effectively disabled)")
 print("   - Let system accumulate real trades and establish proper baseline")
 
 print("\n🎯 RECOMMENDED ACTION:")
-print("   1. Add to docker-compose.yml backend environment:")
+print("   1. Add to systemd service config backend environment:")
 print("      - RM_MAX_DAILY_DD_PCT=0.10    # Increase to 10% for testnet")
 print("   2. Restart backend container")
 print("   3. Monitor trading activity resume")
 print("   4. After 24h of normal trading, reduce to 0.05 (5%)")
 
 print("\n📝 COMMAND TO FIX:")
-print("   Add this line to docker-compose.yml under backend->environment:")
+print("   Add this line to systemd service config under backend->environment:")
 print("   - RM_MAX_DAILY_DD_PCT=0.10")
-print("   Then run: docker-compose up -d backend")
+print("   Then run: systemctl up -d backend")
 
 print("\n" + "=" * 80)
+

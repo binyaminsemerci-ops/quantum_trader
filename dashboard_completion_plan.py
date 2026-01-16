@@ -159,7 +159,7 @@ def main():
     print("   1. BACKEND FIXES:")
     print("      cd c:\\quantum_trader")
     print("      # Jeg fixer backend endpoints nå")
-    print("      docker restart quantum_backend\n")
+    print("      sudo systemctl restart quantum_backend\n")
     
     print("   2. TEST BACKEND:")
     print("      curl http://localhost:8000/health")
@@ -230,3 +230,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -23,8 +23,8 @@ deploy() {
   
   # Rebuild and restart service
   ssh -i $SSH_KEY $VPS_HOST "cd $VPS_PATH && \
-    docker compose -f docker-compose.vps.yml build $service && \
-    docker compose -f docker-compose.vps.yml up -d $service"
+    sudo systemctl daemon-reload && \
+    sudo systemctl restart quantum-$service.service"
   
   echo "✅ $service deployed"
 }
