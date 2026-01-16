@@ -311,7 +311,7 @@ class ModelTrainer:
         
         # Save metadata
         metadata = {
-            'version': version,
+            'version': timestamp,
             'model_name': model_name,
             'n_features': len(feature_names),
             'features': feature_names,
