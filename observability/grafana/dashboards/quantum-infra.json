@@ -1,6 +1,6 @@
 {
   "title": "Quantum Trader - Infrastructure",
-  "tags": ["quantum", "infra", "docker"],
+  "tags": ["quantum", "infra", "systemd"],
   "timezone": "utc",
   "refresh": "30s",
   "time": {
@@ -56,13 +56,13 @@
       },
       {
         "id": 4,
-        "title": "Running Containers",
+        "title": "Active Services",
         "type": "stat",
         "gridPos": {"h": 3, "w": 6, "x": 18, "y": 0},
         "targets": [
           {
-            "expr": "count(container_last_seen{name=~\"quantum_.*\"})",
-            "legendFormat": "Containers"
+            "expr": "count(node_systemd_unit_state{name=~\"quantum-.*\\.service\",state=\"active\"})",
+            "legendFormat": "Services"
           }
         ]
       },
@@ -160,12 +160,12 @@
       },
       {
         "id": 9,
-        "title": "Top 10 Containers by CPU",
+        "title": "Top 10 Services by CPU",
         "type": "table",
         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 19},
         "targets": [
           {
-            "expr": "topk(10, rate(container_cpu_usage_seconds_total{name=~\"quantum_.*\"}[5m]) * 100)",
+            "expr": "topk(10, rate(node_systemd_unit_cpu_seconds_total{name=~\"quantum-.*\\.service\"}[5m]) * 100)",
             "format": "table",
             "instant": true
           }
@@ -181,12 +181,12 @@
       },
       {
         "id": 10,
-        "title": "Top 10 Containers by Memory",
+        "title": "Top 10 Services by Memory",
         "type": "table",
         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 19},
         "targets": [
           {
-            "expr": "topk(10, container_memory_usage_bytes{name=~\"quantum_.*\"})",
+            "expr": "topk(10, node_systemd_unit_memory_usage_bytes{name=~\"quantum-.*\\.service\"})",
             "format": "table",
             "instant": true
           }
@@ -202,16 +202,16 @@
       },
       {
         "id": 11,
-        "title": "Docker Filesystem Usage",
+        "title": "Disk Filesystem Usage",
         "type": "graph",
         "gridPos": {"h": 6, "w": 24, "x": 0, "y": 27},
         "targets": [
           {
-            "expr": "node_filesystem_size_bytes{mountpoint=~\"/var/lib/docker.*|/mnt/.*\"}",
+            "expr": "node_filesystem_size_bytes{mountpoint=~\"/|/mnt/.*\"}",
             "legendFormat": "{{mountpoint}} - Total"
           },
           {
-            "expr": "node_filesystem_avail_bytes{mountpoint=~\"/var/lib/docker.*|/mnt/.*\"}",
+            "expr": "node_filesystem_avail_bytes{mountpoint=~\"/|/mnt/.*\"}",
             "legendFormat": "{{mountpoint}} - Available"
           }
         ],

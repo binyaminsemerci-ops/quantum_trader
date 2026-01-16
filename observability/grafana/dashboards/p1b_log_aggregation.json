@@ -119,7 +119,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (level) (count_over_time({container=~\"quantum_.*\"} [$__interval]))",
+          "expr": "sum by (level) (count_over_time({unit=~\"quantum-.*\\.service\"} [$__interval]))",
           "queryType": "range",
           "refId": "A"
         }
@@ -176,7 +176,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{container=~\"quantum_.*\"} |= \"ORDER_\" | json",
+          "expr": "{unit=~\"quantum-.*\\.service\"} |= \"ORDER_\" | json",
           "queryType": "range",
           "refId": "A"
         }
@@ -271,7 +271,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (service) (count_over_time({container=~\"quantum_.*\"} |= \"ERROR\" [$__interval]))",
+          "expr": "sum by (service) (count_over_time({unit=~\"quantum-.*\\.service\"} |= \"ERROR\" [$__interval]))",
           "queryType": "range",
           "refId": "A"
         }
@@ -358,7 +358,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (event) (count_over_time({container=\"quantum_auto_executor\"} |= \"ORDER_\" | json | event=~\"ORDER_.*\" [$__interval]))",
+          "expr": "sum by (event) (count_over_time({unit=\"quantum-auto-executor.service\"} |= \"ORDER_\" | json | event=~\"ORDER_.*\" [$__interval]))",
           "queryType": "range",
           "refId": "A"
         }

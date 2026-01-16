@@ -169,24 +169,24 @@
       },
       {
         "id": 8,
-        "title": "Container CPU Usage (Top 10)",
+        "title": "Service CPU Usage (Top 10)",
         "type": "graph",
         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
         "targets": [
           {
-            "expr": "topk(10, rate(container_cpu_usage_seconds_total{name=~\"quantum_.*\"}[5m]))",
+            "expr": "topk(10, rate(node_systemd_unit_cpu_seconds_total{name=~\"quantum-.*\\.service\"}[5m]))",
             "legendFormat": "{{name}}"
           }
         ]
       },
       {
         "id": 9,
-        "title": "Container Memory Usage (Top 10)",
+        "title": "Service Memory Usage (Top 10)",
         "type": "graph",
         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
         "targets": [
           {
-            "expr": "topk(10, container_memory_usage_bytes{name=~\"quantum_.*\"})",
+            "expr": "topk(10, node_systemd_unit_memory_usage_bytes{name=~\"quantum-.*\\.service\"})",
             "legendFormat": "{{name}}"
           }
         ],

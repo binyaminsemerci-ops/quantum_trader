@@ -111,7 +111,7 @@
         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
         "targets": [
           {
-            "expr": "changes(container_last_seen{name=~\"quantum_.*\"}[1h])",
+            "expr": "changes(node_systemd_unit_state{name=~\"quantum-.*\\.service\"}[1h])",
             "legendFormat": "{{name}}"
           }
         ],
@@ -123,12 +123,12 @@
       },
       {
         "id": 6,
-        "title": "Container Uptime",
+        "title": "Service Uptime",
         "type": "table",
         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
         "targets": [
           {
-            "expr": "(time() - container_start_time_seconds{name=~\"quantum_(auto_executor|ai_engine|redis|portfolio_governance)\"}) / 3600",
+            "expr": "(time() - node_systemd_unit_start_time_seconds{name=~\"quantum-(auto-executor|ai-engine|redis|portfolio-governance)\\.service\"}) / 3600",
             "format": "table",
             "instant": true
           }
@@ -149,7 +149,7 @@
         "gridPos": {"h": 6, "w": 12, "x": 0, "y": 12},
         "targets": [
           {
-            "expr": "rate(container_cpu_usage_seconds_total{name=\"quantum_auto_executor\"}[5m]) * 100",
+            "expr": "rate(node_systemd_unit_cpu_seconds_total{name=\"quantum-auto-executor.service\"}[5m]) * 100",
             "legendFormat": "Executor CPU"
           }
         ],
@@ -166,7 +166,7 @@
         "gridPos": {"h": 6, "w": 12, "x": 12, "y": 12},
         "targets": [
           {
-            "expr": "container_memory_usage_bytes{name=\"quantum_auto_executor\"}",
+            "expr": "node_systemd_unit_memory_usage_bytes{name=\"quantum-auto-executor.service\"}",
             "legendFormat": "Executor Memory"
           }
         ],
@@ -183,7 +183,7 @@
         "gridPos": {"h": 6, "w": 12, "x": 0, "y": 18},
         "targets": [
           {
-            "expr": "rate(container_cpu_usage_seconds_total{name=\"quantum_ai_engine\"}[5m]) * 100",
+            "expr": "rate(node_systemd_unit_cpu_seconds_total{name=\"quantum-ai-engine.service\"}[5m]) * 100",
             "legendFormat": "AI Engine CPU"
           }
         ],
@@ -200,7 +200,7 @@
         "gridPos": {"h": 6, "w": 12, "x": 12, "y": 18},
         "targets": [
           {
-            "expr": "container_memory_usage_bytes{name=\"quantum_ai_engine\"}",
+            "expr": "node_systemd_unit_memory_usage_bytes{name=\"quantum-ai-engine.service\"}",
             "legendFormat": "AI Engine Memory"
           }
         ],

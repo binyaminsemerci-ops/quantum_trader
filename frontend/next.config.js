@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: 'standalone', // Enable standalone build for Docker
+  output: 'standalone', // Enable standalone build
   async rewrites() {
-    // Use backend container name when running in Docker, otherwise localhost
+    // Use configured backend URL, defaults to localhost
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
     
     return [

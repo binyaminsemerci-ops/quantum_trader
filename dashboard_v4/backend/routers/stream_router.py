@@ -37,7 +37,7 @@ async def stream_live(websocket: WebSocket):
                 # System Health
                 "cpu": round(random.uniform(10, 85), 2),
                 "ram": round(random.uniform(20, 90), 2),
-                "containers": random.randint(5, 8),
+                "services": random.randint(5, 8),
                 
                 # AI Performance
                 "accuracy": round(random.uniform(0.6, 0.9), 3),
