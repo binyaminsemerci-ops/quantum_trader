@@ -239,10 +239,10 @@ python check_profile_status.py
 ```bash
 # Windows PowerShell
 $env:ORCH_PROFILE="SAFE"
-docker-compose restart backend
+systemctl restart backend
 
 # Check logs
-docker logs quantum_backend | Select-String "Loading.*profile"
+journalctl -u quantum_backend.service | Select-String "Loading.*profile"
 
 # Expected output:
 # 🛡️ Loading SAFE profile: Conservative risk, higher thresholds
@@ -259,7 +259,7 @@ python check_profile_status.py
 
 ```bash
 $env:ORCH_PROFILE="AGGRESSIVE"
-docker-compose restart backend
+systemctl restart backend
 python check_profile_status.py
 ```
 
@@ -272,18 +272,18 @@ python check_profile_status.py
 ```bash
 # Test SAFE profile (default)
 Remove-Item env:ORCH_PROFILE -ErrorAction SilentlyContinue
-docker-compose restart backend
-docker logs quantum_backend | Select-String "SAFE"
+systemctl restart backend
+journalctl -u quantum_backend.service | Select-String "SAFE"
 
 # Test AGGRESSIVE profile
 $env:ORCH_PROFILE="AGGRESSIVE"
-docker-compose restart backend
-docker logs quantum_backend | Select-String "AGGRESSIVE"
+systemctl restart backend
+journalctl -u quantum_backend.service | Select-String "AGGRESSIVE"
 
 # Test invalid profile (should error)
 $env:ORCH_PROFILE="INVALID"
-docker-compose restart backend
-docker logs quantum_backend | Select-String "error"
+systemctl restart backend
+journalctl -u quantum_backend.service | Select-String "error"
 ```
 
 ### Phase 2: Parameter Application Verification
@@ -291,10 +291,10 @@ docker logs quantum_backend | Select-String "error"
 ```bash
 # Start backend with SAFE profile
 $env:ORCH_PROFILE="SAFE"
-docker-compose restart backend
+systemctl restart backend
 
 # Monitor risk calculations
-docker logs quantum_backend -f | Select-String "max_risk_pct|min_confidence|regime_multiplier"
+journalctl -u quantum_backend.service -f | Select-String "max_risk_pct|min_confidence|regime_multiplier"
 
 # Expected patterns:
 # - Lower risk multipliers in HIGH_VOL (0.4x for SAFE)
@@ -303,7 +303,7 @@ docker logs quantum_backend -f | Select-String "max_risk_pct|min_confidence|regi
 
 # Switch to AGGRESSIVE
 $env:ORCH_PROFILE="AGGRESSIVE"
-docker-compose restart backend
+systemctl restart backend
 
 # Monitor same logs - should see:
 # - Higher risk multipliers in HIGH_VOL (0.8x for AGGRESSIVE)
@@ -475,3 +475,4 @@ docker-compose restart backend
 
 **Recommendation:**
 Test profile loading immediately with `check_profile_status.py` to verify basic infrastructure, then proceed with update_policy() integration for full functionality.
+

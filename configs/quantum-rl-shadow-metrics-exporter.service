@@ -1,0 +1,18 @@
+[Unit]
+Description=RL Shadow Metrics Exporter for Prometheus
+After=network.target redis.service
+Requires=redis.service
+
+[Service]
+Type=simple
+User=qt
+WorkingDirectory=/home/qt/quantum_trader/microservices/ai_engine
+EnvironmentFile=/etc/quantum/rl-shadow-metrics-exporter.env
+ExecStart=/usr/bin/python3 -u /home/qt/quantum_trader/microservices/ai_engine/rl_shadow_metrics_exporter.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

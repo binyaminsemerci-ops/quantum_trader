@@ -15,12 +15,12 @@ docker compose up -d trade-journal
 
 ### View Startup Logs
 ```bash
-docker logs quantum_trade_journal --tail 30
+journalctl -u quantum_trade_journal.service --tail 30
 ```
 
 ### Check Health
 ```bash
-docker ps | grep trade_journal
+systemctl list-units | grep trade_journal
 ```
 
 ---
@@ -29,7 +29,7 @@ docker ps | grep trade_journal
 
 ### View Latest Report (Redis)
 ```bash
-docker exec quantum_redis redis-cli GET latest_report | python3 -m json.tool
+redis-cli GET latest_report | python3 -m json.tool
 ```
 
 ### View Latest Report (Dashboard API)
@@ -58,27 +58,27 @@ curl http://46.224.116.254:8501/reports/history | python3 -m json.tool
 
 ### Quick Performance Check
 ```bash
-docker exec quantum_redis redis-cli GET latest_report | python3 -c "import sys,json; r=json.loads(sys.stdin.read()); print(f\"Trades: {r['total_trades']} | Win Rate: {r['win_rate_%']}% | Sharpe: {r['sharpe_ratio']} | Drawdown: {r['max_drawdown_%']}%\")"
+redis-cli GET latest_report | python3 -c "import sys,json; r=json.loads(sys.stdin.read()); print(f\"Trades: {r['total_trades']} | Win Rate: {r['win_rate_%']}% | Sharpe: {r['sharpe_ratio']} | Drawdown: {r['max_drawdown_%']}%\")"
 ```
 
 ### View Win Rate
 ```bash
-docker exec quantum_redis redis-cli GET latest_report | python3 -c "import sys,json; print('Win Rate:', json.loads(sys.stdin.read())['win_rate_%'], '%')"
+redis-cli GET latest_report | python3 -c "import sys,json; print('Win Rate:', json.loads(sys.stdin.read())['win_rate_%'], '%')"
 ```
 
 ### View Sharpe Ratio
 ```bash
-docker exec quantum_redis redis-cli GET latest_report | python3 -c "import sys,json; print('Sharpe Ratio:', json.loads(sys.stdin.read())['sharpe_ratio'])"
+redis-cli GET latest_report | python3 -c "import sys,json; print('Sharpe Ratio:', json.loads(sys.stdin.read())['sharpe_ratio'])"
 ```
 
 ### View Max Drawdown
 ```bash
-docker exec quantum_redis redis-cli GET latest_report | python3 -c "import sys,json; print('Max Drawdown:', json.loads(sys.stdin.read())['max_drawdown_%'], '%')"
+redis-cli GET latest_report | python3 -c "import sys,json; print('Max Drawdown:', json.loads(sys.stdin.read())['max_drawdown_%'], '%')"
 ```
 
 ### View Current Equity
 ```bash
-docker exec quantum_redis redis-cli GET latest_report | python3 -c "import sys,json; r=json.loads(sys.stdin.read()); print(f\"Equity: ${r['current_equity']:,.2f} ({r['equity_change_%']:+.2f}%)\")"
+redis-cli GET latest_report | python3 -c "import sys,json; r=json.loads(sys.stdin.read()); print(f\"Equity: ${r['current_equity']:,.2f} ({r['equity_change_%']:+.2f}%)\")"
 ```
 
 ---
@@ -87,22 +87,22 @@ docker exec quantum_redis redis-cli GET latest_report | python3 -c "import sys,j
 
 ### Live Logs (Follow Mode)
 ```bash
-docker logs quantum_trade_journal -f
+journalctl -u quantum_trade_journal.service -f
 ```
 
 ### Last Report Generation
 ```bash
-docker logs quantum_trade_journal | grep "PERFORMANCE SUMMARY" -A 10 | tail -11
+journalctl -u quantum_trade_journal.service | grep "PERFORMANCE SUMMARY" -A 10 | tail -11
 ```
 
 ### Check Alert Status
 ```bash
-docker exec quantum_redis redis-cli LRANGE journal_alerts 0 9 | python3 -m json.tool
+redis-cli LRANGE journal_alerts 0 9 | python3 -m json.tool
 ```
 
 ### View Last Update Time
 ```bash
-docker exec quantum_redis redis-cli GET journal_last_update
+redis-cli GET journal_last_update
 ```
 
 ---
@@ -137,22 +137,22 @@ docker restart quantum_trade_journal
 
 ### Trade Count
 ```bash
-docker exec quantum_redis redis-cli GET latest_report | python3 -c "import sys,json; r=json.loads(sys.stdin.read()); print(f\"Total: {r['total_trades']} | Wins: {r['winning_trades']} | Losses: {r['losing_trades']}\")"
+redis-cli GET latest_report | python3 -c "import sys,json; r=json.loads(sys.stdin.read()); print(f\"Total: {r['total_trades']} | Wins: {r['winning_trades']} | Losses: {r['losing_trades']}\")"
 ```
 
 ### Average Trade PnL
 ```bash
-docker exec quantum_redis redis-cli GET latest_report | python3 -c "import sys,json; print('Avg Trade:', json.loads(sys.stdin.read())['avg_trade_%'], '%')"
+redis-cli GET latest_report | python3 -c "import sys,json; print('Avg Trade:', json.loads(sys.stdin.read())['avg_trade_%'], '%')"
 ```
 
 ### Profit Factor
 ```bash
-docker exec quantum_redis redis-cli GET latest_report | python3 -c "import sys,json; print('Profit Factor:', json.loads(sys.stdin.read())['profit_factor'])"
+redis-cli GET latest_report | python3 -c "import sys,json; print('Profit Factor:', json.loads(sys.stdin.read())['profit_factor'])"
 ```
 
 ### Latest Trade Info
 ```bash
-docker exec quantum_redis redis-cli GET latest_report | python3 -c "import sys,json; t=json.loads(sys.stdin.read())['latest_trade']; print(f\"{t['symbol']} {t['action']} {t['qty']} @ {t['price']} (PnL: {t['pnl']}%)\")"
+redis-cli GET latest_report | python3 -c "import sys,json; t=json.loads(sys.stdin.read())['latest_trade']; print(f\"{t['symbol']} {t['action']} {t['qty']} @ {t['price']} (PnL: {t['pnl']}%)\")"
 ```
 
 ---
@@ -181,22 +181,22 @@ docker exec quantum_trade_journal find /app/reports/ -name "daily_report_*.json"
 
 ### View All Alerts
 ```bash
-docker exec quantum_redis redis-cli LRANGE journal_alerts 0 -1 | python3 -m json.tool
+redis-cli LRANGE journal_alerts 0 -1 | python3 -m json.tool
 ```
 
 ### Count Active Alerts
 ```bash
-docker exec quantum_redis redis-cli LLEN journal_alerts
+redis-cli LLEN journal_alerts
 ```
 
 ### Clear Alerts
 ```bash
-docker exec quantum_redis redis-cli DEL journal_alerts
+redis-cli DEL journal_alerts
 ```
 
 ### Check for Critical Alerts
 ```bash
-docker exec quantum_redis redis-cli LRANGE journal_alerts 0 -1 | grep -i "CRITICAL"
+redis-cli LRANGE journal_alerts 0 -1 | grep -i "CRITICAL"
 ```
 
 ---
@@ -205,8 +205,8 @@ docker exec quantum_redis redis-cli LRANGE journal_alerts 0 -1 | grep -i "CRITIC
 
 ### Change Update Interval (requires rebuild)
 ```bash
-# Edit docker-compose.yml
-nano ~/quantum_trader/docker-compose.yml
+# Edit systemctl.yml
+nano ~/quantum_trader/systemctl.yml
 # Find REPORT_INTERVAL_HOURS and change value
 
 # Rebuild
@@ -217,8 +217,8 @@ docker restart quantum_trade_journal
 
 ### Adjust Starting Equity
 ```bash
-# Edit docker-compose.yml
-nano ~/quantum_trader/docker-compose.yml
+# Edit systemctl.yml
+nano ~/quantum_trader/systemctl.yml
 # Find STARTING_EQUITY and change value
 
 # Restart
@@ -232,11 +232,11 @@ docker restart quantum_trade_journal
 ### Complete Performance Summary
 ```bash
 echo "=== TRADE JOURNAL STATUS ===" && \
-docker ps --format "{{.Names}}: {{.Status}}" | grep trade_journal && \
+systemctl list-units --format "{{.Names}}: {{.Status}}" | grep trade_journal && \
 echo -e "\n=== LATEST PERFORMANCE ===" && \
-docker exec quantum_redis redis-cli GET latest_report | python3 -c "import sys,json; r=json.loads(sys.stdin.read()); print(f\"Trades: {r['total_trades']} | Win Rate: {r['win_rate_%']}% | Sharpe: {r['sharpe_ratio']} | Sortino: {r['sortino_ratio']} | Max DD: {r['max_drawdown_%']}% | PnL: {r['total_pnl_%']}%\")" && \
+redis-cli GET latest_report | python3 -c "import sys,json; r=json.loads(sys.stdin.read()); print(f\"Trades: {r['total_trades']} | Win Rate: {r['win_rate_%']}% | Sharpe: {r['sharpe_ratio']} | Sortino: {r['sortino_ratio']} | Max DD: {r['max_drawdown_%']}% | PnL: {r['total_pnl_%']}%\")" && \
 echo -e "\n=== RECENT ALERTS ===" && \
-docker exec quantum_redis redis-cli LLEN journal_alerts | xargs -I {} echo "Active Alerts: {}"
+redis-cli LLEN journal_alerts | xargs -I {} echo "Active Alerts: {}"
 ```
 
 ---
@@ -246,20 +246,20 @@ docker exec quantum_redis redis-cli LLEN journal_alerts | xargs -I {} echo "Acti
 ### Generate Test Trades
 ```bash
 # Create winning trade
-docker exec quantum_redis redis-cli RPUSH trade_log '{"symbol":"BTCUSDT","action":"BUY","qty":100,"price":50000,"confidence":0.75,"pnl":5.0,"timestamp":"2025-12-20T10:00:00","leverage":3,"paper":true,"testnet":true}'
+redis-cli RPUSH trade_log '{"symbol":"BTCUSDT","action":"BUY","qty":100,"price":50000,"confidence":0.75,"pnl":5.0,"timestamp":"2025-12-20T10:00:00","leverage":3,"paper":true,"testnet":true}'
 
 # Create losing trade
-docker exec quantum_redis redis-cli RPUSH trade_log '{"symbol":"ETHUSDT","action":"SELL","qty":50,"price":3500,"confidence":0.60,"pnl":-2.5,"timestamp":"2025-12-20T10:05:00","leverage":3,"paper":true,"testnet":true}'
+redis-cli RPUSH trade_log '{"symbol":"ETHUSDT","action":"SELL","qty":50,"price":3500,"confidence":0.60,"pnl":-2.5,"timestamp":"2025-12-20T10:05:00","leverage":3,"paper":true,"testnet":true}'
 ```
 
 ### Verify Trade Count
 ```bash
-docker exec quantum_redis redis-cli LLEN trade_log
+redis-cli LLEN trade_log
 ```
 
 ### Trigger Report After Test
 ```bash
-docker restart quantum_trade_journal && sleep 10 && docker logs quantum_trade_journal --tail 30
+docker restart quantum_trade_journal && sleep 10 && journalctl -u quantum_trade_journal.service --tail 30
 ```
 
 ---
@@ -269,19 +269,19 @@ docker restart quantum_trade_journal && sleep 10 && docker logs quantum_trade_jo
 ### Issue: No Report Generated
 ```bash
 # Check if trade log has data
-docker exec quantum_redis redis-cli LRANGE trade_log 0 5
+redis-cli LRANGE trade_log 0 5
 
 # If empty, check auto-executor
-docker ps | grep auto_executor
+systemctl list-units | grep auto_executor
 
 # Check journal logs for errors
-docker logs quantum_trade_journal --tail 50
+journalctl -u quantum_trade_journal.service --tail 50
 ```
 
 ### Issue: Metrics Look Wrong
 ```bash
 # Verify trade log format
-docker exec quantum_redis redis-cli LRANGE trade_log 0 2 | python3 -m json.tool
+redis-cli LRANGE trade_log 0 2 | python3 -m json.tool
 
 # Restart journal to recalculate
 docker restart quantum_trade_journal
@@ -293,7 +293,7 @@ docker restart quantum_trade_journal
 curl http://localhost:8501/report
 
 # Check if latest_report exists in Redis
-docker exec quantum_redis redis-cli EXISTS latest_report
+redis-cli EXISTS latest_report
 
 # Restart dashboard
 docker restart quantum_governance_dashboard
@@ -369,13 +369,13 @@ http://46.224.116.254:8501
 ### Workflow 1: Daily Check
 ```bash
 # Quick status
-docker ps | grep -E "(trade_journal|auto_executor)"
+systemctl list-units | grep -E "(trade_journal|auto_executor)"
 
 # View latest metrics
 curl -s http://46.224.116.254:8501/report | python3 -c "import sys,json; r=json.load(sys.stdin); print(f\"Trades: {r['total_trades']} | Win: {r['win_rate_%']}% | Sharpe: {r['sharpe_ratio']} | DD: {r['max_drawdown_%']}%\")"
 
 # Check for alerts
-docker exec quantum_redis redis-cli LLEN journal_alerts
+redis-cli LLEN journal_alerts
 ```
 
 ### Workflow 2: Weekly Review
@@ -384,7 +384,7 @@ docker exec quantum_redis redis-cli LLEN journal_alerts
 curl -s http://46.224.116.254:8501/report | python3 -m json.tool > weekly_report_$(date +%Y%m%d).json
 
 # View all alerts from week
-docker exec quantum_redis redis-cli LRANGE journal_alerts 0 -1 | python3 -m json.tool
+redis-cli LRANGE journal_alerts 0 -1 | python3 -m json.tool
 
 # Backup reports
 docker exec quantum_trade_journal tar -czf /tmp/weekly_backup.tar.gz /app/reports/
@@ -393,13 +393,13 @@ docker exec quantum_trade_journal tar -czf /tmp/weekly_backup.tar.gz /app/report
 ### Workflow 3: Performance Investigation
 ```bash
 # Full report
-docker logs quantum_trade_journal | grep "PERFORMANCE SUMMARY" -A 20 | tail -21
+journalctl -u quantum_trade_journal.service | grep "PERFORMANCE SUMMARY" -A 20 | tail -21
 
 # Recent trades
-docker exec quantum_redis redis-cli LRANGE trade_log 0 19 | python3 -m json.tool
+redis-cli LRANGE trade_log 0 19 | python3 -m json.tool
 
 # Check if any trades rejected
-docker logs quantum_auto_executor | grep -i "rejected"
+journalctl -u quantum_auto_executor.service | grep -i "rejected"
 ```
 
 ---
@@ -429,7 +429,7 @@ Always backup reports weekly. Critical for tax reporting and strategy analysis.
 
 ### View Auto Executor Status
 ```bash
-docker logs quantum_auto_executor --tail 20
+journalctl -u quantum_auto_executor.service --tail 20
 ```
 
 ### Check Governance Dashboard
@@ -439,7 +439,7 @@ curl http://46.224.116.254:8501/status
 
 ### View Alert System
 ```bash
-docker logs quantum_governance_alerts --tail 20
+journalctl -u quantum_governance_alerts.service --tail 20
 ```
 
 ---
@@ -447,3 +447,4 @@ docker logs quantum_governance_alerts --tail 20
 **Quick Reference Version:** 1.0  
 **Last Updated:** 2025-12-20  
 **For:** Phase 7 Trade Journal & Performance Analytics  
+

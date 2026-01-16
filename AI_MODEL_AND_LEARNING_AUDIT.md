@@ -182,7 +182,7 @@ def get_ensemble_prediction(self, symbol: str, features: Dict):
 
 **Configuration:**
 ```python
-# Environment variables from docker-compose.yml
+# Environment variables from systemctl.yml
 QT_MODEL_SUPERVISOR_MODE=ENFORCED          # ENFORCED=block biased trades
 QT_MODEL_SUPERVISOR_BIAS_THRESHOLD=0.70    # Block if >70% SHORT or LONG bias
 QT_MODEL_SUPERVISOR_MIN_SAMPLES=20         # Need 20 signals to detect bias
@@ -239,7 +239,7 @@ if should_block:
 ### 3.1 Configuration
 
 ```python
-# From docker-compose.yml
+# From systemctl.yml
 QT_CLM_ENABLED=true                    # ✅ ACTIVATED
 QT_CLM_RETRAIN_HOURS=168               # Weekly retraining (7 days)
 QT_CLM_DRIFT_HOURS=24                  # Drift check every 24 hours
@@ -357,7 +357,7 @@ async def clm_monitoring_loop():
 ### 4.1 Configuration
 
 ```python
-# From docker-compose.yml
+# From systemctl.yml
 QT_RL_V3_ENABLED=true                   # ✅ RL v3 ENABLED
 QT_RL_V3_SHADOW_MODE=false              # ✅ LIVE TRADING (not shadow)
 QT_RL_V3_TRAINING_ENABLED=true          # ✅ LIVE TRAINING ON
@@ -765,3 +765,4 @@ Without this fix, RL v3 will not improve from experience and remains frozen at i
 ---
 
 **END OF AI MODEL AND LEARNING AUDIT**
+

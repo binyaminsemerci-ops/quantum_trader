@@ -58,7 +58,7 @@ make eval-cutover CUTOVER_TS=... # Post-cutover evaluation
 **Original Branch**: `copilot/add-tracing-to-workspace-again` (commit 5b63f327)
 
 **Problem**: 
-- Added Jaeger container in `docker-compose.yml`
+- Added Jaeger container in `systemctl.yml`
 - Backend configured with `OTLP_ENDPOINT=http://jaeger:4317` (Docker hostname)
 - Documentation assumed Docker Compose deployment
 
@@ -90,7 +90,7 @@ make eval-cutover CUTOVER_TS=... # Post-cutover evaluation
 
 | Docker (Copilot) | Systemd (Fixed) |
 |------------------|-----------------|
-| `docker-compose up jaeger` | `systemctl start jaeger` |
+| `systemctl up jaeger` | `systemctl start jaeger` |
 | `http://jaeger:4317` | `http://localhost:4317` |
 | Docker bridge network | localhost (127.0.0.1) |
 | Container: `quantum_jaeger` | Service: `jaeger.service` |
@@ -131,7 +131,7 @@ The workspace contained old Docker-based documentation:
 - `README_NEW.md` - Docker Compose Quick Start
 - `DEPLOYMENT.md` - Docker/Kubernetes deployment guide
 - `VPS_DEPLOYMENT_COMPLETE.md` - Docker containers (Dec 2025 snapshot)
-- `docker-compose.yml` - Docker services configuration
+- `systemctl.yml` - Docker services configuration
 
 **Actual Architecture** (as of Dec 2025 systemd migration):
 - ✅ `ops/NATIVE_DEPLOYMENT.md` - Authoritative systemd guide
@@ -197,3 +197,4 @@ All files created are compatible with the **native systemd deployment** on Hetzn
 
 **SYSTEMD ONLY** ✅  
 All changes verified compatible with native systemd deployment.
+

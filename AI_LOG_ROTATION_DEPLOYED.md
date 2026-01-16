@@ -28,7 +28,7 @@ logging:
 
 ## 📊 Services Updated
 
-### Main Compose File (`docker-compose.yml`)
+### Main Compose File (`systemctl.yml`)
 **28 services** configured with log rotation:
 - backend
 - backend-live
@@ -59,7 +59,7 @@ logging:
 - quantum_trader
 - redis_data
 
-### Trade Intent Consumer (`docker-compose.trade-intent-consumer.yml`)
+### Trade Intent Consumer (`systemctl.trade-intent-consumer.yml`)
 **3 services** configured with log rotation:
 - redis
 - quantum_trader
@@ -71,7 +71,7 @@ logging:
 
 ### 1. Script Development
 Created `add_log_rotation_simple.py` to automatically inject logging config:
-- Parses docker-compose YAML files
+- Parses systemctl YAML files
 - Identifies services without logging config
 - Injects standardized logging configuration
 - Validates YAML syntax
@@ -89,7 +89,7 @@ Fixed edge cases where logging was incorrectly added to:
 
 Final validation:
 ```bash
-python -c "import yaml; yaml.safe_load(open('docker-compose.yml', encoding='utf-8'))"
+python -c "import yaml; yaml.safe_load(open('systemctl.yml', encoding='utf-8'))"
 # ✅ Valid YAML
 ```
 
@@ -218,8 +218,8 @@ curl http://localhost:8000/health
 
 | File | Changes | Status |
 |------|---------|--------|
-| `docker-compose.yml` | Added logging to 28 services | ✅ Deployed |
-| `docker-compose.trade-intent-consumer.yml` | Added logging to 3 services | ✅ Deployed |
+| `systemctl.yml` | Added logging to 28 services | ✅ Deployed |
+| `systemctl.trade-intent-consumer.yml` | Added logging to 3 services | ✅ Deployed |
 | `add_log_rotation_simple.py` | Created automation script | ✅ Committed |
 
 **Git Commits:**
@@ -233,7 +233,7 @@ curl http://localhost:8000/health
 
 ### 1. YAML Validation
 ```bash
-python -c "import yaml; yaml.safe_load(open('docker-compose.yml', encoding='utf-8'))"
+python -c "import yaml; yaml.safe_load(open('systemctl.yml', encoding='utf-8'))"
 ```
 ✅ Both compose files validated
 
@@ -251,7 +251,7 @@ curl http://localhost:8000/health
 
 ### 4. Log File Verification
 ```bash
-docker logs quantum_backend --tail 50
+journalctl -u quantum_backend.service --tail 50
 ```
 ✅ Logs accessible, no errors
 
@@ -356,3 +356,4 @@ Docker log rotation successfully deployed across all 31 services. This infrastru
 ---
 
 **End of Report**
+

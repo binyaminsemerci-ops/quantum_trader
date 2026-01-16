@@ -133,7 +133,7 @@ All calculations are deterministic, documented, and robust against edge cases.
 
 ### 6️⃣ Docker Configuration
 
-**File**: `docker-compose.vps.yml` (updated)
+**File**: `systemctl.vps.yml` (updated)
 
 **Environment Variable Added**:
 ```yaml
@@ -314,7 +314,7 @@ python validate_phase4n.py
 git add microservices/exitbrain_v3_5
 git add backend/domains/exits/exit_brain_v3/v35_integration.py
 git add microservices/ai_engine/service.py
-git add docker-compose.vps.yml
+git add systemctl.vps.yml
 git commit -m "Phase 4N: Adaptive Leverage Engine Implementation"
 git push
 
@@ -322,12 +322,12 @@ git push
 ssh qt@46.224.116.254
 cd ~/quantum_trader
 git pull
-docker compose -f docker-compose.vps.yml build ai-engine
-docker compose -f docker-compose.vps.yml up -d ai-engine
+docker compose -f systemctl.vps.yml build ai-engine
+docker compose -f systemctl.vps.yml up -d ai-engine
 
 # 3. Verify deployment
 curl http://localhost:8001/health | jq .adaptive_leverage_status
-docker exec quantum_redis redis-cli XLEN quantum:stream:exitbrain.pnl
+redis-cli XLEN quantum:stream:exitbrain.pnl
 ```
 
 ---
@@ -482,3 +482,4 @@ LSF vs Leverage
 **Status**: ✅ **READY FOR PRODUCTION**  
 **Phase**: 4N Complete  
 **Next Phase**: 4O (if applicable) or Production Deployment
+

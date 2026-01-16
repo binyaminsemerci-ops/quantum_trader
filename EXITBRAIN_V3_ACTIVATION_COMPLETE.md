@@ -603,7 +603,7 @@ Per cycle (9 positions):
 ## 📞 Support Information
 
 ### Logs Location
-- **Container:** `docker logs quantum_backend --tail 500`
+- **Container:** `journalctl -u quantum_backend.service --tail 500`
 - **ExitBrain Logs:** `grep EXIT_BRAIN /var/log/...` (if file logging enabled)
 
 ### Key Log Patterns
@@ -651,3 +651,4 @@ docker compose restart backend
 **Report Generated:** 2025-12-21 01:15:00 UTC  
 **Agent:** GitHub Copilot  
 **Version:** ExitBrain v3.0 (CHALLENGE_100 Profile)
+

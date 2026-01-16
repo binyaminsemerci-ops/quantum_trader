@@ -75,7 +75,7 @@ docker exec quantum_backend python /app/monitor_trailing.py
 ### Check Logs:
 ```powershell
 # See trailing events
-docker logs quantum_backend --since 1m | Select-String "peak|trough|Trailing SL"
+journalctl -u quantum_backend.service --since 1m | Select-String "peak|trough|Trailing SL"
 ```
 
 ## 📈 Current Status
@@ -169,7 +169,7 @@ if new_sl < old_sl * 0.999:  # 0.1% improvement minimum
 docker exec quantum_backend python /app/monitor_trailing.py
 
 # Check trailing stop manager logs
-docker logs quantum_backend | grep -i trailing
+journalctl -u quantum_backend.service | grep -i trailing
 ```
 
 ### Disable Trailing:
@@ -195,3 +195,4 @@ Trailing Stop Manager is now:
 - ✅ Fully automated
 
 **No further action needed - it works automatically!** 🚀
+

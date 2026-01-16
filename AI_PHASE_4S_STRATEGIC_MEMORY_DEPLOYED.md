@@ -148,17 +148,17 @@
 ```bash
 ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254
 cd /home/qt/quantum_trader
-docker compose -f docker-compose.vps.yml build strategic-memory
+docker compose -f systemctl.vps.yml build strategic-memory
 ```
 
 #### 2. Start Container
 ```bash
-docker compose -f docker-compose.vps.yml up -d strategic-memory
+docker compose -f systemctl.vps.yml up -d strategic-memory
 ```
 
 #### 3. Verify Status
 ```bash
-docker ps --filter name=quantum_strategic_memory
+systemctl list-units --filter name=quantum_strategic_memory
 docker logs --tail 50 quantum_strategic_memory
 ```
 
@@ -190,14 +190,14 @@ curl -s http://localhost:8001/health | jq '.metrics.strategic_memory'
 
 **Check Feedback:**
 ```bash
-docker exec quantum_redis redis-cli GET quantum:feedback:strategic_memory | jq
+redis-cli GET quantum:feedback:strategic_memory | jq
 ```
 
 **Check Stream Lengths:**
 ```bash
-docker exec quantum_redis redis-cli XLEN quantum:stream:meta.regime
-docker exec quantum_redis redis-cli XLEN quantum:stream:portfolio.memory
-docker exec quantum_redis redis-cli XLEN quantum:stream:trade.results
+redis-cli XLEN quantum:stream:meta.regime
+redis-cli XLEN quantum:stream:portfolio.memory
+redis-cli XLEN quantum:stream:trade.results
 ```
 
 **Watch Logs:**
@@ -207,7 +207,7 @@ docker logs -f quantum_strategic_memory
 
 **Subscribe to Events:**
 ```bash
-docker exec quantum_redis redis-cli SUBSCRIBE quantum:events:strategic_feedback
+redis-cli SUBSCRIBE quantum:events:strategic_feedback
 ```
 
 ---
@@ -261,19 +261,19 @@ docker exec quantum_redis redis-cli SUBSCRIBE quantum:events:strategic_feedback
 
 **1. Inject Meta-Regime Observations:**
 ```bash
-docker exec quantum_redis redis-cli XADD quantum:stream:meta.regime '*' \
+redis-cli XADD quantum:stream:meta.regime '*' \
   regime BULL pnl 0.45 volatility 0.015 trend 0.003 confidence 0.91 timestamp '2025-12-21T06:00:00Z'
 ```
 
 **2. Inject PnL Data:**
 ```bash
-docker exec quantum_redis redis-cli XADD quantum:stream:portfolio.memory '*' \
+redis-cli XADD quantum:stream:portfolio.memory '*' \
   regime BULL pnl 0.38 total_pnl 1250.50 timestamp '2025-12-21T06:00:00Z'
 ```
 
 **3. Inject Trade Results:**
 ```bash
-docker exec quantum_redis redis-cli XADD quantum:stream:trade.results '*' \
+redis-cli XADD quantum:stream:trade.results '*' \
   market_regime BULL realized_pnl 125.50 policy BALANCED timestamp '2025-12-21T06:00:00Z'
 ```
 
@@ -285,7 +285,7 @@ sleep 65
 
 **5. Check Feedback:**
 ```bash
-docker exec quantum_redis redis-cli GET quantum:feedback:strategic_memory | jq
+redis-cli GET quantum:feedback:strategic_memory | jq
 ```
 
 ### Expected Output (After 3+ Samples)
@@ -451,8 +451,8 @@ deploy:
 .\scripts\deploy_phase4s.ps1
 
 # Manual build and start
-docker compose -f docker-compose.vps.yml build strategic-memory
-docker compose -f docker-compose.vps.yml up -d strategic-memory
+docker compose -f systemctl.vps.yml build strategic-memory
+docker compose -f systemctl.vps.yml up -d strategic-memory
 ```
 
 ### Monitoring
@@ -470,19 +470,19 @@ curl -s http://localhost:8001/health | jq '.metrics.strategic_memory'
 ### Data Inspection
 ```bash
 # Get feedback
-docker exec quantum_redis redis-cli GET quantum:feedback:strategic_memory | jq
+redis-cli GET quantum:feedback:strategic_memory | jq
 
 # Check stream lengths
-docker exec quantum_redis redis-cli XLEN quantum:stream:meta.regime
+redis-cli XLEN quantum:stream:meta.regime
 
 # Subscribe to events
-docker exec quantum_redis redis-cli SUBSCRIBE quantum:events:strategic_feedback
+redis-cli SUBSCRIBE quantum:events:strategic_feedback
 ```
 
 ### Troubleshooting
 ```bash
 # Restart service
-docker compose -f docker-compose.vps.yml restart strategic-memory
+docker compose -f systemctl.vps.yml restart strategic-memory
 
 # View full logs
 docker logs --tail 100 quantum_strategic_memory
@@ -567,3 +567,4 @@ docker inspect quantum_strategic_memory --format '{{.State.Health.Status}}'
 **Last Updated:** 2025-12-21  
 **Deployed By:** GitHub Copilot  
 **Target:** Hetzner VPS 46.224.116.254
+

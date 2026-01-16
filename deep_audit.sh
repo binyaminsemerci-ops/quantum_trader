@@ -6,9 +6,9 @@ set -e
 
 echo "🚀 Starting deep audit $(date)"
 
-## 1.  Container and network state
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-docker network ls | grep quantum_trader || echo "⚠️ Network quantum_trader missing"
+## 1.  Service and system state
+systemctl list-units 'quantum-*.service' --no-pager --no-legend | head -20
+echo "Network: systemd networking (no docker network needed)"
 
 ## 2.  Source-tree verification (should exist from yesterday's build)
 find /home/qt/quantum_trader -type d \( -name "microservices" -o -name "backend" \) -maxdepth 2 | sort
@@ -21,15 +21,14 @@ done
 
 ## 4.  Redis core keys & pub/sub
 echo "Redis namespaces:"
-docker exec quantum_redis redis-cli KEYS "quantum:*" | head -20
+redis-cli KEYS "quantum:*" | head -20
 echo "Checking live channels:"
-docker exec quantum_redis redis-cli PUBSUB CHANNELS
+redis-cli PUBSUB CHANNELS
 
-## 5.  Internal API communication checks
-# Verify that brains and engines can talk through HTTP
-for svc in ai_engine strategy_brain risk_brain ceo_brain universe_os model_supervisor; do
-  host=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' quantum_${svc} 2>/dev/null || true)
-  [ -n "$host" ] && curl -s -o /dev/null -w "$svc → %{http_code}\n" http://$host:8000/health || echo "$svc unreachable"
+## 5.  Service health checks
+# Verify that brains and engines are responding via HTTP
+for svc in ai-engine strategy-brain risk-brain ceo-brain universe-os model-supervisor; do
+  curl -s -o /dev/null -w "quantum-$svc.service → %{http_code}\n" http://localhost:8000/health || echo "$svc unreachable"
 done
 
 ## 6.  Log integrity
@@ -45,8 +44,8 @@ else
 fi
 
 ## 8.  Summarize critical modules
-for m in exit_brain_v3 model_federation position_monitor order_manager ai_engine universe_os; do
-  docker ps --format '{{.Names}}' | grep -q $m && echo "✅ $m active" || echo "❌ $m missing"
+for m in exit-brain-v3 model-federation position-monitor order-manager ai-engine universe-os; do
+  systemctl is-active quantum-$m.service >/dev/null 2>&1 && echo "✅ $m active" || echo "❌ $m missing"
 done
 
 echo "🧩 Deep audit finished — full log in $LOGFILE"

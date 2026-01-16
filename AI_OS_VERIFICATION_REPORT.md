@@ -45,12 +45,12 @@
 
 ```powershell
 # Search 1: AI-OS initialization
-docker logs quantum_backend 2>&1 | Select-String -Pattern "Initializ|ENFORCED|OBSERVE" | Select-String -Pattern "AI-OS|PBA|PAL|PIL|Self-Healing|Model Supervisor|AI-HFOS"
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "Initializ|ENFORCED|OBSERVE" | Select-String -Pattern "AI-OS|PBA|PAL|PIL|Self-Healing|Model Supervisor|AI-HFOS"
 
 # Result: 40 entries, ALL from Universe OS, NONE from other subsystems
 
 # Search 2: Runtime activity
-docker logs quantum_backend 2>&1 | Select-String -Pattern "AI-OS|PBA|PAL|PIL|Model Supervisor|Self-Healing|Dynamic TP|AI-HFOS|PortfolioBalancer|ProfitAmplification"
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "AI-OS|PBA|PAL|PIL|Model Supervisor|Self-Healing|Dynamic TP|AI-HFOS|PortfolioBalancer|ProfitAmplification"
 
 # Result: 100 entries, ALL "Dynamic TP/SL" calculations, NO other subsystems
 ```
@@ -322,3 +322,4 @@ grep -r "from.*position_intelligence" backend/  # NO MATCHES
 **Report Generated**: 2025-01-24  
 **Evidence Source**: Container logs, filesystem, ENV config, code analysis  
 **Methodology**: Zero-assumption verification with hard proof
+

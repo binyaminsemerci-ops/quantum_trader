@@ -248,7 +248,7 @@ docker run -p 8004:8004 \
     portfolio-intelligence
 ```
 
-### docker-compose.yml
+### systemctl.yml
 ```yaml
 services:
   portfolio-intelligence:
@@ -344,7 +344,7 @@ pytest microservices\portfolio_intelligence\tests\test_portfolio_intelligence_se
 - [x] Dockerfile with Python 3.11-slim
 - [x] README.md with complete documentation (350 lines)
 - [x] Test suite with 14 test cases (400+ lines)
-- [ ] Add to docker-compose.yml
+- [ ] Add to systemctl.yml
 - [ ] Update AI Engine to subscribe to portfolio.snapshot_updated
 - [ ] Update Risk & Safety to subscribe to portfolio.drawdown_updated
 - [ ] Update Execution Service to publish trade.opened/closed events
@@ -356,7 +356,7 @@ pytest microservices\portfolio_intelligence\tests\test_portfolio_intelligence_se
 
 1. ⏳ Run test suite to verify all 14 tests pass
 2. ⏳ Deploy service locally (uvicorn on port 8004)
-3. ⏳ Add to docker-compose.yml for containerized deployment
+3. ⏳ Add to systemctl.yml for containerized deployment
 4. ⏳ Update AI Engine integration (subscribe to portfolio.snapshot_updated)
 5. ⏳ Update Risk & Safety integration (subscribe to portfolio.drawdown_updated)
 6. ⏳ Update Execution Service integration (publish trade.opened/closed)
@@ -376,3 +376,4 @@ pytest microservices\portfolio_intelligence\tests\test_portfolio_intelligence_se
 **Port:** 8004  
 
 🚀 **Ready for deployment!**
+

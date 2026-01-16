@@ -8,7 +8,7 @@
 
 ```bash
 # If using Docker (recommended)
-docker-compose up -d backend
+systemctl up -d backend
 
 # If running locally
 cd backend
@@ -44,8 +44,8 @@ npm run dev
 
 **Backend not responding?**
 ```bash
-docker logs quantum_backend --tail 20
-docker-compose restart backend
+journalctl -u quantum_backend.service --tail 20
+systemctl restart backend
 ```
 
 **Frontend can't connect?**
@@ -86,8 +86,8 @@ npm start
 
 **Backend (Docker):**
 ```bash
-docker-compose build backend
-docker-compose up -d backend
+systemctl build backend
+systemctl up -d backend
 ```
 
 **Environment Variables:**
@@ -171,3 +171,4 @@ NEXT_PUBLIC_WS_URL=wss://api.yourdomain.com
 ---
 
 *Dashboard V3.0 - Ready to Trade* 🚀
+

@@ -174,3 +174,4 @@ EventBus publishes, men INGEN lytter. Auto-executor er hardkodet til Redis, ikke
 1. Fiks TP/SL bugs FØRST (kritisk for sikkerhet)
 2. Koble auto-executor til EventBus (for alle 40+ signaler)
 3. Deploy Exit Brain (for position management)
+

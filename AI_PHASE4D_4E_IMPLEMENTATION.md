@@ -287,7 +287,7 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 \
 ### Check Weight Distribution
 ```bash
 ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 \
-  'docker logs quantum_ai_engine --tail 100 | grep "Adjusted weights"'
+  'journalctl -u quantum_ai_engine.service --tail 100 | grep "Adjusted weights"'
 ```
 
 ---
@@ -404,3 +404,4 @@ normalized_weight = new_weight / sum(all_weights)
 ---
 
 **Implementation Complete! 🎉**
+

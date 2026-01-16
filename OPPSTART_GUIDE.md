@@ -19,7 +19,7 @@ Dette starter:
 
 ### 1. Docker (Valgfritt)
 ```powershell
-docker-compose --profile dev up -d --build
+systemctl --profile dev up -d --build
 ```
 
 ### 2. Backend Server
@@ -99,7 +99,7 @@ Invoke-WebRequest http://localhost:3000
 
 ### Sjekk Docker Containers
 ```powershell
-docker ps
+systemctl list-units
 ```
 
 ### Sjekk CML Status
@@ -195,8 +195,8 @@ python scripts/fetch_all_data.py
 ### Docker problemer
 ```powershell
 # Restart Docker
-docker-compose down
-docker-compose --profile dev up -d --build
+systemctl down
+systemctl --profile dev up -d --build
 ```
 
 ---
@@ -220,7 +220,7 @@ docker-compose --profile dev up -d --build
 ### Stopp Alt
 ```powershell
 # Stopp Docker
-docker-compose down
+systemctl down
 
 # Stopp backend (Ctrl+C i terminal eller lukk vindu)
 # Stopp frontend (Ctrl+C i terminal eller lukk vindu)
@@ -235,10 +235,11 @@ curl http://localhost:8000/health
 curl http://localhost:3000
 
 # Docker
-docker ps
+systemctl list-units
 ```
 
 ---
 
 **Sist oppdatert:** 2025-12-11  
 **Versjon:** 1.0
+

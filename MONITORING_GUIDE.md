@@ -85,7 +85,7 @@ Model is performing well if:
 - Check for model errors in logs
 
 ❌ **Model crashes or errors**
-- Check backend logs: `docker logs quantum_backend`
+- Check backend logs: `journalctl -u quantum_backend.service`
 - Verify model file integrity
 - Rollback if necessary
 
@@ -113,7 +113,7 @@ Model is performing well if:
 **Solutions**:
 1. Check if backend is running:
    ```powershell
-   docker ps | Select-String quantum_backend
+   systemctl list-units | Select-String quantum_backend
    ```
 
 2. Verify backend health:
@@ -128,7 +128,7 @@ Model is performing well if:
 
 4. Monitor backend logs:
    ```powershell
-   docker logs quantum_backend --tail 100 --follow
+   journalctl -u quantum_backend.service --tail 100 --follow
    ```
 
 ### Predictions All Identical
@@ -146,7 +146,7 @@ Model is performing well if:
 2. Check agent loads stats correctly:
    ```powershell
    # Look for "✅ Loaded normalization stats from checkpoint"
-   docker logs quantum_backend | Select-String "normalization"
+   journalctl -u quantum_backend.service | Select-String "normalization"
    ```
 
 3. If missing, restore from backup or retrain
@@ -273,7 +273,7 @@ Copy-Item ai_engine/models/tft_model.pth.backup_YYYYMMDD_HHMMSS `
     ai_engine/models/tft_model.pth -Force
 
 # Restart backend
-docker-compose restart backend
+systemctl restart backend
 ```
 
 ---
@@ -297,7 +297,7 @@ Invoke-RestMethod http://localhost:8000/health | ConvertTo-Json
 
 **View logs**:
 ```powershell
-docker logs quantum_backend --tail 50 --follow
+journalctl -u quantum_backend.service --tail 50 --follow
 ```
 
 **Retrain model**:
@@ -310,3 +310,4 @@ python scripts/train_tft_quantile.py
 **Last Updated**: 2025-11-19  
 **Maintainer**: AI Trading Team  
 **Model Version**: v1.1
+

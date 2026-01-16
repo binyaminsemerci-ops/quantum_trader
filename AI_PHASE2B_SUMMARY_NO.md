@@ -126,14 +126,14 @@ asyncio.create_task(self._subscribe_orderbook_streams())
 # Windows: Start Docker Desktop
 
 # 2. Rebuild AI Engine container
-docker-compose build --no-cache ai-engine
+systemctl build --no-cache ai-engine
 
 # 3. Restart service
-docker-compose stop ai-engine
-docker-compose up -d ai-engine
+systemctl stop ai-engine
+systemctl up -d ai-engine
 
 # 4. Sjekk logs
-docker logs quantum_ai_engine --tail 100 | grep "PHASE 2B"
+journalctl -u quantum_ai_engine.service --tail 100 | grep "PHASE 2B"
 ```
 
 **Forventet output**:
@@ -229,3 +229,4 @@ docker logs quantum_ai_engine --tail 100 | grep "PHASE 2B"
 ---
 
 **Phase 2B er 90% ferdig! Trenger bare orderbook data feed for å være 100% operativ.** 📖🚀
+

@@ -332,17 +332,17 @@ Health Check: Failing consistently
 **Commands Used for Observation:**
 ```bash
 # Container status
-docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+systemctl list-units --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
 # Consumer lag check
-docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent
+redis-cli XINFO GROUPS quantum:stream:trade.intent
 
 # Recent logs (30min window)
 docker logs --since 30m quantum_backend | tail -100
 docker logs --since 30m quantum_trading_bot | tail -100
 
 # Exchange errors
-docker logs quantum_backend 2>&1 | grep -iE 'error|-4164|rejected' | tail -50
+journalctl -u quantum_backend.service 2>&1 | grep -iE 'error|-4164|rejected' | tail -50
 
 # Resource check
 free -h
@@ -380,3 +380,4 @@ The system is functional for basic operations but has degraded risk management c
 **Report Generated:** 2025-12-24 18:52 UTC  
 **Observer:** GitHub Copilot (Claude Sonnet 4.5)  
 **Observation Mode:** Read-only, no system changes made
+

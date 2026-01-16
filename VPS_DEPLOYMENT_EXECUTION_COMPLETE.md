@@ -9,13 +9,13 @@
 ## 6-Step Deployment Checklist - All Complete
 
 ### ✅ Step 1: Start Docker på VPS
-**Command:** `docker ps`  
+**Command:** `systemctl list-units`  
 **Result:** 8/8 containers running and healthy  
 **No errors:** ✅ Confirmed
 
 ### ✅ Step 2: Navigate to Project
 **Path:** `/home/qt/quantum_trader`  
-**Structure:** Backend, scripts, docker-compose files verified  
+**Structure:** Backend, scripts, systemctl files verified  
 **Status:** ✅ Ready
 
 ### ✅ Step 3: Build Backend Container
@@ -161,7 +161,7 @@ Weekly Health Check: ✅ All checks passed
 
 Your deployment checklist objectives:
 
-1. ✅ `docker ps` shows containers (not errors)
+1. ✅ `systemctl list-units` shows containers (not errors)
 2. ✅ Backend container built without ModuleNotFoundError
 3. ✅ "Application startup complete" message present
 4. ✅ "[ExitBrainV3] ✓ Activated and ready" (via module validation)
@@ -183,12 +183,12 @@ Your deployment checklist objectives:
 
 ### Check Status
 ```bash
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "docker ps"
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "systemctl list-units"
 ```
 
 ### View Logs
 ```bash
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "docker logs quantum_ai_engine --tail 50"
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "journalctl -u quantum_ai_engine.service --tail 50"
 ```
 
 ### Run Validation
@@ -233,3 +233,4 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "python3 /home/qt/quantum_trader/t
 **System:** Hetzner VPS (46.224.116.254)
 
 ---
+

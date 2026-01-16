@@ -91,7 +91,7 @@ Transform the current microservice architecture from development/prototype state
 - Volume persistence for all nodes
 
 **Integration Steps**:
-1. Replace single Redis in docker-compose.yml with Sentinel setup
+1. Replace single Redis in systemctl.yml with Sentinel setup
 2. Update all services to use Sentinel connection string:
    ```python
    REDIS_SENTINEL_HOSTS = ["redis-sentinel-1:26379", "redis-sentinel-2:26380", "redis-sentinel-3:26381"]
@@ -162,7 +162,7 @@ Transform the current microservice architecture from development/prototype state
 
 **Files Created**:
 - ✅ `infra/nginx/nginx.conf.example` - Complete NGINX configuration
-- ✅ `infra/nginx/docker-compose-nginx.yml` - Gateway deployment config
+- ✅ `infra/nginx/systemctl-nginx.yml` - Gateway deployment config
 
 **Features**:
 1. **Reverse Proxy Routing**:
@@ -425,7 +425,7 @@ infra/
 │
 ├── nginx/
 │   ├── nginx.conf.example            ← NGINX configuration
-│   ├── docker-compose-nginx.yml      ← Gateway deployment
+│   ├── systemctl-nginx.yml      ← Gateway deployment
 │   └── README.md                     ← Configuration guide (TODO)
 │
 ├── health/
@@ -440,7 +440,7 @@ infra/
 │   ├── metrics.py                    ← Prometheus metrics
 │   ├── grafana-guide.md              ← Dashboard setup guide
 │   ├── prometheus.yml                ← Prometheus config (TODO)
-│   └── docker-compose-monitoring.yml ← Prometheus + Grafana (TODO)
+│   └── systemctl-monitoring.yml ← Prometheus + Grafana (TODO)
 │
 └── restart/
     └── daily-restart-plan.md         ← Restart strategy
@@ -632,3 +632,4 @@ infra/
 **Document Version**: 1.0  
 **Last Updated**: December 4, 2025  
 **Status**: ✅ PLANNING COMPLETE - Ready for Implementation
+

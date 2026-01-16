@@ -282,8 +282,8 @@ git revert HEAD
 git reset --hard <previous_commit>
 
 # Rebuild and restart
-docker compose -f docker-compose.vps.yml build ai-engine trading-bot auto-executor
-docker compose -f docker-compose.vps.yml up -d ai-engine trading-bot auto-executor
+docker compose -f systemctl.vps.yml build ai-engine trading-bot auto-executor
+docker compose -f systemctl.vps.yml up -d ai-engine trading-bot auto-executor
 ```
 
 **No rollback needed - deployment successful! ✅**
@@ -315,3 +315,4 @@ Once system is stable (1 week+):
 **END OF DEPLOYMENT REPORT**
 
 🚀 System is now fully AI-driven and learning autonomously!
+

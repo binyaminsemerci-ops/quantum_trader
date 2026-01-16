@@ -33,7 +33,7 @@
 
 # Or manually:
 # Check all services
-docker-compose ps
+systemctl ps
 
 # Verify all healthy
 curl http://localhost:8001/health | ConvertFrom-Json
@@ -41,13 +41,13 @@ curl http://localhost:8002/health | ConvertFrom-Json
 curl http://localhost:8003/health | ConvertFrom-Json
 
 # 2. Review overnight activity
-docker-compose logs --since 24h | Select-String -Pattern "ERROR|CRITICAL|WARN"
+systemctl logs --since 24h | Select-String -Pattern "ERROR|CRITICAL|WARN"
 
 # 3. Check account status
 curl http://localhost:8002/health | ConvertFrom-Json | Select-Object open_positions, daily_pnl
 
 # 4. Verify Binance connection
-docker-compose logs exec-risk-service --since 1h | Select-String -Pattern "Binance"
+systemctl logs exec-risk-service --since 1h | Select-String -Pattern "Binance"
 
 # 5. Check disk space
 docker system df
@@ -88,7 +88,7 @@ python tests/performance_benchmark.py
 docker exec quantum_trader_postgres vacuumdb -U quantum_user -d quantum_trader
 
 # 4. Log rotation
-docker-compose logs --since 7d > logs/archive/week_$(Get-Date -Format 'yyyyMMdd').log
+systemctl logs --since 7d > logs/archive/week_$(Get-Date -Format 'yyyyMMdd').log
 
 # 5. Model retraining check
 curl http://localhost:8003/health | ConvertFrom-Json | Select-Object learning_state
@@ -106,7 +106,7 @@ pip list --outdated
 **Standard Startup:**
 ```powershell
 # Start all services
-docker-compose up -d
+systemctl up -d
 
 # Wait for services to be ready (90 seconds)
 Start-Sleep -Seconds 90
@@ -118,22 +118,22 @@ Start-Sleep -Seconds 90
 **Startup with Logs:**
 ```powershell
 # Start with logs visible
-docker-compose up
+systemctl up
 
 # Ctrl+C to stop, or in another terminal:
-docker-compose logs -f
+systemctl logs -f
 ```
 
 **Selective Startup:**
 ```powershell
 # Start only specific services
-docker-compose up -d redis postgres
+systemctl up -d redis postgres
 Start-Sleep -Seconds 10
 
-docker-compose up -d ai-service
+systemctl up -d ai-service
 Start-Sleep -Seconds 60
 
-docker-compose up -d exec-risk-service analytics-os-service
+systemctl up -d exec-risk-service analytics-os-service
 ```
 
 ### Stopping Services
@@ -141,35 +141,35 @@ docker-compose up -d exec-risk-service analytics-os-service
 **Graceful Shutdown:**
 ```powershell
 # Stop all services gracefully
-docker-compose stop
+systemctl stop
 
 # Verify all stopped
-docker-compose ps
+systemctl ps
 
 # Stop specific service
-docker-compose stop ai-service
+systemctl stop ai-service
 ```
 
 **Force Stop:**
 ```powershell
 # Force stop (if graceful fails)
-docker-compose kill
+systemctl kill
 
 # Clean up
-docker-compose down
+systemctl down
 ```
 
 **Stop for Maintenance:**
 ```powershell
 # 1. Enable drain mode (stop accepting new requests)
-docker-compose exec ai-service touch /tmp/drain_mode
-docker-compose exec exec-risk-service touch /tmp/drain_mode
+systemctl exec ai-service touch /tmp/drain_mode
+systemctl exec exec-risk-service touch /tmp/drain_mode
 
 # 2. Wait for in-flight requests (2 minutes)
 Start-Sleep -Seconds 120
 
 # 3. Stop services
-docker-compose stop
+systemctl stop
 ```
 
 ### Restarting Services
@@ -177,25 +177,25 @@ docker-compose stop
 **Standard Restart:**
 ```powershell
 # Restart all services
-docker-compose restart
+systemctl restart
 
 # Restart specific service
-docker-compose restart ai-service
+systemctl restart ai-service
 
 # Restart with rebuild
-docker-compose up -d --build ai-service
+systemctl up -d --build ai-service
 ```
 
 **Rolling Restart (Zero Downtime):**
 ```powershell
 # Restart services one by one
-docker-compose restart analytics-os-service
+systemctl restart analytics-os-service
 Start-Sleep -Seconds 30
 
-docker-compose restart ai-service
+systemctl restart ai-service
 Start-Sleep -Seconds 60
 
-docker-compose restart exec-risk-service
+systemctl restart exec-risk-service
 Start-Sleep -Seconds 30
 ```
 
@@ -204,40 +204,40 @@ Start-Sleep -Seconds 30
 **Real-time Logs:**
 ```powershell
 # All services
-docker-compose logs -f
+systemctl logs -f
 
 # Specific service
-docker-compose logs -f ai-service
+systemctl logs -f ai-service
 
 # Multiple services
-docker-compose logs -f ai-service exec-risk-service
+systemctl logs -f ai-service exec-risk-service
 
 # With timestamps
-docker-compose logs -f --timestamps
+systemctl logs -f --timestamps
 ```
 
 **Historical Logs:**
 ```powershell
 # Last 100 lines
-docker-compose logs --tail=100 ai-service
+systemctl logs --tail=100 ai-service
 
 # Last hour
-docker-compose logs --since 1h
+systemctl logs --since 1h
 
 # Specific time range
-docker-compose logs --since 2025-12-02T10:00:00 --until 2025-12-02T11:00:00
+systemctl logs --since 2025-12-02T10:00:00 --until 2025-12-02T11:00:00
 ```
 
 **Filtered Logs:**
 ```powershell
 # Errors only
-docker-compose logs | Select-String -Pattern "ERROR|CRITICAL"
+systemctl logs | Select-String -Pattern "ERROR|CRITICAL"
 
 # Specific pattern
-docker-compose logs ai-service | Select-String -Pattern "signal.*generated"
+systemctl logs ai-service | Select-String -Pattern "signal.*generated"
 
 # Export to file
-docker-compose logs --since 24h > logs/today_$(Get-Date -Format 'yyyyMMdd').log
+systemctl logs --since 24h > logs/today_$(Get-Date -Format 'yyyyMMdd').log
 ```
 
 ---
@@ -463,7 +463,7 @@ $Date = Get-Date -Format 'yyyyMMdd_HHmmss'
 New-Item -Path "$BackupDir/$Date" -ItemType Directory -Force
 
 # 1. Backup Redis
-docker exec quantum_trader_redis redis-cli SAVE
+redis-cli SAVE
 docker cp quantum_trader_redis:/data/dump.rdb "$BackupDir/$Date/redis_dump.rdb"
 Write-Host "✓ Redis backed up"
 
@@ -473,7 +473,7 @@ Write-Host "✓ PostgreSQL backed up"
 
 # 3. Backup configuration
 Copy-Item .env "$BackupDir/$Date/.env.backup"
-Copy-Item docker-compose.yml "$BackupDir/$Date/docker-compose.backup.yml"
+Copy-Item systemctl.yml "$BackupDir/$Date/systemctl.backup.yml"
 Write-Host "✓ Configuration backed up"
 
 # 4. Backup model checkpoints
@@ -518,11 +518,11 @@ $TempDir = "backups/temp_restore"
 Expand-Archive -Path $BackupFile -DestinationPath $TempDir -Force
 
 # 2. Stop services
-docker-compose stop
+systemctl stop
 
 # 3. Restore Redis
 docker cp "$TempDir/redis_dump.rdb" quantum_trader_redis:/data/dump.rdb
-docker-compose restart redis
+systemctl restart redis
 Write-Host "✓ Redis restored"
 
 # 4. Restore PostgreSQL
@@ -538,7 +538,7 @@ Copy-Item "$TempDir/models/*" ai_engine/models/ -Recurse -Force
 Write-Host "✓ Models restored"
 
 # 7. Start services
-docker-compose up -d
+systemctl up -d
 
 # 8. Cleanup
 Remove-Item $TempDir -Recurse
@@ -562,7 +562,7 @@ cd quantum_trader
 
 # 4. Test trading (testnet first)
 # Update .env: BINANCE_TESTNET=true
-docker-compose restart
+systemctl restart
 
 # 5. Monitor for 1 hour before enabling live trading
 ```
@@ -603,10 +603,10 @@ maxclients 10000
 **Apply Configuration:**
 ```powershell
 # Restart Redis with new config
-docker-compose restart redis
+systemctl restart redis
 
 # Verify configuration
-docker exec quantum_trader_redis redis-cli CONFIG GET maxmemory
+redis-cli CONFIG GET maxmemory
 ```
 
 ### PostgreSQL Optimization
@@ -640,14 +640,14 @@ autovacuum_max_workers = 4
 docker cp config/postgresql.conf quantum_trader_postgres:/var/lib/postgresql/data/postgresql.conf
 
 # Restart PostgreSQL
-docker-compose restart postgres
+systemctl restart postgres
 ```
 
 ### Service Resource Limits
 
 **Optimize Docker Resources:**
 ```yaml
-# docker-compose.prod.yml
+# systemctl.prod.yml
 
 services:
   ai-service:
@@ -716,10 +716,10 @@ EVENT_BUS_BLOCK_MS=1000        # Block time for new events
 **Scale AI Service:**
 ```powershell
 # Scale to 3 instances
-docker-compose up -d --scale ai-service=3
+systemctl up -d --scale ai-service=3
 
 # Verify scaling
-docker-compose ps ai-service
+systemctl ps ai-service
 
 # Load balancing (requires nginx or similar)
 # Requests will be distributed across instances
@@ -751,7 +751,7 @@ server {
 
 **Increase Resources:**
 ```yaml
-# docker-compose.override.yml
+# systemctl.override.yml
 
 services:
   ai-service:
@@ -764,7 +764,7 @@ services:
 
 ```powershell
 # Apply changes
-docker-compose up -d --force-recreate ai-service
+systemctl up -d --force-recreate ai-service
 ```
 
 ### Auto-Scaling (Kubernetes)
@@ -850,16 +850,16 @@ curl http://localhost:8002/health  # Exec-Risk
 curl http://localhost:8003/health  # Analytics-OS
 
 # 2. Check container status
-docker-compose ps
+systemctl ps
 
 # 3. Check logs for errors
-docker-compose logs <service-name> --tail=100 | Select-String -Pattern "ERROR|CRITICAL|FATAL"
+systemctl logs <service-name> --tail=100 | Select-String -Pattern "ERROR|CRITICAL|FATAL"
 
 # 4. Check resource usage
 docker stats --no-stream <service-name>
 
 # 5. Restart service
-docker-compose restart <service-name>
+systemctl restart <service-name>
 
 # 6. Verify recovery
 Start-Sleep -Seconds 30
@@ -886,7 +886,7 @@ docker stats --no-stream
 docker exec quantum_trader_postgres psql -U quantum_user -d quantum_trader -c "SELECT * FROM pg_stat_activity WHERE state = 'active' AND query_start < NOW() - INTERVAL '10 seconds'"
 
 # 4. Check Redis performance
-docker exec quantum_trader_redis redis-cli --latency
+redis-cli --latency
 
 # 5. Identify bottleneck
 # - CPU saturated? → Scale up/out
@@ -903,23 +903,23 @@ docker exec quantum_trader_redis redis-cli --latency
 
 ```powershell
 # 1. Identify error source
-docker-compose logs --since 10m | Select-String -Pattern "ERROR" | Group-Object | Sort-Object Count -Descending
+systemctl logs --since 10m | Select-String -Pattern "ERROR" | Group-Object | Sort-Object Count -Descending
 
 # 2. Check specific error types
-docker-compose logs <service-name> | Select-String -Pattern "ERROR.*<error-pattern>"
+systemctl logs <service-name> | Select-String -Pattern "ERROR.*<error-pattern>"
 
 # 3. Check external dependencies
 # - Binance API status
 curl https://api.binance.com/api/v3/ping
 
 # - Redis connectivity
-docker exec quantum_trader_redis redis-cli ping
+redis-cli ping
 
 # - PostgreSQL connectivity
 docker exec quantum_trader_postgres pg_isready -U quantum_user
 
 # 4. Check rate limits
-docker-compose logs exec-risk-service | Select-String -Pattern "429|rate.limit"
+systemctl logs exec-risk-service | Select-String -Pattern "429|rate.limit"
 
 # 5. Apply temporary fix
 # - Enable circuit breaker
@@ -937,7 +937,7 @@ docker-compose logs exec-risk-service | Select-String -Pattern "429|rate.limit"
 ```powershell
 # 1. Stop trading immediately
 # Set TRADING_ENABLED=false in .env
-docker-compose restart exec-risk-service
+systemctl restart exec-risk-service
 
 # 2. Verify inconsistency
 # Compare:
@@ -949,7 +949,7 @@ curl http://localhost:8002/health | ConvertFrom-Json | Select-Object open_positi
 
 # 3. Identify root cause
 # - Event loss?
-docker exec quantum_trader_redis redis-cli XINFO STREAM quantum:events:position.opened
+redis-cli XINFO STREAM quantum:events:position.opened
 
 # - Database corruption?
 docker exec quantum_trader_postgres psql -U quantum_user -d quantum_trader -c "SELECT COUNT(*) FROM positions WHERE status = 'open'"
@@ -962,7 +962,7 @@ python scripts/reconcile_positions.py
 
 # 6. Resume trading
 # Set TRADING_ENABLED=true
-docker-compose restart exec-risk-service
+systemctl restart exec-risk-service
 ```
 
 ---
@@ -986,14 +986,14 @@ docker-compose restart exec-risk-service
 # - Status page
 
 # 2. Enable maintenance mode
-docker-compose exec ai-service touch /tmp/maintenance_mode
-docker-compose exec exec-risk-service touch /tmp/maintenance_mode
+systemctl exec ai-service touch /tmp/maintenance_mode
+systemctl exec exec-risk-service touch /tmp/maintenance_mode
 
 # 3. Wait for in-flight requests (5 minutes)
 Start-Sleep -Seconds 300
 
 # 4. Stop services
-docker-compose stop ai-service exec-risk-service analytics-os-service
+systemctl stop ai-service exec-risk-service analytics-os-service
 
 # 5. Perform maintenance
 # - Update code
@@ -1002,13 +1002,13 @@ docker-compose stop ai-service exec-risk-service analytics-os-service
 # - Configuration changes
 
 # 6. Test changes
-docker-compose up -d
+systemctl up -d
 .\scripts\verify_startup.ps1
 python tests/integration_test_harness.py
 
 # 7. Resume normal operations
-docker-compose exec ai-service rm /tmp/maintenance_mode
-docker-compose exec exec-risk-service rm /tmp/maintenance_mode
+systemctl exec ai-service rm /tmp/maintenance_mode
+systemctl exec exec-risk-service rm /tmp/maintenance_mode
 
 # 8. Notify users of completion
 ```
@@ -1050,7 +1050,7 @@ Copy-Item ai_engine/models/ backups/models_$(Get-Date -Format 'yyyyMMdd')/ -Recu
 Copy-Item ai_engine/training/output/* ai_engine/models/ -Force
 
 # 4. Restart AI Service
-docker-compose restart ai-service
+systemctl restart ai-service
 
 # 5. Wait for model loading
 Start-Sleep -Seconds 60
@@ -1069,3 +1069,4 @@ curl http://localhost:8001/health | ConvertFrom-Json | Select-Object models_load
 **Operations Support:** Available 24/7
 
 **Questions? Contact:** ops-team@your-company.com
+

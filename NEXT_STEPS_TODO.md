@@ -32,12 +32,12 @@
 - [ ] **Step 4:** Rebuild AI engine
   ```bash
   cd ~/quantum_trader
-  docker compose -f docker-compose.vps.yml build ai-engine
+  docker compose -f systemctl.vps.yml build ai-engine
   ```
 
 - [ ] **Step 5:** Start with lower confidence threshold
   ```bash
-  docker compose -f docker-compose.vps.yml up -d ai-engine
+  docker compose -f systemctl.vps.yml up -d ai-engine
   ```
 
 - [ ] **Step 6:** Verify health endpoint
@@ -52,7 +52,7 @@
 
 - [ ] **Step 8:** Monitor trading bot connection
   ```bash
-  docker logs quantum_trading_bot 2>&1 | grep "ai-engine" | tail -10
+  journalctl -u quantum_trading_bot.service 2>&1 | grep "ai-engine" | tail -10
   ```
 
 ---
@@ -95,7 +95,7 @@
 
 - [ ] **Step 5:** Update trading bot configuration
   ```yaml
-  # File: docker-compose.vps.yml
+  # File: systemctl.vps.yml
   trading_bot:
     environment:
       - AI_ENGINE_URL=http://backend:8000/api
@@ -103,7 +103,7 @@
 
 - [ ] **Step 6:** Restart trading bot
   ```bash
-  docker compose -f docker-compose.vps.yml restart trading_bot
+  docker compose -f systemctl.vps.yml restart trading_bot
   ```
 
 - [ ] **Step 7:** Monitor signal flow
@@ -280,9 +280,9 @@ docker logs -f quantum_backend | grep -E "dynamic_tpsl|TP/SL"
 4. **Review Logs**
    ```bash
    # Save logs for analysis
-   docker logs quantum_backend > backend_logs.txt
-   docker logs quantum_trading_bot > trading_logs.txt
-   docker logs quantum_execution > execution_logs.txt
+   journalctl -u quantum_backend.service > backend_logs.txt
+   journalctl -u quantum_trading_bot.service > trading_logs.txt
+   journalctl -u quantum_execution.service > execution_logs.txt
    ```
 
 5. **Analyze What Went Wrong**
@@ -323,7 +323,7 @@ docker logs -f quantum_backend | grep -E "dynamic_tpsl|TP/SL"
 - [integration_test.py](integration_test.py) - Test script
 - [backend/main.py](backend/main.py) - Backend entry point
 - [backend/services/system_services.py](backend/services/system_services.py) - AI system coordinator
-- [docker-compose.vps.yml](docker-compose.vps.yml) - Service orchestration
+- [systemctl.vps.yml](systemctl.vps.yml) - Service orchestration
 
 ---
 
@@ -331,3 +331,4 @@ docker logs -f quantum_backend | grep -E "dynamic_tpsl|TP/SL"
 **Blocker:** Signal generation  
 **Next Action:** Choose Option A or B and execute checklist  
 **ETA to Trading:** 10-20 minutes
+

@@ -24,7 +24,7 @@
 
 ### Test 1.1: Container Status
 ```bash
-docker ps --filter name=quantum_governance_dashboard
+systemctl list-units --filter name=quantum_governance_dashboard
 ```
 **Result:** ✅ PASS  
 **Status:** `Up 10 minutes`  
@@ -257,7 +257,7 @@ curl /health & curl /status & curl /weights & wait
 
 ### Test 4.5: Container Logs Health
 ```bash
-docker logs quantum_governance_dashboard --tail 15
+journalctl -u quantum_governance_dashboard.service --tail 15
 ```
 **Result:** ✅ PASS  
 **Log Entries:**
@@ -473,19 +473,19 @@ curl http://localhost:8501/invalid-endpoint
 ## 📞 SUPPORT & TROUBLESHOOTING
 
 ### If Dashboard Not Loading
-1. Check container status: `docker ps --filter name=quantum_governance_dashboard`
-2. Check logs: `docker logs quantum_governance_dashboard --tail 50`
+1. Check container status: `systemctl list-units --filter name=quantum_governance_dashboard`
+2. Check logs: `journalctl -u quantum_governance_dashboard.service --tail 50`
 3. Restart container: `docker restart quantum_governance_dashboard`
 
 ### If Data Not Updating
 1. Check AI Engine: `curl http://localhost:8001/health`
-2. Check Redis: `docker exec quantum_redis redis-cli PING`
+2. Check Redis: `redis-cli PING`
 3. Rebuild container: See [PHASE_4H_QUICK_ACCESS.md](PHASE_4H_QUICK_ACCESS.md)
 
 ### If Performance Slow
 1. Check resource usage: `docker stats quantum_governance_dashboard`
 2. Check network latency: `docker exec quantum_governance_dashboard ping quantum_ai_engine`
-3. Review logs for errors: `docker logs quantum_governance_dashboard`
+3. Review logs for errors: `journalctl -u quantum_governance_dashboard.service`
 
 ---
 
@@ -508,3 +508,4 @@ curl http://localhost:8501/invalid-endpoint
 **Test Date:** 2025-12-20  
 **Test Duration:** 10 minutes  
 **Status:** ✅ APPROVED FOR PRODUCTION  
+

@@ -42,7 +42,7 @@ Integrated Grafana directly into your existing quantumfond.com React dashboard u
 - Added Log Analysis tab with P1-B iframe
 - Styled iframes with 800px height and responsive design
 
-### 2. **docker-compose.monitoring.yml**
+### 2. **systemctl.monitoring.yml**
 - Changed `GF_SERVER_ROOT_URL` to `https://app.quantumfond.com/grafana`
 - Added `GF_SERVER_SERVE_FROM_SUB_PATH=true`
 - Enabled anonymous viewing: `GF_AUTH_ANONYMOUS_ENABLED=true`
@@ -251,8 +251,8 @@ docker exec quantum_grafana env | grep EMBEDDING
 ### Problem: 502 Bad Gateway on /grafana
 **Solution**: Grafana container not running or nginx proxy issue
 ```bash
-docker ps | grep grafana  # Check if running
-docker logs quantum_grafana --tail 50  # Check logs
+systemctl list-units | grep grafana  # Check if running
+journalctl -u quantum_grafana.service --tail 50  # Check logs
 nginx -t  # Check nginx config
 ```
 
@@ -377,3 +377,4 @@ After deployment, you should see:
 ```bash
 wsl bash scripts/deploy_grafana_to_quantumfond.sh
 ```
+

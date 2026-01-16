@@ -164,7 +164,7 @@ docker build -t test-image .
 # Expected: SUCCESS (was failing at 100% disk)
 
 # Check all containers running
-docker ps | wc -l
+systemctl list-units | wc -l
 # Expected: 24 containers
 
 # Check dashboard health
@@ -190,3 +190,4 @@ This single infrastructure improvement unblocked:
 **Status**: PRODUCTION READY  
 **Confidence**: 100%  
 **Impact**: TRANSFORMATIONAL
+

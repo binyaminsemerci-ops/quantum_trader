@@ -140,7 +140,7 @@ lookback_long = 200   # Long-term window
 ### Container Health
 
 ```bash
-$ docker ps --filter 'name=quantum_meta_regime'
+$ systemctl list-units --filter 'name=quantum_meta_regime'
 NAMES                 STATUS
 quantum_meta_regime   Up 27 seconds (healthy)
 ```
@@ -205,16 +205,16 @@ quantum_meta_regime   Up 27 seconds (healthy)
 
 ### Check Container Status
 ```bash
-docker ps --filter 'name=quantum_meta_regime'
-docker logs quantum_meta_regime
+systemctl list-units --filter 'name=quantum_meta_regime'
+journalctl -u quantum_meta_regime.service
 docker exec quantum_meta_regime python -c "import redis; r=redis.from_url('redis://redis:6379/0'); print('✅ Redis OK')"
 ```
 
 ### Check Redis Data
 ```bash
-docker exec redis redis-cli XLEN quantum:stream:meta.regime
-docker exec redis redis-cli GET quantum:governance:preferred_regime
-docker exec redis redis-cli GET quantum:governance:regime_stats
+redis-cli XLEN quantum:stream:meta.regime
+redis-cli GET quantum:governance:preferred_regime
+redis-cli GET quantum:governance:regime_stats
 ```
 
 ### Check AI Engine Health
@@ -334,3 +334,4 @@ docker logs -f quantum_meta_regime | grep "Regime analysis complete"
 **Deployed by:** AI Agent  
 **Deployment method:** SSH to VPS, Docker Compose  
 **Container health:** ✅ Healthy
+

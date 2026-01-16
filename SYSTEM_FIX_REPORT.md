@@ -153,7 +153,7 @@ Med de nye innstillingene:
 ### 1. Docker Container Caching
 ```bash
 # Docker restart leser IKKE nye .env verdier!
-# Må bruke: docker-compose down/up ELLER rm + compose up
+# Må bruke: systemctl down/up ELLER rm + compose up
 ```
 
 ### 2. RL-TPSL er kritisk
@@ -201,3 +201,4 @@ Med 6% TP og 50% partial closing @ 3%, burde systemet nå være **profitabelt** 
 
 **Rapport generert:** 2025-11-27 23:17 UTC  
 **Av:** AI System Administrator
+

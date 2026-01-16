@@ -307,10 +307,10 @@ AttributeError: 'dict' object has no attribute 'combined_volatility_score'
 
 **Container Logs**:
 ```bash
-docker logs quantum_ai_engine
-docker logs quantum_position_monitor
-docker logs quantum_trading_bot
-docker logs quantum_redis
+journalctl -u quantum_ai_engine.service
+journalctl -u quantum_position_monitor.service
+journalctl -u quantum_trading_bot.service
+journalctl -u quantum_redis.service
 ```
 
 ---
@@ -327,3 +327,4 @@ docker logs quantum_redis
 **Report Generated**: December 25, 2025  
 **Execution Time**: ~3 minutes  
 **Overall Grade**: ✅ A- (operational with minor issues)
+

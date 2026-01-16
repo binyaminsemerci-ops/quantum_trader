@@ -173,7 +173,7 @@ Stop-Process -Id <PID> -Force
 
 ```powershell
 # Sjekk at Redis kjører:
-docker ps | Select-String redis
+systemctl list-units | Select-String redis
 
 # Start Redis hvis den ikke kjører:
 docker start quantum_redis
@@ -245,3 +245,4 @@ python scripts/generate_final_report.py
 **Status:** Klar for restart! 🚀
 
 **Anbefalt:** Kjør `.\scripts\restart_server.ps1` for automatisk restart.
+

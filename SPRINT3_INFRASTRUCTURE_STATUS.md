@@ -55,7 +55,7 @@
 - **Priority**: P2
 
 ### **6. No Restart Policy → MEDIUM**
-- **Problem**: `restart: unless-stopped` in docker-compose but no graceful shutdown
+- **Problem**: `restart: unless-stopped` in systemctl but no graceful shutdown
 - **Impact**: Potential data loss on restart
 - **Solution**: Graceful shutdown hooks + docker restart policy
 - **Priority**: P2
@@ -96,7 +96,7 @@
 
 ✅ **EventBus with DiskBuffer**: Already has fallback mechanism (Sprint 1-D2)  
 ✅ **Monitoring-Health-Service**: Just completed (Sprint 2-6)  
-✅ **Docker Health Checks**: Present in docker-compose.yml  
+✅ **Docker Health Checks**: Present in systemctl.yml  
 ✅ **Bulletproof API Client**: Retry + circuit breaker for Binance  
 ✅ **Emergency Stop System**: Fully implemented in risk-safety  
 
@@ -124,3 +124,4 @@ Sprint 3 will address P0 and P1 issues in **7 modules** (A-G):
 ---
 
 **Status**: ✅ Analysis Complete - Ready for implementation planning
+

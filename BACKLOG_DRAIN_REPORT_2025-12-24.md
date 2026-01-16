@@ -27,7 +27,7 @@ Successfully implemented and executed controlled backlog drain system with throt
 
 ### Stream Status (Before Drain)
 ```bash
-Command: docker exec quantum_redis redis-cli XINFO STREAM quantum:stream:trade.intent
+Command: redis-cli XINFO STREAM quantum:stream:trade.intent
 
 Total Stream Length: 10,012 events
 First Event ID: 1765950222254-0
@@ -36,7 +36,7 @@ Last Event ID: 1766604066005-0
 
 ### Consumer Groups Status
 ```bash
-Command: docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent
+Command: redis-cli XINFO GROUPS quantum:stream:trade.intent
 
 Group 1: quantum:group:execution:trade.intent
 ├─ Consumers: 34 (dead) + 1 (new drain consumer)
@@ -54,7 +54,7 @@ Group 2: quantum:group:trade_intent_consumer:trade.intent
 
 ### Pending Messages
 ```bash
-Command: docker exec quantum_redis redis-cli XPENDING quantum:stream:trade.intent quantum:group:execution:trade.intent
+Command: redis-cli XPENDING quantum:stream:trade.intent quantum:group:execution:trade.intent
 
 Pending: 0 messages
 Status: All previously pending messages have been consumed or expired
@@ -62,7 +62,7 @@ Status: All previously pending messages have been consumed or expired
 
 ### Sample Events
 ```bash
-Command: docker exec quantum_redis redis-cli XRANGE quantum:stream:trade.intent - + COUNT 3
+Command: redis-cli XRANGE quantum:stream:trade.intent - + COUNT 3
 
 Event 1: 1766543885449-0 (Dec 24 02:38:05)
 ├─ Symbol: RENDERUSDT
@@ -277,7 +277,7 @@ Reason: Age > 30 minutes (edge case - exactly at threshold!)
 
 ### Consumer Group Status (After Drain)
 ```bash
-Command: docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent
+Command: redis-cli XINFO GROUPS quantum:stream:trade.intent
 
 Group: quantum:group:execution:trade.intent
 ├─ Consumers: 35 (34 dead + backlog_drain_1)
@@ -293,16 +293,16 @@ Group: quantum:group:execution:trade.intent
 
 ### Audit Stream
 ```bash
-Command: docker exec quantum_redis redis-cli XLEN quantum:stream:trade.intent.drain_audit
+Command: redis-cli XLEN quantum:stream:trade.intent.drain_audit
 Result: 3 events
 
-Command: docker exec quantum_redis redis-cli XREVRANGE quantum:stream:trade.intent.drain_audit + - COUNT 10
+Command: redis-cli XREVRANGE quantum:stream:trade.intent.drain_audit + - COUNT 10
 Result: All 3 audit events logged correctly (see Event Details above)
 ```
 
 ### Backlog Drain Consumer
 ```bash
-Command: docker exec quantum_redis redis-cli XINFO CONSUMERS quantum:stream:trade.intent 'quantum:group:execution:trade.intent'
+Command: redis-cli XINFO CONSUMERS quantum:stream:trade.intent 'quantum:group:execution:trade.intent'
 
 Consumer: backlog_drain_1
 ├─ Pending: 0
@@ -312,7 +312,7 @@ Consumer: backlog_drain_1
 
 ### Stream Contents (After Drain)
 ```bash
-Command: docker exec quantum_redis redis-cli XLEN quantum:stream:trade.intent
+Command: redis-cli XLEN quantum:stream:trade.intent
 Result: 10,012 events (unchanged - we don't delete events, only ACK them)
 
 Latest Events:
@@ -532,7 +532,7 @@ Proof: SAFE_DRAIN mode working correctly
 ### To Drain Future Backlog
 ```bash
 # 1. Check current backlog
-docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent
+redis-cli XINFO GROUPS quantum:stream:trade.intent
 
 # 2. Run dry-run first (no ACK)
 docker exec quantum_backend python -m backend.services.execution.backlog_drain \
@@ -553,14 +553,14 @@ docker exec quantum_backend python -m backend.services.execution.backlog_drain \
     --max-events 500
 
 # 4. Verify results
-docker exec quantum_redis redis-cli XLEN quantum:stream:trade.intent.drain_audit
-docker exec quantum_redis redis-cli XREVRANGE quantum:stream:trade.intent.drain_audit + - COUNT 10
+redis-cli XLEN quantum:stream:trade.intent.drain_audit
+redis-cli XREVRANGE quantum:stream:trade.intent.drain_audit + - COUNT 10
 ```
 
 ### To Drain ENTIRE Historical Stream (10K+ events)
 ```bash
 # 1. Create new consumer group from start
-docker exec quantum_redis redis-cli XGROUP CREATE quantum:stream:trade.intent quantum:group:historical_drain 0-0 MKSTREAM
+redis-cli XGROUP CREATE quantum:stream:trade.intent quantum:group:historical_drain 0-0 MKSTREAM
 
 # 2. Modify drain script to use new group
 docker exec quantum_backend python -m backend.services.execution.backlog_drain \
@@ -574,16 +574,16 @@ docker exec quantum_backend python -m backend.services.execution.backlog_drain \
     --max-events 10000
 
 # 3. Monitor progress
-watch -n 5 'docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent | grep -A 10 historical_drain'
+watch -n 5 'redis-cli XINFO GROUPS quantum:stream:trade.intent | grep -A 10 historical_drain'
 ```
 
 ### To Monitor Drain Progress
 ```bash
 # Real-time monitoring
-watch -n 2 'docker exec quantum_redis redis-cli XLEN quantum:stream:trade.intent.drain_audit'
+watch -n 2 'redis-cli XLEN quantum:stream:trade.intent.drain_audit'
 
 # Audit summary
-docker exec quantum_redis redis-cli XRANGE quantum:stream:trade.intent.drain_audit - + | \
+redis-cli XRANGE quantum:stream:trade.intent.drain_audit - + | \
     grep action | sort | uniq -c
 ```
 
@@ -614,3 +614,4 @@ docker exec quantum_redis redis-cli XRANGE quantum:stream:trade.intent.drain_aud
 **Operation:** SAFE_DRAIN (TESTNET)  
 **Status:** ✅ SUCCESS  
 **Next Action:** Fix logger TypeError and -4164 MIN_NOTIONAL before enabling live trading
+

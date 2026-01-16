@@ -135,3 +135,4 @@ Siste trening:
 - ✅ Kjører permanent i egen terminal
 
 **Systemet er klart for kontinuerlig læring! 🚀**
+

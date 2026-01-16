@@ -23,7 +23,7 @@
 
 ### Configuration Files ✅
 
-- ✅ **docker-compose.yml:** Present, PYTHONPATH=/app/backend configured
+- ✅ **systemctl.yml:** Present, PYTHONPATH=/app/backend configured
 - ✅ **.env:** Present, GO_LIVE=true, RL_DEBUG=true configured  
 - ✅ **activation.yaml:** Present, all modules marked active
 - ✅ **config/go_live.yaml:** Present, production config ready
@@ -199,11 +199,11 @@ Start Menu → Search "Docker Desktop" → Launch
 # Option B: From PowerShell
 Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
 Start-Sleep -Seconds 90  # Wait for initialization
-docker ps  # Verify Docker is responsive
+systemctl list-units  # Verify Docker is responsive
 ```
 
 **Duration:** 1-2 minutes  
-**Success Indicator:** `docker ps` returns without errors
+**Success Indicator:** `systemctl list-units` returns without errors
 
 #### Step 2: Navigate to Project ⏸️
 ```powershell
@@ -229,7 +229,7 @@ docker compose up -d backend
 #### Step 5: Wait for Initialization ⏸️
 ```powershell
 Start-Sleep -Seconds 15
-docker logs quantum_backend --tail 50
+journalctl -u quantum_backend.service --tail 50
 ```
 
 **Success Indicator:** Logs show "Application startup complete"
@@ -357,7 +357,7 @@ System will be production-ready when:
 ### Issue: Docker won't start
 
 **Symptoms:**
-- `docker ps` returns "cannot connect to daemon"
+- `systemctl list-units` returns "cannot connect to daemon"
 - Docker Desktop icon shows stopped
 
 **Solutions:**
@@ -381,14 +381,14 @@ System will be production-ready when:
 ### Issue: Container starts but exits immediately
 
 **Symptoms:**
-- `docker ps` shows container not running
-- `docker ps -a` shows "Exited (1)" status
+- `systemctl list-units` shows container not running
+- `systemctl list-units -a` shows "Exited (1)" status
 
 **Solutions:**
-1. Check logs: `docker logs quantum_backend`
+1. Check logs: `journalctl -u quantum_backend.service`
 2. Look for ModuleNotFoundError or ImportError
 3. Verify PYTHONPATH: `docker exec quantum_backend env | Select-String "PYTHONPATH"`
-4. Check volume mounts in docker-compose.yml
+4. Check volume mounts in systemctl.yml
 
 ### Issue: Module imports fail
 
@@ -413,7 +413,7 @@ System will be production-ready when:
 2. Review .env file for missing variables
 3. Verify config/go_live.yaml exists
 4. Check database/Redis connectivity
-5. Review full container logs: `docker logs quantum_backend --tail 200`
+5. Review full container logs: `journalctl -u quantum_backend.service --tail 200`
 
 ---
 
@@ -422,7 +422,7 @@ System will be production-ready when:
 ### Pre-Docker Checks ✅
 - [x] Module files present (45 files verified)
 - [x] Configuration files present (4 files verified)
-- [x] PYTHONPATH configured in docker-compose.yml
+- [x] PYTHONPATH configured in systemctl.yml
 - [x] GO_LIVE=true set in .env
 - [x] activation.yaml present with all modules active
 
@@ -478,3 +478,4 @@ System will be production-ready when:
 **Validation Status:** Pre-Docker (file system checks complete)  
 **Next Action:** Start Docker Desktop → Build containers → Re-run validator  
 **Expected Total Time:** 20-30 minutes
+

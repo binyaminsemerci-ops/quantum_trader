@@ -14,7 +14,7 @@
 cd ~/quantum_trader
 
 # Sjekk at alle filer er på plass
-ls -la docker-compose.wsl.yml scripts/start-wsl-podman.sh
+ls -la systemctl.wsl.yml scripts/start-wsl-podman.sh
 
 # Gjør skriptene kjørbare
 chmod +x scripts/*.sh
@@ -26,7 +26,7 @@ chmod +x scripts/*.sh
 ./scripts/start-wsl-podman.sh
 
 # ELLER Metode B: Manuelt
-podman-compose -f docker-compose.wsl.yml up -d redis ai-engine
+podman-compose -f systemctl.wsl.yml up -d redis ai-engine
 ```
 
 ### 3️⃣ Verifiser at det fungerer
@@ -198,10 +198,10 @@ podman logs quantum_ai_engine
 
 # Rebuild image
 cd ~/quantum_trader
-podman-compose -f docker-compose.wsl.yml build ai-engine
+podman-compose -f systemctl.wsl.yml build ai-engine
 
 # Restart
-podman-compose -f docker-compose.wsl.yml up -d ai-engine
+podman-compose -f systemctl.wsl.yml up -d ai-engine
 ```
 
 ### Problem: Redis connection failed
@@ -213,7 +213,7 @@ podman ps | grep redis
 podman exec quantum_redis redis-cli ping
 
 # Restart Redis
-podman-compose -f docker-compose.wsl.yml restart redis
+podman-compose -f systemctl.wsl.yml restart redis
 ```
 
 ### Problem: Import errors
@@ -237,7 +237,7 @@ podman exec quantum_ai_engine python3 -c "import sys; print(sys.path)"
 crontab -e
 
 # Legg til:
-@reboot cd /root/quantum_trader && podman-compose -f docker-compose.wsl.yml up -d
+@reboot cd /root/quantum_trader && podman-compose -f systemctl.wsl.yml up -d
 ```
 
 ### 2. Logging til fil
@@ -272,7 +272,7 @@ tar -czf ~/backups/logs-$(date +%Y%m%d).tar.gz ~/quantum_trader/logs/
 ### Start services
 ```bash
 cd ~/quantum_trader
-podman-compose -f docker-compose.wsl.yml up -d redis ai-engine
+podman-compose -f systemctl.wsl.yml up -d redis ai-engine
 ```
 
 ### Verifiser
@@ -288,17 +288,17 @@ podman logs -f quantum_ai_engine
 
 ### Restart en service
 ```bash
-podman-compose -f docker-compose.wsl.yml restart ai-engine
+podman-compose -f systemctl.wsl.yml restart ai-engine
 ```
 
 ### Stopp alt
 ```bash
-podman-compose -f docker-compose.wsl.yml down
+podman-compose -f systemctl.wsl.yml down
 ```
 
 ### Rebuild og start
 ```bash
-podman-compose -f docker-compose.wsl.yml up -d --build
+podman-compose -f systemctl.wsl.yml up -d --build
 ```
 
 ---
@@ -332,3 +332,4 @@ For spørsmål eller problemer, sjekk logs først:
 ```bash
 podman logs quantum_ai_engine
 ```
+

@@ -368,7 +368,7 @@ That's it! The system is ready for validation testing.
 If you encounter issues:
 
 1. Check logs for error messages
-2. Verify Redis is running: `docker ps | Select-String redis`
+2. Verify Redis is running: `systemctl list-units | Select-String redis`
 3. Check .env file has JWT_SECRET_KEY and API keys
 4. Review PRODUCTION_READINESS_IMPLEMENTATION.md for troubleshooting
 5. Run validation: `python scripts/setup_production.py --validate`
@@ -380,3 +380,4 @@ If you encounter issues:
 All three critical improvements have been implemented and integrated. The system is ready for validation testing to confirm the improvements work as expected.
 
 Next action: Restart backend server and run integration tests.
+

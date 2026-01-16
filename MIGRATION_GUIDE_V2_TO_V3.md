@@ -110,7 +110,7 @@ Copy-Item .env .env.v2.backup
 Copy-Item config/ config.v2.backup/ -Recurse
 
 # 2. Backup Redis data
-docker exec quantum_trader_redis redis-cli SAVE
+redis-cli SAVE
 docker cp quantum_trader_redis:/data/dump.rdb ./backups/redis_dump_v2_$(Get-Date -Format 'yyyyMMdd_HHmmss').rdb
 
 # 3. Backup PostgreSQL (if using)
@@ -127,10 +127,10 @@ Copy-Item logs/ backups/logs_v2_$(Get-Date -Format 'yyyyMMdd_HHmmss')/ -Recurse
 
 ```powershell
 # Check v2.0 system status
-docker-compose ps
+systemctl ps
 
 # Check Redis connectivity
-docker exec quantum_trader_redis redis-cli ping
+redis-cli ping
 
 # Check current positions
 python analyze_all_closed_positions.py
@@ -309,22 +309,22 @@ Day 6: Enable full v3.0 stack
 
 ```powershell
 # Stop v2.0 backend (but keep Redis/Postgres running)
-docker-compose stop backend
+systemctl stop backend
 
 # Verify only infrastructure running
-docker-compose ps
+systemctl ps
 # Should show: redis, postgres (running), backend (stopped)
 ```
 
 #### Step 1.2: Update Docker Compose
 
 ```powershell
-# Backup current docker-compose.yml
-Copy-Item docker-compose.yml docker-compose.v2.yml
+# Backup current systemctl.yml
+Copy-Item systemctl.yml systemctl.v2.yml
 
-# The new docker-compose.yml already includes v3.0 services
+# The new systemctl.yml already includes v3.0 services
 # Verify it has these services:
-cat docker-compose.yml | Select-String -Pattern "ai-service|exec-risk-service|analytics-os-service"
+cat systemctl.yml | Select-String -Pattern "ai-service|exec-risk-service|analytics-os-service"
 ```
 
 #### Step 1.3: Create v3.0 Environment
@@ -347,7 +347,7 @@ $newEnv = Get-Content .env.v3
 
 ```powershell
 # Initialize PostgreSQL with v3.0 schema
-docker-compose up -d postgres
+systemctl up -d postgres
 
 # Wait for PostgreSQL to be ready
 Start-Sleep -Seconds 10
@@ -367,7 +367,7 @@ docker exec quantum_trader_postgres psql -U quantum_user -d quantum_trader -c "\
 
 ```powershell
 # Build all microservice images
-docker-compose build ai-service exec-risk-service analytics-os-service
+systemctl build ai-service exec-risk-service analytics-os-service
 
 # Verify images created
 docker images | Select-String -Pattern "quantum"
@@ -377,7 +377,7 @@ docker images | Select-String -Pattern "quantum"
 
 ```powershell
 # Start AI Service first
-docker-compose up -d ai-service
+systemctl up -d ai-service
 
 # Wait for startup (60 seconds)
 Start-Sleep -Seconds 60
@@ -394,7 +394,7 @@ curl http://localhost:8001/health | ConvertFrom-Json
 # }
 
 # Check logs
-docker-compose logs -f ai-service --tail=50
+systemctl logs -f ai-service --tail=50
 ```
 
 **Common Issues:**
@@ -406,7 +406,7 @@ docker-compose logs -f ai-service --tail=50
 
 ```powershell
 # Start Exec-Risk Service
-docker-compose up -d exec-risk-service
+systemctl up -d exec-risk-service
 
 # Wait for startup (30 seconds)
 Start-Sleep -Seconds 30
@@ -423,7 +423,7 @@ curl http://localhost:8002/health | ConvertFrom-Json
 # }
 
 # Verify Binance connection
-docker-compose logs exec-risk-service | Select-String -Pattern "Binance"
+systemctl logs exec-risk-service | Select-String -Pattern "Binance"
 ```
 
 **Common Issues:**
@@ -435,7 +435,7 @@ docker-compose logs exec-risk-service | Select-String -Pattern "Binance"
 
 ```powershell
 # Start Analytics-OS Service
-docker-compose up -d analytics-os-service
+systemctl up -d analytics-os-service
 
 # Wait for startup (30 seconds)
 Start-Sleep -Seconds 30
@@ -453,14 +453,14 @@ curl http://localhost:8003/health | ConvertFrom-Json
 # }
 
 # Check service discovery
-docker-compose logs analytics-os-service | Select-String -Pattern "Health graph"
+systemctl logs analytics-os-service | Select-String -Pattern "Health graph"
 ```
 
 #### Step 2.5: Verify All Services Running
 
 ```powershell
 # Check all services
-docker-compose ps
+systemctl ps
 
 # Should show all services as "healthy"
 # ai-service (healthy)
@@ -472,7 +472,7 @@ docker-compose ps
 # grafana (running)
 
 # Verify inter-service communication
-docker-compose logs analytics-os-service | Select-String -Pattern "ai-service.*exec-risk-service"
+systemctl logs analytics-os-service | Select-String -Pattern "ai-service.*exec-risk-service"
 ```
 
 ---
@@ -488,10 +488,10 @@ docker-compose logs analytics-os-service | Select-String -Pattern "ai-service.*e
 # - qt:events:* (EventBus v2)
 
 # Verify existing keys
-docker exec quantum_trader_redis redis-cli --scan --pattern "qt:*" | Measure-Object
+redis-cli --scan --pattern "qt:*" | Measure-Object
 
 # Check event streams
-docker exec quantum_trader_redis redis-cli XINFO STREAM quantum:events:signal.generated
+redis-cli XINFO STREAM quantum:events:signal.generated
 ```
 
 #### Step 3.2: Migrate Open Positions
@@ -587,15 +587,15 @@ python tests/integration_test_harness.py
 **If tests fail:**
 ```powershell
 # Check service logs
-docker-compose logs ai-service | Select-String -Pattern "ERROR"
-docker-compose logs exec-risk-service | Select-String -Pattern "ERROR"
-docker-compose logs analytics-os-service | Select-String -Pattern "ERROR"
+systemctl logs ai-service | Select-String -Pattern "ERROR"
+systemctl logs exec-risk-service | Select-String -Pattern "ERROR"
+systemctl logs analytics-os-service | Select-String -Pattern "ERROR"
 
 # Check Redis connectivity
-docker exec quantum_trader_redis redis-cli ping
+redis-cli ping
 
 # Restart problematic service
-docker-compose restart <service-name>
+systemctl restart <service-name>
 ```
 
 #### Step 4.3: Run E2E Tests
@@ -620,7 +620,7 @@ python tests/e2e_test_suite.py
 curl -X POST http://localhost:8001/health
 
 # Publish test signal
-docker exec quantum_trader_redis redis-cli XADD quantum:events:signal.generated "*" \
+redis-cli XADD quantum:events:signal.generated "*" \
   trace_id "test-$(New-Guid)" \
   event_type "signal.generated" \
   source_service "migration-test" \
@@ -630,7 +630,7 @@ docker exec quantum_trader_redis redis-cli XADD quantum:events:signal.generated 
 Start-Sleep -Seconds 5
 
 # Check execution result
-docker exec quantum_trader_redis redis-cli XREVRANGE quantum:events:execution.result + - COUNT 1
+redis-cli XREVRANGE quantum:events:execution.result + - COUNT 1
 ```
 
 #### Step 4.5: Validate Metrics
@@ -668,7 +668,7 @@ $envContent = $envContent -replace "TRADING_ENABLED=false", "TRADING_ENABLED=tru
 $envContent | Set-Content .env
 
 # Restart services to apply
-docker-compose restart ai-service exec-risk-service analytics-os-service
+systemctl restart ai-service exec-risk-service analytics-os-service
 
 # Wait for restart
 Start-Sleep -Seconds 60
@@ -680,10 +680,10 @@ Start-Sleep -Seconds 60
 
 ```powershell
 # Watch logs in real-time
-docker-compose logs -f --tail=100
+systemctl logs -f --tail=100
 
 # Monitor specific events
-docker exec quantum_trader_redis redis-cli --csv XREAD BLOCK 0 STREAMS \
+redis-cli --csv XREAD BLOCK 0 STREAMS \
   quantum:events:signal.generated \
   quantum:events:execution.result \
   quantum:events:position.opened \
@@ -706,7 +706,7 @@ curl http://localhost:8003/health | ConvertFrom-Json | Select-Object service_hea
 # }
 
 # Check auto-recovery status
-docker-compose logs analytics-os-service | Select-String -Pattern "auto-restart|recovery"
+systemctl logs analytics-os-service | Select-String -Pattern "auto-restart|recovery"
 ```
 
 #### Step 5.4: Set Up Alerts
@@ -945,12 +945,12 @@ python tests/performance_benchmark.py
 
 - [ ] **Event flow working**
   ```powershell
-  docker exec quantum_trader_redis redis-cli XINFO STREAM quantum:events:signal.generated
+  redis-cli XINFO STREAM quantum:events:signal.generated
   ```
 
 - [ ] **RPC communication working**
   ```powershell
-  docker-compose logs analytics-os-service | Select-String -Pattern "RPC call"
+  systemctl logs analytics-os-service | Select-String -Pattern "RPC call"
   ```
 
 - [ ] **Positions recovered**
@@ -985,10 +985,10 @@ python tests/performance_benchmark.py
 
 ```powershell
 # 1. Stop v3.0 services
-docker-compose stop ai-service exec-risk-service analytics-os-service
+systemctl stop ai-service exec-risk-service analytics-os-service
 
 # 2. Restore v2.0 backend
-docker-compose -f docker-compose.v2.yml up -d backend
+systemctl -f systemctl.v2.yml up -d backend
 
 # 3. Verify v2.0 running
 Start-Sleep -Seconds 30
@@ -999,31 +999,31 @@ curl http://localhost:8000/health
 Copy-Item .env.v2.backup .env
 
 # 5. Restart v2.0
-docker-compose -f docker-compose.v2.yml restart backend
+systemctl -f systemctl.v2.yml restart backend
 ```
 
 ### Graceful Rollback (15 minutes)
 
 ```powershell
 # 1. Drain v3.0 services (stop accepting new requests)
-docker-compose exec ai-service touch /tmp/drain_mode
-docker-compose exec exec-risk-service touch /tmp/drain_mode
+systemctl exec ai-service touch /tmp/drain_mode
+systemctl exec exec-risk-service touch /tmp/drain_mode
 
 # 2. Wait for in-flight requests to complete (2 minutes)
 Start-Sleep -Seconds 120
 
 # 3. Stop v3.0 services
-docker-compose stop ai-service exec-risk-service analytics-os-service
+systemctl stop ai-service exec-risk-service analytics-os-service
 
 # 4. Restore v2.0 from backup
-docker-compose -f docker-compose.v2.yml up -d backend
+systemctl -f systemctl.v2.yml up -d backend
 
 # 5. Verify v2.0 health
 curl http://localhost:8000/health
 
 # 6. Restore Redis data (if needed)
 docker cp ./backups/redis_dump_v2_TIMESTAMP.rdb quantum_trader_redis:/data/dump.rdb
-docker-compose restart redis
+systemctl restart redis
 ```
 
 ### Rollback Checklist
@@ -1056,24 +1056,24 @@ docker-compose restart redis
 
 ```powershell
 # Check logs
-docker-compose logs <service-name> --tail=100
+systemctl logs <service-name> --tail=100
 
 # Common causes:
 # 1. Port already in use
 netstat -ano | findstr "8001|8002|8003"
 
 # 2. Redis not reachable
-docker exec quantum_trader_redis redis-cli ping
+redis-cli ping
 
 # 3. Missing environment variables
-docker-compose exec <service-name> env | Select-String -Pattern "BINANCE|REDIS"
+systemctl exec <service-name> env | Select-String -Pattern "BINANCE|REDIS"
 
 # 4. File permissions (Linux)
 # sudo chown -R $(id -u):$(id -g) ai_engine/
 
 # Fix: Restart with clean state
-docker-compose down <service-name>
-docker-compose up -d <service-name>
+systemctl down <service-name>
+systemctl up -d <service-name>
 ```
 
 #### Issue 2: Models Not Loading
@@ -1092,13 +1092,13 @@ Get-ChildItem ai_engine/models/ -Recurse
 # (Windows: Right-click → Properties → Security)
 
 # Check AI Service logs
-docker-compose logs ai-service | Select-String -Pattern "model|loading"
+systemctl logs ai-service | Select-String -Pattern "model|loading"
 
 # Re-train models if missing
 python ai_engine/training/train_all_models.py
 
 # Restart AI Service
-docker-compose restart ai-service
+systemctl restart ai-service
 ```
 
 #### Issue 3: Binance Connection Failed
@@ -1132,7 +1132,7 @@ print(client.get_account())
 # - Testnet vs mainnet → Check BINANCE_TESTNET setting
 
 # Restart with correct keys
-docker-compose restart exec-risk-service
+systemctl restart exec-risk-service
 ```
 
 #### Issue 4: Inter-Service Communication Failing
@@ -1146,23 +1146,23 @@ docker-compose restart exec-risk-service
 
 ```powershell
 # Check Redis connectivity
-docker exec quantum_trader_redis redis-cli ping
+redis-cli ping
 
 # Verify event streams exist
-docker exec quantum_trader_redis redis-cli --scan --pattern "quantum:*"
+redis-cli --scan --pattern "quantum:*"
 
 # Check RPC streams
-docker exec quantum_trader_redis redis-cli XINFO STREAM quantum:rpc:request:ai-service
+redis-cli XINFO STREAM quantum:rpc:request:ai-service
 
 # Test event publishing
-docker exec quantum_trader_redis redis-cli XADD quantum:events:test "*" data "test"
+redis-cli XADD quantum:events:test "*" data "test"
 
 # Check service logs for network errors
-docker-compose logs | Select-String -Pattern "connection|timeout|refused"
+systemctl logs | Select-String -Pattern "connection|timeout|refused"
 
 # Restart Redis and services
-docker-compose restart redis
-docker-compose restart ai-service exec-risk-service analytics-os-service
+systemctl restart redis
+systemctl restart ai-service exec-risk-service analytics-os-service
 ```
 
 #### Issue 5: High Memory Usage
@@ -1178,8 +1178,8 @@ docker-compose restart ai-service exec-risk-service analytics-os-service
 # Check memory usage
 docker stats --no-stream
 
-# Reduce memory limits in docker-compose.yml
-# Edit: docker-compose.prod.yml
+# Reduce memory limits in systemctl.yml
+# Edit: systemctl.prod.yml
 #   ai-service:
 #     deploy:
 #       resources:
@@ -1192,7 +1192,7 @@ docker stats --no-stream
 # PAL_ENABLED=false  # Disable profit amplification
 
 # Restart with lower limits
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+systemctl -f systemctl.yml -f systemctl.prod.yml up -d
 ```
 
 #### Issue 6: Database Connection Failed
@@ -1205,7 +1205,7 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 ```powershell
 # Check PostgreSQL status
-docker-compose ps postgres
+systemctl ps postgres
 
 # Test connection
 docker exec quantum_trader_postgres psql -U quantum_user -d quantum_trader -c "SELECT 1"
@@ -1214,13 +1214,13 @@ docker exec quantum_trader_postgres psql -U quantum_user -d quantum_trader -c "S
 cat .env | Select-String -Pattern "POSTGRES"
 
 # Restart PostgreSQL
-docker-compose restart postgres
+systemctl restart postgres
 
 # Wait for startup
 Start-Sleep -Seconds 10
 
 # Restart Analytics-OS Service
-docker-compose restart analytics-os-service
+systemctl restart analytics-os-service
 ```
 
 ---
@@ -1391,3 +1391,4 @@ Migration is considered **successful** when:
 **Migration Support:** Available 24/7 during migration window
 
 **Good luck with your migration! 🚀**
+

@@ -109,7 +109,7 @@ python tune_meta_strategy_parameters.py
 # Select "y" when prompted
 
 # Then restart backend
-docker-compose --profile dev restart backend
+systemctl --profile dev restart backend
 ```
 
 **Tuning Logic:**
@@ -345,7 +345,7 @@ Defined in `backend/services/ai/strategy_profiles.py`:
 Check that Meta-Strategy is enabled:
 
 ```bash
-docker logs quantum_backend 2>&1 | grep -i "meta-strategy"
+journalctl -u quantum_backend.service 2>&1 | grep -i "meta-strategy"
 ```
 
 Expected output:
@@ -394,7 +394,7 @@ When monitoring suggests parameter changes:
 python tune_meta_strategy_parameters.py
 # Select "y" to apply
 
-docker-compose --profile dev restart backend
+systemctl --profile dev restart backend
 ```
 
 ### Step 7: Continue Monitoring
@@ -445,12 +445,12 @@ Start-ScheduledTask -TaskName "QuantumTrader-MetaStrategy-Weekly"
 
 **Solution:** Always restart backend after .env changes:
 ```powershell
-docker-compose --profile dev restart backend
+systemctl --profile dev restart backend
 ```
 
 Verify in logs:
 ```bash
-docker logs quantum_backend 2>&1 | grep -i "meta-strategy"
+journalctl -u quantum_backend.service 2>&1 | grep -i "meta-strategy"
 ```
 
 ---
@@ -610,3 +610,4 @@ The Meta-Strategy RL feedback loop is complete and ready for production use. The
 *Last Updated: 2025-11-26*
 *Integration by: AI Assistant*
 *Version: 1.0.0*
+

@@ -21,13 +21,13 @@ cd C:\quantum_trader
 #### Step 1: Build & Start
 ```powershell
 cd C:\quantum_trader
-docker compose build backend  # 10-15 min first time
-docker compose up -d backend  # 30 sec
+# Build no longer needed (systemd services) backend  # 10-15 min first time
+sudo systemctl start -d backend  # 30 sec
 ```
 
 #### Step 2: Test Module Imports
 ```powershell
-docker exec quantum_backend python3 -c "
+python3 python3 -c "
 import sys; sys.path.insert(0, '/app')
 from backend.domains.exits.exit_brain_v3 import dynamic_executor
 from backend.services.monitoring import tp_optimizer_v3
@@ -40,7 +40,7 @@ print('✅ All imports successful')
 
 #### Step 3: Run GO LIVE Simulation
 ```powershell
-docker exec quantum_backend python3 -c "
+python3 python3 -c "
 import sys; sys.path.insert(0, '/app')
 from backend.domains.exits.exit_brain_v3.dynamic_executor import DynamicTPExecutor
 from backend.services.monitoring.tp_optimizer_v3 import TPOptimizerV3
@@ -59,7 +59,7 @@ print('✅ GO LIVE simulation complete')
 
 #### Step 4: Check Logs
 ```powershell
-docker logs quantum_backend --tail 100
+journalctl -u quantum-backend.service --tail 100
 # Look for: [ExitBrainV3], [TPOptimizerV3], [RLAgentV3], [RiskGateV3]
 ```
 
@@ -107,37 +107,37 @@ GO LIVE SIMULATION COMPLETE ✅
 ### Issue: Import fails with ModuleNotFoundError
 ```powershell
 # Check PYTHONPATH
-docker exec quantum_backend env | Select-String "PYTHONPATH"
+python3 env | Select-String "PYTHONPATH"
 # Should show: PYTHONPATH=/app/backend
 
 # Check volume mount
-docker exec quantum_backend ls -la /app/backend/domains/exits/exit_brain_v3/
+python3 ls -la /app/backend/domains/exits/exit_brain_v3/
 # Should list Python files
 
 # Rebuild if needed
-docker compose build --no-cache backend
+# Build no longer needed (systemd services) --no-cache backend
 ```
 
 ### Issue: Container exits immediately
 ```powershell
 # Check logs for errors
-docker logs quantum_backend
+journalctl -u quantum-backend.service
 
 # Check container status
-docker ps -a | Select-String "quantum_backend"
+systemctl list-units -a | Select-String "quantum_backend"
 # Should show "Up" not "Exited"
 ```
 
 ### Issue: Simulation fails
 ```powershell
 # Check individual components
-docker exec quantum_backend python3 -c "from backend.domains.exits.exit_brain_v3 import dynamic_executor; print('OK')"
+python3 python3 -c "from backend.domains.exits.exit_brain_v3 import dynamic_executor; print('OK')"
 
 # Check environment variables
-docker exec quantum_backend env | Select-String "GO_LIVE|RL_DEBUG"
+python3 env | Select-String "GO_LIVE|RL_DEBUG"
 
 # Review full logs
-docker logs quantum_backend --tail 200
+journalctl -u quantum-backend.service --tail 200
 ```
 
 ---
@@ -185,3 +185,4 @@ System is production-ready when:
 **Next:** After validation succeeds → Monitor for 24h → Enable live trading
 
 **Command:** `.\ai_agent_integration_validator.ps1`
+

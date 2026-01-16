@@ -30,7 +30,7 @@
 ### ❌ Hva som MANGLER:
 ```
 ❌ Ingen service starter ExitBrainDynamicExecutor
-❌ Ingen docker-compose service for exit_brain_executor
+❌ Ingen systemctl service for exit_brain_executor
 ❌ Ingen async run() loop som kaller _monitoring_cycle()
 ❌ Ingen deployment av EXIT_BRAIN_V3 dynamic mode
 ```
@@ -100,7 +100,7 @@ TP1=0.83% TP2=1.32% TP3=1.86% | SL=0.81% | Harvest=[0.4, 0.4, 0.2]
 
 ### Alternativ 1: Separat exit_brain_executor service (ANBEFALT)
 
-**docker-compose.vps.yml**:
+**systemctl.vps.yml**:
 ```yaml
 exit-brain-executor:
   build:
@@ -217,7 +217,7 @@ git push origin main
 ssh root@46.224.116.254
 cd /home/qt/quantum_trader
 git pull origin main
-docker compose -f docker-compose.vps.yml restart auto-executor
+docker compose -f systemctl.vps.yml restart auto-executor
 
 # 3. Verify logs
 docker logs -f quantum_auto_executor | grep "EXIT_BRAIN"
@@ -230,21 +230,21 @@ docker logs -f quantum_auto_executor | grep "EXIT_BRAIN"
 touch backend/Dockerfile.exit_brain_executor
 touch backend/domains/exits/exit_brain_v3/main.py
 
-# 2. Add docker-compose service
-vim docker-compose.vps.yml  # Add exit-brain-executor service
+# 2. Add systemctl service
+vim systemctl.vps.yml  # Add exit-brain-executor service
 
 # 3. Deploy
-git add backend/ docker-compose.vps.yml
+git add backend/ systemctl.vps.yml
 git commit -m "P1-EXIT: Deploy separate Exit Brain Dynamic Executor service"
 git push origin main
 
 ssh root@46.224.116.254
 cd /home/qt/quantum_trader
 git pull origin main
-docker compose -f docker-compose.vps.yml up -d exit-brain-executor
+docker compose -f systemctl.vps.yml up -d exit-brain-executor
 
 # 4. Verify
-docker ps | grep exit_brain
+systemctl list-units | grep exit_brain
 docker logs -f quantum_exit_brain_executor
 ```
 
@@ -279,3 +279,4 @@ docker logs -f quantum_exit_brain_executor
 - [ ] Close current ATOMUSDT position manually (stop bleeding)
 
 **NEXT ACTION**: Velg alternativ (2 = rask, 1 = proper) og deploy!
+

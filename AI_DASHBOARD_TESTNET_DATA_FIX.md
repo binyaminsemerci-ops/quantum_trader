@@ -177,3 +177,4 @@ Dashboard nå viser **100% ekte TESTNET data**:
 - Disk: Viser 102GB Docker volume space
 
 **No more mock data!** 🎯
+

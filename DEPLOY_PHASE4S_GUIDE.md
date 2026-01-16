@@ -139,7 +139,7 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254
 ./deploy_phase4s_vps_local.sh
 
 # Monitor
-watch -n 15 "docker exec quantum_redis redis-cli GET quantum:feedback:strategic_memory"
+watch -n 15 "redis-cli GET quantum:feedback:strategic_memory"
 ```
 
 ### For Local Development:
@@ -148,7 +148,7 @@ watch -n 15 "docker exec quantum_redis redis-cli GET quantum:feedback:strategic_
 .\scripts\deploy_phase4s_local.ps1
 
 # Check status
-docker ps | Select-String strategic_memory
+systemctl list-units | Select-String strategic_memory
 docker logs -f quantum_strategic_memory
 ```
 
@@ -224,25 +224,25 @@ After successful deployment:
 
 ### Container not starting:
 ```bash
-docker logs quantum_strategic_memory
-docker ps -a | grep strategic_memory
+journalctl -u quantum_strategic_memory.service
+systemctl list-units -a | grep strategic_memory
 ```
 
 ### No feedback generated:
 - Need 3+ regime observations
-- Check stream length: `docker exec quantum_redis redis-cli XLEN quantum:stream:meta.regime`
+- Check stream length: `redis-cli XLEN quantum:stream:meta.regime`
 - Wait for 60s processing cycle
 
 ### Redis connection issues:
 ```bash
-docker exec quantum_redis redis-cli PING
-docker ps | grep redis
+redis-cli PING
+systemctl list-units | grep redis
 ```
 
 ### AI Engine not exposing metrics:
 ```bash
 curl -s http://localhost:8001/health | jq '.metrics.strategic_memory'
-docker logs quantum_ai_engine --tail 50
+journalctl -u quantum_ai_engine.service --tail 50
 ```
 
 ---
@@ -287,3 +287,4 @@ docker logs quantum_ai_engine --tail 50
 **Last Updated:** December 21, 2025  
 **Version:** Phase 4S+ Enhanced  
 **Status:** ✅ Production Ready
+

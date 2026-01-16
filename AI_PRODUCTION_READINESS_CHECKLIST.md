@@ -60,15 +60,15 @@
 **Priority**: P0 - CRITICAL  
 
 **Files exist:**
-- ✅ `docker-compose.monitoring.yml` (Prometheus + Grafana)
+- ✅ `systemctl.monitoring.yml` (Prometheus + Grafana)
 - ✅ `monitoring/prometheus.yml` config
 - ⚠️ Ikke deployet til VPS
 
 **Action Items:**
 - [ ] Deploy monitoring stack:
   ```bash
-  docker compose -f docker-compose.vps.yml \
-                 -f docker-compose.monitoring.yml up -d
+  docker compose -f systemctl.vps.yml \
+                 -f systemctl.monitoring.yml up -d
   ```
 - [ ] Verify Prometheus targets:
   - Redis Exporter (http://localhost:9121/metrics)
@@ -106,7 +106,7 @@ cat > /tmp/redis-backup.sh << 'EOF'
 #!/bin/bash
 BACKUP_DIR=/home/qt/backups/redis
 DATE=$(date +%Y%m%d_%H%M%S)
-docker exec quantum_redis redis-cli BGSAVE
+redis-cli BGSAVE
 sleep 5
 docker cp quantum_redis:/data/dump.rdb $BACKUP_DIR/dump_$DATE.rdb
 # Keep only 7 days
@@ -257,7 +257,7 @@ sudo certbot --nginx -d api.quantum-trader.com
 echo "BINANCE_API_KEY=..." | docker secret create binance_api_key -
 echo "BINANCE_SECRET=..." | docker secret create binance_secret -
 
-# Reference in docker-compose.yml
+# Reference in systemctl.yml
 secrets:
   - binance_api_key
   - binance_secret
@@ -276,7 +276,7 @@ sudo ufw enable
 
 **D. Docker Network Isolation**
 ```yaml
-# docker-compose.vps.yml
+# systemctl.vps.yml
 networks:
   backend:
     internal: true  # No external access
@@ -332,7 +332,7 @@ curl -X POST http://localhost:8001/generate-signal \
 
 # Verify execution service received signal
 curl http://localhost:8002/health
-docker logs quantum_execution_v2 | grep "Received signal"
+journalctl -u quantum_execution_v.service2 | grep "Received signal"
 ```
 
 **B. Full Trading Flow Test (Testnet)**
@@ -401,10 +401,10 @@ rsync -avz --exclude='.git' --exclude='__pycache__' \
 # Restart service
 ssh qt@46.224.116.254 << EOF
   cd /home/qt/quantum_trader
-  docker compose -f docker-compose.vps.yml pull $SERVICE
-  docker compose -f docker-compose.vps.yml up -d $SERVICE
+  docker compose -f systemctl.vps.yml pull $SERVICE
+  docker compose -f systemctl.vps.yml up -d $SERVICE
   sleep 10
-  docker compose -f docker-compose.vps.yml ps $SERVICE
+  docker compose -f systemctl.vps.yml ps $SERVICE
 EOF
 
 echo "✅ Deployment complete!"
@@ -431,9 +431,9 @@ TAG=$2
 
 ssh qt@46.224.116.254 << EOF
   cd /home/qt/quantum_trader
-  docker compose -f docker-compose.vps.yml stop $SERVICE
+  docker compose -f systemctl.vps.yml stop $SERVICE
   docker tag quantum_$SERVICE:$TAG quantum_$SERVICE:latest
-  docker compose -f docker-compose.vps.yml up -d $SERVICE
+  docker compose -f systemctl.vps.yml up -d $SERVICE
 EOF
 ```
 
@@ -456,7 +456,7 @@ EOF
 **Priority**: P2 - MEDIUM  
 
 **Current state:**
-- ✅ Docker logs per container
+- ✅ journalctl -u per.service container
 - ❌ No centralized logging
 - ❌ No log retention policy
 
@@ -464,7 +464,7 @@ EOF
 
 **A. Simple: Loki + Grafana**
 ```yaml
-# docker-compose.logging.yml
+# systemctl.logging.yml
 loki:
   image: grafana/loki:2.9.0
   ports:
@@ -565,7 +565,7 @@ jobs:
         run: |
           echo "$SSH_KEY" > key.pem
           chmod 600 key.pem
-          ssh -i key.pem qt@46.224.116.254 "cd quantum_trader && git pull && docker compose -f docker-compose.vps.yml up -d --build"
+          ssh -i key.pem qt@46.224.116.254 "cd quantum_trader && git pull && docker compose -f systemctl.vps.yml up -d --build"
 ```
 
 **B. Alternative: Watchtower (Auto-update containers)**
@@ -803,3 +803,4 @@ Gir deg:
 **Status:** 2024-12-16  
 **Next Review:** After Week 1 (critical blockers)  
 **Production Target:** Uke 2-3 (option B)
+

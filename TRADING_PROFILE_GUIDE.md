@@ -934,3 +934,4 @@ avg_funding_cost = sum(funding_paid) / total_trades
 
 **Built with ❤️ by Quantum Trader Team**  
 *Last Updated: 2025-11-26*
+

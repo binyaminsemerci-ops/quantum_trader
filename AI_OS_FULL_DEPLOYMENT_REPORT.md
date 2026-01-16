@@ -793,7 +793,7 @@ except Exception as e:
 1. **Service Initialization Verification**:
    ```bash
    # Check backend logs for successful initialization of all 9 subsystems
-   docker-compose logs quantum_backend | grep -E "(PIL|PBA|PAL|Dynamic TP/SL|Self-Healing|Model Supervisor|Universe OS|Retraining|AI-HFOS)" | grep "initialized"
+   systemctl logs quantum_backend | grep -E "(PIL|PBA|PAL|Dynamic TP/SL|Self-Healing|Model Supervisor|Universe OS|Retraining|AI-HFOS)" | grep "initialized"
    ```
    
    **Expected Output** (9 initialization messages):
@@ -812,7 +812,7 @@ except Exception as e:
 2. **Integration Stage Verification**:
    ```bash
    # Check integration stage changed to AUTONOMY
-   docker-compose logs quantum_backend | grep "integration_stage"
+   systemctl logs quantum_backend | grep "integration_stage"
    ```
    
    **Expected**: `integration_stage: AUTONOMY`
@@ -820,7 +820,7 @@ except Exception as e:
 3. **Event Executor Integration Verification**:
    ```bash
    # Check event executor logs for AI-OS subsystem calls
-   docker-compose logs quantum_backend | grep -E "(UNIVERSE OS|AI-HFOS|DYNAMIC TP/SL|PBA|PIL|PAL|SELF-HEALING)" | head -20
+   systemctl logs quantum_backend | grep -E "(UNIVERSE OS|AI-HFOS|DYNAMIC TP/SL|PBA|PIL|PAL|SELF-HEALING)" | head -20
    ```
    
    **Expected**: Logs showing subsystems being called during signal processing
@@ -828,7 +828,7 @@ except Exception as e:
 4. **Position Monitor Integration Verification**:
    ```bash
    # Check position monitor logs for PIL/PAL activity
-   docker-compose logs quantum_backend | grep -E "(PIL|PAL)" | grep "position_monitor"
+   systemctl logs quantum_backend | grep -E "(PIL|PAL)" | grep "position_monitor"
    ```
    
    **Expected**: Logs showing position classification and amplification analysis
@@ -836,7 +836,7 @@ except Exception as e:
 5. **Dynamic TP/SL Verification**:
    ```bash
    # Check for dynamic TP/SL calculations
-   docker-compose logs quantum_backend | grep "DYNAMIC TP/SL"
+   systemctl logs quantum_backend | grep "DYNAMIC TP/SL"
    ```
    
    **Expected**: Logs showing TP/SL calculated based on confidence and risk mode
@@ -844,7 +844,7 @@ except Exception as e:
 6. **SafetyGovernor Directive Verification**:
    ```bash
    # Check for Self-Healing and AI-HFOS directives
-   docker-compose logs quantum_backend | grep -E "(NO_NEW_TRADES|DEFENSIVE_EXIT|EMERGENCY_SHUTDOWN|Risk Mode:)"
+   systemctl logs quantum_backend | grep -E "(NO_NEW_TRADES|DEFENSIVE_EXIT|EMERGENCY_SHUTDOWN|Risk Mode:)"
    ```
    
    **Expected**: Logs showing directive checks (may show "None" if no active directives)
@@ -933,12 +933,12 @@ except Exception as e:
 1. **Restart Backend Service**:
    ```bash
    cd c:\quantum_trader
-   docker-compose restart quantum_backend
+   systemctl restart quantum_backend
    ```
 
 2. **Monitor Initialization Logs** (first 2 minutes):
    ```bash
-   docker-compose logs -f quantum_backend | grep -E "(PIL|PBA|PAL|Dynamic TP/SL|AI-HFOS)"
+   systemctl logs -f quantum_backend | grep -E "(PIL|PBA|PAL|Dynamic TP/SL|AI-HFOS)"
    ```
 
 3. **Verify All 9 Subsystems Initialized**:
@@ -948,7 +948,7 @@ except Exception as e:
 
 4. **Monitor Event Executor Activity** (next 5-10 minutes):
    ```bash
-   docker-compose logs -f quantum_backend | grep -E "(UNIVERSE OS|DYNAMIC TP/SL|PBA)"
+   systemctl logs -f quantum_backend | grep -E "(UNIVERSE OS|DYNAMIC TP/SL|PBA)"
    ```
    - Verify symbol filtering active
    - Verify dynamic TP/SL calculations
@@ -956,7 +956,7 @@ except Exception as e:
 
 5. **Monitor Position Monitor Activity** (if positions exist):
    ```bash
-   docker-compose logs -f quantum_backend | grep -E "(PIL|PAL)"
+   systemctl logs -f quantum_backend | grep -E "(PIL|PAL)"
    ```
    - Verify position classification
    - Verify amplification analysis
@@ -1123,3 +1123,4 @@ QT_AI_INTEGRATION_STAGE=AUTONOMY             # Integration stage
 ---
 
 **END OF DEPLOYMENT REPORT**
+

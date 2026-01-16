@@ -211,7 +211,7 @@ BINANCE_API_SECRET=<NY_LIVE_SECRET>
 
 # Restart services
 docker compose restart auto-executor
-docker compose -f docker-compose.vps.yml restart position-monitor
+docker compose -f systemctl.vps.yml restart position-monitor
 ```
 
 ---
@@ -221,8 +221,8 @@ docker compose -f docker-compose.vps.yml restart position-monitor
 **Problem i dashboard backend:**
 ```python
 # Sannsynligvis søker etter feil container navn pattern
-containers = docker ps --filter name="quantum_trader-*"  # ❌ Feil
-containers = docker ps --filter name="quantum_*"         # ✅ Riktig
+containers = systemctl list-units --filter name="quantum_trader-*"  # ❌ Feil
+containers = systemctl list-units --filter name="quantum_*"         # ✅ Riktig
 ```
 
 **Eller:**
@@ -238,8 +238,8 @@ docker.from_env()  # Krever riktige permissions
 **Sjekk RL Dashboard port mapping:**
 ```bash
 # Finn hvilken port RL dashboard lytter på
-docker ps | grep rl
-docker logs quantum_rl_monitor --tail 50
+systemctl list-units | grep rl
+journalctl -u quantum_rl_monitor.service --tail 50
 
 # Dashboard prøver sannsynligvis:
 http://localhost:8000/api/rl-dashboard
@@ -341,3 +341,4 @@ Alt annet er sekundære problemer som vil løse seg når API keys er fikset:
 ---
 
 **VIKTIG:** Ikke generer nye API keys før du har verifisert at de gamle faktisk er feil! Test først IP whitelist og permissions.
+

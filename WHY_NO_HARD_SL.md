@@ -168,7 +168,7 @@ SOLUSDT SHORT @ $138.73 (216 SOL, 20x)
 
 **Alternativ 2: Environment Variable**
 ```bash
-# docker-compose.yml
+# systemctl.yml
 - EXIT_BRAIN_PLACE_HARD_SL=true
 ```
 
@@ -224,3 +224,4 @@ Men Exit Brain har kjørt **stabilt** siden aktivering og har allerede:
 ---
 
 *Generert: 2025-12-12 06:57 UTC*
+

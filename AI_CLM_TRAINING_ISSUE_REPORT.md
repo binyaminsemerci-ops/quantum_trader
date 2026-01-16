@@ -166,10 +166,10 @@ async def _job_processor_loop(self):
 ### Hva vi så i loggene:
 
 ```bash
-$ docker logs quantum_clm 2>&1 | wc -l
+$ journalctl -u quantum_clm.service 2>&1 | wc -l
 58 lines total  # ❌ Kun startup logs, ingen aktivitet!
 
-$ docker logs quantum_clm | grep "training\|retrain\|job"
+$ journalctl -u quantum_clm.service | grep "training\|retrain\|job"
 # Resultat: Kun startup - ingen "Created training job", "Starting training job", etc.
 
 $ ls runtime/clm_v3/
@@ -360,13 +360,13 @@ Job Poller: ❌ MISSING - THIS IS THE GAP!
 ### Verification Steps:
 ```bash
 # 1. Check scheduler creates jobs
-docker logs quantum_clm | grep "Created training job"
+journalctl -u quantum_clm.service | grep "Created training job"
 
 # 2. Check job processor picks them up
-docker logs quantum_clm | grep "Job Processor.*Starting job"
+journalctl -u quantum_clm.service | grep "Job Processor.*Starting job"
 
 # 3. Check orchestrator starts training
-docker logs quantum_clm | grep "Orchestrator.*Starting training"
+journalctl -u quantum_clm.service | grep "Orchestrator.*Starting training"
 
 # 4. Check runtime directory is created
 ls -la runtime/clm_v3/
@@ -403,3 +403,4 @@ Implementere Option A (job poller) og deploye til server.
 **Rapport generert:** 2025-12-18 11:42 UTC  
 **Oppdaget av:** GitHub Copilot Agent  
 **Severity:** 🔴 CRITICAL (ingen kontinuerlig læring skjer)
+

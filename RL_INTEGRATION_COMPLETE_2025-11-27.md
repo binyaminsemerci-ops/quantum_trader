@@ -153,7 +153,7 @@ def _calculate_dynamic_tpsl(
 
 ### Build Process
 ```powershell
-docker-compose build backend
+systemctl build backend
 ```
 
 **Resultat:**
@@ -174,7 +174,7 @@ docker-compose build backend
 
 ### Container Restart
 ```powershell
-docker-compose up -d backend
+systemctl up -d backend
 ```
 
 **Resultat:**
@@ -398,11 +398,11 @@ Over tid vil RL-agent:
 ### Undersøkelse:
 ```powershell
 # 1. Sjekket loggene for RL-aktivitet
-docker logs quantum_backend --since 5m | Select-String "RL-TPSL|RL-UNIFIED"
+journalctl -u quantum_backend.service --since 5m | Select-String "RL-TPSL|RL-UNIFIED"
 # Resultat: Ingen matches (avslørte problemet)
 
 # 2. Sjekket generelle logger
-docker logs quantum_backend --tail 100
+journalctl -u quantum_backend.service --tail 100
 # Fant: [Dynamic TP/SL] meldinger (bekreftet gammelt system aktivt)
 
 # 3. Søkte etter gammelt system i koden
@@ -419,15 +419,15 @@ cat backend/services/ai_trading_engine.py | Select-String -Context 5,5 "_calcula
 # (Manuell editing via replace_string_in_file tool)
 
 # 6. Bygde ny backend
-docker-compose build backend
+systemctl build backend
 # Resultat: 46.7s, 21/21 steps successful
 
 # 7. Restartet container
-docker-compose up -d backend
+systemctl up -d backend
 # Resultat: Started in 3.6s
 
 # 8. Verifiserte ny kode kjører
-Start-Sleep 45; docker logs quantum_backend --since 45s | Select-String "RL TP/SL|RL-UNIFIED|RL-TPSL"
+Start-Sleep 45; journalctl -u quantum_backend.service --since 45s | Select-String "RL TP/SL|RL-UNIFIED|RL-TPSL"
 # Resultat: 25+ RL-messages (SUCCESS!)
 ```
 
@@ -461,3 +461,4 @@ Alle komponenter bruker RL Position Sizing Agent:
 **Dokumentert av:** GitHub Copilot  
 **Dato:** 27. november 2025, 12:14  
 **Status:** ✅ Komplett integrasjon verifisert
+

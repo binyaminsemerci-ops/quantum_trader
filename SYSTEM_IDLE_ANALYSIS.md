@@ -230,10 +230,10 @@ xgb_model.pkl         0.20MB   Nov 19, 2025
 ### Immediate Action (Next 5 minutes)
 ```bash
 # Test with lower threshold
-docker-compose stop backend
-# Edit .env or docker-compose.yml:
+systemctl stop backend
+# Edit .env or systemctl.yml:
 # QT_CONFIDENCE_THRESHOLD=0.58
-docker-compose up -d backend
+systemctl up -d backend
 
 # Monitor for signals
 python monitor_hybrid.py -i 5
@@ -257,7 +257,7 @@ python monitor_hybrid.py -i 5
 
 ### Quick Fix (5 min)
 ```yaml
-# docker-compose.yml or .env
+# systemctl.yml or .env
 QT_CONFIDENCE_THRESHOLD=0.58  # Test threshold
 ```
 
@@ -330,3 +330,4 @@ C. **Hybrid** → Do both (test now, fix properly in parallel)
 **Status:** 📊 Analysis complete, awaiting user decision
 **Risk:** ⚠️ Medium (paper trading, but system not tested end-to-end)
 **Urgency:** 🚨 High (system not producing any trades)
+

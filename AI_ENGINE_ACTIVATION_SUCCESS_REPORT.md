@@ -136,7 +136,7 @@ messages = r.xrevrange("quantum:stream:trade.intent", count=50)  # Latest 50 sig
 
 ### **Test 3: EventBus Stream ✅**
 ```bash
-$ docker exec quantum_redis redis-cli XLEN 'quantum:stream:trade.intent'
+$ redis-cli XLEN 'quantum:stream:trade.intent'
 10007
 ```
 **10,007 signals accumulated** (growing continuously)
@@ -307,3 +307,4 @@ Next priority: Fix TP/SL bug to protect open positions.
 **Services Modified:** 3 (ai-engine, trading-bot, auto-executor)  
 **Code Changes:** 2 files  
 **Status:** 🟢 PRODUCTION READY
+

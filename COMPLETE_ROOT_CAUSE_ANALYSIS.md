@@ -216,7 +216,7 @@ Longet i downtrend → pris fortsatte ned → realiserte tap
 #### 1. **Installer CatBoost**
 ```bash
 pip install catboost
-docker-compose restart backend
+systemctl restart backend
 ```
 **Effekt:** Aktiverer ekte ensemble ML-modeller, ikke fallback RSI-regler.
 
@@ -370,3 +370,4 @@ if abs(actual_pnl - price_move_pnl) > 2.0:  # 2% discrepancy
 ---
 
 **Status:** Fikser implementeres nå! 🚀
+

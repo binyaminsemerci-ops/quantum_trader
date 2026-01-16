@@ -184,7 +184,7 @@ Sell Threshold: 0.48       # QT_PROBA_SELL
 1. **Monitor Performance**
    ```powershell
    python monitor_hybrid.py -i 5
-   docker logs quantum_backend --follow
+   journalctl -u quantum_backend.service --follow
    ```
 
 2. **Samle Metrics**
@@ -276,7 +276,7 @@ python quick_monitor.py
 python monitor_hybrid.py -i 5
 
 # Live logs
-docker logs quantum_backend --follow | Select-String "high-confidence|DRY-RUN"
+journalctl -u quantum_backend.service --follow | Select-String "high-confidence|DRY-RUN"
 ```
 
 ### Key Metrics
@@ -315,3 +315,4 @@ Systemet genererer nå **19 high-confidence signaler per cycle** (vs 0 før).
 
 **Timestamp:** 19. november 2025, 20:03  
 **Status:** ML Training Complete → Backend Running → Signals Flowing → Ready for Testing! 🚀
+

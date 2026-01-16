@@ -137,19 +137,19 @@ docker logs -f quantum_backend 2>&1 | Select-String "rl_v3_orchestrator"
 ### Guard Trigger Detection
 ```powershell
 # Check if any guards blocked trades
-docker logs quantum_backend 2>&1 | Select-String -Pattern "GUARD [ABC]"
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "GUARD [ABC]"
 ```
 
 ### RiskGuard Activity
 ```powershell
 # Verify RiskGuard integration working
-docker logs quantum_backend 2>&1 | Select-String "evaluate_trade_intent"
+journalctl -u quantum_backend.service 2>&1 | Select-String "evaluate_trade_intent"
 ```
 
 ### SHADOW Verification
 ```powershell
 # Confirm NO trade intents published (should be 0)
-docker logs quantum_backend 2>&1 | Select-String "Trade intent published" | Measure-Object
+journalctl -u quantum_backend.service 2>&1 | Select-String "Trade intent published" | Measure-Object
 ```
 
 ---
@@ -191,7 +191,7 @@ print(f"Promotion result: {msg}")
 **Verification**:
 ```powershell
 # Confirm mode change
-docker logs quantum_backend 2>&1 | Select-String "PROMOTED.*PRIMARY"
+journalctl -u quantum_backend.service 2>&1 | Select-String "PROMOTED.*PRIMARY"
 
 # Watch first trade intent
 docker logs -f quantum_backend 2>&1 | Select-String "Trade intent published"
@@ -373,3 +373,4 @@ print(f'Promotion ACK: {orch._promotion_acked}')
 
 **Deployed by**: Production Patch v3.0.0  
 **Timestamp**: 2025-12-13 23:35:00 UTC
+

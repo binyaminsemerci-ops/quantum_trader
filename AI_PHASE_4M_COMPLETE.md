@@ -189,7 +189,7 @@ cross-exchange:
 | 5 | Feature Adapter | `python exchange_feature_adapter.py --test` | Creates 10 ML features |
 | 6 | Feature Loader | `python feature_loader.py --test` | Loads cross-exchange features |
 | 7 | AI Engine Health | `curl http://localhost:8001/health` | `cross_exchange_intelligence: true` |
-| 8 | Docker Service | `docker ps \| grep cross-exchange` | Service running |
+| 8 | Docker Service | `systemctl list-units \| grep cross-exchange` | Service running |
 
 ---
 
@@ -201,14 +201,14 @@ cross-exchange:
 pip install aiohttp websockets redis pandas numpy orjson ujson
 
 # Ensure Redis is running
-docker ps | grep quantum_redis
+systemctl list-units | grep quantum_redis
 ```
 
 ### 2. Start Cross-Exchange Service
 ```bash
 # Build and start via Docker Compose
-docker-compose -f docker-compose.vps.yml build cross-exchange
-docker-compose -f docker-compose.vps.yml up -d cross-exchange
+systemctl -f systemctl.vps.yml build cross-exchange
+systemctl -f systemctl.vps.yml up -d cross-exchange
 
 # Verify running
 docker logs -f quantum_cross_exchange
@@ -217,10 +217,10 @@ docker logs -f quantum_cross_exchange
 ### 3. Verify Data Pipeline
 ```bash
 # Check raw stream
-docker exec quantum_redis redis-cli XLEN quantum:stream:exchange.raw
+redis-cli XLEN quantum:stream:exchange.raw
 
 # Check normalized stream
-docker exec quantum_redis redis-cli XREVRANGE quantum:stream:exchange.normalized + - COUNT 3
+redis-cli XREVRANGE quantum:stream:exchange.normalized + - COUNT 3
 ```
 
 ### 4. Run Validation Suite
@@ -273,14 +273,14 @@ docker logs -f quantum_ai_engine
 ### Inspect Redis Streams
 ```bash
 # Raw stream last 5 entries
-docker exec quantum_redis redis-cli XREVRANGE quantum:stream:exchange.raw + - COUNT 5
+redis-cli XREVRANGE quantum:stream:exchange.raw + - COUNT 5
 
 # Normalized stream last 5 entries
-docker exec quantum_redis redis-cli XREVRANGE quantum:stream:exchange.normalized + - COUNT 5
+redis-cli XREVRANGE quantum:stream:exchange.normalized + - COUNT 5
 
 # Stream lengths
-docker exec quantum_redis redis-cli XLEN quantum:stream:exchange.raw
-docker exec quantum_redis redis-cli XLEN quantum:stream:exchange.normalized
+redis-cli XLEN quantum:stream:exchange.raw
+redis-cli XLEN quantum:stream:exchange.normalized
 ```
 
 ### Test Individual Components
@@ -310,13 +310,13 @@ python microservices/ai_engine/features/feature_loader.py --test
 **Solution:**
 ```bash
 # Check if service is running
-docker ps | grep cross_exchange
+systemctl list-units | grep cross_exchange
 
 # Restart service
-docker-compose -f docker-compose.vps.yml restart cross-exchange
+systemctl -f systemctl.vps.yml restart cross-exchange
 
 # Check logs for WebSocket errors
-docker logs quantum_cross_exchange | grep -i error
+journalctl -u quantum_cross_exchange.service | grep -i error
 ```
 
 ### Issue: Normalized Stream Empty
@@ -324,10 +324,10 @@ docker logs quantum_cross_exchange | grep -i error
 **Solution:**
 ```bash
 # Verify raw stream has data from multiple exchanges
-docker exec quantum_redis redis-cli XREVRANGE quantum:stream:exchange.raw + - COUNT 10
+redis-cli XREVRANGE quantum:stream:exchange.raw + - COUNT 10
 
 # Check aggregator logs
-docker logs quantum_ai_engine | grep -i aggregator
+journalctl -u quantum_ai_engine.service | grep -i aggregator
 ```
 
 ### Issue: AI Engine Health Shows `cross_exchange: false`
@@ -337,11 +337,11 @@ docker logs quantum_ai_engine | grep -i aggregator
 # Check environment
 docker exec quantum_ai_engine env | grep CROSS_EXCHANGE
 
-# Update docker-compose.vps.yml
+# Update systemctl.vps.yml
 # Add: CROSS_EXCHANGE_ENABLED=true
 
 # Restart AI Engine
-docker-compose -f docker-compose.vps.yml restart ai-engine
+systemctl -f systemctl.vps.yml restart ai-engine
 ```
 
 ### Issue: WebSocket Disconnects Frequently
@@ -371,7 +371,7 @@ quantum_trader/
 │       │   └── feature_loader.py            (120 lines)
 │       ├── service.py  (updated health endpoint)
 │       └── main.py
-├── docker-compose.vps.yml  (updated with cross-exchange service)
+├── systemctl.vps.yml  (updated with cross-exchange service)
 ├── validate_phase4m.sh     (Linux validation script)
 ├── validate_phase4m.ps1    (Windows validation script)
 └── AI_PHASE_4M_COMPLETE.md (this file)
@@ -458,6 +458,7 @@ quantum_trader/
 
 **Phase 4M Status:** ✅ **COMPLETE**  
 **Run validation:** `bash validate_phase4m.sh` or `.\validate_phase4m.ps1`  
-**Enable in production:** Set `CROSS_EXCHANGE_ENABLED=true` in docker-compose.vps.yml
+**Enable in production:** Set `CROSS_EXCHANGE_ENABLED=true` in systemctl.vps.yml
 
 🚀 **Cross-exchange intelligence is now operational!**
+

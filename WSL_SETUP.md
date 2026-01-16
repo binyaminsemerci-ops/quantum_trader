@@ -3,13 +3,13 @@
 ## 📋 1. ANALYSE
 
 ### Eksisterende Setup
-- ✅ `docker-compose.yml` - Fullstendig setup med alle services
+- ✅ `systemctl.yml` - Fullstendig setup med alle services
 - ✅ Redis service definert (port 6379)
 - ✅ AI-Engine service definert (port 8001)
 - ❌ Problem: Bruker `/mnt/c` paths → import collisions
 
 ### WSL Løsning
-- ✅ Ny fil: `docker-compose.wsl.yml`
+- ✅ Ny fil: `systemctl.wsl.yml`
 - ✅ Bruker kun `~/quantum_trader` paths
 - ✅ PYTHONPATH=/app (ingen `/mnt/c`)
 - ✅ Redis + AI-Engine som containere
@@ -67,16 +67,16 @@ chmod +x start-wsl.sh
 cd ~/quantum_trader
 
 # 1. Bygg AI Engine
-podman-compose -f docker-compose.wsl.yml build ai-engine
+podman-compose -f systemctl.wsl.yml build ai-engine
 
 # 2. Start Redis + AI-Engine
-podman-compose -f docker-compose.wsl.yml up -d redis ai-engine
+podman-compose -f systemctl.wsl.yml up -d redis ai-engine
 
 # 3. Se status
-podman-compose -f docker-compose.wsl.yml ps
+podman-compose -f systemctl.wsl.yml ps
 
 # 4. Se logs
-podman-compose -f docker-compose.wsl.yml logs -f ai-engine
+podman-compose -f systemctl.wsl.yml logs -f ai-engine
 ```
 
 ---
@@ -99,13 +99,13 @@ podman ps
 
 ```bash
 # AI Engine logs
-podman-compose -f docker-compose.wsl.yml logs ai-engine
+podman-compose -f systemctl.wsl.yml logs ai-engine
 
 # Redis logs
-podman-compose -f docker-compose.wsl.yml logs redis
+podman-compose -f systemctl.wsl.yml logs redis
 
 # Live logs (følg i sanntid)
-podman-compose -f docker-compose.wsl.yml logs -f ai-engine
+podman-compose -f systemctl.wsl.yml logs -f ai-engine
 ```
 
 ### Test Health Endpoints
@@ -166,17 +166,17 @@ curl http://localhost:8000/health
 
 ```bash
 # Stopp alt
-podman-compose -f docker-compose.wsl.yml down
+podman-compose -f systemctl.wsl.yml down
 
 # Stopp én service
-podman-compose -f docker-compose.wsl.yml stop ai-engine
+podman-compose -f systemctl.wsl.yml stop ai-engine
 
 # Restart service
-podman-compose -f docker-compose.wsl.yml restart ai-engine
+podman-compose -f systemctl.wsl.yml restart ai-engine
 
 # Rebuild etter kodeendring
-podman-compose -f docker-compose.wsl.yml build ai-engine
-podman-compose -f docker-compose.wsl.yml up -d ai-engine
+podman-compose -f systemctl.wsl.yml build ai-engine
+podman-compose -f systemctl.wsl.yml up -d ai-engine
 ```
 
 ### Debugging
@@ -238,7 +238,7 @@ podman network inspect quantum_trader
 ✅ **Podman vs Docker**
 - Rootless by default (sikrere)
 - Docker API compatible
-- `podman-compose` fungerer som `docker-compose`
+- `podman-compose` fungerer som `systemctl`
 
 ✅ **Redis som Container**
 - Isolert fra host
@@ -252,12 +252,12 @@ Dette oppsettet er **identisk** til VPS deployment fordi:
 ✅ **Same compose file**
 ```bash
 # WSL
-podman-compose -f docker-compose.wsl.yml up -d
+podman-compose -f systemctl.wsl.yml up -d
 
 # VPS
-docker-compose -f docker-compose.wsl.yml up -d
+systemctl -f systemctl.wsl.yml up -d
 # Eller
-podman-compose -f docker-compose.wsl.yml up -d
+podman-compose -f systemctl.wsl.yml up -d
 ```
 
 ✅ **Same paths**
@@ -308,10 +308,10 @@ git clone https://github.com/user/quantum_trader.git
 cd quantum_trader
 
 # 3. Kjør SAMME compose file
-docker-compose -f docker-compose.wsl.yml up -d
+systemctl -f systemctl.wsl.yml up -d
 
 # 4. Verifiser
-docker ps
+systemctl list-units
 curl http://localhost:8001/health
 ```
 
@@ -341,7 +341,7 @@ sudo lsof -i :8001
 sudo kill -9 <PID>
 
 # Eller stopp containere
-podman-compose -f docker-compose.wsl.yml down
+podman-compose -f systemctl.wsl.yml down
 ```
 
 ### Problem: "Import errors"
@@ -396,9 +396,10 @@ python -m uvicorn backend.main:app --reload
 ### Deploy til VPS (Senere)
 ```bash
 # SAMME kommandoer, samme compose file! 🚀
-docker-compose -f docker-compose.wsl.yml up -d
+systemctl -f systemctl.wsl.yml up -d
 ```
 
 ---
 
 **✅ Alt klart! Kjør `./start-wsl.sh` for å starte!**
+

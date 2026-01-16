@@ -22,7 +22,7 @@ Exit Brain v3 har blitt **aktivert med suksess** som unified TP/SL orchestrator 
 ## Aktiveringshistorikk
 
 ### Fase 1: Feature Flag Aktivering
-**Fil:** `docker-compose.yml` line 102  
+**Fil:** `systemctl.yml` line 102  
 **Endring:** `EXIT_BRAIN_V3_ENABLED=false` → `EXIT_BRAIN_V3_ENABLED=true`  
 **Tidspunkt:** 01:10:30 UTC
 
@@ -38,8 +38,8 @@ Exit Brain v3 har blitt **aktivert med suksess** som unified TP/SL orchestrator 
 **Operasjon:** Clean restart av backend container  
 **Kommandoer:**
 ```bash
-docker-compose stop backend
-docker-compose up -d backend
+systemctl stop backend
+systemctl up -d backend
 ```
 
 **Resultat:**
@@ -429,20 +429,20 @@ tests/domains/exits/test_exit_integration_v3.py::test_build_context_short_positi
 ### Quick Rollback (5 minutter)
 
 ```bash
-# Step 1: Edit docker-compose.yml
-vim docker-compose.yml
+# Step 1: Edit systemctl.yml
+vim systemctl.yml
 # Line 102: EXIT_BRAIN_V3_ENABLED=true → false
 
 # Step 2: Restart backend
-docker-compose stop backend
-docker-compose up -d backend
+systemctl stop backend
+systemctl up -d backend
 
 # Step 3: Verify rollback
 docker exec quantum_backend python -c "import os; print(os.getenv('EXIT_BRAIN_V3_ENABLED'))"
 # Should show: false
 
 # Step 4: Verify legacy mode
-docker logs quantum_backend 2>&1 | grep "EXIT BRAIN"
+journalctl -u quantum_backend.service 2>&1 | grep "EXIT BRAIN"
 # Should be empty or show disabled messages
 
 # Step 5: Monitor first 10 minutes
@@ -498,16 +498,16 @@ docker logs -f quantum_backend | grep "Dynamic TP/SL\|Position Monitor"
 **Datainnsamling:**
 ```bash
 # Count Exit Brain activations
-docker logs quantum_backend | grep -c "EXIT BRAIN.*plan"
+journalctl -u quantum_backend.service | grep -c "EXIT BRAIN.*plan"
 
 # Count TP/SL order successes
-docker logs quantum_backend | grep -c "POST /fapi/v1/order.*200"
+journalctl -u quantum_backend.service | grep -c "POST /fapi/v1/order.*200"
 
 # Count ERROR -4130
-docker logs quantum_backend | grep -c "ERROR -4130"
+journalctl -u quantum_backend.service | grep -c "ERROR -4130"
 
 # Count profit locks
-docker logs quantum_backend | grep -c "profit_lock"
+journalctl -u quantum_backend.service | grep -c "profit_lock"
 ```
 
 ### Fase 3: Comparative Analysis (Uke 1)
@@ -574,7 +574,7 @@ def get_plan(self, symbol: str) -> Optional[ExitPlan]:
 
 | File | Lines Changed | Purpose | Backup |
 |------|---------------|---------|--------|
-| `docker-compose.yml` | 1 (line 102) | Enable feature flag | Git: commit 7a3f2e1 |
+| `systemctl.yml` | 1 (line 102) | Enable feature flag | Git: commit 7a3f2e1 |
 | `dynamic_tpsl.py` | 0 (pre-wired) | Exit Brain integration | Already present |
 | `position_monitor.py` | 0 (pre-wired) | Skip adjustment logic | Already present |
 | `trailing_stop_manager.py` | 0 (pre-wired) | Trailing config read | Already present |
@@ -723,7 +723,7 @@ async def build_exit_plan(self, ctx: ExitContext) -> ExitPlan:
 
 Exit Brain v3 er **aktivert med suksess** og opererer som planlagt. Systemet har gjennomgått:
 
-✅ **Feature flag activation** - docker-compose.yml endret  
+✅ **Feature flag activation** - systemctl.yml endret  
 ✅ **Backend restart** - Clean restart uten errors  
 ✅ **Log verification** - 8+ initialization logs bekrefter aktivering  
 ✅ **Runtime testing** - Direct tests viser korrekt funksjon  
@@ -740,3 +740,4 @@ Exit Brain v3 er **aktivert med suksess** og opererer som planlagt. Systemet har
 **Generert av:** Quantum Trader v3.0 DevOps Team  
 **Versjon:** Exit Brain v3.0.0  
 **Dokumentasjon:** EXIT_BRAIN_V3_ACTIVATION_REPORT.md
+

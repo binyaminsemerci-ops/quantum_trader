@@ -280,7 +280,7 @@ Layer 4: Audit Trail
 
 ### Logs Check
 ```bash
-docker logs quantum_ai_engine --tail 50 | grep -E "PHASE 4"
+journalctl -u quantum_ai_engine.service --tail 50 | grep -E "PHASE 4"
 ```
 
 **Expected Output:**
@@ -410,7 +410,7 @@ curl -s http://localhost:8001/health | jq '.metrics | {
 }'
 
 # Recent logs
-docker logs quantum_ai_engine --tail 100 | grep -E "PHASE 4|Validator|Retrainer|Governance"
+journalctl -u quantum_ai_engine.service --tail 100 | grep -E "PHASE 4|Validator|Retrainer|Governance"
 
 # Validation log
 docker exec quantum_ai_engine tail -20 /app/logs/model_validation.log
@@ -456,4 +456,5 @@ docker logs -f quantum_ai_engine | grep -E "Validator|Retrainer"
 **Verified By:** System health checks, log analysis, endpoint testing  
 **Documentation:** 6 markdown files created  
 **Status:** ✅ PRODUCTION READY  
+
 

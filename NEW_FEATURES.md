@@ -172,7 +172,7 @@ npm install recharts
 
 ```bash
 # Start backend (Docker)
-docker-compose up -d
+systemctl up -d
 
 # Start frontend (Vite dev server)
 cd qt-agent-ui
@@ -260,3 +260,4 @@ See `PRODUCTION_DEPLOYMENT.md` for detailed instructions.
 **Last Updated**: November 15, 2025  
 **Version**: 2.0.0  
 **Status**: ✅ All features complete and tested
+

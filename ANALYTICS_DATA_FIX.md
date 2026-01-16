@@ -238,3 +238,4 @@ Antallet skal øke med 1 for hver lukket trade.
 - Ingen data tap fremover
 
 **User Issue Resolved:** ✅ "ingen av dem viste seg" - Alle 56 lukkede trades vises nå i Analytics!
+

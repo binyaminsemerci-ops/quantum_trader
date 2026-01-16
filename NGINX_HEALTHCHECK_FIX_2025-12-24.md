@@ -287,7 +287,7 @@ Output:
 ### 1.12 Backend Container History
 ```bash
 Command:
-docker ps | grep quantum_backend
+systemctl list-units | grep quantum_backend
 
 Output:
 quantum_backend   Up 13 hours (healthy)   0.0.0.0:8000->8000/tcp
@@ -340,7 +340,7 @@ quantum_backend   Up 13 hours (healthy)   0.0.0.0:8000->8000/tcp
 ### Why Backend Restarted
 ```bash
 # Checking backend uptime
-docker ps | grep quantum_backend
+systemctl list-units | grep quantum_backend
 Output: Up 13 hours
 
 # Probable causes:
@@ -419,7 +419,7 @@ Impact: Minimal (5-10s of 502 errors for any requests)
 ### 3.1 Container Status
 ```bash
 Command:
-docker ps --filter name=quantum_nginx --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+systemctl list-units --filter name=quantum_nginx --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
 Output:
 NAMES           STATUS                        PORTS
@@ -752,7 +752,7 @@ location /health {
 
 **Option C: Static IP Addresses**
 ```yaml
-# docker-compose.yml
+# systemctl.yml
 services:
   quantum_backend:
     networks:
@@ -908,7 +908,7 @@ docker inspect quantum_nginx --format '{{json .State.Health}}' | jq
 
 **Step 2: Check error logs**
 ```bash
-docker logs quantum_nginx --tail 100
+journalctl -u quantum_nginx.service --tail 100
 docker exec quantum_nginx cat /var/log/nginx/error.log | tail -50
 ```
 
@@ -949,11 +949,11 @@ docker inspect quantum_nginx --format '{{.State.Health.Status}}'
 ### Diagnostic Commands
 ```bash
 # Check container health
-docker ps --filter name=quantum_nginx
+systemctl list-units --filter name=quantum_nginx
 docker inspect quantum_nginx --format '{{.State.Health.Status}}'
 
 # View logs
-docker logs quantum_nginx --tail 100
+journalctl -u quantum_nginx.service --tail 100
 docker exec quantum_nginx cat /var/log/nginx/error.log | tail -50
 
 # Test endpoints
@@ -1067,3 +1067,4 @@ docker exec quantum_nginx grep "Connection refused" /var/log/nginx/error.log | w
 **Downtime:** ~5-10 seconds  
 **Status:** ✅ RESOLVED  
 **Follow-up Required:** Setup automated monitoring & alerts
+

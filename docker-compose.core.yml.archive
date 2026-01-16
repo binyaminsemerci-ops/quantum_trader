@@ -1,0 +1,219 @@
+# ============================================================================
+# Docker Compose - Tier 1 Core Execution Loop
+# ============================================================================
+# Services:
+# - risk-safety (port 8003)
+# - execution (port 8002)
+# - position-monitor (port 8004)
+#
+# Dependencies:
+# - Redis (external - must be running)
+#
+# Usage:
+#   docker-compose -f docker-compose.core.yml up -d
+#   docker-compose -f docker-compose.core.yml logs -f
+#   docker-compose -f docker-compose.core.yml down
+#
+# Author: Quantum Trader Team
+# Date: 2026-01-12
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # RISK SAFETY SERVICE
+  # ==========================================================================
+  risk-safety:
+    build:
+      context: .
+      dockerfile: Dockerfile.core
+    image: quantum-trader/risk-safety:v1
+    container_name: quantum-risk-safety
+    hostname: risk-safety
+    
+    ports:
+      - "8003:8003"
+    
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_URL=redis://redis:6379
+      - SERVICE_PORT=8003
+      - SERVICE_NAME=risk-safety
+    
+    volumes:
+      - ./ai_engine:/app/ai_engine:ro
+      - ./services:/app/services:ro
+      - ./models:/app/models:ro
+      - ./data:/app/data
+      - ./logs:/var/log/quantum
+    
+    command: python3 services/risk_safety_service.py
+    
+    restart: unless-stopped
+    
+    depends_on:
+      - redis
+    
+    networks:
+      - quantum-net
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================================================
+  # EXECUTION SERVICE
+  # ==========================================================================
+  execution:
+    build:
+      context: .
+      dockerfile: Dockerfile.core
+    image: quantum-trader/execution:v1
+    container_name: quantum-execution
+    hostname: execution
+    
+    ports:
+      - "8002:8002"
+    
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_URL=redis://redis:6379
+      - SERVICE_PORT=8002
+      - SERVICE_NAME=execution
+    
+    volumes:
+      - ./ai_engine:/app/ai_engine:ro
+      - ./services:/app/services:ro
+      - ./logs:/var/log/quantum
+    
+    command: python3 services/execution_service.py
+    
+    restart: unless-stopped
+    
+    depends_on:
+      - redis
+      - risk-safety
+    
+    networks:
+      - quantum-net
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================================================
+  # POSITION MONITOR
+  # ==========================================================================
+  position-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile.core
+    image: quantum-trader/position-monitor:v1
+    container_name: quantum-position-monitor
+    hostname: position-monitor
+    
+    ports:
+      - "8004:8004"
+    
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_URL=redis://redis:6379
+      - SERVICE_PORT=8004
+      - SERVICE_NAME=position-monitor
+    
+    volumes:
+      - ./ai_engine:/app/ai_engine:ro
+      - ./services:/app/services:ro
+      - ./logs:/var/log/quantum
+      - ./data:/app/data
+    
+    command: python3 services/position_monitor.py
+    
+    restart: unless-stopped
+    
+    depends_on:
+      - redis
+      - execution
+    
+    networks:
+      - quantum-net
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================================================
+  # REDIS (External)
+  # ==========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: quantum-redis
+    hostname: redis
+    
+    ports:
+      - "6379:6379"
+    
+    volumes:
+      - redis-data:/data
+    
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    
+    restart: unless-stopped
+    
+    networks:
+      - quantum-net
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+networks:
+  quantum-net:
+    driver: bridge
+    name: quantum-network
+
+# ============================================================================
+# VOLUMES
+# ============================================================================
+volumes:
+  redis-data:
+    name: quantum-redis-data

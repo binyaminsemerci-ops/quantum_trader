@@ -79,7 +79,7 @@ Time     | Avg Reward  | Final Reward | Trend
 
 ### Issue
 - Database connection from container requires `postgres` hostname
-- May need docker-compose network configuration
+- May need systemctl network configuration
 - Trade logging code exists and is called from:
   - `backend/services/execution/execution.py` (line 1844)
   - `backend/services/monitoring/position_monitor.py` (TradeStore integration)
@@ -188,7 +188,7 @@ Execution ← Strategy Updates ← Learning ← Retraining
 ### 1. Verify Trade Logging ✅
 ```bash
 # Check if postgres container exists
-docker ps | grep postgres
+systemctl list-units | grep postgres
 
 # Check trades table
 docker exec postgres psql -U postgres -d quantum_trader -c "SELECT COUNT(*) FROM trades"
@@ -252,3 +252,4 @@ The AI is actively learning through:
 3. **Performance tracking** (continuous metrics)
 
 Your system is a complete learning machine! 🚀
+

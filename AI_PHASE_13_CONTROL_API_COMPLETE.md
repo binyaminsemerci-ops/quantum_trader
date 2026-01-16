@@ -221,7 +221,7 @@ retrain     admin   admin   triggered
 - **Original**: `postgres:postgres@postgres:5432/quantumdb`
 - **Corrected**: `quantum:TAOeIjGDzlOYpzgYh3H8STmJtLLzcXWmn3DDBWEkoPc=@postgres:5432/quantum_trader`
 
-**Connection String** (in docker-compose.yml):
+**Connection String** (in systemctl.yml):
 ```yaml
 environment:
   - DATABASE_URL=postgresql+psycopg2://quantum:<password>@postgres:5432/quantum_trader
@@ -426,3 +426,4 @@ quantum_postgres: Running (healthy, 2 days uptime)
 >>> **[Phase 13 Complete – Control API secure and operational on api.quantumfond.com]** ✅
 
 **Summary**: JWT-protected control endpoints (retrain/heal/mode) with comprehensive PostgreSQL audit logging are now live in production. Role-based access control enforced. All actions logged with user, role, timestamp, and details. API tested and verified across all user roles.
+

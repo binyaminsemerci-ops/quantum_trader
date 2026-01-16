@@ -194,7 +194,7 @@ ssh -L 9090:localhost:9090 -i ~/.ssh/hetzner_fresh root@46.224.116.254
 ### Start Observability Stack
 ```bash
 cd /home/qt/quantum_trader
-docker compose -f docker-compose.observability.yml up -d
+docker compose -f systemctl.observability.yml up -d
 ```
 
 ### Check Stack Status
@@ -205,7 +205,7 @@ bash scripts/obs_status.sh
 ### View Logs
 ```bash
 # All services
-docker compose -f docker-compose.observability.yml logs -f
+docker compose -f systemctl.observability.yml logs -f
 
 # Specific service
 docker logs -f quantum_prometheus
@@ -215,7 +215,7 @@ docker logs -f quantum_alertmanager
 
 ### Restart Service
 ```bash
-docker compose -f docker-compose.observability.yml restart grafana
+docker compose -f systemctl.observability.yml restart grafana
 ```
 
 ### Check Prometheus Targets
@@ -283,3 +283,4 @@ curl http://localhost:9090/api/v1/rules
 ---
 
 **END OF P1A DEPLOYMENT PROOF**
+

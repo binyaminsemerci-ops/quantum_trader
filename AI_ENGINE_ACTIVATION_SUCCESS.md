@@ -265,7 +265,7 @@ curl http://localhost:8001/health
 
 **2. Container Status** ✅
 ```bash
-docker ps | grep ai_engine
+systemctl list-units | grep ai_engine
 # Up 1 minute (healthy)
 ```
 
@@ -302,8 +302,8 @@ Uvicorn running on http://0.0.0.0:8001
 3. **Verify Retraining Success** ✅
    ```bash
    # After 22:24 UTC
-   docker logs quantum_ai_engine | grep -i "retrain"
-   docker logs quantum_execution | grep -i "retrain"
+   journalctl -u quantum_ai_engine.service | grep -i "retrain"
+   journalctl -u quantum_execution.service | grep -i "retrain"
    ```
 
 ### Short Term (Next 24 hours):
@@ -392,10 +392,10 @@ docker logs -f quantum_trading_bot | grep "Signal"
 ### Check Retraining Status (after 22:24 UTC):
 ```bash
 # See if retraining triggered
-docker logs quantum_ai_engine | grep -i "retrain" | tail -20
+journalctl -u quantum_ai_engine.service | grep -i "retrain" | tail -20
 
 # Check CLM status
-docker logs quantum_execution | grep "CLM" | tail -20
+journalctl -u quantum_execution.service | grep "CLM" | tail -20
 
 # Verify new models deployed
 ls -lah ~/quantum_trader/data/clm_v3/registry/models/
@@ -418,3 +418,4 @@ ls -lah ~/quantum_trader/data/clm_v3/registry/models/
 **Result**: AI Engine ONLINE, 5 modeller lastet, CLM retraining om 1 time  
 **Data Ready**: 8,945 trades (89x over minimum)  
 **Status**: 🟢 KRITISK PROBLEM LØST - SYSTEM FULLT OPERASJONELT
+

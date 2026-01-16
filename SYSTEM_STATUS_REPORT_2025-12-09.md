@@ -255,7 +255,7 @@ APIError(code=-4045): Reach max stop order limit
 
 | Item | Status | Evidence |
 |------|--------|----------|
-| Feature flag enabled | ✅ | `EXIT_BRAIN_V3_ENABLED=true` in docker-compose.yml |
+| Feature flag enabled | ✅ | `EXIT_BRAIN_V3_ENABLED=true` in systemctl.yml |
 | Backend restart | ✅ | Container restarted cleanly (2.5s) |
 | Environment variable | ✅ | Verified via `docker exec` |
 | Initialization logs | ✅ | 8 separate log messages across 3 modules |
@@ -594,17 +594,17 @@ docker exec quantum_backend python /app/monitor_exit_brain.py
 
 **CLM Status**:
 ```bash
-docker logs quantum_backend --tail 50 | grep -i "clm.*trained\|clm.*promoted"
+journalctl -u quantum_backend.service --tail 50 | grep -i "clm.*trained\|clm.*promoted"
 ```
 
 **RL v3 Status**:
 ```bash
-docker logs quantum_backend --tail 50 | grep -i "rl v3.*episode\|ppo.*saved"
+journalctl -u quantum_backend.service --tail 50 | grep -i "rl v3.*episode\|ppo.*saved"
 ```
 
 **Error Check**:
 ```bash
-docker logs quantum_backend --tail 100 | grep -i "error\|exception\|failed"
+journalctl -u quantum_backend.service --tail 100 | grep -i "error\|exception\|failed"
 ```
 
 ---
@@ -628,7 +628,7 @@ docker logs quantum_backend --tail 100 | grep -i "error\|exception\|failed"
 
 ### Exit Brain v3 Activation ✅
 
-- [x] Feature flag enabled in docker-compose.yml
+- [x] Feature flag enabled in systemctl.yml
 - [x] Backend restarted successfully
 - [x] Environment variable verified in container
 - [x] 8 initialization log messages confirmed
@@ -730,7 +730,7 @@ Alle hovedmål oppnådd:
 - **Monitoring Script**: `monitor_exit_brain.py`
 - **Protection Script**: `protect_existing_positions.py`
 - **Test Suite**: `tests/domains/exits/test_exit_brain_v3_*.py`
-- **Configuration**: `docker-compose.yml` line 102
+- **Configuration**: `systemctl.yml` line 102
 - **Architecture**: `backend/domains/exits/exit_brain_v3/`
 
 ---
@@ -741,4 +741,5 @@ Alle hovedmål oppnådd:
 **Next Update**: After first Exit Brain position creation event
 
 ---
+
 

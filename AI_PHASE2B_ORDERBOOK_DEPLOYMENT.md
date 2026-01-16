@@ -221,21 +221,21 @@ asyncio.create_task(self._subscribe_orderbook_streams())
 cd /mnt/c/quantum_trader
 
 # Rebuild with orderbook integration
-docker-compose build --no-cache ai-engine
+systemctl build --no-cache ai-engine
 
 # Restart service
-docker-compose stop ai-engine
-docker-compose up -d ai-engine
+systemctl stop ai-engine
+systemctl up -d ai-engine
 ```
 
 ### Step 4: Verify Deployment
 
 ```bash
 # Check container is running
-docker ps | grep quantum_ai_engine
+systemctl list-units | grep quantum_ai_engine
 
 # Check logs for Phase 2B initialization
-docker logs quantum_ai_engine --tail 100 | grep -E "PHASE 2B|Orderbook"
+journalctl -u quantum_ai_engine.service --tail 100 | grep -E "PHASE 2B|Orderbook"
 ```
 
 **Expected Log Output**:
@@ -446,7 +446,7 @@ if not bids or not asks:
 **Fix**:
 ```bash
 # Check if data feed is running
-docker logs quantum_ai_engine | grep "Orderbook updated"
+journalctl -u quantum_ai_engine.service | grep "Orderbook updated"
 
 # Should see periodic updates
 [PHASE 2B] Orderbook updated for BTCUSDT: 20 bids, 20 asks
@@ -461,7 +461,7 @@ docker logs quantum_ai_engine | grep "Orderbook updated"
 **Fix**:
 ```bash
 # Check initialization
-docker logs quantum_ai_engine | grep "Orderbook Imbalance Module"
+journalctl -u quantum_ai_engine.service | grep "Orderbook Imbalance Module"
 
 # Should see:
 # [AI-ENGINE] ✅ Orderbook Imbalance Module active
@@ -499,8 +499,8 @@ If Phase 2B causes issues:
 git revert a249daac
 
 # Rebuild container
-docker-compose build ai-engine
-docker-compose up -d ai-engine
+systemctl build ai-engine
+systemctl up -d ai-engine
 ```
 
 ---
@@ -544,7 +544,7 @@ async def _subscribe_orderbook_streams(self):
 ## 📞 SUPPORT
 
 **Documentation**: This file + `backend/services/ai/orderbook_imbalance_module.py` docstrings  
-**Logs**: `docker logs quantum_ai_engine`  
+**Logs**: `journalctl -u quantum_ai_engine.service`  
 **Code**: Commit `a249daac`
 
 ---
@@ -561,8 +561,8 @@ Pre-Deployment:
 
 Deployment:
 - [ ] Docker is running
-- [ ] Container rebuilt (`docker-compose build --no-cache ai-engine`)
-- [ ] Container restarted (`docker-compose up -d ai-engine`)
+- [ ] Container rebuilt (`systemctl build --no-cache ai-engine`)
+- [ ] Container restarted (`systemctl up -d ai-engine`)
 - [ ] Initialization logs verified
 - [ ] No errors in logs
 
@@ -598,3 +598,4 @@ Post-Deployment:
 2. Deploy and test all Phase 2 modules
 3. Monitor performance and accuracy
 4. Iterate on metric calculations based on results
+

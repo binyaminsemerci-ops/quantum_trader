@@ -362,7 +362,7 @@ deployment = StrategyDeploymentManager(
 
 ### Option 1: Docker Service
 
-**Add to `docker-compose.yml`:**
+**Add to `systemctl.yml`:**
 ```yaml
 services:
   strategy_generator:
@@ -482,7 +482,7 @@ logging.basicConfig(
 - [ ] Set shadow test duration (14-30 days)
 
 ### Deployment
-- [ ] Add to `docker-compose.yml`
+- [ ] Add to `systemctl.yml`
 - [ ] Set up cron jobs (shadow testing, reviews)
 - [ ] Configure environment variables
 - [ ] Set up secrets management (API keys)
@@ -637,3 +637,4 @@ logging.basicConfig(
 **🎉 Strategy Generator AI implementation complete!**
 
 **Ready for integration with Quantum Trader production system.**
+

@@ -81,16 +81,16 @@ Hvis du vil kjøre steg-for-steg manuelt:
 podman ps
 
 # Restart en service
-podman-compose -f docker-compose.wsl.yml restart ai-engine
+podman-compose -f systemctl.wsl.yml restart ai-engine
 
 # Se logs
 podman logs quantum_ai_engine
 
 # Stopp alt
-podman-compose -f docker-compose.wsl.yml down
+podman-compose -f systemctl.wsl.yml down
 
 # Start på nytt
-podman-compose -f docker-compose.wsl.yml up -d redis ai-engine
+podman-compose -f systemctl.wsl.yml up -d redis ai-engine
 ```
 
 ---
@@ -117,8 +117,8 @@ podman logs quantum_ai_engine
 
 # Rebuild og start på nytt
 cd ~/quantum_trader
-podman-compose -f docker-compose.wsl.yml build ai-engine
-podman-compose -f docker-compose.wsl.yml up -d ai-engine
+podman-compose -f systemctl.wsl.yml build ai-engine
+podman-compose -f systemctl.wsl.yml up -d ai-engine
 ```
 
 ### Problem: Health check feiler
@@ -141,7 +141,7 @@ podman logs --tail 100 quantum_ai_engine
 ## 📁 FILER SOM ER LAGET FOR DEG
 
 1. **`deploy-to-vps.sh`** - Komplett automatisk deployment script
-2. **`docker-compose.wsl.yml`** - Podman-compose konfigurasjon (fungerer på både WSL og VPS)
+2. **`systemctl.wsl.yml`** - Podman-compose konfigurasjon (fungerer på både WSL og VPS)
 3. **`scripts/start-wsl-podman.sh`** - Start services
 4. **`scripts/verify-wsl-podman.sh`** - Verifiser at alt fungerer
 5. **`scripts/setup-vps.sh`** - VPS initial setup (kjøres automatisk av deploy-script)
@@ -177,7 +177,7 @@ Du vet at deployment er vellykket når:
    ssh root@YOUR_VPS_IP
    crontab -e
    # Legg til:
-   @reboot cd /root/quantum_trader && podman-compose -f docker-compose.wsl.yml up -d
+   @reboot cd /root/quantum_trader && podman-compose -f systemctl.wsl.yml up -d
    ```
 
 ---
@@ -193,3 +193,4 @@ Hvis noe går galt:
 ---
 
 **Lykke til! 🚀**
+

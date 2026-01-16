@@ -58,7 +58,7 @@
 ## DEPLOYMENT FILES
 
 ### Production Configuration
-- **docker-compose.prod.yml** - Existing production overrides (validated)
+- **systemctl.prod.yml** - Existing production overrides (validated)
 - **.env.production.template** - Production environment template (created)
 - **deploy_production.ps1** - Automated deployment script (created)
 
@@ -333,3 +333,4 @@ curl http://localhost:8000/health
 
 *For detailed monitoring procedures, see `PRODUCTION_MONITORING.md`*  
 *For P1 maintenance tasks, see `P1_MAINTENANCE_TASKS.md`*
+

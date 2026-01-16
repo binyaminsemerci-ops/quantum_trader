@@ -250,7 +250,7 @@ NORMAL regime, NORMAL volatility (2.00%)
 - **New Keys:** IsY3mFpko7Z8joZr8clWwpJZuZcFdAtnDBy4g4ULQu827Gf6... (working)
 - **Locations Updated:**
   - `.env`
-  - `docker-compose.yml` (2 locations)
+  - `systemctl.yml` (2 locations)
 - **Status:** Deployed and active
 
 ### 2. Execution Mode Change ✅
@@ -395,3 +395,4 @@ Quantum Trader is successfully trading on Binance Futures Testnet with:
 **Execution Service:** v2.0.0  
 **AI Engine:** v1.0.0  
 **Exit Brain:** v3.0.0
+

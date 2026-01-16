@@ -245,11 +245,11 @@ ls -R ~/quantum_trader/microservices/ai_engine/
 cat ~/quantum_trader/Dockerfile.ai_engine
 
 # 3. Rebuild service
-docker compose -f docker-compose.vps.yml build ai-engine
+docker compose -f systemctl.vps.yml build ai-engine
 
 # 4. Start with environment overrides
 AI_ENGINE_MIN_SIGNAL_CONFIDENCE=0.50 \
-docker compose -f docker-compose.vps.yml up -d ai-engine
+docker compose -f systemctl.vps.yml up -d ai-engine
 
 # 5. Verify health
 curl http://localhost:8001/health
@@ -470,7 +470,7 @@ docker logs -f quantum_execution | grep ORDER
 - [AI_FULL_SYSTEM_REPORT_DEC18.md](AI_FULL_SYSTEM_REPORT_DEC18.md) - Complete system architecture
 - [AI_ENGINE_HEALTH_FIX.md](AI_ENGINE_HEALTH_FIX.md) - AI engine troubleshooting
 - [AI_INTEGRATION_COMPLETE.md](AI_INTEGRATION_COMPLETE.md) - AI system integration guide
-- [docker-compose.yml](docker-compose.yml) - Service orchestration
+- [systemctl.yml](systemctl.yml) - Service orchestration
 - [backend/main.py](backend/main.py) - Backend entry point
 
 ---
@@ -479,3 +479,4 @@ docker logs -f quantum_execution | grep ORDER
 **Integration Test Script:** [integration_test.py](integration_test.py)  
 **Test Result:** ✅ **6/6 PASSED**  
 **System Status:** 🟡 **PRODUCTION-READY** (awaiting signal generation fix)
+

@@ -84,7 +84,7 @@ class GovernanceAlertService:
 ### Test Scenario 1: Model Drift Detection
 **Setup:**
 ```bash
-docker exec quantum_redis redis-cli SET latest_metrics '{"mape":0.08,"sharpe_ratio":0.5}'
+redis-cli SET latest_metrics '{"mape":0.08,"sharpe_ratio":0.5}'
 ```
 
 **Results:**
@@ -114,7 +114,7 @@ docker exec quantum_redis redis-cli SET latest_metrics '{"mape":0.08,"sharpe_rat
 ### Test Scenario 3: Alert Storage
 **Verification:**
 ```bash
-docker exec quantum_redis redis-cli LRANGE governance_alerts 0 -1
+redis-cli LRANGE governance_alerts 0 -1
 ```
 
 **Results:**
@@ -186,7 +186,7 @@ governance-alerts:
 [🚨 ALERT] {Title}
 {Message details}
 ```
-**Access:** `docker logs quantum_governance_alerts`
+**Access:** `journalctl -u quantum_governance_alerts.service`
 
 ### 2. Redis Storage
 **Status:** ✅ Active (Always enabled)
@@ -199,7 +199,7 @@ governance-alerts:
 **Status:** ⚙️ Configurable (Disabled by default)
 **Setup:**
 ```bash
-# Add to docker-compose.yml or .env
+# Add to systemctl.yml or .env
 ALERT_EMAIL=your@email.com
 EMAIL_USER=your@email.com
 EMAIL_PASS=your_app_password  # Use Gmail app password, not regular password
@@ -225,7 +225,7 @@ To: your@email.com
 # 2. Get bot token
 # 3. Get your chat ID: @userinfobot
 
-# Add to docker-compose.yml or .env
+# Add to systemctl.yml or .env
 TELEGRAM_TOKEN=123456789:ABCDEF123456
 TELEGRAM_CHAT_ID=123456789
 ```
@@ -304,16 +304,16 @@ TELEGRAM_CHAT_ID=123456789
 ssh qt@46.224.116.254 'yes > /dev/null & sleep 120; pkill yes'
 
 # Check logs after 2 minutes
-docker logs quantum_governance_alerts --tail 20
+journalctl -u quantum_governance_alerts.service --tail 20
 ```
 
 ### Test 2: MAPE Drift Alert
 ```bash
 # Set high MAPE value
-docker exec quantum_redis redis-cli SET latest_metrics '{"mape":0.08}'
+redis-cli SET latest_metrics '{"mape":0.08}'
 
 # Wait 2 minutes, check logs
-docker logs quantum_governance_alerts --tail 20
+journalctl -u quantum_governance_alerts.service --tail 20
 
 # Should see: [🚨 ALERT] Model Drift Detected
 ```
@@ -321,10 +321,10 @@ docker logs quantum_governance_alerts --tail 20
 ### Test 3: Low Sharpe Ratio Alert
 ```bash
 # Set low Sharpe ratio
-docker exec quantum_redis redis-cli SET latest_metrics '{"sharpe_ratio":0.5}'
+redis-cli SET latest_metrics '{"sharpe_ratio":0.5}'
 
 # Wait 2 minutes, check logs
-docker logs quantum_governance_alerts --tail 20
+journalctl -u quantum_governance_alerts.service --tail 20
 
 # Should see: [🚨 ALERT] Low Sharpe Ratio
 ```
@@ -332,10 +332,10 @@ docker logs quantum_governance_alerts --tail 20
 ### Test 4: Missing Weights Alert
 ```bash
 # Delete governance weights
-docker exec quantum_redis redis-cli DEL governance_weights
+redis-cli DEL governance_weights
 
 # Wait 2 minutes, check logs
-docker logs quantum_governance_alerts --tail 20
+journalctl -u quantum_governance_alerts.service --tail 20
 
 # Should see: [🚨 ALERT] No Model Weights
 ```
@@ -343,10 +343,10 @@ docker logs quantum_governance_alerts --tail 20
 ### Test 5: Verify Alerts in Redis
 ```bash
 # Get all alerts
-docker exec quantum_redis redis-cli LRANGE governance_alerts 0 -1 | python3 -m json.tool
+redis-cli LRANGE governance_alerts 0 -1 | python3 -m json.tool
 
 # Get alert count
-docker exec quantum_redis redis-cli LLEN governance_alerts
+redis-cli LLEN governance_alerts
 ```
 
 ---
@@ -504,7 +504,7 @@ docker restart quantum_governance_alerts
 
 ### View Live Logs
 ```bash
-docker logs quantum_governance_alerts -f
+journalctl -u quantum_governance_alerts.service -f
 ```
 
 ### Check Container Health
@@ -514,8 +514,8 @@ docker inspect quantum_governance_alerts | grep -A5 Health
 
 ### Update Configuration
 ```bash
-# Edit docker-compose.yml environment variables
-nano ~/quantum_trader/docker-compose.yml
+# Edit systemctl.yml environment variables
+nano ~/quantum_trader/systemctl.yml
 
 # Recreate container with new config
 docker compose down governance-alerts
@@ -529,7 +529,7 @@ docker compose --profile microservices up -d governance-alerts
 ### Alert Service Not Starting
 ```bash
 # Check container logs
-docker logs quantum_governance_alerts
+journalctl -u quantum_governance_alerts.service
 
 # Verify Redis connection
 docker exec quantum_governance_alerts python3 -c "import redis; r=redis.Redis(host='quantum_redis'); print(r.ping())"
@@ -541,13 +541,13 @@ docker network inspect quantum_trader_quantum_trader | grep quantum_governance_a
 ### No Alerts Being Generated
 ```bash
 # Verify monitoring loop is running
-docker logs quantum_governance_alerts | grep "Cycle"
+journalctl -u quantum_governance_alerts.service | grep "Cycle"
 
 # Check thresholds
-docker logs quantum_governance_alerts | grep "Thresholds"
+journalctl -u quantum_governance_alerts.service | grep "Thresholds"
 
 # Manually set test metrics
-docker exec quantum_redis redis-cli SET latest_metrics '{"mape":0.1}'
+redis-cli SET latest_metrics '{"mape":0.1}'
 ```
 
 ### Alerts Not in Redis
@@ -556,13 +556,13 @@ docker exec quantum_redis redis-cli SET latest_metrics '{"mape":0.1}'
 docker exec quantum_governance_alerts python3 -c "import redis; r=redis.Redis(host='quantum_redis'); print(r.llen('governance_alerts'))"
 
 # View Redis alerts
-docker exec quantum_redis redis-cli LRANGE governance_alerts 0 -1
+redis-cli LRANGE governance_alerts 0 -1
 ```
 
 ### Email Not Sending
 ```bash
 # Check email configuration
-docker logs quantum_governance_alerts | grep "Email"
+journalctl -u quantum_governance_alerts.service | grep "Email"
 
 # Test SMTP connection manually
 docker exec quantum_governance_alerts python3 -c "
@@ -668,3 +668,4 @@ You have successfully built a **complete, self-managing AI trading system** with
 **Deployment Date:** 2025-12-20  
 **Status:** ✅ PRODUCTION READY  
 **Phase 4 Stack:** 🎉 COMPLETE  
+

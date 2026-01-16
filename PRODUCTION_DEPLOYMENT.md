@@ -18,8 +18,8 @@ sudo sh get-docker.sh
 sudo usermod -aG docker $USER
 
 # Install Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/systemctl-$(uname -s)-$(uname -m)" -o /usr/local/bin/systemctl
+sudo chmod +x /usr/local/bin/systemctl
 
 # Install Nginx (for reverse proxy and SSL)
 sudo apt install nginx certbot python3-certbot-nginx -y
@@ -138,14 +138,14 @@ sudo systemctl restart nginx
 
 ```bash
 # Build Docker images
-docker-compose build --no-cache
+systemctl build --no-cache
 
 # Start services
-docker-compose up -d
+systemctl up -d
 
 # Check status
-docker-compose ps
-docker-compose logs -f backend
+systemctl ps
+systemctl logs -f backend
 ```
 
 ## 6. Monitoring Setup
@@ -164,7 +164,7 @@ Requires=docker.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/docker-compose -f /home/ubuntu/quantum_trader/docker-compose.yml ps
+ExecStart=/usr/local/bin/systemctl -f /home/ubuntu/quantum_trader/systemctl.yml ps
 WorkingDirectory=/home/ubuntu/quantum_trader
 
 [Install]
@@ -191,7 +191,7 @@ check_health() {
     echo "Backend: $HEALTH" >> $LOG_FILE
     
     # Check if containers are running
-    CONTAINERS=$(docker-compose ps --services --filter "status=running")
+    CONTAINERS=$(systemctl ps --services --filter "status=running")
     echo "Running containers: $CONTAINERS" >> $LOG_FILE
     
     # Check disk space
@@ -300,7 +300,7 @@ curl https://your-domain.com/api/metrics
 wscat -c wss://your-domain.com/ws/dashboard
 
 # View logs
-docker-compose logs -f backend
+systemctl logs -f backend
 
 # Check scheduler
 curl https://your-domain.com/health/scheduler
@@ -310,21 +310,21 @@ curl https://your-domain.com/health/scheduler
 
 ```bash
 # Restart all services
-docker-compose restart
+systemctl restart
 
 # Restart specific service
-docker-compose restart backend
+systemctl restart backend
 
 # View logs
-docker-compose logs -f
+systemctl logs -f
 
 # Update code
 git pull origin main
-docker-compose build --no-cache
-docker-compose up -d
+systemctl build --no-cache
+systemctl up -d
 
 # Stop all services
-docker-compose down
+systemctl down
 
 # Clean up old images
 docker system prune -a
@@ -335,24 +335,24 @@ docker system prune -a
 ### Backend not starting
 ```bash
 # Check logs
-docker-compose logs backend
+systemctl logs backend
 
 # Check environment
-docker-compose exec backend env
+systemctl exec backend env
 
 # Rebuild
-docker-compose build --no-cache backend
-docker-compose up -d backend
+systemctl build --no-cache backend
+systemctl up -d backend
 ```
 
 ### Database issues
 ```bash
 # Check database
-docker-compose exec backend python -c "from database import get_db; next(get_db())"
+systemctl exec backend python -c "from database import get_db; next(get_db())"
 
 # Reset database (CAUTION: deletes data)
 rm backend/trades.db
-docker-compose restart backend
+systemctl restart backend
 ```
 
 ### Memory issues
@@ -361,7 +361,7 @@ docker-compose restart backend
 free -h
 
 # Restart services
-docker-compose restart
+systemctl restart
 
 # Reduce refresh intervals in .env
 ```
@@ -390,3 +390,4 @@ UVICORN_WORKERS=2  # Match CPU cores
 ---
 
 **⚠️ IMPORTANT:** Always test in paper trading mode (`QT_DRY_RUN=true`) before going live!
+

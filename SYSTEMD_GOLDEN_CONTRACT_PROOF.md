@@ -388,7 +388,7 @@ source .env && python app.py
 # (systemd unit sources /etc/quantum/<service>.env automatically)
 
 # ❌ WRONG: Docker Redis
-docker exec quantum_redis redis-cli
+redis-cli
 
 # ✅ CORRECT: systemd Redis
 redis-cli -h localhost -p 6379
@@ -538,3 +538,4 @@ make audit
 ---
 
 **END OF PROOF**
+

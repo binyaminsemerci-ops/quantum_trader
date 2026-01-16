@@ -16,13 +16,13 @@
 ## 📦 **Deployment Files Created**
 
 ### **Docker Deployment:**
-1. `docker-compose.yml` (500 linjer) - Main configuration
+1. `systemctl.yml` (500 linjer) - Main configuration
    - 8 services: redis, postgres, prometheus, grafana, redis-commander, ai-service, exec-risk-service, analytics-os-service
    - Health checks for all services
    - Network configuration (172.28.0.0/16)
    - Persistent volumes
 
-2. `docker-compose.prod.yml` (100 linjer) - Production overrides
+2. `systemctl.prod.yml` (100 linjer) - Production overrides
    - Higher resource limits
    - Production logging
    - Stricter health checks
@@ -72,13 +72,13 @@ notepad .env
 ### **2. Start All Services:**
 ```powershell
 # Build and start
-docker-compose up -d
+systemctl up -d
 
 # Check status
-docker-compose ps
+systemctl ps
 
 # View logs
-docker-compose logs -f
+systemctl logs -f
 ```
 
 ### **3. Verify Health:**
@@ -237,40 +237,40 @@ curl http://localhost:8001/health | ConvertFrom-Json
 ### **Start Services:**
 ```powershell
 # All services
-docker-compose up -d
+systemctl up -d
 
 # Single service
-docker-compose up -d ai-service
+systemctl up -d ai-service
 ```
 
 ### **Stop Services:**
 ```powershell
 # All services
-docker-compose stop
+systemctl stop
 
 # Single service
-docker-compose stop exec-risk-service
+systemctl stop exec-risk-service
 ```
 
 ### **Restart Services:**
 ```powershell
 # All services
-docker-compose restart
+systemctl restart
 
 # With rebuild
-docker-compose up -d --build
+systemctl up -d --build
 ```
 
 ### **View Logs:**
 ```powershell
 # All services
-docker-compose logs -f
+systemctl logs -f
 
 # Single service
-docker-compose logs -f analytics-os-service
+systemctl logs -f analytics-os-service
 
 # Last 100 lines
-docker-compose logs --tail=100 ai-service
+systemctl logs --tail=100 ai-service
 ```
 
 ---
@@ -316,19 +316,19 @@ python tests/e2e_test_suite.py
 1. **Test Signal Generation:**
 ```powershell
 # Publish test signal
-docker exec quantum_trader_redis redis-cli XADD quantum:events:signal.generated "*" data '{"symbol":"BTCUSDT","action":"BUY","confidence":0.85}'
+redis-cli XADD quantum:events:signal.generated "*" data '{"symbol":"BTCUSDT","action":"BUY","confidence":0.85}'
 
 # Check for execution event
-docker exec quantum_trader_redis redis-cli XREAD BLOCK 5000 STREAMS quantum:events:execution.result 0
+redis-cli XREAD BLOCK 5000 STREAMS quantum:events:execution.result 0
 ```
 
 2. **Test RPC Call:**
 ```powershell
 # Call AI Service RPC
-docker exec quantum_trader_redis redis-cli XADD quantum:rpc:request:ai-service "*" data '{"command":"get_signal","parameters":{"symbol":"BTCUSDT"}}'
+redis-cli XADD quantum:rpc:request:ai-service "*" data '{"command":"get_signal","parameters":{"symbol":"BTCUSDT"}}'
 
 # Check response
-docker exec quantum_trader_redis redis-cli XREAD BLOCK 5000 STREAMS quantum:rpc:response:ai-service 0
+redis-cli XREAD BLOCK 5000 STREAMS quantum:rpc:response:ai-service 0
 ```
 
 ---
@@ -338,13 +338,13 @@ docker exec quantum_trader_redis redis-cli XREAD BLOCK 5000 STREAMS quantum:rpc:
 ### **Service Won't Start:**
 ```powershell
 # Check logs
-docker-compose logs ai-service
+systemctl logs ai-service
 
 # Check container status
-docker-compose ps
+systemctl ps
 
 # Restart service
-docker-compose restart ai-service
+systemctl restart ai-service
 ```
 
 ### **Health Check Failing:**
@@ -359,10 +359,10 @@ docker inspect --format='{{json .State.Health}}' quantum_trader_ai_service | Con
 ### **Redis Connection Issues:**
 ```powershell
 # Test Redis connection
-docker exec quantum_trader_redis redis-cli ping
+redis-cli ping
 
 # Check Redis logs
-docker-compose logs redis
+systemctl logs redis
 ```
 
 ### **Memory Issues:**
@@ -370,7 +370,7 @@ docker-compose logs redis
 # Check resource usage
 docker stats
 
-# Reduce memory limits in docker-compose.prod.yml
+# Reduce memory limits in systemctl.prod.yml
 ```
 
 ---
@@ -407,7 +407,7 @@ analytics_os_service_rebalances_executed_total
 ### **Production Deployment:**
 ```powershell
 # Use production configuration
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+systemctl -f systemctl.yml -f systemctl.prod.yml up -d
 
 # Enable production settings:
 # - Stricter confidence thresholds
@@ -419,7 +419,7 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ### **Scaling:**
 ```powershell
 # Scale AI Service to 2 instances
-docker-compose up -d --scale ai-service=2
+systemctl up -d --scale ai-service=2
 
 # Requires load balancer for proper distribution
 ```
@@ -427,7 +427,7 @@ docker-compose up -d --scale ai-service=2
 ### **Backup & Recovery:**
 ```powershell
 # Backup Redis
-docker exec quantum_trader_redis redis-cli SAVE
+redis-cli SAVE
 docker cp quantum_trader_redis:/data/dump.rdb ./backups/
 
 # Backup PostgreSQL
@@ -453,3 +453,4 @@ docker exec quantum_trader_postgres pg_dump -U quantum_user quantum_trader > bac
 **Date:** December 2, 2025  
 **Status:** ✅ Production Ready  
 **Total Implementation:** ~11,000 lines of production code
+

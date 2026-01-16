@@ -211,7 +211,7 @@ microservices/exposure_balancer/
 
 ## 🐳 DOCKER DEPLOYMENT
 
-### **Service Configuration** (docker-compose.vps.yml)
+### **Service Configuration** (systemctl.vps.yml)
 
 ```yaml
 exposure-balancer:
@@ -413,7 +413,7 @@ The AI Engine health endpoint now includes exposure balancer metrics.
 
 3. **Integration** (3 tests)
    - AI Engine health endpoint updated
-   - docker-compose.vps.yml updated
+   - systemctl.vps.yml updated
    - Environment variables configured
 
 4. **Phase Integration** (3 tests)
@@ -495,7 +495,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\validate_phase_4p.ps1
 ```bash
 git add microservices/exposure_balancer/
 git add microservices/ai_engine/service.py
-git add docker-compose.vps.yml
+git add systemctl.vps.yml
 git add scripts/validate_phase_4p.*
 git commit -m "Phase 4P Complete: Real-time Adaptive Exposure Balancer"
 git push origin main
@@ -516,22 +516,22 @@ git pull origin main
 **Rebuild Containers**:
 ```bash
 # Rebuild AI Engine (includes health endpoint update)
-docker-compose -f docker-compose.vps.yml build ai-engine
+systemctl -f systemctl.vps.yml build ai-engine
 
 # Build new Exposure Balancer service
-docker-compose -f docker-compose.vps.yml build exposure-balancer
+systemctl -f systemctl.vps.yml build exposure-balancer
 
 # Restart services
-docker-compose -f docker-compose.vps.yml up -d
+systemctl -f systemctl.vps.yml up -d
 ```
 
 **Verify Deployment**:
 ```bash
 # Check container status
-docker ps | grep quantum_exposure_balancer
+systemctl list-units | grep quantum_exposure_balancer
 
 # Check logs
-docker logs quantum_exposure_balancer
+journalctl -u quantum_exposure_balancer.service
 
 # Test health endpoint
 curl http://localhost:8001/health | jq '.exposure_balancer'
@@ -882,10 +882,10 @@ REBALANCE_INTERVAL: 10         # Check every 10 seconds
 **Diagnosis**:
 ```bash
 # Check if service is running
-docker ps | grep exposure_balancer
+systemctl list-units | grep exposure_balancer
 
 # Check logs for errors
-docker logs quantum_exposure_balancer
+journalctl -u quantum_exposure_balancer.service
 
 # Check Redis connectivity
 redis-cli PING
@@ -1017,7 +1017,7 @@ positions_sum / margin_total
 - [ ] **Git Push**: Push to GitHub
 - [ ] **VPS Pull**: Pull latest code on VPS
 - [ ] **Docker Build**: Build `ai-engine` and `exposure-balancer` images
-- [ ] **Docker Deploy**: Start containers with `docker-compose up -d`
+- [ ] **Docker Deploy**: Start containers with `systemctl up -d`
 - [ ] **Container Check**: Verify `quantum_exposure_balancer` is running
 - [ ] **Logs Check**: Review startup logs for errors
 - [ ] **Health Check**: Test `/health` endpoint - `exposure_balancer.status: "OK"`
@@ -1044,7 +1044,7 @@ positions_sum / margin_total
 
 **Issue Reporting**: Create GitHub issue with:
 - Phase 4P tag
-- Docker logs (`docker logs quantum_exposure_balancer`)
+- Docker logs (`journalctl -u quantum_exposure_balancer.service`)
 - Health endpoint output
 - Redis stream contents
 
@@ -1061,3 +1061,4 @@ Real-time adaptive exposure balancing with autonomous risk management. Seamless 
 *Documentation Version*: 1.0  
 *Last Updated*: December 2024  
 *Status*: Complete & Validated
+

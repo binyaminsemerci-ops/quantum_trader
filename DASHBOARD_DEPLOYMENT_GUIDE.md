@@ -84,7 +84,7 @@ Make sure these ports are open in Hetzner Cloud Firewall:
 ### Backend not starting
 ```bash
 # Check logs
-docker logs quantum_dashboard_backend
+journalctl -u quantum_dashboard_backend.service
 
 # Check PostgreSQL connection
 docker exec quantum_dashboard_backend python -c "from db.connection import engine; engine.connect()"
@@ -96,7 +96,7 @@ docker exec quantum_dashboard_backend python -c "from db.connection import engin
 docker exec quantum_dashboard_frontend nginx -t
 
 # Check logs
-docker logs quantum_dashboard_frontend
+journalctl -u quantum_dashboard_frontend.service
 ```
 
 ### Port conflicts
@@ -113,7 +113,7 @@ docker stop <container_name>
 ```bash
 # On local machine, sync changes
 scp -r dashboard_v4/ root@46.224.116.254:/root/quantum_trader/
-scp docker-compose.yml root@46.224.116.254:/root/quantum_trader/
+scp systemctl.yml root@46.224.116.254:/root/quantum_trader/
 
 # On VPS, rebuild and restart
 ssh root@46.224.116.254
@@ -142,3 +142,4 @@ docker stats quantum_dashboard_backend quantum_dashboard_frontend
 - Frontend served over HTTP (add HTTPS/SSL later)
 - API endpoints have CORS enabled for development
 - Production: Add authentication, rate limiting, SSL
+

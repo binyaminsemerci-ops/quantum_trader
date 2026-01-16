@@ -53,14 +53,14 @@ NEXT_PUBLIC_WS_URL=ws://localhost:8000
 #### Option A: Docker (Recommended)
 ```bash
 # Build and start backend
-docker-compose build backend
-docker-compose up -d backend
+systemctl build backend
+systemctl up -d backend
 
 # Verify health
 curl http://localhost:8000/health
 
 # Check logs
-docker logs quantum_backend --tail 50
+journalctl -u quantum_backend.service --tail 50
 ```
 
 #### Option B: Local Python
@@ -371,7 +371,7 @@ python tests/test_dashboard_v3_integration.py
 1. Check backend logs for route registration: `"Dashboard API routes registered"`
 2. Verify router imports in `main.py`
 3. Check FastAPI route listing: `docker exec quantum_backend python -c "from backend.main import app; print([r.path for r in app.routes if hasattr(r, 'path')])"`
-4. Restart backend: `docker-compose restart backend`
+4. Restart backend: `systemctl restart backend`
 
 **Problem**: "WebSocket immediately disconnects"  
 **Solution**:
@@ -398,16 +398,16 @@ python tests/test_dashboard_v3_integration.py
 
 **Problem**: "Container keeps restarting"  
 **Solution**:
-1. Check logs: `docker logs quantum_backend --tail 100`
+1. Check logs: `journalctl -u quantum_backend.service --tail 100`
 2. Look for Python import errors
 3. Verify all dependencies in requirements.txt
-4. Check environment variables in docker-compose.yml
+4. Check environment variables in systemctl.yml
 
 **Problem**: "Code changes not reflected"  
 **Solution**:
-1. Rebuild image: `docker-compose build backend`
-2. Restart container: `docker-compose up -d backend`
-3. Verify volume mounts in docker-compose.yml
+1. Rebuild image: `systemctl build backend`
+2. Restart container: `systemctl up -d backend`
+3. Verify volume mounts in systemctl.yml
 4. Check file permissions on host
 
 **Problem**: "Port 8000 already in use"  
@@ -585,10 +585,10 @@ logger.error(f"[API] Failed to fetch portfolio data: {error}")
 docker logs -f quantum_backend
 
 # Search logs
-docker logs quantum_backend 2>&1 | grep "ERROR"
+journalctl -u quantum_backend.service 2>&1 | grep "ERROR"
 
 # Export logs
-docker logs quantum_backend > backend.log
+journalctl -u quantum_backend.service > backend.log
 ```
 
 ### Frontend Monitoring
@@ -680,8 +680,8 @@ npm run build
 **Recovery Steps:**
 1. Clone repository: `git clone <repo>`
 2. Restore environment variables
-3. Rebuild Docker images: `docker-compose build`
-4. Start services: `docker-compose up -d`
+3. Rebuild Docker images: `systemctl build`
+4. Start services: `systemctl up -d`
 5. Verify health endpoints
 6. Run test suite
 
@@ -790,3 +790,4 @@ NEXT_PUBLIC_WS_RECONNECT_DELAY=3000
 
 **Dashboard V3.0 - Production Ready** ✅  
 *Last Updated: December 5, 2025*
+

@@ -174,10 +174,10 @@ docker logs -f quantum_trade_intent_consumer
 docker logs -f quantum_trading_bot
 
 # Redis stream length
-docker exec quantum_redis redis-cli XLEN quantum:stream:trade.intent
+redis-cli XLEN quantum:stream:trade.intent
 
 # Recent orders
-docker logs quantum_trade_intent_consumer | grep "Order submitted" | tail -5
+journalctl -u quantum_trade_intent_consumer.service | grep "Order submitted" | tail -5
 ```
 
 ---
@@ -245,13 +245,13 @@ docker run -d --name quantum_trade_intent_consumer \
 ## 📞 SUPPORT
 
 ### Logs Location (VPS)
-- Consumer: `docker logs quantum_trade_intent_consumer`
-- Trading Bot: `docker logs quantum_trading_bot`
-- AI Engine: `docker logs quantum_ai_engine`
+- Consumer: `journalctl -u quantum_trade_intent_consumer.service`
+- Trading Bot: `journalctl -u quantum_trading_bot.service`
+- AI Engine: `journalctl -u quantum_ai_engine.service`
 
 ### Config Files
 - Environment: `/home/qt/quantum_trader/.env`
-- Docker Compose: `/home/qt/quantum_trader/docker-compose.yml`
+- Docker Compose: `/home/qt/quantum_trader/systemctl.yml`
 - Backend Dockerfile: `/home/qt/quantum_trader/backend/Dockerfile`
 
 ### Key Code Files
@@ -288,3 +288,4 @@ docker run -d --name quantum_trade_intent_consumer \
 **Report Generated:** 2025-12-25 03:15:00 UTC  
 **Status:** ✅ **DEPLOYMENT COMPLETE & VERIFIED**  
 **Recommendation:** Continue monitoring in DRY-RUN mode for 24-48 hours before enabling LIVE trading.
+

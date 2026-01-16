@@ -177,22 +177,22 @@ For each trading symbol, Phase 3B will:
 
 ### Check Strategy Selections
 ```bash
-docker logs quantum_ai_engine 2>&1 | grep "PHASE 3B" | grep "Strategy:"
+journalctl -u quantum_ai_engine.service 2>&1 | grep "PHASE 3B" | grep "Strategy:"
 ```
 
 ### Strategy Distribution
 ```bash
-docker logs quantum_ai_engine 2>&1 | grep "Strategy:" | grep -o "Strategy: [a-z_]*" | sort | uniq -c
+journalctl -u quantum_ai_engine.service 2>&1 | grep "Strategy:" | grep -o "Strategy: [a-z_]*" | sort | uniq -c
 ```
 
 ### Confidence Levels
 ```bash
-docker logs quantum_ai_engine 2>&1 | grep "conf=" | grep -o "conf=[0-9]*%" | sort | uniq -c
+journalctl -u quantum_ai_engine.service 2>&1 | grep "conf=" | grep -o "conf=[0-9]*%" | sort | uniq -c
 ```
 
 ### Check for Errors
 ```bash
-docker logs quantum_ai_engine 2>&1 | grep "PHASE 3B" | grep -i "error\|failed"
+journalctl -u quantum_ai_engine.service 2>&1 | grep "PHASE 3B" | grep -i "error\|failed"
 ```
 
 ### Real-Time Monitoring
@@ -386,3 +386,4 @@ docker logs -f quantum_ai_engine 2>&1 | grep "PHASE 3B"
 ---
 
 🎯 **Phase 3B is now actively improving trading decisions in production!**
+

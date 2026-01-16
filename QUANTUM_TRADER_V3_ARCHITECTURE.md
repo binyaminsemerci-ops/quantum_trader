@@ -74,8 +74,8 @@ services/
         └── hfos_orchestrator.py       (~600 lines) 🔧 TO IMPLEMENT
 
 infrastructure/
-├── docker-compose.v3.yml              (~300 lines) 🔧 TO IMPLEMENT
-├── docker-compose.v3.prod.yml         (~200 lines) 🔧 TO IMPLEMENT
+├── systemctl.v3.yml              (~300 lines) 🔧 TO IMPLEMENT
+├── systemctl.v3.prod.yml         (~200 lines) 🔧 TO IMPLEMENT
 └── service_supervisor.py              (~400 lines) 🔧 TO IMPLEMENT
 
 tests/
@@ -843,7 +843,7 @@ async def handle_heartbeat(event_data: dict):
 | ANALYTICS-OS-SERVICE | P0 | ~3000 | `services/analytics_os_service/run_analytics_os_service.py` + handlers |
 | Health v3 | P1 | ~1000 | `backend/core/health_v3.py` |
 | Self-Healing v3 | P1 | ~800 | `backend/core/self_healing_v3.py` |
-| Docker Compose v3 | P1 | ~500 | `docker-compose.v3.yml` + overrides |
+| Docker Compose v3 | P1 | ~500 | `systemctl.v3.yml` + overrides |
 | Integration Tests | P2 | ~2000 | `tests/integration/test_microservices_*.py` |
 | Test Harness | P2 | ~1000 | `tests/harness/integration_test_harness.py` |
 | Migration Docs | P2 | ~3000 | `docs/MICROSERVICES_*` |
@@ -857,7 +857,7 @@ async def handle_heartbeat(event_data: dict):
 ### 6.1 Docker Compose v3 Structure
 
 ```yaml
-# docker-compose.v3.yml
+# systemctl.v3.yml
 version: '3.8'
 
 services:
@@ -1045,27 +1045,27 @@ MEMORY_THRESHOLD_PCT=85.0
 
 ```bash
 # Build all services
-docker-compose -f docker-compose.v3.yml build
+systemctl -f systemctl.v3.yml build
 
 # Start infrastructure (Redis, Postgres)
-docker-compose -f docker-compose.v3.yml up -d redis postgres
+systemctl -f systemctl.v3.yml up -d redis postgres
 
 # Wait for health checks
-docker-compose -f docker-compose.v3.yml ps
+systemctl -f systemctl.v3.yml ps
 
 # Start microservices
-docker-compose -f docker-compose.v3.yml up -d ai-service exec-risk-service analytics-os-service
+systemctl -f systemctl.v3.yml up -d ai-service exec-risk-service analytics-os-service
 
 # Start legacy API (optional, for backward compatibility)
-docker-compose -f docker-compose.v3.yml up -d backend-api
+systemctl -f systemctl.v3.yml up -d backend-api
 
 # Start frontend
-docker-compose -f docker-compose.v3.yml up -d frontend
+systemctl -f systemctl.v3.yml up -d frontend
 
 # View logs
-docker-compose -f docker-compose.v3.yml logs -f ai-service
-docker-compose -f docker-compose.v3.yml logs -f exec-risk-service
-docker-compose -f docker-compose.v3.yml logs -f analytics-os-service
+systemctl -f systemctl.v3.yml logs -f ai-service
+systemctl -f systemctl.v3.yml logs -f exec-risk-service
+systemctl -f systemctl.v3.yml logs -f analytics-os-service
 
 # Check health
 curl http://localhost:8001/health  # AI service
@@ -1073,10 +1073,10 @@ curl http://localhost:8002/health  # Exec-Risk service
 curl http://localhost:8003/health  # Analytics-OS service
 
 # Stop all
-docker-compose -f docker-compose.v3.yml down
+systemctl -f systemctl.v3.yml down
 
 # Stop all and remove volumes
-docker-compose -f docker-compose.v3.yml down -v
+systemctl -f systemctl.v3.yml down -v
 ```
 
 ---
@@ -1151,8 +1151,8 @@ If issues arise during migration:
 ```bash
 # Immediate rollback
 export MICROSERVICES_MODE=false
-docker-compose -f docker-compose.v3.yml stop ai-service exec-risk-service analytics-os-service
-docker-compose -f docker-compose.yml up -d backend-api  # Old monolith
+systemctl -f systemctl.v3.yml stop ai-service exec-risk-service analytics-os-service
+systemctl -f systemctl.yml up -d backend-api  # Old monolith
 
 # System continues on old architecture
 ```
@@ -1502,3 +1502,4 @@ Quantum Trader v3.0 Microservices Architecture is **architected and ready for im
 This architecture maintains **100% backward compatibility** with Prompt 6 while enabling **horizontal scaling**, **fault isolation**, and **independent deployment** of AI, execution, and analytics components.
 
 **Ready for Prompt 8 implementation.**
+

@@ -114,7 +114,7 @@ Comprehensive guide:
 #### 1. **Debug TFT Training Error** 🐛
 ```bash
 # Check exact error
-docker logs quantum_backend --tail 100
+journalctl -u quantum_backend.service --tail 100
 
 # Likely issues:
 - Memory error (OOM)
@@ -217,7 +217,7 @@ print(f'Probabilities: {meta}')
 docker exec quantum_backend python /app/check_dataset.py
 
 # Watch live predictions
-docker logs quantum_backend --tail 50 --follow | grep "AI signals"
+journalctl -u quantum_backend.service --tail 50 --follow | grep "AI signals"
 ```
 
 **Target Metrics:**
@@ -236,7 +236,7 @@ docker logs quantum_backend --tail 50 --follow | grep "AI signals"
 ## 📋 DETAILED TODO CHECKLIST
 
 ### **Phase 1: Debug & Train (2-4 timer)**
-- [ ] Stop backend: `docker-compose stop backend`
+- [ ] Stop backend: `systemctl stop backend`
 - [ ] Check memory: `docker stats quantum_backend`
 - [ ] Debug training script
 - [ ] Fix any errors
@@ -251,7 +251,7 @@ docker logs quantum_backend --tail 50 --follow | grep "AI signals"
 - [ ] Replace prediction calls
 - [ ] Add error handling
 - [ ] Test locally before deployment
-- [ ] Restart backend: `docker-compose restart backend`
+- [ ] Restart backend: `systemctl restart backend`
 
 ### **Phase 3: Testing (30 min - 1 time)**
 - [ ] Unit test: Test TFTAgent directly
@@ -414,7 +414,7 @@ Output Heads:
 ### **Debugging Commands:**
 ```bash
 # Check container logs
-docker logs quantum_backend --tail 100
+journalctl -u quantum_backend.service --tail 100
 
 # Check model files
 docker exec quantum_backend ls -lh /app/ai_engine/models/
@@ -479,3 +479,4 @@ Vi har implementert **state-of-the-art AI** (Temporal Fusion Transformer) som br
 *Dokumentert: 18. November 2025, 02:30 UTC*
 *Forfatter: GitHub Copilot AI Assistant*
 *Status: Implementation Complete, Training Pending*
+

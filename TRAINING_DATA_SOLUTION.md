@@ -81,7 +81,7 @@ QT_MIN_CONFIDENCE=0.01  # Fra 0.51 → 0.01
 ### 🔧 TEKNISKE ENDRINGER
 
 #### Filer modifisert:
-1. `docker-compose.yml`:
+1. `systemctl.yml`:
    - La til trading environment variables
    - Senket QT_MIN_CONFIDENCE til 0.01
 
@@ -138,7 +138,7 @@ conn.close()
 "
 
 # Sjekk AI signaler
-docker logs quantum_backend --tail 50 | Select-String "AI signals|BUY=|SELL="
+journalctl -u quantum_backend.service --tail 50 | Select-String "AI signals|BUY=|SELL="
 ```
 
 #### Forventet output om 30 min:
@@ -171,3 +171,4 @@ Total samples: 42
 *System restart: 2025-11-18 00:50 UTC*
 *Forventet første trades: 2025-11-18 01:00 UTC*
 *Target: 50+ samples innen 06:00 UTC*
+

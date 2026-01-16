@@ -10,7 +10,7 @@
 
 ✅ **Backend deployed til VPS!**  
 ✅ **Health endpoint: http://46.224.116.254:8000/health (200 OK)**  
-✅ **Docker-compose.yml fikset** (profiles: ["dev"] removed)  
+✅ **systemctl.yml fikset** (profiles: ["dev"] removed)  
 ✅ **Backend container kjører stabilt**
 
 ---
@@ -18,7 +18,7 @@
 ## 📦 DEPLOYMENT DETALJER
 
 ### 1. Problemer løst
-- ❌ **Problem 1:** Backend hadde `profiles: ["dev"]` i docker-compose.yml → startet ikke på VPS
+- ❌ **Problem 1:** Backend hadde `profiles: ["dev"]` i systemctl.yml → startet ikke på VPS
 - ✅ **Fix:** Kommentert ut profiles line på VPS
 - ❌ **Problem 2:** AITradingEngine ikke definert → krashet backend
 - ✅ **Fix:** Kommentert ut AITradingEngine initialisering (linje 1217-1220)
@@ -147,7 +147,7 @@ Health: OK ✅
 ## 📝 TEKNISKE NOTATER
 
 ### Filer modifisert:
-1. **docker-compose.yml** (på VPS)
+1. **systemctl.yml** (på VPS)
    - Kommentert ut `profiles: ["dev"]` på backend service
    
 2. **backend/main.py** (linje 1217-1220)
@@ -175,3 +175,4 @@ Health: OK ✅
 
 **Status: PHASE 1 DEPLOYMENT COMPLETE! 🚀**  
 **Next: Debug AISystemServices initialization**
+

@@ -141,7 +141,7 @@ quantum_trader/
 │
 ├── frontend/                # React dashboard (ikke i bruk)
 ├── database/                # SQLite schema
-├── docker-compose.yml       # Container orchestration
+├── systemctl.yml       # Container orchestration
 ├── .env                     # Environment variabler
 └── README.md               # Prosjektdokumentasjon
 ```
@@ -875,7 +875,7 @@ AGGRESSIVE = {
 
 ### Docker Compose Configuration
 
-**File:** `docker-compose.yml`
+**File:** `systemctl.yml`
 
 ```yaml
 services:
@@ -931,7 +931,7 @@ cp .env.example .env
 
 **3. Start med Docker:**
 ```bash
-docker-compose up --build
+systemctl up --build
 ```
 
 **4. Verifiser:**
@@ -952,7 +952,7 @@ curl -fsSL https://get.docker.com -o get-docker.sh
 sh get-docker.sh
 
 # Install Docker Compose
-sudo apt install docker-compose-plugin
+sudo apt install systemctl-plugin
 
 # Clone repository
 git clone https://github.com/yourusername/quantum_trader.git
@@ -974,19 +974,19 @@ export ORCHESTRATOR_PROFILE=SAFE
 **3. Start Production:**
 ```bash
 # Build and start
-docker-compose --profile live up -d
+systemctl --profile live up -d
 
 # View logs
-docker-compose logs -f backend
+systemctl logs -f backend
 
 # Monitor
-docker-compose ps
+systemctl ps
 ```
 
 **4. Monitoring:**
 ```bash
 # Watch logs in real-time
-docker logs quantum_backend -f --tail 100
+journalctl -u quantum_backend.service -f --tail 100
 
 # Check AI status
 docker exec quantum_backend python -c "from backend.services.ai_trading_engine import AITradingEngine; print('AI OK')"
@@ -1025,13 +1025,13 @@ ls -la ../models/
 **Sjekkliste:**
 ```bash
 # 1. Sjekk cooldown
-docker logs quantum_backend --tail 50 | grep "cooldown"
+journalctl -u quantum_backend.service --tail 50 | grep "cooldown"
 
 # 2. Sjekk AI confidence
-docker logs quantum_backend --tail 100 | grep "ENSEMBLE"
+journalctl -u quantum_backend.service --tail 100 | grep "ENSEMBLE"
 
 # 3. Sjekk orchestrator threshold
-docker logs quantum_backend --tail 100 | grep "min_confidence"
+journalctl -u quantum_backend.service --tail 100 | grep "min_confidence"
 
 # 4. Sjekk risk limits
 docker exec quantum_backend python -c "
@@ -1089,7 +1089,7 @@ INFO: N-HiTS: Not enough history (25/120)
 
 **Status:**
 ```bash
-docker logs quantum_backend --tail 50 | grep "Not enough history"
+journalctl -u quantum_backend.service --tail 50 | grep "Not enough history"
 ```
 
 ---
@@ -1100,7 +1100,7 @@ docker logs quantum_backend --tail 50 | grep "Not enough history"
 
 **1. AI Signal Quality:**
 ```bash
-docker logs quantum_backend --tail 100 | grep "ENSEMBLE"
+journalctl -u quantum_backend.service --tail 100 | grep "ENSEMBLE"
 ```
 
 Output:
@@ -1145,16 +1145,16 @@ Output:
 **Find specific events:**
 ```bash
 # Trades executed
-docker logs quantum_backend | grep "ORDER PLACED"
+journalctl -u quantum_backend.service | grep "ORDER PLACED"
 
 # TP/SL hits
-docker logs quantum_backend | grep "TAKE_PROFIT\|STOP_LOSS"
+journalctl -u quantum_backend.service | grep "TAKE_PROFIT\|STOP_LOSS"
 
 # AI warnings
-docker logs quantum_backend | grep "WARNING.*AI"
+journalctl -u quantum_backend.service | grep "WARNING.*AI"
 
 # Risk violations
-docker logs quantum_backend | grep "BLOCKED\|REJECTED"
+journalctl -u quantum_backend.service | grep "BLOCKED\|REJECTED"
 ```
 
 ---
@@ -1300,3 +1300,4 @@ MIT License - Se [LICENSE](LICENSE)
 ---
 
 **END OF DOCUMENTATION**
+

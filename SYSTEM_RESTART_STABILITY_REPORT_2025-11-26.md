@@ -18,9 +18,9 @@ Successfully performed a **complete system restart from scratch**, rebuilding al
 
 ### Phase 1: Clean Slate
 ```bash
-docker-compose down -v          # ✅ Stop all containers + remove volumes
-docker-compose build --no-cache # ✅ Rebuild all images from scratch
-docker-compose --profile dev up -d  # ✅ Start backend service
+systemctl down -v          # ✅ Stop all containers + remove volumes
+systemctl build --no-cache # ✅ Rebuild all images from scratch
+systemctl --profile dev up -d  # ✅ Start backend service
 ```
 
 **Outcome**: Clean environment with fresh Docker images.
@@ -166,7 +166,7 @@ docker-compose --profile dev up -d  # ✅ Start backend service
 1. **Stopped all containers** - Removed quantum_backend, quantum_backend_live, and stale containers
 2. **Removed volumes** - Clean slate for database state
 3. **Rebuilt images** - No cache, fresh dependencies
-4. **Restarted backend** - `docker-compose --profile dev up -d`
+4. **Restarted backend** - `systemctl --profile dev up -d`
 5. **Fixed 2 bugs** - API serialization field names
 6. **Restarted backend twice** - Once per bug fix
 7. **Ran 5 test suites** - 21 tests total, all passing
@@ -331,7 +331,7 @@ curl http://localhost:8000/trading-profile/config
 curl http://localhost:8000/trading-profile/universe
 
 # Check container logs
-docker logs quantum_backend --tail 100
+journalctl -u quantum_backend.service --tail 100
 
 # Run stability check
 docker exec quantum_backend python /app/full_system_check.py
@@ -340,10 +340,10 @@ docker exec quantum_backend python /app/full_system_check.py
 ### Troubleshooting
 
 If system becomes unstable:
-1. Check logs: `docker logs quantum_backend --tail 200`
+1. Check logs: `journalctl -u quantum_backend.service --tail 200`
 2. Run system check: `docker exec quantum_backend python /app/full_system_check.py`
 3. Restart if needed: `docker restart quantum_backend`
-4. Full rebuild: `docker-compose down -v && docker-compose build --no-cache && docker-compose --profile dev up -d`
+4. Full rebuild: `systemctl down -v && systemctl build --no-cache && systemctl --profile dev up -d`
 
 ---
 
@@ -356,3 +356,4 @@ If system becomes unstable:
 ---
 
 *End of Report* 🚀
+

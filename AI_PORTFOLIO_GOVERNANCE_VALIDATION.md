@@ -25,17 +25,17 @@ docker build -t quantum_trader-portfolio-governance:latest .
 
 # Start alle services (inkludert governance)
 cd ../..
-docker-compose -f docker-compose.vps.yml up -d portfolio-governance
+systemctl -f systemctl.vps.yml up -d portfolio-governance
 
 # Sjekk at service kjører
-docker ps | grep portfolio_governance
+systemctl list-units | grep portfolio_governance
 ```
 
 ### 2. Verifiser Service Status
 
 ```bash
 # Check container logs
-docker logs quantum_portfolio_governance
+journalctl -u quantum_portfolio_governance.service
 
 # Expected output:
 # ============================================================
@@ -55,7 +55,7 @@ docker logs quantum_portfolio_governance
 ### A) Check Service is Running
 
 ```bash
-docker ps | grep portfolio_governance
+systemctl list-units | grep portfolio_governance
 ```
 
 **Expected Output:**
@@ -67,17 +67,17 @@ quantum_portfolio_governance   Up 2 minutes (healthy)
 
 ```bash
 # Check memory stream length
-docker exec redis redis-cli XLEN quantum:stream:portfolio.memory
+redis-cli XLEN quantum:stream:portfolio.memory
 
 # Expected: 0 (at start) → increases as trades occur
 
 # Check current policy
-docker exec redis redis-cli GET quantum:governance:policy
+redis-cli GET quantum:governance:policy
 
 # Expected: BALANCED (default) or CONSERVATIVE/AGGRESSIVE
 
 # Check portfolio score
-docker exec redis redis-cli GET quantum:governance:score
+redis-cli GET quantum:governance:score
 
 # Expected: 0.0 (at start) → increases with profitable trades
 ```
@@ -108,7 +108,7 @@ curl -s http://localhost:8001/health | jq '.metrics.portfolio_governance'
 
 ```bash
 # Simulate a winning trade event
-docker exec redis redis-cli XADD quantum:stream:portfolio.memory "*" \
+redis-cli XADD quantum:stream:portfolio.memory "*" \
   timestamp "2025-12-21T12:00:00Z" \
   symbol "BTCUSDT" \
   side "LONG" \
@@ -120,7 +120,7 @@ docker exec redis redis-cli XADD quantum:stream:portfolio.memory "*" \
   exit_reason "dynamic_tp"
 
 # Simulate a losing trade event
-docker exec redis redis-cli XADD quantum:stream:portfolio.memory "*" \
+redis-cli XADD quantum:stream:portfolio.memory "*" \
   timestamp "2025-12-21T12:05:00Z" \
   symbol "ETHUSDT" \
   side "SHORT" \
@@ -132,7 +132,7 @@ docker exec redis redis-cli XADD quantum:stream:portfolio.memory "*" \
   exit_reason "stop_loss"
 
 # Check updated score
-docker exec redis redis-cli GET quantum:governance:score
+redis-cli GET quantum:governance:score
 ```
 
 ### E) Test Policy Transitions
@@ -140,7 +140,7 @@ docker exec redis redis-cli GET quantum:governance:score
 ```bash
 # Simulate 20 profitable trades (score should increase)
 for i in {1..20}; do
-  docker exec redis redis-cli XADD quantum:stream:portfolio.memory "*" \
+  redis-cli XADD quantum:stream:portfolio.memory "*" \
     timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     symbol "BTCUSDT" \
     pnl "0.$(shuf -i 30-80 -n 1)" \
@@ -153,11 +153,11 @@ done
 sleep 30
 
 # Check if policy changed to AGGRESSIVE
-docker exec redis redis-cli GET quantum:governance:policy
+redis-cli GET quantum:governance:policy
 # Expected: AGGRESSIVE (if score > 0.7)
 
 # Check logs for policy change event
-docker logs quantum_portfolio_governance | grep "Policy changed"
+journalctl -u quantum_portfolio_governance.service | grep "Policy changed"
 # Expected: Policy changed: BALANCED → AGGRESSIVE
 ```
 
@@ -170,7 +170,7 @@ docker logs quantum_portfolio_governance | grep "Policy changed"
 ```bash
 # Simulate 30 losing trades
 for i in {1..30}; do
-  docker exec redis redis-cli XADD quantum:stream:portfolio.memory "*" \
+  redis-cli XADD quantum:stream:portfolio.memory "*" \
     timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     pnl "-0.$(shuf -i 15-35 -n 1)" \
     confidence "0.6" \
@@ -182,11 +182,11 @@ done
 sleep 35
 
 # Verify CONSERVATIVE policy
-docker exec redis redis-cli GET quantum:governance:policy
+redis-cli GET quantum:governance:policy
 # Expected: CONSERVATIVE
 
 # Check parameters
-docker exec redis redis-cli GET quantum:governance:params | python3 -m json.tool
+redis-cli GET quantum:governance:params | python3 -m json.tool
 # Expected: max_leverage=10, min_confidence=0.75
 ```
 
@@ -196,7 +196,7 @@ docker exec redis redis-cli GET quantum:governance:params | python3 -m json.tool
 # Simulate mixed results
 for i in {1..50}; do
   pnl=$([ $((RANDOM % 2)) -eq 0 ] && echo "0.2" || echo "-0.15")
-  docker exec redis redis-cli XADD quantum:stream:portfolio.memory "*" \
+  redis-cli XADD quantum:stream:portfolio.memory "*" \
     timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     pnl "$pnl" \
     confidence "0.65" \
@@ -206,7 +206,7 @@ done
 
 sleep 35
 
-docker exec redis redis-cli GET quantum:governance:policy
+redis-cli GET quantum:governance:policy
 # Expected: BALANCED
 ```
 
@@ -215,7 +215,7 @@ docker exec redis redis-cli GET quantum:governance:policy
 ```bash
 # Simulate winning streak
 for i in {1..40}; do
-  docker exec redis redis-cli XADD quantum:stream:portfolio.memory "*" \
+  redis-cli XADD quantum:stream:portfolio.memory "*" \
     timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     pnl "0.$(shuf -i 40-90 -n 1)" \
     confidence "0.8" \
@@ -225,10 +225,10 @@ done
 
 sleep 35
 
-docker exec redis redis-cli GET quantum:governance:policy
+redis-cli GET quantum:governance:policy
 # Expected: AGGRESSIVE
 
-docker exec redis redis-cli GET quantum:governance:params | python3 -m json.tool
+redis-cli GET quantum:governance:params | python3 -m json.tool
 # Expected: max_leverage=30, min_confidence=0.55
 ```
 
@@ -240,13 +240,13 @@ docker exec redis redis-cli GET quantum:governance:params | python3 -m json.tool
 
 ```bash
 # Get comprehensive governance status
-docker exec redis redis-cli --raw HGETALL quantum:governance:status
+redis-cli --raw HGETALL quantum:governance:status
 
 # Get last 10 memory events
-docker exec redis redis-cli XREVRANGE quantum:stream:portfolio.memory + - COUNT 10
+redis-cli XREVRANGE quantum:stream:portfolio.memory + - COUNT 10
 
 # Get governance events stream
-docker exec redis redis-cli XREVRANGE quantum:stream:governance.events + - COUNT 5
+redis-cli XREVRANGE quantum:stream:governance.events + - COUNT 5
 
 # Monitor policy changes
 docker logs -f quantum_portfolio_governance | grep "Policy changed"
@@ -311,40 +311,40 @@ if len(active_positions) >= int(max_concurrent):
 
 ```bash
 # Check Redis connection
-docker exec redis redis-cli ping
+redis-cli ping
 # Expected: PONG
 
 # Check logs for errors
-docker logs quantum_portfolio_governance | grep ERROR
+journalctl -u quantum_portfolio_governance.service | grep ERROR
 
 # Restart service
-docker-compose -f docker-compose.vps.yml restart portfolio-governance
+systemctl -f systemctl.vps.yml restart portfolio-governance
 ```
 
 ### Issue: Policy Not Updating
 
 ```bash
 # Check if enough samples collected
-docker exec redis redis-cli XLEN quantum:stream:portfolio.memory
+redis-cli XLEN quantum:stream:portfolio.memory
 # Need minimum 50 samples
 
 # Check governance loop is running
-docker logs quantum_portfolio_governance | grep "Governance loop"
+journalctl -u quantum_portfolio_governance.service | grep "Governance loop"
 # Should see regular updates every 30s
 
 # Manually trigger policy update (restart service)
-docker-compose -f docker-compose.vps.yml restart portfolio-governance
+systemctl -f systemctl.vps.yml restart portfolio-governance
 ```
 
 ### Issue: Score is 0.0
 
 ```bash
 # Check if any events recorded
-docker exec redis redis-cli XLEN quantum:stream:portfolio.memory
+redis-cli XLEN quantum:stream:portfolio.memory
 # If 0, no trades recorded yet
 
 # Check last recorded event
-docker exec redis redis-cli XREVRANGE quantum:stream:portfolio.memory + - COUNT 1
+redis-cli XREVRANGE quantum:stream:portfolio.memory + - COUNT 1
 
 # Verify PnL values are numeric
 # If all PnL = 0, score will be 0
@@ -426,3 +426,4 @@ Portfolio Governance Agent is now **fully integrated** and ready for production!
 *Documentation generated: 2025-12-21*  
 *Phase: 4Q - Portfolio Governance & Exposure Memory*  
 *Status: ✅ COMPLETE*
+

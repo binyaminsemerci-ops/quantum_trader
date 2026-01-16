@@ -80,7 +80,7 @@ curl http://localhost:8001/health | jq '.metrics.model_validator'
 docker exec quantum_ai_engine tail -20 /app/logs/model_validation.log
 
 # Validator logs
-docker logs quantum_ai_engine | grep Validator
+journalctl -u quantum_ai_engine.service | grep Validator
 ```
 
 ### Expected Health Response
@@ -190,7 +190,7 @@ Retrain Models → Validate Candidates → Promote Best → Loop
 ### No validation log entries after 4h
 **Check:** Did retrainer complete?
 ```bash
-docker logs quantum_ai_engine | grep "Retrainer.*complete"
+journalctl -u quantum_ai_engine.service | grep "Retrainer.*complete"
 ```
 
 ### All models rejected
@@ -246,4 +246,5 @@ docker logs -f quantum_ai_engine | grep Validator
 **Status:** ✅ DEPLOYED & OPERATIONAL  
 **Location:** VPS quantum_ai_engine container  
 **Next Event:** First validation ~4h after retraining  
+
 

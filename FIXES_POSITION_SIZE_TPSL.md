@@ -223,7 +223,7 @@ max_position_usd: float = 1000.0  # INCREASED 3.3x
 
 **Monitor command**:
 ```bash
-docker logs quantum_backend --tail 50 | grep -E "(RL-TPSL|Position closed|TRADE APPROVED)"
+journalctl -u quantum_backend.service --tail 50 | grep -E "(RL-TPSL|Position closed|TRADE APPROVED)"
 ```
 
 ---
@@ -231,3 +231,4 @@ docker logs quantum_backend --tail 50 | grep -E "(RL-TPSL|Position closed|TRADE 
 **Implemented**: 2025-11-29 15:07  
 **Status**: ✅ LIVE IN PRODUCTION  
 **Confidence**: HIGH ✅
+

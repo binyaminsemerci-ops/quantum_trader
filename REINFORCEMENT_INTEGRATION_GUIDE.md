@@ -699,3 +699,4 @@ Notice: N-HiTS weight decreased (voted wrong), others increased.
 - [ ] Weight updates are stable (no oscillation)
 - [ ] Calibration improves over time
 - [ ] AI-HFOS sees reinforcement subsystem health
+

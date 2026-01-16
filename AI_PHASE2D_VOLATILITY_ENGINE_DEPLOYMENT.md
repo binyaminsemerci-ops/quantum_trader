@@ -115,28 +115,28 @@ sudo service docker start
 cd /mnt/c/quantum_trader
 
 # Option A: Rebuild with no cache (recommended for new module)
-docker-compose build --no-cache ai-engine
+systemctl build --no-cache ai-engine
 
 # Option B: Quick rebuild
-docker-compose build ai-engine
+systemctl build ai-engine
 ```
 
 ### Step 4: Restart AI Engine Service
 ```bash
 # Stop existing container
-docker-compose stop ai-engine
+systemctl stop ai-engine
 
 # Start with new image
-docker-compose up -d ai-engine
+systemctl up -d ai-engine
 ```
 
 ### Step 5: Verify Deployment
 ```bash
 # Check container is running
-docker ps | grep quantum_ai_engine
+systemctl list-units | grep quantum_ai_engine
 
 # Check logs for Phase 2D initialization
-docker logs quantum_ai_engine --tail 100 | grep -E "PHASE 2D|Volatility"
+journalctl -u quantum_ai_engine.service --tail 100 | grep -E "PHASE 2D|Volatility"
 ```
 
 **Expected Log Output**:
@@ -315,7 +315,7 @@ docker exec quantum_ai_engine pip list | grep numpy
 docker exec quantum_ai_engine pip install --upgrade numpy
 
 # Check logs
-docker logs quantum_ai_engine | grep -A5 "Volatility engine update failed"
+journalctl -u quantum_ai_engine.service | grep -A5 "Volatility engine update failed"
 ```
 
 ### Issue: "Volatility feature extraction failed"
@@ -340,7 +340,7 @@ if len(prices) < 2:
 **Fix**:
 ```bash
 # Check initialization logs
-docker logs quantum_ai_engine | grep "Volatility Structure Engine"
+journalctl -u quantum_ai_engine.service | grep "Volatility Structure Engine"
 
 # Should see:
 # [AI-ENGINE] ✅ Volatility Structure Engine active
@@ -380,8 +380,8 @@ If Phase 2D causes issues:
 git revert 53f8aff3
 
 # Rebuild container
-docker-compose build ai-engine
-docker-compose up -d ai-engine
+systemctl build ai-engine
+systemctl up -d ai-engine
 ```
 
 ---
@@ -422,7 +422,7 @@ After Phase 2D deployment is verified:
 ## 📞 SUPPORT
 
 **Documentation**: This file + `backend/services/ai/volatility_structure_engine.py` docstrings  
-**Logs**: `docker logs quantum_ai_engine`  
+**Logs**: `journalctl -u quantum_ai_engine.service`  
 **Code**: Commit `53f8aff3`
 
 ---
@@ -438,8 +438,8 @@ Pre-Deployment:
 
 Deployment:
 - [ ] Docker is running
-- [ ] Container rebuilt (`docker-compose build --no-cache ai-engine`)
-- [ ] Container restarted (`docker-compose up -d ai-engine`)
+- [ ] Container rebuilt (`systemctl build --no-cache ai-engine`)
+- [ ] Container restarted (`systemctl up -d ai-engine`)
 - [ ] Initialization logs verified
 - [ ] No errors in logs
 
@@ -455,3 +455,4 @@ Post-Deployment:
 **Phase 2D Status**: ✅ CODE COMPLETE - READY FOR DEPLOYMENT  
 **Next Phase**: Phase 2B (Orderbook Imbalance Module) - 2-3 hours  
 **Total Progress**: Phase 2C ✅ | Phase 2D ✅ | Phase 2B ⏳
+

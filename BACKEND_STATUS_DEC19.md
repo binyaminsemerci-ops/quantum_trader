@@ -57,7 +57,7 @@ Port: 8000 (intern OK, ekstern blokkert)
 
 ### Docker Configuration
 ```yaml
-# docker-compose.yml (FIKSET)
+# systemctl.yml (FIKSET)
 backend:
   build:
     context: .                    # Root directory
@@ -200,3 +200,4 @@ MSC AI, OpportunityRanker, ESS, AI Trading Engine
 
 **KONKLUSJON:**  
 Backend kjører STABILT, men lifespan function executes ikke. Trenger manuell fix av 2-3 linjer kode uten å ødelegge indentation. Deretter kan AISystemServices initialiseres og alle AI-moduler aktiveres.
+

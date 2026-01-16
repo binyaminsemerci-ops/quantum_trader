@@ -41,7 +41,7 @@ def main():
                 if ports:
                     print(f"   Ports: {ports}")
     else:
-        print("No containers running")
+        print("No services running")
     
     # Check metrics endpoint
     print("\n📊 Metrics Endpoint:")
@@ -80,9 +80,9 @@ def main():
     # Check recent logs
     print("\n📋 Recent Logs (last 5 lines each):")
     print("-" * 60)
-    for container in ["quantum_strategy_generator", "quantum_shadow_tester", "quantum_metrics"]:
+    for container in ["quantum-strategy-generator", "quantum-shadow-tester", "quantum-metrics"]:
         print(f"\n{container}:")
-        logs = run_command(f"docker logs {container} --tail 5 2>&1")
+        logs = run_command(f"journalctl -u {container}.service -n 5 --no-pager 2>&1")
         if logs:
             for line in logs.split('\n')[:5]:
                 if line.strip():

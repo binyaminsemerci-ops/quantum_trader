@@ -192,7 +192,7 @@ Auto-Executor → executes orders on Binance
 
 **Command:**
 ```bash
-ssh root@VPS "docker logs quantum_backend | grep -iE 'exit_brain|ilf|leverage' | tail -50"
+ssh root@VPS "journalctl -u quantum_backend.service | grep -iE 'exit_brain|ilf|leverage' | tail -50"
 ```
 
 ---
@@ -249,3 +249,4 @@ ssh root@VPS "docker logs quantum_backend | grep -iE 'exit_brain|ilf|leverage' |
 ---
 
 **🏆 INTEGRATION COMPLETE - READY FOR EXITBRAIN VERIFICATION!**
+

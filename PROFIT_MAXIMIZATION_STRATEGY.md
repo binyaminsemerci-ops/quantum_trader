@@ -110,7 +110,7 @@ TP_ATR_MULT_TP3=8.0   # 8x risk for TP3 (was 4.0)
 
 ### 2. **Restart Backend:**
 ```powershell
-docker-compose --profile dev restart backend
+systemctl --profile dev restart backend
 ```
 
 ### 3. **Verify New Settings:**
@@ -211,7 +211,7 @@ Net Profit: $1,719 (+43% account) 🚀
 
 1. **Choose your strategy:** Ultra Aggressive, Balanced, or Moderate?
 2. **Update .env file** with new TP/SL multipliers
-3. **Restart backend:** `docker-compose --profile dev restart backend`
+3. **Restart backend:** `systemctl --profile dev restart backend`
 4. **Verify settings:** `python verify_backend_tpsl.py`
 5. **Monitor for 1 week:** Track win rate and avg profit
 6. **Adjust if needed:** Based on actual performance
@@ -237,3 +237,4 @@ Vi må **MAKSIMERE PROFIT** når vi har rett! 🚀
 > than win 60% of the time @ $25 profit!"
 
 **PROFIT > WIN RATE** ✅
+

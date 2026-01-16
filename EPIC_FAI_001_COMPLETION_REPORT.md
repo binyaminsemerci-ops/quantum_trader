@@ -403,10 +403,10 @@ curl http://localhost:8001/api/federation/decisions?limit=10
 
 ### Docker Deployment (TODO)
 - [ ] Create Dockerfile for federation-ai service
-- [ ] Add federation-ai to docker-compose.yml
+- [ ] Add federation-ai to systemctl.yml
 - [ ] Configure Redis Streams EventBus connection
 - [ ] Set environment variables (DB_URL, REDIS_URL, LOG_LEVEL)
-- [ ] Add health check to docker-compose
+- [ ] Add health check to systemctl
 
 ### Dashboard Integration (TODO)
 - [ ] Add Federation AI status widget
@@ -555,7 +555,7 @@ Decisions stored in memory only (orchestrator.decision_history list). Future: Ad
 
 **Next Steps**:
 1. Wire up adapters to actual backend services
-2. Add Federation AI to docker-compose.yml
+2. Add Federation AI to systemctl.yml
 3. Update main backend to publish events
 4. Add dashboard widgets
 5. Write unit tests
@@ -575,3 +575,4 @@ Decisions stored in memory only (orchestrator.decision_history list). Future: Ad
 
 **Report Generated**: 2024-01-XX  
 **Status**: ✅ EPIC COMPLETE - Ready for Integration
+

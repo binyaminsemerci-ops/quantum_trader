@@ -79,9 +79,9 @@ $ python check_profile_status.py
 ✅ Daily DD Limit: 4.5%
 
 # Test 3: Backend integration
-$ docker-compose restart backend
+$ systemctl restart backend
 ✅ Container quantum_backend Started
-$ docker logs quantum_backend | Select-String "profile"
+$ journalctl -u quantum_backend.service | Select-String "profile"
 ✅ "🛡️ Loading SAFE profile: Conservative risk, higher thresholds"
 ```
 
@@ -204,11 +204,11 @@ Cost Sensitivity:
 
 ```bash
 # Method 1: Use default SAFE profile
-docker-compose restart backend
+systemctl restart backend
 
 # Method 2: Switch to AGGRESSIVE
 $env:ORCH_PROFILE="AGGRESSIVE"
-docker-compose restart backend
+systemctl restart backend
 
 # Method 3: Check current profile
 python check_profile_status.py
@@ -398,13 +398,13 @@ disallowed_symbols = [sym for sym in symbols if sym.winrate < min_winrate]
 
 ```bash
 # Test SAFE profile
-docker-compose restart backend
-docker logs quantum_backend -f | Select-String "max_risk_pct|min_confidence|exit_mode"
+systemctl restart backend
+journalctl -u quantum_backend.service -f | Select-String "max_risk_pct|min_confidence|exit_mode"
 
 # Test AGGRESSIVE profile
 $env:ORCH_PROFILE="AGGRESSIVE"
-docker-compose restart backend
-docker logs quantum_backend -f | Select-String "max_risk_pct|min_confidence|exit_mode"
+systemctl restart backend
+journalctl -u quantum_backend.service -f | Select-String "max_risk_pct|min_confidence|exit_mode"
 ```
 
 ### 3. Monitor Real Trading
@@ -419,7 +419,7 @@ python monitor_hybrid.py
 
 # Switch to AGGRESSIVE and compare
 $env:ORCH_PROFILE="AGGRESSIVE"
-docker-compose restart backend
+systemctl restart backend
 python monitor_hybrid.py
 
 # Expected: Higher risk, lower confidence, more trades
@@ -494,7 +494,7 @@ python check_profile_status.py
 python compare_profiles.py
 
 # View logs
-docker logs quantum_backend | Select-String "profile"
+journalctl -u quantum_backend.service | Select-String "profile"
 ```
 
 ### Questions?
@@ -507,3 +507,4 @@ docker logs quantum_backend | Select-String "profile"
 ---
 
 **🎯 Profile System: COMPLETE AND READY FOR USE! 🎯**
+

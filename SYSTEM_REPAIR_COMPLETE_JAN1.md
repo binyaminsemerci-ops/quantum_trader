@@ -108,7 +108,7 @@ Validation Metrics:
 
 ### Container Status
 ```bash
-$ docker ps --filter name=ai_engine
+$ systemctl list-units --filter name=ai_engine
 CONTAINER ID   IMAGE                      STATUS                   PORTS
 599a789f0468   quantum_trader-ai-engine   Up 3 minutes (healthy)   0.0.0.0:8001->8001/tcp
 ```
@@ -326,3 +326,4 @@ tail -50 /tmp/shadow_validation_jan1_48h.out
 **Timestamp**: 2026-01-01 00:05 UTC  
 **Duration**: System repair completed in 35 minutes  
 **Status**: READY FOR VALIDATION RESTART 🚀
+

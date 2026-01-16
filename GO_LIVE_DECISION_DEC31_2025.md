@@ -235,7 +235,7 @@ Models: Balanced disagreement (healthy)
    - Test restart stability
 
 2. Verify Brain Health Checks
-   - Check docker-compose health check configs
+   - Check systemctl health check configs
    - Test actual brain functionality
    - Fix or document status
 ```
@@ -402,3 +402,4 @@ real capital. ETA: Jan 2, 2026.
 - [System Status Validation](SYSTEM_STATUS_VALIDATION_DEC31.md)
 - [ExitBrain v3.5 Integration](AI_EXIT_BRAIN_INTEGRATION_COMPLETE.md)
 - [Phase 4 Complete Stack](AI_PHASE4_COMPLETE_STACK.md)
+

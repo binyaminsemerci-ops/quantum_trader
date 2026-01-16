@@ -126,27 +126,27 @@ git reset --hard origin/main
 
 ### Step 4: Rebuild Affected Containers
 ```bash
-docker compose -f docker-compose.vps.yml build ai-engine trading-bot auto-executor
+docker compose -f systemctl.vps.yml build ai-engine trading-bot auto-executor
 ```
 
 ### Step 5: Restart Services
 ```bash
-docker compose -f docker-compose.vps.yml up -d ai-engine trading-bot auto-executor
+docker compose -f systemctl.vps.yml up -d ai-engine trading-bot auto-executor
 ```
 
 ### Step 6: Verify Health
 ```bash
 # Check containers are running
-docker ps | grep "ai-engine\|trading-bot\|auto-executor"
+systemctl list-units | grep "ai-engine\|trading-bot\|auto-executor"
 
 # Check AI Engine health
-docker logs quantum_ai_engine --tail 30
+journalctl -u quantum_ai_engine.service --tail 30
 
 # Check Trading Bot logs
-docker logs quantum_trading_bot --tail 30
+journalctl -u quantum_trading_bot.service --tail 30
 
 # Check Auto Executor logs
-docker logs quantum_auto_executor --tail 30
+journalctl -u quantum_auto_executor.service --tail 30
 ```
 
 ### Step 7: Monitor Confidence Levels
@@ -155,7 +155,7 @@ docker logs quantum_auto_executor --tail 30
 docker logs -f quantum_ai_engine | grep -i confidence
 
 # Check Redis streams for signals
-docker exec quantum_redis redis-cli XREAD COUNT 10 STREAMS quantum:stream:trade.intent 0-0
+redis-cli XREAD COUNT 10 STREAMS quantum:stream:trade.intent 0-0
 ```
 
 ---
@@ -228,8 +228,8 @@ If issues arise, rollback with:
 cd /home/qt/quantum_trader
 git revert HEAD
 git push origin main
-docker compose -f docker-compose.vps.yml build ai-engine trading-bot auto-executor
-docker compose -f docker-compose.vps.yml up -d ai-engine trading-bot auto-executor
+docker compose -f systemctl.vps.yml build ai-engine trading-bot auto-executor
+docker compose -f systemctl.vps.yml up -d ai-engine trading-bot auto-executor
 ```
 
 ---
@@ -257,3 +257,4 @@ Once system is stable and learning:
 ---
 
 **END OF DEPLOYMENT SUMMARY**
+

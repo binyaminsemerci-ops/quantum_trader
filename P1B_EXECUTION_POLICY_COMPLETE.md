@@ -22,7 +22,7 @@
 - Legacy fallback if policy unavailable
 - Preserved: Drawdown circuit breaker, dynamic leverage, Exit Brain
 
-### 3. Configuration (docker-compose.yml)
+### 3. Configuration (systemctl.yml)
 ```bash
 POLICY_MAX_POSITIONS_TOTAL=10              # Max 10 open positions across all symbols
 POLICY_MAX_PER_SYMBOL=3                    # Max 3 positions per symbol
@@ -112,7 +112,7 @@ quantity = (allocation * leverage) / price
 ## What Changed
 1. **execution_policy.py** (NEW - 447 lines): Central policy class
 2. **executor_service.py** (MODIFIED - 242 lines changed): Integration + build_portfolio_state()
-3. **docker-compose.yml** (MODIFIED - 11 new env vars): Configuration
+3. **systemctl.yml** (MODIFIED - 11 new env vars): Configuration
 4. **Dockerfile** (MODIFIED): Include execution_policy.py in build
 5. **test_execution_policy.py** (NEW - 238 lines): Test framework
 6. **EXECUTION_POLICY.md** (NEW - 104 lines): Documentation
@@ -159,3 +159,4 @@ quantity = (allocation * leverage) / price
 P1-B delivers **predictable, controlled, capital-aware** execution. The system now has explicit control over WHEN positions open (9-step validation) and HOW MUCH capital is deployed (20% base with hard caps). All decisions logged transparently. Policy active on VPS Testnet as of 2026-01-01 21:19 UTC.
 
 **The executor is no longer a black box - it's a controlled, observable, and testable policy engine.**
+

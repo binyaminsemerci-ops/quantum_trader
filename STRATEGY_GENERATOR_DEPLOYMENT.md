@@ -6,11 +6,11 @@
 
 ```bash
 # Start continuous strategy generation + shadow testing
-docker-compose --profile strategy-gen up -d
+systemctl --profile strategy-gen up -d
 
 # View logs
-docker-compose logs -f strategy_generator
-docker-compose logs -f shadow_tester
+systemctl logs -f strategy_generator
+systemctl logs -f shadow_tester
 ```
 
 ### 2. Service Overview
@@ -28,7 +28,7 @@ docker-compose logs -f shadow_tester
 - Promotes strategies with fitness ≥70 to LIVE
 - Monitors forward-test performance
 
-### 3. Configuration (docker-compose.yml)
+### 3. Configuration (systemctl.yml)
 
 **Strategy Generator:**
 ```yaml
@@ -50,17 +50,17 @@ environment:
 
 **Check service status:**
 ```bash
-docker ps | grep strategy
+systemctl list-units | grep strategy
 ```
 
 **View generation logs:**
 ```bash
-docker logs quantum_strategy_generator --tail 50
+journalctl -u quantum_strategy_generator.service --tail 50
 ```
 
 **View shadow test logs:**
 ```bash
-docker logs quantum_shadow_tester --tail 50
+journalctl -u quantum_shadow_tester.service --tail 50
 ```
 
 **Check database:**
@@ -135,11 +135,11 @@ Runtime: ~2 seconds
 **Services not starting:**
 ```bash
 # Check logs
-docker-compose logs strategy_generator
-docker-compose logs shadow_tester
+systemctl logs strategy_generator
+systemctl logs shadow_tester
 
 # Restart services
-docker-compose --profile strategy-gen restart
+systemctl --profile strategy-gen restart
 ```
 
 **No strategies generated:**
@@ -180,3 +180,4 @@ The Strategy Generator AI integrates seamlessly with Quantum Trader:
 5. **Auto-disable**: Poor performers automatically removed
 
 The system creates a self-improving trading strategy pipeline that continuously evolves based on market conditions.
+

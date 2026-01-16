@@ -84,7 +84,7 @@ quantum_regime_forecast                    ← Active regime prediction
 
 **Let's Check Current Regime**:
 ```bash
-docker exec quantum_redis redis-cli GET latest_regime_forecast
+redis-cli GET latest_regime_forecast
 ```
 
 **Recommendation**: ✅ **NO ACTION NEEDED** - Regime detection fully operational!
@@ -138,7 +138,7 @@ execution_metrics                          ← Trade execution metrics
 
 **Let's Verify**:
 ```bash
-docker exec quantum_redis redis-cli GET quantum:model:xgb:signal
+redis-cli GET quantum:model:xgb:signal
 ```
 
 **Recommendation**: ✅ **NO ACTION NEEDED** - Model signals and metrics fully operational!
@@ -173,19 +173,19 @@ docker exec quantum_redis redis-cli GET quantum:model:xgb:signal
 
 ```bash
 # Check current regime forecast
-docker exec quantum_redis redis-cli GET latest_regime_forecast
+redis-cli GET latest_regime_forecast
 
 # Check RL reward history (last 5)
-docker exec quantum_redis redis-cli LRANGE rl_reward_history 0 4
+redis-cli LRANGE rl_reward_history 0 4
 
 # Check XGBoost signal
-docker exec quantum_redis redis-cli GET quantum:model:xgb:signal
+redis-cli GET quantum:model:xgb:signal
 
 # Check federation metrics
-docker exec quantum_redis redis-cli GET quantum:federation:metrics
+redis-cli GET quantum:federation:metrics
 
 # Check latest system metrics
-docker exec quantum_redis redis-cli GET latest_metrics
+redis-cli GET latest_metrics
 ```
 
 ---
@@ -237,3 +237,4 @@ docker exec quantum_redis redis-cli GET latest_metrics
 **Investigator**: GitHub Copilot (Claude Sonnet 4.5)  
 **Status**: ✅ **ALL SYSTEMS VERIFIED**  
 **Recommendation**: **DEPLOY TO LIVE TRADING** 🎯
+

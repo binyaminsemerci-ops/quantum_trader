@@ -255,10 +255,10 @@ $ docker exec quantum_backend python /app/test_lifecycle_fix.py
 
 ```bash
 # Build
-docker-compose build backend
+systemctl build backend
 
 # Restart
-docker-compose restart backend
+systemctl restart backend
 
 # Verify
 docker exec quantum_backend python -c "from backend.services.risk_management.trade_lifecycle_manager import TradeLifecycleManager; print([m for m in dir(TradeLifecycleManager) if 'save_trade' in m or 'remove_trade' in m])"
@@ -356,3 +356,4 @@ Hver ny posisjon som åpnes fra nå av vil:
 ---
 
 **Konklusjon:** Dette er nå 100% automatisk for alle fremtidige posisjoner! 🎉
+

@@ -189,7 +189,7 @@ quantum_trader/
 │   └── package.json
 ├── deploy/                   # Deployment konfig
 │   ├── k8s/                 # Kubernetes manifests
-│   └── docker-compose.yml   # Docker compose setup
+│   └── systemctl.yml   # Docker compose setup
 ├── docs/                    # Dokumentasjon
 ├── tests/                   # Test suite
 └── scripts/                 # Utility scripts
@@ -1159,7 +1159,7 @@ X-Frame-Options: DENY
 
 ### 7.1 Docker Deployment
 
-**Fil:** `docker-compose.yml` (509 linjer)
+**Fil:** `systemctl.yml` (509 linjer)
 
 **Services:**
 
@@ -1181,7 +1181,7 @@ services:
 
 **Startup:**
 ```bash
-docker-compose up --build
+systemctl up --build
 ```
 
 **Status:** ✅ Docker setup klar for deployment
@@ -1628,7 +1628,7 @@ cp backups/db_20251217.db backend/quantum_trader.db
 tar -xzf backups/models_20251217.tar.gz -C ai_engine/
 
 # Restart services
-docker-compose restart
+systemctl restart
 ```
 
 ### 11.4 Scaling Strategy
@@ -1683,3 +1683,4 @@ Quantum Trader er et komplett, produksjonsklart AI-drevet handelssystem med:
 **Dato:** 17. desember 2025  
 **Versjon:** 1.0  
 **Status:** ✅ KOMPLETT
+

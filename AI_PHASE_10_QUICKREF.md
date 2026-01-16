@@ -27,25 +27,25 @@ Think of it as **artificial natural selection** for trading strategies.
 ### **Check Status**
 ```bash
 # Container health
-docker ps | grep strategy_evolution
+systemctl list-units | grep strategy_evolution
 
 # View logs
-docker logs quantum_strategy_evolution --tail 50
+journalctl -u quantum_strategy_evolution.service --tail 50
 
 # Check current policy
-docker exec quantum_redis redis-cli GET current_policy | jq
+redis-cli GET current_policy | jq
 ```
 
 ### **Monitor Evolution**
 ```bash
 # Evolution statistics
-docker exec quantum_redis redis-cli GET evolution_stats | jq
+redis-cli GET evolution_stats | jq
 
 # Survivors
-docker exec quantum_redis redis-cli GET meta_survivors | jq
+redis-cli GET meta_survivors | jq
 
 # Best strategy
-docker exec quantum_redis redis-cli HGETALL evolution_best
+redis-cli HGETALL evolution_best
 
 # Memory bank
 ls -lh backend/microservices/strategy_evolution/memory_bank/
@@ -57,7 +57,7 @@ ls -lh backend/microservices/strategy_evolution/memory_bank/
 docker compose restart strategy-evolution
 
 # Watch logs
-docker logs quantum_strategy_evolution -f
+journalctl -u quantum_strategy_evolution.service -f
 ```
 
 ---
@@ -148,7 +148,7 @@ fitness = (
 
 ## ⚙️ CONFIGURATION
 
-**Environment Variables** (docker-compose.yml):
+**Environment Variables** (systemctl.yml):
 ```yaml
 EVOLUTION_INTERVAL: 86400   # 24 hours (daily evolution)
 SURVIVORS: 3                # Keep top 3 strategies
@@ -229,7 +229,7 @@ meta_survivors              # Top 3 survivor IDs (JSON)
 ### **View Strategy Details**
 ```bash
 # Production policy
-docker exec quantum_redis redis-cli GET current_policy | jq
+redis-cli GET current_policy | jq
 
 # Specific strategy
 cat backend/microservices/strategy_evolution/memory_bank/evolved_*.json | jq
@@ -253,7 +253,7 @@ grep "parent_ids" memory_bank/*.json
 ### **Troubleshooting**
 ```bash
 # Container not starting?
-docker logs quantum_strategy_evolution --tail 100
+journalctl -u quantum_strategy_evolution.service --tail 100
 
 # Not enough strategies?
 cp backend/microservices/strategy_evaluator/sandbox_strategies/*.json \
@@ -336,12 +336,12 @@ docker compose restart strategy-evolution
 
 ```bash
 # Status
-docker ps | grep strategy_evolution
-docker logs quantum_strategy_evolution --tail 20
+systemctl list-units | grep strategy_evolution
+journalctl -u quantum_strategy_evolution.service --tail 20
 
 # Current state
-docker exec quantum_redis redis-cli GET current_policy | jq
-docker exec quantum_redis redis-cli GET evolution_stats | jq
+redis-cli GET current_policy | jq
+redis-cli GET evolution_stats | jq
 
 # Memory bank
 ls -lht backend/microservices/strategy_evolution/memory_bank/ | head -10
@@ -350,7 +350,7 @@ ls -lht backend/microservices/strategy_evolution/memory_bank/ | head -10
 docker compose restart strategy-evolution
 
 # Watch live
-docker logs quantum_strategy_evolution -f
+journalctl -u quantum_strategy_evolution.service -f
 ```
 
 ---
@@ -376,3 +376,4 @@ Phase 10 completes the ultimate autonomous AI system:
 - ✅ Self-evolving (Phase 10) ← **YOU ARE HERE**
 
 **This is artificial life applied to trading.**
+

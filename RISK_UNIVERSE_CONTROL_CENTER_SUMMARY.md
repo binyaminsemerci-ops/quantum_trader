@@ -496,3 +496,4 @@ This is **NOT a simple monitor or classifier** — it is a **FULL OPERATING SYST
 ---
 
 *The Risk & Universe Control Center OS is now protecting your trading universe.*
+

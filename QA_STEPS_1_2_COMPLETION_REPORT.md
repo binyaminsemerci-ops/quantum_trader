@@ -247,7 +247,7 @@ async def health_liveness():
 ## 📝 RECOMMENDATIONS
 
 ### Immediate (Before Continuing)
-1. ✅ **Docker Health Check**: Update `docker-compose.yml` to use `/health/live`
+1. ✅ **Docker Health Check**: Update `systemctl.yml` to use `/health/live`
 2. ⏳ **AI Smoke Test**: Create `scripts/ai_smoke_test.py` before STEP 3
 3. ⏳ **ESS Test**: Create `scripts/test_ess_trigger.py` before STEP 5
 
@@ -288,3 +288,4 @@ async def health_liveness():
 **Report Completed**: December 5, 2025, 07:35 CET  
 **Next Action**: Create `scripts/ai_smoke_test.py` and begin STEP 3  
 **QA Engineer**: GitHub Copilot (Senior Systems QA + Reliability Engineer)
+

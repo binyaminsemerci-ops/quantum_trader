@@ -26,13 +26,13 @@ Quantum Trader V3 has been successfully configured for **Binance Testnet exclusi
 **Problem**: Binance API keys were not loaded into container  
 **Fix**: 
 - Updated `.env` with `BINANCE_USE_TESTNET=true`
-- Added API credentials to `docker-compose.yml` environment section
+- Added API credentials to `systemctl.yml` environment section
 - Set `EXCHANGE_MODE=binance_testnet`
 - Disabled Bybit with `BYBIT_ENABLED=false`
 
 **Files Modified**:
 - `c:\quantum_trader\.env`
-- `c:\quantum_trader\docker-compose.yml`
+- `c:\quantum_trader\systemctl.yml`
 - `c:\quantum_trader\backend\.env`
 
 ### 2. **Trailing Stop Manager API Key Fix** ✅
@@ -139,7 +139,7 @@ BTCUSDT step size: 0.001
 **Resolution**:
 - Standardized on `BINANCE_API_KEY` + `BINANCE_API_SECRET`
 - Added `BINANCE_USE_TESTNET=true` flag
-- Ensured docker-compose passes environment variables to container
+- Ensured systemctl passes environment variables to container
 
 ---
 
@@ -213,13 +213,13 @@ Services now start in correct order:
 ### Monitoring Commands
 ```bash
 # Watch for new positions
-docker logs quantum_backend -f --tail 50 | grep -E "Order placed|Position|TP|SL"
+journalctl -u quantum_backend.service -f --tail 50 | grep -E "Order placed|Position|TP|SL"
 
 # Check health
 docker exec quantum_backend python /app/system_health_check.py
 
 # View active positions
-docker logs quantum_backend --tail 100 | grep "Open positions"
+journalctl -u quantum_backend.service --tail 100 | grep "Open positions"
 ```
 
 ---
@@ -247,13 +247,13 @@ docker logs quantum_backend --tail 100 | grep "Open positions"
 ### Log Analysis
 ```bash
 # Recent errors
-docker logs quantum_backend --tail 200 | grep ERROR
+journalctl -u quantum_backend.service --tail 200 | grep ERROR
 
 # Trailing stop activity
-docker logs quantum_backend | grep "Trailing"
+journalctl -u quantum_backend.service | grep "Trailing"
 
 # API errors
-docker logs quantum_backend | grep "APIError"
+journalctl -u quantum_backend.service | grep "APIError"
 ```
 
 ### Health Check
@@ -301,3 +301,4 @@ docker exec quantum_backend python /app/system_health_check.py
 **System Version**: Quantum Trader V3  
 **Environment**: Binance Futures Testnet  
 **Status**: ✅ FULLY OPERATIONAL
+

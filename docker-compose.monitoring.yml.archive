@@ -1,0 +1,125 @@
+# ============================================================================
+# MONITORING STACK - PROMETHEUS + GRAFANA
+# ============================================================================
+# docker-compose.monitoring.yml - Minimal monitoring for production
+# Deploy med: docker compose -f docker-compose.vps.yml -f docker-compose.monitoring.yml up -d
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # ========================================================================
+  # PROMETHEUS - METRICS COLLECTION
+  # ========================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: quantum_prometheus
+    restart: unless-stopped
+    user: "0:0"  # Run as root to read config
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'  # Keep 7 days of data
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'  # Allow config reload via API
+    ports:
+      - "127.0.0.1:9090:9090"  # Internal only
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - quantum_trader
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ========================================================================
+  # BLACKBOX EXPORTER - HTTP ENDPOINT PROBING
+  # ========================================================================
+  blackbox:
+    image: prom/blackbox-exporter:latest
+    container_name: quantum_blackbox
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9115:9115"  # Internal only
+    volumes:
+      - ./observability/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    command:
+      - '--config.file=/etc/blackbox_exporter/config.yml'
+    networks:
+      - quantum_trader
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9115/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ========================================================================
+  # GRAFANA - METRICS VISUALIZATION
+  # ========================================================================
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: quantum_grafana
+    restart: unless-stopped
+    user: "0"  # Run as root to write to volume
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-quantum2026secure}
+      - GF_SERVER_ROOT_URL=https://app.quantumfond.com/grafana
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_INSTALL_PLUGINS=redis-datasource
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_SECURITY_COOKIE_SAMESITE=none
+    ports:
+      - "127.0.0.1:3001:3000"  # Internal only (access via nginx /grafana)
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - quantum_trader
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  quantum_trader:
+    name: quantum_trader_quantum_trader
+    external: true

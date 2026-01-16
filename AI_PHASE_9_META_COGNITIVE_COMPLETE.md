@@ -205,7 +205,7 @@ Just like biological evolution:
    - Health check: Redis connection test
    - Sandbox directory creation
 
-3. **docker-compose.yml** (updated)
+3. **systemctl.yml** (updated)
    - Added strategy-evaluator service (Service #10)
    - Full configuration:
      - EVALUATION_INTERVAL=43200 (12 hours)
@@ -241,22 +241,22 @@ docker compose up -d strategy-evaluator
 ### Check Evaluator Logs
 ```bash
 # View latest activity
-docker logs quantum_strategy_evaluator --tail 50
+journalctl -u quantum_strategy_evaluator.service --tail 50
 
 # Follow logs in real-time
-docker logs quantum_strategy_evaluator --follow
+journalctl -u quantum_strategy_evaluator.service --follow
 
 # Search for promotions
-docker logs quantum_strategy_evaluator | grep "PROMOTED"
+journalctl -u quantum_strategy_evaluator.service | grep "PROMOTED"
 
 # View evaluation history
-docker logs quantum_strategy_evaluator | grep "STRATEGY EVALUATION"
+journalctl -u quantum_strategy_evaluator.service | grep "STRATEGY EVALUATION"
 ```
 
 ### Check Current Active Policy
 ```bash
 # View production policy
-docker exec quantum_redis redis-cli GET current_policy | jq
+redis-cli GET current_policy | jq
 
 # Output example:
 # {
@@ -272,7 +272,7 @@ docker exec quantum_redis redis-cli GET current_policy | jq
 ### Check Best Strategy Performance
 ```bash
 # View best strategy metrics
-docker exec quantum_redis redis-cli HGETALL meta_best_strategy
+redis-cli HGETALL meta_best_strategy
 
 # Output example:
 # variant_id: variant_20251220_160012_8821
@@ -287,7 +287,7 @@ docker exec quantum_redis redis-cli HGETALL meta_best_strategy
 ### Check Evolution Statistics
 ```bash
 # View evolution progress
-docker exec quantum_redis redis-cli GET meta_evolution_stats | jq
+redis-cli GET meta_evolution_stats | jq
 
 # Output example:
 # {
@@ -303,7 +303,7 @@ docker exec quantum_redis redis-cli GET meta_evolution_stats | jq
 ### Check Strategy History
 ```bash
 # View last 10 evaluations
-docker exec quantum_redis redis-cli LRANGE meta_strategy_history 0 9
+redis-cli LRANGE meta_strategy_history 0 9
 
 # Each entry is JSON with full strategy details
 ```
@@ -323,7 +323,7 @@ cat ~/quantum_trader/backend/microservices/strategy_evaluator/sandbox_strategies
 
 ## 🔧 CONFIGURATION & TUNING
 
-### Environment Variables (docker-compose.yml)
+### Environment Variables (systemctl.yml)
 ```yaml
 strategy-evaluator:
   environment:
@@ -382,12 +382,12 @@ composite_score = (sharpe × 0.4) + (sortino × 0.3) + (pnl × 0.3) - (drawdown 
 
 ### Apply New Configuration
 ```bash
-# 1. Update docker-compose.yml on VPS
+# 1. Update systemctl.yml on VPS
 # 2. Restart evaluator
 docker compose restart strategy-evaluator
 
 # 3. Verify new configuration
-docker logs quantum_strategy_evaluator --tail 20 | grep "Configuration"
+journalctl -u quantum_strategy_evaluator.service --tail 20 | grep "Configuration"
 ```
 
 ---
@@ -619,18 +619,18 @@ Potential Integration:
 ### Evaluator Not Starting
 ```bash
 # Check container status
-docker ps -a | grep strategy_evaluator
+systemctl list-units -a | grep strategy_evaluator
 
 # Check logs for errors
-docker logs quantum_strategy_evaluator
+journalctl -u quantum_strategy_evaluator.service
 
 # Common issues:
 # 1. Redis not healthy
-docker ps | grep redis
-docker exec quantum_redis redis-cli PING
+systemctl list-units | grep redis
+redis-cli PING
 
 # 2. Dependencies not running
-docker ps | grep -E "rl_optimizer|trade_journal"
+systemctl list-units | grep -E "rl_optimizer|trade_journal"
 
 # 3. Missing dependencies
 docker compose build strategy-evaluator --no-cache
@@ -639,38 +639,38 @@ docker compose build strategy-evaluator --no-cache
 ### No Strategy Updates
 ```bash
 # Check update history
-docker exec quantum_redis redis-cli LRANGE meta_strategy_history 0 5
+redis-cli LRANGE meta_strategy_history 0 5
 
 # Verify evaluation interval
-docker logs quantum_strategy_evaluator | grep "Sleeping for"
+journalctl -u quantum_strategy_evaluator.service | grep "Sleeping for"
 
 # Check if evaluations are running
-docker logs quantum_strategy_evaluator | grep "STRATEGY EVALUATION"
+journalctl -u quantum_strategy_evaluator.service | grep "STRATEGY EVALUATION"
 
 # Check for errors
-docker logs quantum_strategy_evaluator | grep ERROR
+journalctl -u quantum_strategy_evaluator.service | grep ERROR
 ```
 
 ### All Variants Scoring Poorly
 ```bash
 # Check historical baseline
-docker exec quantum_redis redis-cli GET latest_report | jq .sharpe_ratio
+redis-cli GET latest_report | jq .sharpe_ratio
 
 # If baseline is 0 or very low:
 # - System needs more trading history
 # - Wait for 24+ hours of trading
 # - Check if Auto Executor is running
-docker ps | grep auto_executor
+systemctl list-units | grep auto_executor
 
 # Adjust mutation range (more conservative)
-# Edit docker-compose.yml: MUTATION_RANGE=0.1
+# Edit systemctl.yml: MUTATION_RANGE=0.1
 docker compose restart strategy-evaluator
 ```
 
 ### Strategies Not Improving
 ```bash
 # Check evolution statistics
-docker exec quantum_redis redis-cli GET meta_evolution_stats | jq
+redis-cli GET meta_evolution_stats | jq
 
 # If stuck at same score for 5+ generations:
 # 1. Increase mutation range (more exploration)
@@ -680,7 +680,7 @@ docker exec quantum_redis redis-cli GET meta_evolution_stats | jq
 # 3. Check if composite score formula needs adjustment
 
 # View performance trajectory
-docker logs quantum_strategy_evaluator | grep "Best Ever"
+journalctl -u quantum_strategy_evaluator.service | grep "Best Ever"
 ```
 
 ### File System Errors
@@ -711,7 +711,7 @@ backend/microservices/strategy_evaluator/
     ├── variant_20251220_160012_3859.json  # Fourth place
     └── variant_20251220_160012_2012.json  # Fifth place
 
-docker-compose.yml                     # Service #10 configuration
+systemctl.yml                     # Service #10 configuration
 ```
 
 ### Redis Keys Used
@@ -1161,3 +1161,4 @@ Phase 9 completes the evolutionary stack:
 *System Status: Fully Autonomous*  
 *Phase 9: COMPLETE* ✅  
 *Next: The system writes its own future...*
+

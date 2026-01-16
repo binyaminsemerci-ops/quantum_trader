@@ -218,7 +218,7 @@ Our direct test results **perfectly match** the earlier core engine validation:
 3. **test_exitbrain_direct.py** - Direct ExitBrain v3.5 validation
 
 #### Modified Files:
-1. **docker-compose.yml** - Added microservices mount, updated PYTHONPATH
+1. **systemctl.yml** - Added microservices mount, updated PYTHONPATH
 2. **v35_integration.py** - Fixed all 4 integration bugs
 3. **test_exitbrain_core.py** - Fixed attribute names (tp1_pct)
 
@@ -259,7 +259,7 @@ Our direct test results **perfectly match** the earlier core engine validation:
 3. ~~Verify adaptive levels output~~ ✅ **DONE**
 
 ### Short Term (1-2 hours)
-1. **Fix Binance testnet API credentials** (update docker-compose.yml with correct keys)
+1. **Fix Binance testnet API credentials** (update systemctl.yml with correct keys)
 2. **Re-test with actual trade execution** to verify full end-to-end path
 3. **Monitor adaptive_levels stream** after successful execution
 4. **Validate levels appear in trade execution**
@@ -354,3 +354,4 @@ The only remaining task is fixing Binance testnet API credentials to enable full
 **Container**: quantum_backend (quantum_trader project)  
 **Python**: 3.11.14  
 **ExitBrain v3.5**: microservices/exitbrain_v3_5/
+

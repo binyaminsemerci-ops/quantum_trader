@@ -443,7 +443,7 @@ Location: `backend/services/ai/system_health_monitor.py`
 **Alerts API**: http://46.224.116.254:8001/health/alerts  
 **History API**: http://46.224.116.254:8001/health/history
 
-**Logs**: `docker logs quantum_ai_engine`  
+**Logs**: `journalctl -u quantum_ai_engine.service`  
 **Repository**: https://github.com/binyaminsemerci-ops/quantum_trader
 
 ---
@@ -457,3 +457,4 @@ Location: `backend/services/ai/system_health_monitor.py`
 *Generated: December 23, 2025 23:52 UTC*  
 *Deployment ID: phase-3c-1-system-health-monitor*  
 *Version: 1.0.0*
+

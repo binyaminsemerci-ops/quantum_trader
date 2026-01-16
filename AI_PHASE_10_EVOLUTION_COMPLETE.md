@@ -443,7 +443,7 @@ scp -i ~/.ssh/hetzner_fresh backend/microservices/strategy_evolution/evolution_s
 scp -i ~/.ssh/hetzner_fresh backend/microservices/strategy_evolution/Dockerfile \
     qt@46.224.116.254:~/quantum_trader/backend/microservices/strategy_evolution/
 
-scp -i ~/.ssh/hetzner_fresh docker-compose.yml \
+scp -i ~/.ssh/hetzner_fresh systemctl.yml \
     qt@46.224.116.254:~/quantum_trader/
 
 # 2. Build container
@@ -505,16 +505,16 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 \
 
 ```bash
 # View evolution logs
-docker logs quantum_strategy_evolution --tail 100 -f
+journalctl -u quantum_strategy_evolution.service --tail 100 -f
 
 # Check current production policy
-docker exec quantum_redis redis-cli GET current_policy | jq
+redis-cli GET current_policy | jq
 
 # View evolution statistics
-docker exec quantum_redis redis-cli GET evolution_stats | jq
+redis-cli GET evolution_stats | jq
 
 # Check survivors
-docker exec quantum_redis redis-cli GET meta_survivors | jq
+redis-cli GET meta_survivors | jq
 
 # List memory bank
 ls -lh backend/microservices/strategy_evolution/memory_bank/
@@ -537,7 +537,7 @@ cat backend/microservices/strategy_evolution/memory_bank/variant_*.json | jq
 docker compose restart strategy-evolution
 
 # View logs
-docker logs quantum_strategy_evolution --tail 50 -f
+journalctl -u quantum_strategy_evolution.service --tail 50 -f
 ```
 
 ### **Force Evolution Now**
@@ -545,7 +545,7 @@ docker logs quantum_strategy_evolution --tail 50 -f
 ```bash
 # Set evolution interval to 1 minute
 docker compose stop strategy-evolution
-# Edit docker-compose.yml: EVOLUTION_INTERVAL=60
+# Edit systemctl.yml: EVOLUTION_INTERVAL=60
 docker compose up -d strategy-evolution
 ```
 
@@ -680,7 +680,7 @@ grep -r "risk_factor" memory_bank/*.json | sort -u
 
 **Symptoms:**
 ```bash
-docker ps
+systemctl list-units
 # Shows: (unhealthy) next to quantum_strategy_evolution
 ```
 
@@ -690,7 +690,7 @@ docker ps
 docker exec quantum_strategy_evolution python -c "import redis; r=redis.Redis(host='redis'); print(r.ping())"
 
 # Check logs
-docker logs quantum_strategy_evolution --tail 50
+journalctl -u quantum_strategy_evolution.service --tail 50
 ```
 
 **Solution:**
@@ -721,7 +721,7 @@ ls memory_bank/*.json | wc -l
 
 **Solution:**
 ```bash
-# Reduce max memory in docker-compose.yml
+# Reduce max memory in systemctl.yml
 MAX_MEMORY: 50  # Default is 100
 
 # Restart
@@ -836,3 +836,4 @@ The system now:
 **The AI Hedge Fund OS is now fully autonomous, self-learning, self-optimizing, self-evaluating, and self-evolving. It will continue to improve forever through genetic algorithms and natural selection.**
 
 🧬 **Evolution Never Stops** 🧬
+

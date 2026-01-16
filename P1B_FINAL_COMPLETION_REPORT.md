@@ -33,7 +33,7 @@
 ### 2. Log Aggregation Stack (100%)
 - ✅ Loki (port 3100) - 30d retention, 50MB/s ingestion
 - ✅ Promtail - Docker log scraping with JSON parsing
-- ✅ `docker-compose.logging.yml` - Stack definition
+- ✅ `systemctl.logging.yml` - Stack definition
 - ✅ Configuration files (loki-config.yml, promtail-config.yml)
 
 ### 3. Grafana Integration (100%)
@@ -49,7 +49,7 @@
   - **p1b_logging_alerts** (3): LokiDown, PromtailDown, ExecutionLatencyHigh
 - ✅ `observability/prometheus/rules/p1b_alerts.yml` (135 lines)
 - ✅ Prometheus config updated to load rules directory
-- ✅ docker-compose.observability.yml updated with rules mount
+- ✅ systemctl.observability.yml updated with rules mount
 
 ### 5. Alertmanager Integration (100%)
 - ✅ Critical/warning routing configured
@@ -154,7 +154,7 @@ expr: (
 |------|--------|-------------|
 | Jan 3, 02:30 | 125465cc | Initial P1-B implementation (JSON logging, Loki, alerts, runbooks) |
 | Jan 3, 02:40 | a8a3b9e8 | Deployment guide |
-| Jan 3, 02:45 | 54dbbcb0 | Network name fix (docker-compose.logging.yml) |
+| Jan 3, 02:45 | 54dbbcb0 | Network name fix (systemctl.logging.yml) |
 | Jan 3, 02:50 | caaf7758 | Dockerfile updates (shared/ directory) |
 | Jan 3, 02:55 | af2f841e | AI Engine JSON logging + Prometheus rules |
 | Jan 3, 02:56 | 6252fdbe | Prometheus rules directory mount |
@@ -314,3 +314,4 @@ expr: (
 **Status:** ✅ COMPLETE
 
 🎉 **P1-B: OPS HARDENING - MISSION ACCOMPLISHED** 🎉
+

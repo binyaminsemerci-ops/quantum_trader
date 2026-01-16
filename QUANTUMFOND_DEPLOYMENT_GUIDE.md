@@ -28,13 +28,13 @@ cp .env.quantumfond .env
 nano .env  # Edit with production settings
 
 # 2. Deploy with Docker Compose
-docker-compose -f docker-compose.quantumfond.yml up -d
+systemctl -f systemctl.quantumfond.yml up -d
 
 # 3. Check status
-docker-compose -f docker-compose.quantumfond.yml ps
+systemctl -f systemctl.quantumfond.yml ps
 
 # 4. View logs
-docker-compose -f docker-compose.quantumfond.yml logs -f
+systemctl -f systemctl.quantumfond.yml logs -f
 ```
 
 ### What Gets Deployed
@@ -300,11 +300,11 @@ sudo -u postgres psql -c "SELECT version();"
 
 ```bash
 # Container status
-docker-compose -f docker-compose.quantumfond.yml ps
+systemctl -f systemctl.quantumfond.yml ps
 
 # Container logs
-docker-compose -f docker-compose.quantumfond.yml logs backend
-docker-compose -f docker-compose.quantumfond.yml logs frontend
+systemctl -f systemctl.quantumfond.yml logs backend
+systemctl -f systemctl.quantumfond.yml logs frontend
 
 # Resource usage
 docker stats
@@ -324,8 +324,8 @@ git pull origin main
 sudo systemctl restart quantumfond-backend
 
 # Or with Docker
-docker-compose -f docker-compose.quantumfond.yml build backend
-docker-compose -f docker-compose.quantumfond.yml up -d backend
+systemctl -f systemctl.quantumfond.yml build backend
+systemctl -f systemctl.quantumfond.yml up -d backend
 ```
 
 ### Update Frontend
@@ -339,8 +339,8 @@ npm run build
 sudo cp -r dist/* /var/www/quantumfond/frontend/
 
 # Or with Docker
-docker-compose -f docker-compose.quantumfond.yml build frontend
-docker-compose -f docker-compose.quantumfond.yml up -d frontend
+systemctl -f systemctl.quantumfond.yml build frontend
+systemctl -f systemctl.quantumfond.yml up -d frontend
 ```
 
 ### Database Backup
@@ -481,3 +481,4 @@ cat /opt/quantumfond/backend/.env | grep DATABASE_URL
 ---
 
 >>> **Ready for production deployment on quantumfond.com** <<<
+

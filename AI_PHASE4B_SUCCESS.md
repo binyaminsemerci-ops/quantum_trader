@@ -391,13 +391,13 @@ curl http://46.224.116.254:8000/health/phase4 | jq
 
 ### 3. View Risk Brain Integration Logs
 ```bash
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker logs quantum_backend 2>&1 | grep -E "SimpleRiskBrain|Risk Brain integration"'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'journalctl -u quantum_backend.service 2>&1 | grep -E "SimpleRiskBrain|Risk Brain integration"'
 # Expected: "SimpleRiskBrain Initialized" and "Risk Brain integration: ACTIVE"
 ```
 
 ### 4. Verify Container Stable
 ```bash
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker ps --filter name=quantum_backend'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'systemctl list-units --filter name=quantum_backend'
 # Expected: STATUS shows "Up X seconds" (not Restarting)
 ```
 
@@ -490,3 +490,4 @@ We successfully integrated Risk Brain with APRL using a lightweight SimpleRiskBr
 **Backend**: quantum_backend (Up and running)  
 **Risk Brain**: SimpleRiskBrain (Active in live mode)  
 **APRL**: Connected and operational
+

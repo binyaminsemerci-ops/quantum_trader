@@ -173,7 +173,7 @@
 # 2. Deploy backend container
 # 3. Backend starter alle AI-moduler automatisk
 # 4. Enable feature flags i .env
-docker compose -f docker-compose.wsl.yml up -d backend
+docker compose -f systemctl.wsl.yml up -d backend
 ```
 
 ### **OPTION B: Gradvis Integration (SAFER)**
@@ -229,7 +229,7 @@ docker compose -f docker-compose.wsl.yml up -d backend
 - [ ] Enable Model Supervisor
 
 ### Post-Deployment
-- [ ] Verify all modules loaded: `docker logs quantum_ai_engine | grep ENABLED`
+- [ ] Verify all modules loaded: `journalctl -u quantum_ai_engine.service | grep ENABLED`
 - [ ] Test paper trading with 10 signals
 - [ ] Monitor for 24h before live trading
 
@@ -271,13 +271,13 @@ CLM_AUTO_DEPLOY_THRESHOLD=0.55  # Min accuracy
 
 ### Docker Compose Changes
 ```yaml
-# Add to docker-compose.wsl.yml
+# Add to systemctl.wsl.yml
 services:
   backend:
     # Uncomment and fix imports
     
   risk-safety:
-    # Deploy from docker-compose.services.yml
+    # Deploy from systemctl.services.yml
     
   rl-training:
     # Optional: Deploy for continuous RL training
@@ -335,3 +335,4 @@ services:
 - Scale gradually to mainnet
 
 **Total timeline:** 3 dager til production-ready
+

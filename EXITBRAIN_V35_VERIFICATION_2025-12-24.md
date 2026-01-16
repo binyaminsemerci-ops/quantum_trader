@@ -36,7 +36,7 @@ PAYLOAD='{
   "timestamp": 1766612429000
 }'
 
-docker exec quantum_redis redis-cli XADD quantum:stream:trade.intent "*" payload "$PAYLOAD"
+redis-cli XADD quantum:stream:trade.intent "*" payload "$PAYLOAD"
 # Result: 1766612429287-0
 ```
 
@@ -154,17 +154,17 @@ XADD quantum:stream:trade.intent * payload '{"symbol": "RENDERUSDT", ...}'
 ### trade.intent Stream
 
 ```bash
-$ docker exec quantum_redis redis-cli XLEN quantum:stream:trade.intent
+$ redis-cli XLEN quantum:stream:trade.intent
 10015  # 3 new events added (2 wrong format + 1 correct format)
 ```
 
 ### exitbrain.adaptive_levels Stream
 
 ```bash
-$ docker exec quantum_redis redis-cli XLEN quantum:stream:exitbrain.adaptive_levels
+$ redis-cli XLEN quantum:stream:exitbrain.adaptive_levels
 0  # No events (expected - SAFE_DRAIN prevents execution)
 
-$ docker exec quantum_redis redis-cli XINFO STREAM quantum:stream:exitbrain.adaptive_levels
+$ redis-cli XINFO STREAM quantum:stream:exitbrain.adaptive_levels
 ERR no such key  # Stream never created
 ```
 
@@ -362,3 +362,4 @@ XADD stream_name * field1 value1 field2 value2
 **Confidence:** 🟢 **HIGH** (all infrastructure working, just needs real trade)  
 **Next Action:** Monitor for next position entry, then verify v3.5 logs  
 **ETA:** < 24 hours for full verification
+

@@ -207,7 +207,7 @@ quantumfond.com Dashboard (Port 8025)
 
 ### ⚠️ Unhealthy Services
 1. **quantum_dashboard_frontend**: Unhealthy
-   - Check: `docker logs quantum_dashboard_frontend`
+   - Check: `journalctl -u quantum_dashboard_frontend.service`
    - Likely: CORS or API connection issue
 
 2. **quantum_nginx**: Exited
@@ -309,3 +309,4 @@ const fetchAIInsights = async () => {
 
 **Last Updated**: December 26, 2025
 **Priority**: High - Transform mock dashboard into real production system
+

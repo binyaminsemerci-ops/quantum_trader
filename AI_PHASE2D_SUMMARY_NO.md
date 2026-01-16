@@ -60,14 +60,14 @@
 # Windows: Start Docker Desktop
 
 # 2. Rebuild AI Engine container
-docker-compose build --no-cache ai-engine
+systemctl build --no-cache ai-engine
 
 # 3. Restart service
-docker-compose stop ai-engine
-docker-compose up -d ai-engine
+systemctl stop ai-engine
+systemctl up -d ai-engine
 
 # 4. Sjekk logs
-docker logs quantum_ai_engine --tail 100 | grep "PHASE 2D"
+journalctl -u quantum_ai_engine.service --tail 100 | grep "PHASE 2D"
 ```
 
 **Forventet output**:
@@ -153,3 +153,4 @@ Phase 2D er **100% kodemessig ferdig**. Modulen er laget, integrert i AI Engine,
 ---
 
 **Klar for deployment når Docker er tilgjengelig!** 🚀
+

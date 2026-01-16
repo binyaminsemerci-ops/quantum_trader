@@ -264,7 +264,7 @@ Drawdown Level    │  SAFE Risk Reduction  │  AGGRESSIVE Risk Reduction
 
 ```powershell
 Remove-Item env:ORCH_PROFILE -ErrorAction SilentlyContinue
-docker-compose restart backend
+systemctl restart backend
 python check_profile_status.py
 ```
 
@@ -272,7 +272,7 @@ python check_profile_status.py
 
 ```powershell
 $env:ORCH_PROFILE="AGGRESSIVE"
-docker-compose restart backend
+systemctl restart backend
 python check_profile_status.py
 ```
 
@@ -291,7 +291,7 @@ python compare_profiles.py
 ### Verify Backend
 
 ```powershell
-docker logs quantum_backend | Select-String "profile"
+journalctl -u quantum_backend.service | Select-String "profile"
 # Expected: "🛡️ Loading SAFE profile" or "⚡ Loading AGGRESSIVE profile"
 ```
 
@@ -384,7 +384,7 @@ echo $env:ORCH_PROFILE
 Remove-Item env:ORCH_PROFILE -ErrorAction SilentlyContinue
 
 # Restart
-docker-compose restart backend
+systemctl restart backend
 ```
 
 ### Wrong Parameters?
@@ -438,9 +438,10 @@ CUSTOM_PROFILE = {
 └────────────────────────────────────────────────────────────┘
 
 Switch with: $env:ORCH_PROFILE="SAFE" or "AGGRESSIVE"
-Then restart: docker-compose restart backend
+Then restart: systemctl restart backend
 ```
 
 ---
 
 **🎯 Choose wisely, trade safely! 🎯**
+

@@ -269,13 +269,13 @@ Exit Brain v3 vil aktivere automatisk når:
 **Monitor logs for**:
 ```bash
 # Event-Driven Executor creating plans
-docker logs quantum_ai_engine | grep "EXIT BRAIN V3.*Created exit plan"
+journalctl -u quantum_ai_engine.service | grep "EXIT BRAIN V3.*Created exit plan"
 
 # Position Monitor checking plans
-docker logs quantum_execution_v2 | grep "EXIT BRAIN V3.*No plan found"
+journalctl -u quantum_execution_v.service2 | grep "EXIT BRAIN V3.*No plan found"
 
 # Trailing activation
-docker logs quantum_execution_v2 | grep "EXIT BRAIN V3.*Using trail config"
+journalctl -u quantum_execution_v.service2 | grep "EXIT BRAIN V3.*Using trail config"
 ```
 
 ---
@@ -293,3 +293,4 @@ docker logs quantum_execution_v2 | grep "EXIT BRAIN V3.*Using trail config"
 **Blocker #1**: ✅ **RESOLVED**  
 **AI Engine**: ✅ **OK**  
 **Next**: Monitoring Stack Deployment (Dag 3)
+

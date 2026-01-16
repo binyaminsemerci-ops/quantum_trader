@@ -150,25 +150,25 @@ AI Engine → Ensemble Voting → Risk Evaluation
 ### Check Trading Status
 ```bash
 wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
-  'docker exec quantum_redis redis-cli GET quantum:config:trading_enabled'
+  'redis-cli GET quantum:config:trading_enabled'
 ```
 
 ### View Executor Activity  
 ```bash
 wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
-  'docker logs quantum_auto_executor --tail 50'
+  'journalctl -u quantum_auto_executor.service --tail 50'
 ```
 
 ### Check AI Signals
 ```bash
 wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
-  'docker logs quantum_ai_engine --tail 100 | grep ENSEMBLE'
+  'journalctl -u quantum_ai_engine.service --tail 100 | grep ENSEMBLE'
 ```
 
 ### Monitor Positions
 ```bash
 wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
-  'docker logs quantum_auto_executor | grep "Position ETHUSDT"'
+  'journalctl -u quantum_auto_executor.service | grep "Position ETHUSDT"'
 ```
 
 ---
@@ -276,3 +276,4 @@ wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
 **STATUS:** 🟢 LIVE ON TESTNET - System operational, awaiting trade signals
 
 **Last Updated:** 2025-12-31 13:45 UTC
+

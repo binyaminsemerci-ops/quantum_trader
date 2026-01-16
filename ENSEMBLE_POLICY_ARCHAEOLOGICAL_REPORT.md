@@ -48,7 +48,7 @@ DEFAULT_WEIGHTS = {
 
 **Source Files:**
 - `ai_engine/ensemble_manager.py` lines 104-109
-- `docker-compose.yml` line 592: `AI_ENGINE_ENSEMBLE_MODELS=["xgb","lgbm","nhits","patchtst"]`
+- `systemctl.yml` line 592: `AI_ENGINE_ENSEMBLE_MODELS=["xgb","lgbm","nhits","patchtst"]`
 - `systemd/env-templates/ai-engine.env` line 11
 
 ### 3️⃣ Decision Logic (VOTING RULES)
@@ -200,9 +200,9 @@ Each model has its own rule-based fallback when the ML model file is missing:
 **Configuration Files:**
 
 1. **Docker Compose (Original):**
-   - `docker-compose.yml` line 592
-   - `docker-compose.vps.yml` line 83
-   - `docker-compose.wsl.yml` line 66
+   - `systemctl.yml` line 592
+   - `systemctl.vps.yml` line 83
+   - `systemctl.wsl.yml` line 66
    - All specify: `AI_ENGINE_ENSEMBLE_MODELS=["xgb","lgbm","nhits","patchtst"]`
 
 2. **Systemd (Current):**
@@ -282,7 +282,7 @@ def get_multiplier(self, consensus_count: int, total_models: int = 4):
     return multiplier, consensus_type
 ```
 
-**4. Docker Compose Configuration (docker-compose.yml:592)**
+**4. Docker Compose Configuration (systemctl.yml:592)**
 ```yaml
 environment:
   - AI_ENGINE_ENSEMBLE_MODELS=["xgb","lgbm","nhits","patchtst"]
@@ -315,8 +315,8 @@ if consensus_type == "strong" and consensus_count >= 3:
 - `ai_engine/agents/patchtst_agent.py` - PatchTST transformer model (160 lines)
 
 **Configuration:**
-- `docker-compose.yml` - Original Docker config (1132 lines)
-- `docker-compose.vps.yml` - VPS deployment config (849 lines)
+- `systemctl.yml` - Original Docker config (1132 lines)
+- `systemctl.vps.yml` - VPS deployment config (849 lines)
 - `systemd/env-templates/ai-engine.env` - Systemd environment template
 - `/etc/quantum/ai-engine.env` - Active VPS config (verified Jan 9, 2026)
 
@@ -603,3 +603,4 @@ This level of documentation is **production-grade** and rare in the industry.
 **Implementation Status:** READY (policy intact, just need model fixes)
 
 **User Decision Required:** Approve fixing XGBoost + PatchTST models to restore full 4-model ensemble.
+

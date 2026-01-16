@@ -202,7 +202,7 @@ Day 5 (6h) ⏳ Alerting (after backups)
 
 ```bash
 # Check container status
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker ps --format "table {{.Names}}\t{{.Status}}"'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'systemctl list-units --format "table {{.Names}}\t{{.Status}}"'
 
 # Test Prometheus health
 ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'curl -s http://127.0.0.1:9090/-/healthy'
@@ -220,7 +220,7 @@ ssh -L 3001:127.0.0.1:3001 qt@46.224.116.254 -i ~/.ssh/hetzner_fresh
 
 ## 📝 Configuration Files
 
-### docker-compose.monitoring.yml
+### systemctl.monitoring.yml
 - Prometheus: v2.48.1, 7d retention, 512MB RAM limit
 - Grafana: 10.2.3, Redis datasource plugin, 512MB RAM limit
 - Both: Internal only (127.0.0.1)
@@ -251,3 +251,4 @@ ssh -L 3001:127.0.0.1:3001 qt@46.224.116.254 -i ~/.ssh/hetzner_fresh
 **Deployed**: 16. desember 2025, 08:24 UTC  
 **By**: GitHub Copilot + qt@VPS  
 **Next**: Dag 4 - Redis Backup System
+

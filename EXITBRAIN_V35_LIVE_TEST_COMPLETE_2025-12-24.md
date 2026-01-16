@@ -30,7 +30,7 @@ cd /home/qt/quantum_trader
 
 #### **Steg 1: Verifiser consumer kjører stabilt** ✅
 ```bash
-docker ps --filter name=consumer
+systemctl list-units --filter name=consumer
 docker logs --since 30m quantum_trade_intent_consumer | tail -50
 ```
 
@@ -40,7 +40,7 @@ docker logs --since 30m quantum_trade_intent_consumer | tail -50
 
 #### **Steg 2: Verifiser SAFE_DRAIN=false (LIVE mode)** ✅
 ```bash
-docker logs quantum_trade_intent_consumer | grep -E "SAFE_DRAIN|LIVE mode"
+journalctl -u quantum_trade_intent_consumer.service | grep -E "SAFE_DRAIN|LIVE mode"
 ```
 
 **Resultat:**
@@ -52,8 +52,8 @@ docker logs quantum_trade_intent_consumer | grep -E "SAFE_DRAIN|LIVE mode"
 
 #### **Steg 3: Sjekk baseline stream lengder** ✅
 ```bash
-docker exec quantum_redis redis-cli XLEN quantum:stream:exitbrain.adaptive_levels
-docker exec quantum_redis redis-cli XLEN quantum:stream:trade.intent
+redis-cli XLEN quantum:stream:exitbrain.adaptive_levels
+redis-cli XLEN quantum:stream:trade.intent
 ```
 
 **Baseline:**
@@ -367,10 +367,10 @@ f"avg_pnl={adaptive_levels.get('avg_pnl_last_20', 0.0):.3f} trace_id={trace_id}"
 #### **Steg 6: Verifiser adaptive_levels stream** ✅
 
 ```bash
-docker exec quantum_redis redis-cli XLEN quantum:stream:exitbrain.adaptive_levels
+redis-cli XLEN quantum:stream:exitbrain.adaptive_levels
 # Output: 1
 
-docker exec quantum_redis redis-cli XREVRANGE quantum:stream:exitbrain.adaptive_levels + - COUNT 1
+redis-cli XREVRANGE quantum:stream:exitbrain.adaptive_levels + - COUNT 1
 ```
 
 **Resultat:**
@@ -639,7 +639,7 @@ vim /home/qt/quantum_trader/.env
 docker secret update binance_api_key <new_value>
 
 # Restart services
-docker-compose restart quantum_trade_intent_consumer quantum_backend
+systemctl restart quantum_trade_intent_consumer quantum_backend
 ```
 
 ### Prioritet 2: Synkroniser Lokal Repository
@@ -659,7 +659,7 @@ git push
 ### Prioritet 3: Monitor Production
 ```bash
 # Watch adaptive levels stream
-watch -n 5 'docker exec quantum_redis redis-cli XLEN quantum:stream:exitbrain.adaptive_levels'
+watch -n 5 'redis-cli XLEN quantum:stream:exitbrain.adaptive_levels'
 
 # Monitor consumer logs
 docker logs -f quantum_trade_intent_consumer | grep "🎯 ExitBrain"
@@ -723,3 +723,4 @@ Binance API 401 error blokkerer kun faktisk trade execution (ikke v3.5 logikk), 
 **Total iterations:** 6 fix-deploy-test cycles  
 **Total time:** ~12.5 minutter  
 **Final status:** ✅ LIVE og FUNKSJONELL
+

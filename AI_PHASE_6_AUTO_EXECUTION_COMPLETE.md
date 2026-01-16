@@ -355,7 +355,7 @@ Balance Updates: Virtual portfolio
 
 ### Step 2: Configure Environment
 ```bash
-# Edit docker-compose.yml or .env
+# Edit systemctl.yml or .env
 BINANCE_API_KEY=your_testnet_api_key
 BINANCE_API_SECRET=your_testnet_secret
 TESTNET=true
@@ -378,10 +378,10 @@ MAX_POSITION_SIZE=100     # $100 max
 ### Step 4: Monitoring
 ```bash
 # Watch executor logs
-docker logs quantum_auto_executor -f
+journalctl -u quantum_auto_executor.service -f
 
 # Check trade history
-docker exec quantum_redis redis-cli LRANGE trade_log 0 -1
+redis-cli LRANGE trade_log 0 -1
 
 # Monitor metrics
 curl http://localhost:8501/status
@@ -417,10 +417,10 @@ executor_metrics = {
 ### Trade Logs (Redis)
 ```bash
 # Last 10 trades
-docker exec quantum_redis redis-cli LRANGE trade_log 0 9
+redis-cli LRANGE trade_log 0 9
 
 # Total trade count
-docker exec quantum_redis redis-cli GET total_trades
+redis-cli GET total_trades
 ```
 
 ---
@@ -539,21 +539,21 @@ docker restart quantum_auto_executor
 
 ### View Live Logs
 ```bash
-docker logs quantum_auto_executor -f
+journalctl -u quantum_auto_executor.service -f
 ```
 
 ### Check Trade History
 ```bash
 # Last 10 trades
-docker exec quantum_redis redis-cli LRANGE trade_log 0 9 | python3 -m json.tool
+redis-cli LRANGE trade_log 0 9 | python3 -m json.tool
 
 # Total trades
-docker exec quantum_redis redis-cli GET total_trades
+redis-cli GET total_trades
 ```
 
 ### Create Test Signals
 ```bash
-docker exec quantum_redis redis-cli SET live_signals '[
+redis-cli SET live_signals '[
   {
     "symbol": "BTCUSDT",
     "action": "BUY",
@@ -572,7 +572,7 @@ docker exec quantum_redis redis-cli SET live_signals '[
 ### Executor Not Starting
 ```bash
 # Check container logs
-docker logs quantum_auto_executor
+journalctl -u quantum_auto_executor.service
 
 # Verify Redis connection
 docker exec quantum_auto_executor python3 -c "import redis; r=redis.Redis(host='quantum_redis'); print(r.ping())"
@@ -584,22 +584,22 @@ docker network inspect quantum_trader_quantum_trader | grep quantum_auto_executo
 ### No Trades Executing
 ```bash
 # Check if signals exist
-docker exec quantum_redis redis-cli GET live_signals
+redis-cli GET live_signals
 
 # Verify executor is processing
-docker logs quantum_auto_executor | grep "Processing"
+journalctl -u quantum_auto_executor.service | grep "Processing"
 
 # Check confidence threshold
-docker logs quantum_auto_executor | grep "rejected"
+journalctl -u quantum_auto_executor.service | grep "rejected"
 ```
 
 ### Circuit Breaker Stuck
 ```bash
 # Check drawdown values
-docker exec quantum_redis redis-cli GET live_signals | python3 -m json.tool | grep drawdown
+redis-cli GET live_signals | python3 -m json.tool | grep drawdown
 
 # Reset signals with lower drawdown
-docker exec quantum_redis redis-cli SET live_signals '[{"symbol":"BTCUSDT","action":"BUY","confidence":0.70,"drawdown":2.0}]'
+redis-cli SET live_signals '[{"symbol":"BTCUSDT","action":"BUY","confidence":0.70,"drawdown":2.0}]'
 ```
 
 ### API Errors (Real Trading)
@@ -798,3 +798,4 @@ Phase 6: Auto Execution Layer ← YOU ARE HERE
 **Deployment Date:** 2025-12-20  
 **Status:** ✅ PRODUCTION READY  
 **Achievement:** COMPLETE AUTONOMOUS AI TRADING SYSTEM 🎉  
+

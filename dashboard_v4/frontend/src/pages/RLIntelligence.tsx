@@ -148,72 +148,14 @@ function CorrelationMatrix({ perf }: { perf: PerformanceData }) {
 }
 
 export default function RLIntelligence() {
-  const defaultSymbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"];
-  const [symbols, setSymbols] = useState<string[]>(defaultSymbols);
+  const [symbols, setSymbols] = useState<string[]>([]);
   const [perf, setPerf] = useState<PerformanceData>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [chartInstances, setChartInstances] = useState<ChartsState>({});
 
+  // Fetch data and update symbols list
   useEffect(() => {
-    // Initialize charts
-    const chartInstances: ChartsState = {};
-    
-    symbols.forEach((s) => {
-      const canvas = document.getElementById(`chart-${s}`) as HTMLCanvasElement;
-      if (canvas) {
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          chartInstances[s] = new Chart(ctx, {
-            type: "line",
-            data: {
-              labels: [],
-              datasets: [
-                {
-                  label: "Reward",
-                  data: [],
-                  borderColor: "#00ffcc",
-                  backgroundColor: "rgba(0, 255, 204, 0.1)",
-                  tension: 0.4,
-                },
-                {
-                  label: "Policy Δ",
-                  data: [],
-                  borderColor: "#ff00aa",
-                  backgroundColor: "rgba(255, 0, 170, 0.1)",
-                  tension: 0.4,
-                },
-              ],
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              scales: {
-                x: {
-                  display: false,
-                },
-                y: {
-                  ticks: {
-                    color: "#aaa",
-                  },
-                  grid: {
-                    color: "#333",
-                  },
-                },
-              },
-              plugins: {
-                legend: {
-                  labels: {
-                    color: "#aaa",
-                  },
-                },
-              },
-            },
-          });
-        }
-      }
-    });
-
-    // Fetch data from RL Dashboard
     const fetchData = async () => {
       try {
         const response = await fetch(RL_DASHBOARD_URL);
@@ -224,7 +166,7 @@ export default function RLIntelligence() {
 
         // Update tracked symbols list from backend
         const allSymbols = data.symbols.map(s => s.symbol);
-        if (allSymbols.length > 0 && JSON.stringify(allSymbols) !== JSON.stringify(symbols)) {
+        if (allSymbols.length > 0) {
           setSymbols(allSymbols);
         }
 
@@ -234,23 +176,21 @@ export default function RLIntelligence() {
         data.symbols.forEach((symbolData) => {
           const val = symbolData.reward;
           
-          // Update chart if this symbol is in our tracked list
-          if (symbols.includes(symbolData.symbol)) {
-            const chart = chartInstances[symbolData.symbol];
-            if (chart && chart.data.labels) {
-              chart.data.labels.push("");
-              chart.data.datasets[0].data.push(val);
-              chart.data.datasets[1].data.push(val * 0.5); // Policy delta (simulated)
+          // Update chart if it exists
+          const chart = chartInstances[symbolData.symbol];
+          if (chart && chart.data.labels) {
+            chart.data.labels.push("");
+            chart.data.datasets[0].data.push(val);
+            chart.data.datasets[1].data.push(val * 0.5); // Policy delta (simulated)
 
-              // Keep only last 80 points
-              if (chart.data.labels.length > 80) {
-                chart.data.labels.shift();
-                chart.data.datasets[0].data.shift();
-                chart.data.datasets[1].data.shift();
-              }
-
-              chart.update("none"); // Skip animation for performance
+            // Keep only last 80 points
+            if (chart.data.labels.length > 80) {
+              chart.data.labels.shift();
+              chart.data.datasets[0].data.shift();
+              chart.data.datasets[1].data.shift();
             }
+
+            chart.update("none"); // Skip animation for performance
           }
 
           newPerf[symbolData.symbol] = val;
@@ -274,14 +214,89 @@ export default function RLIntelligence() {
 
     return () => {
       clearInterval(interval);
-      // Cleanup charts
+    };
+  }, [chartInstances]);
+
+  // Initialize charts after DOM is ready and symbols are loaded
+  useEffect(() => {
+    if (symbols.length === 0) return; // Wait for symbols
+
+    // Small delay to ensure DOM elements are rendered
+    const timer = setTimeout(() => {
+      const newChartInstances: ChartsState = {};
+      
+      symbols.forEach((s) => {
+        const canvas = document.getElementById(`chart-${s}`) as HTMLCanvasElement;
+        if (canvas) {
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            newChartInstances[s] = new Chart(ctx, {
+              type: "line",
+              data: {
+                labels: [],
+                datasets: [
+                  {
+                    label: "Reward",
+                    data: [],
+                    borderColor: "#00ffcc",
+                    backgroundColor: "rgba(0, 255, 204, 0.1)",
+                    tension: 0.4,
+                  },
+                  {
+                    label: "Policy Δ",
+                    data: [],
+                    borderColor: "#ff00aa",
+                    backgroundColor: "rgba(255, 0, 170, 0.1)",
+                    tension: 0.4,
+                  },
+                ],
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  x: {
+                    display: false,
+                  },
+                  y: {
+                    ticks: {
+                      color: "#aaa",
+                    },
+                    grid: {
+                      color: "#333",
+                    },
+                  },
+                },
+                plugins: {
+                  legend: {
+                    labels: {
+                      color: "#aaa",
+                    },
+                  },
+                },
+              },
+            });
+          } else {
+            console.warn(`Canvas context not available for ${s}`);
+          }
+        } else {
+          console.warn(`Canvas element not found for chart-${s}`);
+        }
+      });
+
+      setChartInstances(newChartInstances);
+    }, 100); // 100ms delay for DOM
+
+    return () => {
+      clearTimeout(timer);
+      // Cleanup old charts
       Object.values(chartInstances).forEach((chart) => {
         if (chart) {
           chart.destroy();
         }
       });
     };
-  }, []);
+  }, [symbols]); // Re-run when symbols change
 
   return (
     <div>

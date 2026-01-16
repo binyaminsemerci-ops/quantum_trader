@@ -209,13 +209,13 @@ wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
 ### Check AI Engine Health
 ```bash
 wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
-  'docker logs quantum_ai_engine --tail 50'
+  'journalctl -u quantum_ai_engine.service --tail 50'
 ```
 
 ### Verify Stream Activity
 ```bash
 wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
-  'docker exec quantum_redis redis-cli XLEN quantum:stream:exitbrain.pnl'
+  'redis-cli XLEN quantum:stream:exitbrain.pnl'
 ```
 
 ---
@@ -266,3 +266,4 @@ wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
 **Next Review:** 2026-01-01 00:00 UTC (24h checkpoint)  
 **Final Review:** 2026-01-02 00:30 UTC (48h completion)  
 **Go-Live Target:** 2026-01-02 01:00 UTC (if validation passes)
+

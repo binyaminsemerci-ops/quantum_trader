@@ -331,7 +331,7 @@ Output: /tmp/shadow_validation_v2.out
 1. **Diagnose Restart Cause**
    ```bash
    # Check Docker logs
-   docker logs quantum_ai_engine --since "2025-12-31T15:00:00" --until "2025-12-31T16:30:00"
+   journalctl -u quantum_ai_engine.service --since "2025-12-31T15:00:00" --until "2025-12-31T16:30:00"
    
    # Check system logs
    journalctl -u docker --since "2025-12-31T15:00:00" --until "2025-12-31T16:30:00"
@@ -352,10 +352,10 @@ Output: /tmp/shadow_validation_v2.out
 3. **Restore Market Data Feed**
    ```bash
    # Check WebSocket publisher
-   docker logs quantum_market_publisher --tail 100
+   journalctl -u quantum_market_publisher.service --tail 100
    
    # Restart if needed
-   docker compose -f docker-compose.vps.yml restart market-publisher
+   docker compose -f systemctl.vps.yml restart market-publisher
    ```
 
 4. **Verify Ensemble Prediction Generation**
@@ -364,7 +364,7 @@ Output: /tmp/shadow_validation_v2.out
    curl -X POST http://localhost:8001/api/force-predict
    
    # Check logs
-   docker logs quantum_ai_engine --tail 50 | grep ENSEMBLE
+   journalctl -u quantum_ai_engine.service --tail 50 | grep ENSEMBLE
    ```
 
 ### Medium-Term Actions (Priority 2)
@@ -528,3 +528,4 @@ Output: /tmp/shadow_validation_v2.out
 **Status**: Validation interrupted, requires restart
 
 **Recommendation**: Fix issues and restart 48-hour validation for reliable production deployment decision.
+

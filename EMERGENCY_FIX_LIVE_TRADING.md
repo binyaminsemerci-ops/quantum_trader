@@ -43,7 +43,7 @@ if (os.getenv("STAGING_MODE") or "").strip().lower() in {"1", "true", "yes", "on
 # ACTUAL ORDER PLACEMENT HAPPENS HERE IF NOT STAGING_MODE
 ```
 
-### docker-compose.yml Config BEFORE Fix
+### systemctl.yml Config BEFORE Fix
 
 ```yaml
 - QT_PAPER_TRADING=true   # ← Denne leses IKKE av execution.py!
@@ -56,7 +56,7 @@ if (os.getenv("STAGING_MODE") or "").strip().lower() in {"1", "true", "yes", "on
 
 ## ✅ Solution Implemented
 
-### Changed docker-compose.yml
+### Changed systemctl.yml
 
 ```yaml
 - QT_PAPER_TRADING=true           # For display/logging
@@ -146,7 +146,7 @@ After restart, verify:
 ### Test Command
 ```powershell
 # Should see "[DRY-RUN]" in logs
-docker logs quantum_backend --follow | Select-String "DRY-RUN|Paper|LIVE"
+journalctl -u quantum_backend.service --follow | Select-String "DRY-RUN|Paper|LIVE"
 ```
 
 ---
@@ -175,3 +175,4 @@ docker logs quantum_backend --follow | Select-String "DRY-RUN|Paper|LIVE"
 **STATUS: FIXED - System now in true paper trading mode**
 
 **Next Action:** Monitor NEARUSDT position manually on Binance, consider setting stop loss.
+

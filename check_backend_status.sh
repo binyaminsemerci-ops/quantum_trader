@@ -7,12 +7,12 @@ SSH_KEY="$HOME/.ssh/hetzner_fresh"
 
 echo "📊 Checking backend status..."
 ssh -i $SSH_KEY $VPS_USER@$VPS_IP << 'ENDSSH'
-echo "Container status:"
-docker ps | grep backend
+echo "Service status:"
+systemctl status quantum-backend.service --no-pager | head -10
 
 echo ""
 echo "Recent logs (last 50 lines):"
-docker logs quantum_backend 2>&1 | tail -50
+journalctl -u quantum-backend.service -n 50 --no-pager
 
 echo ""
 echo "Health check:"

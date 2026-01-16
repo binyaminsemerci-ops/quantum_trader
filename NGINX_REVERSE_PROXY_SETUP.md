@@ -184,8 +184,8 @@ sudo systemctl reload nginx
 
 ### Check Container Status
 ```bash
-docker ps --filter name=quantum_quantumfond_frontend
-docker logs quantum_quantumfond_frontend
+systemctl list-units --filter name=quantum_quantumfond_frontend
+journalctl -u quantum_quantumfond_frontend.service
 ```
 
 ---
@@ -204,8 +204,8 @@ sudo nginx -t && sudo systemctl reload nginx
 ```bash
 cd /home/qt/quantum_trader
 git pull origin main
-docker compose -f docker-compose.vps.yml build quantumfond-frontend
-docker compose -f docker-compose.vps.yml up -d quantumfond-frontend
+docker compose -f systemctl.vps.yml build quantumfond-frontend
+docker compose -f systemctl.vps.yml up -d quantumfond-frontend
 ```
 
 ---
@@ -253,10 +253,11 @@ wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
 # Check everything
 wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
   "systemctl status nginx && \
-   docker ps --filter name=quantumfond && \
+   systemctl list-units --filter name=quantumfond && \
    certbot certificates"
 ```
 
 ---
 
 **Ready to deploy? Run the setup script after DNS is configured! 🚀**
+

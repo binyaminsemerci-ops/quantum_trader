@@ -381,7 +381,7 @@ docker exec quantum_backend python -c "from backend.database import init_db; ini
 **Fix:**
 ```bash
 # Restart backend to reset data feed
-docker-compose restart backend
+systemctl restart backend
 
 # Or trigger manual update via API
 curl http://localhost:8000/api/universe/refresh
@@ -402,7 +402,7 @@ curl http://localhost:8000/api/universe/refresh
 docker exec quantum_backend env | grep -E "STAGING|PAPER"
 
 # Check executor logs
-docker logs quantum_backend --since 10m | grep -E "Trade OPENED|Order placed|APIError"
+journalctl -u quantum_backend.service --since 10m | grep -E "Trade OPENED|Order placed|APIError"
 
 # Check Binance positions
 docker exec quantum_backend python check_live_positions_now.py
@@ -514,3 +514,4 @@ QT_CONTINUOUS_LEARNING=true      # ✅ Set but module not running
 
 **Estimated Fix Time:** 30-45 minutes  
 **Expected Result:** All subsystems GREEN, trading resumes automatically
+

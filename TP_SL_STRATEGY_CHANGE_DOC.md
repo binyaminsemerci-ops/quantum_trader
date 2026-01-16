@@ -382,7 +382,7 @@ Nå: Positive reinforcement from frequent small wins
 
 **Restart Command:**
 ```bash
-docker-compose restart backend
+systemctl restart backend
 ```
 
 **Verification Steps:**
@@ -422,3 +422,4 @@ Vi bygger et **sustainable** trading system med positiv psykologi og redusert ri
 **Document Version:** 1.0  
 **Author:** Quantum Trader Development Team  
 **Last Updated:** December 9, 2025 - 00:30 UTC
+

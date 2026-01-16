@@ -21,7 +21,7 @@ All 5 phases of Prompt 9 (Real-Time Monitoring Daemon) completed successfully.
 **Executable:** ✅ Yes
 
 **Features Implemented:**
-- **Hourly log scanning** - Checks Docker logs every 60 minutes
+- **Hourly log scanning** - Checks journalctl -u every.service 60 minutes
 - **Pattern-based detection** - Identifies errors, warnings, critical events, restarts
 - **Threshold monitoring** - Triggers auto-heal when limits exceeded
 - **Incident reporting** - Appends real-time reports to weekly health reports
@@ -648,3 +648,4 @@ System now monitors itself 24/7 with automatic self-healing.
 ---
 
 **End of Activation Report**
+

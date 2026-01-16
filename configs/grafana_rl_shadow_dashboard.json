@@ -1,0 +1,173 @@
+{
+  "dashboard": {
+    "title": "RL Shadow System - Performance Monitoring",
+    "tags": ["rl", "shadow", "ai"],
+    "timezone": "utc",
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Gate Pass Rate by Symbol (Last Hour)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "quantum_rl_gate_pass_rate{symbol=~\"BTCUSDT|ETHUSDT|SOLUSDT|XRPUSDT|BNBUSDT\"}",
+            "legendFormat": "{{symbol}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Cooldown Blocking Rate",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "quantum_rl_cooldown_blocking_rate{symbol=~\"BTCUSDT|ETHUSDT|SOLUSDT|XRPUSDT\"}",
+            "legendFormat": "{{symbol}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Current Pass Rate (All Symbols)",
+        "type": "gauge",
+        "gridPos": {"h": 6, "w": 6, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "avg(quantum_rl_gate_pass_rate)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 0.08},
+                {"color": "green", "value": 0.12}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Current Eligible Rate",
+        "type": "gauge",
+        "gridPos": {"h": 6, "w": 6, "x": 6, "y": 8},
+        "targets": [
+          {
+            "expr": "avg(quantum_rl_eligible_rate)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 0.25},
+                {"color": "green", "value": 0.30}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "RL Policy Age (Seconds)",
+        "type": "timeseries",
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "quantum_rl_policy_age_seconds{symbol=~\"BTCUSDT|ETHUSDT|SOLUSDT\"}",
+            "legendFormat": "{{symbol}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "min": 0
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "RL vs Ensemble Confidence (Pass)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+        "targets": [
+          {
+            "expr": "quantum_rl_confidence_avg{symbol=~\"BTCUSDT|ETHUSDT|SOLUSDT\"}",
+            "legendFormat": "RL {{symbol}}"
+          },
+          {
+            "expr": "quantum_rl_ensemble_confidence_pass{symbol=~\"BTCUSDT|ETHUSDT|SOLUSDT\"}",
+            "legendFormat": "Ensemble {{symbol}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 0,
+            "max": 1
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "RL Effects Distribution",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 14},
+        "targets": [
+          {
+            "expr": "avg(quantum_rl_would_flip_rate)",
+            "legendFormat": "Would Flip Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Intents Analyzed (Total)",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 14},
+        "targets": [
+          {
+            "expr": "quantum_rl_intents_analyzed_total"
+          }
+        ]
+      }
+    ]
+  }
+}

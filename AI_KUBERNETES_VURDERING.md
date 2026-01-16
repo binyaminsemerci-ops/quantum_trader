@@ -220,7 +220,7 @@ Hvis du vokser til 3+ VPS, vurder Docker Swarm FØR Kubernetes.
 
 **Da kan du vurdere:**
 1. **Option A (enklest):** Docker Swarm
-   - Bruk eksisterende docker-compose.yml
+   - Bruk eksisterende systemctl.yml
    - `docker stack deploy`
    - Multi-node med minimal kompleksitet
 
@@ -287,22 +287,22 @@ Hvis du vokser til 3+ VPS, vurder Docker Swarm FØR Kubernetes.
 **Forbedringer du BØR gjøre:**
 1. **Monitoring** (Prometheus + Grafana)
    ```yaml
-   # docker-compose.monitoring.yml allerede laget! ✅
-   docker compose -f docker-compose.vps.yml -f docker-compose.monitoring.yml up -d
+   # systemctl.monitoring.yml allerede laget! ✅
+   docker compose -f systemctl.vps.yml -f systemctl.monitoring.yml up -d
    ```
 
 2. **Automated backups**
    ```bash
    # Cron job for Redis backup
-   0 2 * * * docker exec quantum_redis redis-cli BGSAVE
+   0 2 * * * redis-cli BGSAVE
    ```
 
 3. **Deployment automation**
    ```bash
    # scripts/deploy.sh
    git pull
-   docker compose -f docker-compose.vps.yml build
-   docker compose -f docker-compose.vps.yml up -d
+   docker compose -f systemctl.vps.yml build
+   docker compose -f systemctl.vps.yml up -d
    ```
 
 4. **Health check monitoring**
@@ -406,3 +406,4 @@ Men da kan du migrere. Docker Compose → Docker Swarm → Kubernetes er en natu
 **Status:** ✅ Docker Compose anbefalt  
 **Kubernetes:** ❌ Ikke nødvendig  
 **Re-vurdering:** Om 12 måneder
+

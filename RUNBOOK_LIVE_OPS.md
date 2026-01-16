@@ -134,10 +134,10 @@ wsl bash scripts/go_live_live_small.sh
 wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "docker logs -f quantum_auto_executor"
 
 # Check orders
-wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "docker exec quantum_redis redis-cli GET quantum:counter:orders_submitted"
+wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "redis-cli GET quantum:counter:orders_submitted"
 
 # Check positions
-wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "docker exec quantum_redis redis-cli HGETALL quantum:positions:open"
+wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "redis-cli HGETALL quantum:positions:open"
 ```
 
 ---
@@ -202,7 +202,7 @@ wsl bash scripts/go_live_abort.sh
 ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254
 
 # Clear emergency flags
-docker exec quantum_redis redis-cli DEL quantum:config:emergency_stop quantum:feature:new_entries_disabled
+redis-cli DEL quantum:config:emergency_stop quantum:feature:new_entries_disabled
 
 # Restart services
 cd /home/qt/quantum_trader
@@ -244,7 +244,7 @@ wsl bash /mnt/c/quantum_trader/scripts/go_live_preflight.sh
 
 ### Morning Check (09:00 UTC)
 - [ ] Check Grafana for alerts
-- [ ] Verify container health: `docker ps --filter health=unhealthy`
+- [ ] Verify container health: `systemctl list-units --filter health=unhealthy`
 - [ ] Check disk usage: `df -h | grep sda1`
 - [ ] Review overnight PnL
 - [ ] Check for error spikes in logs
@@ -270,7 +270,7 @@ wsl bash /mnt/c/quantum_trader/scripts/go_live_preflight.sh
 **Check**:
 1. Emergency stop flag: `redis-cli GET quantum:config:emergency_stop`
 2. Intent queue: `redis-cli XLEN quantum:stream:intent`
-3. Executor logs: `docker logs quantum_auto_executor --tail 100`
+3. Executor logs: `journalctl -u quantum_auto_executor.service --tail 100`
 4. Balance check: Executor logs should show available balance
 
 **Fix**:
@@ -336,3 +336,4 @@ wsl bash scripts/go_live_abort.sh
 ---
 
 **FINAL REMINDER**: Live trading involves real financial risk. Always start with micro-notional, monitor closely, and use the abort script if anything looks wrong.
+

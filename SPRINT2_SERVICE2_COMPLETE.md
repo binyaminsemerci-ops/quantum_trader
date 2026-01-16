@@ -68,7 +68,7 @@
   - policy.updated event handling
 
 ### Phase 7: Integration ✅
-- [x] docker-compose.yml updated with execution service
+- [x] systemctl.yml updated with execution service
 - [x] Service dependencies configured (redis, risk-safety)
 - [x] Health checks configured
 - [x] Volume mounts for backend modules (temporary)
@@ -246,7 +246,7 @@ docker run -p 8002:8002 \
 ### Docker Compose (Microservices Stack)
 ```bash
 cd quantum_trader
-docker-compose --profile microservices up execution
+systemctl --profile microservices up execution
 ```
 
 **Services Started:**
@@ -307,7 +307,7 @@ docker-compose --profile microservices up execution
 - **Safety:** 4-layer validation (ESS, SafetyGuard, SafeExecutor, RateLimiter)
 - **Integration:** risk-safety-service, Redis, Binance Futures
 - **Tests:** 8 test cases covering core flows
-- **Docker:** Ready for deployment with docker-compose
+- **Docker:** Ready for deployment with systemctl
 
 **Service #2 of 7 is production-ready.** 🚀
 
@@ -318,3 +318,4 @@ Next: **Service #3 (ai-engine-service)** - AI model orchestration and signal gen
 **Created:** December 4, 2025  
 **Sprint:** SPRINT 2 - Microservices Split  
 **Completion Time:** ~2 hours (analysis → design → implementation → testing → documentation)
+

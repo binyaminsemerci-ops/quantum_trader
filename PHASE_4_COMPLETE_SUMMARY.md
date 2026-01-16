@@ -178,19 +178,19 @@ Features:
 ### Alert Monitoring
 ```bash
 # View live alerts
-ssh qt@46.224.116.254 'docker logs quantum_governance_alerts -f'
+ssh qt@46.224.116.254 'journalctl -u quantum_governance_alerts.service -f'
 
 # Check alert count
-ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli LLEN governance_alerts'
+ssh qt@46.224.116.254 'redis-cli LLEN governance_alerts'
 
 # View latest alert
-ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli LINDEX governance_alerts 0'
+ssh qt@46.224.116.254 'redis-cli LINDEX governance_alerts 0'
 ```
 
 ### System Health Check
 ```bash
 # All Phase 4 containers
-ssh qt@46.224.116.254 'docker ps --filter name=quantum | grep -E "(governance|ai_engine|redis)"'
+ssh qt@46.224.116.254 'systemctl list-units --filter name=quantum | grep -E "(governance|ai_engine|redis)"'
 
 # Quick status
 ssh qt@46.224.116.254 'curl -s http://localhost:8501/status | python3 -m json.tool'
@@ -301,7 +301,7 @@ Health Check: Every 30 seconds
 ### Immediate (Optional Enhancements)
 1. **Enable Email Alerts**
    - Set up Gmail app password
-   - Configure SMTP in docker-compose.yml
+   - Configure SMTP in systemctl.yml
    - Test email delivery
 
 2. **Enable Telegram Alerts**
@@ -423,3 +423,4 @@ The system will:
 **Completion Date:** 2025-12-20  
 **Status:** 🎉 PRODUCTION READY  
 **Achievement:** AI Hedge Fund OS - COMPLETE  
+

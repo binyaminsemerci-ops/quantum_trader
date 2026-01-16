@@ -84,7 +84,7 @@ DEFAULT_STRATEGY=ultra_aggressive       # Default: ultra_aggressive
 ```
 
 ### 4. ✅ Backend Restart & Verification
-- **Command:** `docker-compose --profile dev restart backend`
+- **Command:** `systemctl --profile dev restart backend`
 - **Result:** Backend restarted successfully
 - **Logs Confirmed:**
 ```json
@@ -271,7 +271,7 @@ AI Signal → Market Context → Regime Detection → Strategy Selection → Dyn
 ### Check Meta-Strategy Status:
 ```bash
 # View logs
-docker logs quantum_backend | grep "META-STRATEGY"
+journalctl -u quantum_backend.service | grep "META-STRATEGY"
 
 # Expected output:
 [META-STRATEGY] BTCUSDT: Ultra Aggressive (regime=trend_up, explore=False, conf=88%) | TP=1.5% SL=0.5%
@@ -423,3 +423,4 @@ The system will now:
 - **Demo Script:** `demo_meta_strategy_selector.py`
 
 **🚀 Quantum Trader is now an AI hedge fund with adaptive strategy selection!**
+

@@ -54,7 +54,7 @@ export default function Grafana() {
                 <p className="text-gray-400 mt-1">Comprehensive system metrics across all services</p>
               </div>
               <a
-                href="/grafana/d/b86ea273-5dec-4cdd-91dd-4b6f21aed5cb"
+                href="/grafana/d/1fa65b1b-56ce-4ce0-8f7b-a5b05e0d89a0"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-white text-sm font-medium transition-colors"
@@ -65,7 +65,7 @@ export default function Grafana() {
             
             <div className="bg-gray-900 rounded-lg overflow-hidden shadow-2xl" style={{ height: '900px' }}>
               <iframe
-                src="/grafana/d/b86ea273-5dec-4cdd-91dd-4b6f21aed5cb?kiosk=tv&refresh=30s&from=now-6h&to=now"
+                src="/grafana/d/1fa65b1b-56ce-4ce0-8f7b-a5b05e0d89a0?kiosk=tv&refresh=30s&from=now-6h&to=now"
                 width="100%"
                 height="100%"
                 frameBorder="0"
@@ -144,7 +144,7 @@ export default function Grafana() {
                 <p className="text-gray-400 mt-1">Centralized log collection with error tracking and analysis</p>
               </div>
               <a
-                href="/grafana/d/logs-quantum-v1"
+                href="/grafana/d/p1b-logs"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-white text-sm font-medium transition-colors"
@@ -155,7 +155,7 @@ export default function Grafana() {
             
             <div className="bg-gray-900 rounded-lg overflow-hidden shadow-2xl" style={{ height: '900px' }}>
               <iframe
-                src="/grafana/d/logs-quantum-v1?kiosk=tv&refresh=30s&from=now-24h&to=now"
+                src="/grafana/d/p1b-logs?kiosk=tv&refresh=30s&from=now-24h&to=now"
                 width="100%"
                 height="100%"
                 frameBorder="0"

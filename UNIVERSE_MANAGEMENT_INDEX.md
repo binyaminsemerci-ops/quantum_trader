@@ -633,7 +633,7 @@ docker exec quantum_backend ls -lh /app/data/policy_observations/
 docker exec quantum_backend ls -lh /app/data/universe_*.json
 
 # View recent logs
-docker logs quantum_backend --since 1h | grep "UNIVERSE"
+journalctl -u quantum_backend.service --since 1h | grep "UNIVERSE"
 
 # Test agent execution
 docker exec quantum_backend python /app/universe_os_agent.py
@@ -761,3 +761,4 @@ docker exec quantum_backend python /app/universe_os_agent.py
 **Version:** 2.0  
 **Last Updated:** November 23, 2025  
 **Status:** ✅ OPERATIONAL
+

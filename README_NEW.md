@@ -43,11 +43,11 @@ git clone https://github.com/binyaminsemerci-ops/quantum_trader.git
 cd quantum_trader
 
 # Start all services
-docker-compose up --build
+systemctl up --build
 
 # Initialize database (first time only)
-docker-compose exec backend alembic upgrade head
-docker-compose exec backend python scripts/seed_demo_data.py
+systemctl exec backend alembic upgrade head
+systemctl exec backend python scripts/seed_demo_data.py
 ```
 
 **Access the application:**
@@ -287,3 +287,4 @@ This project is licensed under the [MIT License](./LICENSE) - see the license fi
 **⚡ Built with passion for algorithmic trading and modern web technologies.**
 
 *Join us in revolutionizing cryptocurrency trading through AI and superior developer experience.*
+

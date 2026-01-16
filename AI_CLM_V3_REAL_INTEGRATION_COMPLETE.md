@@ -352,10 +352,10 @@ docker logs -f quantum_clm
 docker exec quantum_clm ls -lh /app/models/
 
 # Check if XGBoost/LightGBM actually training
-docker logs quantum_clm 2>&1 | grep "ModelTrainer"
+journalctl -u quantum_clm.service 2>&1 | grep "ModelTrainer"
 
 # Check if data fetching works
-docker logs quantum_clm 2>&1 | grep "DataClient.*Loaded"
+journalctl -u quantum_clm.service 2>&1 | grep "DataClient.*Loaded"
 ```
 
 ---
@@ -387,3 +387,4 @@ docker logs quantum_clm 2>&1 | grep "DataClient.*Loaded"
 **Gratulerer! CLM v3 er nå koblet til real implementations!** 🎉
 
 Neste training cycle vil bruke EKTE data og EKTE ML training for XGBoost og LightGBM modeller!
+

@@ -30,7 +30,7 @@ curl http://localhost:8000/health | ConvertFrom-Json
 
 ### 3. Sjekk Container Logs
 ```powershell
-docker logs quantum_backend -f
+journalctl -u quantum_backend.service -f
 ```
 
 **Se etter**:
@@ -45,19 +45,19 @@ docker logs quantum_backend -f
 ### Backend Status
 ```powershell
 # Se om containeren kjører
-docker ps --filter "name=quantum_backend"
+systemctl list-units --filter "name=quantum_backend"
 
 # Se siste logs
-docker logs quantum_backend --tail 100
+journalctl -u quantum_backend.service --tail 100
 
 # Følg logs live
-docker logs quantum_backend -f
+journalctl -u quantum_backend.service -f
 
 # Restart backend
-docker-compose restart backend
+systemctl restart backend
 
 # Stopp backend
-docker-compose down backend
+systemctl down backend
 ```
 
 ### Metrics Endpoint
@@ -91,7 +91,7 @@ MULTI_EXCHANGE_ENABLED=false  # ← Sett til true
 
 ### Steg 3: Restart Backend
 ```powershell
-docker-compose restart backend
+systemctl restart backend
 ```
 
 ### Steg 4: Verifiser Bybit Connection
@@ -158,14 +158,14 @@ curl http://localhost:8000/metrics | Select-String "win_rate"
 ### Backend starter ikke
 ```powershell
 # Sjekk Docker logs
-docker logs quantum_backend --tail 100
+journalctl -u quantum_backend.service --tail 100
 
 # Restart
-docker-compose restart backend
+systemctl restart backend
 
 # Full rebuild
-docker-compose down
-docker-compose up backend -d
+systemctl down
+systemctl up backend -d
 ```
 
 ### Ingen trades plasseres
@@ -177,14 +177,14 @@ docker-compose up backend -d
 
 **Sjekk logs**:
 ```powershell
-docker logs quantum_backend -f | Select-String "signal|trade|position"
+journalctl -u quantum_backend.service -f | Select-String "signal|trade|position"
 ```
 
 ### Testnet keys virker ikke
 1. Verifiser at keys er fra **testnet.binancefuture.com** (ikke binance.com)
 2. Sjekk at API permissions inkluderer **Futures Trading**
 3. Sjekk at `BINANCE_TESTNET=true` i `.env`
-4. Restart backend: `docker-compose restart backend`
+4. Restart backend: `systemctl restart backend`
 
 ---
 
@@ -214,19 +214,19 @@ docker logs quantum_backend -f | Select-String "signal|trade|position"
 
 ```powershell
 # Start trading
-docker-compose up backend -d
+systemctl up backend -d
 
 # Stop trading
-docker-compose down backend
+systemctl down backend
 
 # Watch live
-docker logs quantum_backend -f
+journalctl -u quantum_backend.service -f
 
 # Check health
 curl http://localhost:8000/health
 
 # Restart
-docker-compose restart backend
+systemctl restart backend
 ```
 
 ---
@@ -251,3 +251,4 @@ Systemet kan nå trade autonomt med AI-drevne beslutninger. Alle trades bruker d
 *Opprettet: 2025-12-04*  
 *Backend Status: RUNNING*  
 *Exchange: Binance Testnet*
+

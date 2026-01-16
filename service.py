@@ -10,6 +10,7 @@ Orchestrates AI inference pipeline:
 """
 import asyncio
 import logging
+import time
 import httpx
 import numpy as np
 from typing import Dict, Any, Optional, List, Tuple
@@ -135,9 +136,12 @@ class AIEngineService:
         self._orderbook_client = None  # Binance client for orderbook fetching
         self._event_loop_task: Optional[asyncio.Task] = None
         self._regime_update_task: Optional[asyncio.Task] = None
+        self._normalized_stream_task: Optional[asyncio.Task] = None
         self._signals_generated = 0
         self._models_loaded = 0
         self._start_time = datetime.now(timezone.utc)
+        self._normalized_stream_last_id = "$"
+        self._cross_exchange_features: Dict[str, Dict[str, Any]] = {}
         
         # Governance tracking (Phase 4D+4E)
         self._governance_predictions: Dict[str, Dict[str, np.ndarray]] = {}  # {symbol: {model: predictions}}
@@ -200,6 +204,16 @@ class AIEngineService:
             # Start EventBus consumer (CRITICAL - starts reading from Redis Streams)
             await self.event_bus.start()
             logger.info("[AI-ENGINE] ✅ EventBus consumer started")
+
+            if settings.CROSS_EXCHANGE_ENABLED:
+                if self._normalized_stream_task and not self._normalized_stream_task.done():
+                    self._normalized_stream_task.cancel()
+                    try:
+                        await self._normalized_stream_task
+                    except asyncio.CancelledError:
+                        pass
+                self._normalized_stream_task = asyncio.create_task(self._consume_cross_exchange_stream())
+                logger.info("[AI-ENGINE] ✅ Cross-Exchange normalized stream consumer started")
             
             # 🔥 PHASE 2B: Start orderbook data feed
             if self.orderbook_imbalance:
@@ -247,13 +261,14 @@ class AIEngineService:
             logger.info("[AI-ENGINE] EventBus consumer stopped")
         
         # Cancel background tasks
-        for task in [self._event_loop_task, self._regime_update_task]:
+        for task in [self._event_loop_task, self._regime_update_task, self._normalized_stream_task]:
             if task:
                 task.cancel()
                 try:
                     await task
                 except asyncio.CancelledError:
                     pass
+        self._normalized_stream_task = None
         
         # Flush event buffer
         # NOTE: EventBuffer.flush() not implemented yet
@@ -424,24 +439,18 @@ class AIEngineService:
             
             # 10. Cross-Exchange Normalizer
             if settings.CROSS_EXCHANGE_ENABLED:
-                logger.info("[AI-ENGINE] 🌐 Initializing Cross-Exchange Normalizer (Phase 1)...")
+                logger.info("[AI-ENGINE] 🌐 Preparing Cross-Exchange normalized stream consumer (Phase 1)...")
                 try:
-                    from microservices.ai_engine.cross_exchange_aggregator import CrossExchangeAggregator
-                    
-                    self.cross_exchange_aggregator = CrossExchangeAggregator(
-                        symbols=settings.CROSS_EXCHANGE_SYMBOLS,
-                        redis_host=settings.REDIS_HOST,
-                        redis_port=settings.REDIS_PORT
-                    )
-                    # Start aggregation in background
-                    asyncio.create_task(self.cross_exchange_aggregator.start())
-                    
-                    self._models_loaded += 1
-                    logger.info("[AI-ENGINE] ✅ Cross-Exchange Normalizer active")
-                    logger.info(f"[PHASE 1] Cross-Exchange: {len(settings.CROSS_EXCHANGE_SYMBOLS)} symbols, {len(settings.CROSS_EXCHANGE_EXCHANGES)} exchanges")
-                except Exception as e:
-                    logger.warning(f"[AI-ENGINE] ⚠️ Cross-Exchange failed to load: {e}")
                     self.cross_exchange_aggregator = None
+                    self._cross_exchange_features.clear()
+                    self._normalized_stream_last_id = "$"
+                    self._models_loaded += 1
+                    logger.info(
+                        f"[PHASE 1] Cross-Exchange stream ready: {len(settings.CROSS_EXCHANGE_SYMBOLS)} symbols, "
+                        f"{len(settings.CROSS_EXCHANGE_EXCHANGES)} exchanges"
+                    )
+                except Exception as e:
+                    logger.warning(f"[AI-ENGINE] ⚠️ Cross-Exchange stream setup failed: {e}")
             
             # 11. Funding Rate Filter
             if settings.FUNDING_RATE_ENABLED:
@@ -913,6 +922,144 @@ class AIEngineService:
             
         except Exception as e:
             logger.error(f"[AI-ENGINE] Error handling exchange.raw: {e}", exc_info=True)
+
+    async def _consume_cross_exchange_stream(self):
+        """Continuously consume normalized cross-exchange data from Redis."""
+        stream_key = "quantum:stream:exchange.normalized"
+        last_id = self._normalized_stream_last_id or "$"
+        logger.info(f"[AI-ENGINE] 📡 Starting cross-exchange consumer at {stream_key} (last_id={last_id})")
+
+        while self._running:
+            try:
+                messages = await self.redis_client.xread(
+                    {stream_key: last_id},
+                    count=25,
+                    block=2000
+                )
+
+                if not messages:
+                    continue
+
+                for _, entries in messages:
+                    for message_id, raw_data in entries:
+                        last_id = message_id.decode("utf-8") if isinstance(message_id, bytes) else message_id
+
+                        parsed = self._parse_cross_exchange_entry(raw_data)
+                        if not parsed:
+                            continue
+
+                        parsed["received_at"] = datetime.utcnow()
+                        symbol = parsed["symbol"]
+                        self._cross_exchange_features[symbol] = parsed
+
+                        tick_event = {
+                            "symbol": symbol,
+                            "price": parsed["avg_price"],
+                            "volume": 0.0,
+                            "source": "exchange.normalized",
+                            "num_exchanges": parsed["num_exchanges"],
+                            "cross_exchange_timestamp": parsed["source_timestamp"],
+                        }
+
+                        try:
+                            await self._handle_market_tick(tick_event)
+                        except Exception as tick_error:
+                            logger.error(f"[AI-ENGINE] Error handling normalized tick: {tick_error}", exc_info=True)
+
+                self._normalized_stream_last_id = last_id
+
+            except asyncio.CancelledError:
+                logger.info("[AI-ENGINE] Cross-exchange consumer cancelled")
+                break
+            except Exception as e:
+                logger.error(f"[AI-ENGINE] Cross-exchange consumer failure: {e}", exc_info=True)
+                await asyncio.sleep(2)
+
+        logger.info("[AI-ENGINE] Cross-exchange consumer stopped")
+
+    def _parse_cross_exchange_entry(self, raw_data: Dict[Any, Any]) -> Optional[Dict[str, Any]]:
+        """Decode and enrich a Redis stream entry from exchange.normalized."""
+        decoded = {}
+        for key, value in raw_data.items():
+            key_str = key.decode("utf-8") if isinstance(key, bytes) else key
+            value_str = value.decode("utf-8") if isinstance(value, bytes) else value
+            decoded[key_str] = value_str
+
+        if "init" in decoded:
+            return None
+
+        symbol = decoded.get("symbol")
+        avg_price = self._safe_float(decoded.get("avg_price"))
+        if not symbol or avg_price is None or avg_price <= 0:
+            return None
+
+        price_divergence = self._safe_float(decoded.get("price_divergence")) or 0.0
+        num_exchanges = self._safe_int(decoded.get("num_exchanges")) or 0
+        binance_price = self._safe_float(decoded.get("binance_price"))
+        bybit_price = self._safe_float(decoded.get("bybit_price"))
+        coinbase_price = self._safe_float(decoded.get("coinbase_price"))
+        funding_delta = self._safe_float(decoded.get("funding_delta")) or 0.0
+        source_timestamp = self._safe_int(decoded.get("timestamp")) or int(time.time())
+
+        volatility_factor = (price_divergence / avg_price) if avg_price else 0.0
+        if not np.isfinite(volatility_factor):
+            volatility_factor = 0.0
+
+        lead_lag = 0.0
+        if binance_price is not None and bybit_price is not None and avg_price:
+            lead_lag = (binance_price - bybit_price) / avg_price if avg_price else 0.0
+            if not np.isfinite(lead_lag):
+                lead_lag = 0.0
+
+        return {
+            "symbol": symbol,
+            "avg_price": avg_price,
+            "price_divergence": price_divergence,
+            "num_exchanges": num_exchanges,
+            "binance_price": binance_price,
+            "bybit_price": bybit_price,
+            "coinbase_price": coinbase_price,
+            "funding_delta": funding_delta,
+            "volatility_factor": volatility_factor,
+            "exchange_divergence": price_divergence,
+            "lead_lag_score": lead_lag,
+            "source_timestamp": source_timestamp,
+        }
+
+    def _safe_float(self, value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        if isinstance(value, bytes):
+            value = value.decode("utf-8")
+        if isinstance(value, str):
+            value = value.strip()
+            if value.lower() in {"", "null", "none"}:
+                return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _safe_int(self, value: Any) -> Optional[int]:
+        if value is None:
+            return None
+        if isinstance(value, bytes):
+            value = value.decode("utf-8")
+        if isinstance(value, str):
+            value = value.strip()
+            if not value or value.lower() in {"null", "none"}:
+                return None
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return None
+
+    def _is_cross_exchange_data_fresh(self, data: Dict[str, Any], max_age_seconds: int = 120) -> bool:
+        received_at = data.get("received_at")
+        if received_at is None:
+            return False
+        age = (datetime.utcnow() - received_at).total_seconds()
+        return age <= max_age_seconds
     
     async def _handle_market_klines(self, event_data: Dict[str, Any]):
         """Handle market.klines event (candle data)."""
@@ -1208,20 +1355,23 @@ class AIEngineService:
                 }
                 
                 # 🔥 PHASE 1: Add Cross-Exchange Features
-                if self.cross_exchange_aggregator:
-                    try:
-                        cross_exchange_data = await asyncio.to_thread(
-                            self.cross_exchange_aggregator.get_latest_features,
-                            symbol
-                        )
-                        if cross_exchange_data:
-                            features["volatility_factor"] = cross_exchange_data.get("volatility_factor", 1.0)
-                            features["exchange_divergence"] = cross_exchange_data.get("divergence", 0.0)
-                            features["lead_lag_score"] = cross_exchange_data.get("lead_lag", 0.0)
-                            logger.info(f"[PHASE 1] Cross-Exchange: volatility={features['volatility_factor']:.3f}, "
-                                      f"divergence={features['exchange_divergence']:.4f}")
-                    except Exception as e:
-                        logger.warning(f"[PHASE 1] Cross-Exchange feature extraction failed: {e}")
+                cross_exchange_data = self._cross_exchange_features.get(symbol)
+                if cross_exchange_data and self._is_cross_exchange_data_fresh(cross_exchange_data):
+                    features["volatility_factor"] = cross_exchange_data.get("volatility_factor", 1.0)
+                    features["exchange_divergence"] = cross_exchange_data.get("exchange_divergence", 0.0)
+                    features["lead_lag_score"] = cross_exchange_data.get("lead_lag_score", 0.0)
+                    features["funding_delta"] = cross_exchange_data.get("funding_delta", 0.0)
+                    logger.info(
+                        f"[PHASE 1] Cross-Exchange: volatility={features['volatility_factor']:.3f}, "
+                        f"divergence={features['exchange_divergence']:.4f}, "
+                        f"lead_lag={features['lead_lag_score']:.4f}"
+                    )
+                else:
+                    logger.debug("[PHASE 1] Cross-Exchange data stale or unavailable - skipping feature injection")
+                features.setdefault("volatility_factor", 1.0)
+                features.setdefault("exchange_divergence", 0.0)
+                features.setdefault("lead_lag_score", 0.0)
+                features.setdefault("funding_delta", 0.0)
                 
                 # 🔥 PHASE 1: Add Funding Rate Features
                 if self.funding_rate_filter:

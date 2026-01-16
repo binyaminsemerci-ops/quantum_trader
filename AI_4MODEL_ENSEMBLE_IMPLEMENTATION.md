@@ -586,8 +586,8 @@ PatchTST     : ✅ SUCCESS
 ✅ FULL 4-MODEL ENSEMBLE READY!
 
 Next steps:
-  1. Restart backend: docker-compose restart backend
-  2. Monitor: docker logs quantum_backend --tail 100 -f
+  1. Restart backend: sudo systemctl restart quantum-backend.service
+  2. Monitor: journalctl -u quantum-backend.service --tail 100 -f
   3. Check: ls ai_engine/models/
 ```
 
@@ -836,10 +836,10 @@ print(status)
 ### Backend Integration Test
 ```powershell
 # 1. Restart backend
-docker-compose restart backend
+sudo systemctl restart quantum-backend.service
 
 # 2. Watch startup logs
-docker logs quantum_backend --tail 200 -f | Select-String "ensemble|model|confidence"
+journalctl -u quantum-backend.service --tail 200 -f | Select-String "ensemble|model|confidence"
 
 # Expected logs:
 # ✅ Loading 4-MODEL ENSEMBLE
@@ -854,12 +854,12 @@ docker logs quantum_backend --tail 200 -f | Select-String "ensemble|model|confid
 ### Paper Trading Test (24-48 hours)
 ```powershell
 # Monitor live predictions
-docker logs quantum_backend -f | Select-String "unanimous|strong|split"
+journalctl -u quantum-backend.service -f | Select-String "unanimous|strong|split"
 
 # Check consensus patterns
-docker logs quantum_backend --since 1h | Select-String "unanimous" | Measure-Object
-docker logs quantum_backend --since 1h | Select-String "strong" | Measure-Object
-docker logs quantum_backend --since 1h | Select-String "split" | Measure-Object
+journalctl -u quantum-backend.service --since 1h | Select-String "unanimous" | Measure-Object
+journalctl -u quantum-backend.service --since 1h | Select-String "strong" | Measure-Object
+journalctl -u quantum-backend.service --since 1h | Select-String "split" | Measure-Object
 
 # Expected ratios:
 # Unanimous: 20-30% (rare but high confidence)
@@ -997,7 +997,7 @@ Solution: Wait for fetch_all_data.py and retrain with 216K samples
 ### Issue: Backend Won't Start
 ```powershell
 # Check logs
-docker logs quantum_backend --tail 100
+journalctl -u quantum-backend.service --tail 100
 
 # Common errors:
 # - "Model file not found" → Train models first

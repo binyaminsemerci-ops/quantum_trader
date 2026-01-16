@@ -233,7 +233,7 @@ assert stats.profit_factor > 0
 ### Phase 3: Docker Deployment (Week 2)
 
 ```
-docker-compose.yml:
+systemctl.yml:
 
 services:
   # Existing services
@@ -323,11 +323,11 @@ services:
 **Validation:**
 ```bash
 # Start services
-docker-compose up -d strategy_generator shadow_tester
+systemctl up -d strategy_generator shadow_tester
 
 # Check logs
-docker logs quantum_sg_ai --tail 50
-docker logs quantum_shadow_tester --tail 50
+journalctl -u quantum_sg_ai.service --tail 50
+journalctl -u quantum_shadow_tester.service --tail 50
 
 # Check health
 curl http://localhost:8000/sg-ai/health
@@ -486,7 +486,7 @@ class StrategySearchEngine:
 
 - [ ] Create continuous_runner.py
 - [ ] Create shadow_runner.py
-- [ ] Add to docker-compose.yml
+- [ ] Add to systemctl.yml
 - [ ] Test Docker deployment
 - [ ] Add health check endpoints
 - [ ] Implement Prometheus metrics
@@ -572,3 +572,4 @@ class StrategySearchEngine:
 
 **Status:** ✅ Ready for Phase 1 Implementation  
 **Next Review:** After Phase 1 completion (Week 1 end)
+

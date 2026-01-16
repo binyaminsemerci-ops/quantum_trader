@@ -68,8 +68,8 @@
 - `orchestrator_config` → `backend.services.governance.orchestrator_config`
 
 ### Docker Deployment
-- ✅ Backend rebuilt: `docker-compose build backend`
-- ✅ Backend restarted: `docker-compose restart backend`
+- ✅ Backend rebuilt: `systemctl build backend`
+- ✅ Backend restarted: `systemctl restart backend`
 - ✅ Startup verified: All systems operational
 
 ---
@@ -546,3 +546,4 @@ B. Fix Docker, run stress tests first - Unknown time (Docker restart needed)
 C. Skip to Del 4 (Safety Review) and document known gaps - 1 hour
 
 **Recommendation**: **Option A** - Continue patching since we're already 20% complete and have clear implementation plans.
+

@@ -7,7 +7,7 @@ Successfully updated all Docker Compose services to use the correct PYTHONPATH f
 
 ## Changes Made
 
-### 1. Updated `docker-compose.yml`
+### 1. Updated `systemctl.yml`
 
 All services now have:
 ```yaml
@@ -102,7 +102,7 @@ docker compose build backend
 docker compose up -d backend
 
 # Check logs
-docker logs quantum_backend --tail 100
+journalctl -u quantum_backend.service --tail 100
 ```
 
 ## What to Look For in Logs
@@ -217,7 +217,7 @@ podman-compose build backend
 
 ## Files Modified
 
-- `docker-compose.yml` - Updated PYTHONPATH for all 10 services
+- `systemctl.yml` - Updated PYTHONPATH for all 10 services
 
 ## Related Documentation
 
@@ -229,3 +229,4 @@ podman-compose build backend
 🔧 **Configuration Complete** - Ready for testing
 ⚠️ **Podman Issues** - Need to resolve I/O errors or use Docker Desktop
 📋 **Next**: Manual container rebuild and verification
+

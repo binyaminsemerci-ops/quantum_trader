@@ -254,7 +254,7 @@ Payload: {adaptive_levels, ilf_metadata}
 
 **✅ Check Trade Intent Subscriber Logs:**
 ```bash
-docker logs quantum_backend --tail 100 | grep -iE "ILF metadata|Adaptive Levels"
+journalctl -u quantum_backend.service --tail 100 | grep -iE "ILF metadata|Adaptive Levels"
 ```
 
 **Expected output:**
@@ -266,8 +266,8 @@ docker logs quantum_backend --tail 100 | grep -iE "ILF metadata|Adaptive Levels"
 
 **✅ Check Redis for ILF Metadata:**
 ```bash
-docker exec quantum_redis redis-cli KEYS "quantum:position:ilf:*"
-docker exec quantum_redis redis-cli HGETALL "quantum:position:ilf:BTCUSDT:<order_id>"
+redis-cli KEYS "quantum:position:ilf:*"
+redis-cli HGETALL "quantum:position:ilf:BTCUSDT:<order_id>"
 ```
 
 **Expected output:**
@@ -282,7 +282,7 @@ docker exec quantum_redis redis-cli HGETALL "quantum:position:ilf:BTCUSDT:<order
 
 **✅ Check ExitBrain Event Stream:**
 ```bash
-docker exec quantum_redis redis-cli XREAD COUNT 1 STREAMS quantum:stream:exitbrain.adaptive_levels 0
+redis-cli XREAD COUNT 1 STREAMS quantum:stream:exitbrain.adaptive_levels 0
 ```
 
 **Expected**: Event with adaptive_levels and ilf_metadata
@@ -317,7 +317,7 @@ ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
 Wait for next position to open, then:
 ```bash
 ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
-  "docker exec quantum_redis redis-cli KEYS 'quantum:position:ilf:*'"
+  "redis-cli KEYS 'quantum:position:ilf:*'"
 ```
 
 ---
@@ -379,3 +379,4 @@ The critical integration gap between Trading Bot metadata generation and ExitBra
 **Fix Implemented**: December 24, 2025  
 **Deployed**: PENDING (awaiting rebuild & restart)  
 **Verified**: PENDING (awaiting next trade signal)
+

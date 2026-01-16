@@ -387,7 +387,7 @@ quantum_trader/
 │   │
 │   ├── nginx/
 │   │   ├── nginx.conf.example          ← UPDATED (Part 2): Real service routes
-│   │   └── docker-compose-nginx.yml    ← EXISTS (Part 1): Gateway deployment
+│   │   └── systemctl-nginx.yml    ← EXISTS (Part 1): Gateway deployment
 │   │
 │   ├── logging/
 │   │   ├── logging_config.yml          ← EXISTS (Part 1): Ready for integration (Part 3)
@@ -440,7 +440,7 @@ quantum_trader/
 - ✅ All 6 services mapped
 - ✅ Rate limiting configured
 - ✅ Timeouts optimized per service
-- ⏳ Deployment testing: Needs docker-compose up test
+- ⏳ Deployment testing: Needs systemctl up test
 
 ### **Unified Logging**
 
@@ -501,7 +501,7 @@ quantum_trader/
 ### **Priority 4: NGINX Gateway Testing** 🟡
 
 **Tasks**:
-1. ✅ Deploy NGINX gateway via docker-compose
+1. ✅ Deploy NGINX gateway via systemctl
 2. ✅ Test routing to all services
 3. ✅ Verify rate limiting (100 req/s, 20 req/s, 10 req/s)
 4. ✅ Test error pages (404, 429, 503)
@@ -573,7 +573,7 @@ quantum_trader/
    - Test correlation ID propagation
 
 4. **Test NGINX Gateway** (1 hour):
-   - docker-compose up nginx-gateway
+   - systemctl up nginx-gateway
    - Verify all routes
    - Load test
 
@@ -590,3 +590,4 @@ quantum_trader/
 ## 🔗 RELATED DOCUMENTS
 
 - **SPRINT 3 - PART 3**: [SPRINT3_PART3_FAILURE_SIMULATION_REPORT.md](SPRINT3_PART3_FAILURE_SIMULATION_REPORT.md) - Failure simulation & hardening tests
+

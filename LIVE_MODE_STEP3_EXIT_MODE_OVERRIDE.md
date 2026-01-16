@@ -530,25 +530,25 @@ if exit_mode not in self.EXIT_MODE_CONFIGS:
 ### Check Current Exit Mode:
 
 ```bash
-docker logs quantum_backend | Select-String "exit_mode" | Select-Object -Last 5
+journalctl -u quantum_backend.service | Select-String "exit_mode" | Select-Object -Last 5
 ```
 
 ### Monitor Exit Mode Changes:
 
 ```bash
-docker logs quantum_backend -f | Select-String "Exit Mode|exit_mode"
+journalctl -u quantum_backend.service -f | Select-String "Exit Mode|exit_mode"
 ```
 
 ### Verify Exit Levels in Trade:
 
 ```bash
-docker logs quantum_backend -f | Select-String "Exit Levels"
+journalctl -u quantum_backend.service -f | Select-String "Exit Levels"
 ```
 
 ### Watch for Regime Changes:
 
 ```bash
-docker logs quantum_backend -f | Select-String "POLICY UPDATE"
+journalctl -u quantum_backend.service -f | Select-String "POLICY UPDATE"
 ```
 
 ---
@@ -576,3 +576,4 @@ The system now dynamically selects exit strategies based on:
 **Status: READY FOR PRODUCTION** 🚀
 
 Next: Steps 4-5 (position limits, trading gate)
+

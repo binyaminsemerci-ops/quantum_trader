@@ -203,13 +203,13 @@ curl -X POST "http://46.224.116.254:8000/api/circuit-breaker/reset?override=true
 ssh qt@46.224.116.254 "docker stop quantum_redis"
 
 # Check logs - should see circuit breaker open
-docker logs quantum_cross_exchange 2>&1 | grep "Circuit OPEN"
+journalctl -u quantum_cross_exchange.service 2>&1 | grep "Circuit OPEN"
 
 # Start Redis again
 ssh qt@46.224.116.254 "docker start quantum_redis"
 
 # Check logs - should see reconnection
-docker logs quantum_cross_exchange 2>&1 | grep "Connected to Redis"
+journalctl -u quantum_cross_exchange.service 2>&1 | grep "Connected to Redis"
 ```
 
 #### 4c. Monitor Health
@@ -294,16 +294,16 @@ watch -n 3600 'curl -s http://46.224.116.254:8000/api/circuit-breaker/status | j
 **Redis Manager:**
 ```bash
 # Check Redis manager logs
-docker logs quantum_cross_exchange 2>&1 | grep "REDIS-MGR"
+journalctl -u quantum_cross_exchange.service 2>&1 | grep "REDIS-MGR"
 
 # Count reconnections
-docker logs quantum_cross_exchange 2>&1 | grep "Reconnect" | wc -l
+journalctl -u quantum_cross_exchange.service 2>&1 | grep "Reconnect" | wc -l
 ```
 
 **Position Monitor:**
 ```bash
 # Ensure still placing orders
-docker logs quantum_backend 2>&1 | grep "positionSide=BOTH" | tail -20
+journalctl -u quantum_backend.service 2>&1 | grep "positionSide=BOTH" | tail -20
 ```
 
 ### Alert Thresholds:
@@ -328,8 +328,8 @@ docker restart quantum_backend
 ```bash
 # Revert cross_exchange_aggregator.py to direct Redis
 # Rebuild and restart
-docker-compose build cross_exchange
-docker-compose up -d cross_exchange
+systemctl build cross_exchange
+systemctl up -d cross_exchange
 ```
 
 **3. Full Rollback:**
@@ -377,3 +377,4 @@ Once Phase 2 is stable (24 hours):
 ---
 
 **Next Action:** Run Step 1 (Diagnostics) to establish baseline, then proceed with implementation.
+

@@ -549,7 +549,7 @@ START HERE
     │    8. Create custom Grafana dashboards ⚠️         │
     │    9. Configure alerting rules ⚠️                 │
     │    10. Implement trade journal ⚠️                 │
-    │    11. Unify docker-compose configs ⚠️            │
+    │    11. Unify systemctl configs ⚠️            │
     │                                                   │
     └──────────────────┬───────────────────────────────┘
                        │
@@ -578,4 +578,5 @@ START HERE
 
 **For detailed action steps, see:** `ACTION_PLAN_COMPLETE_SYSTEM_JAN1_2026.md`  
 **For comprehensive analysis, see:** `SYSTEM_ANALYSIS_COMPREHENSIVE_JAN1_2026.md`
+
 

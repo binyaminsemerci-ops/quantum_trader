@@ -59,10 +59,10 @@ chmod +x scripts/verify-wsl-podman.sh
 cd ~/quantum_trader
 
 # Stopp eventuelle eksisterende containere
-podman-compose -f docker-compose.wsl.yml down
+podman-compose -f systemctl.wsl.yml down
 
 # Start Redis + AI-Engine
-podman-compose -f docker-compose.wsl.yml up -d redis ai-engine
+podman-compose -f systemctl.wsl.yml up -d redis ai-engine
 
 # Sjekk status
 podman ps
@@ -130,10 +130,10 @@ for p in sys.path:
 podman logs quantum_ai_engine
 
 # Rebuild image
-podman-compose -f docker-compose.wsl.yml build ai-engine
+podman-compose -f systemctl.wsl.yml build ai-engine
 
 # Start på nytt
-podman-compose -f docker-compose.wsl.yml up -d ai-engine
+podman-compose -f systemctl.wsl.yml up -d ai-engine
 ```
 
 ### Problem: Import errors
@@ -154,7 +154,7 @@ podman ps | grep redis
 podman exec quantum_redis redis-cli ping
 
 # Restart Redis
-podman-compose -f docker-compose.wsl.yml restart redis
+podman-compose -f systemctl.wsl.yml restart redis
 ```
 
 ### Problem: Health endpoint 404/500
@@ -180,22 +180,22 @@ print(response.status_code, response.text)
 podman ps -a
 
 # Stopp alle services
-podman-compose -f docker-compose.wsl.yml down
+podman-compose -f systemctl.wsl.yml down
 
 # Start en spesifikk service
-podman-compose -f docker-compose.wsl.yml up -d redis
+podman-compose -f systemctl.wsl.yml up -d redis
 
 # Restart en service
-podman-compose -f docker-compose.wsl.yml restart ai-engine
+podman-compose -f systemctl.wsl.yml restart ai-engine
 
 # Rebuild og start
-podman-compose -f docker-compose.wsl.yml up -d --build ai-engine
+podman-compose -f systemctl.wsl.yml up -d --build ai-engine
 ```
 
 ### Logs og Debugging
 ```bash
 # Se logs (alle services)
-podman-compose -f docker-compose.wsl.yml logs
+podman-compose -f systemctl.wsl.yml logs
 
 # Se logs (en service)
 podman logs quantum_ai_engine
@@ -219,7 +219,7 @@ podman exec quantum_ai_engine python3 -c "print('Hello from container')"
 ### Cleanup
 ```bash
 # Stopp og fjern containere
-podman-compose -f docker-compose.wsl.yml down
+podman-compose -f systemctl.wsl.yml down
 
 # Fjern volumes (⚠️ sletter Redis data)
 podman volume rm quantum_trader_redis_data
@@ -240,7 +240,7 @@ Dette oppsettet er **100% kompatibelt** med VPS deployment fordi:
 ### 1. **Samme Structure**
 ```
 ~/quantum_trader/       # Samme på både WSL og VPS
-├── docker-compose.wsl.yml
+├── systemctl.wsl.yml
 ├── microservices/
 │   └── ai_engine/
 ├── backend/
@@ -257,7 +257,7 @@ Dette oppsettet er **100% kompatibelt** med VPS deployment fordi:
 På VPS kjører du **eksakt samme kommandoer**:
 ```bash
 cd ~/quantum_trader
-podman-compose -f docker-compose.wsl.yml up -d redis ai-engine
+podman-compose -f systemctl.wsl.yml up -d redis ai-engine
 ```
 
 ### 4. **Environment Parity**
@@ -282,7 +282,7 @@ ssh user@vps "sudo apt update && sudo apt install -y podman"
 ssh user@vps "pip3 install podman-compose"
 
 # 5. Start services
-ssh user@vps "cd ~/quantum_trader && podman-compose -f docker-compose.wsl.yml up -d"
+ssh user@vps "cd ~/quantum_trader && podman-compose -f systemctl.wsl.yml up -d"
 
 # 6. Verifiser
 ssh user@vps "curl http://localhost:8001/health"
@@ -320,7 +320,7 @@ ssh user@vps "curl http://localhost:8001/health"
 
 ### ✅ DO (Gjør)
 - Bruk `~/quantum_trader` i WSL
-- Bruk `podman-compose -f docker-compose.wsl.yml`
+- Bruk `podman-compose -f systemctl.wsl.yml`
 - Bruk relative paths i compose fil
 - Sett `PYTHONPATH=/app` i container
 - Test health endpoints etter start
@@ -355,3 +355,4 @@ Hvis du trenger hjelp:
 ---
 
 **Lykke til! 🚀**
+

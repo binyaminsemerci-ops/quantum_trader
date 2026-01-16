@@ -143,7 +143,7 @@ ssh root@46.224.116.254 "
 ### Deployment Status
 
 ```bash
-$ ssh root@46.224.116.254 "docker ps --filter name=quantum_backend --format 'table {{.Names}}\t{{.Status}}'"
+$ ssh root@46.224.116.254 "systemctl list-units --filter name=quantum_backend --format 'table {{.Names}}\t{{.Status}}'"
 
 NAMES             STATUS
 quantum_backend   Up 5 seconds (healthy)
@@ -220,7 +220,7 @@ System has NO open positions currently:
 
 # OR inject trade.intent event:
 ssh root@46.224.116.254 '
-  docker exec quantum_redis redis-cli XADD quantum:stream:trade.intent "*" \
+  redis-cli XADD quantum:stream:trade.intent "*" \
     symbol CRVUSDT \
     side LONG \
     position_size_usd 3 \
@@ -420,3 +420,4 @@ order_params['reduceOnly'] = True  # Line 276
 **Mission Status:** 🟡 **DEPLOYED, PENDING VERIFICATION**  
 **Next Action:** Monitor logs for next exit order to confirm fix  
 **ETA to Full Verification:** < 24 hours (waiting for natural trade)
+

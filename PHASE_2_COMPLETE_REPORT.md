@@ -181,7 +181,7 @@ while True:
 ### Startup Logs (All Subsystems Initializing):
 
 ```bash
-# docker logs quantum_backend --since 35s
+# journalctl -u quantum_backend.service --since 35s
 
 [21:41:36] [Self-Healing] Initialized in ENFORCED mode
 [21:41:36] MODEL SUPERVISOR — INITIALIZING
@@ -407,3 +407,4 @@ The system has evolved from a **partial implementation (22%)** to a **fully oper
 **AUTO-FIX PHASE 2 COMPLETE** ✅  
 **Mission Status**: ✅ **SUCCESS**  
 **Final Grade**: **A** (97% operational, 2 trivial issues remaining)
+

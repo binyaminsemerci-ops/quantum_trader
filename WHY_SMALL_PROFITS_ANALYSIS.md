@@ -310,7 +310,7 @@ docker restart quantum_backend
 ### 4. VERIFY:
 ```bash
 # Sjekk neste trades bruker $300 margin
-docker logs quantum_backend --tail 50 | grep "margin\|sizing"
+journalctl -u quantum_backend.service --tail 50 | grep "margin\|sizing"
 ```
 
 ### 5. WAIT & MONITOR:
@@ -321,3 +321,4 @@ docker logs quantum_backend --tail 50 | grep "margin\|sizing"
 ---
 
 **MED RIKTIG SIZING KOMMER PROFITTENE! 🎯💰🚀**
+

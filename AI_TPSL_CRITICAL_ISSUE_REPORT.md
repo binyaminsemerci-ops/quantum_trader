@@ -53,7 +53,7 @@ EXIT_MODE=LEGACY but EXIT_BRAIN_V3_ENABLED=true
 ```bash
 ✅ Code exists: /app/backend/services/monitoring/position_monitor.py
 ❌ Service: NOT RUNNING (ingen container eller bakgrunnsjobb)
-❌ Docker-compose: Ingen "position_monitor" service definert
+❌ systemctl: Ingen "position_monitor" service definert
 ❌ Backend integration: Ikke initialisert i main.py
 ```
 
@@ -141,7 +141,7 @@ EXIT_BRAIN_V3_LIVE_ROLLOUT=DISABLED
 
 #### 2. **Legacy Position Monitor kjører IKKE**
 ```
-❌ Ingen "position_monitor" service i docker-compose.yml
+❌ Ingen "position_monitor" service i systemctl.yml
 ❌ Ikke initialisert i backend/main.py
 ❌ Ingen prosess kjører position_monitor kode
 ```
@@ -291,7 +291,7 @@ find /app -name "exit_brain_v3" -type d
 
 2. **Change EXIT_MODE:**
 ```yaml
-# docker-compose.yml eller .env:
+# systemctl.yml eller .env:
 EXIT_MODE=EXIT_BRAIN_V3
 EXIT_EXECUTOR_MODE=LIVE
 EXIT_BRAIN_V3_LIVE_ROLLOUT=ENABLED
@@ -328,7 +328,7 @@ async def start_exit_brain_v3():
 **Create dedicated microservice:**
 
 ```yaml
-# docker-compose.yml:
+# systemctl.yml:
 position_monitor:
   container_name: quantum_position_monitor
   build: ./backend
@@ -399,13 +399,13 @@ async def start_position_monitor():
 ```bash
 # On VPS:
 cd /home/qt/quantum_trader
-docker-compose build backend --no-cache
-docker-compose up -d backend
+systemctl build backend --no-cache
+systemctl up -d backend
 ```
 
 **Steg 3: Verify Position Monitor started:**
 ```bash
-docker logs quantum_backend | grep "POSITION-MONITOR"
+journalctl -u quantum_backend.service | grep "POSITION-MONITOR"
 # Should see: "✅ Started - monitoring positions every 10s"
 ```
 
@@ -594,3 +594,4 @@ Risk Status:         🟢 PROTECTED + OPTIMIZED
 **Metode:** Deep analysis av exit systems, logs, kode og deployment  
 **Anbefaling:** UMIDDELBAR DEPLOYMENT av Position Monitor (Option 1)  
 **Timeline:** < 1 time til beskyttelse er aktiv
+

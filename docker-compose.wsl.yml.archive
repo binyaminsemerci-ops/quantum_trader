@@ -1,0 +1,199 @@
+version: '3.8'
+
+# ============================================================================
+# QUANTUM TRADER - WSL + PODMAN-COMPOSE CONFIGURATION
+# ============================================================================
+# Dette er en WSL-optimalisert versjon som:
+#   ✅ Mountes fra ~/quantum_trader (IKKE /mnt/c)
+#   ✅ Bruker podman-compose (kompatibel med docker-compose syntax)
+#   ✅ Riktig PYTHONPATH (/app) for å unngå import-collisions
+#   ✅ Redis som container
+#   ✅ AI-Engine som container
+# ============================================================================
+
+services:
+  # Redis - EventBus & Cache Backend
+  redis:
+    image: redis:7-alpine
+    container_name: quantum_redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"  # 🔒 SECURITY: Bind only to localhost
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --appendfsync everysec
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - quantum_trader
+
+  # AI Engine Service - ML Inference & Signal Generation
+  ai-engine:
+    build:
+      context: .
+      dockerfile: microservices/ai_engine/Dockerfile
+    container_name: quantum_ai_engine
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # ✅ KRITISK: PYTHONPATH må være /app for å unngå /mnt/c i sys.path
+      - PYTHONPATH=/app
+      
+      # Redis connection
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      
+      # AI Engine config
+      - AI_ENGINE_MIN_SIGNAL_CONFIDENCE=0.55
+      - AI_ENGINE_ENSEMBLE_MODELS=["xgb","lgbm","nhits","patchtst"]  # FASE 2: All 4 models enabled
+      - AI_ENGINE_MIN_CONSENSUS=3
+      
+      # Continuous Learning (automated retraining)
+      - ENABLE_CONTINUOUS_LEARNING=true
+      - CL_EWMA_ALPHA=0.1
+      - CL_EWMA_THRESHOLD=3.0
+      - CL_FEATURE_DRIFT_THRESHOLD=0.3
+      - CL_ONLINE_LR=0.01
+      - CL_ENABLE_ONLINE=true
+      
+      # Service discovery
+      - RISK_SAFETY_SERVICE_URL=http://risk-safety:8003
+      
+      # Logging
+      - LOG_LEVEL=DEBUG
+      - LOG_DIR=/app/logs
+      
+    ports:
+      - "127.0.0.1:8001:8001"  # 🔒 SECURITY: Bind only to localhost
+    
+    volumes:
+      # ✅ KRITISK: Mount fra container working directory (/app), ikke /mnt/c
+      - ./microservices/ai_engine:/app/microservices/ai_engine:rw
+      - ./backend:/app/backend:ro
+      - ./ai_engine:/app/ai_engine:ro
+      - ./models:/app/models:rw
+      - ./logs:/app/logs:rw
+      - ./data:/app/data:rw
+    networks:
+      - quantum_trader
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'  # FASE 2: Increased for N-HiTS/PatchTST
+          memory: 12G  # FASE 2: Increased for heavy models
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # PostgreSQL - Primary Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: quantum_postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=quantum
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=quantum_trader
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    ports:
+      - "127.0.0.1:5432:5432"  # 🔒 SECURITY: Bind only to localhost
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups/postgres:/backups
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantum"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - quantum_trader
+
+  # Nginx - Reverse Proxy with TLS
+  nginx:
+    image: nginx:alpine
+    container_name: quantum_nginx
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:80:80"     # 🔒 LOCALHOST ONLY - Access via SSH tunnel
+      - "127.0.0.1:443:443"   # 🔒 LOCALHOST ONLY - Access via SSH tunnel
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - ai-engine
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "--no-check-certificate", "https://127.0.0.1:443/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - quantum_trader
+
+networks:
+  quantum_trader:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local

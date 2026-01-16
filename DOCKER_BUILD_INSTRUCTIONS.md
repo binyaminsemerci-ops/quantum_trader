@@ -10,7 +10,7 @@ All configuration files have been updated:
 
 | File | Status | Key Changes |
 |------|--------|-------------|
-| `docker-compose.yml` | ✅ Updated | PYTHONPATH=/app/backend for all 10 services, GO_LIVE=true added |
+| `systemctl.yml` | ✅ Updated | PYTHONPATH=/app/backend for all 10 services, GO_LIVE=true added |
 | `.env` | ✅ Updated | Added VPS runtime section (GO_LIVE, PYTHONPATH, RL_DEBUG, DB_URI) |
 | `activation.yaml` | ✅ Created | Module activation status and safety checks |
 | `config/go_live.yaml` | ✅ Verified | Production activation config exists |
@@ -32,7 +32,7 @@ All configuration files have been updated:
 Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
 # Wait 30-60 seconds for Docker to initialize
 Start-Sleep -Seconds 60
-docker ps  # Verify Docker is responsive
+systemctl list-units  # Verify Docker is responsive
 ```
 
 **Verify Docker is running:**
@@ -40,7 +40,7 @@ docker ps  # Verify Docker is responsive
 docker --version
 # Expected: Docker version 29.1.2, build 890dcca
 
-docker ps
+systemctl list-units
 # Should list running containers (may be empty)
 ```
 
@@ -59,7 +59,7 @@ cd C:\quantum_trader
 docker compose down
 
 # Verify stopped
-docker ps -a | Select-String "quantum_backend"
+systemctl list-units -a | Select-String "quantum_backend"
 ```
 
 ### Step 4: Build Backend Container
@@ -98,7 +98,7 @@ docker compose build backend
 docker compose up -d backend
 
 # Verify container is running
-docker ps | Select-String "quantum_backend"
+systemctl list-units | Select-String "quantum_backend"
 ```
 
 **Expected Output:**
@@ -114,10 +114,10 @@ docker ps | Select-String "quantum_backend"
 ### Step 6: Check Container Logs (CRITICAL)
 ```powershell
 # View last 50 lines of logs
-docker logs quantum_backend --tail 50
+journalctl -u quantum_backend.service --tail 50
 
 # Follow logs in real-time (Ctrl+C to stop)
-docker logs quantum_backend --follow
+journalctl -u quantum_backend.service --follow
 ```
 
 **Look for:**
@@ -140,7 +140,7 @@ ModuleNotFoundError: No module named 'domains.learning.rl_v3'
 **If you see ModuleNotFoundError:**
 - PYTHONPATH is incorrect or not set
 - Module files are missing
-- docker-compose.yml volume mounts are wrong
+- systemctl.yml volume mounts are wrong
 
 ### Step 7: Verify Environment Variables Inside Container
 ```powershell
@@ -204,7 +204,7 @@ For convenience, use the automated test script:
 ```
 
 This script will:
-1. ✓ Verify docker-compose.yml configuration
+1. ✓ Verify systemctl.yml configuration
 2. ✓ Check Docker availability
 3. ✓ Clean previous builds
 4. ✓ Build backend container
@@ -222,7 +222,7 @@ This script will:
 **Solution:**
 - Start Docker Desktop (see Step 1)
 - Wait 60 seconds for Docker to initialize
-- Run `docker ps` to verify
+- Run `systemctl list-units` to verify
 
 ### Issue: Build fails with "network timeout" or "connection refused"
 **Solution:**
@@ -232,7 +232,7 @@ This script will:
 
 ### Issue: "ModuleNotFoundError" in logs
 **Solution:**
-1. Verify PYTHONPATH in docker-compose.yml:
+1. Verify PYTHONPATH in systemctl.yml:
    ```yaml
    environment:
      - PYTHONPATH=/app/backend
@@ -246,7 +246,7 @@ This script will:
 
 ### Issue: Container exits immediately (STATUS: Exited)
 **Solution:**
-- Check logs: `docker logs quantum_backend`
+- Check logs: `journalctl -u quantum_backend.service`
 - Look for Python syntax errors or import errors
 - Check if database/redis dependencies are running
 
@@ -310,7 +310,7 @@ Once all imports succeed:
 - [ ] Docker Desktop is running
 - [ ] `docker compose build backend` completes without errors
 - [ ] `docker compose up -d backend` starts container successfully
-- [ ] `docker logs quantum_backend` shows "Application startup complete"
+- [ ] `journalctl -u quantum_backend.service` shows "Application startup complete"
 - [ ] No `ModuleNotFoundError` in logs
 - [ ] All 4 module imports succeed (Exit Brain V3, RL V3, CLM V3, TP Optimizer V3)
 - [ ] Environment variables are correct (GO_LIVE=true, PYTHONPATH=/app/backend)
@@ -321,3 +321,4 @@ Once all imports succeed:
 **Last Updated:** 2025-12-17  
 **Configuration Version:** VPS Migration v1.0  
 **Contact:** Check `RUNTIME_CONFIG_QUICKREF.md` for troubleshooting
+

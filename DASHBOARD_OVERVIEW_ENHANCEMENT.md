@@ -325,3 +325,4 @@ Simple heuristic based on PnL and exposure:
 ---
 
 **Issue Resolved:** Overview now displays comprehensive live data with 9 metrics, 4 trend charts, and real-time PnL tracking! 🎉
+

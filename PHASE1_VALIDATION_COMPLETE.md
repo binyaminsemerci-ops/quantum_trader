@@ -9,7 +9,7 @@
 
 **CRITICAL DISCOVERY:** Backend (port 8000) kjører IKKE på VPS!  
 **Impact:** Alle AI-moduler (AI-HFOS, PBA, PAL, PIL, etc.) er IKKE aktive i produksjon  
-**Root Cause:** docker-compose.yml har backend satt til profiles: ["dev"]
+**Root Cause:** systemctl.yml har backend satt til profiles: ["dev"]
 
 **LØSNING:** Fjern profile restriction → Deploy backend → Alle AI moduler aktiveres!
 
@@ -38,7 +38,7 @@ Backend container has profiles: ["dev"] - doesn''t start on VPS!
 
 ## 🎯 THE FIX
 
-**Current docker-compose.yml:**
+**Current systemctl.yml:**
 ```yaml
 backend:
   profiles: ["dev"]  # ⚠️ PROBLEM!
@@ -49,7 +49,7 @@ Remove profiles line or change to production profile
 
 **Deploy:**
 ```bash
-docker-compose up -d backend
+systemctl up -d backend
 ```
 
 ---
@@ -57,3 +57,4 @@ docker-compose up -d backend
 ## 🚀 NEXT: PHASE 2
 
 Deploy backend container and activate all AI modules!
+

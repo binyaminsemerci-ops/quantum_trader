@@ -57,7 +57,7 @@ CMD ["python", "stub_main.py"]
 
 **Data Available**:
 ```bash
-$ docker exec quantum_redis redis-cli XLEN quantum:stream:exchange.raw
+$ redis-cli XLEN quantum:stream:exchange.raw
 500+  # Plenty of data available!
 ```
 
@@ -100,7 +100,7 @@ for entry_id, data in stream_data:
 ### Challenges Encountered
 1. ❌ Permission denied errors (files owned by root)
 2. ❌ Docker compose YAML had duplicate `strategic-evolution` service
-3. ❌ Risk Safety not defined in docker-compose.vps.yml (legacy standalone container)
+3. ❌ Risk Safety not defined in systemctl.vps.yml (legacy standalone container)
 4. ✅ Resolved by running as root and fixing YAML
 
 ### Steps Executed
@@ -114,23 +114,23 @@ rm -f AI_PHASE_*.md  # Remove conflicting files
 git stash
 git pull origin main
 
-# 3. Fix duplicate service in docker-compose.vps.yml
-sed -i '315,333d' docker-compose.vps.yml  # Removed duplicate strategic-evolution
+# 3. Fix duplicate service in systemctl.vps.yml
+sed -i '315,333d' systemctl.vps.yml  # Removed duplicate strategic-evolution
 
 # 4. Create missing .env file
 touch .env
 
 # 5. Rebuild affected services
-docker compose -f docker-compose.vps.yml build --no-cache meta-regime portfolio-governance
+docker compose -f systemctl.vps.yml build --no-cache meta-regime portfolio-governance
 
 # 6. Force recreate containers with new images
-docker compose -f docker-compose.vps.yml up -d --force-recreate meta-regime portfolio-governance
+docker compose -f systemctl.vps.yml up -d --force-recreate meta-regime portfolio-governance
 
 # 7. Wait 20 seconds for startup
 sleep 20
 
 # 8. Verify health status
-docker ps --format "table {{.Names}}\t{{.Status}}" | grep -E "meta|portfolio|risk"
+systemctl list-units --format "table {{.Names}}\t{{.Status}}" | grep -E "meta|portfolio|risk"
 ```
 
 ---
@@ -204,7 +204,7 @@ quantum_portfolio_intelligence   Up 3 days (healthy)
 
 ### Redis Data Verification ✅
 ```bash
-$ docker exec quantum_redis redis-cli MGET \
+$ redis-cli MGET \
   quantum:feedback:strategic_memory \
   quantum:evolution:selected \
   quantum:consensus:signal \
@@ -218,10 +218,10 @@ $ docker exec quantum_redis redis-cli MGET \
 
 ### Cross-Exchange Data Pipeline ✅
 ```bash
-$ docker exec quantum_redis redis-cli XLEN quantum:stream:exchange.raw
+$ redis-cli XLEN quantum:stream:exchange.raw
 500+  # Continuous market data flow
 
-$ docker logs quantum_cross_exchange --tail 5
+$ journalctl -u quantum_cross_exchange.service --tail 5
 INFO: ✅ Connected to Binance stream: BTCUSDT
 INFO: ✅ Connected to Binance stream: ETHUSDT
 INFO: ✅ Connected to Binance stream: SOLUSDT
@@ -276,7 +276,7 @@ INFO: ✅ Connected to Bybit stream
 ### Health Check Commands
 ```bash
 # Quick status check
-docker ps --format "table {{.Names}}\t{{.Status}}" | grep -E "meta|portfolio|risk"
+systemctl list-units --format "table {{.Names}}\t{{.Status}}" | grep -E "meta|portfolio|risk"
 
 # Detailed logs
 docker logs --tail 20 quantum_meta_regime
@@ -284,8 +284,8 @@ docker logs --tail 20 quantum_portfolio_governance
 docker logs --tail 20 quantum_risk_safety
 
 # Redis data verification
-docker exec quantum_redis redis-cli XLEN quantum:stream:exchange.raw
-docker exec quantum_redis redis-cli GET quantum:governance:policy
+redis-cli XLEN quantum:stream:exchange.raw
+redis-cli GET quantum:governance:policy
 
 # Real-time monitoring
 docker logs -f quantum_meta_regime
@@ -309,7 +309,7 @@ microservices/meta_regime/meta_regime_service.py  (46 lines changed)
 
 ### VPS Deployment (Manual)
 ```
-docker-compose.vps.yml              (Removed duplicate strategic-evolution)
+systemctl.vps.yml              (Removed duplicate strategic-evolution)
 .env                                (Created empty file)
 quantum_meta_regime                 (Rebuilt with new code)
 quantum_portfolio_governance        (Rebuilt with new code)
@@ -337,5 +337,6 @@ The fixes addressed:
 **Next Steps**:
 - Monitor Meta Regime regime detection accuracy over next 24h
 - Wait for first trade execution to populate Portfolio Governance samples
-- Consider adding Risk Safety to docker-compose.vps.yml for consistency
+- Consider adding Risk Safety to systemctl.vps.yml for consistency
+
 

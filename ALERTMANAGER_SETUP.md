@@ -21,7 +21,7 @@
    
    # Restart Alertmanager
    cd ~/quantum_trader
-   docker compose -f docker-compose.alerting.yml restart alertmanager
+   docker compose -f systemctl.alerting.yml restart alertmanager
    ```
 
 3. **Test:**
@@ -50,7 +50,7 @@
    cp ~/quantum_trader/monitoring/alertmanager-email.yml ~/quantum_trader/monitoring/alertmanager.yml
    
    # Restart Alertmanager
-   docker compose -f docker-compose.alerting.yml restart alertmanager
+   docker compose -f systemctl.alerting.yml restart alertmanager
    ```
 
 2. **Gmail App Password:**
@@ -96,7 +96,7 @@ docker start quantum_ai_engine
 curl http://localhost:9093/api/v2/alerts | python3 -m json.tool
 
 # Check alert status
-docker logs quantum_alertmanager --tail 50
+journalctl -u quantum_alertmanager.service --tail 50
 ```
 
 ## Troubleshooting
@@ -104,7 +104,7 @@ docker logs quantum_alertmanager --tail 50
 1. **Alerts not sending:**
    ```bash
    # Check Alertmanager logs
-   docker logs quantum_alertmanager
+   journalctl -u quantum_alertmanager.service
    
    # Verify config syntax
    docker exec quantum_alertmanager amtool check-config /etc/alertmanager/alertmanager.yml
@@ -145,3 +145,4 @@ curl http://localhost:9093/api/v2/alerts | jq '.[] | {alertname:.labels.alertnam
 docker exec quantum_alertmanager amtool alert add --alertmanager.url=http://localhost:9093 \
   test_alert severity=warning service=test
 ```
+

@@ -158,7 +158,7 @@ Example of constraint enforcement:
    - Dependencies: redis==7.1.0, numpy==1.24.3
    - Health check: Redis connection test
 
-3. **docker-compose.yml** (updated)
+3. **systemctl.yml** (updated)
    - Added rl-optimizer service (Service #9)
    - Full RL hyperparameter configuration
    - Dependencies: redis (healthy), trade-journal (started)
@@ -188,19 +188,19 @@ docker compose up -d rl-optimizer
 ### Check RL Logs
 ```bash
 # View latest optimizer activity
-docker logs quantum_rl_optimizer --tail 50
+journalctl -u quantum_rl_optimizer.service --tail 50
 
 # Follow logs in real-time
-docker logs quantum_rl_optimizer --follow
+journalctl -u quantum_rl_optimizer.service --follow
 
 # Search for weight updates
-docker logs quantum_rl_optimizer | grep "Updated weights"
+journalctl -u quantum_rl_optimizer.service | grep "Updated weights"
 ```
 
 ### Check Current Weights
 ```bash
 # View all model weights
-docker exec quantum_redis redis-cli HGETALL governance_weights
+redis-cli HGETALL governance_weights
 
 # Output example:
 # PatchTST: 0.2236
@@ -216,19 +216,19 @@ docker exec quantum_redis redis-cli HGETALL governance_weights
 ### Check Reward History
 ```bash
 # View last 10 reward calculations
-docker exec quantum_redis redis-cli LRANGE rl_reward_history 0 10
+redis-cli LRANGE rl_reward_history 0 10
 
 # View last 10 weight updates
-docker exec quantum_redis redis-cli LRANGE rl_update_history 0 10
+redis-cli LRANGE rl_update_history 0 10
 
 # Get current RL statistics
-docker exec quantum_redis redis-cli GET rl_stats
+redis-cli GET rl_stats
 ```
 
 ### Check Trade Performance
 ```bash
 # View latest performance report (used by RL)
-docker exec quantum_redis redis-cli GET latest_report | jq
+redis-cli GET latest_report | jq
 
 # Key metrics:
 # - total_pnl_%: Overall profitability
@@ -240,7 +240,7 @@ docker exec quantum_redis redis-cli GET latest_report | jq
 
 ## 🔧 RL HYPERPARAMETER TUNING
 
-### Environment Variables (docker-compose.yml)
+### Environment Variables (systemctl.yml)
 ```yaml
 rl-optimizer:
   environment:
@@ -298,13 +298,13 @@ rl-optimizer:
 
 ### Apply New Hyperparameters
 ```bash
-# 1. Update docker-compose.yml on VPS
+# 1. Update systemctl.yml on VPS
 # 2. Rebuild and restart
 docker compose build rl-optimizer --no-cache
 docker compose restart rl-optimizer
 
 # 3. Verify new configuration
-docker logs quantum_rl_optimizer --tail 20
+journalctl -u quantum_rl_optimizer.service --tail 20
 ```
 
 ---
@@ -471,18 +471,18 @@ Result:
 ### RL Optimizer Not Starting
 ```bash
 # Check container status
-docker ps -a | grep rl_optimizer
+systemctl list-units -a | grep rl_optimizer
 
 # Check logs for errors
-docker logs quantum_rl_optimizer
+journalctl -u quantum_rl_optimizer.service
 
 # Common issues:
 # 1. Redis not healthy
-docker ps | grep redis
-docker exec quantum_redis redis-cli PING
+systemctl list-units | grep redis
+redis-cli PING
 
 # 2. Trade Journal not running
-docker ps | grep trade_journal
+systemctl list-units | grep trade_journal
 
 # 3. Missing dependencies
 docker compose build rl-optimizer --no-cache
@@ -491,22 +491,22 @@ docker compose build rl-optimizer --no-cache
 ### Weights Not Updating
 ```bash
 # Check update history
-docker exec quantum_redis redis-cli LRANGE rl_update_history 0 5
+redis-cli LRANGE rl_update_history 0 5
 
 # Verify update interval hasn't passed yet
-docker logs quantum_rl_optimizer | grep "Next update in"
+journalctl -u quantum_rl_optimizer.service | grep "Next update in"
 
 # Check for errors in update cycle
-docker logs quantum_rl_optimizer | grep ERROR
+journalctl -u quantum_rl_optimizer.service | grep ERROR
 ```
 
 ### Reward Always Zero
 ```bash
 # Check if Trade Journal is generating reports
-docker exec quantum_redis redis-cli GET latest_report
+redis-cli GET latest_report
 
 # Verify trades are being logged
-docker exec quantum_redis redis-cli GET ai_latest_trades
+redis-cli GET ai_latest_trades
 
 # Ensure sufficient trading history
 # (Need at least 1 report cycle = 6 hours)
@@ -515,10 +515,10 @@ docker exec quantum_redis redis-cli GET ai_latest_trades
 ### Extreme Weight Changes
 ```bash
 # Check exploration rate
-docker logs quantum_rl_optimizer | grep "Exploration Rate"
+journalctl -u quantum_rl_optimizer.service | grep "Exploration Rate"
 
 # If too high exploration:
-# 1. Reduce RL_EPSILON in docker-compose.yml
+# 1. Reduce RL_EPSILON in systemctl.yml
 # 2. Restart rl-optimizer
 
 # If reward signal is noisy:
@@ -536,7 +536,7 @@ backend/microservices/rl_optimizer/
 ├── optimizer_service.py    # Main RL engine (11KB)
 └── Dockerfile              # Container definition (581B)
 
-docker-compose.yml          # Service #9 configuration
+systemctl.yml          # Service #9 configuration
 ```
 
 ### Redis Keys Used
@@ -934,3 +934,4 @@ Phase 8 completes the vision:
 *Document Generated: December 20, 2025*  
 *System Status: Fully Operational*  
 *Phase 8: COMPLETE* ✅
+

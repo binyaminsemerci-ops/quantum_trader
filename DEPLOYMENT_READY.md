@@ -7,7 +7,7 @@
 - ✅ Pushet til GitHub (pågår nå)
 
 ### 2. WSL + Podman Setup
-- ✅ `docker-compose.wsl.yml` - Produksjons klar konfigurasjon
+- ✅ `systemctl.wsl.yml` - Produksjons klar konfigurasjon
 - ✅ Ingen `/mnt/c` paths
 - ✅ Korrekt PYTHONPATH=/app
 - ✅ Fungerer identisk på WSL og VPS
@@ -86,7 +86,7 @@ podman logs quantum_ai_engine
 
 ### Deployment
 - `deploy-to-vps.sh` - **Hovedfil - bruk denne!**
-- `docker-compose.wsl.yml` - Produksjons-konfigurasjon
+- `systemctl.wsl.yml` - Produksjons-konfigurasjon
 
 ### Scripts (i `scripts/`)
 - `start-wsl-podman.sh` - Start services
@@ -141,7 +141,7 @@ curl http://YOUR_VPS_IP:8001/health
 ```bash
 ssh root@YOUR_VPS_IP
 cd ~/quantum_trader
-podman-compose -f docker-compose.wsl.yml restart ai-engine
+podman-compose -f systemctl.wsl.yml restart ai-engine
 ```
 
 ---
@@ -158,7 +158,7 @@ podman-compose -f docker-compose.wsl.yml restart ai-engine
 - Unngår import-collisions
 
 ### 3. Podman-compose
-- Kompatibel med docker-compose syntax
+- Kompatibel med systemctl syntax
 - Fungerer uten Docker Desktop
 - Rootless og sikkert
 
@@ -189,3 +189,4 @@ Når git push er ferdig, er du klar til å deploye til VPS! 🚀
 **Skapt:** 2025-12-16  
 **Status:** ✅ Deployment-klar  
 **Platform:** WSL2 + Podman → Ubuntu VPS
+

@@ -43,7 +43,7 @@ cd /mnt/c/quantum_trader
 
 # Verifiser at du er i riktig mappe
 ls -la
-# Du skal se: docker-compose.yml, backend/, ai_engine/, etc.
+# Du skal se: systemctl.yml, backend/, ai_engine/, etc.
 ```
 
 ---
@@ -365,3 +365,4 @@ podman-compose logs -f backend-live | grep -E "CHALLENGE_100|EXIT_BRAIN|HARD_SL"
 **Status**: ✅ Ready for WSL + Podman-Compose Deployment
 
 _Laget: 2025-12-14_
+

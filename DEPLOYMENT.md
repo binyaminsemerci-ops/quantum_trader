@@ -4,7 +4,7 @@ This guide provides step-by-step instructions for deploying Quantum Trader in va
 
 ## Table of Contents
 
-1. [Quick Start (Docker Compose)](#quick-start-docker-compose)
+1. [Quick Start (Docker Compose)](#quick-start-systemctl)
 2. [Local Development Setup](#local-development-setup)
 3. [Production Deployment](#production-deployment)
 4. [Cloud Deployment Options](#cloud-deployment-options)
@@ -23,7 +23,7 @@ This guide provides step-by-step instructions for deploying Quantum Trader in va
 
 2. **Start all services**:
    ```bash
-   docker-compose up --build
+   systemctl up --build
    ```
 
 3. **Access the application**:
@@ -33,8 +33,8 @@ This guide provides step-by-step instructions for deploying Quantum Trader in va
 
 4. **Initialize database** (first time only):
    ```bash
-   docker-compose exec backend alembic upgrade head
-   docker-compose exec backend python scripts/seed_demo_data.py
+   systemctl exec backend alembic upgrade head
+   systemctl exec backend python scripts/seed_demo_data.py
    ```
 
 ## Local Development Setup
@@ -114,8 +114,8 @@ npm run test
 
 1. **Prepare production configuration**:
    ```bash
-   cp docker-compose.yml docker-compose.prod.yml
-   # Edit docker-compose.prod.yml for production settings
+   cp systemctl.yml systemctl.prod.yml
+   # Edit systemctl.prod.yml for production settings
    ```
 
 2. **Initialize swarm**:
@@ -125,7 +125,7 @@ npm run test
 
 3. **Deploy stack**:
    ```bash
-   docker stack deploy -c docker-compose.prod.yml quantum-trader
+   docker stack deploy -c systemctl.prod.yml quantum-trader
    ```
 
 ### Option 2: Kubernetes
@@ -303,11 +303,11 @@ curl http://localhost:8000/api/metrics/system
 
 ```bash
 # View application logs
-docker-compose logs -f backend
-docker-compose logs -f frontend
+systemctl logs -f backend
+systemctl logs -f frontend
 
 # Database logs
-docker-compose logs -f postgres
+systemctl logs -f postgres
 
 # Performance metrics logs
 grep "performance" logs/*.log
@@ -320,7 +320,7 @@ grep "performance" logs/*.log
 pg_dump $QUANTUM_TRADER_DATABASE_URL > backup_$(date +%Y%m%d_%H%M%S).sql
 
 # Configuration backup
-tar -czf config_backup.tar.gz .env docker-compose.yml k8s/
+tar -czf config_backup.tar.gz .env systemctl.yml k8s/
 
 # Application data backup
 rsync -av --exclude='.git' --exclude='node_modules' . backup/quantum_trader/
@@ -333,7 +333,7 @@ rsync -av --exclude='.git' --exclude='node_modules' . backup/quantum_trader/
 **Database Connection Errors**
 ```bash
 # Check database status
-docker-compose ps postgres
+systemctl ps postgres
 
 # Test connection
 psql $QUANTUM_TRADER_DATABASE_URL -c "SELECT 1"
@@ -416,3 +416,4 @@ grep "duration_ms.*[5-9][0-9][0-9]" logs/performance.log
 ```
 
 For additional support, visit our [GitHub repository](https://github.com/binyaminsemerci-ops/quantum_trader) or check the [API documentation](http://localhost:8000/api/docs).
+

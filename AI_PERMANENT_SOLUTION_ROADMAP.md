@@ -167,7 +167,7 @@ Waiting for strategies
 
 **Implementation:**
 ```yaml
-# docker-compose.yml
+# systemctl.yml
 position_monitor:
   container_name: quantum_position_monitor
   build:
@@ -431,7 +431,7 @@ Temporary failure in name resolution
 
 **Possible Fix 1: Use IP instead of hostname**
 ```yaml
-# docker-compose.yml
+# systemctl.yml
 cross-exchange:
   environment:
     - REDIS_URL=redis://172.18.0.X:6379  # Use IP
@@ -601,7 +601,7 @@ class StrategyEvolution:
         logger.info(f"[EVOLUTION] Is writable: {os.access(self.memory_bank_path, os.W_OK)}")
 ```
 
-**Step 2: Add volume mount in docker-compose**
+**Step 2: Add volume mount in systemctl**
 ```yaml
 strategy_evolution:
   volumes:
@@ -778,7 +778,7 @@ app.mount("/metrics", metrics_app)
 - [ ] Design service architecture
 - [ ] Implement health checks
 - [ ] Create Dockerfile (if microservice)
-- [ ] Update docker-compose.yml
+- [ ] Update systemctl.yml
 - [ ] Write tests
 - [ ] Deploy to testnet
 - [ ] Monitor for 48+ hours
@@ -878,4 +878,5 @@ Week 3-4: Advanced features → Optimal performance
 ---
 
 **Kan vi starte med Fase 1.1 (Position Monitor deployment)?**
+
 

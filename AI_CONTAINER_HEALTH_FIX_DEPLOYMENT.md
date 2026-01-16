@@ -36,13 +36,13 @@ git pull origin main
 git stash pop  # Restore if needed
 
 # 3. Stop affected services
-docker compose -f docker-compose.vps.yml stop risk-safety meta-regime
+docker compose -f systemctl.vps.yml stop risk-safety meta-regime
 
 # 4. Rebuild with no cache to ensure latest code
-docker compose -f docker-compose.vps.yml build --no-cache risk-safety meta-regime
+docker compose -f systemctl.vps.yml build --no-cache risk-safety meta-regime
 
 # 5. Start services
-docker compose -f docker-compose.vps.yml up -d risk-safety meta-regime
+docker compose -f systemctl.vps.yml up -d risk-safety meta-regime
 
 # 6. Wait for startup
 sleep 20
@@ -54,7 +54,7 @@ docker logs --tail 20 quantum_risk_safety
 docker logs --tail 20 quantum_meta_regime
 
 # 9. Check container health
-docker ps | grep -E "risk_safety|meta_regime|portfolio_governance"
+systemctl list-units | grep -E "risk_safety|meta_regime|portfolio_governance"
 ```
 
 ---
@@ -90,7 +90,7 @@ docker ps | grep -E "risk_safety|meta_regime|portfolio_governance"
 ### If Permission Denied Errors:
 ```bash
 # Run commands with sudo
-sudo docker compose -f docker-compose.vps.yml ...
+sudo docker compose -f systemctl.vps.yml ...
 ```
 
 ### If Git Pull Fails:
@@ -106,7 +106,7 @@ git reset --hard origin/main
 docker exec quantum_meta_regime python -c "import redis; r=redis.from_url('redis://redis:6379/0'); print('Redis OK' if r.ping() else 'Redis FAIL')"
 
 # Check stream data
-docker exec quantum_redis redis-cli XLEN quantum:stream:exchange.raw
+redis-cli XLEN quantum:stream:exchange.raw
 # Should show > 0
 
 # Check meta regime can read stream
@@ -124,10 +124,10 @@ print(f'Stream accessible: {len(data) > 0}')
 
 ```bash
 # Full system health check
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" | grep quantum
+systemctl list-units --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" | grep quantum
 
 # Check all Phase 4 systems
-docker exec quantum_redis redis-cli MGET \
+redis-cli MGET \
   quantum:feedback:strategic_memory \
   quantum:evolution:selected \
   quantum:consensus:signal \
@@ -137,7 +137,7 @@ docker exec quantum_redis redis-cli MGET \
 docker logs -f quantum_meta_regime
 
 # Check market data flow
-watch -n 5 'docker exec quantum_redis redis-cli XLEN quantum:stream:exchange.raw'
+watch -n 5 'redis-cli XLEN quantum:stream:exchange.raw'
 ```
 
 ---
@@ -156,4 +156,5 @@ watch -n 5 'docker exec quantum_redis redis-cli XLEN quantum:stream:exchange.raw
 1. **Portfolio Governance "0 samples"** is expected until live trading produces PnL events
 2. **Meta Regime** needs ~30-60 seconds to collect sufficient market data for regime detection
 3. **Risk Safety** should start immediately with no errors
+
 

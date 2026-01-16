@@ -274,7 +274,7 @@ MODEL_SUPERVISOR_MODE=OFF
 
 ```bash
 # 1. Restart backend to load new code:
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 
 # 2. Monitor logs for new features:
 docker logs -f quantum_backend 2>&1 | grep "SHORT_ALLOWED\|SHORT_BLOCKED\|MODEL_SUPERVISOR"
@@ -286,7 +286,7 @@ docker exec quantum_backend env | grep "QT_COUNTERTREND\|MODEL_SUPERVISOR"
 ### Optional Configuration:
 
 ```bash
-# Add to .env or docker-compose.yml:
+# Add to .env or systemctl.yml:
 QT_COUNTERTREND_MIN_CONF=0.55  # Adjust threshold if needed
 MODEL_SUPERVISOR_MODE=OBSERVE   # Enable monitoring
 QT_AI_MODEL_SUPERVISOR_ENABLED=true
@@ -354,12 +354,12 @@ QT_AI_MODEL_SUPERVISOR_ENABLED=true
 
 1. **Check logs for rejection reasons:**
    ```bash
-   docker logs quantum_backend 2>&1 | grep "REJECTED\|BLOCKED"
+   journalctl -u quantum_backend.service 2>&1 | grep "REJECTED\|BLOCKED"
    ```
 
 2. **Verify confidence levels:**
    ```bash
-   docker logs quantum_backend 2>&1 | grep "confidence"
+   journalctl -u quantum_backend.service 2>&1 | grep "confidence"
    ```
 
 3. **Check threshold configuration:**
@@ -371,7 +371,7 @@ QT_AI_MODEL_SUPERVISOR_ENABLED=true
 
 1. **Verify Model Supervisor enabled:**
    ```bash
-   docker logs quantum_backend 2>&1 | grep "MODEL_SUPERVISOR.*Initialized"
+   journalctl -u quantum_backend.service 2>&1 | grep "MODEL_SUPERVISOR.*Initialized"
    ```
 
 2. **Check mode configuration:**
@@ -407,3 +407,4 @@ No breaking changes. No risk to existing functionality. Full rollback capability
 **Engineer Sign-off:** Senior Backend Team  
 **Date:** 2025-11-23 02:30 UTC  
 **Approval:** APPROVED FOR DEPLOYMENT
+

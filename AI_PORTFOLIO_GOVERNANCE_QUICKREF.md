@@ -3,23 +3,23 @@
 ## 🚀 Deployment One-Liner
 
 ```bash
-docker-compose -f docker-compose.vps.yml up -d portfolio-governance
+systemctl -f systemctl.vps.yml up -d portfolio-governance
 ```
 
 ## 📊 Essential Checks
 
 ```bash
 # 1. Service Status
-docker ps | grep portfolio_governance
+systemctl list-units | grep portfolio_governance
 
 # 2. Current Policy
-docker exec redis redis-cli GET quantum:governance:policy
+redis-cli GET quantum:governance:policy
 
 # 3. Portfolio Score
-docker exec redis redis-cli GET quantum:governance:score
+redis-cli GET quantum:governance:score
 
 # 4. Memory Samples
-docker exec redis redis-cli XLEN quantum:stream:portfolio.memory
+redis-cli XLEN quantum:stream:portfolio.memory
 
 # 5. AI Engine Integration
 curl -s http://localhost:8001/health | jq '.metrics.portfolio_governance'
@@ -58,7 +58,7 @@ quantum:stream:governance.events             # Policy change events
 
 ```bash
 # Simulate winning trade
-docker exec redis redis-cli XADD quantum:stream:portfolio.memory "*" \
+redis-cli XADD quantum:stream:portfolio.memory "*" \
   timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   symbol "BTCUSDT" \
   pnl "0.45" \
@@ -67,20 +67,20 @@ docker exec redis redis-cli XADD quantum:stream:portfolio.memory "*" \
   leverage "20"
 
 # Wait 30s, then check policy
-sleep 30 && docker exec redis redis-cli GET quantum:governance:policy
+sleep 30 && redis-cli GET quantum:governance:policy
 ```
 
 ## 🔥 Emergency Commands
 
 ```bash
 # Reset to BALANCED
-docker exec redis redis-cli SET quantum:governance:policy BALANCED
+redis-cli SET quantum:governance:policy BALANCED
 
 # Clear memory (DANGER!)
-docker exec redis redis-cli DEL quantum:stream:portfolio.memory
+redis-cli DEL quantum:stream:portfolio.memory
 
 # Restart service
-docker-compose -f docker-compose.vps.yml restart portfolio-governance
+systemctl -f systemctl.vps.yml restart portfolio-governance
 ```
 
 ## 📡 Integration Points
@@ -126,3 +126,4 @@ AGGRESSIVE_THRESHOLD=0.7
 **Status:** ✅ Phase 4Q Complete  
 **Version:** 1.0.0  
 **Updated:** 2025-12-21
+

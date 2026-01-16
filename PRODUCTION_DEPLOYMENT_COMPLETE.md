@@ -65,7 +65,7 @@
 # For Slack:
 echo "SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL" >> ~/.env
 cp ~/quantum_trader/monitoring/alertmanager-slack.yml ~/quantum_trader/monitoring/alertmanager.yml
-docker compose -f docker-compose.alerting.yml restart alertmanager
+docker compose -f systemctl.alerting.yml restart alertmanager
 
 # For Email (Gmail):
 cat >> ~/.env << EOF
@@ -76,7 +76,7 @@ SMTP_PASSWORD=your-app-password
 ALERT_EMAIL_TO=alerts@yourcompany.com
 EOF
 cp ~/quantum_trader/monitoring/alertmanager-email.yml ~/quantum_trader/monitoring/alertmanager.yml
-docker compose -f docker-compose.alerting.yml restart alertmanager
+docker compose -f systemctl.alerting.yml restart alertmanager
 ```
 
 ### 4. Deploy Postgres with Backups ✅
@@ -195,13 +195,13 @@ quantum_prometheus      ✅ Up (healthy)    - 127.0.0.1:9090
 ### Container Management
 ```bash
 # View all containers
-docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+systemctl list-units --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
 # Restart specific service
-docker compose -f docker-compose.wsl.yml restart ai-engine
+docker compose -f systemctl.wsl.yml restart ai-engine
 
 # View logs
-docker logs quantum_ai_engine --tail 50 -f
+journalctl -u quantum_ai_engine.service --tail 50 -f
 
 # Health checks
 curl https://localhost/health
@@ -237,13 +237,13 @@ firefox https://localhost/grafana/
 ### ESS Kill Switch
 ```bash
 # Activate ESS
-docker exec quantum_redis redis-cli SET trading:emergency_stop 1
+redis-cli SET trading:emergency_stop 1
 
 # Check ESS status
-docker exec quantum_redis redis-cli GET trading:emergency_stop
+redis-cli GET trading:emergency_stop
 
 # Deactivate ESS
-docker exec quantum_redis redis-cli DEL trading:emergency_stop
+redis-cli DEL trading:emergency_stop
 ```
 
 ---
@@ -321,3 +321,4 @@ Your Quantum Trader system is now fully deployed with enterprise-grade features:
 - ✅ Scalable (Resource limits, logging rotation, Docker Compose)
 
 **Congratulations on completing the deployment! 🎉**
+

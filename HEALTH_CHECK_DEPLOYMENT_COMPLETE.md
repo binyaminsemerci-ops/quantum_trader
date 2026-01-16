@@ -58,7 +58,7 @@ async def health_check():
 
 **Problem:** Docker healthcheck tested port 8005 instead of 8004
 
-**Root Cause:** Copy-paste error in docker-compose.yml (risk-safety runs on 8005, portfolio-intelligence runs on 8004)
+**Root Cause:** Copy-paste error in systemctl.yml (risk-safety runs on 8005, portfolio-intelligence runs on 8004)
 
 **Fix Applied:**
 ```yaml
@@ -77,7 +77,7 @@ portfolio-intelligence:
 
 **Verification:**
 ```bash
-docker ps --filter 'name=quantum_portfolio_intelligence'
+systemctl list-units --filter 'name=quantum_portfolio_intelligence'
 # OUTPUT: Up About a minute (healthy)
 ```
 ✅ **Status:** HEALTHY
@@ -88,7 +88,7 @@ docker ps --filter 'name=quantum_portfolio_intelligence'
 
 **Problem:** No Docker healthcheck configured for backend service
 
-**Root Cause:** Never added to docker-compose.yml
+**Root Cause:** Never added to systemctl.yml
 
 **Fix Applied:**
 ```yaml
@@ -105,7 +105,7 @@ backend:
 
 **Verification:**
 ```bash
-docker ps --filter 'name=quantum_backend'
+systemctl list-units --filter 'name=quantum_backend'
 # OUTPUT: Up 3 minutes (healthy)
 
 curl http://localhost:8000/health
@@ -141,14 +141,14 @@ curl http://localhost:8004/health
 
 ### Commits Made
 1. **cb933667** - 🏥 Fix: Add health endpoints and Docker healthchecks
-2. **8482878e** - 🔧 Fix: Remove duplicate healthcheck in docker-compose.yml
+2. **8482878e** - 🔧 Fix: Remove duplicate healthcheck in systemctl.yml
 3. **66ba5e0d** - 🩹 Fix: Portfolio Intelligence health endpoint - use correct attributes
 4. **b8dad774** - 🔧 Fix: Backend healthcheck use Python instead of curl (not installed)
 5. **fe5985df** - 🔧 Fix: Portfolio Intelligence healthcheck - correct port 8004 + longer start_period
 
 ### Files Modified
 - `microservices/portfolio_intelligence/main.py` - Added `/health` endpoint
-- `docker-compose.yml` - Added/fixed healthchecks for backend and portfolio-intelligence
+- `systemctl.yml` - Added/fixed healthchecks for backend and portfolio-intelligence
 
 ---
 
@@ -215,3 +215,4 @@ curl http://localhost:8004/health
 
 *Report generated after successful deployment and verification*  
 *All fixes committed to GitHub and deployed to production VPS*
+

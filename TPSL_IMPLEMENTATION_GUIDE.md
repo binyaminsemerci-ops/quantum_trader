@@ -61,7 +61,7 @@ STAGING_MODE=false
 ### Step 2: Restart Backend
 
 ```powershell
-docker-compose --profile dev restart
+systemctl --profile dev restart
 ```
 
 ### Step 3: Verify Backend TP/SL
@@ -106,7 +106,7 @@ Start-Process python -ArgumentList "position_protection_service.py" -WindowStyle
 
 **Option C: As Docker Service** (Recommended)
 
-Add to `docker-compose.yml`:
+Add to `systemctl.yml`:
 ```yaml
 position_protector:
   build:
@@ -150,13 +150,13 @@ python position_protection_service.py --testnet
 ### Backend TP/SL Logs
 ```powershell
 # Check TP placement
-docker logs quantum_backend | Select-String "TP order placed"
+journalctl -u quantum_backend.service | Select-String "TP order placed"
 
 # Check SL placement
-docker logs quantum_backend | Select-String "SL order placed"
+journalctl -u quantum_backend.service | Select-String "SL order placed"
 
 # Check event-driven activity
-docker logs quantum_backend | Select-String "Event-driven trading mode"
+journalctl -u quantum_backend.service | Select-String "Event-driven trading mode"
 ```
 
 ### Position Protection Service Logs
@@ -199,9 +199,9 @@ docker logs --tail 50 quantum_position_protector
 ## ✅ Verification Checklist
 
 - [ ] `.env` has Binance credentials
-- [ ] Backend is running (`docker ps | grep quantum_backend`)
+- [ ] Backend is running (`systemctl list-units | grep quantum_backend`)
 - [ ] Trading Profile enabled (`curl http://localhost:8000/trading-profile/config`)
-- [ ] Event-driven mode active (`docker logs quantum_backend | Select-String "Event-driven"`)
+- [ ] Event-driven mode active (`journalctl -u quantum_backend.service | Select-String "Event-driven"`)
 - [ ] STAGING_MODE=false or not set
 - [ ] TP/SL logs present for AI trades
 - [ ] Position Protection Service running
@@ -216,7 +216,7 @@ docker logs --tail 50 quantum_position_protector
 **Fix:** Add to `.env` and restart containers
 
 ### "Backend offline"
-**Fix:** `docker-compose --profile dev up -d`
+**Fix:** `systemctl --profile dev up -d`
 
 ### "No TP/SL logs found"
 **Reason:** No AI trades executed yet (normal)
@@ -283,7 +283,8 @@ python quick_status.py
 
 Issues? Check:
 1. `python verify_backend_tpsl.py` for diagnosis
-2. `docker logs quantum_backend` for backend issues
+2. `journalctl -u quantum_backend.service` for backend issues
 3. Position Protection Service logs for auto-fix status
 
 All systems ready for deployment! 🚀
+

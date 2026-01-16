@@ -84,7 +84,7 @@ dependencies["risk_safety_service"] = DependencyHealth(
 # From local machine
 scp -i ~/.ssh/hetzner_fresh microservices/ai_engine/service.py qt@46.224.116.254:/home/qt/quantum_trader/microservices/ai_engine/
 
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "cd /home/qt/quantum_trader && docker compose -f docker-compose.vps.yml restart ai-engine && sleep 10 && curl -s http://localhost:8001/health | python3 -m json.tool"
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "cd /home/qt/quantum_trader && docker compose -f systemctl.vps.yml restart ai-engine && sleep 10 && curl -s http://localhost:8001/health | python3 -m json.tool"
 ```
 
 **Expected Result:**
@@ -435,10 +435,10 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 << 'EOF'
 cd /home/qt/quantum_trader
 
 # Restart AI Engine
-docker compose -f docker-compose.vps.yml restart ai-engine
+docker compose -f systemctl.vps.yml restart ai-engine
 
 # Restart Execution Service
-docker compose -f docker-compose.vps.yml restart execution-v2
+docker compose -f systemctl.vps.yml restart execution-v2
 
 sleep 15
 
@@ -455,7 +455,7 @@ EOF
 
 **A. Check logs for Exit Brain plan creation**:
 ```bash
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "docker logs quantum_ai_engine 2>&1 | grep 'EXIT BRAIN V3.*Created exit plan'"
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "journalctl -u quantum_ai_engine.service 2>&1 | grep 'EXIT BRAIN V3.*Created exit plan'"
 
 # Expected output:
 # [EXIT BRAIN V3] BTCUSDT: Created exit plan with 3 legs (strategy=scaled_tp)
@@ -463,7 +463,7 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "docker logs quantum_ai_engine 2>&
 
 **B. Verify no more "No trail percentage set"**:
 ```bash
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "docker logs quantum_execution_v2 2>&1 | grep 'No trail percentage set'"
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "journalctl -u quantum_execution_v.service2 2>&1 | grep 'No trail percentage set'"
 
 # Expected: No output (or very few)
 ```
@@ -514,7 +514,7 @@ dependencies["risk_safety_service"] = await check_service_health(
 ```bash
 scp -i ~/.ssh/hetzner_fresh microservices/ai_engine/service.py qt@46.224.116.254:/home/qt/quantum_trader/microservices/ai_engine/
 
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "cd /home/qt/quantum_trader && docker compose -f docker-compose.vps.yml restart ai-engine && sleep 10 && curl -s http://localhost:8001/health | python3 -m json.tool"
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "cd /home/qt/quantum_trader && docker compose -f systemctl.vps.yml restart ai-engine && sleep 10 && curl -s http://localhost:8001/health | python3 -m json.tool"
 ```
 
 **Expected:**
@@ -595,3 +595,4 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "cd /home/qt/quantum_trader && doc
 **Owner**: You  
 **Estimated Completion**: Dag 1-2 (10 timer total)  
 **Next Action**: Implement Phase 1 hotfix (30 min)
+

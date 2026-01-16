@@ -190,7 +190,7 @@ recommendations = pal.analyze_positions(position_snapshots)
 ## 🔥 RUNTIME LOGS (PROOF)
 
 ```bash
-# From docker logs quantum_backend --since 30s
+# From journalctl -u quantum_backend.service --since 30s
 
 [16:56:14] [Self-Healing] Initialized in ENFORCED mode
 [16:56:14] MODEL SUPERVISOR — INITIALIZING
@@ -295,3 +295,4 @@ To reach 100% operational:
 **AUTO-FIX COMPLETE** ✅  
 **All objectives achieved without user confirmation**  
 **System upgraded from 22% to 89% operational in single session**
+

@@ -73,7 +73,7 @@ sudo systemctl restart quantum-rl
 journalctl -xeu quantum-rl.service
 
 # Quick container status
-qstatus  # Alias for docker ps
+qstatus  # Alias for systemctl list-units
 ```
 
 ## 📊 Architecture Flow
@@ -116,7 +116,7 @@ qstatus  # Alias for docker ps
 ## 🔧 Configuration
 
 ### Docker Compose Services
-**File:** `docker-compose.vps.yml`
+**File:** `systemctl.vps.yml`
 
 ```yaml
 strategy-ops:
@@ -174,34 +174,34 @@ rl-dashboard:
 ### Check Container Status
 ```bash
 # All RL containers
-docker ps --filter name=strategy_ops --filter name=rl_feedback --filter name=rl_dashboard
+systemctl list-units --filter name=strategy_ops --filter name=rl_feedback --filter name=rl_dashboard
 
 # Specific container
-docker ps -a --filter name=quantum_strategy_ops
+systemctl list-units -a --filter name=quantum_strategy_ops
 ```
 
 ### View Logs
 ```bash
 # StrategyOps
-docker logs quantum_strategy_ops --tail 50 --follow
+journalctl -u quantum_strategy_ops.service --tail 50 --follow
 
 # RL Feedback Bridge v2
-docker logs quantum_rl_feedback_v2 --tail 50 --follow
+journalctl -u quantum_rl_feedback_v.service2 --tail 50 --follow
 
 # RL Dashboard
-docker logs quantum_rl_dashboard --tail 50 --follow
+journalctl -u quantum_rl_dashboard.service --tail 50 --follow
 ```
 
 ### Redis Inspection
 ```bash
 # Check signal stream
-docker exec quantum_redis redis-cli XLEN quantum:signal:strategy
+redis-cli XLEN quantum:signal:strategy
 
 # Check policy adjustment
-docker exec quantum_redis redis-cli HGETALL quantum:ai_policy_adjustment
+redis-cli HGETALL quantum:ai_policy_adjustment
 
 # Monitor real-time
-docker exec quantum_redis redis-cli MONITOR
+redis-cli MONITOR
 ```
 
 ### Health Checks
@@ -213,7 +213,7 @@ curl http://localhost:8027
 curl http://localhost:8027/data | jq
 
 # Redis
-docker exec quantum_redis redis-cli PING
+redis-cli PING
 ```
 
 ## 🛠️ Troubleshooting
@@ -232,28 +232,28 @@ bash /home/qt/quantum_trader/start_quantum_rl.sh
 ```bash
 # Build individual service
 cd /home/qt/quantum_trader
-docker compose -f docker-compose.vps.yml build strategy-ops --no-cache
+docker compose -f systemctl.vps.yml build strategy-ops --no-cache
 
 # Check build logs
-docker compose -f docker-compose.vps.yml build strategy-ops
+docker compose -f systemctl.vps.yml build strategy-ops
 ```
 
 ### No Signals Generated
 ```bash
 # Check StrategyOps logs
-docker logs quantum_strategy_ops | grep "StrategyOps active"
+journalctl -u quantum_strategy_ops.service | grep "StrategyOps active"
 
 # Verify Redis connectivity
 docker exec quantum_strategy_ops python -c "import redis; print(redis.Redis(host='redis').ping())"
 
 # Check stream manually
-docker exec quantum_redis redis-cli XREAD COUNT 10 STREAMS quantum:signal:strategy 0
+redis-cli XREAD COUNT 10 STREAMS quantum:signal:strategy 0
 ```
 
 ### Dashboard Not Accessible
 ```bash
 # Check if container is running
-docker ps --filter name=rl_dashboard
+systemctl list-units --filter name=rl_dashboard
 
 # Check port binding
 netstat -tulpn | grep 8027
@@ -268,24 +268,24 @@ docker exec quantum_rl_dashboard curl -s http://localhost:8027
 ```bash
 sudo systemctl restart quantum-rl
 # OR
-docker compose -f docker-compose.vps.yml restart strategy-ops rl-feedback-v2 rl-dashboard
+docker compose -f systemctl.vps.yml restart strategy-ops rl-feedback-v2 rl-dashboard
 ```
 
 ### Update Code
 ```bash
 cd /home/qt/quantum_trader
 git pull origin main
-docker compose -f docker-compose.vps.yml build strategy-ops rl-feedback-v2 rl-dashboard
+docker compose -f systemctl.vps.yml build strategy-ops rl-feedback-v2 rl-dashboard
 sudo systemctl restart quantum-rl
 ```
 
 ### Clear Old Data
 ```bash
 # Clear Redis stream
-docker exec quantum_redis redis-cli DEL quantum:signal:strategy
+redis-cli DEL quantum:signal:strategy
 
 # Clear policy adjustment
-docker exec quantum_redis redis-cli DEL quantum:ai_policy_adjustment
+redis-cli DEL quantum:ai_policy_adjustment
 ```
 
 ## 📝 Development
@@ -339,9 +339,9 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254
 qstatus
 
 # View RL logs
-docker logs quantum_strategy_ops --tail 20
-docker logs quantum_rl_feedback_v2 --tail 20
-docker logs quantum_rl_dashboard --tail 20
+journalctl -u quantum_strategy_ops.service --tail 20
+journalctl -u quantum_rl_feedback_v.service2 --tail 20
+journalctl -u quantum_rl_dashboard.service --tail 20
 
 # Access dashboard
 curl http://localhost:8027
@@ -351,3 +351,4 @@ curl http://localhost:8027
 ---
 
 **🧠 Quantum Trader RL Intelligence System - Ready for Autonomous Learning!** 🚀
+

@@ -87,7 +87,7 @@ Dette dokumentet er laget for Quantum Trader som kjører på Linux VPS med Podma
 
 ### B. Start stacken
 1) Start:
-- `podman-compose -f docker-compose.yml -f docker-compose.vps.yml up -d`
+- `podman-compose -f systemctl.yml -f systemctl.vps.yml up -d`
 
 2) Status:
 - `podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"`
@@ -137,3 +137,4 @@ Krav:
 - Region: Singapore
 - 8 vCPU / 16 GB RAM / NVMe 160 GB
 - Eksponer kun 80/443 offentlig, hold 8000/8001/6379 interne
+

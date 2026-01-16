@@ -8,7 +8,7 @@
 
 All required configuration files have been updated for VPS migration:
 
-### 1. docker-compose.yml
+### 1. systemctl.yml
 - ✅ **PYTHONPATH=/app/backend** set for all 10 services
 - ✅ **GO_LIVE=true** added to main backend services
 - ✅ Volume mounts aligned: `./backend:/app/backend`
@@ -65,7 +65,7 @@ Docker Desktop service is currently **stopped**.
 ```powershell
 Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
 Start-Sleep -Seconds 60
-docker ps  # Should respond without errors
+systemctl list-units  # Should respond without errors
 ```
 
 ### STEP 2: Run Build and Test
@@ -81,7 +81,7 @@ cd C:\quantum_trader
 docker compose down
 docker compose build backend
 docker compose up -d backend
-docker logs quantum_backend --tail 50
+journalctl -u quantum_backend.service --tail 50
 ```
 
 ### STEP 3: Verify Imports
@@ -147,10 +147,10 @@ After running build and test, you should see:
 | Issue | Solution |
 |-------|----------|
 | "Cannot connect to Docker daemon" | Start Docker Desktop, wait 60s |
-| "ModuleNotFoundError" in logs | Verify PYTHONPATH=/app/backend in docker-compose.yml |
-| Container exits immediately | Check logs: `docker logs quantum_backend` |
+| "ModuleNotFoundError" in logs | Verify PYTHONPATH=/app/backend in systemctl.yml |
+| Container exits immediately | Check logs: `journalctl -u quantum_backend.service` |
 | Build takes >30 minutes | Stop and retry, check antivirus settings |
-| Health endpoint fails | Verify backend started: `docker ps` |
+| Health endpoint fails | Verify backend started: `systemctl list-units` |
 
 ---
 
@@ -171,7 +171,7 @@ After running build and test, you should see:
 
 ### Completed
 - ✅ Folder structure verified (85% migration complete)
-- ✅ docker-compose.yml updated (all 10 services)
+- ✅ systemctl.yml updated (all 10 services)
 - ✅ .env extended with VPS runtime vars
 - ✅ activation.yaml created
 - ✅ Configuration documentation generated
@@ -203,3 +203,4 @@ After running build and test, you should see:
 **Ready to proceed when Docker Desktop is started.**
 
 For detailed instructions, see: `DOCKER_BUILD_INSTRUCTIONS.md`
+

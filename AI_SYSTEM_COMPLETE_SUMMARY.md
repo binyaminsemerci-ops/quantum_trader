@@ -342,13 +342,13 @@ Profit Factor: >1.5 (currently 1.75 ✅)
 ### Daily Health Check
 ```bash
 # Container status
-ssh qt@46.224.116.254 'docker ps --format "{{.Names}}: {{.Status}}"'
+ssh qt@46.224.116.254 'systemctl list-units --format "{{.Names}}: {{.Status}}"'
 
 # Latest performance
 ssh qt@46.224.116.254 'curl -s http://localhost:8501/report | python3 -m json.tool'
 
 # Alert count
-ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli LLEN journal_alerts'
+ssh qt@46.224.116.254 'redis-cli LLEN journal_alerts'
 ```
 
 ### Weekly Backup
@@ -358,7 +358,7 @@ ssh qt@46.224.116.254 'docker exec quantum_trade_journal tar -czf /tmp/reports_b
 scp qt@46.224.116.254:/tmp/reports_backup.tar.gz ~/backups/reports_$(date +%Y%m%d).tar.gz
 
 # Backup database
-ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli SAVE'
+ssh qt@46.224.116.254 'redis-cli SAVE'
 ```
 
 ### Monthly Review
@@ -367,10 +367,10 @@ ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli SAVE'
 ssh qt@46.224.116.254 'curl -s http://localhost:8501/reports/history'
 
 # Container logs analysis
-ssh qt@46.224.116.254 'docker logs quantum_trade_journal --since 720h'
+ssh qt@46.224.116.254 'journalctl -u quantum_trade_journal.service --since 720h'
 
 # Alert history
-ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli LRANGE journal_alerts 0 -1'
+ssh qt@46.224.116.254 'redis-cli LRANGE journal_alerts 0 -1'
 ```
 
 ---
@@ -513,3 +513,4 @@ You now operate an AI system that would cost millions to build commercially. Thi
 **Completion Date:** December 20, 2025  
 **Status:** ✅ FULLY OPERATIONAL  
 **Repository:** binyaminsemerci-ops/quantum_trader  
+

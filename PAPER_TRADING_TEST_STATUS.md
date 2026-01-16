@@ -33,7 +33,7 @@ timeInForce='GTC'   # Good Till Cancel
 - Prevents losses growing beyond configured 2% stop loss
 
 ### 3. ✅ Switched to Paper Trading
-**Fil**: `docker-compose.yml`
+**Fil**: `systemctl.yml`
 
 ```yaml
 QT_PAPER_TRADING=true    # Fra false
@@ -134,7 +134,7 @@ Total P&L: -$28.66 ❌
 
 ### Check Backend Logs:
 ```bash
-docker logs quantum_backend -f
+journalctl -u quantum_backend.service -f
 ```
 
 ### Check Paper Trading Positions:
@@ -201,7 +201,7 @@ Før vi går tilbake til live trading, MUST verify:
                                'STOP_LOSS_LIMIT'] for o in orders)
    ```
 
-4. **docker-compose.yml** (Line 32-34):
+4. **systemctl.yml** (Line 32-34):
    ```yaml
    - QT_PAPER_TRADING=true      # Changed from false
    - STAGING_MODE=true           # Changed from false
@@ -265,3 +265,4 @@ Real Money Risk:   ZERO (simulator mode)
 **Next Action**: Monitor logs for AI signals and verify STOP_LOSS behavior
 
 **Last Updated**: 2025-11-20 02:27 UTC
+
