@@ -40,8 +40,9 @@ class BaseAgent:
         # Support both .pkl and .pth formats
         f=[]
         for ext in [".pkl", ".pth"]:
-            f+=[os.path.join(self.model_dir,x) for x in os.listdir(self.model_dir)
-                if x.startswith(self.prefix) and x.endswith(ext) and "_scaler" not in x and "_meta" not in x]
+            files = [os.path.join(self.model_dir,x) for x in os.listdir(self.model_dir)
+                    if x.startswith(self.prefix) and x.endswith(ext) and "_scaler" not in x and "_meta" not in x]
+            f.extend(files)
         return max(f,key=os.path.getmtime) if f else None
 
     def _load(self, model_path=None, scaler_path=None):
@@ -50,25 +51,33 @@ class BaseAgent:
         
         # Determine extension and set scaler/meta paths
         ext = os.path.splitext(model_path)[1]
-        base = model_path.replace(ext, "")
-        scaler_path = scaler_path or f"{base}_scaler.pkl"
-        meta_path   = f"{base}_meta.json"
+        base_path = model_path.replace(ext, "")
+        scaler_path = scaler_path or f"{base_path}_scaler.pkl"
+        meta_path   = f"{base_path}_meta.json"
         
         # Load model (pkl with joblib, pth with torch)
-        if ext == ".pkl":
-            self.model = joblib.load(model_path)
-        elif ext == ".pth":
-            try:
-                import torch
-                self.model = torch.load(model_path, map_location='cpu', weights_only=False)
-            except Exception as e:
-                self.logger.e(f"PyTorch load failed: {e}, trying joblib")
+        try:
+            if ext == ".pkl":
                 self.model = joblib.load(model_path)
-        else:
-            raise ValueError(f"Unknown model format: {ext}")
+            elif ext == ".pth":
+                try:
+                    import torch
+                    self.model = torch.load(model_path, map_location='cpu', weights_only=False)
+                except Exception as e:
+                    self.logger.w(f"PyTorch load failed: {e}, trying joblib")
+                    self.model = joblib.load(model_path)
+            else:
+                raise ValueError(f"Unknown model format: {ext}")
+        except Exception as e:
+            self.logger.e(f"Model load error: {e}")
+            raise
         
-        # Load scaler
-        self.scaler = joblib.load(scaler_path) if os.path.exists(scaler_path) else None
+        # Load scaler (MUST exist for sklearn models)
+        if os.path.exists(scaler_path):
+            self.scaler = joblib.load(scaler_path)
+        else:
+            self.logger.w(f"Scaler not found at {scaler_path}")
+            self.scaler = None
         
         # Load metadata
         if os.path.exists(meta_path):
