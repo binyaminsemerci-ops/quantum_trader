@@ -75,20 +75,30 @@ class TradingMathematician:
         risk_per_trade_pct: float = 0.80,  # 80% of balance per trade (AGGRESSIVE!)
         target_profit_pct: float = 0.20,    # 20% daily profit target
         min_risk_reward: float = 2.0,       # Minimum 2:1 R:R
-        max_leverage: float = 40.0,         # Max 40x leverage (testnet stable!)
+        safety_cap: float = 75.0,           # Safety cap (bug protection, not optimization)
         conservative_mode: bool = False,
     ):
         self.risk_per_trade_pct = risk_per_trade_pct
         self.target_profit_pct = target_profit_pct
         self.min_risk_reward = min_risk_reward
-        self.max_leverage = max_leverage
+        self.safety_cap = safety_cap
         self.conservative_mode = conservative_mode
+        
+        # Binance Futures leverage limits per symbol
+        self.binance_max_leverage = {
+            "BTCUSDT": 125, "ETHUSDT": 100, "BNBUSDT": 75,
+            "SOLUSDT": 75, "XRPUSDT": 75, "ADAUSDT": 75,
+            "DOGEUSDT": 75, "DOTUSDT": 75, "MATICUSDT": 75,
+            "LINKUSDT": 75, "AVAXUSDT": 75, "ATOMUSDT": 75,
+            "UNIUSDT": 50, "LTCUSDT": 75, "ETCUSDT": 75,
+            "INJUSDT": 50, "SHIBUSDT": 50, "SUIUSDT": 50,
+        }
         
         logger.info(f"🧮 Trading Mathematician initialized:")
         logger.info(f"   Risk per trade: {risk_per_trade_pct*100}%")
         logger.info(f"   Target profit: {target_profit_pct*100}%")
         logger.info(f"   Min R:R: {min_risk_reward}:1")
-        logger.info(f"   Max leverage: {max_leverage}x")
+        logger.info(f"   Kelly safety cap: {safety_cap}x")
     
     def calculate_optimal_parameters(
         self,
@@ -282,56 +292,81 @@ class TradingMathematician:
         account: AccountState,
     ) -> float:
         """
-        Calculate optimal leverage based on market conditions and performance.
+        Calculate optimal leverage using Kelly Criterion.
         
-        Key principle: Higher leverage in favorable conditions, lower in risky ones.
+        Formula: Optimal Leverage = Edge / Variance
+        - Edge = (Win_Rate × Avg_Win) - (Loss_Rate × Avg_Loss)
+        - Variance = Win_Rate × (Avg_Win)² + Loss_Rate × (Avg_Loss)²
+        
+        This maximizes long-term growth rate while accounting for risk.
         """
-        # Base leverage on performance - USE MAX_LEVERAGE SETTING!
-        if performance.total_trades < 10:
-            # Not enough history, use full max_leverage
-            base_lev = self.max_leverage  # Use configured max (10x)
-            logger.info(f"   🚀 Limited history, using MAXIMUM {self.max_leverage}x leverage")
-        else:
-            # Scale leverage with win rate and profit factor
-            if performance.win_rate > 0.6 and performance.profit_factor > 1.5:
-                base_lev = self.max_leverage  # High performance, MAX leverage!
-                logger.info(f"   🔥 Strong performance (WR={performance.win_rate*100:.0f}%, PF={performance.profit_factor:.2f}) → {self.max_leverage}x!")
-            elif performance.win_rate > 0.5:
-                base_lev = self.max_leverage  # Still good, MAX leverage!
-            elif performance.win_rate > 0.4:
-                base_lev = self.max_leverage * 0.8  # Acceptable, 80% of max
-            else:
-                base_lev = self.max_leverage * 0.6  # Poor performance, 60% of max
-                logger.warning(f"   Poor performance (WR={performance.win_rate*100:.0f}%), reducing to {base_lev:.1f}x")
+        # Minimum trades for Kelly leverage
+        if performance.total_trades < 5:
+            # Not enough history, use conservative default
+            default_lev = 10.0
+            binance_max = self.binance_max_leverage.get(market.symbol, 50)
+            safe_lev = min(default_lev, binance_max, self.safety_cap)
+            logger.info(f"   📊 Limited history ({performance.total_trades} trades), using conservative {safe_lev:.1f}x")
+            return safe_lev
+        
+        # Calculate edge and variance
+        win_rate = performance.win_rate
+        loss_rate = 1 - win_rate
+        avg_win = performance.avg_win_pct
+        avg_loss = abs(performance.avg_loss_pct)  # Make positive
+        
+        if avg_win == 0 or avg_loss == 0:
+            logger.warning("   ⚠️  Invalid avg_win/loss, using default 10x")
+            return 10.0
+        
+        # Kelly Criterion for leverage
+        edge = (win_rate * avg_win) - (loss_rate * avg_loss)
+        variance = (win_rate * (avg_win ** 2)) + (loss_rate * (avg_loss ** 2))
+        
+        if variance == 0 or edge <= 0:
+            logger.warning(f"   ⚠️  No edge detected (edge={edge:.4f}), using minimum 5x")
+            return 5.0
+        
+        # Optimal Kelly leverage
+        kelly_leverage = edge / variance
+        
+        # Use fractional Kelly (50%) for safety
+        fractional_kelly = kelly_leverage * 0.5
+        
+        logger.info(
+            f"   🎲 KELLY LEVERAGE: Edge={edge*100:.2f}%, Variance={variance*100:.2f}% → "
+            f"Full Kelly={kelly_leverage:.1f}x, Fractional (50%)={fractional_kelly:.1f}x"
+        )
         
         # Adjust for market conditions
-        if market.liquidity_score < 0.5:
-            # Low liquidity, reduce leverage
-            base_lev *= 0.7
-            logger.debug(f"   Low liquidity, reducing leverage by 30%")
+        adjusted_lev = fractional_kelly
         
         if market.daily_volatility > 0.08:  # >8% daily volatility
-            # Extreme volatility, reduce leverage
-            base_lev *= 0.8
-            logger.debug(f"   High volatility ({market.daily_volatility*100:.1f}%), reducing leverage by 20%")
+            adjusted_lev *= 0.7
+            logger.debug(f"   High volatility ({market.daily_volatility*100:.1f}%), reducing by 30%")
         
-        # Adjust for portfolio utilization
+        if market.liquidity_score < 0.5:
+            adjusted_lev *= 0.8
+            logger.debug(f"   Low liquidity, reducing by 20%")
+        
+        # Portfolio utilization adjustment
         utilization = account.open_positions / account.max_positions
         if utilization > 0.7:
-            # Portfolio getting full, reduce leverage on new positions
-            base_lev *= 0.8
+            adjusted_lev *= 0.85
             logger.debug(f"   Portfolio {utilization*100:.0f}% full, reducing leverage")
         
         # Conservative mode
         if self.conservative_mode:
-            base_lev *= 0.7
-            logger.debug(f"   Conservative mode: reducing leverage by 30%")
+            adjusted_lev *= 0.6
+            logger.debug(f"   Conservative mode: reducing by 40%")
         
-        # Bounds - USE CONFIG VALUES!
-        min_lev = self.max_leverage * 0.5  # Minimum 50% of max (5x if max=10x)
-        max_lev = self.max_leverage  # Use configured maximum
+        # Apply limits: Binance max, safety cap, minimum 5x
+        binance_max = self.binance_max_leverage.get(market.symbol, 50)
+        final_lev = max(5.0, min(adjusted_lev, binance_max, self.safety_cap))
         
-        final_lev = max(min_lev, min(max_lev, base_lev))
+        logger.info(
+            f"   ✅ FINAL LEVERAGE: {final_lev:.1f}x (Binance max={binance_max}x, Safety cap={self.safety_cap:.0f}x)"
+        )
         
         return round(final_lev, 1)
     
