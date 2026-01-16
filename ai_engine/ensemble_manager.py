@@ -253,7 +253,7 @@ class EnsembleManager:
             logger.info(f"[META] Meta-learning layer: ACTIVE (5-agent ensemble)")
         if self.governer_agent:
             logger.info(f"[GOVERNER] Risk management: ACTIVE (Kelly + Circuit Breakers)")
-        logger.info("[FIX #2] Dynamic weight loading: {'ENABLED' if self.supervisor_weights_file.exists() else 'DISABLED (using defaults)'}")
+        logger.info(f"[FIX #2] Dynamic weight loading: {{'ENABLED' if self.supervisor_weights_file.exists() else 'DISABLED (using defaults)'}}")
         if EVENTBUS_AVAILABLE:
             logger.info("[EVENTBUS] Tier 1 Core Loop: ENABLED (signals will be published to Redis)")
         else:
