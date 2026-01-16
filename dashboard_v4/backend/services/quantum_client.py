@@ -34,37 +34,21 @@ class QuantumServicesClient:
             logger.warning(f"⚠️ Redis connection failed: {e}")
             self.redis_client = None
         
-        # Use container names for Docker inter-container communication
-        # Falls back to host.docker.internal for non-Docker environments
-        service_host = os.getenv('QUANTUM_SERVICES_HOST', 'host.docker.internal')
+        # Use localhost for systemd services or configured host
+        service_host = os.getenv('QUANTUM_SERVICES_HOST', 'localhost')
         
-        # Map services to their container names (for Docker) or localhost (for dev)
-        if service_host == 'host.docker.internal':
-            # Production: Use container names for same-network communication
-            self.SERVICES = {
-                'portfolio': 'http://quantum_portfolio_intelligence:8004',
-                'trading': 'http://quantum_trading_bot:8003',
-                'ai_engine': 'http://quantum_ai_engine:8001',
-                'risk': 'http://quantum_risk_brain:8012',
-                'strategy': 'http://quantum_strategy_brain:8011',
-                'ceo': 'http://quantum_ceo_brain:8010',
-                'model_supervisor': 'http://quantum_model_supervisor:8007',
-                'universe': 'http://quantum_universe_os:8006',
-                'backend': 'http://quantum_backend:8000'
-            }
-        else:
-            # Development: Use configured host
-            self.SERVICES = {
-                'portfolio': f'http://{service_host}:8004',
-                'trading': f'http://{service_host}:8003',
-                'ai_engine': f'http://{service_host}:8001',
-                'risk': f'http://{service_host}:8012',
-                'strategy': f'http://{service_host}:8011',
-                'ceo': f'http://{service_host}:8010',
-                'model_supervisor': f'http://{service_host}:8007',
-                'universe': f'http://{service_host}:8006',
-                'backend': f'http://{service_host}:8000'
-            }
+        # Map services to their ports
+        self.SERVICES = {
+            'portfolio': f'http://{service_host}:8004',
+            'trading': f'http://{service_host}:8003',
+            'ai_engine': f'http://{service_host}:8001',
+            'risk': f'http://{service_host}:8012',
+            'strategy': f'http://{service_host}:8011',
+            'ceo': f'http://{service_host}:8010',
+            'model_supervisor': f'http://{service_host}:8007',
+            'universe': f'http://{service_host}:8006',
+            'backend': f'http://{service_host}:8000'
+        }
     
     async def _get(self, service: str, endpoint: str) -> Optional[Dict[Any, Any]]:
         """Make GET request to a service"""

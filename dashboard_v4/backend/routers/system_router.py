@@ -36,15 +36,12 @@ def log_event(db: Session, event: str, cpu: float, ram: float, disk: float = Non
 
 
 def get_system_metrics():
-    """Get current system hardware metrics
-    
-    Note: Root disk shows 100% (OS files), but Docker has 110GB separate volume with 102GB free!
-    """
+    """Get current system hardware metrics"""
     try:
         cpu = psutil.cpu_percent(interval=1)
         ram = psutil.virtual_memory().percent
         
-        # Root disk (OS) - Will show 100% but that's OK
+        # Root disk (OS)
         root_disk = psutil.disk_usage('/')
         root_percent = root_disk.percent
         
@@ -53,11 +50,10 @@ def get_system_metrics():
         metrics = {
             "cpu": round(cpu, 1),
             "ram": round(ram, 1),
-            "disk": round(root_percent, 1),  # Root for backward compatibility
-            "disk_note": "Root FS (OS only)",
-            "docker_storage": "Separate 110GB volume",
-            "docker_available_gb": 102,  # Verified via host: df -h shows 102GB free
-            "storage_status": "🎉 102GB FREE on Docker volume!",
+            "disk": round(root_percent, 1),
+            "disk_note": "Root filesystem",
+            "disk_available_gb": round(root_disk.free / (1024**3), 1),
+            "storage_status": f"{round(root_disk.free / (1024**3), 0)}GB FREE",
             "uptime_sec": int(uptime),
             "uptime_hours": round(uptime / 3600, 1)
         }
@@ -68,57 +64,57 @@ def get_system_metrics():
         return {"cpu": 0.0, "ram": 0.0, "disk": 0.0, "uptime_sec": 0, "uptime_hours": 0.0, "error": str(e)}
 
 
-def get_container_status():
-    """Get Docker container status using docker ps command
+def get_service_status():
+    """Get systemd service status using systemctl
     
-    Dashboard backend now has docker.sock mounted for direct container access.
+    Checks status of all quantum-*.service units.
     """
     try:
         import subprocess
         import json
         
-        # Use docker ps with JSON format
+        # Use systemctl to list all quantum services
         result = subprocess.run(
-            ["docker", "ps", "--format", "{{json .}}"],
+            ["systemctl", "list-units", "quantum-*.service", "--output=json", "--no-pager"],
             capture_output=True,
             text=True,
             timeout=5
         )
         
-        containers = {}
+        services = {}
         if result.returncode == 0:
-            for line in result.stdout.strip().split('\n'):
-                if line:
-                    try:
-                        container_info = json.loads(line)
-                        name = container_info.get('Names', 'unknown')
-                        status = container_info.get('Status', 'unknown')
-                        # Only include quantum_* containers
-                        if name.startswith('quantum_'):
-                            containers[name] = status
-                    except json.JSONDecodeError:
-                        pass
+            try:
+                units = json.loads(result.stdout)
+                for unit in units:
+                    name = unit.get('unit', 'unknown')
+                    active = unit.get('active', 'unknown')
+                    sub = unit.get('sub', 'unknown')
+                    description = unit.get('description', '')
+                    # Format status like Docker uptime
+                    services[name] = f"{active}/{sub}: {description}"
+            except json.JSONDecodeError:
+                pass
         
-        # If docker ps failed or no containers found, try redis fallback
-        if not containers:
+        # If systemctl failed or no services found, try redis fallback
+        if not services:
             # Count active stream keys as proxy for active services
             stream_keys = r.keys("quantum:stream:*")
             if stream_keys:
-                # Estimate ~24 services running
+                # Estimate services running
                 return {"estimated_active_services": len(stream_keys) // 2}
         
-        return containers
+        return services
     except Exception as e:
-        print(f"⚠️ Failed to get container status from Redis: {e}")
+        print(f"⚠️ Failed to get service status from systemctl: {e}")
         # Return estimate based on typical deployment
-        return {"redis_unavailable": "Estimating 24 containers based on typical deployment"}
+        return {"systemctl_unavailable": "Estimating 30 services based on typical deployment"}
 
 
 @router.get("/health")
 def system_health(db: Session = Depends(get_db)):
     """Get current system health metrics - Public endpoint"""
     metrics = get_system_metrics()
-    containers = get_container_status()
+    services = get_service_status()
     
     cpu = metrics.get("cpu", 0)
     ram = metrics.get("ram", 0)
@@ -135,14 +131,14 @@ def system_health(db: Session = Depends(get_db)):
     
     log_event(db, "health_check", cpu, ram, metrics.get("disk", 0), f"Status: {health_status}", severity)
     
-    # Count containers - if empty dict, estimate based on Docker ps count from host
-    container_count = len(containers) if containers else 24  # Default estimate
+    # Count services - if empty dict, estimate based on typical deployment
+    service_count = len(services) if services else 30  # Default estimate
     
     return {
         "status": health_status,
         "metrics": metrics,
-        "containers": containers,
-        "container_count": container_count,
+        "services": services,  # Changed from "containers"
+        "service_count": service_count,  # Changed from "container_count"
         "timestamp": datetime.utcnow().isoformat()
     }
 
