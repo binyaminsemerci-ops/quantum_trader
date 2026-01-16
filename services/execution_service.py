@@ -3,8 +3,8 @@
 Execution Service - Paper-mode trade execution
 ===============================================
 Port: 8002
-Subscribes: trade.signal.safe
-Publishes: trade.execution.res
+Subscribes: trade.intent
+Publishes: trade.execution.result
 
 Simulates order execution with:
 - Virtual order book
@@ -295,11 +295,11 @@ async def execute_order(signal: RiskApprovedSignal):
 
 
 async def order_consumer():
-    """Background task: consume approved orders from trade.signal.safe"""
+    """Background task: consume approved orders from trade.intent"""
     logger.info("🚀 Starting order consumer...")
     
     try:
-        async for signal_data in eventbus.subscribe("trade.signal.safe"):
+        async for signal_data in eventbus.subscribe("trade.intent"):
             # Remove EventBus metadata
             signal_data = {k: v for k, v in signal_data.items() if not k.startswith('_')}
             # Parse signal
