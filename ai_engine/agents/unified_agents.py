@@ -101,7 +101,7 @@ class BaseAgent:
 
 # ---------- XGBOOST ----------
 class XGBoostAgent(BaseAgent):
-    def __init__(self): super().__init__("XGB-Agent","xgb_v"); self._load()
+    def __init__(self): super().__init__("XGB-Agent","xgboost_v"); self._load()
     def predict(self,sym,feat):
         df=self._align(feat); X=self.scaler.transform(df)
         p=self.model.predict_proba(X); i=int(np.argmax(p,axis=1)[0])
