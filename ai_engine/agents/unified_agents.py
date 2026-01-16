@@ -37,8 +37,11 @@ class BaseAgent:
         else:
             # Try to resolve from __file__, but fallback to absolute path
             try:
-                base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                self.model_dir = os.path.join(base, "models")
+                # Go up 3 levels: unified_agents.py -> agents -> ai_engine -> quantum_trader
+                agents_dir = os.path.dirname(os.path.abspath(__file__))
+                ai_engine_dir = os.path.dirname(agents_dir)
+                project_root = os.path.dirname(ai_engine_dir)
+                self.model_dir = os.path.join(project_root, "models")
             except:
                 # Fallback to hardcoded path for systemd services
                 self.model_dir = "/home/qt/quantum_trader/models"
