@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-Execution Service - Paper-mode trade execution
-===============================================
+Execution Service - REAL Binance Futures Execution
+==================================================
 Port: 8002
 Subscribes: trade.intent
 Publishes: trade.execution.result
 
-Simulates order execution with:
-- Virtual order book
-- Slippage simulation (0.05% avg)
-- Fee calculation (0.04% taker fee)
-- Order ID generation
+Executes REAL orders on Binance Futures Testnet:
+- MARKET orders
+- Stop Loss orders (STOP_MARKET)
+- Take Profit orders (TAKE_PROFIT_MARKET)
+- Real slippage, fees, and order IDs from Binance
 
 Author: Quantum Trader Team
-Date: 2026-01-12
+Date: 2026-01-16
 """
 import os
 import sys
@@ -31,10 +31,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
+from binance.client import Client
+from binance.exceptions import BinanceAPIException
 
 from ai_engine.services.eventbus_bridge import (
     EventBusClient,
     RiskApprovedSignal,
+    TradeIntent,
     ExecutionResult
 )
 
@@ -48,6 +51,163 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# BINANCE CLIENT SETUP
+# ============================================================================
+
+# Load Binance credentials from environment
+print("DEBUG: Loading Binance credentials from environment...")
+BINANCE_API_KEY = os.getenv("BINANCE_TESTNET_API_KEY", "")
+BINANCE_API_SECRET = os.getenv("BINANCE_TESTNET_SECRET_KEY", "")
+
+print(f"DEBUG: API Key loaded: {BINANCE_API_KEY[:20] if BINANCE_API_KEY else 'MISSING'}...")
+print(f"DEBUG: Secret loaded: {BINANCE_API_SECRET[:20] if BINANCE_API_SECRET else 'MISSING'}...")
+
+if not BINANCE_API_KEY or not BINANCE_API_SECRET:
+    print("ERROR: BINANCE CREDENTIALS MISSING!")
+    logger.error("❌ BINANCE_TESTNET_API_KEY or BINANCE_TESTNET_SECRET_KEY not set!")
+    logger.error("Please set environment variables before starting.")
+    sys.exit(1)
+
+# Initialize Binance Futures Testnet client
+print("DEBUG: Initializing Binance client...")
+binance_client = Client(BINANCE_API_KEY, BINANCE_API_SECRET, testnet=True)
+binance_client.FUTURES_URL = "https://testnet.binancefuture.com"
+print("DEBUG: Binance client created")
+
+logger.info("✅ Binance Futures Testnet client initialized")
+logger.info(f"API Key: {BINANCE_API_KEY[:20]}...")
+
+# Test connection
+print("DEBUG: Testing Binance connection...")
+try:
+    account = binance_client.futures_account()
+    balance = float(account["totalWalletBalance"])
+    can_trade = account["canTrade"]
+    print(f"DEBUG: Binance connected! Balance: {balance:.2f} USDT")
+    logger.info(f"✅ Connected to Binance! Balance: {balance:.2f} USDT | Can Trade: {can_trade}")
+except Exception as e:
+    print(f"ERROR: Binance connection failed: {e}")
+    logger.error(f"❌ Failed to connect to Binance: {e}")
+    sys.exit(1)
+
+# Fetch symbol precision info
+logger.info("📊 Fetching symbol precision from Binance...")
+SYMBOL_PRECISION = {}
+try:
+    exchange_info = binance_client.futures_exchange_info()
+    for s in exchange_info["symbols"]:
+        symbol = s["symbol"]
+        qty_precision = s["quantityPrecision"]
+        price_precision = s["pricePrecision"]
+        
+        # Find LOT_SIZE and PRICE_FILTER
+        step_size = None
+        min_qty = None
+        max_qty = None
+        tick_size = None
+        
+        for f in s["filters"]:
+            if f["filterType"] == "LOT_SIZE":
+                step_size = float(f["stepSize"])
+                min_qty = float(f["minQty"])
+                max_qty = float(f["maxQty"])
+            elif f["filterType"] == "PRICE_FILTER":
+                tick_size = float(f["tickSize"])
+        
+        SYMBOL_PRECISION[symbol] = {
+            "quantityPrecision": qty_precision,
+            "pricePrecision": price_precision,
+            "stepSize": step_size,
+            "minQty": min_qty,
+            "maxQty": max_qty,
+            "tickSize": tick_size
+        }
+    
+    logger.info(f"✅ Loaded precision for {len(SYMBOL_PRECISION)} symbols")
+except Exception as e:
+    logger.error(f"❌ Failed to load symbol precision: {e}")
+    SYMBOL_PRECISION = {}
+
+
+def round_quantity(symbol: str, quantity: float) -> float:
+    """
+    Round quantity to comply with Binance LOT_SIZE stepSize.
+    
+    Args:
+        symbol: Trading pair (e.g., "BTCUSDT")
+        quantity: Raw quantity to round
+        
+    Returns:
+        Rounded quantity that complies with exchange rules
+    """
+    if symbol not in SYMBOL_PRECISION:
+        logger.warning(f"⚠️ No precision info for {symbol}, using default rounding")
+        return round(quantity, 3)
+    
+    step_size = SYMBOL_PRECISION[symbol]["stepSize"]
+    if step_size is None:
+        return round(quantity, 3)
+    
+    # Round down to nearest stepSize multiple
+    precision = len(str(step_size).rstrip('0').split('.')[-1])
+    rounded = (quantity // step_size) * step_size
+    return round(rounded, precision)
+
+
+def round_price(symbol: str, price: float) -> float:
+    """
+    Round price to comply with Binance PRICE_FILTER tickSize.
+    
+    Args:
+        symbol: Trading pair (e.g., "BTCUSDT")
+        price: Raw price to round
+        
+    Returns:
+        Rounded price that complies with exchange rules
+    """
+    if symbol not in SYMBOL_PRECISION:
+        logger.warning(f"⚠️ No precision info for {symbol}, using default price rounding")
+        return round(price, 2)
+    
+    tick_size = SYMBOL_PRECISION[symbol]["tickSize"]
+    if tick_size is None:
+        return round(price, 2)
+    
+    # Round to nearest tickSize multiple
+    precision = len(str(tick_size).rstrip('0').split('.')[-1])
+    rounded = round(price / tick_size) * tick_size
+    return round(rounded, precision)
+
+
+def validate_quantity(symbol: str, quantity: float) -> tuple[bool, str]:
+    """
+    Validate if quantity meets Binance minimum requirements.
+    
+    Args:
+        symbol: Trading pair (e.g., "BTCUSDT")
+        quantity: Quantity to validate
+        
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if symbol not in SYMBOL_PRECISION:
+        return True, ""
+    
+    min_qty = SYMBOL_PRECISION[symbol]["minQty"]
+    max_qty = SYMBOL_PRECISION[symbol]["maxQty"]
+    
+    if min_qty and quantity < min_qty:
+        return False, f"Quantity {quantity} is below minimum {min_qty} for {symbol}"
+    
+    if max_qty and quantity > max_qty:
+        return False, f"Quantity {quantity} exceeds maximum {max_qty} for {symbol}"
+    
+    if quantity <= 0:
+        return False, f"Quantity must be greater than 0 (got {quantity})"
+    
+    return True, ""
 
 # ============================================================================
 # FASTAPI APP
@@ -290,21 +450,200 @@ async def execute_order(signal: RiskApprovedSignal):
         )
     
     except Exception as e:
+        logger.error(f"❌ execute_order error: {e}", exc_info=True)
+        stats["orders_rejected"] += 1
+
+
+async def execute_order_from_intent(intent: TradeIntent):
+    """
+    Execute REAL trade order on Binance Futures Testnet
+    
+    1. Calculate quantity from position size and price
+    2. Set leverage
+    3. Place MARKET order on Binance
+    4. Place STOP_MARKET order (Stop Loss)
+    5. Place TAKE_PROFIT_MARKET order (Take Profit)
+    6. Publish execution result
+    """
+    global stats
+    
+    try:
+        stats["orders_received"] += 1
+        stats["last_order_time"] = datetime.utcnow().isoformat()
+        
+        logger.info(
+            f"📥 TradeIntent received: {intent.symbol} {intent.side} "
+            f"${intent.position_size_usd:.2f} @ ${intent.entry_price:.4f} "
+            f"| Confidence={intent.confidence:.2%} | Leverage={intent.leverage}x"
+        )
+        
+        # 1. Set leverage for symbol
+        try:
+            binance_client.futures_change_leverage(
+                symbol=intent.symbol,
+                leverage=int(intent.leverage)
+            )
+            logger.info(f"✅ Leverage set to {intent.leverage}x for {intent.symbol}")
+        except BinanceAPIException as e:
+            logger.warning(f"⚠️ Could not set leverage (may already be set): {e}")
+        
+        # 2. Calculate quantity
+        # quantity = position_size_usd / entry_price
+        quantity = intent.position_size_usd / intent.entry_price
+        
+        # Round to Binance LOT_SIZE stepSize precision
+        quantity = round_quantity(intent.symbol, quantity)
+        
+        # Validate quantity meets minimum requirements
+        is_valid, error_msg = validate_quantity(intent.symbol, quantity)
+        if not is_valid:
+            logger.error(f"❌ {error_msg}")
+            result = ExecutionResult(
+                symbol=intent.symbol,
+                action=intent.side,
+                entry_price=intent.entry_price,
+                position_size_usd=0.0,
+                leverage=intent.leverage,
+                timestamp=datetime.utcnow().isoformat() + "Z",
+                order_id="REJECTED",
+                status="rejected",
+                slippage_pct=0.0,
+                fee_usd=0.0
+            )
+            await eventbus.publish_execution(result)
+            return
+        
+        logger.info(f"📊 Calculated quantity: {quantity} {intent.symbol} (after precision rounding)")
+        
+        # 3. Place MARKET order
+        side_binance = "BUY" if intent.side.upper() == "BUY" else "SELL"
+        
+        logger.info(f"🚀 Placing MARKET order: {side_binance} {quantity} {intent.symbol}")
+        
+        market_order = binance_client.futures_create_order(
+            symbol=intent.symbol,
+            side=side_binance,
+            type="MARKET",
+            quantity=quantity
+        )
+        
+        # Debug: Log full response
+        logger.info(f"🔍 Binance response: orderId={market_order.get('orderId')}, "
+                   f"status={market_order.get('status')}, "
+                   f"executedQty={market_order.get('executedQty')}, "
+                   f"cumQuote={market_order.get('cumQuote')}, "
+                   f"avgPrice={market_order.get('avgPrice')}")
+        
+        order_id = str(market_order["orderId"])
+        execution_price = float(market_order["avgPrice"]) if "avgPrice" in market_order else intent.entry_price
+        actual_qty = float(market_order["executedQty"])
+        
+        logger.info(
+            f"✅ BINANCE MARKET ORDER FILLED: {intent.symbol} {intent.side} | "
+            f"OrderID={order_id} | "
+            f"Price=${execution_price:.4f} | "
+            f"Qty={actual_qty}"
+        )
+        
+        # 4. Place Stop Loss order (STOP_MARKET)
+        if intent.stop_loss:
+            try:
+                sl_side = "SELL" if side_binance == "BUY" else "BUY"  # Opposite side
+                sl_price = round_price(intent.symbol, intent.stop_loss)
+                sl_order = binance_client.futures_create_order(
+                    symbol=intent.symbol,
+                    side=sl_side,
+                    type="STOP_MARKET",
+                    quantity=quantity,  # Use original quantity, not actual_qty (may be 0 on testnet)
+                    stopPrice=sl_price,
+                    reduceOnly=True
+                )
+                sl_order_id = sl_order.get('orderId', 'N/A')
+                logger.info(f"✅ Stop Loss set at ${sl_price:.4f} (OrderID={sl_order_id})")
+            except BinanceAPIException as e:
+                logger.error(f"❌ Failed to place Stop Loss: {e}")
+        
+        # 5. Place Take Profit order (TAKE_PROFIT_MARKET)
+        if intent.take_profit:
+            try:
+                tp_side = "SELL" if side_binance == "BUY" else "BUY"  # Opposite side
+                tp_price = round_price(intent.symbol, intent.take_profit)
+                tp_order = binance_client.futures_create_order(
+                    symbol=intent.symbol,
+                    side=tp_side,
+                    type="TAKE_PROFIT_MARKET",
+                    quantity=quantity,  # Use original quantity, not actual_qty (may be 0 on testnet)
+                    stopPrice=tp_price,
+                    reduceOnly=True
+                )
+                tp_order_id = tp_order.get('orderId', 'N/A')
+                logger.info(f"✅ Take Profit set at ${tp_price:.4f} (OrderID={tp_order_id})")
+            except BinanceAPIException as e:
+                logger.error(f"❌ Failed to place Take Profit: {e}")
+        
+        # 6. Calculate real fee from Binance (commission)
+        fee_usd = 0.0
+        if "fills" in market_order:
+            for fill in market_order["fills"]:
+                if fill.get("commissionAsset") == "USDT":
+                    fee_usd += float(fill["commission"])
+        
+        # 7. Create execution result
+        result = ExecutionResult(
+            symbol=intent.symbol,
+            action=intent.side,
+            entry_price=execution_price,
+            position_size_usd=execution_price * actual_qty,
+            leverage=intent.leverage,
+            timestamp=datetime.utcnow().isoformat() + "Z",
+            order_id=order_id,  # REAL Binance order ID!
+            status="filled",
+            slippage_pct=0.0,  # TODO: Calculate from intent.entry_price vs execution_price
+            fee_usd=fee_usd
+        )
+        
+        # 8. Publish result to Redis
+        await eventbus.publish_execution(result)
+        
+        # 9. Update stats
+        stats["orders_filled"] += 1
+        stats["total_volume_usd"] += result.position_size_usd
+        stats["total_fees_usd"] += fee_usd
+        
+        logger.info(
+            f"✅ FILLED: {intent.symbol} {intent.side} | "
+            f"Entry=${intent.entry_price:.4f} | "
+            f"Filled=${execution_price:.4f} | "
+            f"Size=${result.position_size_usd:.2f} | "
+            f"Leverage={intent.leverage}x | "
+            f"SL=${intent.stop_loss:.4f} | "
+            f"TP=${intent.take_profit:.4f} | "
+            f"Fee=${fee_usd:.4f} | "
+            f"Order={order_id}"
+        )
+    
+    except BinanceAPIException as e:
+        logger.error(f"❌ Binance API error: {e}")
+        stats["orders_rejected"] += 1
+    except Exception as e:
         logger.error(f"❌ Execution error: {e}", exc_info=True)
         stats["orders_rejected"] += 1
 
 
 async def order_consumer():
-    """Background task: consume approved orders from trade.intent"""
+    """Background task: consume approved orders from quantum:stream:trade.intent"""
     logger.info("🚀 Starting order consumer...")
     
     try:
-        async for signal_data in eventbus.subscribe("trade.intent"):
+        async for signal_data in eventbus.subscribe("quantum:stream:trade.intent"):
             # Remove EventBus metadata
             signal_data = {k: v for k, v in signal_data.items() if not k.startswith('_')}
-            # Parse signal
-            signal = RiskApprovedSignal(**signal_data)
-            await execute_order(signal)
+            
+            # Parse as TradeIntent (AI Engine schema)
+            intent = TradeIntent(**signal_data)
+            
+            # Execute the trade
+            await execute_order_from_intent(intent)
     except asyncio.CancelledError:
         logger.info("🛑 Order consumer cancelled")
     except Exception as e:
