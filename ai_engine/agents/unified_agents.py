@@ -58,16 +58,44 @@ class BaseAgent:
         # Load model (pkl with joblib, pth with torch)
         try:
             if ext == ".pkl":
-                self.model = joblib.load(model_path)
+                loaded = joblib.load(model_path)
+                # FIX: Check if loaded object is a dict (checkpoint) or direct model
+                if isinstance(loaded, dict):
+                    if 'model_state_dict' in loaded:
+                        # PyTorch checkpoint saved as .pkl - reload with torch
+                        self.logger.w(f"Found PyTorch checkpoint in .pkl format, skipping (needs .pth loader)")
+                        self.model = None
+                    elif 'model' in loaded:
+                        # Dict with 'model' key
+                        self.model = loaded['model']
+                    else:
+                        # Unknown dict format
+                        self.logger.e(f"Loaded dict without 'model' key: {list(loaded.keys())}")
+                        self.model = None
+                else:
+                    # Direct model object
+                    self.model = loaded
+                    
             elif ext == ".pth":
                 try:
                     import torch
-                    self.model = torch.load(model_path, map_location='cpu', weights_only=False)
+                    loaded = torch.load(model_path, map_location='cpu', weights_only=False)
+                    # Check if it's a checkpoint dict or direct model
+                    if isinstance(loaded, dict) and 'model_state_dict' in loaded:
+                        # Need to reconstruct model architecture - NOT SUPPORTED HERE
+                        self.logger.e(f"PyTorch checkpoint requires model architecture reconstruction")
+                        self.model = None
+                    else:
+                        self.model = loaded
                 except Exception as e:
                     self.logger.w(f"PyTorch load failed: {e}, trying joblib")
                     self.model = joblib.load(model_path)
             else:
                 raise ValueError(f"Unknown model format: {ext}")
+                
+            if self.model is None:
+                raise ValueError(f"Model loaded but is None or unsupported format")
+                
         except Exception as e:
             self.logger.e(f"Model load error: {e}")
             raise
@@ -88,7 +116,7 @@ class BaseAgent:
             self.features=[f"f{i}" for i in range(self.scaler.n_features_in_ if self.scaler else 14)]
         
         self.ready=True
-        self.logger.i(f"✅ Loaded {os.path.basename(model_path)} ({len(self.features)} features)")
+        self.logger.i(f"✅ Loaded {os.path.basename(model_path)} (model={type(self.model).__name__}, features={len(self.features)})")
 
     def _align(self, feats:dict):
         df=pd.DataFrame([feats])
