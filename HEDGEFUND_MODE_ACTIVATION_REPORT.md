@@ -299,7 +299,7 @@ QT_MAX_POSITIONS=4  # Base capacity (scaled by risk mode)
 **Check Current Risk Mode**:
 ```bash
 # Look for AI-HFOS logs
-docker logs quantum_backend | grep "Risk Mode:"
+journalctl -u quantum_backend.service | grep "Risk Mode:"
 
 # Expected output:
 [AI-HFOS] 🚀 AGGRESSIVE MODE: Optimal conditions (DD=0.5%, Positions=3)
@@ -308,7 +308,7 @@ docker logs quantum_backend | grep "Risk Mode:"
 **Check SafetyGovernor Status**:
 ```bash
 # Look for SafetyGovernor logs
-docker logs quantum_backend | grep "SafetyGovernor"
+journalctl -u quantum_backend.service | grep "SafetyGovernor"
 
 # Expected output:
 🛡️ [SafetyGovernor] Safety Level: NORMAL (1.0x multiplier)
@@ -318,7 +318,7 @@ docker logs quantum_backend | grep "SafetyGovernor"
 **Check PAL Activity**:
 ```bash
 # Look for PAL logs
-docker logs quantum_backend | grep "PAL"
+journalctl -u quantum_backend.service | grep "PAL"
 
 # Expected output:
 💰 [PAL] Found 2 amplification opportunities
@@ -379,3 +379,4 @@ docker logs quantum_backend | grep "PAL"
 **Generated**: 2025-01-XX  
 **Version**: 1.0  
 **Maintainer**: AI Agent (GitHub Copilot)
+

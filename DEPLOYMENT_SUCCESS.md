@@ -42,7 +42,7 @@ python quick_monitor.py
 python monitor_hybrid.py -i 5
 
 # Live logs
-docker logs quantum_backend --follow
+journalctl -u quantum_backend.service --follow
 ```
 
 ### Sjekk Status
@@ -54,7 +54,7 @@ curl http://localhost:8000/health
 curl http://localhost:8000/api/futures_positions
 
 # Siste signaler
-docker logs quantum_backend --tail 50 | Select-String "high-confidence"
+journalctl -u quantum_backend.service --tail 50 | Select-String "high-confidence"
 ```
 
 ---
@@ -94,9 +94,9 @@ QT_EVENT_DRIVEN_MODE: true          # Continuous scanning
 ```
 
 ### For å Endre
-1. Rediger `docker-compose.yml`
-2. Restart: `docker-compose restart backend`
-3. Verifiser: `docker logs quantum_backend --tail 20`
+1. Rediger `systemctl.yml`
+2. Restart: `systemctl restart backend`
+3. Verifiser: `journalctl -u quantum_backend.service --tail 20`
 
 ---
 
@@ -166,22 +166,22 @@ QT_EVENT_DRIVEN_MODE: true          # Continuous scanning
 ### Filer å Sjekke
 - `TEST_SUCCESS_REPORT.md` - Detaljert test-rapport
 - `SYSTEM_IDLE_ANALYSIS.md` - Root cause analyse
-- `docker-compose.yml` - Konfigurasjon
+- `systemctl.yml` - Konfigurasjon
 - `ai_engine/agents/hybrid_agent.py` - Hybrid agent kode
 
 ### Logs
 ```powershell
 # Full backend log
-docker logs quantum_backend
+journalctl -u quantum_backend.service
 
 # Siste 100 linjer
-docker logs quantum_backend --tail 100
+journalctl -u quantum_backend.service --tail 100
 
 # Live streaming
-docker logs quantum_backend --follow
+journalctl -u quantum_backend.service --follow
 
 # Siste 5 minutter
-docker logs quantum_backend --since 5m
+journalctl -u quantum_backend.service --since 5m
 ```
 
 ### Health Endpoints
@@ -207,3 +207,4 @@ Systemet genererer AI-baserte trading-signaler og plasserer paper trades automat
 **System Uptime:** ~8 minutter siden threshold-endring  
 **First Trade:** 18:20:28 (paper)  
 **Current Status:** 🟢 RUNNING
+

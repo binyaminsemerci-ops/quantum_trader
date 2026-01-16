@@ -95,22 +95,22 @@ DEFENSIVE_TRAIL:
 
 ### Check Current Exit Mode:
 ```powershell
-docker logs quantum_backend | Select-String "exit_mode" | Select-Object -Last 5
+journalctl -u quantum_backend.service | Select-String "exit_mode" | Select-Object -Last 5
 ```
 
 ### Monitor Exit Mode Changes:
 ```powershell
-docker logs quantum_backend -f | Select-String "Exit Mode|exit_mode"
+journalctl -u quantum_backend.service -f | Select-String "Exit Mode|exit_mode"
 ```
 
 ### Watch Policy Updates:
 ```powershell
-docker logs quantum_backend -f | Select-String "POLICY UPDATE"
+journalctl -u quantum_backend.service -f | Select-String "POLICY UPDATE"
 ```
 
 ### See Exit Levels Calculation:
 ```powershell
-docker logs quantum_backend -f | Select-String "Exit Levels"
+journalctl -u quantum_backend.service -f | Select-String "Exit Levels"
 ```
 
 ---
@@ -201,3 +201,4 @@ The system now intelligently selects:
 ---
 
 **Full Documentation:** `LIVE_MODE_STEP3_EXIT_MODE_OVERRIDE.md`
+

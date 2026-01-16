@@ -37,7 +37,7 @@ This aligns with the existing dashboard configuration where:
 
 ## 📝 Updated Files
 
-### 1. docker-compose.quantumfond.yml
+### 1. systemctl.quantumfond.yml
 ```yaml
 services:
   backend:
@@ -103,7 +103,7 @@ wsl rsync -avz --exclude='node_modules' --exclude='dist' \
   root@46.224.116.254:/opt/quantumfond/quantumfond_frontend/
 
 wsl scp -i ~/.ssh/hetzner_fresh \
-  /mnt/c/quantum_trader/docker-compose.quantumfond.yml \
+  /mnt/c/quantum_trader/systemctl.quantumfond.yml \
   root@46.224.116.254:/opt/quantumfond/
 
 wsl scp -i ~/.ssh/hetzner_fresh \
@@ -113,9 +113,9 @@ wsl scp -i ~/.ssh/hetzner_fresh \
 # Rebuild and restart
 wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 '
   cd /opt/quantumfond && \
-  docker-compose -f docker-compose.quantumfond.yml down && \
-  docker-compose -f docker-compose.quantumfond.yml build && \
-  docker-compose -f docker-compose.quantumfond.yml up -d
+  systemctl -f systemctl.quantumfond.yml down && \
+  systemctl -f systemctl.quantumfond.yml build && \
+  systemctl -f systemctl.quantumfond.yml up -d
 '
 ```
 
@@ -235,10 +235,10 @@ docker stop <container_name>
 ### Backend Not Responding on 8025
 ```bash
 # Check container logs
-docker logs quantumfond_backend
+journalctl -u quantumfond_backend.service
 
 # Verify port mapping
-docker ps --format "table {{.Names}}\t{{.Ports}}"
+systemctl list-units --format "table {{.Names}}\t{{.Ports}}"
 
 # Test internal container
 docker exec quantumfond_backend curl localhost:8025/health
@@ -247,7 +247,7 @@ docker exec quantumfond_backend curl localhost:8025/health
 ### Frontend Not Accessible on 3000
 ```bash
 # Check container logs
-docker logs quantumfond_frontend
+journalctl -u quantumfond_frontend.service
 
 # Verify nginx is proxying correctly
 curl -v http://localhost:3000
@@ -258,3 +258,4 @@ curl -v http://localhost:3000
 >>> **QuantumFond now aligned with quantum_trader port configuration** <<<
 
 Ready for production deployment with SSL on quantumfond.com domains! 🚀
+

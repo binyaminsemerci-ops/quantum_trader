@@ -84,7 +84,7 @@ class RedisConnectionManager:
 - Increased retries from 3 to 5
 - Increased start_period from default to 60s (give services time to boot)
 
-**Files:** `docker-compose.vps.yml`
+**Files:** `systemctl.vps.yml`
 
 **Changes:**
 
@@ -129,7 +129,7 @@ healthcheck:
 ### Step 1: Commit Changes ✅ DONE
 ```bash
 git add microservices/data_collector/exchange_stream_bridge.py
-git add docker-compose.vps.yml
+git add systemctl.vps.yml
 git commit -m "Fix: P0 stability issues - cross-exchange crash + brain health checks"
 git push origin main
 ```
@@ -140,22 +140,22 @@ git push origin main
 wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 'cd /home/qt/quantum_trader && git pull origin main'
 
 # Rebuild affected services
-wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 'cd /home/qt/quantum_trader && docker compose -f docker-compose.vps.yml build cross-exchange'
+wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 'cd /home/qt/quantum_trader && docker compose -f systemctl.vps.yml build cross-exchange'
 
 # Restart services
-wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 'cd /home/qt/quantum_trader && docker compose -f docker-compose.vps.yml up -d cross-exchange'
+wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 'cd /home/qt/quantum_trader && docker compose -f systemctl.vps.yml up -d cross-exchange'
 ```
 
 ### Step 3: Verify ✅ SUCCESS
 ```bash
 # Check container status
-wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 'docker ps --filter name=cross_exchange'
+wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 'systemctl list-units --filter name=cross_exchange'
 
 # RESULT:
 # quantum_cross_exchange    Up 50 seconds (healthy) ✅
 
 # Check logs
-wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 'docker logs quantum_cross_exchange --tail 30'
+wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 'journalctl -u quantum_cross_exchange.service --tail 30'
 
 # RESULT:
 # INFO: ✅ Connected to Redis via RedisConnectionManager
@@ -286,4 +286,5 @@ quantum_cross_exchange   Up 6 minutes (healthy)
 **Time to fix:** ~15 minutes  
 **Lines changed:** ~50 lines across 2 files  
 **Impact:** 🚀 UNBLOCKED GO-LIVE DECISION
+
 

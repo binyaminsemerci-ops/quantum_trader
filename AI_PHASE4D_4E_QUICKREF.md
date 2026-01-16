@@ -26,7 +26,7 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 \
 
 # Check weights
 ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 \
-  'docker logs quantum_ai_engine --tail 50 | grep "Adjusted weights"'
+  'journalctl -u quantum_ai_engine.service --tail 50 | grep "Adjusted weights"'
 ```
 
 ## 🧪 Testing Commands
@@ -68,21 +68,21 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 \
 ```bash
 # Check ensemble is loaded
 ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 \
-  'docker logs quantum_ai_engine | grep "Ensemble loaded"'
+  'journalctl -u quantum_ai_engine.service | grep "Ensemble loaded"'
 ```
 
 ### Issue: Governance not running
 ```bash
 # Verify initialization
 ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 \
-  'docker logs quantum_ai_engine | grep "Governance active"'
+  'journalctl -u quantum_ai_engine.service | grep "Governance active"'
 ```
 
 ### Issue: No weight adjustments
 ```bash
 # Check if cycles are running
 ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 \
-  'docker logs quantum_ai_engine | grep "Cycle complete"'
+  'journalctl -u quantum_ai_engine.service | grep "Cycle complete"'
 ```
 
 ## 📁 Key Files
@@ -103,3 +103,4 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 \
 ✅ Auto-retraining configured  
 
 **System is self-regulating! 🤖**
+

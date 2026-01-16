@@ -67,28 +67,28 @@ wsl bash -c "ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254"
 
 ### View All Services
 ```bash
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker ps'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'systemctl list-units'
 ```
 
 ### Check Logs
 ```bash
 # AI Engine logs
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker logs quantum_ai_engine --tail 50'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'journalctl -u quantum_ai_engine.service --tail 50'
 
 # Redis logs
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker logs quantum_redis --tail 50'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'journalctl -u quantum_redis.service --tail 50'
 
 # Frontend logs (after deployment)
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker logs quantum_frontend --tail 50'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'journalctl -u quantum_frontend.service --tail 50'
 ```
 
 ### Restart Services
 ```bash
 # Restart AI Engine
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'cd quantum_trader && docker compose -f docker-compose.vps.yml restart ai-engine'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'cd quantum_trader && docker compose -f systemctl.vps.yml restart ai-engine'
 
 # Restart all services
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'cd quantum_trader && docker compose -f docker-compose.vps.yml restart'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'cd quantum_trader && docker compose -f systemctl.vps.yml restart'
 ```
 
 ### Health Checks
@@ -128,10 +128,10 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'cd quantum_trader && pip3 install
 wsl bash -c "rsync -avz -e 'ssh -i ~/.ssh/hetzner_fresh' /mnt/c/quantum_trader/microservices/ qt@46.224.116.254:~/quantum_trader/microservices/"
 
 # 2. Rebuild container
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'cd quantum_trader && docker compose -f docker-compose.vps.yml build --no-cache ai-engine'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'cd quantum_trader && docker compose -f systemctl.vps.yml build --no-cache ai-engine'
 
 # 3. Restart service
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'cd quantum_trader && docker compose -f docker-compose.vps.yml up -d ai-engine'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'cd quantum_trader && docker compose -f systemctl.vps.yml up -d ai-engine'
 
 # 4. Verify
 curl -s http://46.224.116.254:8001/health | jq
@@ -170,10 +170,10 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'tail -f /tmp/frontend_build.log'
 ### AI Engine Not Responding
 ```bash
 # Check logs
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker logs quantum_ai_engine --tail 100'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'journalctl -u quantum_ai_engine.service --tail 100'
 
 # Restart
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'cd quantum_trader && docker compose -f docker-compose.vps.yml restart ai-engine'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'cd quantum_trader && docker compose -f systemctl.vps.yml restart ai-engine'
 ```
 
 ### Container Out of Memory
@@ -205,3 +205,4 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker stats --no-stream'
 **Document Version:** 1.0  
 **Last Updated:** December 16, 2025 05:06 UTC  
 **Status:** ✅ Production (Frontend pending)
+

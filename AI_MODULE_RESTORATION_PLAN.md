@@ -157,7 +157,7 @@ service: quantum_universe_os
 **Testing:**
 ```bash
 # 1. Deploy
-docker-compose up -d quantum_universe_os
+systemctl up -d quantum_universe_os
 
 # 2. Health check
 curl http://localhost:8006/health
@@ -717,7 +717,7 @@ Current free: 31GB
 
 ## 🔧 DOCKER COMPOSE UPDATES
 
-### New docker-compose.ai-modules.yml:
+### New systemctl.ai-modules.yml:
 ```yaml
 version: '3.8'
 
@@ -897,7 +897,7 @@ def test_pal_with_pil():
 ### Level 3: System Tests
 ```bash
 # Full system test med alle moduler
-docker-compose -f docker-compose.yml -f docker-compose.ai-modules.yml up -d
+systemctl -f systemctl.yml -f systemctl.ai-modules.yml up -d
 
 # Monitor all services
 ./scripts/monitor_all_services.sh
@@ -928,10 +928,10 @@ docker stop quantum_ai_hfos
 ### Full Rollback:
 ```bash
 # Stop all new services
-docker-compose -f docker-compose.ai-modules.yml down
+systemctl -f systemctl.ai-modules.yml down
 
 # Keep original 9 services running
-docker-compose -f docker-compose.yml up -d
+systemctl -f systemctl.yml up -d
 ```
 
 ### Emergency Rollback:
@@ -1093,4 +1093,5 @@ Week 5: Stabilization
 **Neste steg:** Godkjenne plan og starte Fase 0 (Forberedelse)  
 **Estimert tid:** 5 uker til full restoration  
 **Confidence:** 85% (høy confidence pga eksisterende kode)
+
 

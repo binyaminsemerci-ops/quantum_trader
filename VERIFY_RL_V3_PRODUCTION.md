@@ -68,7 +68,7 @@
 
 ```powershell
 # Check that config is loaded from policy (not default)
-docker logs quantum_backend 2>&1 | Select-String -Pattern "Config loaded from policy|Config loaded from default" | Select-Object -Last 3
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "Config loaded from policy|Config loaded from default" | Select-Object -Last 3
 ```
 
 **Expected Output**:
@@ -84,7 +84,7 @@ docker logs quantum_backend 2>&1 | Select-String -Pattern "Config loaded from po
 
 ```powershell
 # Verify SHADOW mode logging
-docker logs quantum_backend 2>&1 | Select-String -Pattern "SHADOW mode.*NO trade intent|SHADOW mode - recording metrics only" | Select-Object -Last 5
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "SHADOW mode.*NO trade intent|SHADOW mode - recording metrics only" | Select-Object -Last 5
 ```
 
 **Expected Output**:
@@ -95,7 +95,7 @@ docker logs quantum_backend 2>&1 | Select-String -Pattern "SHADOW mode.*NO trade
 **Then verify NO trade.intent published**:
 ```powershell
 # Should be ZERO results in SHADOW mode
-docker logs quantum_backend 2>&1 | Select-String -Pattern "Trade intent published" | Measure-Object
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "Trade intent published" | Measure-Object
 ```
 
 **Expected**: Count = 0 (no intents published in SHADOW)
@@ -108,13 +108,13 @@ docker logs quantum_backend 2>&1 | Select-String -Pattern "Trade intent publishe
 
 ```powershell
 # Check GUARD A: Open position prevention
-docker logs quantum_backend 2>&1 | Select-String -Pattern "GUARD A.*Open intent already exists" | Select-Object -Last 3
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "GUARD A.*Open intent already exists" | Select-Object -Last 3
 
 # Check GUARD B: Size limit enforcement
-docker logs quantum_backend 2>&1 | Select-String -Pattern "GUARD B.*exceeds policy limit" | Select-Object -Last 3
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "GUARD B.*exceeds policy limit" | Select-Object -Last 3
 
 # Check GUARD C: Rate limiting
-docker logs quantum_backend 2>&1 | Select-String -Pattern "GUARD C.*Rate limit exceeded" | Select-Object -Last 3
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "GUARD C.*Rate limit exceeded" | Select-Object -Last 3
 ```
 
 **Expected**: Guards trigger when limits exceeded (if traffic exists)
@@ -127,7 +127,7 @@ docker logs quantum_backend 2>&1 | Select-String -Pattern "GUARD C.*Rate limit e
 
 ```powershell
 # Verify RiskGuard.evaluate_trade_intent() is called
-docker logs quantum_backend 2>&1 | Select-String -Pattern "Trade intent approved|RiskGuard denied" | Select-Object -Last 5
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "Trade intent approved|RiskGuard denied" | Select-Object -Last 5
 ```
 
 **Expected Output** (when in PRIMARY mode with traffic):
@@ -143,7 +143,7 @@ docker logs quantum_backend 2>&1 | Select-String -Pattern "Trade intent approved
 
 ```powershell
 # Check promotion lock is active
-docker logs quantum_backend 2>&1 | Select-String -Pattern "PROMOTION BLOCKED.*requires ACK" | Select-Object -Last 3
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "PROMOTION BLOCKED.*requires ACK" | Select-Object -Last 3
 ```
 
 **Expected Output** (if attempted to go PRIMARY without ACK):
@@ -167,20 +167,20 @@ print(msg)
 ```powershell
 # Run all checks in sequence
 Write-Host "`n=== CHECK 1: Config Source ===`n"
-docker logs quantum_backend 2>&1 | Select-String -Pattern "Config loaded from" | Select-Object -Last 1
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "Config loaded from" | Select-Object -Last 1
 
 Write-Host "`n=== CHECK 2: SHADOW Protection ===`n"
-docker logs quantum_backend 2>&1 | Select-String -Pattern "SHADOW mode.*NO trade intent" | Select-Object -Last 3
-docker logs quantum_backend 2>&1 | Select-String -Pattern "Trade intent published" | Measure-Object | Select-Object -ExpandProperty Count | ForEach-Object { Write-Host "Intents Published: $_" }
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "SHADOW mode.*NO trade intent" | Select-Object -Last 3
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "Trade intent published" | Measure-Object | Select-Object -ExpandProperty Count | ForEach-Object { Write-Host "Intents Published: $_" }
 
 Write-Host "`n=== CHECK 3: Guards Active ===`n"
-docker logs quantum_backend 2>&1 | Select-String -Pattern "GUARD [ABC]" | Select-Object -Last 5
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "GUARD [ABC]" | Select-Object -Last 5
 
 Write-Host "`n=== CHECK 4: RiskGuard Integration ===`n"
-docker logs quantum_backend 2>&1 | Select-String -Pattern "evaluate_trade_intent|Trade intent approved" | Select-Object -Last 3
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "evaluate_trade_intent|Trade intent approved" | Select-Object -Last 3
 
 Write-Host "`n=== CHECK 5: Orchestrator Status ===`n"
-docker logs quantum_backend 2>&1 | Select-String -Pattern "RL v3 Live Orchestrator started" | Select-Object -Last 1
+journalctl -u quantum_backend.service 2>&1 | Select-String -Pattern "RL v3 Live Orchestrator started" | Select-Object -Last 1
 ```
 
 ---
@@ -271,3 +271,4 @@ Then restart: `docker restart quantum_backend`
 - ❌ RiskGuard integration broken
 
 **Current status**: SHADOW mode active, awaiting verification results.
+

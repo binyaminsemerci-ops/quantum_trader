@@ -93,7 +93,7 @@ trace_id = trace_context.generate()  # abc123
 [portfolio] position_opened entry=50000 trace_id=abc123
 
 # Grep logs by trace_id = see complete flow
-docker logs quantum_backend | grep "trace_id=abc123"
+journalctl -u quantum_backend.service | grep "trace_id=abc123"
 ```
 
 **Result:** Debug production in seconds, not hours.
@@ -573,3 +573,4 @@ for msg_id, msg_data in messages:
 **You can ship this to production TODAY and scale it to 1M users TOMORROW.**
 
 🚀 **Let's build the future of algorithmic trading.**
+

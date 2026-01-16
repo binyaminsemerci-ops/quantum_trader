@@ -148,7 +148,7 @@ ssh -L 3001:127.0.0.1:3001 qt@46.224.116.254 -i ~/.ssh/hetzner_fresh
 **Remaining**: Manual Telegram bot configuration (5 minutes when needed)
 
 **Files Created**:
-- `docker-compose.alerting.yml`
+- `systemctl.alerting.yml`
 - `monitoring/alertmanager.yml`
 - `monitoring/alert_rules.yml`
 - `scripts/setup-telegram-bot.sh`
@@ -223,7 +223,7 @@ ssh -L 3001:127.0.0.1:3001 qt@46.224.116.254 -i ~/.ssh/hetzner_fresh
 
 **Files to Create**:
 - `scripts/security-hardening.sh` ✅ (created)
-- Updated `docker-compose.vps.yml` with secrets
+- Updated `systemctl.vps.yml` with secrets
 
 ---
 
@@ -299,7 +299,7 @@ ssh -L 3001:127.0.0.1:3001 qt@46.224.116.254 -i ~/.ssh/hetzner_fresh
 
 2. **Redis Exporter** (1 hour)
    - Deploy `redis-exporter` container
-   - Add to `docker-compose.monitoring.yml`
+   - Add to `systemctl.monitoring.yml`
    - Import Redis dashboard to Grafana
 
 3. **Off-site Backup** (2 hours)
@@ -361,3 +361,4 @@ ssh -L 3001:127.0.0.1:3001 qt@46.224.116.254 -i ~/.ssh/hetzner_fresh
 **Reviewed**: December 16, 2025  
 **Status**: Week 1 ✅ COMPLETE | Week 2 🟡 IN PROGRESS  
 **Next Review**: After Week 2 completion
+

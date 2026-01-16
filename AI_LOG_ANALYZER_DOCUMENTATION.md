@@ -277,7 +277,7 @@ python3 /home/qt/quantum_trader/tools/ai_log_analyzer.py
 
 ### Issue: Insufficient Log Data
 
-**Cause:** Docker logs may be rotated or truncated.
+**Cause:** journalctl -u may.service be rotated or truncated.
 
 **Solution:**
 ```bash
@@ -285,7 +285,7 @@ python3 /home/qt/quantum_trader/tools/ai_log_analyzer.py
 docker inspect quantum_ai_engine | grep -A 10 LogConfig
 
 # Increase log retention if needed
-# Edit docker-compose.vps.yml and add:
+# Edit systemctl.vps.yml and add:
 logging:
   driver: "json-file"
   options:
@@ -544,3 +544,4 @@ The **AI Log Analyzer** completes the autonomous infrastructure by adding intell
 ---
 
 **End of Documentation**
+

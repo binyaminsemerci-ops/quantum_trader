@@ -279,7 +279,7 @@ docker logs -f quantum_position_monitor | grep -E "EXIT_BRAIN_CYCLE|EXIT_SL|EXIT
 docker logs -f quantum_position_monitor | grep -E "APIError|Parameter.*not required"
 
 # Check position count
-docker logs quantum_position_monitor --tail 50 | grep "Got.*total positions"
+journalctl -u quantum_position_monitor.service --tail 50 | grep "Got.*total positions"
 ```
 
 ### Long-Term
@@ -372,3 +372,4 @@ quantum_auto_executor         - Up 17 min (idle - reads empty LIST) ⚠️
 **Report Generated**: 2025-12-25 04:38 UTC  
 **System Status**: ✅ HEALTHY  
 **Next Action**: Monitor Exit Brain over next 24h for stability
+

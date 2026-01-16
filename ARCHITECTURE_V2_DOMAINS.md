@@ -422,7 +422,7 @@ Use `trace_id` to follow request through entire system:
 
 ```bash
 # Find all logs for specific trace
-docker logs quantum_backend | grep "trace_id=abc-123-def"
+journalctl -u quantum_backend.service | grep "trace_id=abc-123-def"
 
 # Output shows flow through all domains:
 [ai_engine.orchestrator] signal_generated trace_id=abc-123-def
@@ -473,3 +473,4 @@ docker logs quantum_backend | grep "trace_id=abc-123-def"
 ---
 
 *This architecture is the foundation for a world-class algorithmic trading platform.*
+

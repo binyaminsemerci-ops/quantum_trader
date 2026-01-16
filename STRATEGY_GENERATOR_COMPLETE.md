@@ -86,7 +86,7 @@ A self-improving trading strategy generation system that uses evolutionary algor
 
 **Docker Compose:**
 ```yaml
-docker-compose --profile strategy-gen up -d
+systemctl --profile strategy-gen up -d
 ```
 
 ### ✅ Phase 3: Production Hardening (Nov 30)
@@ -166,16 +166,16 @@ docker-compose --profile strategy-gen up -d
 
 ```bash
 # 1. Start all services
-docker-compose --profile strategy-gen up -d
+systemctl --profile strategy-gen up -d
 
 # 2. Verify services
-docker ps | grep quantum
+systemctl list-units | grep quantum
 
 # 3. Check metrics
 curl http://localhost:9090/metrics
 
 # 4. View logs
-docker-compose logs -f strategy_generator
+systemctl logs -f strategy_generator
 ```
 
 ### Configuration
@@ -400,7 +400,7 @@ Backtest Count: 1
 
 - Prometheus: http://localhost:9090
 - Grafana: Import dashboard JSON
-- Logs: `docker-compose logs -f`
+- Logs: `systemctl logs -f`
 - Health: `python backend/research/health.py`
 
 ### Troubleshooting
@@ -415,7 +415,7 @@ See `SG_AI_PHASE3_COMPLETE.md` section "Troubleshooting" for:
 
 All services support rolling updates:
 ```bash
-docker-compose --profile strategy-gen up -d --build
+systemctl --profile strategy-gen up -d --build
 ```
 
 ---
@@ -440,3 +440,4 @@ The system provides:
 **Project:** Quantum Trader  
 **Date:** November 29-30, 2025  
 **Version:** 1.0.0-production
+

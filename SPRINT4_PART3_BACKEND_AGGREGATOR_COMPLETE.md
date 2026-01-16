@@ -307,7 +307,7 @@ Backend is now fully functional and tested. Ready to build frontend with:
 1. **Start Microservices**:
    ```bash
    # Start all required services
-   docker-compose up -d
+   systemctl up -d
    ```
 
 2. **Test Snapshot Endpoint**:
@@ -329,7 +329,7 @@ Backend is now fully functional and tested. Ready to build frontend with:
 4. **Test Service Down Scenario**:
    ```bash
    # Stop one service
-   docker-compose stop portfolio-intelligence-service
+   systemctl stop portfolio-intelligence-service
    
    # Test snapshot still works
    curl http://localhost:8000/api/dashboard/snapshot | jq
@@ -399,3 +399,4 @@ pytest tests/unit/test_dashboard_api_sprint4.py::test_full_snapshot_aggregation 
 **Estimated Time to Frontend Completion**: 2-3 hours
 - Part 4: 1-1.5 hours (Next.js setup, layout, components)
 - Part 5: 1-1.5 hours (API client, WebSocket client, real-time updates)
+

@@ -738,17 +738,17 @@ If universe change causes issues:
 
 ```bash
 # 1. Identify issue
-docker logs quantum_backend --since 1h | grep ERROR
+journalctl -u quantum_backend.service --since 1h | grep ERROR
 
 # 2. Revert universe snapshot
 docker exec quantum_backend cp /app/data/universe_snapshot.json.backup \
                                 /app/data/universe_snapshot.json
 
 # 3. Revert config
-# Restore previous QT_SYMBOLS or QT_UNIVERSE in docker-compose.yml
+# Restore previous QT_SYMBOLS or QT_UNIVERSE in systemctl.yml
 
 # 4. Restart backend
-docker-compose restart backend
+systemctl restart backend
 
 # 5. Verify rollback
 docker exec quantum_backend cat /app/data/universe_snapshot.json | jq '.symbol_count'
@@ -938,3 +938,4 @@ Day 35+:  Weekly optimization cycles
 **Version:** 2.0  
 **Date:** November 23, 2025  
 **Status:** DEPLOYED & OPERATIONAL
+

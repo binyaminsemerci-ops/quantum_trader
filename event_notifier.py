@@ -21,7 +21,7 @@ class EventMonitor:
         """Get last training run"""
         try:
             result = subprocess.run(
-                ["docker", "logs", "quantum_backend", "--tail", "1000"],
+                ["journalctl", "-u", "quantum-backend.service", "-n", "1000", "--no-pager"],
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
@@ -63,7 +63,7 @@ class EventMonitor:
         """Get position close count from logs"""
         try:
             result = subprocess.run(
-                ["docker", "logs", "quantum_backend", "--tail", "500"],
+                ["journalctl", "-u", "quantum-backend.service", "-n", "500", "--no-pager"],
                 capture_output=True,
                 text=True,
                 encoding='utf-8',

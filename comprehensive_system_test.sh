@@ -72,45 +72,45 @@ print_summary() {
 }
 
 ###############################################################################
-# TRINN 1 – KONTROLLER CONTAINER-HELSE
+# TRINN 1 – KONTROLLER SERVICE-HELSE
 ###############################################################################
 test_container_health() {
-    log_section "TRINN 1 – CONTAINER HELSE"
+    log_section "TRINN 1 – SERVICE HELSE"
     
-    log_info "Sjekker docker containers..."
+    log_info "Sjekker systemd services..."
     
-    # Required containers
+    # Required services
     REQUIRED_CONTAINERS=(
-        "quantum_backend"
-        "quantum_trading_bot"
-        "quantum_redis"
-        "quantum_rl_optimizer"
-        "quantum_strategy_evaluator"
-        "quantum_strategy_evolution"
-        "quantum_policy_memory"
-        "quantum_auto_executor"
-        "quantum_federation_stub"
+        "quantum-backend"
+        "quantum-trading-bot"
+        "quantum-redis"
+        "quantum-rl-optimizer"
+        "quantum-strategy-evaluator"
+        "quantum-strategy-evolution"
+        "quantum-policy-memory"
+        "quantum-auto-executor"
+        "quantum-federation-stub"
     )
     
-    # Display container status
+    # Display service status
     echo ""
-    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || {
-        log_error "Docker er ikke tilgjengelig eller kjører ikke"
+    systemctl list-units 'quantum-*.service' --no-pager --no-legend | head -20 || {
+        log_error "systemd er ikke tilgjengelig"
         return 1
     }
     echo ""
     
-    # Check each required container
+    # Check each required service
     for container in "${REQUIRED_CONTAINERS[@]}"; do
-        if docker ps --format '{{.Names}}' | grep -q "^${container}$"; then
-            STATUS=$(docker ps --filter "name=^${container}$" --format '{{.Status}}')
-            if echo "$STATUS" | grep -q "Up"; then
-                log_success "Container '${container}' er oppe og kjører"
+        if systemctl is-active "${container}.service" >/dev/null 2>&1; then
+            STATUS=$(systemctl is-active "${container}.service")
+            if [ "$STATUS" = "active" ]; then
+                log_success "Service '${container}' er oppe og kjører"
             else
-                log_error "Container '${container}' kjører ikke (Status: $STATUS)"
+                log_error "Service '${container}' kjører ikke (Status: $STATUS)"
             fi
         else
-            log_error "Container '${container}' finnes ikke"
+            log_error "Service '${container}' finnes ikke"
         fi
     done
 }

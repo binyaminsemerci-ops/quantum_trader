@@ -488,7 +488,7 @@ Get-Content -Path "backend_logs.txt" -Wait | Select-String "FULL LIVE MODE|Polic
 Get-Content -Path "backend_logs.txt" -Wait | Select-String "TRADE SHUTDOWN|TRADING PAUSED"
 
 # Verify orchestrator integration
-docker logs quantum_backend 2>&1 | Select-String "Orchestrator|Policy" | Select-Object -Last 20
+journalctl -u quantum_backend.service 2>&1 | Select-String "Orchestrator|Policy" | Select-Object -Last 20
 ```
 
 ### **Policy Status Check**
@@ -614,3 +614,4 @@ Quantum Trader is now operating as a **fully autonomous trading system** with co
 - See: `STEP4_QUICK_REFERENCE.md` (quick commands)
 - See: `orchestrator_policy.py` (policy logic)
 - See: `event_driven_executor.py` (integration points)
+

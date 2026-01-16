@@ -45,7 +45,7 @@ Cannot connect to host ai-engine:8001 ssl:default
 
 ### AI Engine Container Status
 ```bash
-docker ps -a | grep ai
+systemctl list-units -a | grep ai
 # RESULT: Ingen AI Engine container kjører!
 ```
 
@@ -102,7 +102,7 @@ curl http://localhost:8001/health
 ```
 
 **Prioritet 2 (MEDIUM):**
-- Add AI Engine til docker-compose.yml
+- Add AI Engine til systemctl.yml
 - Ensure auto-restart policy
 - Add health checks
 
@@ -703,13 +703,13 @@ Duration: ~33 hours
 
 4. **Fix Nginx Health** 🟡 MEDIUM
    ```bash
-   docker logs quantum_nginx
+   journalctl -u quantum_nginx.service
    docker exec quantum_nginx nginx -t
    docker restart quantum_nginx
    ```
 
 5. **Add AI Engine to Docker Compose** 🟡 MEDIUM
-   - Update docker-compose.yml
+   - Update systemctl.yml
    - Add AI Engine service definition
    - Add health checks
    - Deploy via compose
@@ -830,3 +830,4 @@ Duration: ~33 hours
 *Rapport generert: 2025-12-19 21:18 UTC*  
 *Neste oppfølging: 2025-12-20 09:00 UTC*  
 *AI Engine status: CRITICAL - requires immediate attention*
+

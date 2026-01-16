@@ -205,7 +205,7 @@ logger.error(f"🚨 ORDER_ERROR | symbol={symbol} | error_type={error_type} |
 
 ### Usage:
 ```bash
-docker logs quantum_auto_executor | grep -E "INTENT_RECEIVED|ORDER_SUBMIT|ORDER_RESPONSE|ORDER_ERROR" | tail -50
+journalctl -u quantum_auto_executor.service | grep -E "INTENT_RECEIVED|ORDER_SUBMIT|ORDER_RESPONSE|ORDER_ERROR" | tail -50
 ```
 
 ---
@@ -338,7 +338,7 @@ Executor's early-return logic skipped `place_order()` for 21 symbols with existi
 **ÉN ANBEFALT HANDLING:**  
 Monitor live execution proof with:
 ```bash
-docker logs quantum_auto_executor -f | grep -E "INTENT_RECEIVED|ORDER_SUBMIT|ORDER_RESPONSE"
+journalctl -u quantum_auto_executor.service -f | grep -E "INTENT_RECEIVED|ORDER_SUBMIT|ORDER_RESPONSE"
 ```
 
 ---
@@ -369,3 +369,4 @@ docker logs quantum_auto_executor -f | grep -E "INTENT_RECEIVED|ORDER_SUBMIT|ORD
 ✅ **Mode:** TESTNET with PAPER_TRADING=false
 
 **Next Step:** Run `scripts/verify_execution_e2e.py` for fresh E2E proof if needed.
+

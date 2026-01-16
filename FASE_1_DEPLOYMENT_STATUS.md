@@ -49,7 +49,7 @@ CONTINUOUS_LEARNING_ENABLED=true
 MODEL_SUPERVISOR_ENABLED=true
 ```
 
-### 2. Docker Compose (docker-compose.wsl.yml)
+### 2. Docker Compose (systemctl.wsl.yml)
 ```yaml
 # Oppdatert linje 66-69:
 - AI_ENGINE_ENSEMBLE_MODELS=["xgb","lgbm"]  # nhits/patchtst disabled (too heavy)
@@ -168,7 +168,7 @@ logger.warning("[AI-ENGINE] ⚠️ Regime Detector loading disabled")
 ### Priority 2: Deploy Risk-Safety Service
 ```bash
 # Mangler container - kritisk for production:
-docker compose -f docker-compose.services.yml up -d risk-safety
+docker compose -f systemctl.services.yml up -d risk-safety
 ```
 
 ### Priority 3: Test Med Paper Trading
@@ -200,7 +200,7 @@ Option C: Keep disabled (2 models sufficient for now)
 - Still only 2 prediction models (N-HiTS/PatchTST config not read)
 
 ### 00:01:12 - Docker Compose Update
-- Fixed hardcoded ENSEMBLE_MODELS in docker-compose.wsl.yml
+- Fixed hardcoded ENSEMBLE_MODELS in systemctl.wsl.yml
 - Changed MIN_CONSENSUS from 2 to 3 (for 4 models)
 - Uploaded and deployed
 
@@ -235,3 +235,4 @@ Option C: Keep disabled (2 models sufficient for now)
 **OVERALL PROGRESS:** **25% av 24 moduler aktive** (opp fra 8%)
 
 **RECOMMENDATION:** Proceed til Fase 2 - fikse service.py disables og deploy Risk-Safety.
+

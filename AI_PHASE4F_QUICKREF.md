@@ -48,7 +48,7 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 \
 ### View All Active Modules
 ```bash
 ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 \
-  'docker logs quantum_ai_engine | grep "models active"'
+  'journalctl -u quantum_ai_engine.service | grep "models active"'
 ```
 
 ---
@@ -116,12 +116,12 @@ window_size = 128         # Sequence length
 ### No Models Generated?
 - Check: `time_until_next_seconds` in health
 - Wait: First cycle runs after 4h
-- Logs: `docker logs quantum_ai_engine | grep Retrainer`
+- Logs: `journalctl -u quantum_ai_engine.service | grep Retrainer`
 
 ### Retraining Failed?
 ```bash
 # Check errors
-docker logs quantum_ai_engine | grep -A 5 "Retrainer.*error"
+journalctl -u quantum_ai_engine.service | grep -A 5 "Retrainer.*error"
 
 # Verify data availability
 docker exec quantum_ai_engine ls -lh /app/adaptive_training/
@@ -130,7 +130,7 @@ docker exec quantum_ai_engine ls -lh /app/adaptive_training/
 ### Health Endpoint Not Responding?
 ```bash
 # Check container status
-docker ps | grep quantum_ai_engine
+systemctl list-units | grep quantum_ai_engine
 
 # Restart if needed
 docker restart quantum_ai_engine
@@ -175,3 +175,4 @@ Your system now:
 - ✅ Tracks all metrics and history
 
 **True Adaptive Trading Intelligence! 🤖📈**
+

@@ -436,8 +436,8 @@ CMD ["python3", "/app/microservices/risk_safety/main.py"]
 ```bash
 # Rebuild and restart
 cd /root/quantum_trader
-docker-compose -f docker-compose.vps.yml build risk-safety
-docker-compose -f docker-compose.vps.yml up -d risk-safety
+systemctl -f systemctl.vps.yml build risk-safety
+systemctl -f systemctl.vps.yml up -d risk-safety
 ```
 
 ---
@@ -507,8 +507,8 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=15s \
 
 **Rebuild:**
 ```bash
-docker-compose -f docker-compose.vps.yml build ai-engine
-docker-compose -f docker-compose.vps.yml up -d ai-engine
+systemctl -f systemctl.vps.yml build ai-engine
+systemctl -f systemctl.vps.yml up -d ai-engine
 ```
 
 ---
@@ -794,3 +794,4 @@ docker-compose -f docker-compose.vps.yml up -d ai-engine
 ---
 
 *End of Report*
+

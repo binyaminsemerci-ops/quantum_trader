@@ -497,7 +497,7 @@ if self.strategy_selector:
 ### Check Strategy Distribution
 ```bash
 # See which strategies are being selected
-docker logs quantum_ai_engine 2>&1 | grep "Strategy:" | \
+journalctl -u quantum_ai_engine.service 2>&1 | grep "Strategy:" | \
   grep -o "Strategy: [a-z_]*" | sort | uniq -c
 
 # Expected output:
@@ -515,7 +515,7 @@ docker logs quantum_ai_engine 2>&1 | grep "Strategy:" | \
 ### Check Confidence Levels
 ```bash
 # See confidence distribution
-docker logs quantum_ai_engine 2>&1 | grep "conf=" | \
+journalctl -u quantum_ai_engine.service 2>&1 | grep "conf=" | \
   grep -o "conf=[0-9]*%" | sort | uniq -c
 
 # Expected output:
@@ -531,7 +531,7 @@ docker logs quantum_ai_engine 2>&1 | grep "conf=" | \
 ### Check Alignment Scores
 ```bash
 # See market alignment scores
-docker logs quantum_ai_engine 2>&1 | grep "align=" | \
+journalctl -u quantum_ai_engine.service 2>&1 | grep "align=" | \
   grep -o "align=0\.[0-9]*" | sort | uniq -c
 
 # Expected output:
@@ -546,7 +546,7 @@ docker logs quantum_ai_engine 2>&1 | grep "align=" | \
 ### Check for Errors
 ```bash
 # Look for Phase 3B errors
-docker logs quantum_ai_engine 2>&1 | grep "PHASE 3B" | grep -i "error\|failed"
+journalctl -u quantum_ai_engine.service 2>&1 | grep "PHASE 3B" | grep -i "error\|failed"
 
 # Expected: Empty output (no errors)
 ```
@@ -720,3 +720,4 @@ volatile → volatility_trading, breakout
 **Last Updated**: December 24, 2025  
 **Status**: Phase 3B ACTIVE  
 **Next Review**: After 1000 cumulative trades across all strategies
+

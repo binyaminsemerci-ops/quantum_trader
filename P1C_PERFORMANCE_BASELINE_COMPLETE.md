@@ -46,7 +46,7 @@ P1-C establishes performance baseline metrics and capacity planning foundation f
 ---
 
 ### 2. Resource Limits Configured ✅
-**File**: `docker-compose.vps.yml`
+**File**: `systemctl.vps.yml`
 
 | Service | CPU Limit | Memory Limit | Reservation CPU | Reservation Memory |
 |---------|-----------|--------------|-----------------|-------------------|
@@ -264,7 +264,7 @@ P1-C builds on P1-B infrastructure:
 - Performance Baseline: This document
 - Ops Hardening (P1-B): `P1B_FINAL_COMPLETION_REPORT.md`
 - Capacity Planning: Dashboard panels 1-5
-- Resource Limits: `docker-compose.vps.yml` lines 125-133
+- Resource Limits: `systemctl.vps.yml` lines 125-133
 
 ---
 
@@ -288,3 +288,4 @@ P1-C builds on P1-B infrastructure:
 **Report Version**: 1.0  
 **Phase**: P1-C Complete  
 **System Status**: ✅ HEALTHY
+

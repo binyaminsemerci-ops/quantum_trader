@@ -275,7 +275,7 @@ curl http://localhost:8003/health | ConvertFrom-Json
 ### **Production-Ready Components** ✅
 
 #### **1. Docker Deployment**
-**File:** `docker-compose.yml` (Complete)
+**File:** `systemctl.yml` (Complete)
 
 ```yaml
 services:
@@ -480,7 +480,7 @@ TESTNET_MODE=false
 
 ```powershell
 # 1. Start alle services
-docker-compose up -d
+systemctl up -d
 
 # 2. Vent på oppstart (90 sekunder)
 Start-Sleep -Seconds 90
@@ -603,3 +603,4 @@ Start-Process http://localhost:9090
 **Dokumentasjon:** ✅ **FULLSTENDIG**
 
 🎉 **SYSTEM VERIFICATION COMPLETE!** 🎉
+

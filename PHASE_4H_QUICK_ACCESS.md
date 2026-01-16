@@ -92,12 +92,12 @@ curl http://46.224.116.254:8501/metrics | python3 -m json.tool
 
 ### Check Status
 ```bash
-ssh qt@46.224.116.254 'docker ps --filter name=quantum_governance_dashboard'
+ssh qt@46.224.116.254 'systemctl list-units --filter name=quantum_governance_dashboard'
 ```
 
 ### View Logs
 ```bash
-ssh qt@46.224.116.254 'docker logs quantum_governance_dashboard -f'
+ssh qt@46.224.116.254 'journalctl -u quantum_governance_dashboard.service -f'
 ```
 
 ### Restart Container
@@ -154,10 +154,10 @@ ssh -i C:\Users\belen\.ssh\hetzner_fresh qt@46.224.116.254 'curl -s http://local
 ### Dashboard Not Loading
 ```bash
 # Check if container is running
-ssh qt@46.224.116.254 'docker ps --filter name=quantum_governance_dashboard'
+ssh qt@46.224.116.254 'systemctl list-units --filter name=quantum_governance_dashboard'
 
 # Check logs for errors
-ssh qt@46.224.116.254 'docker logs quantum_governance_dashboard --tail 50'
+ssh qt@46.224.116.254 'journalctl -u quantum_governance_dashboard.service --tail 50'
 
 # Restart container
 ssh qt@46.224.116.254 'docker restart quantum_governance_dashboard'
@@ -178,7 +178,7 @@ ssh qt@46.224.116.254 'docker exec quantum_governance_dashboard python3 -c "impo
 ### Weights Not Displaying
 ```bash
 # Check Redis for governance weights
-ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli HGETALL governance_weights'
+ssh qt@46.224.116.254 'redis-cli HGETALL governance_weights'
 
 # Check AI Engine health
 ssh qt@46.224.116.254 'curl -s http://localhost:8001/health | python3 -m json.tool'
@@ -303,3 +303,4 @@ Access your dashboard at: **http://46.224.116.254:8501**
 
 *Last Updated: 2025-12-20*
 *Status: Production Ready*
+

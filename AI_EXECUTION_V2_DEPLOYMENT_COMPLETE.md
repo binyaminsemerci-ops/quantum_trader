@@ -144,7 +144,7 @@ CONTAINER ID   IMAGE                      STATUS                    PORTS
    - ✅ All tests passed locally
 
 ### Modified Files
-1. **docker-compose.services.yml**
+1. **systemctl.services.yml**
    - Updated execution service definition
    - Removed risk-safety dependency
    - Added PAPER mode environment variables
@@ -197,7 +197,7 @@ LOG_LEVEL=INFO
 5. ✅ Updated models.py (health check models)
 6. ✅ Created requirements_v2.txt (clean deps)
 7. ✅ Created Dockerfile.v2 (production-ready)
-8. ✅ Updated docker-compose.services.yml (execution definition)
+8. ✅ Updated systemctl.services.yml (execution definition)
 9. ✅ Validated locally (all tests passed)
 10. ✅ Synced files to VPS
 11. ✅ Built Docker image
@@ -214,7 +214,7 @@ scp -i ~/.ssh/hetzner_fresh \
 # Build and start
 ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 << 'EOF'
 cd /home/qt/quantum_trader
-docker compose -f docker-compose.vps.yml -f docker-compose.services.yml up -d --build execution
+docker compose -f systemctl.vps.yml -f systemctl.services.yml up -d --build execution
 EOF
 ```
 
@@ -271,13 +271,13 @@ curl http://localhost:8002/
 docker logs -f quantum_execution
 
 # Restart
-docker compose -f docker-compose.vps.yml -f docker-compose.services.yml restart execution
+docker compose -f systemctl.vps.yml -f systemctl.services.yml restart execution
 
 # Rebuild
-docker compose -f docker-compose.vps.yml -f docker-compose.services.yml up -d --build execution
+docker compose -f systemctl.vps.yml -f systemctl.services.yml up -d --build execution
 
 # Stop
-docker compose -f docker-compose.vps.yml -f docker-compose.services.yml stop execution
+docker compose -f systemctl.vps.yml -f systemctl.services.yml stop execution
 ```
 
 ---
@@ -379,3 +379,4 @@ Successfully deployed **Execution Service V2** as a clean, isolated microservice
 **Port**: 8002 (localhost)  
 **Mode**: PAPER  
 **Status**: ✅ HEALTHY
+

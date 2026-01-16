@@ -289,10 +289,10 @@ cd /home/qt/quantum_trader
 echo "EXECUTION_POLICY=EXIT_BRAIN_V3" >> .env
 
 # Restart auto_executor
-docker compose -f docker-compose.vps.yml restart auto-executor
+docker compose -f systemctl.vps.yml restart auto-executor
 
 # Verify it picks up new config
-docker logs quantum_auto_executor --tail 50 | grep "EXECUTION_POLICY\|EXIT_BRAIN"
+journalctl -u quantum_auto_executor.service --tail 50 | grep "EXECUTION_POLICY\|EXIT_BRAIN"
 ```
 
 **Expected outcome:**
@@ -314,7 +314,7 @@ docker logs quantum_auto_executor --tail 50 | grep "EXECUTION_POLICY\|EXIT_BRAIN
 #### 3. Verify Exit Brain Executor Status
 ```bash
 # Check if dynamic executor initializes
-docker logs quantum_auto_executor | grep "DynamicExecutor\|EXIT_BRAIN.*Initialized"
+journalctl -u quantum_auto_executor.service | grep "DynamicExecutor\|EXIT_BRAIN.*Initialized"
 
 # Should see:
 # "[EXIT_BRAIN_V3] Dynamic Executor initialized in LIVE mode"
@@ -460,3 +460,4 @@ def validate_signal_before_entry(signal):
 
 **Status:** CRITICAL - NEEDS IMMEDIATE ATTENTION  
 **Next Steps:** Fix executor deployment + close losing positions + improve AI
+

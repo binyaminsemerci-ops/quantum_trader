@@ -646,10 +646,10 @@ QT_AI_FAIL_SAFE=true
 EOF
 
 # 2. Restart backend
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 
 # 3. Verify startup
-docker logs quantum_backend | grep "AI System Services"
+journalctl -u quantum_backend.service | grep "AI System Services"
 
 # Expected output:
 # [AI System Services] Configuration loaded:
@@ -703,7 +703,7 @@ export QT_AI_PIL_ENABLED=false
 export QT_AI_PBA_ENABLED=false
 
 # 3. Restart
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 ```
 
 ### Rollback Single Subsystem
@@ -713,7 +713,7 @@ docker-compose restart quantum_backend
 export QT_AI_PAL_ENABLED=false
 
 # Restart
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 ```
 
 ---
@@ -724,7 +724,7 @@ docker-compose restart quantum_backend
 
 ```bash
 # Via logs
-docker logs quantum_backend | grep "AI System Services"
+journalctl -u quantum_backend.service | grep "AI System Services"
 
 # Via health endpoint (TODO: implement)
 curl http://localhost:8000/health/ai
@@ -781,3 +781,4 @@ curl http://localhost:8000/health/ai
 **Document Version:** 1.0  
 **Last Updated:** November 23, 2025  
 **Status:** Integration Layer Complete - Ready for Stage 1 Testing
+

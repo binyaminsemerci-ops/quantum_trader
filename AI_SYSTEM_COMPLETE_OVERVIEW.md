@@ -333,31 +333,31 @@ docker compose down
 docker compose restart rl-optimizer
 
 # View all containers
-docker ps
+systemctl list-units
 
 # System health overview
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+systemctl list-units --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 ```
 
 ### Monitoring
 ```bash
 # View RL optimizer logs
-docker logs quantum_rl_optimizer --tail 50 --follow
+journalctl -u quantum_rl_optimizer.service --tail 50 --follow
 
 # Check model weights
-docker exec quantum_redis redis-cli HGETALL governance_weights
+redis-cli HGETALL governance_weights
 
 # View latest trade journal
-docker exec quantum_redis redis-cli GET latest_report | jq
+redis-cli GET latest_report | jq
 
 # Check reward history
-docker exec quantum_redis redis-cli LRANGE rl_reward_history 0 10
+redis-cli LRANGE rl_reward_history 0 10
 
 # View drift status
-docker exec quantum_redis redis-cli GET drift_status
+redis-cli GET drift_status
 
 # Check retraining queue
-docker exec quantum_redis redis-cli LLEN retraining_queue
+redis-cli LLEN retraining_queue
 ```
 
 ### Dashboard Access
@@ -809,7 +809,7 @@ What it CAN do:
 ### Monitoring Requirements
 ```
 Check daily:
-├─ Container health (docker ps)
+├─ Container health (systemctl list-units)
 ├─ System errors (docker logs)
 ├─ Performance metrics (dashboard)
 ├─ Drawdown levels (alerts)
@@ -924,13 +924,13 @@ Your AI System: "I'm an autonomous agent"
 ### Troubleshooting
 ```bash
 # System health
-docker ps
+systemctl list-units
 
 # Check logs
-docker logs quantum_rl_optimizer --tail 100
+journalctl -u quantum_rl_optimizer.service --tail 100
 
 # Redis inspection
-docker exec quantum_redis redis-cli INFO
+redis-cli INFO
 
 # Restart if needed
 docker compose restart <service_name>
@@ -971,3 +971,4 @@ docker compose restart <service_name>
 *All 8 Phases Complete*  
 *Status: FULLY AUTONOMOUS* ✅  
 *Generated: December 20, 2025*
+

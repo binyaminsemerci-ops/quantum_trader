@@ -98,17 +98,17 @@ Persistence: Survives container restarts (mounted volume)
 
 ### Check Bridge Status
 ```bash
-docker ps --filter name=quantum_rl_feedback_bridge
+systemctl list-units --filter name=quantum_rl_feedback_bridge
 ```
 
 ### View Learning Activity
 ```bash
-docker logs quantum_rl_feedback_bridge --tail 50 --follow
+journalctl -u quantum_rl_feedback_bridge.service --tail 50 --follow
 ```
 
 ### Verify PnL Stream
 ```bash
-docker exec quantum_redis redis-cli XLEN quantum:stream:exitbrain.pnl
+redis-cli XLEN quantum:stream:exitbrain.pnl
 ```
 
 ### Inspect Model State
@@ -229,7 +229,7 @@ Track these over next 48-72 hours:
 
 1. **Manual Test Event:**
    ```bash
-   docker exec quantum_redis redis-cli XADD quantum:stream:exitbrain.pnl "*" \
+   redis-cli XADD quantum:stream:exitbrain.pnl "*" \
      timestamp $(date +%s) \
      symbol TESTUSDT \
      pnl 2.5 \
@@ -266,3 +266,4 @@ RL Feedback Bridge is **LIVE and LEARNING**! System is now processing ExitBrain 
 **Deployment Time:** 2025-12-27 22:54:28 UTC
 **Module Version:** v1.0 (Actor-Critic with online learning)
 **Status:** ✅ OPERATIONAL
+

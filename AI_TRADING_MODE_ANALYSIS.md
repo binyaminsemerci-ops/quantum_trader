@@ -174,16 +174,16 @@ Executor: Processing 0/20 signals
 
 ```bash
 # 1. Check executor config
-docker logs quantum_auto_executor --tail 200 | grep -i "config\|threshold\|filter"
+journalctl -u quantum_auto_executor.service --tail 200 | grep -i "config\|threshold\|filter"
 
 # 2. Check what signals are being filtered
-docker logs quantum_auto_executor --tail 200 | grep -i "skip\|reject\|filter"
+journalctl -u quantum_auto_executor.service --tail 200 | grep -i "skip\|reject\|filter"
 
 # 3. Check for errors
-docker logs quantum_auto_executor --tail 200 | grep -i "error\|fail\|exception"
+journalctl -u quantum_auto_executor.service --tail 200 | grep -i "error\|fail\|exception"
 
 # 4. Check Binance testnet connection
-docker logs quantum_auto_executor --tail 200 | grep -i "binance\|connection\|api"
+journalctl -u quantum_auto_executor.service --tail 200 | grep -i "binance\|connection\|api"
 ```
 
 ---
@@ -243,22 +243,22 @@ docker logs quantum_auto_executor --tail 200 | grep -i "binance\|connection\|api
 
 1. **Check executor config**:
    ```bash
-   docker logs quantum_auto_executor --tail 500 | grep -i "threshold\|min_confidence"
+   journalctl -u quantum_auto_executor.service --tail 500 | grep -i "threshold\|min_confidence"
    ```
 
 2. **Check for errors**:
    ```bash
-   docker logs quantum_auto_executor --tail 500 | grep -i "error\|exception\|fail"
+   journalctl -u quantum_auto_executor.service --tail 500 | grep -i "error\|exception\|fail"
    ```
 
 3. **Check Binance testnet status**:
    ```bash
-   docker logs quantum_auto_executor --tail 100 | grep -i "binance\|api\|connection"
+   journalctl -u quantum_auto_executor.service --tail 100 | grep -i "binance\|api\|connection"
    ```
 
 4. **Check signal content**:
    ```bash
-   docker exec quantum_redis redis-cli LRANGE quantum:stream:trade.intent 0 5
+   redis-cli LRANGE quantum:stream:trade.intent 0 5
    ```
 
 ### SHORT-TERM (if problems found):
@@ -313,3 +313,4 @@ docker logs quantum_auto_executor --tail 200 | grep -i "binance\|connection\|api
 
 **Report Generated**: 25. desember 2025, kl 05:52 UTC  
 **Next Check**: Executor logs for rejection reasons
+

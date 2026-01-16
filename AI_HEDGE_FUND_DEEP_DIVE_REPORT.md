@@ -50,7 +50,7 @@ quantum_trading_bot          ✅ Aktiv - Signal generation (8003)
 ```
 
 **MANGLER I DEPLOYMENT:**
-- ❌ **quantum_ai_engine** - IKKE DEPLOYET (men definert i docker-compose.yml linje 505-548!)
+- ❌ **quantum_ai_engine** - IKKE DEPLOYET (men definert i systemctl.yml linje 505-548!)
 - ❌ **exit_brain** - Ikke deployet som service (kun kode eksisterer)
 - ❌ **position_monitor** - Ingen service for posisjonshåndtering
 
@@ -249,19 +249,19 @@ Hva som FAKTISK skjer:
 ### **ÅRSAK 1: Container ikke startet**
 
 ```bash
-$ docker ps --filter name=ai_engine
+$ systemctl list-units --filter name=ai_engine
 # Ingen output!
 
-$ docker ps --filter name=ai-engine  
+$ systemctl list-units --filter name=ai-engine  
 # Ingen output!
 
-$ docker-compose -f docker-compose.vps.yml ps ai-engine
+$ systemctl -f systemctl.vps.yml ps ai-engine
 # Sannsynligvis ikke i VPS compose-fil
 ```
 
 ### **ÅRSAK 2: Docker Compose profiler**
 
-I [docker-compose.yml](docker-compose.yml) linje 512:
+I [systemctl.yml](systemctl.yml) linje 512:
 ```yaml
 ai-engine:
   build:
@@ -274,7 +274,7 @@ ai-engine:
 
 **Løsning:** Når du starter, må du kjøre:
 ```bash
-docker-compose --profile microservices up -d ai-engine
+systemctl --profile microservices up -d ai-engine
 ```
 
 ### **ÅRSAK 3: DNS-problem i Docker nettverk**
@@ -472,10 +472,10 @@ async def _generate_fallback_signal(self, symbol: str, market_data: dict):
 ```bash
 # På VPS:
 cd ~/quantum_trader
-docker-compose --profile microservices up -d ai-engine
+systemctl --profile microservices up -d ai-engine
 
 # Sjekk at det virker:
-docker logs quantum_ai_engine --tail 50
+journalctl -u quantum_ai_engine.service --tail 50
 curl http://localhost:8001/health
 ```
 
@@ -538,10 +538,10 @@ if side == "BUY" or side == "LONG":
 
 ### **PROBLEM #4: Exit Brain ikke deployet**
 **Impact:** ❌ MEDIUM - Ingen auto-position management  
-**Årsak:** Ikke definert i docker-compose.vps.yml  
+**Årsak:** Ikke definert i systemctl.vps.yml  
 **Løsning:**
 ```yaml
-# Legg til i docker-compose.vps.yml:
+# Legg til i systemctl.vps.yml:
 exit-brain:
   build:
     context: .
@@ -573,8 +573,8 @@ exit-brain:
 ```bash
 ssh qt@46.224.116.254
 cd ~/quantum_trader
-docker-compose --profile microservices up -d ai-engine
-docker logs quantum_ai_engine --follow
+systemctl --profile microservices up -d ai-engine
+journalctl -u quantum_ai_engine.service --follow
 # Vent til "✅ AI Engine Service STARTED"
 ```
 
@@ -658,9 +658,9 @@ COPY . .
 CMD ["python", "-m", "backend.microservices.exit_brain.main"]
 EOF
 
-# Legg til i docker-compose.vps.yml (se Problem #4)
+# Legg til i systemctl.vps.yml (se Problem #4)
 # Deploy:
-docker-compose -f docker-compose.vps.yml up -d exit-brain
+systemctl -f systemctl.vps.yml up -d exit-brain
 ```
 
 **Forventet resultat:**
@@ -672,7 +672,7 @@ docker-compose -f docker-compose.vps.yml up -d exit-brain
 ### **TRINN 5: Full System Test (20 min)**
 ```bash
 # 1. Verify all services:
-docker ps | grep quantum_ | wc -l  # Skal være 22+ (med ai-engine og exit-brain)
+systemctl list-units | grep quantum_ | wc -l  # Skal være 22+ (med ai-engine og exit-brain)
 
 # 2. Test AI Engine:
 curl -X POST http://localhost:8001/api/ai/signal \
@@ -681,17 +681,17 @@ curl -X POST http://localhost:8001/api/ai/signal \
 # Skal returnere: {"symbol": "BTCUSDT", "side": "BUY"|"SELL"|"HOLD", "confidence": 0.xx, ...}
 
 # 3. Check EventBus flow:
-docker exec quantum_redis redis-cli XLEN trade.intent  # Skal øke kontinuerlig
-docker exec quantum_redis redis-cli GET live_signals | jq length  # Skal være 40+
+redis-cli XLEN trade.intent  # Skal øke kontinuerlig
+redis-cli GET live_signals | jq length  # Skal være 40+
 
 # 4. Verify TP/SL:
 # Sjekk Binance UI - alle posisjoner skal ha TP og SL ordrer
 
 # 5. Monitor logs:
-docker logs quantum_trading_bot --tail 20  # Ingen "AI Engine error" lenger
-docker logs quantum_ai_engine --tail 20    # "✅ Signal generated: BTCUSDT..."
-docker logs quantum_auto_executor --tail 20  # "Processing 45 signal(s)..."
-docker logs quantum_exit_brain --tail 20     # "Monitoring 9 positions..."
+journalctl -u quantum_trading_bot.service --tail 20  # Ingen "AI Engine error" lenger
+journalctl -u quantum_ai_engine.service --tail 20    # "✅ Signal generated: BTCUSDT..."
+journalctl -u quantum_auto_executor.service --tail 20  # "Processing 45 signal(s)..."
+journalctl -u quantum_exit_brain.service --tail 20     # "Monitoring 9 positions..."
 ```
 
 ---
@@ -831,4 +831,5 @@ docker logs quantum_exit_brain --tail 20     # "Monitoring 9 positions..."
 **SIST OPPDATERT:** 2025-12-20 23:42 UTC  
 **VPS STATUS:** 21/21 containers running, 9 positions active, $1.55 PNL  
 **CRITICAL PATH:** Start AI Engine → Fix TP/SL → Deploy Exit Brain → Profit!
+
 

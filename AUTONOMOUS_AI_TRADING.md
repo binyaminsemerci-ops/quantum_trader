@@ -87,7 +87,7 @@ AI detekterte bearish markedsbevegelse og genererte SHORT signaler!
 
 ## 🔧 Konfigurasjon (Environment Variables)
 
-I `docker-compose.yml`:
+I `systemctl.yml`:
 
 ```yaml
 # 🚀 100% AUTONOMOUS AI TRADING MODE
@@ -132,13 +132,13 @@ I `docker-compose.yml`:
 
 ```bash
 # Stream logs i sanntid
-docker logs quantum_backend -f
+journalctl -u quantum_backend.service -f
 
 # Søk etter strong signals
-docker logs quantum_backend | Select-String "Strong signals"
+journalctl -u quantum_backend.service | Select-String "Strong signals"
 
 # Sjekk utførte ordrer
-docker logs quantum_backend | Select-String "Order executed"
+journalctl -u quantum_backend.service | Select-String "Order executed"
 ```
 
 ### Health check:
@@ -194,7 +194,7 @@ Market Data → AI Prediction → Trade → P&L → Training Data → Better AI
 
 ### For live trading:
 ```yaml
-# I docker-compose.yml, endre:
+# I systemctl.yml, endre:
 - QT_PAPER_TRADING=false  # ⚠️ BRUK EKTE PENGER
 ```
 
@@ -222,14 +222,14 @@ Market Data → AI Prediction → Trade → P&L → Training Data → Better AI
 docker exec quantum_backend printenv | Select-String "QT_"
 
 # Restart med nye settings
-docker-compose --profile dev down
-docker-compose --profile dev up -d
+systemctl --profile dev down
+systemctl --profile dev up -d
 
 # Se alle AI signaler siste 5 min
-docker logs quantum_backend --since 5m | Select-String "AI signals"
+journalctl -u quantum_backend.service --since 5m | Select-String "AI signals"
 
 # Sjekk strong signals
-docker logs quantum_backend --since 5m | Select-String "Strong signals"
+journalctl -u quantum_backend.service --since 5m | Select-String "Strong signals"
 ```
 
 ---
@@ -253,3 +253,4 @@ Systemet er nå konfigurert som **100% autonom AI trader**:
 6. Lære av resultater for forbedring
 
 🎉 **Systemet er LIVE og handler autonomt!**
+

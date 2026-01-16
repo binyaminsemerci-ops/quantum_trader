@@ -283,7 +283,7 @@ actual_trading_allowed = True
 
 ### Check LIVE Mode Status
 ```bash
-docker logs quantum_backend 2>&1 | Select-String "Orchestrator LIVE enforcing"
+journalctl -u quantum_backend.service 2>&1 | Select-String "Orchestrator LIVE enforcing"
 ```
 
 **Expected Output:**
@@ -293,7 +293,7 @@ docker logs quantum_backend 2>&1 | Select-String "Orchestrator LIVE enforcing"
 
 ### Monitor Blocked Signals
 ```bash
-docker logs quantum_backend -f 2>&1 | Select-String "BLOCKED by policy"
+journalctl -u quantum_backend.service -f 2>&1 | Select-String "BLOCKED by policy"
 ```
 
 **Expected Output:**
@@ -304,7 +304,7 @@ docker logs quantum_backend -f 2>&1 | Select-String "BLOCKED by policy"
 
 ### Check Policy Updates
 ```bash
-docker logs quantum_backend -f 2>&1 | Select-String "LIVE MODE - Policy ENFORCED"
+journalctl -u quantum_backend.service -f 2>&1 | Select-String "LIVE MODE - Policy ENFORCED"
 ```
 
 **Expected Output:**
@@ -422,3 +422,4 @@ The OrchestratorPolicy is now **ACTIVELY ENFORCING** signal filtering controls:
 ---
 
 **Senior Quant Developer:** LIVE MODE Step 1 activated successfully ✅
+

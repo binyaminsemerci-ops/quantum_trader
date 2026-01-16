@@ -140,7 +140,7 @@ ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
 
 # Check Redis for ILF metadata
 ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
-  "docker exec quantum_redis redis-cli KEYS 'quantum:position:ilf:*'"
+  "redis-cli KEYS 'quantum:position:ilf:*'"
 ```
 
 ---
@@ -211,7 +211,7 @@ if confidence >= 0.50:  # Changed from 0.65 to 0.50
 **4. Check Redis Streams:**
 ```bash
 ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
-  "docker exec quantum_redis redis-cli XREAD COUNT 1 STREAMS quantum:stream:trade.intent 0"
+  "redis-cli XREAD COUNT 1 STREAMS quantum:stream:trade.intent 0"
 ```
 
 ---
@@ -285,3 +285,4 @@ from microservices.exitbrain_v3_5.adaptive_leverage_engine import AdaptiveLevera
 **Deployment Time**: December 24, 2025 — 04:51 UTC  
 **Status**: ✅ LIVE — Monitoring for first trade  
 **Next Action**: ⏳ Wait for confidence ≥ 65% signal
+

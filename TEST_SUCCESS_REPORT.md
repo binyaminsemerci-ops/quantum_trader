@@ -90,7 +90,7 @@ Use existing `backend/routes/external_data.py` which has:
 Monitor with:
 ```bash
 # Watch for new orders
-docker logs quantum_backend --follow | Select-String "orders_submitted|Paper.*placed"
+journalctl -u quantum_backend.service --follow | Select-String "orders_submitted|Paper.*placed"
 
 # Check positions
 curl http://localhost:8000/api/futures_positions | ConvertFrom-Json | Where-Object {$_.positionAmt -ne 0}
@@ -172,3 +172,4 @@ Need to train models so that:
 
 **Time to First Trade: ~8 minutes after threshold change**
 **Status: OPERATIONAL ✅**
+

@@ -236,9 +236,9 @@ If issues detected after deployment:
 
 1. **Emergency Rollback:**
    ```bash
-   docker-compose down
+   systemctl down
    git checkout <previous-commit>
-   docker-compose up -d
+   systemctl up -d
    ```
 
 2. **Partial Rollback (Feature Flags):**
@@ -299,3 +299,4 @@ If issues detected after deployment:
 ---
 
 **READY FOR PRODUCTION DEPLOYMENT ✅**
+

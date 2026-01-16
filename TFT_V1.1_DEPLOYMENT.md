@@ -274,7 +274,7 @@ If v1.1 performs worse than expected:
 2. **Restore Old Model**:
    ```bash
    cp ai_engine/models/tft_model.pth.backup_YYYYMMDD_HHMMSS ai_engine/models/tft_model.pth
-   docker-compose restart backend
+   systemctl restart backend
    ```
 
 3. **Verify Rollback**:
@@ -334,3 +334,4 @@ If v1.1 performs worse than expected:
 ---
 
 **Status**: 🟢 **PRODUCTION - MONITORING**
+

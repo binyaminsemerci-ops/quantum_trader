@@ -757,7 +757,7 @@ interface Data {
 |---------|---------|
 | Hvit skjerm | Sjekk browser console for errors |
 | API feil | Verifiser backend health: `curl http://localhost:8025/health` |
-| Nginx 502 | Backend container down: `docker ps \| grep dashboard` |
+| Nginx 502 | Backend container down: `systemctl list-units \| grep dashboard` |
 | Data vises ikke | Interface mismatch: Sammenlign frontend/backend fields |
 | Build feil | TypeScript errors: `npm run build` for detaljer |
 
@@ -846,10 +846,10 @@ const data = await fetch(url).then(r => r.json());  // Can fail silently
 ### **Nyttige kommandoer:**
 ```bash
 # Sjekk dashboard backend status
-docker ps --filter name=dashboard
+systemctl list-units --filter name=dashboard
 
 # Backend logs
-docker logs quantum_dashboard_backend --tail 50
+journalctl -u quantum_dashboard_backend.service --tail 50
 
 # Frontend rebuild og deploy
 cd /root/quantum_trader/dashboard_v4/frontend
@@ -891,3 +891,4 @@ curl -I https://app.quantumfond.com
 **Rapport generert:** 27. desember 2025, 16:45 CET  
 **Sist oppdatert:** e642ea86 (GitHub commit)  
 **Status:** ✅ OPERASJONELL
+

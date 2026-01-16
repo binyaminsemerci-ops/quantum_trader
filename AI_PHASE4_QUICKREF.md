@@ -196,12 +196,12 @@ asyncio.create_task(aprl.run_continuous())
 
 ### Check Container Status
 ```bash
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker ps --filter name=quantum_backend'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'systemctl list-units --filter name=quantum_backend'
 ```
 
 ### View Phase 4 Logs
 ```bash
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker logs quantum_backend 2>&1 | grep -E "\[PHASE 4\]|\[APRL\]"'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'journalctl -u quantum_backend.service 2>&1 | grep -E "\[PHASE 4\]|\[APRL\]"'
 ```
 
 ### Test Health Endpoints
@@ -305,7 +305,7 @@ run_continuous_interval = 3600   # Policy adjustment every 1 hour
 ### APRL Not Showing in /health
 ```bash
 # Check if APRL initialized
-docker logs quantum_backend 2>&1 | grep "PHASE 4"
+journalctl -u quantum_backend.service 2>&1 | grep "PHASE 4"
 
 # Expected: "[PHASE 4] ✅ Adaptive Policy Reinforcement initialized"
 ```
@@ -321,7 +321,7 @@ docker logs quantum_backend 2>&1 | grep "PHASE 4"
 ### Health Endpoint Returns 500 Error
 ```bash
 # Check logs for stack trace
-docker logs quantum_backend 2>&1 | tail -50
+journalctl -u quantum_backend.service 2>&1 | tail -50
 
 # Common issue: AttributeError accessing private APRL attributes
 # Fix: Use aprl.get_status() instead of direct attribute access
@@ -331,7 +331,7 @@ docker logs quantum_backend 2>&1 | tail -50
 
 ## 🎉 SUCCESS INDICATORS
 
-✅ **Container Running**: `docker ps` shows "Up X seconds"  
+✅ **Container Running**: `systemctl list-units` shows "Up X seconds"  
 ✅ **Health Returns 200**: `curl /health` returns `"status": "ok"`  
 ✅ **Phase 4 Active**: `/health` shows `"phase4_aprl": {"active": true}`  
 ✅ **Logs Show Init**: `grep PHASE 4` finds initialization messages  
@@ -343,3 +343,4 @@ docker logs quantum_backend 2>&1 | tail -50
 **Last Updated**: 2025-12-20 03:56 UTC  
 **Quick Reference**: Phase 4 Adaptive Policy Reinforcement Layer  
 **Full Documentation**: See AI_PHASE4_APRL_DEPLOYMENT_COMPLETE.md
+

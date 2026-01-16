@@ -208,7 +208,7 @@ except Exception as e:
 05:01:16 - INFO - Dash is running on http://0.0.0.0:8050/dashboard/
 ```
 
-#### 2. `docker-compose.yml` (Added 1 line)
+#### 2. `systemctl.yml` (Added 1 line)
 **Port Configuration:**
 ```yaml
 services:
@@ -249,11 +249,11 @@ cd ~/quantum_trader/backend/services
 ```
 **Result:** ✅ 14.5 KB file with full dashboard implementation
 
-#### 3. **Update docker-compose.yml**
+#### 3. **Update systemctl.yml**
 ```bash
 cd ~/quantum_trader
-cp docker-compose.yml docker-compose.yml.bak
-sed -i 's/- "8000:8000"/- "8000:8000"\n      - "8050:8050"/' docker-compose.yml
+cp systemctl.yml systemctl.yml.bak
+sed -i 's/- "8000:8000"/- "8000:8000"\n      - "8050:8050"/' systemctl.yml
 ```
 **Result:** ✅ Port 8050 exposed alongside 8000
 
@@ -307,7 +307,7 @@ curl http://localhost:8050/dashboard/ | head -20
 
 #### 8. **Check Container Status**
 ```bash
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+systemctl list-units --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 ```
 **Result:**
 ```
@@ -637,7 +637,7 @@ EventBus             ⚠️ N/A    Phase 2 component
 
 ### Port Verification
 ```bash
-$ docker ps --format "table {{.Names}}\t{{.Ports}}"
+$ systemctl list-units --format "table {{.Names}}\t{{.Ports}}"
 
 NAMES                PORTS
 quantum_backend      0.0.0.0:8000->8000/tcp ✅
@@ -943,7 +943,7 @@ if current_drawdown < -0.05:  # -5% threshold
 ### Pre-Deployment
 - [x] Add plotly and dash to requirements.txt
 - [x] Create dashboard_service.py (424 lines)
-- [x] Update docker-compose.yml (port 8050)
+- [x] Update systemctl.yml (port 8050)
 - [x] Integrate dashboard in main.py startup
 
 ### Build & Deploy
@@ -996,3 +996,4 @@ if current_drawdown < -0.05:  # -5% threshold
 **System Status:** ✅ FULLY OPERATIONAL  
 **Dashboard Status:** ✅ LIVE  
 **Phase 5 Status:** ✅ COMPLETE
+

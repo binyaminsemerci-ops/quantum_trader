@@ -51,7 +51,7 @@ await ai_services.initialize()
 
 #### **Why Backend Not Running?**
 
-**docker-compose.yml Analysis:**
+**systemctl.yml Analysis:**
 ```yaml
 backend:
   profiles: ["dev"]  # ⚠️ ONLY RUNS IN DEV MODE!
@@ -164,7 +164,7 @@ backend:
 # 1. Remove "dev" profile from backend service
 # 2. Add port mapping: "8000:8000"
 # 3. Deploy:
-docker-compose up -d backend
+systemctl up -d backend
 ```
 
 ### **Option B: Migrate AI Modules to Microservices** (Proper, Takes Time)
@@ -183,7 +183,7 @@ docker-compose up -d backend
 1. Create new microservice: `ai_coordinator` (contains AI-HFOS, PBA, PAL, PIL)
 2. Create new microservice: `model_supervisor`
 3. Migrate code from backend/services/* to microservices/
-4. Update docker-compose.yml
+4. Update systemctl.yml
 5. Test and deploy
 
 ### **Option C: Hybrid Approach** (Recommended)
@@ -201,9 +201,9 @@ docker-compose up -d backend
 
 ## 📝 **IMMEDIATE NEXT STEPS**
 
-### **Step 1: Update docker-compose.yml**
+### **Step 1: Update systemctl.yml**
 
-**File:** `docker-compose.yml`
+**File:** `systemctl.yml`
 
 **Change:**
 ```yaml
@@ -231,10 +231,10 @@ cd ~/quantum_trader
 git pull origin main
 
 # Build and start backend
-docker-compose up -d backend
+systemctl up -d backend
 
 # Verify
-docker ps | grep backend
+systemctl list-units | grep backend
 curl http://localhost:8000/health
 ```
 
@@ -249,7 +249,7 @@ curl http://localhost:8000/health
 curl http://localhost:8000/api/aios_status
 
 # Check logs
-docker logs quantum_backend | grep -E "AI-HFOS|PBA|PAL|PIL|Model Supervisor"
+journalctl -u quantum_backend.service | grep -E "AI-HFOS|PBA|PAL|PIL|Model Supervisor"
 ```
 
 ---
@@ -258,7 +258,7 @@ docker logs quantum_backend | grep -E "AI-HFOS|PBA|PAL|PIL|Model Supervisor"
 
 | Action | Duration | Priority |
 |--------|----------|----------|
-| Update docker-compose.yml | 15 min | 🔴 CRITICAL |
+| Update systemctl.yml | 15 min | 🔴 CRITICAL |
 | Deploy backend container | 30 min | 🔴 CRITICAL |
 | Verify AI modules | 30 min | 🔴 CRITICAL |
 | Monitor 24h | 1 day | 🟡 HIGH |
@@ -293,4 +293,5 @@ docker logs quantum_backend | grep -E "AI-HFOS|PBA|PAL|PIL|Model Supervisor"
 ---
 
 **Status:** WAITING FOR DECISION
+
 

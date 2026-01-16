@@ -10,7 +10,7 @@
 ## ⚠️ CRITICAL GATES (MUST PASS BEFORE PROCEEDING)
 
 ### Gate 0: P1-B Prerequisites ✅ REQUIRED
-- [ ] All containers healthy (`docker ps --filter health=unhealthy` = empty)
+- [ ] All containers healthy (`systemctl list-units --filter health=unhealthy` = empty)
 - [ ] Disk usage <85% (current: ___%)
 - [ ] Prometheus targets UP (check `/api/v1/targets`)
 - [ ] Alert rules loaded (check `/api/v1/rules`)
@@ -312,3 +312,4 @@ Notes: _______________
 **REMEMBER**: You can ALWAYS abort. Better to stop and investigate than risk capital.
 
 **Operator**: If in doubt, run `go_live_abort.sh` and revert to testnet/paper mode.
+

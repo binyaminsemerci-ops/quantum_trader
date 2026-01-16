@@ -25,7 +25,7 @@ backend/microservices/federation_stub/
 ```
 
 ### Docker Services Updated
-- Added `federation-stub` service to docker-compose.yml
+- Added `federation-stub` service to systemctl.yml
 - Depends on: quantum-policy-memory
 - Profiles: ["microservices"]
 
@@ -36,13 +36,13 @@ backend/microservices/federation_stub/
 ### Check Status
 ```bash
 # Container status
-docker ps | grep federation
+systemctl list-units | grep federation
 
 # Recent logs
-docker logs quantum_federation_stub --tail 20
+journalctl -u quantum_federation_stub.service --tail 20
 
 # Redis status
-docker exec quantum_redis redis-cli HGETALL federation_stub_status
+redis-cli HGETALL federation_stub_status
 
 # Log file
 cat backend/microservices/federation_stub/federation_stub_log/federation_status.log
@@ -70,11 +70,11 @@ message: Federation layer inactive - single node mode
 ### Daily Monitoring (Optional)
 ```bash
 # Check Redis status (once daily)
-docker exec quantum_redis redis-cli HGET federation_stub_status status
+redis-cli HGET federation_stub_status status
 # Expected: "ready"
 
 # Check container health (once weekly)
-docker ps | grep federation
+systemctl list-units | grep federation
 # Expected: (healthy)
 ```
 
@@ -83,19 +83,19 @@ docker ps | grep federation
 **If Container Unhealthy:**
 ```bash
 # Check logs
-docker logs quantum_federation_stub --tail 50
+journalctl -u quantum_federation_stub.service --tail 50
 
 # Restart
 docker compose restart federation-stub
 
 # Verify Redis
-docker exec quantum_redis redis-cli PING
+redis-cli PING
 ```
 
 **If No Redis Updates:**
 ```bash
 # Check keys
-docker exec quantum_redis redis-cli KEYS "federation*"
+redis-cli KEYS "federation*"
 
 # Expected: "federation_stub_status"
 ```
@@ -106,7 +106,7 @@ docker exec quantum_redis redis-cli KEYS "federation*"
 
 ### When Multi-Node Needed
 1. Update `federation_stub_service.py` (add peer discovery)
-2. Set `FEDERATION_MODE=active` in docker-compose.yml
+2. Set `FEDERATION_MODE=active` in systemctl.yml
 3. Deploy peer nodes on additional VPS instances
 4. Configure peer addresses
 5. Enable data synchronization
@@ -226,8 +226,9 @@ Phase 13-STUB successfully deploys a **passive federation scaffold** that:
 
 **Quick Status Check:**
 ```bash
-docker exec quantum_redis redis-cli HGET federation_stub_status message
+redis-cli HGET federation_stub_status message
 # Output: "Federation layer inactive - single node mode"
 ```
 
 ✅ **All systems operational** - Federation stub deployed in passive mode
+

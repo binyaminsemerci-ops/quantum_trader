@@ -54,7 +54,7 @@ Field mapping from Portfolio Intelligence API:
 ```
 
 #### 4. Docker Compose Configuration
-Added to `docker-compose.yml`:
+Added to `systemctl.yml`:
 ```yaml
 dashboard-backend:
   environment:
@@ -126,7 +126,7 @@ When service is available:
 4. **`dashboard_v4/backend/requirements.txt`**
    - Added: `aiohttp==3.9.1` for async HTTP requests
 
-5. **`docker-compose.yml`**
+5. **`systemctl.yml`**
    - Added environment variable for service host
    - Configured `extra_hosts` for Docker networking
    - Ensured dashboard on same network as services
@@ -205,3 +205,4 @@ All endpoints tested and operational:
 **Real Data:** ✅ ACTIVE  
 **Fallback System:** ✅ OPERATIONAL  
 **All Services:** ✅ CONNECTED
+

@@ -82,7 +82,7 @@ Architecture v2 has been **fully integrated** into the quantum_trader backend sy
 ## Infrastructure Changes
 
 ### Docker Compose
-**File:** `docker-compose.yml`
+**File:** `systemctl.yml`
 
 **Added Redis Service:**
 ```yaml
@@ -430,7 +430,7 @@ HealthChecker initialized: status=HEALTHY, healthy_deps=3, total_deps=3
 ### 3. Redis Policy Storage ✅
 **Command:**
 ```bash
-docker exec quantum_redis redis-cli GET "quantum:policy:current"
+redis-cli GET "quantum:policy:current"
 ```
 
 **Result:**
@@ -718,3 +718,4 @@ All components have been successfully integrated:
 **Integration completed by:** GitHub Copilot  
 **Verified by:** Backend logs, health endpoint, Redis CLI, Docker containers  
 **Documentation date:** December 1, 2025
+

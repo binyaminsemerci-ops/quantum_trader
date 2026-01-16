@@ -159,7 +159,7 @@ Accessible at http://46.224.116.254:8080 for real-time visual monitoring.
 │  ┌────────────────────────────────────────────────────────┐  │
 │  │  FastAPI Application (app.py)                          │  │
 │  │  - Collect system metrics (psutil)                     │  │
-│  │  - Query Docker containers (docker ps)                 │  │
+│  │  - Query Docker containers (systemctl list-units)                 │  │
 │  │  - Format JSON response                                │  │
 │  └────────────┬───────────────────────────────────────────┘  │
 └───────────────┼──────────────────────────────────────────────┘
@@ -264,7 +264,7 @@ curl http://localhost:8080/api/status
 ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "docker logs -f quantum_dashboard"
 
 # Last 50 lines
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "docker logs quantum_dashboard --tail 50"
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "journalctl -u quantum_dashboard.service --tail 50"
 ```
 
 ### Restart Dashboard
@@ -296,7 +296,7 @@ docker run -d --name quantum_dashboard --restart unless-stopped \
 ### Check Container Status
 
 ```bash
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "docker ps --filter name=quantum_dashboard"
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "systemctl list-units --filter name=quantum_dashboard"
 ```
 
 ---
@@ -307,12 +307,12 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 "docker ps --filter name=quantum_d
 
 **Check if container is running:**
 ```bash
-docker ps | grep quantum_dashboard
+systemctl list-units | grep quantum_dashboard
 ```
 
 **Check logs for errors:**
 ```bash
-docker logs quantum_dashboard --tail 50
+journalctl -u quantum_dashboard.service --tail 50
 ```
 
 **Restart container:**
@@ -629,3 +629,4 @@ Accessible at http://46.224.116.254:8080 for real-time visual monitoring.
 ---
 
 **End of Activation Report**
+

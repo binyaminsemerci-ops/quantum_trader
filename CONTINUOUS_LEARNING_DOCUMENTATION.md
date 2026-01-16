@@ -442,7 +442,7 @@ Safety Features:   ✅ Versioning, rollback, validation
 
 ### Backend Logs Confirmation
 ```bash
-docker logs quantum_backend --tail 100 | Select-String "Retraining"
+journalctl -u quantum_backend.service --tail 100 | Select-String "Retraining"
 ```
 
 **Output:**
@@ -596,7 +596,7 @@ Results:
 python verify_retraining_active.py
 
 # Sjekk backend logs
-docker logs quantum_backend --tail 100 | Select-String "Retraining"
+journalctl -u quantum_backend.service --tail 100 | Select-String "Retraining"
 ```
 
 **Ukentlig:**
@@ -766,7 +766,7 @@ python check_learning_training_status.py
 python analyze_all_modules.py
 
 # Backend logs
-docker logs quantum_backend --tail 100 | Select-String "Retraining"
+journalctl -u quantum_backend.service --tail 100 | Select-String "Retraining"
 
 # Restart backend (if needed)
 docker restart quantum_backend
@@ -782,3 +782,4 @@ docker restart quantum_backend
 ---
 
 **🎉 SYSTEM ER KLAR FOR AUTONOMOUS CONTINUOUS LEARNING! 🚀**
+

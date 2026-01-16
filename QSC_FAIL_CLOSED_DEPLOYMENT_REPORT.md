@@ -280,3 +280,4 @@ INACTIVE MODELS (2/4):
 **Expected Resolution:** 5 minutes (≥200 events @ ~4 events/sec)
 
 **Mental Model:** "Systemet har nå ærlige vekter. Hvis det er 2 aktive modeller, sier det 2. Ikke 4."
+

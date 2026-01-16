@@ -7,7 +7,7 @@
 
 ```bash
 # All containers status
-docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+systemctl list-units --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
 # Expected: All containers "Up" with "(healthy)" where applicable
 # Critical containers: quantum_backend, quantum_redis, quantum_nginx, quantum_trading_bot
@@ -20,7 +20,7 @@ docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
 ```bash
 # Consumer group status (lag = unprocessed events)
-docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent
+redis-cli XINFO GROUPS quantum:stream:trade.intent
 
 # Expected output:
 # 1) 1) "name"
@@ -35,7 +35,7 @@ docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent
 
 ```bash
 # Detailed pending events (shows which events are stuck)
-docker exec quantum_redis redis-cli XPENDING quantum:stream:trade.intent quantum:group:execution:trade.intent
+redis-cli XPENDING quantum:stream:trade.intent quantum:group:execution:trade.intent
 
 # Expected output if healthy:
 # 1) (integer) 0  # No pending events
@@ -150,14 +150,14 @@ dmesg -T | egrep -i 'oom|killed process|out of memory' | tail -80
 ### If lag is high (>50):
 ```bash
 # Check if consumer is stuck
-docker exec quantum_redis redis-cli XINFO CONSUMERS quantum:stream:trade.intent quantum:group:execution:trade.intent
+redis-cli XINFO CONSUMERS quantum:stream:trade.intent quantum:group:execution:trade.intent
 
 # If idle > 300000 (5 minutes), restart backend:
 docker restart quantum_backend
 
 # Wait 15 seconds, then check lag again
 sleep 15
-docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent
+redis-cli XINFO GROUPS quantum:stream:trade.intent
 ```
 
 ### If backend unhealthy:
@@ -199,8 +199,8 @@ docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}" | sort -k2 -h
 ## 📊 FULL STATUS ONE-LINER
 
 ```bash
-echo "=== CONTAINERS ===" && docker ps --format "table {{.Names}}\t{{.Status}}" | grep quantum && \
-echo -e "\n=== TRADE.INTENT LAG ===" && docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent | grep -A1 "lag" && \
+echo "=== CONTAINERS ===" && systemctl list-units --format "table {{.Names}}\t{{.Status}}" | grep quantum && \
+echo -e "\n=== TRADE.INTENT LAG ===" && redis-cli XINFO GROUPS quantum:stream:trade.intent | grep -A1 "lag" && \
 echo -e "\n=== MEMORY ===" && free -h | grep "Mem:" && \
 echo -e "\n=== DISK ===" && df -h / | grep "/$"
 
@@ -222,3 +222,4 @@ echo -e "\n=== DISK ===" && df -h / | grep "/$"
 **Last Updated:** 2025-12-24  
 **VPS:** 46.224.116.254 (Hetzner)  
 **Project:** Quantum Trader Hedge Fund OS
+

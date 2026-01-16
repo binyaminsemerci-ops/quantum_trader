@@ -284,14 +284,14 @@ If universe change causes issues:
 # 1. Identify last known good universe
 docker exec quantum_backend cat /app/data/universe_snapshot.json > universe_backup.json
 
-# 2. Revert docker-compose.yml or config
+# 2. Revert systemctl.yml or config
 # Restore previous QT_SYMBOLS or QT_UNIVERSE settings
 
 # 3. Restart backend
-docker-compose restart backend
+systemctl restart backend
 
 # 4. Verify rollback
-docker logs quantum_backend --since 1m | grep "UNIVERSE"
+journalctl -u quantum_backend.service --since 1m | grep "UNIVERSE"
 
 # 5. Document incident
 echo "Rollback performed on $(date): [reason]" >> universe_changes.log
@@ -397,3 +397,4 @@ Day 35+:  Weekly optimization cycles
 *Run agent: `docker exec quantum_backend python /app/universe_selector_agent.py`*
 
 *Next action: Wait for Week 2 data milestone, then re-run agent*
+

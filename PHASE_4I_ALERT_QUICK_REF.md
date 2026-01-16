@@ -6,17 +6,17 @@
 
 ### View Alert Logs (Live)
 ```bash
-ssh qt@46.224.116.254 'docker logs quantum_governance_alerts -f'
+ssh qt@46.224.116.254 'journalctl -u quantum_governance_alerts.service -f'
 ```
 
 ### View Recent Alerts
 ```bash
-ssh qt@46.224.116.254 'docker logs quantum_governance_alerts --tail 50'
+ssh qt@46.224.116.254 'journalctl -u quantum_governance_alerts.service --tail 50'
 ```
 
 ### Check Container Status
 ```bash
-ssh qt@46.224.116.254 'docker ps --filter name=quantum_governance_alerts'
+ssh qt@46.224.116.254 'systemctl list-units --filter name=quantum_governance_alerts'
 ```
 
 ### Restart Alert Service
@@ -30,22 +30,22 @@ ssh qt@46.224.116.254 'docker restart quantum_governance_alerts'
 
 ### View All Alerts in Redis
 ```bash
-ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli LRANGE governance_alerts 0 -1'
+ssh qt@46.224.116.254 'redis-cli LRANGE governance_alerts 0 -1'
 ```
 
 ### Get Alert Count
 ```bash
-ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli LLEN governance_alerts'
+ssh qt@46.224.116.254 'redis-cli LLEN governance_alerts'
 ```
 
 ### View Latest Alert (Formatted)
 ```bash
-ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli LINDEX governance_alerts 0 | python3 -m json.tool'
+ssh qt@46.224.116.254 'redis-cli LINDEX governance_alerts 0 | python3 -m json.tool'
 ```
 
 ### Clear All Alerts
 ```bash
-ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli DEL governance_alerts'
+ssh qt@46.224.116.254 'redis-cli DEL governance_alerts'
 ```
 
 ---
@@ -54,13 +54,13 @@ ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli DEL governance_alerts
 
 ### Test Model Drift Alert
 ```bash
-ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli SET latest_metrics "{\"mape\":0.08,\"sharpe_ratio\":0.5}"'
+ssh qt@46.224.116.254 'redis-cli SET latest_metrics "{\"mape\":0.08,\"sharpe_ratio\":0.5}"'
 # Wait 2 minutes, then check logs
 ```
 
 ### Test Missing Weights Alert
 ```bash
-ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli DEL governance_weights'
+ssh qt@46.224.116.254 'redis-cli DEL governance_weights'
 # Wait 2 minutes, then check logs
 ```
 
@@ -72,7 +72,7 @@ ssh qt@46.224.116.254 'yes > /dev/null & sleep 120; pkill yes'
 
 ### View Test Results
 ```bash
-ssh qt@46.224.116.254 'docker logs quantum_governance_alerts --tail 30 | grep ALERT'
+ssh qt@46.224.116.254 'journalctl -u quantum_governance_alerts.service --tail 30 | grep ALERT'
 ```
 
 ---
@@ -87,11 +87,11 @@ ssh qt@46.224.116.254 'docker logs quantum_governance_alerts --tail 30 | grep AL
 
 ### Check Current Config
 ```bash
-ssh qt@46.224.116.254 'docker logs quantum_governance_alerts | grep "Thresholds"'
+ssh qt@46.224.116.254 'journalctl -u quantum_governance_alerts.service | grep "Thresholds"'
 ```
 
 ### Modify Thresholds
-Edit `docker-compose.yml`:
+Edit `systemctl.yml`:
 ```yaml
 environment:
   - CPU_THRESHOLD=90        # Raise CPU threshold
@@ -113,7 +113,7 @@ ssh qt@46.224.116.254 'cd ~/quantum_trader && docker compose down governance-ale
 3. App passwords → Generate password
 4. Copy the 16-character password
 
-### 2. Update docker-compose.yml
+### 2. Update systemctl.yml
 ```yaml
 environment:
   - ALERT_EMAIL=your@email.com
@@ -130,7 +130,7 @@ ssh qt@46.224.116.254 'cd ~/quantum_trader && docker compose down governance-ale
 
 ### 4. Verify Email Config
 ```bash
-ssh qt@46.224.116.254 'docker logs quantum_governance_alerts | grep "Email alerts"'
+ssh qt@46.224.116.254 'journalctl -u quantum_governance_alerts.service | grep "Email alerts"'
 # Should show: "Email alerts: ✅ Enabled"
 ```
 
@@ -149,7 +149,7 @@ ssh qt@46.224.116.254 'docker logs quantum_governance_alerts | grep "Email alert
 2. Send `/start` command
 3. Copy your ID (format: `123456789`)
 
-### 3. Update docker-compose.yml
+### 3. Update systemctl.yml
 ```yaml
 environment:
   - TELEGRAM_TOKEN=123456789:ABCDEF123456
@@ -163,7 +163,7 @@ ssh qt@46.224.116.254 'cd ~/quantum_trader && docker compose down governance-ale
 
 ### 5. Verify Telegram Config
 ```bash
-ssh qt@46.224.116.254 'docker logs quantum_governance_alerts | grep "Telegram alerts"'
+ssh qt@46.224.116.254 'journalctl -u quantum_governance_alerts.service | grep "Telegram alerts"'
 # Should show: "Telegram alerts: ✅ Enabled"
 ```
 
@@ -174,7 +174,7 @@ ssh qt@46.224.116.254 'docker logs quantum_governance_alerts | grep "Telegram al
 ### No Alerts Generated
 ```bash
 # Check if monitoring loop is running
-ssh qt@46.224.116.254 'docker logs quantum_governance_alerts | grep "Cycle"'
+ssh qt@46.224.116.254 'journalctl -u quantum_governance_alerts.service | grep "Cycle"'
 
 # Verify Redis connection
 ssh qt@46.224.116.254 'docker exec quantum_governance_alerts python3 -c "import redis; r=redis.Redis(host=\"quantum_redis\"); print(r.ping())"'
@@ -183,7 +183,7 @@ ssh qt@46.224.116.254 'docker exec quantum_governance_alerts python3 -c "import 
 ### Alerts Not Showing in Dashboard
 ```bash
 # Verify alerts in Redis
-ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli LLEN governance_alerts'
+ssh qt@46.224.116.254 'redis-cli LLEN governance_alerts'
 
 # Should return a number > 0
 ```
@@ -194,7 +194,7 @@ ssh qt@46.224.116.254 'docker exec quantum_redis redis-cli LLEN governance_alert
 ssh qt@46.224.116.254 'docker inspect quantum_governance_alerts | grep -A10 Health'
 
 # Check for errors
-ssh qt@46.224.116.254 'docker logs quantum_governance_alerts --tail 100 | grep -i error'
+ssh qt@46.224.116.254 'journalctl -u quantum_governance_alerts.service --tail 100 | grep -i error'
 ```
 
 ---
@@ -239,17 +239,17 @@ ssh qt@46.224.116.254 'docker logs quantum_governance_alerts --tail 100 | grep -
 
 ### One-Line Status Check
 ```bash
-ssh qt@46.224.116.254 'echo "Container:" && docker ps --filter name=quantum_governance_alerts --format "{{.Status}}" && echo "Alerts:" && docker exec quantum_redis redis-cli LLEN governance_alerts && echo "Last Alert:" && docker exec quantum_redis redis-cli LINDEX governance_alerts 0'
+ssh qt@46.224.116.254 'echo "Container:" && systemctl list-units --filter name=quantum_governance_alerts --format "{{.Status}}" && echo "Alerts:" && redis-cli LINDEX governance_alerts 0'
 ```
 
 ### Full System Check
 ```bash
-ssh qt@46.224.116.254 'echo "=== Alert Service ===" && docker logs quantum_governance_alerts --tail 20 && echo -e "\n=== Alert Count ===" && docker exec quantum_redis redis-cli LLEN governance_alerts && echo -e "\n=== Latest Alert ===" && docker exec quantum_redis redis-cli LINDEX governance_alerts 0 | python3 -m json.tool'
+ssh qt@46.224.116.254 'echo "=== Alert Service ===" && journalctl -u quantum_governance_alerts.service --tail 20 && echo -e "\n=== Alert Count ===" && redis-cli LINDEX governance_alerts 0 | python3 -m json.tool'
 ```
 
 ### Restart All Phase 4 Services
 ```bash
-ssh qt@46.224.116.254 'cd ~/quantum_trader && docker restart quantum_ai_engine quantum_governance_dashboard quantum_governance_alerts && sleep 10 && docker ps --filter name=quantum'
+ssh qt@46.224.116.254 'cd ~/quantum_trader && docker restart quantum_ai_engine quantum_governance_dashboard quantum_governance_alerts && sleep 10 && systemctl list-units --filter name=quantum'
 ```
 
 ---
@@ -265,3 +265,4 @@ ssh qt@46.224.116.254 'cd ~/quantum_trader && docker restart quantum_ai_engine q
 **Alert System Status:** ✅ OPERATIONAL  
 **Monitoring:** 24/7  
 **Last Updated:** 2025-12-20  
+

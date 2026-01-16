@@ -224,3 +224,4 @@ docker compose logs -f backend-live  # VPS
 # or
 Get-Content logs/*.log -Tail 100  # Local
 ```
+

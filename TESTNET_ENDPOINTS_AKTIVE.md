@@ -71,7 +71,7 @@ else:
 ### Sjekk aktiv endpoint på VPS:
 ```bash
 ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 \
-  "docker logs quantum_trade_intent_consumer 2>&1 | grep 'Using.*TESTNET' | tail -1"
+  "journalctl -u quantum_trade_intent_consumer.service 2>&1 | grep 'Using.*TESTNET' | tail -1"
 ```
 
 **Forventet output:**
@@ -201,3 +201,4 @@ BINANCE_API_SECRET=tEKYWf77...       ✅ (testnet)
 **Rapport Generert:** 2025-12-25 00:15 UTC  
 **System:** 🟢 Testnet Aktiv  
 **Endpoint:** ✅ `https://testnet.binancefuture.com`
+

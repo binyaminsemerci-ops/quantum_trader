@@ -75,7 +75,7 @@ federation_stub_service.py
 
 ### Container Status
 ```bash
-$ docker ps | grep federation
+$ systemctl list-units | grep federation
 quantum_federation_stub   Up 16 seconds (healthy)
 ```
 
@@ -104,7 +104,7 @@ quantum_federation_stub   Up 16 seconds (healthy)
 
 ### Redis Status
 ```bash
-$ docker exec quantum_redis redis-cli HGETALL federation_stub_status
+$ redis-cli HGETALL federation_stub_status
 
 mode: passive
 status: ready
@@ -177,7 +177,7 @@ HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 \
 CMD ["python", "federation_stub_service.py"]
 ```
 
-**docker-compose.yml:**
+**systemctl.yml:**
 ```yaml
 federation-stub:
   build: ./backend/microservices/federation_stub
@@ -225,7 +225,7 @@ Start → Update Redis → Write Log → Sleep 1 hour → Repeat
 ### Check Container Status
 ```bash
 # View running containers
-docker ps | grep federation
+systemctl list-units | grep federation
 
 # Expected output:
 # quantum_federation_stub   Up X seconds (healthy)
@@ -234,7 +234,7 @@ docker ps | grep federation
 ### Check Logs
 ```bash
 # View recent logs
-docker logs quantum_federation_stub --tail 50
+journalctl -u quantum_federation_stub.service --tail 50
 
 # Expected output:
 # [PHASE 13-STUB] Federation stub active (passive mode)
@@ -244,7 +244,7 @@ docker logs quantum_federation_stub --tail 50
 ### Check Redis Status
 ```bash
 # Get federation status
-docker exec quantum_redis redis-cli HGETALL federation_stub_status
+redis-cli HGETALL federation_stub_status
 
 # Expected fields:
 # mode: passive
@@ -287,7 +287,7 @@ if FEDERATION_MODE == "active":
     # Enable consensus protocols
 ```
 
-**Step 2: Update docker-compose.yml**
+**Step 2: Update systemctl.yml**
 ```yaml
 environment:
   - REDIS_HOST=redis
@@ -427,7 +427,7 @@ Layer 1: Operational
 **Deployment:**
 - ✅ Service code created (`federation_stub_service.py` - 2 KB)
 - ✅ Dockerfile created (307 bytes)
-- ✅ docker-compose.yml updated
+- ✅ systemctl.yml updated
 - ✅ Container built successfully
 - ✅ Container started and healthy
 - ✅ Redis connectivity verified
@@ -498,7 +498,7 @@ This pattern is common in distributed systems:
 
 **Diagnosis:**
 ```bash
-docker logs quantum_federation_stub
+journalctl -u quantum_federation_stub.service
 ```
 
 **Common Causes:**
@@ -511,7 +511,7 @@ docker logs quantum_federation_stub
 
 **Diagnosis:**
 ```bash
-docker exec quantum_redis redis-cli KEYS "federation*"
+redis-cli KEYS "federation*"
 ```
 
 **Solution:**
@@ -545,10 +545,10 @@ docker inspect quantum_federation_stub | grep -A 10 Mounts
 **Optional Monitoring:**
 ```bash
 # Check status once daily
-docker exec quantum_redis redis-cli HGETALL federation_stub_status
+redis-cli HGETALL federation_stub_status
 
 # View recent logs once weekly
-docker logs quantum_federation_stub --tail 100
+journalctl -u quantum_federation_stub.service --tail 100
 ```
 
 ### Log Rotation
@@ -624,3 +624,4 @@ Status: Production-ready with future-proof expansion capability
 **System Health:** ✅ ALL GREEN  
 **Federation Status:** 💤 PASSIVE (READY)  
 **Next Heartbeat:** Automatic (every 1 hour)
+

@@ -141,3 +141,4 @@ docker system prune -af --volumes
 
 Denne filen beskriver situasjonen pr. 21. desember 2025.
 Vi har slettet 88.5 GB data fra Docker, men VHDX-filen må fortsatt krympes.
+

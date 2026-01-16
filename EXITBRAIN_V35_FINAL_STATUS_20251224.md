@@ -87,7 +87,7 @@ pnl_tracker = PnLTracker(max_history=20)
 
 ## 🔧 Files Modified (Session Summary)
 
-### 1. `/home/qt/quantum_trader/docker-compose.yml`
+### 1. `/home/qt/quantum_trader/systemctl.yml`
 **Changes**:
 ```yaml
 services:
@@ -113,7 +113,7 @@ services:
       - TRADE_INTENT_SAFE_DRAIN=false
 ```
 
-**Backup**: `docker-compose.yml.backup_*`
+**Backup**: `systemctl.yml.backup_*`
 
 ---
 
@@ -432,7 +432,7 @@ for stream, msgs in messages:
 - [x] **DISCOVERY**: Consumer wasn't running at all!
 
 ### Phase 1: Infrastructure Fix ✅ COMPLETE
-- [x] Fix missing microservices mount in docker-compose.yml
+- [x] Fix missing microservices mount in systemctl.yml
 - [x] Update PYTHONPATH to include /app/microservices
 - [x] Create trade-intent-consumer service
 - [x] Create runner.py initialization script
@@ -528,7 +528,7 @@ quantum:stream:exitbrain.adaptive_levels → 0 messages (no consumer processing)
 - **Harvest Scheme**: Switches appropriately based on leverage
 
 ### Session Statistics
-- **Files Modified**: 4 (docker-compose.yml, runner.py, v35_integration.py, test_exitbrain_core.py)
+- **Files Modified**: 4 (systemctl.yml, runner.py, v35_integration.py, test_exitbrain_core.py)
 - **Bugs Fixed**: 4 (compute_levels signature, method name, optimize_based_on_pnl, attribute names)
 - **Tests Created**: 1 (4 scenarios, all passing)
 - **Integration Tests Passed**: 4/4 (100%)
@@ -564,3 +564,4 @@ quantum:stream:exitbrain.adaptive_levels → 0 messages (no consumer processing)
 ---
 
 **Status**: Core Validated ✅ | Integration Fixed ✅ | Consumer Blocked ❌ | E2E Pending ⏳
+

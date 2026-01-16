@@ -250,7 +250,7 @@ from .patchtst_agent import PatchTSTAgent, PatchTSTModel
 __all__ = ["PatchTSTAgent", "PatchTSTModel"]
 ```
 
-### 3. `docker-compose.vps.yml` (Modified)
+### 3. `systemctl.vps.yml` (Modified)
 
 **Resource Limits Added:**
 ```yaml
@@ -305,7 +305,7 @@ EOF
 ### 4. Backup Docker Compose ✅
 ```bash
 cd ~/quantum_trader
-cp docker-compose.vps.yml docker-compose.vps.yml.backup_phase4c
+cp systemctl.vps.yml systemctl.vps.yml.backup_phase4c
 ```
 **Result:** `✅ Backup created`
 
@@ -325,7 +325,7 @@ memory: "12G"
 
 ### 7. Rebuild AI Engine Container ✅
 ```bash
-docker compose -f docker-compose.vps.yml build ai-engine --no-cache
+docker compose -f systemctl.vps.yml build ai-engine --no-cache
 ```
 **Build Time:** 442.7 seconds (7.4 minutes)
 
@@ -350,7 +350,7 @@ docker rm quantum_ai_engine
 
 ### 9. Start New Container ❌
 ```bash
-docker compose -f docker-compose.vps.yml up -d ai-engine
+docker compose -f systemctl.vps.yml up -d ai-engine
 ```
 **Result:**
 ```
@@ -449,10 +449,10 @@ from .event_bus import EventBus
 #### 2. Rebuild and Test
 ```bash
 cd ~/quantum_trader
-docker compose -f docker-compose.vps.yml build ai-engine --no-cache
-docker compose -f docker-compose.vps.yml up -d ai-engine
+docker compose -f systemctl.vps.yml build ai-engine --no-cache
+docker compose -f systemctl.vps.yml up -d ai-engine
 sleep 40
-docker logs quantum_ai_engine --tail 60
+journalctl -u quantum_ai_engine.service --tail 60
 ```
 
 **Expected Output:**
@@ -700,7 +700,7 @@ if abs(mean(residuals["patchtst"])) > 0.01:
 - **Best Practice:** Keep old container until new one proven stable
 
 #### 2. Backup Before Major Changes
-- **Good:** Created backups of docker-compose.yml
+- **Good:** Created backups of systemctl.yml
 - **Better:** Should also backup working Docker image
 - **Command:** `docker commit quantum_ai_engine ai-engine:backup_v1`
 
@@ -777,3 +777,4 @@ if abs(mean(residuals["patchtst"])) > 0.01:
 **Report Generated:** December 20, 2024  
 **Phase Status:** ⚠️ 70% Complete (Code ✅ / Deployment ❌)  
 **Next Action:** Fix import path in backend/core/__init__.py
+

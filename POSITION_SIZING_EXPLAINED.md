@@ -172,7 +172,7 @@ RM_LOW_CONF_MULT=0.5   # -50% for conf < 0.60
 
 ### Løsning 1: Øk Max Position Limit (ANBEFALT)
 ```yaml
-# docker-compose.yml eller .env:
+# systemctl.yml eller .env:
 environment:
   - RM_MAX_POSITION_USD=10000  # Øk til $10,000 (fra $1,250)
   - RM_RISK_PER_TRADE_PCT=0.02  # 2% risk (fra 1%)
@@ -221,7 +221,7 @@ elif signal_confidence < 0.50:
 Basert på din ønsket AI-styring, foreslår jeg:
 
 ```yaml
-# docker-compose.yml - backend service:
+# systemctl.yml - backend service:
 environment:
   # Position sizing limits
   - RM_MAX_POSITION_USD=5000     # Øk til $5,000 (realistisk for $8,930 equity)
@@ -269,3 +269,4 @@ Systemet er **IKKE hardkodet** - det er et **dynamisk, multi-faktor system** hvo
 ---
 
 **Anbefaling:** Start med RM_MAX_POSITION_USD=5000 og overvåk resultatene. Hvis AI viser konsistent høy confidence (0.85+) med gode resultater, kan du øke ytterligere.
+

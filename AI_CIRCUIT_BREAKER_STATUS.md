@@ -91,7 +91,7 @@ Tid igjen: 34 minutter (utløper kl 17:15)
 
 ### 2. 🔄 RESTART BACKEND (Quick Fix)
 ```bash
-docker-compose restart backend
+systemctl restart backend
 ```
 
 **Fordel:**
@@ -145,7 +145,7 @@ Kl **17:15** vil automatisk:
 
 ### Sjekk Current Status
 ```bash
-docker logs quantum_backend --tail 50 | Select-String "cooling down"
+journalctl -u quantum_backend.service --tail 50 | Select-String "cooling down"
 ```
 
 **Output:**
@@ -155,12 +155,12 @@ cooling down for 0.6h  ← 36 minutter igjen (ca 17:15)
 
 ### Sjekk Når Den Aktiveres
 ```bash
-docker logs quantum_backend | Select-String "Circuit breaker activated"
+journalctl -u quantum_backend.service | Select-String "Circuit breaker activated"
 ```
 
 ### Sjekk Når Den Deaktiveres (Etter 17:15)
 ```bash
-docker logs quantum_backend --tail 100 | Select-String "Circuit breaker cleared|Trading resumed"
+journalctl -u quantum_backend.service --tail 100 | Select-String "Circuit breaker cleared|Trading resumed"
 ```
 
 ---
@@ -218,3 +218,4 @@ De 2 åpne posisjonene (DOTUSDT, DOGEUSDT) blir fortsatt monitored:
 **Trading fortsetter:** Kl 17:15 (om 34 minutter)
 
 **Ingenting er ødelagt** - systemet fungerer som designet! 🎯
+

@@ -306,16 +306,16 @@ MIN_PRICE_STOP_DISTANCE_PCT=0.200%
 
 ```powershell
 # Monitor all risk management activity
-docker logs quantum_backend --tail 100 --follow | Select-String "EXIT_BRAIN_RISK"
+journalctl -u quantum_backend.service --tail 100 --follow | Select-String "EXIT_BRAIN_RISK"
 
 # Check for over-leverage warnings
-docker logs quantum_backend --tail 200 | Select-String "over-leverage"
+journalctl -u quantum_backend.service --tail 200 | Select-String "over-leverage"
 
 # Monitor SL adjustments
-docker logs quantum_backend --tail 200 | Select-String "tightening to final_sl"
+journalctl -u quantum_backend.service --tail 200 | Select-String "tightening to final_sl"
 
 # Check for emergency exits
-docker logs quantum_backend --tail 200 | Select-String "FULL_EXIT_NOW"
+journalctl -u quantum_backend.service --tail 200 | Select-String "FULL_EXIT_NOW"
 ```
 
 ---
@@ -609,3 +609,4 @@ Risk floor SL:
 **Last Updated:** 2024  
 **Author:** AI Trading System  
 **Status:** Production Deployment Complete ✅
+

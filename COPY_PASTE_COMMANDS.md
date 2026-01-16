@@ -65,27 +65,27 @@ podman logs -f quantum_ai_engine
 ### Restart AI Engine:
 ```bash
 cd ~/quantum_trader
-podman-compose -f docker-compose.wsl.yml restart ai-engine
+podman-compose -f systemctl.wsl.yml restart ai-engine
 ```
 
 ### Restart Redis:
 ```bash
-podman-compose -f docker-compose.wsl.yml restart redis
+podman-compose -f systemctl.wsl.yml restart redis
 ```
 
 ### Stopp alt:
 ```bash
-podman-compose -f docker-compose.wsl.yml down
+podman-compose -f systemctl.wsl.yml down
 ```
 
 ### Start alt på nytt:
 ```bash
-podman-compose -f docker-compose.wsl.yml up -d redis ai-engine
+podman-compose -f systemctl.wsl.yml up -d redis ai-engine
 ```
 
 ### Rebuild og start:
 ```bash
-podman-compose -f docker-compose.wsl.yml up -d --build ai-engine
+podman-compose -f systemctl.wsl.yml up -d --build ai-engine
 ```
 
 ---
@@ -146,7 +146,7 @@ crontab -e
 
 Legg til:
 ```bash
-@reboot cd /root/quantum_trader && podman-compose -f docker-compose.wsl.yml up -d
+@reboot cd /root/quantum_trader && podman-compose -f systemctl.wsl.yml up -d
 ```
 
 ---
@@ -187,7 +187,7 @@ curl http://YOUR_VPS_IP:8001/health
 ### Full cleanup:
 ```bash
 cd ~/quantum_trader
-podman-compose -f docker-compose.wsl.yml down
+podman-compose -f systemctl.wsl.yml down
 podman system prune -a --volumes
 rm -rf ~/quantum_trader
 ```
@@ -210,3 +210,4 @@ cat ~/COPY_PASTE_COMMANDS.md
 ---
 
 **Lykke til! 🚀**
+

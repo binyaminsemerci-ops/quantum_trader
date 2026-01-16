@@ -359,10 +359,10 @@ docker restart quantum_backend
 docker logs -f quantum_backend | grep "ERROR\|CRITICAL\|FEATURE.*expecting"
 
 # Check predictions
-docker logs quantum_backend --tail 100 | grep "Ensemble prediction"
+journalctl -u quantum_backend.service --tail 100 | grep "Ensemble prediction"
 
 # Monitor performance
-docker logs quantum_backend | grep "Daily P&L\|Drawdown"
+journalctl -u quantum_backend.service | grep "Daily P&L\|Drawdown"
 ```
 
 ---
@@ -403,3 +403,4 @@ docker logs quantum_backend | grep "Daily P&L\|Drawdown"
 **STATUS:** Feature engineering bulletproof (**49 unified features**). Models loading correctly. Zero feature mismatch errors. Ready for cautious deployment with 2/4 models.
 
 ---
+

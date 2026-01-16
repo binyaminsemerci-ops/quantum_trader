@@ -117,7 +117,7 @@ Added to `/health` endpoint:
 
 ### 2. **Docker Compose VPS Configuration**
 
-Added new service to `docker-compose.vps.yml`:
+Added new service to `systemctl.vps.yml`:
 
 ```yaml
 portfolio-governance:
@@ -184,13 +184,13 @@ quantum:governance:last_decision     # Last policy adjustment (JSON)
 ### Quick Start
 ```bash
 # Build and start
-docker-compose -f docker-compose.vps.yml up -d portfolio-governance
+systemctl -f systemctl.vps.yml up -d portfolio-governance
 
 # Verify running
-docker ps | grep portfolio_governance
+systemctl list-units | grep portfolio_governance
 
 # Check logs
-docker logs quantum_portfolio_governance
+journalctl -u quantum_portfolio_governance.service
 
 # Test health
 curl http://localhost:8001/health | jq '.metrics.portfolio_governance'
@@ -199,13 +199,13 @@ curl http://localhost:8001/health | jq '.metrics.portfolio_governance'
 ### Validation
 ```bash
 # Check current policy
-docker exec redis redis-cli GET quantum:governance:policy
+redis-cli GET quantum:governance:policy
 
 # Check score
-docker exec redis redis-cli GET quantum:governance:score
+redis-cli GET quantum:governance:score
 
 # Check memory samples
-docker exec redis redis-cli XLEN quantum:stream:portfolio.memory
+redis-cli XLEN quantum:stream:portfolio.memory
 ```
 
 ---
@@ -259,7 +259,7 @@ docker exec redis redis-cli XLEN quantum:stream:portfolio.memory
 - ✅ `portfolio_governance_service.py` implementert med continuous loop
 - ✅ Dockerfile opprettet med health check
 - ✅ Integrert i AI Engine `/health` endpoint
-- ✅ `docker-compose.vps.yml` oppdatert med ny service
+- ✅ `systemctl.vps.yml` oppdatert med ny service
 - ✅ Redis Streams konfigurert for events
 - ✅ Validerings-dokumentasjon ferdig
 - ✅ Quick reference guide opprettet
@@ -323,3 +323,4 @@ Trade Outcome → Exposure Memory → Portfolio Score → Policy Adjustment → 
 *Total development time: ~2 hours*  
 *Code quality: Production-grade*  
 *Status: ✅ COMPLETE & READY*
+

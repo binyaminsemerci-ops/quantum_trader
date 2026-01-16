@@ -5,17 +5,17 @@
 ### 1. **Start Backend + Frontend**
 ```bash
 # Start både backend og frontend
-docker-compose --profile dev up -d
+systemctl --profile dev up -d
 
 # Eller start bare det du trenger:
-docker-compose up -d backend    # Backend først
-docker-compose up -d frontend   # Deretter frontend
+systemctl up -d backend    # Backend først
+systemctl up -d frontend   # Deretter frontend
 ```
 
 ### 2. **Verifiser at alt kjører**
 ```bash
 # Sjekk status
-docker-compose ps
+systemctl ps
 
 # Skal vise:
 # quantum_backend       Running   0.0.0.0:8000->8000/tcp
@@ -25,13 +25,13 @@ docker-compose ps
 ### 3. **Se logger**
 ```bash
 # Backend logs
-docker logs quantum_backend -f
+journalctl -u quantum_backend.service -f
 
 # Frontend logs  
-docker logs quantum_frontend_v3 -f
+journalctl -u quantum_frontend_v.service3 -f
 
 # Begge samtidig
-docker-compose logs -f backend frontend
+systemctl logs -f backend frontend
 ```
 
 ### 4. **Åpne Dashboard**
@@ -56,13 +56,13 @@ curl http://localhost:8000/health
 
 **Løsning 2 - Restart services:**
 ```bash
-docker-compose restart backend frontend
+systemctl restart backend frontend
 ```
 
 **Løsning 3 - Rebuild hvis du har endret kode:**
 ```bash
-docker-compose down
-docker-compose up --build -d backend frontend
+systemctl down
+systemctl up --build -d backend frontend
 ```
 
 ### WebSocket kobler ikke?
@@ -97,13 +97,13 @@ taskkill /PID <PID> /F
 **Reset database:**
 ```bash
 # Stopp alt
-docker-compose down
+systemctl down
 
 # Slett volumes (ADVARSEL: sletter all data)
 docker volume rm quantum_trader_redis_data
 
 # Start på nytt
-docker-compose --profile dev up -d
+systemctl --profile dev up -d
 ```
 
 ---
@@ -112,13 +112,13 @@ docker-compose --profile dev up -d
 
 ```bash
 # Stopp services (data bevares)
-docker-compose stop
+systemctl stop
 
 # Stopp og fjern containers (data bevares)
-docker-compose down
+systemctl down
 
 # Stopp og fjern containers + volumes (SLETTER DATA)
-docker-compose down -v
+systemctl down -v
 ```
 
 ---
@@ -129,19 +129,19 @@ Hvis du har gjort endringer i koden:
 
 ### Backend endringer:
 ```bash
-docker-compose restart backend
+systemctl restart backend
 # Eller rebuild hvis du har nye avhengigheter:
-docker-compose up --build -d backend
+systemctl up --build -d backend
 ```
 
 ### Frontend endringer:
 ```bash
 # Next.js har hot-reload, så endringer vises automatisk
 # Men hvis det ikke fungerer:
-docker-compose restart frontend
+systemctl restart frontend
 
 # Eller rebuild:
-docker-compose up --build -d frontend
+systemctl up --build -d frontend
 ```
 
 ---
@@ -150,22 +150,22 @@ docker-compose up --build -d frontend
 
 ```bash
 # Start alt
-docker-compose --profile dev up -d
+systemctl --profile dev up -d
 
 # Se status
-docker-compose ps
+systemctl ps
 
 # Se logs
-docker-compose logs -f
+systemctl logs -f
 
 # Restart alt
-docker-compose restart
+systemctl restart
 
 # Stopp alt
-docker-compose down
+systemctl down
 
 # Full rebuild
-docker-compose down && docker-compose --profile dev up --build -d
+systemctl down && systemctl --profile dev up --build -d
 ```
 
 ---
@@ -212,9 +212,9 @@ docker-compose down && docker-compose --profile dev up --build -d
 
 **Hvis noe ikke fungerer:**
 
-1. Sjekk logger: `docker-compose logs -f backend frontend`
-2. Restart: `docker-compose restart`
-3. Full reset: `docker-compose down && docker-compose --profile dev up -d`
+1. Sjekk logger: `systemctl logs -f backend frontend`
+2. Restart: `systemctl restart`
+3. Full reset: `systemctl down && systemctl --profile dev up -d`
 4. Se dokumentasjon: `DASHBOARD_V3_README.md`
 5. Kjør validering: `python tests/validate_dashboard_v3_frontend.py`
 
@@ -223,3 +223,4 @@ docker-compose down && docker-compose --profile dev up --build -d
 **Laget:** 5. desember 2025  
 **EPIC:** DASHBOARD-V3-001  
 **Status:** ✅ Production Ready
+

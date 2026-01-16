@@ -119,15 +119,15 @@ export QT_UPTREND_SHORT_EXCEPTION_CONF=0.65
 ### 2. Rebuild Docker Container
 ```powershell
 cd C:\quantum_trader
-docker-compose down
-docker-compose build backend
-docker-compose up -d
+systemctl down
+systemctl build backend
+systemctl up -d
 ```
 
 ### 3. Verify Deployment
 ```powershell
 # Check logs for new features
-docker logs quantum_backend --tail 100 | Select-String "IMMEDIATE SL|SAFETY|GlobalRegimeDetector"
+journalctl -u quantum_backend.service --tail 100 | Select-String "IMMEDIATE SL|SAFETY|GlobalRegimeDetector"
 
 # Should see:
 # [OK] GlobalRegimeDetector initialized
@@ -191,9 +191,9 @@ If issues occur after deployment:
 ```powershell
 # Revert to previous version
 git checkout HEAD~1
-docker-compose down
-docker-compose build backend
-docker-compose up -d
+systemctl down
+systemctl build backend
+systemctl up -d
 ```
 
 ### Disable New Features (keep critical SL fix)
@@ -232,9 +232,9 @@ export QT_RISK_PER_TRADE=1.0
 
 If you encounter issues:
 
-1. Check logs: `docker logs quantum_backend --tail 500`
-2. Search for errors: `docker logs quantum_backend 2>&1 | Select-String "CRITICAL|ERROR|Failed"`
-3. Verify SL placement: `docker logs quantum_backend 2>&1 | Select-String "IMMEDIATE SL|OK.*SL placed"`
+1. Check logs: `journalctl -u quantum_backend.service --tail 500`
+2. Search for errors: `journalctl -u quantum_backend.service 2>&1 | Select-String "CRITICAL|ERROR|Failed"`
+3. Verify SL placement: `journalctl -u quantum_backend.service 2>&1 | Select-String "IMMEDIATE SL|OK.*SL placed"`
 
 **Common Issues**:
 
@@ -268,3 +268,4 @@ Deployment successful if:
 ---
 
 **END OF DEPLOYMENT GUIDE**
+

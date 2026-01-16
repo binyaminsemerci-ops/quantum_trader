@@ -703,7 +703,7 @@ Month 3+: Continuously adapting universe
 
 ```bash
 # Check agent execution
-docker logs quantum_backend --since 10m | grep "UNIVERSE OS"
+journalctl -u quantum_backend.service --since 10m | grep "UNIVERSE OS"
 
 # Verify data files
 docker exec quantum_backend ls -lh /app/data/trades/
@@ -748,3 +748,4 @@ docker exec quantum_backend ls -lh /app/data/universe_*.json
 ---
 
 *Run: `docker exec quantum_backend python /app/universe_os_agent.py`*
+

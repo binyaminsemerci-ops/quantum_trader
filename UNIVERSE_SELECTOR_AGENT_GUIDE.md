@@ -402,12 +402,12 @@ cat universe_selector_output.json | jq '.recommendations.SAFE'
 
 ### Step 5: Deploy to Production
 ```yaml
-# docker-compose.yml or environment config
+# systemctl.yml or environment config
 QT_UNIVERSE: custom  # or l1l2-top, all-usdt
 QT_MAX_SYMBOLS: 180  # from agent recommendation
 
 # Implement whitelist/blacklist in code
-# Restart backend: docker-compose restart backend
+# Restart backend: systemctl restart backend
 ```
 
 ---
@@ -717,3 +717,4 @@ cat universe_selector_output.json | jq '.symbol_scores | to_entries | sort_by(.v
 - *universe_selector_output.json (latest agent output)*
 
 *Next recommended action:* **Wait 7-14 days for trade data, then re-run agent**
+

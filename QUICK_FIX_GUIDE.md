@@ -103,7 +103,7 @@ adapter = HTTPAdapter(
 
 **Then restart backend:**
 ```powershell
-docker-compose restart backend
+systemctl restart backend
 ```
 
 ---
@@ -190,7 +190,7 @@ client.new_order(symbol='LINKUSDT', side='BUY', type='MARKET', quantity=13.14, r
 
 ```powershell
 # 1. Check scheduler is running
-docker logs quantum_backend --tail 100 | Select-String "continuous_learning\|retrain\|training"
+journalctl -u quantum_backend.service --tail 100 | Select-String "continuous_learning\|retrain\|training"
 
 # 2. Check if training samples are being collected
 python -c "
@@ -270,7 +270,7 @@ def get_sentiment_cached(symbol: str):
 
 **Option B: Reduce Request Frequency**
 
-Edit `docker-compose.yml`:
+Edit `systemctl.yml`:
 
 ```yaml
 environment:
@@ -287,7 +287,7 @@ environment:
 
 **Test different intervals:**
 
-Edit `docker-compose.yml`:
+Edit `systemctl.yml`:
 
 ```yaml
 # Current (ultra-aggressive)
@@ -302,7 +302,7 @@ Edit `docker-compose.yml`:
 
 **After changing:**
 ```powershell
-docker-compose restart backend
+systemctl restart backend
 ```
 
 **Monitor for 1 hour:**
@@ -345,7 +345,7 @@ If not, adjust goals to match backtest results.
 
 ```powershell
 # Backend logs (live)
-docker logs quantum_backend --tail 50 -f
+journalctl -u quantum_backend.service --tail 50 -f
 
 # Health check
 curl http://localhost:8000/health | ConvertFrom-Json | ConvertTo-Json -Depth 5
@@ -392,7 +392,7 @@ with open('ai_engine/models/metadata.json') as f:
 "
 
 # 4. API health
-docker logs quantum_backend --tail 100 | Select-String "429\|Connection pool"
+journalctl -u quantum_backend.service --tail 100 | Select-String "429\|Connection pool"
 # If many warnings, run fixes from this guide
 ```
 
@@ -448,14 +448,14 @@ python train_ai.py --samples 500 --epochs 10
 
 ```powershell
 # Check logs
-docker logs quantum_backend --tail 100
+journalctl -u quantum_backend.service --tail 100
 
 # Hard reset
-docker-compose down
-docker-compose up -d --build
+systemctl down
+systemctl up -d --build
 
 # Verify
-docker ps
+systemctl list-units
 curl http://localhost:8000/health
 ```
 
@@ -473,3 +473,4 @@ curl http://localhost:8000/health
 
 **Last Updated:** November 19, 2025 02:45 UTC  
 **Next Review:** November 20, 2025 (daily check)
+

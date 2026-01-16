@@ -32,10 +32,10 @@ python -c "from exchange_stream_bridge import RedisConnectionManager; print('OK'
 git add microservices/data_collector/exchange_stream_bridge.py
 git commit -m "Fix: Add start() method to RedisConnectionManager"
 git push origin main
-wsl ssh root@46.224.116.254 'cd /home/qt/quantum_trader && git pull && docker compose -f docker-compose.vps.yml restart cross-exchange'
+wsl ssh root@46.224.116.254 'cd /home/qt/quantum_trader && git pull && docker compose -f systemctl.vps.yml restart cross-exchange'
 
 # 5. Verify
-wsl ssh root@46.224.116.254 'docker logs quantum_cross_exchange --tail 50'
+wsl ssh root@46.224.116.254 'journalctl -u quantum_cross_exchange.service --tail 50'
 ```
 
 **Suksesskriterium:** Container status = "Up X hours (healthy)"
@@ -53,14 +53,14 @@ wsl ssh root@46.224.116.254 'curl http://localhost:8012/health'  # risk_brain
 wsl ssh root@46.224.116.254 'curl http://localhost:8011/health'  # strategy_brain
 wsl ssh root@46.224.116.254 'curl http://localhost:8010/health'  # ceo_brain
 
-# 2. Hvis 200 OK: Fix health check config i docker-compose.vps.yml
+# 2. Hvis 200 OK: Fix health check config i systemctl.vps.yml
 # 3. Hvis error: Debug service
 
 # 4. Restart services
-wsl ssh root@46.224.116.254 'cd /home/qt/quantum_trader && docker compose -f docker-compose.vps.yml restart risk-brain strategy-brain ceo-brain'
+wsl ssh root@46.224.116.254 'cd /home/qt/quantum_trader && docker compose -f systemctl.vps.yml restart risk-brain strategy-brain ceo-brain'
 
 # 5. Verify
-wsl ssh root@46.224.116.254 'docker ps | grep brain'
+wsl ssh root@46.224.116.254 'systemctl list-units | grep brain'
 ```
 
 **Suksesskriterium:** Alle 3 brain services viser "(healthy)"
@@ -74,7 +74,7 @@ wsl ssh root@46.224.116.254 'docker ps | grep brain'
 ```bash
 # 1. Ensure no restarts for next 38 hours
 # 2. Monitor continuously
-watch -n 300 'wsl ssh root@46.224.116.254 "docker ps | grep ai_engine"'
+watch -n 300 'wsl ssh root@46.224.116.254 "systemctl list-units | grep ai_engine"'
 
 # 3. Collect metrics every 4 hours
 # 4. Document results
@@ -92,12 +92,12 @@ watch -n 300 'wsl ssh root@46.224.116.254 "docker ps | grep ai_engine"'
 
 **Action Steps:**
 ```bash
-# 1. Verify services exist i docker-compose
-grep -r "rl-training\|rl-monitor\|rl-dashboard" docker-compose.vps.yml
+# 1. Verify services exist i systemctl
+grep -r "rl-training\|rl-monitor\|rl-dashboard" systemctl.vps.yml
 
 # 2. Add if missing
 # 3. Build and deploy
-wsl ssh root@46.224.116.254 'cd /home/qt/quantum_trader && docker compose -f docker-compose.vps.yml up -d rl-training rl-monitor-daemon rl-dashboard'
+wsl ssh root@46.224.116.254 'cd /home/qt/quantum_trader && docker compose -f systemctl.vps.yml up -d rl-training rl-monitor-daemon rl-dashboard'
 
 # 4. Setup SSH tunnel for RL dashboard (port 8025 blocked)
 wsl ssh -L 8025:localhost:8025 root@46.224.116.254 -N &
@@ -133,7 +133,7 @@ scp -r dist/ root@46.224.116.254:/home/qt/quantum_trader/dashboard_v4/frontend/
 # Add reverse proxy for dashboard_v4
 
 # 5. Deploy backend container
-wsl ssh root@46.224.116.254 'cd /home/qt/quantum_trader && docker compose -f docker-compose.vps.yml up -d dashboard-v4'
+wsl ssh root@46.224.116.254 'cd /home/qt/quantum_trader && docker compose -f systemctl.vps.yml up -d dashboard-v4'
 ```
 
 **Suksesskriterium:** Dashboard tilgjengelig på http://46.224.116.254:8080 eller lignende
@@ -289,20 +289,20 @@ grep -r "trade_journal\|Phase.*7" backend/ microservices/
 ---
 
 #### 10. Unify Docker Compose Configurations 🟢 P2
-**Status:** Separate docker-compose.yml, docker-compose.vps.yml, docker-compose.wsl.yml
+**Status:** Separate systemctl.yml, systemctl.vps.yml, systemctl.wsl.yml
 
 **Action:**
 ```yaml
 # Create structure:
-docker-compose.yml              # Base configuration
-docker-compose.override.yml     # Local development overrides
-docker-compose.vps.yml          # VPS production overrides
-docker-compose.testing.yml      # Testing environment
+systemctl.yml              # Base configuration
+systemctl.override.yml     # Local development overrides
+systemctl.vps.yml          # VPS production overrides
+systemctl.testing.yml      # Testing environment
 
 # Usage:
 docker compose up                     # Local dev (base + override)
-docker compose -f docker-compose.yml -f docker-compose.vps.yml up  # VPS
-docker compose -f docker-compose.yml -f docker-compose.testing.yml up  # Testing
+docker compose -f systemctl.yml -f systemctl.vps.yml up  # VPS
+docker compose -f systemctl.yml -f systemctl.testing.yml up  # Testing
 ```
 
 **Action:**
@@ -413,7 +413,7 @@ QT_CLM_PERF_HOURS=0.5           # 30 min (reasonable)
 - [ ] Create custom Grafana dashboards
 - [ ] Configure alerting rules
 - [ ] Implement trade journal
-- [ ] Unify docker-compose configs
+- [ ] Unify systemctl configs
 
 ### Medium Priority (Nice to have)
 - [ ] Consolidate .env files
@@ -576,4 +576,5 @@ START: Ready for GO-LIVE?
 
 **Estimated time to 100% complete:** 2-4 weeks
 **Estimated time to GO-LIVE ready:** 1-2 weeks (if focused on critical path)
+
 

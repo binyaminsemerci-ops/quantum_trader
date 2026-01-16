@@ -23,10 +23,10 @@ python verify_ai_integration.py
 ### 3. Check Current Logs
 ```bash
 # Check if backend is running
-docker ps | grep quantum_backend
+systemctl list-units | grep quantum_backend
 
 # Check logs for integration hooks
-docker logs quantum_backend --tail 500 | grep -E "AI-HFOS|PBA|PAL|PIL"
+journalctl -u quantum_backend.service --tail 500 | grep -E "AI-HFOS|PBA|PAL|PIL"
 ```
 
 **Expected**: Should see hook calls if backend is running
@@ -40,7 +40,7 @@ curl http://localhost:8000/health
 docker start quantum_backend
 # OR
 cd c:\quantum_trader
-docker-compose up -d backend
+systemctl up -d backend
 ```
 
 ---
@@ -87,7 +87,7 @@ docker restart quantum_backend
 ### Daily Monitoring (7 days)
 ```bash
 # Day 1-7: Check logs daily
-docker logs quantum_backend --tail 1000 | grep -E "AI-HFOS|PBA|PAL|PIL" > ai_logs_day_X.txt
+journalctl -u quantum_backend.service --tail 1000 | grep -E "AI-HFOS|PBA|PAL|PIL" > ai_logs_day_X.txt
 
 # Look for:
 # - [Universe OS] OBSERVE mode messages
@@ -145,7 +145,7 @@ docker restart quantum_backend
 ### Daily Monitoring (7 days)
 ```bash
 # Check enforcement decisions
-docker logs quantum_backend --tail 1000 | grep -E "ENFORCED|BLOCKED|MODIFIED"
+journalctl -u quantum_backend.service --tail 1000 | grep -E "ENFORCED|BLOCKED|MODIFIED"
 
 # Look for:
 # - Symbols filtered by Universe OS
@@ -209,16 +209,16 @@ docker restart quantum_backend
 ### Daily Monitoring (14+ days)
 ```bash
 # Check HEDGEFUND MODE transitions
-docker logs quantum_backend --tail 1000 | grep "HEDGEFUND MODE\|AGGRESSIVE\|CRITICAL"
+journalctl -u quantum_backend.service --tail 1000 | grep "HEDGEFUND MODE\|AGGRESSIVE\|CRITICAL"
 
 # Check AI-HFOS coordination
-docker logs quantum_backend --tail 1000 | grep "AI-HFOS.*Risk Mode"
+journalctl -u quantum_backend.service --tail 1000 | grep "AI-HFOS.*Risk Mode"
 
 # Check PBA blocks
-docker logs quantum_backend --tail 1000 | grep "PBA.*BLOCKED"
+journalctl -u quantum_backend.service --tail 1000 | grep "PBA.*BLOCKED"
 
 # Check SafetyGovernor decisions
-docker logs quantum_backend --tail 1000 | grep "SAFETY GOVERNOR"
+journalctl -u quantum_backend.service --tail 1000 | grep "SAFETY GOVERNOR"
 ```
 
 ### Success Criteria
@@ -275,10 +275,10 @@ docker restart quantum_backend
 ### Daily Monitoring (Ongoing)
 ```bash
 # Check PAL amplifications
-docker logs quantum_backend --tail 1000 | grep "PAL.*EXECUTED\|SCALE_IN\|EXTEND_HOLD"
+journalctl -u quantum_backend.service --tail 1000 | grep "PAL.*EXECUTED\|SCALE_IN\|EXTEND_HOLD"
 
 # Monitor overall performance
-docker logs quantum_backend --tail 1000 | grep "PnL\|Sharpe\|Drawdown"
+journalctl -u quantum_backend.service --tail 1000 | grep "PnL\|Sharpe\|Drawdown"
 ```
 
 ### Success Criteria
@@ -410,19 +410,19 @@ Stage 4 (Day 31+):   ███████████████████�
 python verify_ai_integration.py
 
 # Check current stage
-docker logs quantum_backend | grep "Integration Stage"
+journalctl -u quantum_backend.service | grep "Integration Stage"
 
 # Check for errors
-docker logs quantum_backend | grep "ERROR" | tail -50
+journalctl -u quantum_backend.service | grep "ERROR" | tail -50
 
 # Check AI decisions
-docker logs quantum_backend | grep -E "AI-HFOS|PBA|PAL|PIL" | tail -100
+journalctl -u quantum_backend.service | grep -E "AI-HFOS|PBA|PAL|PIL" | tail -100
 
 # Check SafetyGovernor
-docker logs quantum_backend | grep "SAFETY GOVERNOR" | tail -50
+journalctl -u quantum_backend.service | grep "SAFETY GOVERNOR" | tail -50
 
 # Check HEDGEFUND MODE
-docker logs quantum_backend | grep "HEDGEFUND MODE" | tail -50
+journalctl -u quantum_backend.service | grep "HEDGEFUND MODE" | tail -50
 
 # Monitor real-time
 docker logs -f quantum_backend | grep -E "AI-HFOS|SAFETY GOVERNOR|HEDGEFUND"
@@ -438,10 +438,10 @@ curl http://localhost:8000/health
 ### Integration Hooks Not Called
 ```bash
 # Check if AI services initialized
-docker logs quantum_backend | grep "AISystemServices"
+journalctl -u quantum_backend.service | grep "AISystemServices"
 
 # Verify imports
-docker logs quantum_backend | grep "integration_hooks"
+journalctl -u quantum_backend.service | grep "integration_hooks"
 
 # Restart backend
 docker restart quantum_backend
@@ -450,10 +450,10 @@ docker restart quantum_backend
 ### AI Decisions Not Logged
 ```bash
 # Check if subsystems enabled
-docker logs quantum_backend | grep "enabled.*true"
+journalctl -u quantum_backend.service | grep "enabled.*true"
 
 # Verify modes
-docker logs quantum_backend | grep "mode.*observe"
+journalctl -u quantum_backend.service | grep "mode.*observe"
 
 # Check env vars
 docker exec quantum_backend printenv | grep QT_AI
@@ -462,7 +462,7 @@ docker exec quantum_backend printenv | grep QT_AI
 ### Backend Not Starting
 ```bash
 # Check logs for errors
-docker logs quantum_backend --tail 200
+journalctl -u quantum_backend.service --tail 200
 
 # Check ports
 netstat -an | findstr "8000"
@@ -494,3 +494,4 @@ docker restart quantum_backend
 
 **Last Updated**: 2025-01-XX  
 **Integration Status**: Production-Ready
+

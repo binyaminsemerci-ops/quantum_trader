@@ -67,7 +67,7 @@
   - policy.updated logging
 
 ### Phase 7: Integration ✅
-- [x] docker-compose.yml updated with ai-engine service
+- [x] systemctl.yml updated with ai-engine service
 - [x] Service dependencies configured (redis, risk-safety)
 - [x] Health checks configured
 - [x] Volume mounts for backend/, ai_engine/, models/
@@ -243,7 +243,7 @@ docker run -p 8001:8001 \
 ### Docker Compose (Microservices Stack)
 ```bash
 cd quantum_trader
-docker-compose --profile microservices up ai-engine
+systemctl --profile microservices up ai-engine
 ```
 
 **Services Started:**
@@ -303,7 +303,7 @@ docker-compose --profile microservices up ai-engine
 - **AI Pipeline:** 4-model ensemble → 9 strategies → RL sizing → trade intent
 - **Integration:** risk-safety-service, Redis EventBus
 - **Tests:** 8 test cases covering full pipeline
-- **Docker:** Ready for deployment with docker-compose
+- **Docker:** Ready for deployment with systemctl
 
 **Service #3 of 7 is production-ready.** 🚀
 
@@ -322,3 +322,4 @@ Next: **Service #4 (portfolio-intelligence-service)** - Portfolio analytics and 
 **Created:** December 4, 2025  
 **Sprint:** SPRINT 2 - Microservices Split  
 **Completion Time:** ~3 hours (analysis → design → implementation → testing → documentation)
+

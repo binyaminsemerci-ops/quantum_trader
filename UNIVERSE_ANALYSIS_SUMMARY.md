@@ -222,7 +222,7 @@ docker exec quantum_backend python /app/universe_analyzer.py
 docker cp quantum_backend:/app/data/analysis/universe_analysis_*.json ./
 
 # Check recent signals
-docker logs quantum_backend --since 1h | grep "TRADE_ALLOWED\|TRADE_BLOCKED" | wc -l
+journalctl -u quantum_backend.service --since 1h | grep "TRADE_ALLOWED\|TRADE_BLOCKED" | wc -l
 ```
 
 ---
@@ -265,3 +265,4 @@ docker logs quantum_backend --since 1h | grep "TRADE_ALLOWED\|TRADE_BLOCKED" | w
 **Confidence:** 🟡 MEDIUM (early-stage data)  
 **Recommendation:** **Monitor and wait**  
 **Next Review:** 7 days from now
+

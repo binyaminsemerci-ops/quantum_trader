@@ -95,7 +95,7 @@ curl -s http://localhost:8000/api/ai/model/performance | jq
 curl -s http://localhost:8000/api/closed_positions?limit=10 | jq
 
 ### Redis Stats
-docker exec quantum_redis redis-cli INFO stats
+redis-cli INFO stats
 
 ## ERROR MONITORING
 
@@ -136,7 +136,7 @@ docker compose logs backend | grep -i "redis.*connection\|redis.*timeout"
 docker compose restart backend
 
 ### Check Redis Persistence
-docker exec quantum_redis redis-cli LASTSAVE
+redis-cli LASTSAVE
 
 ### View Real-Time Logs
 docker compose logs -f backend
@@ -218,3 +218,4 @@ find logs/ -name "*.log.gz" -mtime +7 -delete
 # - Single missed ACK
 # - Minor log noise
 # - Non-critical warnings
+

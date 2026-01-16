@@ -124,7 +124,7 @@ npm run dev
 ### Docker Compose
 
 ```pwsh
-docker-compose up --build
+systemctl up --build
 ```
 
 Starter backend, frontend og tilhørende tjenester lokalt.
@@ -192,7 +192,7 @@ CI kjører pytest, dev scripts tilbyr ekstra linting og sikkerhet (`scripts/READ
 - ✅ **Win rate display** - Fixed percentage calculation
 - ✅ **Price chart endpoint** - Changed from /api/candles to /prices/recent
 - ✅ **UI overflow issues** - Added proper scrolling to positions and signals
-- ✅ **Missing env var** - Added QT_DEFAULT_LEVERAGE=10 to docker-compose
+- ✅ **Missing env var** - Added QT_DEFAULT_LEVERAGE=10 to systemctl
 - ✅ **Symbol expansion** - Increased from 14 to 50 high-volume USDT pairs (257% increase)
 - ✅ **Ultra-aggressive mode** - 5s checks (was 10s), 30% confidence (was 35%), 60s cooldown (was 120s)
 
@@ -235,3 +235,4 @@ Dashboard:           LIVE
 - Dokumentasjonen i `docs/` utdyper arkitektur, telemetri, staging og risikoprosesser.
 
 Bidra gjerne med forbedringer gjennom issues/PR-er – følg `CONTRIBUTING.md` for retningslinjer.
+

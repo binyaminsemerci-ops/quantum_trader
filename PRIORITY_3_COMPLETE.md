@@ -272,7 +272,7 @@ analytics_os_service_drift_detected
 
 ### **1. Start All Services:**
 ```powershell
-docker-compose up -d
+systemctl up -d
 ```
 
 ### **2. Check Health:**
@@ -424,3 +424,4 @@ Start-Process http://localhost:3000
 **Date:** December 2, 2025  
 **Status:** ✅ Production Ready  
 **All Objectives:** 100% Complete 🎉
+

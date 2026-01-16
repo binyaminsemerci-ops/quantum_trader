@@ -28,7 +28,7 @@ try:
     )
     logs = result.stdout
 except Exception as e:
-    print(f"❌ Error fetching Docker logs: {e}")
+    print(f"❌ Error fetching service logs: {e}")
     exit(1)
 
 # 1. OPEN POSITIONS & PnL

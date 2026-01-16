@@ -232,7 +232,7 @@ quantum_trader/
 
 ```bash
 # Start all microservices
-docker-compose up -d
+systemctl up -d
 
 # Verify dashboard API
 curl http://localhost:8000/api/dashboard/health
@@ -409,7 +409,7 @@ async rewrites() {
 
 4. **Production Deployment**:
    - Create Dockerfile for frontend
-   - Add to docker-compose.yml
+   - Add to systemctl.yml
    - Configure NGINX reverse proxy
    - Add SSL/TLS
 
@@ -551,3 +551,4 @@ npm run dev
 **Quality**: Production-ready with comprehensive tests and docs
 
 🚀 **Dashboard is now live and fully functional!**
+

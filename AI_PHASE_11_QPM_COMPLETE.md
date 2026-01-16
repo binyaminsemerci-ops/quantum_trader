@@ -362,7 +362,7 @@ scp -i ~/.ssh/hetzner_fresh backend/microservices/quantum_policy_memory/qpm_serv
 scp -i ~/.ssh/hetzner_fresh backend/microservices/quantum_policy_memory/Dockerfile \
     qt@46.224.116.254:~/quantum_trader/backend/microservices/quantum_policy_memory/
 
-scp -i ~/.ssh/hetzner_fresh docker-compose.yml \
+scp -i ~/.ssh/hetzner_fresh systemctl.yml \
     qt@46.224.116.254:~/quantum_trader/
 
 # 2. Build container
@@ -382,28 +382,28 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 \
 
 ```bash
 # View forecast logs
-docker logs quantum_policy_memory --tail 100 -f
+journalctl -u quantum_policy_memory.service --tail 100 -f
 
 # Check current forecast
-docker exec quantum_redis redis-cli HGETALL quantum_regime_forecast
+redis-cli HGETALL quantum_regime_forecast
 
 # View full forecast JSON
-docker exec quantum_redis redis-cli GET latest_regime_forecast | jq
+redis-cli GET latest_regime_forecast | jq
 
 # Check statistics
-docker exec quantum_redis redis-cli GET qpm_stats | jq
+redis-cli GET qpm_stats | jq
 
 # View forecast history
-docker exec quantum_redis redis-cli KEYS "regime_forecast_history:*"
+redis-cli KEYS "regime_forecast_history:*"
 ```
 
 ### **Analyze Forecast Accuracy**
 
 ```bash
 # Compare forecasts over time
-for key in $(docker exec quantum_redis redis-cli KEYS "regime_forecast_history:*"); do
+for key in $(redis-cli KEYS "regime_forecast_history:*"); do
     echo "=== $key ==="
-    docker exec quantum_redis redis-cli GET "$key" | jq '.regime, .confidence'
+    redis-cli GET "$key" | jq '.regime, .confidence'
 done
 ```
 
@@ -414,7 +414,7 @@ done
 docker compose restart quantum-policy-memory
 
 # View logs
-docker logs quantum_policy_memory -f
+journalctl -u quantum_policy_memory.service -f
 ```
 
 ---
@@ -577,14 +577,14 @@ SEQUENCE_LENGTH=64
 
 **Symptoms:**
 ```bash
-docker ps
+systemctl list-units
 # Shows: (unhealthy) next to quantum_policy_memory
 ```
 
 **Diagnosis:**
 ```bash
 # Check logs
-docker logs quantum_policy_memory --tail 50
+journalctl -u quantum_policy_memory.service --tail 50
 
 # Check PyTorch
 docker exec quantum_policy_memory python -c "import torch; print(torch.__version__)"
@@ -698,3 +698,4 @@ This is the **most advanced predictive trading system ever built**:
 **The AI Hedge Fund OS now has complete temporal intelligence. It learns from the past, operates in the present, and predicts the future. The system continuously improves forever through genetic algorithms, reinforcement learning, and temporal forecasting.**
 
 🧠 **THE FUTURE IS NOW PREDICTABLE** 🧠
+

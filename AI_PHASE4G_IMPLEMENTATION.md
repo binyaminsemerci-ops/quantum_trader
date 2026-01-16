@@ -271,7 +271,7 @@ docker run -d --name quantum_ai_engine \
 ### 4. Verify Deployment
 ```bash
 # Check logs for Phase 4G initialization
-docker logs quantum_ai_engine --tail 100 | grep "PHASE 4G\|Validator"
+journalctl -u quantum_ai_engine.service --tail 100 | grep "PHASE 4G\|Validator"
 
 # Check health endpoint
 curl -s http://localhost:8001/health | python3 -m json.tool | grep -A10 model_validator
@@ -467,13 +467,13 @@ curl http://localhost:8001/health | jq '.metrics.model_validator'
 docker exec quantum_ai_engine tail -50 /app/logs/model_validation.log
 
 # Validator logs
-docker logs quantum_ai_engine | grep Validator
+journalctl -u quantum_ai_engine.service | grep Validator
 ```
 
 ### Common Issues
 
 **Issue:** No validation log entries after 4h  
-**Solution:** Check retrainer completed successfully: `docker logs quantum_ai_engine | grep Retrainer`
+**Solution:** Check retrainer completed successfully: `journalctl -u quantum_ai_engine.service | grep Retrainer`
 
 **Issue:** All models rejected  
 **Solution:** Normal if market conditions changed; validator is working correctly
@@ -500,4 +500,5 @@ Your trading system now has:
 **Deployment Verified:** December 20, 2025, 08:22 UTC  
 **Status:** ✅ OPERATIONAL  
 **Next Validation:** ~4 hours after first retraining cycle  
+
 

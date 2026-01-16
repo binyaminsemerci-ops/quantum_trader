@@ -141,7 +141,7 @@ Caching and parallel execution:
 **Integration:**
 - Updated `continuous_runner.py` - Integrated metrics and error recovery
 - Updated `shadow_runner.py` - Integrated metrics and error recovery
-- Updated `docker-compose.yml` - Added metrics service
+- Updated `systemctl.yml` - Added metrics service
 
 **Total:** 1,070+ new lines of production code
 
@@ -153,10 +153,10 @@ Caching and parallel execution:
 
 ```bash
 # Start strategy generator with metrics
-docker-compose --profile strategy-gen up -d
+systemctl --profile strategy-gen up -d
 
 # Verify services
-docker ps | grep quantum
+systemctl list-units | grep quantum
 ```
 
 **Services Running:**
@@ -188,9 +188,9 @@ curl -s http://localhost:9090/metrics | grep strategy_generator_generation_error
 
 ```bash
 # Service logs
-docker-compose logs -f strategy_generator
-docker-compose logs -f shadow_tester
-docker-compose logs -f metrics
+systemctl logs -f strategy_generator
+systemctl logs -f shadow_tester
+systemctl logs -f metrics
 
 # Health check
 docker exec quantum_strategy_generator python backend/research/health.py
@@ -365,7 +365,7 @@ results = parallel_map(
 curl -s http://localhost:9090/metrics | grep error_total
 
 # View error logs
-docker logs quantum_strategy_generator --tail 100 | grep ERROR
+journalctl -u quantum_strategy_generator.service --tail 100 | grep ERROR
 
 # Check error budget
 docker exec quantum_strategy_generator python -c "
@@ -386,7 +386,7 @@ print(client.get_server_time())
 "
 
 # Reset circuit breaker (restart service)
-docker-compose restart strategy_generator
+systemctl restart strategy_generator
 ```
 
 ### Low Cache Hit Rate
@@ -396,7 +396,7 @@ docker-compose restart strategy_generator
 curl -s http://localhost:9090/metrics | grep cache
 
 # Clear cache (restart services)
-docker-compose --profile strategy-gen restart
+systemctl --profile strategy-gen restart
 ```
 
 ### Memory Issues
@@ -406,7 +406,7 @@ docker-compose --profile strategy-gen restart
 docker stats quantum_strategy_generator
 
 # Reduce population size
-# Edit docker-compose.yml:
+# Edit systemctl.yml:
 POPULATION_SIZE=10  # Reduced from 20
 ```
 
@@ -459,3 +459,4 @@ Ready for live deployment with full monitoring, error recovery, and performance 
 - Track SLOs with error budgets
 
 The self-improving, production-grade trading strategy system is **OPERATIONAL**! 🚀
+

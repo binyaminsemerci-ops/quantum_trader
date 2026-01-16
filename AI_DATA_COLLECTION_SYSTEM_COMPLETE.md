@@ -203,13 +203,13 @@ docker exec quantum_backend python /app/test_coingecko.py
 
 ```bash
 # Check universe manager status
-docker logs quantum_backend | grep "UNIVERSE"
+journalctl -u quantum_backend.service | grep "UNIVERSE"
 
 # Check data collector status
-docker logs quantum_backend | grep "DATA"
+journalctl -u quantum_backend.service | grep "DATA"
 
 # Check if trading is disabled
-docker logs quantum_backend | grep "ENABLE_EXECUTION"
+journalctl -u quantum_backend.service | grep "ENABLE_EXECUTION"
 
 # Check cached data
 docker exec quantum_backend ls -lh /app/backend/data/market_data/
@@ -238,3 +238,4 @@ docker exec quantum_backend cat /app/backend/data/universe.json
 🚨 Feature engineering mismatch must be fixed before trading resumes
 
 **System is now collecting high-quality data from 100 coins to feed better models.**
+

@@ -561,10 +561,10 @@ Redis is loading the dataset in memory
 - Network: Mulig docker network issue
 
 **Recommended Action:**
-1. Check redis container: `docker logs quantum_redis`
+1. Check redis container: `journalctl -u quantum_redis.service`
 2. Verify docker network: `docker network inspect quantum_trader_default`
 3. Test DNS resolution: `docker exec quantum_cross_exchange nslookup redis`
-4. Check if redis fully loaded: `docker exec quantum_redis redis-cli info persistence`
+4. Check if redis fully loaded: `redis-cli info persistence`
 5. Consider restart av affected containers
 
 ---
@@ -591,7 +591,7 @@ Path: /app/memory_bank/variant_*.json
 1. Check volume mount: `/app/memory_bank`
 2. Verify directory exists and permissions
 3. Create directory if missing: `mkdir -p /app/memory_bank`
-4. Check docker-compose volume configuration
+4. Check systemctl volume configuration
 
 ---
 
@@ -702,7 +702,7 @@ docker logs --tail 100 quantum_backend | grep -i "circuit\|safety\|threshold"
 #### 2. Fix Redis Connection Issues
 ```bash
 # Check redis status
-docker logs quantum_redis | tail -50
+journalctl -u quantum_redis.service | tail -50
 
 # Check redis connectivity fra affected containers
 docker exec quantum_cross_exchange ping -c 3 redis
@@ -731,7 +731,7 @@ docker inspect quantum_strategy_evolution | grep -A 10 Mounts
 
 1. **Add Health Check til CLM**
    - Implement /health endpoint
-   - Add to docker-compose.yml
+   - Add to systemctl.yml
 
 2. **Fix AI Engine Validation**
    - Debug pydantic int_parsing for TONUSDT
@@ -842,3 +842,4 @@ Systemet er **operasjonelt** men **IKKE I TRADING MODE** pga circuit breaker.
 **Rapport generert av:** GitHub Copilot  
 **Metode:** Deep-dive analyse av alle 19 AI/ML mikroservices  
 **Neste anbefaling:** Fix circuit breaker status som Priority 1
+

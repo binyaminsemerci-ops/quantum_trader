@@ -34,7 +34,7 @@ print('5 test signals published')
 docker logs -f quantum_execution | grep -i "trade\|order"
 
 # 3. Verify trade history
-docker exec quantum_redis redis-cli XLEN quantum:stream:trade.closed
+redis-cli XLEN quantum:stream:trade.closed
 ```
 
 **Status**: PAPER mode aktiv ✅, men må generere faktiske signals
@@ -145,19 +145,19 @@ docker exec quantum_execution env | grep MAX_
 
 **Fix**:
 ```bash
-# 1. Edit docker-compose.wsl.yml
+# 1. Edit systemctl.wsl.yml
 cd ~/quantum_trader
-cp docker-compose.wsl.yml docker-compose.wsl.yml.backup
+cp systemctl.wsl.yml systemctl.wsl.yml.backup
 
 # Change nginx ports:
-sed -i 's/- "0.0.0.0:80:80"/- "127.0.0.1:80:80"/' docker-compose.wsl.yml
-sed -i 's/- "0.0.0.0:443:443"/- "127.0.0.1:443:443"/' docker-compose.wsl.yml
+sed -i 's/- "0.0.0.0:80:80"/- "127.0.0.1:80:80"/' systemctl.wsl.yml
+sed -i 's/- "0.0.0.0:443:443"/- "127.0.0.1:443:443"/' systemctl.wsl.yml
 
 # 2. Restart nginx
-docker compose -f docker-compose.wsl.yml up -d nginx
+docker compose -f systemctl.wsl.yml up -d nginx
 
 # 3. Verify localhost only
-docker ps | grep nginx
+systemctl list-units | grep nginx
 # Should show: 127.0.0.1:80->80/tcp, 127.0.0.1:443->443/tcp
 
 # 4. Access via SSH tunnel
@@ -181,7 +181,7 @@ ssh -L 8443:127.0.0.1:443 -i ~/.ssh/hetzner_fresh qt@46.224.116.254
 ls -la ~/quantum_trader/backend/core/safety/ess.py
 
 # Fix import eller disable service temporarily
-# Add to docker-compose: restart: "no" for risk_safety
+# Add to systemctl: restart: "no" for risk_safety
 ```
 
 ### Backend Service 🟡
@@ -249,7 +249,7 @@ ls -la ~/quantum_trader/backend/core/safety/ess.py
 ```bash
 # Run this after fixes:
 echo "=== BLOCKER 1: Trade History ==="
-docker exec quantum_redis redis-cli XLEN quantum:stream:trade.closed
+redis-cli XLEN quantum:stream:trade.closed
 # MUST be >0 (ideally >5)
 
 echo "=== BLOCKER 2: Binance API ==="
@@ -265,7 +265,7 @@ docker exec quantum_execution env | grep -E "MAX_POSITION|MAX_LEVERAGE"
 # MUST show: MAX_POSITION_USD=50, MAX_LEVERAGE=1
 
 echo "=== BLOCKER 5: HTTPS ==="
-docker ps | grep nginx | grep "127.0.0.1:443"
+systemctl list-units | grep nginx | grep "127.0.0.1:443"
 # MUST show localhost binding
 ```
 
@@ -283,3 +283,4 @@ docker ps | grep nginx | grep "127.0.0.1:443"
 **THEN**: Proceed to 48h testnet validation
 
 **IF ANY RED**: DO NOT GO LIVE
+

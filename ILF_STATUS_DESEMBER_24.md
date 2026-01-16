@@ -60,7 +60,7 @@
 [TRADING-BOT] ✅ Published trade.intent for NEARUSDT (id=1766550734062-1)
 
 # Backend logs: INGENTING om trade.intent
-$ docker logs quantum_backend | grep "trade.intent"
+$ journalctl -u quantum_backend.service | grep "trade.intent"
 # (ingen output)
 ```
 
@@ -123,7 +123,7 @@ async def consume_trade_intents():
    ```
 6. **Verifiser i Redis**:
    ```bash
-   docker exec quantum_redis redis-cli KEYS "quantum:position:ilf:*"
+   redis-cli KEYS "quantum:position:ilf:*"
    ```
 
 ---
@@ -180,3 +180,4 @@ Under arbeidet oppdaget vi:
 **Pausert**: December 24, 2025 — 05:00 UTC  
 **Status**: 90% complete (kode klar, deployment done, trengs kun startup hook)  
 **Neste**: Integrere Trade Intent Subscriber i backend startup
+

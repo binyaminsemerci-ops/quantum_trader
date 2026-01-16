@@ -41,7 +41,7 @@ Successfully completed Phase 2 of the Strategy Generator AI integration:
 
 **Docker:**
 - `backend/research/Dockerfile.strategy_generator` (30 lines)
-- Updated `docker-compose.yml` (+60 lines)
+- Updated `systemctl.yml` (+60 lines)
 
 **Documentation:**
 - `STRATEGY_GENERATOR_DEPLOYMENT.md` (183 lines)
@@ -52,18 +52,18 @@ Successfully completed Phase 2 of the Strategy Generator AI integration:
 
 **Start services:**
 ```bash
-docker-compose --profile strategy-gen up -d
+systemctl --profile strategy-gen up -d
 ```
 
 **View logs:**
 ```bash
-docker-compose logs -f strategy_generator
-docker-compose logs -f shadow_tester
+systemctl logs -f strategy_generator
+systemctl logs -f shadow_tester
 ```
 
 **Stop services:**
 ```bash
-docker-compose --profile strategy-gen down
+systemctl --profile strategy-gen down
 ```
 
 ### ⚙️ Configuration
@@ -179,8 +179,8 @@ CANDIDATE → SHADOW → LIVE → DISABLED
 
 **Services not starting:**
 ```bash
-docker-compose logs strategy_generator
-docker-compose logs shadow_tester
+systemctl logs strategy_generator
+systemctl logs shadow_tester
 ```
 
 **Check health:**
@@ -227,3 +227,4 @@ Phase 2 is **COMPLETE**! The Strategy Generator AI now has:
 - Phase 3: ⏳ Pending (Next week)
 
 The self-improving trading strategy system is now **OPERATIONAL**! 🎉
+

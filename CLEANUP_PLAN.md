@@ -10,8 +10,8 @@
 - `cleanup_execute.py` - Cleanup execution script (NEW)
 
 ### 🐳 **Docker & Deployment**
-- `docker-compose.yml` - Main docker configuration
-- `docker-compose.vps.yml` - VPS deployment config
+- `systemctl.yml` - Main docker configuration
+- `systemctl.vps.yml` - VPS deployment config
 - `.env` - Environment variables
 - `.env.example` - Environment template
 - `.dockerignore` - Docker ignore rules
@@ -85,7 +85,7 @@ Root-level test files moved to tests/ directory.
 Status reports, fix reports, outdated plans.
 
 ### 📜 Batch/Shell Scripts (12 files)
-Replaced by docker-compose commands.
+Replaced by systemctl commands.
 
 ### 🗂️ Temporary Data (13 files)
 Logs, temp files, old database dumps.
@@ -147,3 +147,4 @@ You can restore any file if needed by copying from archive.
 ---
 
 Generated: 2025-11-19
+

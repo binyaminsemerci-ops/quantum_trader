@@ -374,7 +374,7 @@ export EXIT_BRAIN_MAX_TP_LEVELS=4
 
 3. **Restart backend:**
    ```bash
-   docker-compose restart quantum_backend
+   systemctl restart quantum_backend
    ```
 
 4. **Monitor logs:**
@@ -392,7 +392,7 @@ export EXIT_BRAIN_MAX_TP_LEVELS=4
 ### Rollback Plan:
 ```bash
 git revert HEAD  # Revert to previous commit
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 ```
 
 ---
@@ -479,3 +479,4 @@ pytest backend/domains/exits/exit_brain_v3/test_dynamic_executor_partial_tp.py -
 **Tested:** Unit tests pass, no syntax errors  
 **Backward Compatible:** Yes  
 **Breaking Changes:** None
+

@@ -73,13 +73,13 @@ MIN_PRICE_STOP_DISTANCE_PCT = 0.002
 
 ```powershell
 # Watch all risk management activity
-docker logs quantum_backend --tail 100 --follow | Select-String "EXIT_BRAIN_RISK"
+journalctl -u quantum_backend.service --tail 100 --follow | Select-String "EXIT_BRAIN_RISK"
 
 # Check for SL adjustments
-docker logs quantum_backend --tail 200 | Select-String "tightening to final_sl"
+journalctl -u quantum_backend.service --tail 200 | Select-String "tightening to final_sl"
 
 # Check for over-leverage exits
-docker logs quantum_backend --tail 200 | Select-String "over-leverage"
+journalctl -u quantum_backend.service --tail 200 | Select-String "over-leverage"
 ```
 
 ---
@@ -220,3 +220,4 @@ With default 10% max margin loss and 0.2% min stop distance:
 ---
 
 **Full Documentation:** `AI_LEVERAGE_AWARE_RISK_MANAGEMENT.md`
+

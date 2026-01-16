@@ -125,15 +125,17 @@ class CrossExchangeAggregator:
                 "coinbase_price": str(data["prices"].get("coinbase", "null"))
             }
             
-            # Use Redis Manager with retry logic
-            success = await self.redis_manager.publish(REDIS_STREAM_NORMALIZED, json.dumps(message))
-            if success:
-                logger.info(f"Published normalized: {data['symbol']} @ {data['avg_price']:.2f}")
-            else:
-                logger.warning(f"Failed to publish (circuit breaker open): {data['symbol']}")
+            # Use Redis XADD for stream (not channel publish)
+            if self.redis_manager.client is None:
+                logger.error("❌ Redis client is None - cannot XADD")
+                return
+            
+            logger.debug(f"About to XADD: {message}")
+            stream_id = await self.redis_manager.client.xadd(REDIS_STREAM_NORMALIZED, message)
+            logger.info(f"✅ XADD SUCCESS: {data['symbol']} @ {data['avg_price']:.2f} -> {stream_id}")
         
         except Exception as e:
-            logger.error(f"Failed to publish normalized data: {e}")
+            logger.error(f"❌ XADD FAILED: {e}", exc_info=True)
     
     def add_funding_delta(self, symbol: str, funding_data: Dict):
         """Add funding rate delta to aggregated data"""

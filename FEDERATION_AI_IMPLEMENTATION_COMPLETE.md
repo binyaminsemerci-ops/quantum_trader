@@ -177,7 +177,7 @@ Backend Decision Handlers (apply mode, risk, allocation changes)
 
 ### Docker Side (TODO)
 1. ✅ Create `backend/services/federation_ai/Dockerfile`
-2. ✅ Add `federation-ai` service to `docker-compose.yml`
+2. ✅ Add `federation-ai` service to `systemctl.yml`
 3. ✅ Configure Redis Streams EventBus connection
 4. ✅ Add health check endpoint
 
@@ -249,7 +249,7 @@ Backend Decision Handlers (apply mode, risk, allocation changes)
 1. ✅ Wire up adapters to backend services
 2. ✅ Update backend to publish events (portfolio, health, model)
 3. ✅ Subscribe backend to Federation decisions
-4. ✅ Add Federation AI to docker-compose.yml
+4. ✅ Add Federation AI to systemctl.yml
 5. ✅ Test event flow end-to-end
 
 ### Short-Term (Next 2 Weeks)
@@ -343,3 +343,4 @@ Backend Decision Handlers (apply mode, risk, allocation changes)
 **Questions?** Check the integration guide or README for detailed instructions.
 
 🎉 **Federation AI v3 is ready to coordinate your trading empire!**
+

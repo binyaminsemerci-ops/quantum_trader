@@ -48,7 +48,7 @@
 
 ### 5. ✅ Promtail Metrics Port Not Exposed
 **Problem:** Prometheus couldn't scrape Promtail (port 9080 not exposed)  
-**Solution:** Added port mapping to `docker-compose.logging.yml`
+**Solution:** Added port mapping to `systemctl.logging.yml`
 ```yaml
 ports:
   - "9080:9080"
@@ -184,12 +184,12 @@ docker restart quantum_auto_executor
 ### 3. Verify correlation_id Flow (Optional)
 ```bash
 # Generate order with correlation_id
-docker exec quantum_redis redis-cli XADD quantum:stream:ai.signal.generated "*" \
+redis-cli XADD quantum:stream:ai.signal.generated "*" \
   symbol BTCUSDT action BUY confidence 0.95 correlation_id "test-123"
 
 # Check logs across services
-docker logs quantum_auto_executor | grep "test-123"
-docker logs quantum_ai_engine | grep "test-123"
+journalctl -u quantum_auto_executor.service | grep "test-123"
+journalctl -u quantum_ai_engine.service | grep "test-123"
 
 # Query in Grafana Loki
 {container=~"quantum_.*"} | json | correlation_id="test-123"
@@ -226,7 +226,7 @@ docker logs quantum_ai_engine | grep "test-123"
    - Added `delete_request_store: filesystem`
    - Added `allow_structured_metadata: false`
 4. `promtail-config.yml`: Added `enable_runtime_reload: true`
-5. `docker-compose.logging.yml`: 
+5. `systemctl.logging.yml`: 
    - Upgraded image versions to 3.0.0
    - Exposed Promtail port 9080
 
@@ -260,13 +260,13 @@ curl http://localhost:9090/api/v1/targets | grep promtail
 curl http://localhost:9090/api/v1/rules | grep p1b
 
 # Check container status
-docker ps --filter name="quantum_loki|quantum_promtail"
+systemctl list-units --filter name="quantum_loki|quantum_promtail"
 ```
 
 ### Log Files
-- Promtail: `docker logs quantum_promtail`
-- Loki: `docker logs quantum_loki`
-- Prometheus: `docker logs quantum_prometheus`
+- Promtail: `journalctl -u quantum_promtail.service`
+- Loki: `journalctl -u quantum_loki.service`
+- Prometheus: `journalctl -u quantum_prometheus.service`
 
 ---
 
@@ -285,3 +285,4 @@ docker ps --filter name="quantum_loki|quantum_promtail"
 **Last Update:** January 3, 2026, 03:17 UTC
 
 🎉 **P1-B: OPS HARDENING - FULLY OPERATIONAL** 🎉
+

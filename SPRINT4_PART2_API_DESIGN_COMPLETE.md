@@ -323,7 +323,7 @@ WS /ws/dashboard
 
 5. **Configure service URLs**:
    - Move hardcoded URLs to environment variables
-   - Add to `backend/.env` or `docker-compose.yml`
+   - Add to `backend/.env` or `systemctl.yml`
 
 ---
 
@@ -341,3 +341,4 @@ WS /ws/dashboard
 **Files Created**: 3 (models.py, routes.py, websocket.py)  
 **Lines of Code**: ~1000 lines  
 **Ready for**: Part 3 (Backend Aggregator Implementation) + Part 4 (Frontend)
+

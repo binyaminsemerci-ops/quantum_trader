@@ -184,14 +184,14 @@ docker run -d \
   uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 # Verify deployment
-docker logs quantum_backend --tail 50
+journalctl -u quantum_backend.service --tail 50
 curl http://localhost:8000/health
 ```
 
 ### Step 4: Monitor First Trade
 ```bash
 # Watch for precision and dynamic TP activity
-docker logs quantum_backend -f | grep -E "(PRECISION|DYNAMIC_TP|EXIT BRAIN)"
+journalctl -u quantum_backend.service -f | grep -E "(PRECISION|DYNAMIC_TP|EXIT BRAIN)"
 ```
 
 ---
@@ -253,27 +253,27 @@ docker logs quantum_backend -f | grep -E "(PRECISION|DYNAMIC_TP|EXIT BRAIN)"
 ### Health Checks
 ```bash
 # Container status
-docker ps --filter "name=quantum_backend"
+systemctl list-units --filter "name=quantum_backend"
 
 # Backend health
 curl http://localhost:8000/health
 
 # Recent logs
-docker logs quantum_backend --tail 100
+journalctl -u quantum_backend.service --tail 100
 ```
 
 ### Performance Metrics
 ```bash
 # Precision cache hit rate
-docker logs quantum_backend | grep "PRECISION.*Cached" | wc -l
+journalctl -u quantum_backend.service | grep "PRECISION.*Cached" | wc -l
 
 # Dynamic TP selection ratio
-docker logs quantum_backend | grep "Using DYNAMIC TP" | wc -l
-docker logs quantum_backend | grep "Using STATIC profile" | wc -l
+journalctl -u quantum_backend.service | grep "Using DYNAMIC TP" | wc -l
+journalctl -u quantum_backend.service | grep "Using STATIC profile" | wc -l
 
 # Order success rate
-docker logs quantum_backend | grep "Submitted.*order" | wc -l
-docker logs quantum_backend | grep "precision.*error" | wc -l
+journalctl -u quantum_backend.service | grep "Submitted.*order" | wc -l
+journalctl -u quantum_backend.service | grep "precision.*error" | wc -l
 ```
 
 ---
@@ -283,24 +283,24 @@ docker logs quantum_backend | grep "precision.*error" | wc -l
 ### Issue: "Precision over maximum" errors
 **Diagnosis**:
 ```bash
-docker logs quantum_backend | grep "precision.*error"
+journalctl -u quantum_backend.service | grep "precision.*error"
 ```
 **Solution**: Cache not populated yet. Wait 30 seconds for first API call.
 
 ### Issue: All TPs using static profiles
 **Diagnosis**:
 ```bash
-docker logs quantum_backend | grep "Using STATIC"
+journalctl -u quantum_backend.service | grep "Using STATIC"
 ```
 **Solution**: Check dynamic calculator initialization:
 ```bash
-docker logs quantum_backend | grep "DYNAMIC_TP.*Calculator"
+journalctl -u quantum_backend.service | grep "DYNAMIC_TP.*Calculator"
 ```
 
 ### Issue: Orders rejected for invalid quantity
 **Diagnosis**:
 ```bash
-docker logs quantum_backend | grep "Quantity.*below min_qty"
+journalctl -u quantum_backend.service | grep "Quantity.*below min_qty"
 ```
 **Solution**: Expected behavior - precision layer working correctly.
 
@@ -326,3 +326,4 @@ docker logs quantum_backend | grep "Quantity.*below min_qty"
 **Deployed by**: GitHub Copilot  
 **Deployment Time**: ~30 minutes  
 **Complexity**: Production-grade implementation with full test coverage
+

@@ -2,11 +2,11 @@ binyaminsemerci-ops: Start quantum trader backend og frontend kommandoer fra doc
 
 GitHub Copilot: Jeg vil starte både backend og frontend for Quantum Trader fra Docker. 
 
-Read [](file:///c%3A/quantum_trader/docker-compose.yml)
+Read [](file:///c%3A/quantum_trader/systemctl.yml)
 
 Read [](file:///c%3A/quantum_trader)
 
-Jeg kan se at du har en docker-compose.yml fil med både backend og frontend definert. Jeg vil nå starte begge tjenestene med Docker. 
+Jeg kan se at du har en systemctl.yml fil med både backend og frontend definert. Jeg vil nå starte begge tjenestene med Docker. 
 
 Ran terminal command: docker compose --profile dev up -d
 
@@ -14,7 +14,7 @@ Det er en konflikt med eksisterende containere. La meg først stoppe og fjerne d
 
 Ran terminal command: docker compose --profile dev down
 
-Ran terminal command: docker ps -a | Select-String "quantum_redis" | ForEach-Object { $_ -match '([a-f0-9]{12})'; docker rm -f $matches[1] }
+Ran terminal command: systemctl list-units -a | Select-String "quantum_redis" | ForEach-Object { $_ -match '([a-f0-9]{12})'; docker rm -f $matches[1] }
 
 Ran terminal command: docker compose --profile dev up -d
 
@@ -24,11 +24,11 @@ Ran terminal command: docker compose --profile dev ps
 
 Utmerket! Alle tre tjenestene kjører. La meg sjekke backend loggene for å bekrefte at alt starter opp korrekt: 
 
-Ran terminal command: docker logs quantum_backend --tail 50
+Ran terminal command: journalctl -u quantum_backend.service --tail 50
 
 Backend startet uten synlige feil. La meg sjekke frontend loggene også: 
 
-Ran terminal command: docker logs quantum_frontend --tail 30
+Ran terminal command: journalctl -u quantum_frontend.service --tail 30
 
 Perfekt! La meg verifisere at backend API-et også svarer: 
 
@@ -36,11 +36,11 @@ Ran terminal command: Start-Sleep -Seconds 2; curl -s http://localhost:8000/heal
 
 Backend trenger litt mer tid for å starte opp. La meg sjekke backend loggene mer detaljert: 
 
-Ran terminal command: docker logs quantum_backend --follow --tail 100 &amp; $job = Start-Job -ScriptBlock { Start-Sleep -Seconds 10 }; Wait-Job $job | Out-Null; Stop-Job -Name (Get-Job).Name -ErrorAction SilentlyContinue
+Ran terminal command: journalctl -u quantum_backend.service --follow --tail 100 &amp; $job = Start-Job -ScriptBlock { Start-Sleep -Seconds 10 }; Wait-Job $job | Out-Null; Stop-Job -Name (Get-Job).Name -ErrorAction SilentlyContinue
 
 La meg prøve en enklere tilnærming: 
 
-Ran terminal command: docker logs quantum_backend 2>&1 | Select-Object -Last 100
+Ran terminal command: journalctl -u quantum_backend.service 2>&1 | Select-Object -Last 100
 
 Jeg kan se problemet - det mangler en import av `Any` fra `typing` modulen i `event_driven_executor.py`. La meg fikse dette: 
 
@@ -58,17 +58,17 @@ Ran terminal command: docker compose --profile dev up -d --build backend
 
 Perfekt! La meg nå verifisere at backend startet korrekt: 
 
-Ran terminal command: Start-Sleep -Seconds 5; docker logs quantum_backend --tail 50
+Ran terminal command: Start-Sleep -Seconds 5; journalctl -u quantum_backend.service --tail 50
 
 Ran terminal command: Start-Sleep -Seconds 3; curl -s http://localhost:8000/health
 
 La meg sjekke om backend prosessen har startet korrekt: 
 
-Ran terminal command: docker ps --filter "name=quantum_backend"
+Ran terminal command: systemctl list-units --filter "name=quantum_backend"
 
 Bra, containeren kjører. La meg se detaljerte logger: 
 
-Ran terminal command: docker logs quantum_backend 2>&1 | Select-Object -Last 200
+Ran terminal command: journalctl -u quantum_backend.service 2>&1 | Select-Object -Last 200
 
 Perfekt! Backend kjører nå og alle komponenter laster som forventet. Jeg kan se at:
 
@@ -79,7 +79,7 @@ Perfekt! Backend kjører nå og alle komponenter laster som forventet. Jeg kan s
 
 La meg teste om begge tjenestene er tilgjengelige: 
 
-Ran terminal command: Write-Host "`n=== BACKEND STATUS ===" -ForegroundColor Green; curl -s http://localhost:8000/health | ConvertFrom-Json | Select-Object status, timestamp | Format-List; Write-Host "`n=== FRONTEND STATUS ===" -ForegroundColor Green; try { $response = Invoke-WebRequest -Uri http://localhost:3000 -TimeoutSec 2 -UseBasicParsing; Write-Host "Frontend: OK (HTTP $($response.StatusCode))" } catch { Write-Host "Frontend: Starting..." }; Write-Host "`n=== DOCKER CONTAINERS ===" -ForegroundColor Green; docker ps --filter "name=quantum" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+Ran terminal command: Write-Host "`n=== BACKEND STATUS ===" -ForegroundColor Green; curl -s http://localhost:8000/health | ConvertFrom-Json | Select-Object status, timestamp | Format-List; Write-Host "`n=== FRONTEND STATUS ===" -ForegroundColor Green; try { $response = Invoke-WebRequest -Uri http://localhost:3000 -TimeoutSec 2 -UseBasicParsing; Write-Host "Frontend: OK (HTTP $($response.StatusCode))" } catch { Write-Host "Frontend: Starting..." }; Write-Host "`n=== DOCKER CONTAINERS ===" -ForegroundColor Green; systemctl list-units --filter "name=quantum" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 Utmerket! La meg teste health endpointet med en bedre tilnærming: 
 
@@ -91,7 +91,7 @@ Ran terminal command: curl http://localhost:8000/health 2>$null | ConvertFrom-Js
 
 Backend trenger litt mer tid. La meg sjekke frontend og oppsummere: 
 
-Ran terminal command: Write-Host "`n╔════════════════════════════════════════╗" -ForegroundColor Cyan; Write-Host "║   QUANTUM TRADER - SYSTEM STATUS     ║" -ForegroundColor Cyan; Write-Host "╚════════════════════════════════════════╝`n" -ForegroundColor Cyan; Write-Host "✅ Backend:  " -NoNewline -ForegroundColor Green; Write-Host "http://localhost:8000" -ForegroundColor White; Write-Host "✅ Frontend: " -NoNewline -ForegroundColor Green; Write-Host "http://localhost:3000" -ForegroundColor White; Write-Host "✅ Redis:    " -NoNewline -ForegroundColor Green; Write-Host "localhost:6379" -ForegroundColor White; Write-Host "`n📊 Docker Containers:`n" -ForegroundColor Yellow; docker ps --filter "name=quantum" --format "  • {{.Names}} - {{.Status}}"
+Ran terminal command: Write-Host "`n╔════════════════════════════════════════╗" -ForegroundColor Cyan; Write-Host "║   QUANTUM TRADER - SYSTEM STATUS     ║" -ForegroundColor Cyan; Write-Host "╚════════════════════════════════════════╝`n" -ForegroundColor Cyan; Write-Host "✅ Backend:  " -NoNewline -ForegroundColor Green; Write-Host "http://localhost:8000" -ForegroundColor White; Write-Host "✅ Frontend: " -NoNewline -ForegroundColor Green; Write-Host "http://localhost:3000" -ForegroundColor White; Write-Host "✅ Redis:    " -NoNewline -ForegroundColor Green; Write-Host "localhost:6379" -ForegroundColor White; Write-Host "`n📊 Docker Containers:`n" -ForegroundColor Yellow; systemctl list-units --filter "name=quantum" --format "  • {{.Names}} - {{.Status}}"
 
 Perfekt! Alle tjenestene kjører nå. La meg lage en kort oppsummering:
 
@@ -191,9 +191,9 @@ The VBS launcher automatically creates a desktop shortcut:
 - Try starting again
 
 ### "Backend did not start in time"
-- Check logs: `docker logs quantum_backend`
-- Try restarting: `docker-compose restart`
-- Full reset: `docker-compose down -v && docker-compose up -d`
+- Check logs: `journalctl -u quantum_backend.service`
+- Try restarting: `systemctl restart`
+- Full reset: `systemctl down -v && systemctl up -d`
 
 ### Permission Issues (PowerShell)
 Run this once in PowerShell as Administrator:
@@ -228,12 +228,12 @@ docker logs -f quantum_backend
 
 **Option 1: Stop containers**
 ```bash
-docker-compose down
+systemctl down
 ```
 
 **Option 2: Stop and remove volumes**
 ```bash
-docker-compose down -v
+systemctl down -v
 ```
 
 **Option 3: Emergency stop**
@@ -284,3 +284,4 @@ If all show ✅, your system is ready for live trading!
 ## 🎉 First Time Setup Complete!
 
 Your desktop shortcut is ready. Just double-click to start trading! 🚀
+

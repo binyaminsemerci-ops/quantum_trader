@@ -58,7 +58,7 @@ quantum_nginx                    Up 16h (unhealthy)  16 hours
 ### A.3 Redis Consumer Group Status (Before)
 ```bash
 Command:
-docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent
+redis-cli XINFO GROUPS quantum:stream:trade.intent
 
 Output:
 name: quantum:group:execution:trade.intent
@@ -75,7 +75,7 @@ lag: (unknown)
 ### A.4 Consumer Details
 ```bash
 Command:
-docker exec quantum_redis redis-cli XINFO CONSUMERS \
+redis-cli XINFO CONSUMERS \
   quantum:stream:trade.intent \
   quantum:group:execution:trade.intent
 
@@ -99,7 +99,7 @@ inactive: 448668459 ms
 ### A.5 Pending Messages
 ```bash
 Command:
-docker exec quantum_redis redis-cli XPENDING \
+redis-cli XPENDING \
   quantum:stream:trade.intent \
   quantum:group:execution:trade.intent \
   - + 10
@@ -267,7 +267,7 @@ Output: 754c78246a8b   quantum_trader_quantum_trader   bridge    local
 ### C.1 Consumer Group State BEFORE
 ```bash
 Command:
-docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent
+redis-cli XINFO GROUPS quantum:stream:trade.intent
 
 Output:
 name: quantum:group:execution:trade.intent
@@ -281,7 +281,7 @@ lag: (unknown)
 ### C.2 XGROUP SETID Command (Skip Backlog)
 ```bash
 Command:
-docker exec quantum_redis redis-cli XGROUP SETID \
+redis-cli XGROUP SETID \
   quantum:stream:trade.intent \
   quantum:group:execution:trade.intent \
   $
@@ -298,7 +298,7 @@ Purpose:
 ### C.3 Consumer Group State AFTER
 ```bash
 Command:
-docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent
+redis-cli XINFO GROUPS quantum:stream:trade.intent
 
 Output:
 name: quantum:group:execution:trade.intent
@@ -571,7 +571,7 @@ This error occurs because the subscriber uses structured logging (passing kwargs
 
 ```bash
 Command:
-docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent
+redis-cli XINFO GROUPS quantum:stream:trade.intent
 
 Output:
 name: quantum:group:execution:trade.intent
@@ -606,7 +606,7 @@ lag: 0
 ```bash
 # Publish test event
 Command:
-docker exec quantum_redis redis-cli XADD quantum:stream:trade.intent \* \
+redis-cli XADD quantum:stream:trade.intent \* \
   symbol TESTUSDT \
   side BUY \
   source manual_test_phase_e \
@@ -654,7 +654,7 @@ Output:
 ```bash
 # Check for actual order submissions
 Command:
-docker logs quantum_trade_intent_consumer 2>&1 | \
+journalctl -u quantum_trade_intent_consumer.service 2>&1 | \
   grep -i 'binance.*order\|submit.*order\|place.*order\|new_order\|ORDER_SIDE'
 
 Output: (empty)
@@ -665,7 +665,7 @@ Output: (empty)
 
 # Confirm SAFE_DRAIN flag
 Command:
-docker logs quantum_trade_intent_consumer 2>&1 | head -10
+journalctl -u quantum_trade_intent_consumer.service 2>&1 | head -10
 
 Output:
 2025-12-24 19:01:12,363 [INFO] trade_intent_runner: SAFE_DRAIN mode: true
@@ -687,7 +687,7 @@ This allows us to verify the consumer pipeline is working without risk of actual
 
 ```bash
 Command:
-docker ps | grep trade_intent_consumer
+systemctl list-units | grep trade_intent_consumer
 
 Output:
 89b786d70466   quantum_trader-backend   "python /app/runner.py"   5 minutes ago   Up 5 minutes   quantum_trade_intent_consumer
@@ -914,12 +914,12 @@ quantum:group:execution:trade.intent
 **Cleanup (Optional):**
 ```bash
 # Delete old consumer group
-docker exec quantum_redis redis-cli XGROUP DESTROY \
+redis-cli XGROUP DESTROY \
   quantum:stream:trade.intent \
   quantum:group:execution:trade.intent
 
 # OR manually delete dead consumers
-docker exec quantum_redis redis-cli XGROUP DELCONSUMER \
+redis-cli XGROUP DELCONSUMER \
   quantum:stream:trade.intent \
   quantum:group:execution:trade.intent \
   execution_032c6d11
@@ -942,7 +942,7 @@ docker exec quantum_redis redis-cli XGROUP DELCONSUMER \
 **If needed to process backlog:**
 ```bash
 # Reset consumer group to beginning
-docker exec quantum_redis redis-cli XGROUP SETID \
+redis-cli XGROUP SETID \
   quantum:stream:trade.intent \
   quantum:group:trade_intent_consumer:trade.intent \
   0-0
@@ -960,7 +960,7 @@ docker exec quantum_redis redis-cli XGROUP SETID \
 
 ```bash
 # Check if container exists
-docker ps -a | grep quantum_trade_intent_consumer
+systemctl list-units -a | grep quantum_trade_intent_consumer
 
 # If stopped, start it
 docker start quantum_trade_intent_consumer
@@ -1001,7 +1001,7 @@ docker rm quantum_trade_intent_consumer
 
 ```bash
 # Check if running
-docker ps | grep quantum_trade_intent_consumer
+systemctl list-units | grep quantum_trade_intent_consumer
 
 # View logs (last 100 lines)
 docker logs --tail 100 quantum_trade_intent_consumer
@@ -1013,7 +1013,7 @@ docker logs -f quantum_trade_intent_consumer
 docker stats quantum_trade_intent_consumer
 
 # Check consumer lag
-docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent | \
+redis-cli XINFO GROUPS quantum:stream:trade.intent | \
   grep -A6 "trade_intent_consumer:trade.intent"
 ```
 
@@ -1045,7 +1045,7 @@ docker run -d \
   python /app/runner.py
 
 # 3. Verify in logs
-docker logs quantum_trade_intent_consumer | grep SAFE_DRAIN
+journalctl -u quantum_trade_intent_consumer.service | grep SAFE_DRAIN
 # Should show: SAFE_DRAIN mode: false
 
 # 4. Monitor closely for first few trades
@@ -1057,25 +1057,25 @@ docker logs -f quantum_trade_intent_consumer
 **Consumer Not Processing Events:**
 ```bash
 # Check consumer is running
-docker ps | grep quantum_trade_intent_consumer
+systemctl list-units | grep quantum_trade_intent_consumer
 
 # Check EventBus is connected
-docker logs quantum_trade_intent_consumer | grep "EventBus"
+journalctl -u quantum_trade_intent_consumer.service | grep "EventBus"
 
 # Check for errors
-docker logs quantum_trade_intent_consumer | grep -i error
+journalctl -u quantum_trade_intent_consumer.service | grep -i error
 
 # Check consumer lag
-docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent
+redis-cli XINFO GROUPS quantum:stream:trade.intent
 ```
 
 **Consumer Crashing on Startup:**
 ```bash
 # Check full logs
-docker logs quantum_trade_intent_consumer
+journalctl -u quantum_trade_intent_consumer.service
 
 # Check for import errors
-docker logs quantum_trade_intent_consumer | grep -i "import\|module"
+journalctl -u quantum_trade_intent_consumer.service | grep -i "import\|module"
 
 # Verify runner script exists
 docker exec quantum_trade_intent_consumer ls -la /app/runner.py
@@ -1197,13 +1197,13 @@ Reliability:
 ### Key Commands
 ```bash
 # View consumer status
-docker ps | grep quantum_trade_intent_consumer
+systemctl list-units | grep quantum_trade_intent_consumer
 
 # View logs
 docker logs -f quantum_trade_intent_consumer
 
 # Check consumer lag
-docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent
+redis-cli XINFO GROUPS quantum:stream:trade.intent
 
 # Restart consumer
 docker restart quantum_trade_intent_consumer
@@ -1226,8 +1226,8 @@ docker restart quantum_trade_intent_consumer
 ## 📞 SUPPORT & CONTACTS
 
 **For Issues:**
-1. Check logs: `docker logs quantum_trade_intent_consumer`
-2. Check Redis: `docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent`
+1. Check logs: `journalctl -u quantum_trade_intent_consumer.service`
+2. Check Redis: `redis-cli XINFO GROUPS quantum:stream:trade.intent`
 3. Check VPS stability report: `VPS_STABILITY_REPORT_2025-12-24.md`
 
 **Related Issues:**
@@ -1242,3 +1242,4 @@ docker restart quantum_trade_intent_consumer
 **Mission Status:** ✅ COMPLETE  
 **Deployment Mode:** SAFE TESTNET (SAFE_DRAIN=true)  
 **Next Review:** 2025-12-25 19:00 UTC (24h stability check)
+

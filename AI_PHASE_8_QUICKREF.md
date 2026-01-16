@@ -9,16 +9,16 @@
 
 ```bash
 # Check if running
-docker ps | grep rl_optimizer
+systemctl list-units | grep rl_optimizer
 
 # View logs
-docker logs quantum_rl_optimizer --tail 50
+journalctl -u quantum_rl_optimizer.service --tail 50
 
 # View current weights
-docker exec quantum_redis redis-cli HGETALL governance_weights
+redis-cli HGETALL governance_weights
 
 # View reward history
-docker exec quantum_redis redis-cli LRANGE rl_reward_history 0 10
+redis-cli LRANGE rl_reward_history 0 10
 ```
 
 ---
@@ -66,25 +66,25 @@ docker compose stop rl-optimizer
 ### Monitoring
 ```bash
 # Real-time logs
-docker logs quantum_rl_optimizer --follow
+journalctl -u quantum_rl_optimizer.service --follow
 
 # Check health
 docker inspect quantum_rl_optimizer --format='{{.State.Health.Status}}'
 
 # View Redis keys
-docker exec quantum_redis redis-cli KEYS "rl_*"
+redis-cli KEYS "rl_*"
 ```
 
 ### Debugging
 ```bash
 # Check for errors
-docker logs quantum_rl_optimizer | grep ERROR
+journalctl -u quantum_rl_optimizer.service | grep ERROR
 
 # Verify Trade Journal integration
-docker exec quantum_redis redis-cli GET latest_report
+redis-cli GET latest_report
 
 # Check update frequency
-docker logs quantum_rl_optimizer | grep "Next update"
+journalctl -u quantum_rl_optimizer.service | grep "Next update"
 ```
 
 ---
@@ -186,32 +186,32 @@ REWARD_DRAWDOWN_WEIGHT=0.05
 ### RL Not Starting
 ```bash
 # Check dependencies
-docker ps | grep redis        # Must be healthy
-docker ps | grep trade_journal # Must be running
+systemctl list-units | grep redis        # Must be healthy
+systemctl list-units | grep trade_journal # Must be running
 
 # Check logs
-docker logs quantum_rl_optimizer
+journalctl -u quantum_rl_optimizer.service
 ```
 
 ### Weights Not Changing
 ```bash
 # Verify update interval hasn't passed
-docker logs quantum_rl_optimizer | grep "Next update in"
+journalctl -u quantum_rl_optimizer.service | grep "Next update in"
 
 # Check reward history
-docker exec quantum_redis redis-cli LRANGE rl_reward_history 0 5
+redis-cli LRANGE rl_reward_history 0 5
 
 # Ensure trades are happening
-docker exec quantum_redis redis-cli GET ai_latest_trades
+redis-cli GET ai_latest_trades
 ```
 
 ### Reward Always Zero
 ```bash
 # Verify Trade Journal is working
-docker logs quantum_trade_journal
+journalctl -u quantum_trade_journal.service
 
 # Check if reports are generated
-docker exec quantum_redis redis-cli GET latest_report
+redis-cli GET latest_report
 
 # Need 6+ hours for first meaningful reward
 ```
@@ -273,49 +273,49 @@ GET rl_stats
 ### After Deployment
 ```bash
 # 1. Check container is running
-docker ps | grep rl_optimizer
+systemctl list-units | grep rl_optimizer
 # Expected: Up X minutes (healthy)
 
 # 2. Verify initial weights set
-docker exec quantum_redis redis-cli HGETALL governance_weights
+redis-cli HGETALL governance_weights
 # Expected: 8 model entries with values
 
 # 3. Check logs for errors
-docker logs quantum_rl_optimizer | grep ERROR
+journalctl -u quantum_rl_optimizer.service | grep ERROR
 # Expected: No output
 
 # 4. Verify update loop started
-docker logs quantum_rl_optimizer | grep "Starting continuous"
+journalctl -u quantum_rl_optimizer.service | grep "Starting continuous"
 # Expected: "🚀 Starting continuous optimization loop..."
 ```
 
 ### After 30 Minutes
 ```bash
 # 1. Verify first update completed
-docker logs quantum_rl_optimizer | grep "Updated weights"
+journalctl -u quantum_rl_optimizer.service | grep "Updated weights"
 # Expected: At least one entry
 
 # 2. Check reward was calculated
-docker exec quantum_redis redis-cli LRANGE rl_reward_history 0 1
+redis-cli LRANGE rl_reward_history 0 1
 # Expected: JSON with timestamp and reward
 
 # 3. Verify weights changed
-docker exec quantum_redis redis-cli HGETALL governance_weights
+redis-cli HGETALL governance_weights
 # Expected: Different values than initial
 ```
 
 ### After 24 Hours
 ```bash
 # 1. Count total updates
-docker exec quantum_redis redis-cli LLEN rl_update_history
+redis-cli LLEN rl_update_history
 # Expected: ~48 updates (24h / 0.5h)
 
 # 2. Check reward trend
-docker exec quantum_redis redis-cli LRANGE rl_reward_history 0 -1
+redis-cli LRANGE rl_reward_history 0 -1
 # Expected: Generally increasing values
 
 # 3. Verify weights stabilizing
-docker logs quantum_rl_optimizer --tail 100 | grep "Significant change"
+journalctl -u quantum_rl_optimizer.service --tail 100 | grep "Significant change"
 # Expected: Fewer large changes over time
 ```
 
@@ -328,7 +328,7 @@ backend/microservices/rl_optimizer/
 ├── optimizer_service.py    # Main RL engine
 └── Dockerfile              # Container definition
 
-docker-compose.yml          # Service #9 config
+systemctl.yml          # Service #9 config
 ```
 
 ---
@@ -434,3 +434,4 @@ Maintains: Ensemble diversity
 *Quick Reference v1.0*  
 *Phase 8: Reinforcement Learning Optimization*  
 *Status: OPERATIONAL* 🟢
+

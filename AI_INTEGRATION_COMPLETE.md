@@ -265,7 +265,7 @@ export QT_AI_HFOS_ENABLED=true
 export QT_AI_HFOS_MODE=OBSERVE
 
 # 2. Start backend
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 
 # 3. Monitor logs
 docker logs -f quantum_backend | grep "\[AI-HFOS\]"
@@ -297,7 +297,7 @@ export QT_AI_INTEGRATION_STAGE=PARTIAL
 export QT_AI_HFOS_ENABLED=true
 export QT_AI_HFOS_MODE=ADVISORY
 
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 ```
 
 **Expected Behavior:**
@@ -327,7 +327,7 @@ export QT_AI_PBA_ENABLED=true
 export QT_AI_PAL_ENABLED=true
 export QT_AI_SELF_HEALING_ENABLED=true
 
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 ```
 
 **Expected Behavior:**
@@ -403,7 +403,7 @@ export QT_AI_SELF_HEALING_MODE=PROTECTIVE
 curl http://localhost:8000/health/ai | jq
 
 # Via logs
-docker logs quantum_backend | grep "AI System Services"
+journalctl -u quantum_backend.service | grep "AI System Services"
 ```
 
 ### Test Individual Hooks
@@ -421,7 +421,7 @@ print(f"Trade allowed: {allowed}, reason: {reason}")
 ```bash
 # Method 1: Environment variable
 export QT_AI_EMERGENCY_BRAKE=true
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 
 # Method 2: API endpoint
 curl -X POST http://localhost:8000/api/ai/emergency-brake
@@ -525,7 +525,7 @@ Priority 3 (Context):
 **Solution:**
 ```bash
 # Check logs
-docker logs quantum_backend | grep "AI System Services"
+journalctl -u quantum_backend.service | grep "AI System Services"
 
 # Verify environment variables
 echo $QT_AI_INTEGRATION_STAGE
@@ -539,7 +539,7 @@ python -c "from backend.services.system_services import get_ai_services; print('
 **Solution:**
 ```bash
 # Verify ai_services passed to executor
-docker logs quantum_backend | grep "ai_services"
+journalctl -u quantum_backend.service | grep "ai_services"
 
 # Check integration stage
 curl http://localhost:8000/health/ai | jq .integration_stage
@@ -586,7 +586,7 @@ curl http://localhost:8000/health/ai | jq .integration_stage
    export QT_AI_INTEGRATION_STAGE=OBSERVATION
    export QT_AI_HFOS_ENABLED=true
    export QT_AI_HFOS_MODE=OBSERVE
-   docker-compose restart quantum_backend
+   systemctl restart quantum_backend
    ```
 
 2. ✅ **Monitor Logs for 24 Hours**
@@ -630,3 +630,4 @@ curl http://localhost:8000/health/ai | jq .integration_stage
 **Document Version:** 1.0  
 **Last Updated:** November 23, 2025  
 **Status:** ✅ INTEGRATION COMPLETE - READY FOR STAGE 1 TESTING
+

@@ -71,7 +71,7 @@ async def health_liveness():
     }
 ```
 
-**File: `docker-compose.yml`** (update healthcheck):
+**File: `systemctl.yml`** (update healthcheck):
 ```yaml
 healthcheck:
   test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
@@ -93,7 +93,7 @@ Invoke-RestMethod http://localhost:8000/health/live  # Should return in <100ms
 Invoke-RestMethod http://localhost:8000/api/v2/health  # Should return in <2s
 
 # Test Docker healthcheck
-docker ps  # Backend should show (healthy) status after 30s
+systemctl list-units  # Backend should show (healthy) status after 30s
 ```
 
 ## Impact
@@ -105,3 +105,4 @@ docker ps  # Backend should show (healthy) status after 30s
 ## Applied
 ✅ Fix documented, ready to apply
 ⏳ Waiting for user confirmation to modify files
+

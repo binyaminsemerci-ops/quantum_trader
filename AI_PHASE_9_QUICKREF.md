@@ -9,19 +9,19 @@
 
 ```bash
 # Check if running
-docker ps | grep strategy_evaluator
+systemctl list-units | grep strategy_evaluator
 
 # View logs
-docker logs quantum_strategy_evaluator --tail 50
+journalctl -u quantum_strategy_evaluator.service --tail 50
 
 # Check current active policy
-docker exec quantum_redis redis-cli GET current_policy | jq
+redis-cli GET current_policy | jq
 
 # Check best strategy performance
-docker exec quantum_redis redis-cli HGETALL meta_best_strategy
+redis-cli HGETALL meta_best_strategy
 
 # View evolution statistics
-docker exec quantum_redis redis-cli GET meta_evolution_stats | jq
+redis-cli GET meta_evolution_stats | jq
 ```
 
 ---
@@ -71,7 +71,7 @@ docker compose stop strategy-evaluator
 ### Monitoring
 ```bash
 # Real-time logs
-docker logs quantum_strategy_evaluator --follow
+journalctl -u quantum_strategy_evaluator.service --follow
 
 # Check health
 docker inspect quantum_strategy_evaluator --format='{{.State.Health.Status}}'
@@ -86,16 +86,16 @@ cat sandbox_strategies/variant_<id>.json | jq
 ### Debugging
 ```bash
 # Check for errors
-docker logs quantum_strategy_evaluator | grep ERROR
+journalctl -u quantum_strategy_evaluator.service | grep ERROR
 
 # Verify evaluations running
-docker logs quantum_strategy_evaluator | grep "STRATEGY EVALUATION"
+journalctl -u quantum_strategy_evaluator.service | grep "STRATEGY EVALUATION"
 
 # Check promotion history
-docker logs quantum_strategy_evaluator | grep "PROMOTED"
+journalctl -u quantum_strategy_evaluator.service | grep "PROMOTED"
 
 # View evolution progress
-docker exec quantum_redis redis-cli LRANGE meta_strategy_history 0 9
+redis-cli LRANGE meta_strategy_history 0 9
 ```
 
 ---
@@ -214,19 +214,19 @@ pnl_score = total_pnl * 0.6            # Increase from 0.3
 ### No Strategy Updates
 ```bash
 # Check if evaluation completed
-docker logs quantum_strategy_evaluator | grep "STRATEGY EVALUATION COMPLETE"
+journalctl -u quantum_strategy_evaluator.service | grep "STRATEGY EVALUATION COMPLETE"
 
 # Verify 12-hour interval passed
-docker logs quantum_strategy_evaluator | grep "Sleeping for"
+journalctl -u quantum_strategy_evaluator.service | grep "Sleeping for"
 
 # Check for errors
-docker logs quantum_strategy_evaluator | grep ERROR
+journalctl -u quantum_strategy_evaluator.service | grep ERROR
 ```
 
 ### All Variants Scoring Poorly
 ```bash
 # Check historical baseline
-docker exec quantum_redis redis-cli GET latest_report | jq .sharpe_ratio
+redis-cli GET latest_report | jq .sharpe_ratio
 
 # If baseline is 0 or low:
 # System needs more trading history (wait 24h)
@@ -235,7 +235,7 @@ docker exec quantum_redis redis-cli GET latest_report | jq .sharpe_ratio
 ### Strategies Not Improving
 ```bash
 # View evolution stats
-docker exec quantum_redis redis-cli GET meta_evolution_stats | jq
+redis-cli GET meta_evolution_stats | jq
 
 # If stuck for 5+ generations:
 # Increase mutation range: MUTATION_RANGE=0.3
@@ -299,33 +299,33 @@ LRANGE meta_strategy_history 0 -1
 ### After Deployment
 ```bash
 # 1. Check container running
-docker ps | grep strategy_evaluator
+systemctl list-units | grep strategy_evaluator
 # Expected: Up X minutes (healthy)
 
 # 2. Verify initial evaluation completed
-docker logs quantum_strategy_evaluator | grep "STRATEGY EVALUATION COMPLETE"
+journalctl -u quantum_strategy_evaluator.service | grep "STRATEGY EVALUATION COMPLETE"
 # Expected: One complete evaluation
 
 # 3. Check best strategy promoted
-docker exec quantum_redis redis-cli HGETALL meta_best_strategy
+redis-cli HGETALL meta_best_strategy
 # Expected: Hash with variant_id, sharpe, etc.
 
 # 4. Verify current policy updated
-docker exec quantum_redis redis-cli GET current_policy | jq
+redis-cli GET current_policy | jq
 # Expected: JSON with variant_id and parameters
 ```
 
 ### After 12 Hours
 ```bash
 # 1. Verify second generation started
-docker logs quantum_strategy_evaluator | grep "Generation 2"
+journalctl -u quantum_strategy_evaluator.service | grep "Generation 2"
 
 # 2. Check evolution stats updated
-docker exec quantum_redis redis-cli GET meta_evolution_stats | jq .total_evaluations
+redis-cli GET meta_evolution_stats | jq .total_evaluations
 # Expected: 2
 
 # 3. Verify strategies mutating from winner
-docker logs quantum_strategy_evaluator | grep "parent_id"
+journalctl -u quantum_strategy_evaluator.service | grep "parent_id"
 # Expected: References to Gen 1 winner
 ```
 
@@ -340,7 +340,7 @@ backend/microservices/strategy_evaluator/
 └── sandbox_strategies/          # Strategy archive (volume)
     └── variant_*.json           # Each evaluation saved
 
-docker-compose.yml               # Service #10 config
+systemctl.yml               # Service #10 config
 ```
 
 ---
@@ -420,3 +420,4 @@ Result: Safe, profitable, risk-adjusted strategies
 *Phase 9: Meta-Cognitive Strategy Evaluator*  
 *Status: OPERATIONAL* 🟢  
 *Next Evaluation: In 12 hours*
+

@@ -234,7 +234,7 @@ class SimpleRiskBrain:
 
 ### Check Backend Status
 ```bash
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker ps --filter name=quantum_backend'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'systemctl list-units --filter name=quantum_backend'
 # Expected: Up X seconds (not Restarting)
 ```
 
@@ -252,7 +252,7 @@ curl http://46.224.116.254:8000/health/phase4 | jq
 
 ### Check Logs for Phase 4B
 ```bash
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker logs quantum_backend 2>&1 | grep "PHASE 4"'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'journalctl -u quantum_backend.service 2>&1 | grep "PHASE 4"'
 # Expected: Phase 4 init messages, warnings about missing dependencies
 ```
 
@@ -335,3 +335,4 @@ git log --all --oneline --graph | grep -E "Brain|Governor|Phase"
 **Backend Status:** ✅ Running (Phase 4 Active)  
 **Phase 4B Status:** ⚠️ Dependencies Missing (APRL Operational)  
 **Next Review:** After Phase 2/3 restoration attempt
+

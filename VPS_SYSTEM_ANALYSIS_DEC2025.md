@@ -59,7 +59,7 @@
 
 ### 1️⃣ DOCKER COMPOSE KONFIGURASJON
 
-#### VPS: `docker-compose.vps.yml`
+#### VPS: `systemctl.vps.yml`
 ```yaml
 services:
   - redis (port 6379)
@@ -67,7 +67,7 @@ services:
   - frontend (Next.js)
 ```
 
-#### VPS: `docker-compose.services.yml` (Ekstended)
+#### VPS: `systemctl.services.yml` (Ekstended)
 ```yaml
 services:
   - risk-safety (port 8003) ❌ EXITED
@@ -75,13 +75,13 @@ services:
   - marketdata (port 8004) ⚠️ COMMENTED OUT
 ```
 
-#### Lokal: `docker-compose.yml`
+#### Lokal: `systemctl.yml`
 ```yaml
 services:
   - backend (port 8000) [dev profile]
 ```
 
-#### Lokal: `docker-compose.wsl.yml`
+#### Lokal: `systemctl.wsl.yml`
 ```yaml
 services:
   - redis (localhost:6379)
@@ -89,7 +89,7 @@ services:
 ```
 
 **FORSKJELLER:**
-- ✅ VPS bruker multi-file compose (`-f docker-compose.vps.yml -f docker-compose.services.yml`)
+- ✅ VPS bruker multi-file compose (`-f systemctl.vps.yml -f systemctl.services.yml`)
 - ✅ VPS har production nginx/postgres/monitoring
 - ✅ Lokal har dev-profil med backend monolith
 - ⚠️ VPS mangler frontend container (planlagt men ikke kjørende)
@@ -153,7 +153,7 @@ BINANCE_API_SECRET= ❌ EMPTY
 **FORSKJELLER:**
 - ✅ VPS har komplette credentials (maskert i denne rapporten)
 - ✅ VPS har produksjonsklare risk limits
-- ✅ Lokal har høyere risk limits i docker-compose.yml (for testing)
+- ✅ Lokal har høyere risk limits i systemctl.yml (for testing)
 - ✅ Begge har samme AI/ML konfigurasjon
 
 ---
@@ -331,11 +331,11 @@ used_memory_human: 1.41M ✅
 **Anbefalt løsning:**
 ```bash
 # 1. Sjekk logs
-docker logs quantum_backend --tail 100
+journalctl -u quantum_backend.service --tail 100
 
 # 2. Fjern container og rebuild
 docker rm quantum_backend
-docker-compose -f docker-compose.vps.yml up -d backend
+systemctl -f systemctl.vps.yml up -d backend
 
 # 3. Hvis backend ikke trengs, disable i production
 # (ai-engine + execution + trading_bot er nok)
@@ -390,13 +390,13 @@ docker stop quantum_trading_bot
 **Anbefalt løsning:**
 ```bash
 # 1. Sjekk logs
-docker logs quantum_risk_safety --tail 100
+journalctl -u quantum_risk_safety.service --tail 100
 
 # 2. Verifiser at dependencies er på plass
-docker exec quantum_redis redis-cli KEYS "policy:*"
+redis-cli KEYS "policy:*"
 
 # 3. Restart med full logging
-docker-compose -f docker-compose.vps.yml -f docker-compose.services.yml up -d risk-safety
+systemctl -f systemctl.vps.yml -f systemctl.services.yml up -d risk-safety
 ```
 
 ---
@@ -406,7 +406,7 @@ docker-compose -f docker-compose.vps.yml -f docker-compose.services.yml up -d ri
 **Forventet:** `quantum_frontend` container kjørende på port 3000
 
 **Observasjon:**
-- `docker-compose.vps.yml` definerer frontend
+- `systemctl.vps.yml` definerer frontend
 - Men container kjører ikke
 - Nginx kjører, men har ingenting å proxye til frontend
 
@@ -414,7 +414,7 @@ docker-compose -f docker-compose.vps.yml -f docker-compose.services.yml up -d ri
 ```bash
 # Sjekk om frontend skal kjøre
 cd /home/qt/quantum_trader/frontend
-docker-compose -f docker-compose.vps.yml up -d frontend
+systemctl -f systemctl.vps.yml up -d frontend
 ```
 
 ---
@@ -442,8 +442,8 @@ docker-compose -f docker-compose.vps.yml up -d frontend
 
 ### 🔥 HØYESTE PRIORITET (KRITISK)
 1. **Fix Backend Container**
-   - Sjekk logs: `docker logs quantum_backend --tail 200`
-   - Rebuild hvis nødvendig: `docker-compose up -d --build backend`
+   - Sjekk logs: `journalctl -u quantum_backend.service --tail 200`
+   - Rebuild hvis nødvendig: `systemctl up -d --build backend`
    - Vurder om backend trengs i production (ai-engine kan være nok)
 
 2. **Fix Trading Bot 404 Feil**
@@ -469,7 +469,7 @@ docker-compose -f docker-compose.vps.yml up -d frontend
 
 5. **Aktiver Frontend Container**
    - Bygg og start frontend hvis den skal kjøre
-   - Alternativt: Fjern fra docker-compose hvis ikke i bruk
+   - Alternativt: Fjern fra systemctl hvis ikke i bruk
 
 6. **Setup Automated Backups**
    ```bash
@@ -490,7 +490,7 @@ docker-compose -f docker-compose.vps.yml up -d frontend
    - Setup log aggregation (ELK stack eller Loki)
 
 9. **Resource Limits**
-   - Finjuster CPU/memory limits i docker-compose
+   - Finjuster CPU/memory limits i systemctl
    - Aktiver swap limits for stabilitet
 
 10. **Documentation**
@@ -591,19 +591,19 @@ docker-compose -f docker-compose.vps.yml up -d frontend
 ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254
 
 # Sjekk alle containers
-docker ps -a
+systemctl list-units -a
 
 # Sjekk logs for problemcontainere
-docker logs quantum_backend --tail 100
-docker logs quantum_risk_safety --tail 100
-docker logs quantum_trading_bot --tail 50
+journalctl -u quantum_backend.service --tail 100
+journalctl -u quantum_risk_safety.service --tail 100
+journalctl -u quantum_trading_bot.service --tail 50
 
 # Restart services
-docker-compose -f docker-compose.vps.yml -f docker-compose.services.yml restart
+systemctl -f systemctl.vps.yml -f systemctl.services.yml restart
 
 # Full system restart
-docker-compose -f docker-compose.vps.yml -f docker-compose.services.yml down
-docker-compose -f docker-compose.vps.yml -f docker-compose.services.yml up -d
+systemctl -f systemctl.vps.yml -f systemctl.services.yml down
+systemctl -f systemctl.vps.yml -f systemctl.services.yml up -d
 ```
 
 ### Health Endpoints
@@ -615,7 +615,7 @@ curl http://localhost:8001/health | jq
 curl http://localhost:8002/health | jq
 
 # Redis
-docker exec quantum_redis redis-cli PING
+redis-cli PING
 
 # Prometheus
 curl http://localhost:9090/-/healthy
@@ -629,3 +629,4 @@ curl http://localhost:3001/api/health
 **Rapport generert:** 17. desember 2025, 04:35 UTC  
 **Analysemetode:** SSH-basert remote inspection + lokal sammenligning  
 **Verktøy brukt:** docker, ssh, curl, health endpoints, file inspection
+

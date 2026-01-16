@@ -26,7 +26,7 @@
 
 ### **Container Status:**
 ```bash
-$ docker ps --format '{{.Names}}' | grep -E 'ai_engine|trading_bot|auto_executor'
+$ systemctl list-units --format '{{.Names}}' | grep -E 'ai_engine|trading_bot|auto_executor'
 quantum_ai_engine       ✅ RUNNING
 quantum_auto_executor   ✅ RUNNING
 quantum_trading_bot     ✅ RUNNING
@@ -120,7 +120,7 @@ $ docker restart quantum_ai_engine quantum_trading_bot
 
 ### **EventBus Stream:**
 ```bash
-$ docker exec quantum_redis redis-cli XLEN 'quantum:stream:trade.intent'
+$ redis-cli XLEN 'quantum:stream:trade.intent'
 10004
 ```
 
@@ -472,3 +472,4 @@ The hedge fund is now running on **true AI predictions** from a 4-model ensemble
 **Critical Fixes:** 1 (Pydantic validation)  
 **System Health:** 🟢 **OPERATIONAL**  
 **AI Control:** ✅ **100% ACTIVE**
+

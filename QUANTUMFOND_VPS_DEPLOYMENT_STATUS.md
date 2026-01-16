@@ -89,7 +89,7 @@ Viewer:
 │   │   └── pages/
 │   ├── Dockerfile
 │   └── nginx.conf
-└── docker-compose.quantumfond.yml
+└── systemctl.quantumfond.yml
 ```
 
 ---
@@ -119,22 +119,22 @@ wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254
 ### Container Management
 ```bash
 # View all containers
-docker ps --filter name=quantumfond
+systemctl list-units --filter name=quantumfond
 
 # View logs
-docker logs quantumfond_backend --tail 50
-docker logs quantumfond_frontend --tail 50
+journalctl -u quantumfond_backend.service --tail 50
+journalctl -u quantumfond_frontend.service --tail 50
 
 # Restart services
 cd /opt/quantumfond
-docker-compose -f docker-compose.quantumfond.yml restart backend
-docker-compose -f docker-compose.quantumfond.yml restart frontend
+systemctl -f systemctl.quantumfond.yml restart backend
+systemctl -f systemctl.quantumfond.yml restart frontend
 
 # Stop all services
-docker-compose -f docker-compose.quantumfond.yml down
+systemctl -f systemctl.quantumfond.yml down
 
 # Start all services
-docker-compose -f docker-compose.quantumfond.yml up -d
+systemctl -f systemctl.quantumfond.yml up -d
 ```
 
 ### Update Deployment
@@ -312,3 +312,4 @@ ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 'docker stats --no-stream'
 
 The QuantumFond Hedge Fund OS infrastructure is now operational on the Hetzner VPS.  
 All services are running, health checks are passing, and the system is ready for Phase 18 development.
+

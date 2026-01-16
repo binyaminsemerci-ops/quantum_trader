@@ -168,7 +168,7 @@ def compare_profiles():
     print("   - Use SAFE for REAL CAPITAL")
     print("   - Use AGGRESSIVE for TESTNET / EXPERIMENTATION")
     print("   - Switch with: $env:ORCH_PROFILE='SAFE' or 'AGGRESSIVE'")
-    print("   - Restart backend after switching: docker-compose restart backend")
+    print("   - Restart backend after switching: sudo systemctl restart quantum-backend.service")
     print()
 
 if __name__ == "__main__":

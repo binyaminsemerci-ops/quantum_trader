@@ -141,7 +141,7 @@ class TrustMemory:
 
 **BEVIS at det KJØRER** (Redis data):
 ```bash
-$ docker exec quantum_redis redis-cli KEYS "quantum:trust:*"
+$ redis-cli KEYS "quantum:trust:*"
 
 quantum:trust:events:xgb       # Trust event history for XGBoost
 quantum:trust:events:patchtst  # Trust event history for PatchTST
@@ -576,3 +576,4 @@ Quantum Trader HAR faktisk et sofistikert multi-nivå læringssystem som:
 **Av**: GitHub Copilot (Claude Sonnet 4.5)  
 **Basert på**: Kodeanalyse + Redis verification + Container logs  
 **For**: Quantum Trader AI OS - Reality Check
+

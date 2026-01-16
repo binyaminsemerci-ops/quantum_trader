@@ -14,7 +14,7 @@ Exit Brain v3 is now **fully wired** into the Quantum Trader v3.0 system as the 
 ## Files Modified
 
 ### 1. **Feature Flag Configuration**
-- **File:** `docker-compose.yml` (line 102)
+- **File:** `systemctl.yml` (line 102)
 - **Flag:** `EXIT_BRAIN_V3_ENABLED=false` (default: DISABLED)
 - **Purpose:** Global feature toggle for Exit Brain v3
 
@@ -93,11 +93,11 @@ Exit Brain v3 is now **fully wired** into the Quantum Trader v3.0 system as the 
 
 ### Option 1: Environment Variable (Recommended)
 ```bash
-# Edit docker-compose.yml line 102
+# Edit systemctl.yml line 102
 - EXIT_BRAIN_V3_ENABLED=true  # Change false → true
 
 # Restart backend
-docker-compose up -d backend
+systemctl up -d backend
 ```
 
 ### Option 2: Runtime Toggle (No Rebuild)
@@ -106,7 +106,7 @@ docker-compose up -d backend
 docker exec quantum_backend sh -c 'export EXIT_BRAIN_V3_ENABLED=true'
 
 # Restart backend process (will pick up new flag)
-docker-compose restart backend
+systemctl restart backend
 ```
 
 ### Verification
@@ -297,38 +297,38 @@ docker logs -f quantum_backend | grep "EXIT BRAIN"
 
 ### Quick Disable (No Code Changes)
 ```bash
-# 1. Edit docker-compose.yml
-vim docker-compose.yml  # Line 102: true → false
+# 1. Edit systemctl.yml
+vim systemctl.yml  # Line 102: true → false
 
 # 2. Restart backend
-docker-compose up -d backend
+systemctl up -d backend
 
 # 3. Verify legacy mode
-docker logs quantum_backend | grep "EXIT BRAIN"
+journalctl -u quantum_backend.service | grep "EXIT BRAIN"
 # Should NOT see: "Exit Brain v3 orchestrator initialized"
 ```
 
 ### Verify Rollback Success
 ```bash
 # Check no Exit Brain logs
-docker logs quantum_backend 2>&1 | grep "EXIT BRAIN" | wc -l
+journalctl -u quantum_backend.service 2>&1 | grep "EXIT BRAIN" | wc -l
 # Should be 0
 
 # Verify legacy TP/SL calculation
-docker logs quantum_backend | grep "Dynamic TP/SL"
+journalctl -u quantum_backend.service | grep "Dynamic TP/SL"
 # Should see: "Dynamic TP/SL Calculator initialized with AI-driven volatility scaling"
 ```
 
 ### Emergency Disable (Runtime)
 ```bash
 # Stop backend
-docker-compose stop backend
+systemctl stop backend
 
 # Edit flag directly
 docker exec quantum_backend sh -c 'echo "EXIT_BRAIN_V3_ENABLED=false" >> /app/.env'
 
 # Restart
-docker-compose up -d backend
+systemctl up -d backend
 ```
 
 ---
@@ -342,7 +342,7 @@ docker-compose up -d backend
 4. ⏳ **User Decision:** Enable Exit Brain v3 or keep legacy?
 
 ### If Enabling (Recommended Sequence)
-1. **Staging First:** Enable in staging environment (docker-compose override)
+1. **Staging First:** Enable in staging environment (systemctl override)
 2. **Monitor 24h:** Track exit plans, TP/SL placement, trailing activation
 3. **Validate:** No ERROR -4130, all positions protected, profit locking works
 4. **Production:** Enable in production after 48h validation
@@ -368,7 +368,7 @@ docker-compose up -d backend
 ## Changelog
 
 ### 2024-12-09: Exit Brain v3 Wiring Complete ✅
-- ✅ Feature flag added to docker-compose.yml
+- ✅ Feature flag added to systemctl.yml
 - ✅ dynamic_tpsl.py integration complete (lines 35-182)
 - ✅ position_monitor.py integration complete (lines 54-426)
 - ✅ trailing_stop_manager.py integration complete (lines 17-232)
@@ -379,3 +379,4 @@ docker-compose up -d backend
 
 ### User Decision Required:
 **Enable Exit Brain v3 now or keep legacy system?**
+

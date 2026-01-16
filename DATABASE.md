@@ -20,7 +20,7 @@ This guide explains how to set up and manage the Quantum Trader database using P
 
 ```bash
 # Start PostgreSQL and all services
-docker-compose up -d
+systemctl up -d
 
 # Run migrations
 cd backend
@@ -139,7 +139,7 @@ unset QUANTUM_TRADER_DATABASE_URL
 
 ### Docker Compose
 
-The `docker-compose.yml` already configures PostgreSQL with:
+The `systemctl.yml` already configures PostgreSQL with:
 
 - Host: `postgres` (internal Docker network)
 - Port: `5432`
@@ -234,3 +234,4 @@ As the system grows, consider adding:
 - Proper foreign key relationships between tables
 
 Each addition should be done via Alembic migrations to maintain schema consistency across environments.
+

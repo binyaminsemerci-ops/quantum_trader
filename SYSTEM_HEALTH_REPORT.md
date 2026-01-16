@@ -167,3 +167,4 @@ Kjernesystemet (backend + trading engine) fungerer utmerket. Problemene er:
 **Rapport slutt**
 
 *Neste sjekk anbefalt om: 1 time*
+

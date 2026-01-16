@@ -88,7 +88,7 @@ Live UI updates
 ### 1. Start Backend
 ```powershell
 # Option A: Docker
-docker-compose up backend -d
+systemctl up backend -d
 
 # Option B: Direct
 uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
@@ -352,3 +352,4 @@ Part of Quantum Trader system - proprietary hedge fund trading OS.
 **Last Updated:** December 4, 2025  
 **Phase:** 9/12 Complete (75%)  
 **Status:** Real-time WebSocket integration operational ✅
+

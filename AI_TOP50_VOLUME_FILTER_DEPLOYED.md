@@ -261,17 +261,17 @@ curl http://localhost:8003/status | python3 -m json.tool
 
 ### Se Symbol Refresh Events
 ```bash
-docker logs quantum_trading_bot -f | grep SYMBOL-FILTER
+journalctl -u quantum_trading_bot.service -f | grep SYMBOL-FILTER
 ```
 
 ### Se Trading Aktivitet (50 coins)
 ```bash
-docker logs quantum_trading_bot -f | grep "Signal:"
+journalctl -u quantum_trading_bot.service -f | grep "Signal:"
 ```
 
 ### Se Execution Orders
 ```bash
-docker logs quantum_execution -f | grep "Order executed"
+journalctl -u quantum_execution.service -f | grep "Order executed"
 ```
 
 ---
@@ -361,8 +361,8 @@ docker logs quantum_execution -f | grep "Order executed"
 - Execution Health: `http://localhost:8002/health`
 
 **Logs:**
-- Trading Bot: `docker logs quantum_trading_bot -f`
-- Execution: `docker logs quantum_execution -f`
+- Trading Bot: `journalctl -u quantum_trading_bot.service -f`
+- Execution: `journalctl -u quantum_execution.service -f`
 
 ---
 
@@ -417,3 +417,4 @@ docker run -e TRADING_SYMBOLS="BTCUSDT,ETHUSDT,..." quantum_trading_bot
 
 *Rapport generert: 2025-12-19 16:10 UTC*  
 *Next Symbol Refresh: 2025-12-19 22:02 UTC (6 timer)*
+

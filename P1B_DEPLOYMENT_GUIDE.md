@@ -22,7 +22,7 @@
   - `backend/core/eventbus/redis_stream_bus.py` - includes correlation_id in messages
 
 ### 2. Log Aggregation (Loki + Promtail)
-- **Compose**: `docker-compose.logging.yml`
+- **Compose**: `systemctl.logging.yml`
 - **Loki Config**: `observability/loki/loki-config.yml`
   - 30 days retention
   - 50MB/s ingestion rate
@@ -96,14 +96,14 @@ docker images | grep quantum | grep latest
 
 ```bash
 # Start Loki + Promtail
-docker compose -f docker-compose.logging.yml up -d
+docker compose -f systemctl.logging.yml up -d
 
 # Wait for startup (30 seconds)
 sleep 30
 
 # Verify containers
-docker ps | grep loki
-docker ps | grep promtail
+systemctl list-units | grep loki
+systemctl list-units | grep promtail
 
 # Check Loki health
 curl http://localhost:3100/ready
@@ -120,7 +120,7 @@ docker compose restart auto-executor ai-engine
 sleep 15
 
 # Verify JSON logging active
-docker logs quantum_auto_executor --tail 10
+journalctl -u quantum_auto_executor.service --tail 10
 
 # Should see JSON like:
 # {"ts":"2026-01-03T...","level":"INFO","service":"auto_executor",...}
@@ -186,19 +186,19 @@ bash scripts/log_status.sh
 # Then check logs:
 
 # Get a correlation_id from auto_executor
-CORR_ID=$(docker logs quantum_auto_executor --tail 100 2>&1 | grep -o '"correlation_id":"[^"]*"' | head -1 | cut -d'"' -f4)
+CORR_ID=$(journalctl -u quantum_auto_executor.service --tail 100 2>&1 | grep -o '"correlation_id":"[^"]*"' | head -1 | cut -d'"' -f4)
 
 echo "Testing correlation_id: $CORR_ID"
 
 # Search across services
 echo "=== Auto Executor ==="
-docker logs quantum_auto_executor 2>&1 | grep "$CORR_ID" | head -5
+journalctl -u quantum_auto_executor.service 2>&1 | grep "$CORR_ID" | head -5
 
 echo "=== AI Engine ==="
-docker logs quantum_ai_engine 2>&1 | grep "$CORR_ID" | head -5
+journalctl -u quantum_ai_engine.service 2>&1 | grep "$CORR_ID" | head -5
 
 echo "=== Redis Event Stream ==="
-docker exec quantum_redis redis-cli XREAD STREAMS quantum:stream:intent quantum:stream:execution 0 0 | grep "$CORR_ID"
+redis-cli XREAD STREAMS quantum:stream:intent quantum:stream:execution 0 0 | grep "$CORR_ID"
 ```
 
 **Expected**: Same correlation_id appears in:
@@ -216,7 +216,7 @@ docker exec quantum_redis redis-cli XREAD STREAMS quantum:stream:intent quantum:
 curl http://localhost:3100/ready
 
 # Promtail scraping
-docker logs quantum_promtail --tail 20
+journalctl -u quantum_promtail.service --tail 20
 
 # Grafana can query logs
 # Go to: http://46.224.116.254:3001/explore
@@ -279,7 +279,7 @@ echo $?
 
 ```bash
 # Get 5 JSON log entries from auto_executor
-docker logs quantum_auto_executor --tail 5
+journalctl -u quantum_auto_executor.service --tail 5
 
 # Example output:
 # {"ts":"2026-01-03T10:15:23.456789Z","level":"INFO","service":"auto_executor","event":"INTENT_RECEIVED","correlation_id":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","msg":"Intent received: BTCUSDT","symbol":"BTCUSDT","intent_id":"intent_123","confidence":0.82}
@@ -313,7 +313,7 @@ curl -s http://localhost:9093/api/v1/alerts | jq '.data[] | select(.labels.alert
 
 ```bash
 # Stop Loki + Promtail
-docker compose -f docker-compose.logging.yml down
+docker compose -f systemctl.logging.yml down
 
 # Services continue logging to Docker logs
 # Access via: docker logs <container>
@@ -383,3 +383,4 @@ Once all steps pass:
 **Status**: P1-B COMPLETE - System is production-ready from ops perspective
 
 **Next**: Choose path for Phase B (Shadow Mode) or Phase C (Live Small) from P2_ROADMAP.md
+

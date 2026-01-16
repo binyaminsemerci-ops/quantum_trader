@@ -206,18 +206,18 @@ async def main():
         import subprocess
         try:
             result = subprocess.run(
-                ["docker", "ps", "--filter", "name=quantum_backend", "--format", "{{.Status}}"],
+                ["systemctl", "is-active", "quantum-backend.service"],
                 capture_output=True,
                 text=True,
                 check=False
             )
-            if result.stdout.strip():
-                print(f"✅ Backend running: {result.stdout.strip()}")
+            if result.stdout.strip() == "active":
+                print(f"✅ Backend running: active")
                 print("\n💡 TIP: Restart backend for å aktivere retraining orchestrator:")
-                print("   docker restart quantum_backend")
+                print("   sudo systemctl restart quantum-backend.service")
             else:
                 print("⚠️  Backend not running")
-                print("   Start backend først: docker-compose up -d")
+                print("   Start backend først: sudo systemctl start quantum-backend.service")
         except Exception as e:
             print(f"⚠️  Could not check backend: {e}")
         

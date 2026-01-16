@@ -136,3 +136,4 @@
 - 1 aktiv ETHUSDT SHORT posisjon
 - Backend logging fungerer med JSON format
 - Math AI aktiv og beregner optimale parametere
+

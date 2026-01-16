@@ -196,3 +196,4 @@ Alert rules configured for Slack notifications.
 2. Import Grafana dashboard
 3. Integrate CI logs with GitHub Actions
 4. Open firewall ports (9090, 3100, 9093)
+

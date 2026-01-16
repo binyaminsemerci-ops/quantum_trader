@@ -411,3 +411,4 @@ All features pulled from AI Engine `/health` endpoint:
 ---
 
 **Issue Resolved:** AI Engine page now shows comprehensive ensemble consensus confidence, model health status, and system features! 🎉
+

@@ -226,22 +226,22 @@ Risk scaling will be applied based on OrchestratorPolicy
 
 1. **Policy Updates:**
    ```bash
-   docker logs quantum_backend -f | grep "🎯 Policy passed to RiskManager"
+   journalctl -u quantum_backend.service -f | grep "🎯 Policy passed to RiskManager"
    ```
 
 2. **Risk Scaling in Action:**
    ```bash
-   docker logs quantum_backend -f | grep "Orchestrator Risk Scaling"
+   journalctl -u quantum_backend.service -f | grep "Orchestrator Risk Scaling"
    ```
 
 3. **Position Sizing:**
    ```bash
-   docker logs quantum_backend -f | grep "Position Sizing"
+   journalctl -u quantum_backend.service -f | grep "Position Sizing"
    ```
 
 4. **Policy-Driven Reductions:**
    ```bash
-   docker logs quantum_backend -f | grep "Policy Risk Multiplier"
+   journalctl -u quantum_backend.service -f | grep "Policy Risk Multiplier"
    ```
 
 ### Expected Behavior
@@ -359,3 +359,4 @@ Execute trade with adjusted quantity
 - 🎯 Continuous control (ikke binært on/off)
 
 **Neste steg:** Monitor logs og vent på første trade med policy scaling! 🚀
+

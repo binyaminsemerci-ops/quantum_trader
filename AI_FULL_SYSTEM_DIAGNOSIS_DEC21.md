@@ -323,7 +323,7 @@ System is stable and fully operational.
 
 ### Short-term Improvements (Optional)
 1. **Add Backend Health Check** (P3)
-   - Add health check to backend service in docker-compose.yml
+   - Add health check to backend service in systemctl.yml
    - Monitor container health automatically
 
 2. **Fix Backend `/metrics` Endpoint** (P3)
@@ -409,3 +409,4 @@ Systemet er **production-ready** med robuste sikkerhetslag og adaptiv risikostyr
 **Rapport generert av:** GitHub Copilot  
 **Diagnose metode:** Fullstendig A-til-Å scanning av alle containere, endpoints, logger og ressurser  
 **Neste anbefalte handling:** Kontinuerlig overvåking eller implementer optional P3 forbedringer
+

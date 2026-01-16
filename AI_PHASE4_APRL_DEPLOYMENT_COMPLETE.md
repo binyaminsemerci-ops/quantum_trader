@@ -338,12 +338,12 @@ run_continuous interval = 3600s # Policy adjustment every 1 hour
 
 ### Check Backend Status
 ```bash
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker ps --filter name=quantum_backend'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'systemctl list-units --filter name=quantum_backend'
 ```
 
 ### View Phase 4 Logs
 ```bash
-ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker logs quantum_backend 2>&1 | grep -E "\[PHASE 4\]|\[APRL\]"'
+ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'journalctl -u quantum_backend.service 2>&1 | grep -E "\[PHASE 4\]|\[APRL\]"'
 ```
 
 ### Test Health Endpoints
@@ -415,7 +415,7 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'ls -lh ~/quantum_trader/backend/s
 **Phase 4 Status**: ✅ DEPLOYED (LIMITED FUNCTIONALITY)  
 **Full Activation**: Requires Phase 2/3 restoration  
 **Monitoring**: `/health/phase4` endpoint for real-time status  
-**Logs**: `docker logs quantum_backend 2>&1 | grep APRL`  
+**Logs**: `journalctl -u quantum_backend.service 2>&1 | grep APRL`  
 
 ---
 
@@ -423,3 +423,4 @@ ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'ls -lh ~/quantum_trader/backend/s
 **Document**: AI_PHASE4_APRL_DEPLOYMENT_COMPLETE.md  
 **System**: Quantum Trader AI Hedge Fund OS  
 **Phase**: 4 of 4 (Adaptive Policy Reinforcement Layer)
+

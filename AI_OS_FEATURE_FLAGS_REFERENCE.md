@@ -373,16 +373,16 @@ docker restart quantum_backend
 
 ```bash
 # Check current configuration
-docker logs quantum_backend | grep "AI-HFOS\|PBA\|PAL\|PIL"
+journalctl -u quantum_backend.service | grep "AI-HFOS\|PBA\|PAL\|PIL"
 
 # Check for blocks/modifications
-docker logs quantum_backend | grep "BLOCKED\|MODIFIED"
+journalctl -u quantum_backend.service | grep "BLOCKED\|MODIFIED"
 
 # Check SafetyGovernor decisions
-docker logs quantum_backend | grep "SAFETY GOVERNOR"
+journalctl -u quantum_backend.service | grep "SAFETY GOVERNOR"
 
 # Check HEDGEFUND MODE transitions
-docker logs quantum_backend | grep "HEDGEFUND MODE\|AGGRESSIVE\|CRITICAL"
+journalctl -u quantum_backend.service | grep "HEDGEFUND MODE\|AGGRESSIVE\|CRITICAL"
 ```
 
 ---
@@ -416,3 +416,4 @@ docker logs quantum_backend | grep "HEDGEFUND MODE\|AGGRESSIVE\|CRITICAL"
 
 **Last Updated**: 2025-01-XX  
 **Status**: Production-Ready
+

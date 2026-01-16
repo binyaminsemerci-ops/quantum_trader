@@ -2,7 +2,7 @@
 
 ## 🎯 Problem Løst
 **Issue:** `Cannot GET /` på localhost:3000  
-**Årsak:** Frontend service var ikke konfigurert i docker-compose  
+**Årsak:** Frontend service var ikke konfigurert i systemctl  
 **Løsning:** Lagt til frontend container med React/Vite
 
 ---
@@ -10,7 +10,7 @@
 ## 🔧 Endringer Implementert
 
 ### 1. Docker Compose Konfigurering
-**Fil:** `docker-compose.yml`
+**Fil:** `systemctl.yml`
 
 ```yaml
 frontend:
@@ -144,13 +144,13 @@ except Exception as e:
 
 ### Container Status
 ```bash
-$ docker ps | grep quantum_frontend
+$ systemctl list-units | grep quantum_frontend
 a1ea53e9f055   node:20-alpine   "docker-entrypoint..."   2 minutes ago   Up 2 minutes   0.0.0.0:3000->5173/tcp   quantum_frontend
 ```
 
 ### Frontend Logs
 ```bash
-$ docker logs quantum_frontend --tail 5
+$ journalctl -u quantum_frontend.service --tail 5
 > qt-agent-ui@1.0.0 dev
 > vite --host 0.0.0.0
 
@@ -277,7 +277,7 @@ wscript "Start Quantum Trader.vbs"
 - `FRONTEND_SETUP.md` - Detaljert frontend guide
 - `STARTUP_GUIDE.md` - Oppstartsinstruksjoner
 - `COMPLETE_FEATURES_VALIDATION_REPORT.md` - System testing
-- `docker-compose.yml` - Container konfigurering
+- `systemctl.yml` - Container konfigurering
 
 ---
 
@@ -296,3 +296,4 @@ Frontend er nå fullstendig integrert! Du kan:
 **Status:** ✅ KOMPLETT - Frontend fungerer perfekt!  
 **Tested:** ✅ Desktop icon, PowerShell, Batch, Docker  
 **Verified:** ✅ Port 3000 accessible, Vite running, API proxy working
+

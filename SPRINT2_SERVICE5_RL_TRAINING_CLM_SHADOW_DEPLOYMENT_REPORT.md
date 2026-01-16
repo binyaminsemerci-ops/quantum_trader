@@ -310,7 +310,7 @@ docker run -p 8005:8005 \
     rl-training
 ```
 
-### docker-compose.yml
+### systemctl.yml
 ```yaml
 services:
   rl-training:
@@ -426,7 +426,7 @@ Total: ~1,238 lines core logic (78% reduction)
 
 1. ⏳ Run test suite to verify all 15 tests pass
 2. ⏳ Deploy service locally (uvicorn on port 8005)
-3. ⏳ Add to docker-compose.yml for containerized deployment
+3. ⏳ Add to systemctl.yml for containerized deployment
 4. ⏳ Integrate with real TradeStore for training data
 5. ⏳ Integrate with real ModelRegistry (Postgres)
 6. ⏳ Update AI Engine to subscribe to `model.promoted` events
@@ -449,3 +449,4 @@ Total: ~1,238 lines core logic (78% reduction)
 **Port:** 8005  
 
 🚀 **Ready for deployment!**
+

@@ -67,7 +67,7 @@ position_monitor = PositionMonitor(
 
 ### Docker Rebuild:
 ```bash
-docker-compose build backend  # Rebuilder med alle fixes
+systemctl build backend  # Rebuilder med alle fixes
 ```
 
 ### Etter Rebuild:
@@ -117,7 +117,7 @@ docker-compose build backend  # Rebuilder med alle fixes
 1. **Vent på Docker rebuild** (~3-5 min)
 2. **Start backend:**
    ```bash
-   docker-compose up -d backend
+   systemctl up -d backend
    ```
 3. **Verifiser fixes:**
    - Sjekk logs for "Skipping - using fallback rules"
@@ -142,3 +142,4 @@ docker-compose build backend  # Rebuilder med alle fixes
 **Status:** Rebuilding Docker... ⏳
 **ETA:** 3-5 minutter
 **Next:** Verifiser at ensemble laster og fallback blokkeres
+

@@ -294,27 +294,27 @@ curl http://localhost:8000/api/v2/health | jq
 
 ### Check Policy
 ```bash
-docker exec quantum_redis redis-cli GET "quantum:policy:current"
+redis-cli GET "quantum:policy:current"
 ```
 
 ### List All Keys
 ```bash
-docker exec quantum_redis redis-cli KEYS "quantum:*"
+redis-cli KEYS "quantum:*"
 ```
 
 ### Check Redis Info
 ```bash
-docker exec quantum_redis redis-cli INFO
+redis-cli INFO
 ```
 
 ### Monitor Events (Real-time)
 ```bash
-docker exec quantum_redis redis-cli MONITOR
+redis-cli MONITOR
 ```
 
 ### Check Stream Length
 ```bash
-docker exec quantum_redis redis-cli XLEN "quantum:events:ai.signal.generated"
+redis-cli XLEN "quantum:events:ai.signal.generated"
 ```
 
 ---
@@ -399,7 +399,7 @@ docker compose logs backend | grep "Architecture v2"
 
 **Solution:**
 1. Check if HealthChecker initialized: `docker compose logs backend | grep HealthChecker`
-2. Verify Redis connectivity: `docker exec quantum_redis redis-cli PING`
+2. Verify Redis connectivity: `redis-cli PING`
 3. Check backend logs for exceptions: `docker compose logs backend --tail 100`
 
 ---
@@ -407,3 +407,4 @@ docker compose logs backend | grep "Architecture v2"
 **Quick Reference Version:** 1.0  
 **Last Updated:** December 1, 2025  
 **Architecture Version:** v2.0
+

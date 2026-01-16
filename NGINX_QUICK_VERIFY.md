@@ -48,9 +48,9 @@ ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "docker inspect quantum_nginx --
 
 ---
 
-## 6. Check nginx container in docker ps
+## 6. Check nginx container in systemctl list-units
 ```bash
-ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "docker ps | grep quantum_nginx"
+ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "systemctl list-units | grep quantum_nginx"
 ```
 ✅ Expected: Status column should show "healthy"
 
@@ -58,7 +58,7 @@ ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "docker ps | grep quantum_nginx"
 
 ## ONE-LINER FULL CHECK
 ```bash
-ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "echo '=== Nginx Config ===' && docker exec quantum_nginx nginx -t 2>&1 | grep successful && echo '=== Backend Health ===' && curl -s http://localhost:8000/health | grep -o '\"status\":\"[^\"]*\"' && echo '=== Nginx Proxy ===' && curl -k -s https://localhost:443/health | grep -o '\"status\":\"[^\"]*\"' && echo '=== Container Status ===' && docker ps | grep quantum_nginx | grep -o 'healthy'"
+ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "echo '=== Nginx Config ===' && docker exec quantum_nginx nginx -t 2>&1 | grep successful && echo '=== Backend Health ===' && curl -s http://localhost:8000/health | grep -o '\"status\":\"[^\"]*\"' && echo '=== Nginx Proxy ===' && curl -k -s https://localhost:443/health | grep -o '\"status\":\"[^\"]*\"' && echo '=== Container Status ===' && systemctl list-units | grep quantum_nginx | grep -o 'healthy'"
 ```
 
 ✅ **Success looks like:**
@@ -104,5 +104,6 @@ ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "docker restart quantum_nginx"
 sleep 35
 
 # Check status
-ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "docker ps | grep quantum_nginx"
+ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "systemctl list-units | grep quantum_nginx"
 ```
+

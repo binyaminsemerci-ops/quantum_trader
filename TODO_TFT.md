@@ -14,10 +14,10 @@ Training crashed with exit code 1. Need to identify and fix error.
 **Steps:**
 ```bash
 # Stop backend to avoid database locks
-docker-compose stop backend
+systemctl stop backend
 
 # Start backend in isolation
-docker-compose start backend
+systemctl start backend
 sleep 5
 
 # Try training with verbose error logging
@@ -108,13 +108,13 @@ else:
 **Testing:**
 ```bash
 # Restart backend after changes
-docker-compose restart backend
+systemctl restart backend
 
 # Watch logs for TFT initialization
-docker logs quantum_backend --tail 50 | grep -i "tft\|temporal"
+journalctl -u quantum_backend.service --tail 50 | grep -i "tft\|temporal"
 
 # Test predictions
-docker logs quantum_backend --tail 100 --follow | grep "AI signals"
+journalctl -u quantum_backend.service --tail 100 --follow | grep "AI signals"
 ```
 
 **Checklist:**
@@ -211,7 +211,7 @@ After integration, monitor performance to ensure improvement.
 docker exec quantum_backend python /app/check_dataset.py
 
 # Watch live predictions
-docker logs quantum_backend --tail 100 --follow | grep "AI signals"
+journalctl -u quantum_backend.service --tail 100 --follow | grep "AI signals"
 
 # Check WIN rate after N hours
 docker exec quantum_backend python -c "
@@ -363,10 +363,10 @@ docker cp ai_engine/models/tft_normalization.json quantum_backend:/app/ai_engine
 docker cp backend/services/ai_coordinator.py quantum_backend:/app/backend/services/
 
 # 4. Restart services
-docker-compose restart backend
+systemctl restart backend
 
 # 5. Monitor logs
-docker logs quantum_backend --tail 100 --follow
+journalctl -u quantum_backend.service --tail 100 --follow
 ```
 
 **Post-deployment:**
@@ -485,8 +485,8 @@ Create dashboard to monitor TFT performance.
 
 ```bash
 # Step 1: Debug and train
-docker-compose stop backend
-docker-compose start backend
+systemctl stop backend
+systemctl start backend
 docker exec quantum_backend python /app/train_tft.py
 
 # Step 2: Verify model
@@ -496,13 +496,14 @@ docker exec quantum_backend ls -lh /app/ai_engine/models/tft_model.pth
 # (Edit ai_coordinator.py as described above)
 
 # Step 4: Deploy
-docker-compose restart backend
+systemctl restart backend
 
 # Step 5: Monitor
-docker logs quantum_backend --tail 100 --follow
+journalctl -u quantum_backend.service --tail 100 --follow
 ```
 
 ---
 
 *Updated: November 18, 2025*  
 *Next Review: After TFT training completes*
+

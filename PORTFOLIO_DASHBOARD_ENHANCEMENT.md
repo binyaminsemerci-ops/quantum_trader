@@ -309,8 +309,8 @@ git push origin main
 ssh root@46.224.116.254
 cd /home/qt/quantum_trader
 git pull origin main
-docker compose -f docker-compose.yml build dashboard-frontend
-docker compose -f docker-compose.yml up -d dashboard-frontend
+docker compose -f systemctl.yml build dashboard-frontend
+docker compose -f systemctl.yml up -d dashboard-frontend
 ```
 
 ### Build Output
@@ -335,7 +335,7 @@ CONTAINER ID   IMAGE                                   STATUS
 
 ### 1. Container Running
 ```bash
-docker ps --filter name=quantum_dashboard_frontend
+systemctl list-units --filter name=quantum_dashboard_frontend
 # Status: Up, healthy on port 8889
 ```
 
@@ -528,3 +528,4 @@ This completes the fourth major dashboard enhancement requested by the user. The
 > "neste steg er portofolio side her vil jeg ha samme resultater som forrrige alt handler og alt du klarer å vise live og ikke live"
 
 Translation: ✅ Portfolio page shows all trades, live results, and comprehensive metrics just like the previous enhancements.
+

@@ -59,13 +59,13 @@ sqlite3 backend/quantum_trader.db ".tables"
 #### Full Stack Start
 ```bash
 # Start alle services
-docker-compose up -d
+systemctl up -d
 
 # Check status
-docker-compose ps
+systemctl ps
 
 # View logs
-docker-compose logs -f backend
+systemctl logs -f backend
 ```
 
 **Forventet output:**
@@ -83,7 +83,7 @@ docker-compose logs -f backend
 #### Individuell Service Start
 ```bash
 # Start kun backend
-docker-compose up -d backend
+systemctl up -d backend
 
 # Start kun frontend
 cd frontend && npm run dev
@@ -166,13 +166,13 @@ python check_system_status.py
 #### Stop alle services
 ```bash
 # Graceful shutdown (Docker)
-docker-compose down
+systemctl down
 
 # With cleanup
-docker-compose down -v  # Remove volumes
+systemctl down -v  # Remove volumes
 
 # Force stop
-docker-compose kill
+systemctl kill
 ```
 
 #### Stop individuell service
@@ -199,7 +199,7 @@ curl -X POST http://localhost:8000/api/executor/stop
 cp backend/quantum_trader.db backups/db_$(date +%Y%m%d_%H%M%S).db
 
 # 5. Now safe to shutdown
-docker-compose down
+systemctl down
 ```
 
 ---
@@ -260,7 +260,7 @@ Monitor:
 python check_live_positions.py
 
 # Monitor logs (live)
-docker-compose logs -f --tail=50 backend
+systemctl logs -f --tail=50 backend
 
 # Check trading activity
 python check_todays_trading.py
@@ -309,7 +309,7 @@ curl http://localhost:8000/api/clm/drift-report | jq
 nano .env  # Update RM_MAX_DAILY_DD_PCT if needed
 
 # 6. Restart services for fresh state
-docker-compose restart
+systemctl restart
 ```
 
 ---
@@ -505,7 +505,7 @@ python backend/train_model.py
 # Edit ensemble_manager.py to use previous version
 
 # Restart backend
-docker-compose restart backend
+systemctl restart backend
 ```
 
 #### Issue 2: "No signals being generated"
@@ -542,7 +542,7 @@ curl -X POST http://localhost:8000/api/executor/restart
 # Edit .env: QT_CONFIDENCE_THRESHOLD=0.65
 
 # Restart
-docker-compose restart backend
+systemctl restart backend
 ```
 
 #### Issue 3: "Orders not executing"
@@ -584,7 +584,7 @@ grep "Risk check failed" backend/logs/backend.log
 curl -X POST http://localhost:8000/api/ess/reset
 
 # Restart
-docker-compose restart backend
+systemctl restart backend
 ```
 
 #### Issue 4: "High memory usage"
@@ -611,7 +611,7 @@ python -m memory_profiler backend/main.py
 **Solution:**
 ```bash
 # Option 1: Increase Docker memory limit
-# Edit docker-compose.yml
+# Edit systemctl.yml
 services:
   backend:
     mem_limit: 4g
@@ -624,9 +624,9 @@ services:
 curl -X POST http://localhost:8000/api/cache/clear
 
 # Option 4: Restart with clean state
-docker-compose down
+systemctl down
 docker system prune -f
-docker-compose up -d
+systemctl up -d
 ```
 
 ### 4.2 Emergency Procedures
@@ -661,7 +661,7 @@ curl -X POST http://localhost:8000/api/ess/activate
 ./scripts/emergency_backup.sh
 
 # Step 2: Stop all services
-docker-compose kill
+systemctl kill
 
 # Step 3: Clear temporary data
 rm -rf /tmp/qt_*
@@ -671,7 +671,7 @@ redis-cli FLUSHALL
 sqlite3 backend/quantum_trader.db "PRAGMA integrity_check;"
 
 # Step 5: Restart fresh
-docker-compose up -d
+systemctl up -d
 
 # Step 6: Verify startup
 python check_system_status.py
@@ -683,7 +683,7 @@ python check_system_status.py
 # If new deployment causing issues
 
 # Step 1: Stop current version
-docker-compose down
+systemctl down
 
 # Step 2: Checkout previous version
 git log --oneline  # Find last stable commit
@@ -697,7 +697,7 @@ tar -xzf models/models_YYYYMMDD.tar.gz
 cp backups/db_YYYYMMDD.db backend/quantum_trader.db
 
 # Step 5: Start previous version
-docker-compose up -d
+systemctl up -d
 
 # Step 6: Verify rollback success
 python check_system_status.py
@@ -997,7 +997,7 @@ tar -czf $BACKUP_DIR/full_system.tar.gz \
   ai_engine/ \
   frontend/ \
   .env \
-  docker-compose.yml
+  systemctl.yml
 
 # Rotate old backups (keep 4 weeks)
 find /backups/weekly/ -type d -mtime +28 -exec rm -rf {} \;
@@ -1010,7 +1010,7 @@ echo "✅ Weekly backup complete: $BACKUP_DIR"
 #### Database Recovery
 ```bash
 # Stop services
-docker-compose down
+systemctl down
 
 # Restore database
 cp /backups/daily/20251217/db.sqlite backend/quantum_trader.db
@@ -1019,7 +1019,7 @@ cp /backups/daily/20251217/db.sqlite backend/quantum_trader.db
 sqlite3 backend/quantum_trader.db "PRAGMA integrity_check;"
 
 # Restart
-docker-compose up -d
+systemctl up -d
 ```
 
 #### Model Recovery
@@ -1034,7 +1034,7 @@ ls -la ai_engine/models/
 python -c "from ai_engine.ensemble_manager import EnsembleManager; em = EnsembleManager()"
 
 # Restart
-docker-compose restart backend
+systemctl restart backend
 ```
 
 #### Full System Recovery
@@ -1046,10 +1046,10 @@ tar -xzf /backups/weekly/20251215/full_system.tar.gz
 cp .env.backup .env
 
 # Rebuild containers
-docker-compose build --no-cache
+systemctl build --no-cache
 
 # Start system
-docker-compose up -d
+systemctl up -d
 
 # Verify
 python check_system_status.py
@@ -1123,3 +1123,4 @@ POST /api/executor/stop
 **Dato:** 17. desember 2025  
 **Versjon:** 1.0  
 **Status:** ✅ KOMPLETT
+

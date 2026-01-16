@@ -141,10 +141,10 @@ curl -s "http://localhost:3100/loki/api/v1/label/service/values"
 # Should return: ["auto_executor", "ai_engine"]
 
 # Check Promtail scraping
-docker logs quantum_promtail --tail 50 | grep "Sending batch"
+journalctl -u quantum_promtail.service --tail 50 | grep "Sending batch"
 
 # Check JSON logs
-docker logs quantum_auto_executor 2>&1 | grep '"service":' | tail -5
+journalctl -u quantum_auto_executor.service 2>&1 | grep '"service":' | tail -5
 ```
 
 ### Issue: Datasource Not Found
@@ -233,3 +233,4 @@ Dashboard import is successful when:
 - **LogQL Query Language:** https://grafana.com/docs/loki/latest/logql/
 - **Grafana Dashboards:** https://grafana.com/docs/grafana/latest/dashboards/
 - **P1-B Runbook:** `RUNBOOKS/P1B_logging_stack.md`
+

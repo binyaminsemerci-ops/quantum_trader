@@ -380,22 +380,22 @@ sudo journalctl -u quantum-position-monitor.service -n 50
 
 ```bash
 # Build images:
-docker-compose -f docker-compose.core.yml build
+systemctl -f systemctl.core.yml build
 
 # Start services:
-docker-compose -f docker-compose.core.yml up -d
+systemctl -f systemctl.core.yml up -d
 
 # Check logs:
-docker-compose -f docker-compose.core.yml logs -f
+systemctl -f systemctl.core.yml logs -f
 
 # Check health:
-docker ps
+systemctl list-units
 curl http://localhost:8003/health
 curl http://localhost:8002/health
 curl http://localhost:8004/health
 
 # Stop services:
-docker-compose -f docker-compose.core.yml down
+systemctl -f systemctl.core.yml down
 ```
 
 ---
@@ -547,3 +547,4 @@ redis-cli XLEN trade.position.update
 **Implementation**: ✅ COMPLETE  
 **Status**: 🚀 READY FOR DEPLOYMENT  
 **Next**: Deploy to VPS and run validation
+

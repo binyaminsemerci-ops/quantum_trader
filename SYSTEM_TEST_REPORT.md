@@ -171,7 +171,7 @@ healthcheck:
 **Status**: ⚠️ NEEDS TESTING
 
 **Evidence**:
-- ESS config exists in docker-compose.yml
+- ESS config exists in systemctl.yml
 - Implementation location unclear
 - No ESS-specific tests found
 - Behavior not validated
@@ -316,7 +316,7 @@ healthcheck:
 
 ## 📝 RECOMMENDED DOCKER HEALTH CHECK UPDATE
 
-Update `docker-compose.yml` to use fast liveness endpoint:
+Update `systemctl.yml` to use fast liveness endpoint:
 
 ```yaml
 healthcheck:
@@ -441,3 +441,4 @@ Quantum Trader v2.0 is **operationally functional** on Binance Testnet with live
 **Report Generated**: December 5, 2025, 07:30 CET  
 **Next Update**: After health endpoint fixes applied  
 **QA Engineer**: GitHub Copilot (Senior Systems QA + Reliability Engineer)
+

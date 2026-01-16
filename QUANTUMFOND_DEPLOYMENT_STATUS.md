@@ -153,3 +153,4 @@ VITE_WS_URL=wss://api.quantumfond.com
 Dashboard is operational on HTTP ports (8025, 8889) but not yet accessible via quantumfond.com domains due to port conflicts and missing SSL setup.
 
 >>> [Domain Migration In Progress – Configuration complete, pending DNS and SSL setup]
+

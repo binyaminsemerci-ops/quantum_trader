@@ -461,7 +461,7 @@ async def check_current_leverage():
 
 ```bash
 # Filter by trace_id
-docker logs quantum_backend | grep "trace_id=abc123"
+journalctl -u quantum_backend.service | grep "trace_id=abc123"
 
 # Output shows complete flow:
 {
@@ -677,3 +677,4 @@ When ready to split into microservices:
 ---
 
 *This is production-ready, scalable, and future-proof architecture.*
+

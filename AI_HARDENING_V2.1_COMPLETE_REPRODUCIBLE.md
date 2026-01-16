@@ -179,8 +179,8 @@ systemctl status quantum-market-publisher.service
 journalctl -u quantum-market-publisher.service --since "5 minutes ago" | grep HEALTH
 
 # Check Redis streams
-docker exec quantum_redis redis-cli XLEN quantum:stream:market.tick
-docker exec quantum_redis redis-cli XLEN quantum:stream:market.klines
+redis-cli XLEN quantum:stream:market.tick
+redis-cli XLEN quantum:stream:market.klines
 ```
 
 ---
@@ -300,3 +300,4 @@ All config is now in repo at `v1.1-native-hardening-marketdata`. Anyone can depl
 **VPS**: 46.224.116.254 (Hetzner)  
 **Commit**: eea8cfec (pushed to origin)  
 **Tag**: v1.1-native-hardening-marketdata (pushed to origin)
+

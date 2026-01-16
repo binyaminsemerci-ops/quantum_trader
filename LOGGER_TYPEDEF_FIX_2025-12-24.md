@@ -216,7 +216,7 @@ ssh root@46.224.116.254 "docker logs --tail 20 quantum_trade_intent_consumer"
 
 # 7. Inject test events
 ssh root@46.224.116.254 '
-  docker exec quantum_redis redis-cli XADD quantum:stream:trade.intent "*" \
+  redis-cli XADD quantum:stream:trade.intent "*" \
     symbol SOLUSDT side LONG confidence 0.85 source logger_success_test \
     volatility_factor 1.3 atr_value 0.06 leverage 15 position_size_usd 100 \
     timestamp $(date +%s)000
@@ -311,3 +311,4 @@ order_params = {
 **Readiness:** Ready for P1 (v3.5 activation verification) after payload decoding fix  
 
 **Next Action:** Fix empty payload decoding OR proceed with reduceOnly parameter fix for -4164 errors.
+

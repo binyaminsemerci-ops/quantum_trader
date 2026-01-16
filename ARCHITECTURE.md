@@ -9,7 +9,7 @@ Dette dokumentet gir en kort oppsummering av hvordan Quantum Trader er bygd, hvi
   - Ansvar: Ingest, API for predict/scan/train, bakgrunnsjobber, model serving
 
 - Database (Postgres)
-  - Konfigurasjon: `docker-compose.yml` og `backend/database.py`
+  - Konfigurasjon: `systemctl.yml` og `backend/database.py`
   - Tabeller: prices, features, signals, trades, trade_logs, settings
 
 - AI Engine
@@ -33,7 +33,7 @@ Dette dokumentet gir en kort oppsummering av hvordan Quantum Trader er bygd, hvi
 1. Bygg og start alle tjenester:
 
 ```powershell
-docker-compose up --build
+systemctl up --build
 ```
 
 2. Backend: http://localhost:8000
@@ -67,3 +67,4 @@ Vil du at jeg skal:
 - Lage en fullstendig `frontend/` scaffold (komponenter og TS-typer) som kan bygges direkte?
 
 Gi beskjed hva jeg skal lage videre — jeg kan begynne å generere frontend-komponenter, Recharts-candlestick, eller en detaljert roadmap med tickets og prioriteringer.
+

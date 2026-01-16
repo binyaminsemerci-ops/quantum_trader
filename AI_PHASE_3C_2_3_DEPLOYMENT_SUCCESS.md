@@ -653,10 +653,10 @@ Access FastAPI auto-generated docs:
 ssh qt@46.224.116.254 "docker logs -f quantum_ai_engine"
 
 # Filter for Phase 3C-2
-ssh qt@46.224.116.254 "docker logs quantum_ai_engine | grep 'PHASE 3C-2'"
+ssh qt@46.224.116.254 "journalctl -u quantum_ai_engine.service | grep 'PHASE 3C-2'"
 
 # Filter for Phase 3C-3
-ssh qt@46.224.116.254 "docker logs quantum_ai_engine | grep 'PHASE 3C-3'"
+ssh qt@46.224.116.254 "journalctl -u quantum_ai_engine.service | grep 'PHASE 3C-3'"
 ```
 
 ### Health Monitoring
@@ -690,3 +690,4 @@ The Quantum Trader AI Engine is now more observable, self-optimizing, and intell
 ---
 
 **Deployment Completed**: 2025-12-24 00:17:47 UTC ✅
+

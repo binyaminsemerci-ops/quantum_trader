@@ -118,7 +118,7 @@ TestEventBusInterface::test_publish_interface PASSED                 [100%]
 ## Neste Steg
 
 Når du vil teste med Redis:
-1. Start Redis: `docker-compose up -d redis`
+1. Start Redis: `systemctl up -d redis`
 2. Kjør tester: `python -m pytest tests/unit/test_eventbus_sprint1_d2.py -v`
 3. Alle 20 tester vil kjøre
 
@@ -127,3 +127,4 @@ Uten Redis:
 - 9 tester skippes (Redis-avhengige)
 
 **Status: ✅ STABILE TESTER - Ingen hang, ingen fakeredis, tydelig separasjon**
+

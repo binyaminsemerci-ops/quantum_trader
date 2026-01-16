@@ -311,7 +311,7 @@ chmod +x validate_phase4o_plus.sh
 
 ### Step 1: Update Docker Environment
 
-**File**: `docker-compose.vps.yml`
+**File**: `systemctl.vps.yml`
 
 Add environment variables:
 
@@ -354,10 +354,10 @@ chmod +x validate_phase4o_plus.sh
 
 ```bash
 # Rebuild AI Engine with new code
-docker compose -f docker-compose.vps.yml build ai-engine
+docker compose -f systemctl.vps.yml build ai-engine
 
 # Restart services
-docker compose -f docker-compose.vps.yml up -d ai-engine
+docker compose -f systemctl.vps.yml up -d ai-engine
 
 # Wait for startup
 sleep 30
@@ -379,7 +379,7 @@ curl -s http://localhost:8001/health | python3 -m json.tool
 docker logs -f quantum_ai_engine | grep -E "ILF-v2|RL-Agent|ExitBrain-v3.5"
 
 # Monitor PnL stream growth
-watch -n 5 'docker exec quantum_redis redis-cli XLEN quantum:stream:exitbrain.pnl'
+watch -n 5 'redis-cli XLEN quantum:stream:exitbrain.pnl'
 
 # Check RL agent statistics
 docker exec quantum_ai_engine python3 -c "
@@ -431,7 +431,7 @@ print(agent.get_statistics())
 
 **Check**:
 ```bash
-docker logs quantum_ai_engine | grep "ILF-v2.*Calculated"
+journalctl -u quantum_ai_engine.service | grep "ILF-v2.*Calculated"
 ```
 
 **Solution**: Verify input parameters (volatility, divergence) are reasonable
@@ -621,3 +621,4 @@ Phase 4O+ delivers production-ready intelligent leverage calculation with contin
 **Status**: ✅ Ready for VPS deployment  
 **Git Commit**: Pending  
 **Documentation**: Complete
+

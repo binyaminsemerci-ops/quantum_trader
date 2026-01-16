@@ -19,79 +19,103 @@ def get_rl_dashboard():
         redis_host = os.getenv('REDIS_HOST', 'redis')
         r = redis.Redis(host=redis_host, port=6379, decode_responses=True)
         
-        # Get RL metrics from Redis
-        # Check for RL reward keys
-        rl_keys = r.keys("quantum:rl:reward:*")
+        # NEW: Read from quantum:stream:trade.intent (RL shadow intents)
+        # Get last 500 entries to aggregate RL performance per symbol
+        try:
+            stream_entries = r.xrevrange('quantum:stream:trade.intent', '+', '-', count=500)
+        except:
+            # Fallback to empty if stream doesn't exist
+            stream_entries = []
         
-        symbols_data = []
-        total_reward = 0.0
-        best_symbol = None
-        best_reward = -float('inf')
+        # Aggregate RL confidence and effects by symbol
+        symbol_stats = {}
         
-        for key in rl_keys:
-            # Extract symbol from key: quantum:rl:reward:BTCUSDT -> BTCUSDT
-            symbol = key.split(':')[-1]
-            value = r.get(key)
-            
-            if value:
-                # Parse dict string from Binance PnL tracker
-                try:
-                    data = eval(value)  # Safe since we control the source
-                    unrealized_pct = float(data.get('unrealized_pct', 0))
-                    realized_pct = float(data.get('realized_pct', 0))
-                    unrealized_usd = float(data.get('unrealized_pnl', 0))
-                    realized_usd = float(data.get('realized_pnl', 0))
-                    total_pnl = float(data.get('total_pnl', unrealized_usd + realized_usd))
-                    realized_trades = int(data.get('realized_trades', 0))
+        for entry_id, fields in stream_entries:
+            try:
+                # Parse JSON payload from stream entry
+                payload_str = fields.get('payload')
+                if not payload_str:
+                    continue
+                
+                import json
+                payload = json.loads(payload_str)
+                
+                symbol = payload.get('symbol')
+                rl_confidence = payload.get('rl_confidence')
+                rl_gate_pass = payload.get('rl_gate_pass')
+                rl_effect = payload.get('rl_effect')
+                
+                if symbol and rl_confidence is not None:
+                    if symbol not in symbol_stats:
+                        symbol_stats[symbol] = {
+                            'confidences': [],
+                            'passes': 0,
+                            'total': 0,
+                            'would_flip': 0,
+                            'reinforce': 0
+                        }
                     
-                    # Use total_pnl percentage for reward (combined unrealized + realized)
-                    reward_val = unrealized_pct + realized_pct
-                except Exception as e:
-                    logger.warning(f"Failed to parse {symbol}: {e}")
-                    # Fallback to old format (simple float)
-                    reward_val = float(value)
-                    unrealized_usd = 0.0
-                    realized_usd = 0.0
-                    total_pnl = 0.0
-                    unrealized_pct = 0.0
-                    realized_pct = 0.0
-                    realized_trades = 0
-                
-                total_reward += reward_val
-                
-                symbols_data.append({
-                    "symbol": symbol,
-                    "reward": round(reward_val, 4),
-                    "unrealized_pnl": round(unrealized_usd, 2),
-                    "realized_pnl": round(realized_usd, 2),
-                    "total_pnl": round(total_pnl, 2),
-                    "unrealized_pct": round(unrealized_pct, 4),
-                    "realized_pct": round(realized_pct, 4),
-                    "realized_trades": realized_trades,
-                    "status": "active" if abs(reward_val) > 0.01 else "idle"
-                })
-                
-                if reward_val > best_reward:
-                    best_reward = reward_val
-                    best_symbol = symbol
+                    symbol_stats[symbol]['confidences'].append(float(rl_confidence))
+                    symbol_stats[symbol]['total'] += 1
+                    
+                    if rl_gate_pass:
+                        symbol_stats[symbol]['passes'] += 1
+                    
+                    if rl_effect == 'would_flip':
+                        symbol_stats[symbol]['would_flip'] += 1
+                    elif rl_effect == 'reinforce':
+                        symbol_stats[symbol]['reinforce'] += 1
+                        
+            except (ValueError, TypeError, json.JSONDecodeError) as e:
+                continue
         
-        # Calculate average reward
-        avg_reward = total_reward / len(symbols_data) if symbols_data else 0.0
+        # Build symbols data from aggregated stats
+        symbols_data = []
+        total_confidence = 0.0
+        best_symbol = None
+        best_pass_rate = -float('inf')
         
-        logger.info(f"✅ RL Dashboard: {len(symbols_data)} symbols, avg reward: {avg_reward:.4f}")
+        for symbol, stats in symbol_stats.items():
+            # Calculate metrics
+            avg_confidence = sum(stats['confidences']) / len(stats['confidences'])
+            pass_rate = stats['passes'] / stats['total'] if stats['total'] > 0 else 0
+            
+            total_confidence += avg_confidence
+            
+            # Use pass_rate as "reward" proxy
+            symbols_data.append({
+                "symbol": symbol,
+                "reward": round(pass_rate, 4),  # RL gate pass rate
+                "unrealized_pnl": 0.0,
+                "realized_pnl": 0.0,
+                "total_pnl": 0.0,
+                "unrealized_pct": round(avg_confidence, 4),  # Show RL confidence instead
+                "realized_pct": 0.0,
+                "realized_trades": stats['total'],
+                "status": "active" if stats['passes'] > 0 else "idle"
+            })
+            
+            if pass_rate > best_pass_rate:
+                best_pass_rate = pass_rate
+                best_symbol = symbol
+        
+        # Calculate average confidence across all symbols
+        avg_confidence_all = total_confidence / len(symbols_data) if symbols_data else 0.0
+        
+        logger.info(f"✅ RL Dashboard: {len(symbols_data)} symbols, avg confidence: {avg_confidence_all:.4f}, {len(stream_entries)} intents")
         
         return {
             "status": "online" if symbols_data else "offline",
             "symbols_tracked": len(symbols_data),
             "symbols": symbols_data,
             "best_performer": best_symbol if best_symbol else "N/A",
-            "best_reward": round(best_reward, 4) if best_symbol else 0.0,
-            "avg_reward": round(avg_reward, 4),
-            "message": "RL agents active" if symbols_data else "No active RL agents"
+            "best_reward": round(best_pass_rate, 4) if best_symbol else 0.0,
+            "avg_reward": round(avg_confidence_all, 4),
+            "message": f"RL shadow monitoring - {len(stream_entries)} intents analyzed" if symbols_data else "No RL data"
         }
         
     except Exception as e:
-        logger.error(f"❌ Failed to get RL data: {e}")
+        logger.error(f"❌ Failed to get RL data: {e}", exc_info=True)
         return {
             "status": "offline",
             "symbols_tracked": 0,

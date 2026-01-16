@@ -139,10 +139,10 @@ cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
 cp .env.rollback .env
 
 # Restart critical services
-docker compose -f docker-compose.vps.yml restart ai-engine
-docker compose -f docker-compose.vps.yml restart auto-executor
-docker compose -f docker-compose.vps.yml restart risk-brain
-docker compose -f docker-compose.vps.yml restart exit-brain
+docker compose -f systemctl.vps.yml restart ai-engine
+docker compose -f systemctl.vps.yml restart auto-executor
+docker compose -f systemctl.vps.yml restart risk-brain
+docker compose -f systemctl.vps.yml restart exit-brain
 
 echo "✅ Services restarted in TESTNET/PAPER mode"
 ```
@@ -150,11 +150,11 @@ echo "✅ Services restarted in TESTNET/PAPER mode"
 **Verification**:
 ```bash
 # Check service logs
-docker logs quantum_auto_executor --tail 20 | grep -i "testnet\|paper"
+journalctl -u quantum_auto_executor.service --tail 20 | grep -i "testnet\|paper"
 # Expected: Lines showing "TESTNET mode" or "PAPER TRADING enabled"
 
 # Check no real orders being submitted
-docker logs quantum_auto_executor --tail 50 | grep "ORDER_SUBMIT"
+journalctl -u quantum_auto_executor.service --tail 50 | grep "ORDER_SUBMIT"
 # Expected: No new ORDER_SUBMIT logs after restart
 ```
 
@@ -180,7 +180,7 @@ grep "BINANCE_USE_TESTNET=true" .env && echo "✅ Testnet mode enabled" || echo 
 grep "PAPER_TRADING=true" .env && echo "✅ Paper trading enabled" || echo "❌ Paper trading disabled"
 
 # 5. Services running
-docker ps --filter name=quantum_auto_executor --filter status=running && echo "✅ Executor running" || echo "❌ Executor not running"
+systemctl list-units --filter name=quantum_auto_executor --filter status=running && echo "✅ Executor running" || echo "❌ Executor not running"
 
 echo "=== END VERIFICATION ==="
 ```
@@ -225,7 +225,7 @@ cat > GO_LIVE_ROLLBACK_PROOF.md << EOF
 
 ## Logs Snapshot
 \`\`\`
-$(docker logs quantum_auto_executor --tail 20)
+$(journalctl -u quantum_auto_executor.service --tail 20)
 \`\`\`
 
 ## Next Steps
@@ -287,8 +287,9 @@ After rollback is complete:
 ## ⚡ EMERGENCY CONTACT
 
 **If rollback fails or unclear**:
-- Stop all Docker containers: `docker compose -f docker-compose.vps.yml stop`
+- Stop all Docker containers: `docker compose -f systemctl.vps.yml stop`
 - Manually close positions via Binance UI
 - Contact: [OPERATOR_CONTACT]
 
 **Remember**: Capital preservation > uptime. Always err on the side of caution.
+

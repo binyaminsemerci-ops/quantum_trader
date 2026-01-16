@@ -445,10 +445,11 @@ TP_ATR_MULT_TP2=3.0             # 3R second target
 For questions or issues:
 1. Check `TRADING_PROFILE_GUIDE.md` troubleshooting section
 2. Review test file `tests/test_trading_profile.py` for examples
-3. Check logs: `docker logs quantum_backend | grep "Trading Profile"`
+3. Check logs: `journalctl -u quantum_backend.service | grep "Trading Profile"`
 
 ---
 
 **Built with ❤️ by Quantum Trader Team**  
 *Last Updated: November 26, 2025*  
 *Status: Production Ready* 🚀
+

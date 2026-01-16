@@ -181,13 +181,13 @@ Output: /tmp/shadow_validation_v2.out
 ssh root@46.224.116.254 'tail -500 /tmp/shadow_validation_v2.out'
 
 # Check governance weights
-docker logs quantum_ai_engine | grep 'Cycle complete' | tail -5
+journalctl -u quantum_ai_engine.service | grep 'Cycle complete' | tail -5
 
 # View ensemble predictions
-docker logs quantum_ai_engine | grep '\[CHART\] ENSEMBLE' | tail -10
+journalctl -u quantum_ai_engine.service | grep '\[CHART\] ENSEMBLE' | tail -10
 
 # Check PNL stream
-docker exec quantum_redis redis-cli XREVRANGE quantum:stream:exitbrain.pnl + - COUNT 20
+redis-cli XREVRANGE quantum:stream:exitbrain.pnl + - COUNT 20
 ```
 
 ---
@@ -213,3 +213,4 @@ docker exec quantum_redis redis-cli XREVRANGE quantum:stream:exitbrain.pnl + - C
 **Report Generated**: Dec 31, 2025 01:30 UTC  
 **Next Update**: Dec 31, 2025 13:00 UTC (12-hour checkpoint)  
 **Final Report**: Jan 2, 2025 01:00 UTC (48-hour completion)
+

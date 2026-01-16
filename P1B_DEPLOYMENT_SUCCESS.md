@@ -87,7 +87,7 @@
 3. ✅ Updated `microservices/ai_engine/service.py`
 4. ✅ Modified `backend/core/event_bus.py` (correlation_id parameter)
 5. ✅ Modified `backend/core/eventbus/redis_stream_bus.py` (correlation_id in messages)
-6. ✅ Created `docker-compose.logging.yml` (Loki+Promtail)
+6. ✅ Created `systemctl.logging.yml` (Loki+Promtail)
 7. ✅ Created observability configs (Loki, Promtail, Grafana datasource, dashboard)
 8. ✅ Created `observability/prometheus/rules/p1b_alerts.yml`
 9. ✅ Updated `observability/alertmanager/alertmanager.yml` (critical/warning receivers)
@@ -95,9 +95,9 @@
 11. ✅ Created `scripts/log_status.sh` (verification)
 
 ### VPS Deployment
-12. ✅ Fixed `docker-compose.logging.yml` network name (`quantum_trader_quantum_trader`)
+12. ✅ Fixed `systemctl.logging.yml` network name (`quantum_trader_quantum_trader`)
 13. ✅ Added `shared/` to Dockerfiles (auto_executor, ai_engine)
-14. ✅ Added rules directory mount to `docker-compose.observability.yml`
+14. ✅ Added rules directory mount to `systemctl.observability.yml`
 15. ✅ Updated `observability/prometheus/prometheus.yml` (load P1-B alert rules)
 16. ✅ Rebuilt auto_executor + ai_engine images
 17. ✅ Deployed Loki + Promtail stack
@@ -185,3 +185,4 @@
 **Operational Readiness:** 95%  
 **Remaining Work:** correlation_id E2E tracking (5%)  
 **Next Phase:** P1-C (Performance + Observability Dashboard)
+

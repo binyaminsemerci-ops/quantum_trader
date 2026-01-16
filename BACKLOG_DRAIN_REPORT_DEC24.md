@@ -161,7 +161,7 @@ Status: ✅ SAFE_DRAIN verified
 
 ### Step 1: Create Historical Drain Group
 ```bash
-docker exec quantum_redis redis-cli XGROUP CREATE \
+redis-cli XGROUP CREATE \
   quantum:stream:trade.intent \
   quantum:group:historical_drain \
   0-0 MKSTREAM
@@ -294,16 +294,16 @@ Stream:           quantum:stream:trade.intent.drain_audit
 ### Audit Query Commands
 ```bash
 # Get audit stream length
-docker exec quantum_redis redis-cli XLEN quantum:stream:trade.intent.drain_audit
+redis-cli XLEN quantum:stream:trade.intent.drain_audit
 
 # Get last 10 audit entries
-docker exec quantum_redis redis-cli XREVRANGE quantum:stream:trade.intent.drain_audit + - COUNT 10
+redis-cli XREVRANGE quantum:stream:trade.intent.drain_audit + - COUNT 10
 
 # Get entries for specific symbol
-docker exec quantum_redis redis-cli XREVRANGE quantum:stream:trade.intent.drain_audit + - COUNT 100 | grep BTCUSDT
+redis-cli XREVRANGE quantum:stream:trade.intent.drain_audit + - COUNT 100 | grep BTCUSDT
 
 # Count by action type
-docker exec quantum_redis redis-cli XRANGE quantum:stream:trade.intent.drain_audit - + | grep -c "dropped_old"
+redis-cli XRANGE quantum:stream:trade.intent.drain_audit - + | grep -c "dropped_old"
 ```
 
 ---
@@ -471,13 +471,13 @@ Sample Ages (minutes):
 #### 1. Check Stream State
 ```bash
 # Get stream length
-docker exec quantum_redis redis-cli XLEN quantum:stream:trade.intent
+redis-cli XLEN quantum:stream:trade.intent
 
 # Get consumer group info
-docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent
+redis-cli XINFO GROUPS quantum:stream:trade.intent
 
 # Get pending messages
-docker exec quantum_redis redis-cli XPENDING quantum:stream:trade.intent quantum:group:execution:trade.intent
+redis-cli XPENDING quantum:stream:trade.intent quantum:group:execution:trade.intent
 ```
 
 #### 2. DRY-RUN Test (Always First!)
@@ -509,13 +509,13 @@ docker exec quantum_backend python -m backend.services.execution.backlog_drain \
 #### 4. Verify Results
 ```bash
 # Check audit stream growth
-docker exec quantum_redis redis-cli XLEN quantum:stream:trade.intent.drain_audit
+redis-cli XLEN quantum:stream:trade.intent.drain_audit
 
 # Check group lag reduction
-docker exec quantum_redis redis-cli XINFO GROUPS quantum:stream:trade.intent | grep -A 7 "historical_drain"
+redis-cli XINFO GROUPS quantum:stream:trade.intent | grep -A 7 "historical_drain"
 
 # Sample audit entries
-docker exec quantum_redis redis-cli XREVRANGE quantum:stream:trade.intent.drain_audit + - COUNT 10
+redis-cli XREVRANGE quantum:stream:trade.intent.drain_audit + - COUNT 10
 ```
 
 ### Troubleshooting
@@ -529,10 +529,10 @@ docker exec quantum_redis redis-cli XREVRANGE quantum:stream:trade.intent.drain_
 **Solution:** 
 ```bash
 # Check pending messages
-docker exec quantum_redis redis-cli XPENDING quantum:stream:trade.intent quantum:group:historical_drain - + 10
+redis-cli XPENDING quantum:stream:trade.intent quantum:group:historical_drain - + 10
 
 # Manually ACK if needed
-docker exec quantum_redis redis-cli XACK quantum:stream:trade.intent quantum:group:historical_drain <message-id>
+redis-cli XACK quantum:stream:trade.intent quantum:group:historical_drain <message-id>
 ```
 
 #### Issue: Throttle too fast/slow
@@ -635,13 +635,13 @@ Query: XRANGE, XREVRANGE for compliance reports
 ### Compliance Queries
 ```bash
 # All drain operations today
-docker exec quantum_redis redis-cli XRANGE quantum:stream:trade.intent.drain_audit <start-of-day-ms> + 
+redis-cli XRANGE quantum:stream:trade.intent.drain_audit <start-of-day-ms> + 
 
 # Count by action type
-docker exec quantum_redis redis-cli XRANGE quantum:stream:trade.intent.drain_audit - + | grep "action" | sort | uniq -c
+redis-cli XRANGE quantum:stream:trade.intent.drain_audit - + | grep "action" | sort | uniq -c
 
 # Events for specific symbol
-docker exec quantum_redis redis-cli XRANGE quantum:stream:trade.intent.drain_audit - + | grep -A 10 "BTCUSDT"
+redis-cli XRANGE quantum:stream:trade.intent.drain_audit - + | grep -A 10 "BTCUSDT"
 ```
 
 ---
@@ -730,3 +730,4 @@ The system now has:
 **Operation Duration:** ~2 hours (planning + execution + verification)  
 **Operator:** GitHub Copilot + Quantum Trader DevOps  
 **Status:** ✅ MISSION COMPLETE
+

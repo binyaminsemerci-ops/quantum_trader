@@ -386,7 +386,7 @@ Risk Management blokkerer SHORT trades fordi:
 ### Kortsiktig (Neste 1-2 timer)
 4. 🔍 **Undersøk AI model status**
    ```bash
-   docker logs quantum_backend 2>&1 | grep "models active\|ensemble"
+   journalctl -u quantum_backend.service 2>&1 | grep "models active\|ensemble"
    ```
 
 5. 🔍 **Sjekk for LONG signaler**
@@ -445,3 +445,4 @@ Systemet fungerer KORREKT. Ingen trades fordi AI genererer SHORT signaler i uptr
 
 **Neste Update:** Når første trade plasseres eller om 1 time  
 **Log Fil:** `CHANGES_LOG_2025-11-23.md`
+

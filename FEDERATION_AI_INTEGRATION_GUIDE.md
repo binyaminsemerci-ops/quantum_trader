@@ -246,7 +246,7 @@ self.ess.ess_client = ESSService()
 
 ## Step 7: Add to Docker Compose
 
-In `docker-compose.yml`:
+In `systemctl.yml`:
 
 ```yaml
 services:
@@ -377,16 +377,16 @@ export function FederationAIWidget() {
 ### Test Event Publishing
 ```bash
 # Start backend
-docker-compose up backend
+systemctl up backend
 
 # Check logs for portfolio.snapshot_updated events
-docker logs quantum_backend | grep "portfolio.snapshot_updated"
+journalctl -u quantum_backend.service | grep "portfolio.snapshot_updated"
 ```
 
 ### Test Federation AI
 ```bash
 # Start Federation AI
-docker-compose up federation-ai
+systemctl up federation-ai
 
 # Check health
 curl http://localhost:8001/health
@@ -406,7 +406,7 @@ curl http://localhost:8001/api/federation/decisions?limit=10
 ### Test Decision Handling
 ```bash
 # Check backend logs for Federation decision handling
-docker logs quantum_backend | grep "Federation:"
+journalctl -u quantum_backend.service | grep "Federation:"
 ```
 
 ---
@@ -465,3 +465,4 @@ Configure alerts for:
 ---
 
 **Questions?** Check the [Federation AI README](./backend/services/federation_ai/README.md) for detailed documentation.
+

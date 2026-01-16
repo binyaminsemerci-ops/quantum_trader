@@ -92,15 +92,15 @@ Comprehensive validation:
 ```bash
 # Windows (PowerShell)
 $env:AI_MODEL="hybrid"
-docker-compose restart backend
+systemctl restart backend
 
 # Linux/Mac
 export AI_MODEL=hybrid
-docker-compose restart backend
+systemctl restart backend
 ```
 
 ### Option 2: Docker Compose
-Edit `docker-compose.yml`:
+Edit `systemctl.yml`:
 ```yaml
 services:
   backend:
@@ -110,8 +110,8 @@ services:
 
 Then restart:
 ```bash
-docker-compose down
-docker-compose up -d
+systemctl down
+systemctl up -d
 ```
 
 ### Option 3: Permanent (Windows)
@@ -221,11 +221,11 @@ Shows:
 ```bash
 # Option 1: Unset variable
 unset AI_MODEL
-docker-compose restart backend
+systemctl restart backend
 
 # Option 2: Explicit XGBoost
 export AI_MODEL=xgb
-docker-compose restart backend
+systemctl restart backend
 ```
 
 ### Production Deployment Steps
@@ -277,7 +277,7 @@ python scripts/test_hybrid_agent.py
 export AI_MODEL=hybrid
 
 # 2. Restart backend
-docker-compose restart backend
+systemctl restart backend
 
 # 3. Verify switch
 curl http://localhost:8000/api/test/hybrid/config
@@ -352,3 +352,4 @@ python scripts/train_tft_quantile.py
 3. Review Nov 26 and decide next steps
 
 **Recommendation:** Deploy to production with 1-week trial period. 🚀
+

@@ -55,7 +55,7 @@ if side == "LONG" and price >= avg_entry * (1.0 + tp):
 - Hvis `partial = 1.0` → exit 100% (full close)
 - Rest av position får **trailing stop**
 
-### 3. Docker Config (docker-compose.yml, line 44)
+### 3. Docker Config (systemctl.yml, line 44)
 
 ```yaml
 - QT_PARTIAL_TP=0.6    # 60% default fallback
@@ -300,7 +300,7 @@ QT_PARTIAL_TP=0.6
 ### Check 2: Backend Logs
 
 ```powershell
-docker logs quantum_backend --tail 100 | Select-String "partial|Partial"
+journalctl -u quantum_backend.service --tail 100 | Select-String "partial|Partial"
 ```
 
 **Forventet output:**
@@ -343,7 +343,7 @@ AI SL:  2.0%
 ### Kode-Lokasjoner:
 - **AI Logic:** `backend/services/ai_trading_engine.py` (lines 200-240)
 - **Execution:** `backend/services/execution.py` (line 836)
-- **Config:** `docker-compose.yml` (line 44)
+- **Config:** `systemctl.yml` (line 44)
 
 ### Test Scripts:
 - `test_confidence_tiers.py` - Test AI confidence tiers
@@ -358,3 +358,4 @@ AI SL:  2.0%
 **Oppdatert:** November 19, 2025  
 **Status:** ✅ AKTIVERT - Hybrid PnL strategi kjører!  
 **ROI Forventet:** +15-22.5% per måned
+

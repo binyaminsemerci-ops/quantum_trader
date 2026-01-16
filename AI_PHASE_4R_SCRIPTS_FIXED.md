@@ -45,10 +45,10 @@
 ### All Changes:
 ```powershell
 # BEFORE (Wrong)
-docker exec redis redis-cli ...
+redis-cli ...
 
 # AFTER (Correct)
-docker exec quantum_redis redis-cli ...
+redis-cli ...
 ```
 
 ---
@@ -161,7 +161,7 @@ services:
 
 ### Check Service Status
 ```powershell
-wsl ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker ps --filter name=quantum_meta_regime'
+wsl ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'systemctl list-units --filter name=quantum_meta_regime'
 ```
 
 ### Watch Logs
@@ -171,12 +171,12 @@ wsl ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker logs -f quantum_meta_r
 
 ### Check Redis Stream
 ```powershell
-wsl ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker exec quantum_redis redis-cli XLEN quantum:stream:meta.regime'
+wsl ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'redis-cli XLEN quantum:stream:meta.regime'
 ```
 
 ### Check Preferred Regime
 ```powershell
-wsl ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'docker exec quantum_redis redis-cli GET quantum:governance:preferred_regime'
+wsl ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'redis-cli GET quantum:governance:preferred_regime'
 ```
 
 ### Check AI Engine Health
@@ -186,7 +186,7 @@ wsl ssh -i ~/.ssh/hetzner_fresh qt@46.224.116.254 'curl -s http://localhost:8001
 
 ### Manual Test Data Injection
 ```bash
-docker exec quantum_redis redis-cli XADD quantum:stream:meta.regime '*' \
+redis-cli XADD quantum:stream:meta.regime '*' \
   regime BULL pnl 0.42 volatility 0.015 trend 0.002 confidence 0.87 timestamp '2025-12-21T06:30:00Z'
 ```
 
@@ -209,3 +209,4 @@ All scripts tested and validated. Container name issues resolved. Service is hea
 **Last Updated:** 2025-12-21 06:31 UTC  
 **Deployment Target:** Hetzner VPS 46.224.116.254  
 **Validation Status:** ✅ All Tests Passed
+

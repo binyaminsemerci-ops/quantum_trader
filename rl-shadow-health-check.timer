@@ -1,0 +1,11 @@
+[Unit]
+Description=RL Shadow Health Check Timer (every 5 minutes)
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+Unit=rl-shadow-health-check.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -41,7 +41,7 @@
 **Files to modify:**
 - `microservices/ai_engine/service.py` (health check)
 - `microservices/risk_safety_service/` (if refactoring)
-- `docker-compose.vps.yml` (if disabling)
+- `systemctl.vps.yml` (if disabling)
 
 ---
 
@@ -50,13 +50,13 @@
 **Blocker**: #2 - No visibility  
 
 **Tasks:**
-- [ ] Review existing `docker-compose.monitoring.yml`
+- [ ] Review existing `systemctl.monitoring.yml`
 - [ ] Deploy Prometheus + Grafana to VPS:
   ```bash
   scp -r monitoring/ qt@46.224.116.254:/home/qt/quantum_trader/
   ssh qt@46.224.116.254 "cd quantum_trader && \
-    docker compose -f docker-compose.vps.yml \
-                   -f docker-compose.monitoring.yml up -d"
+    docker compose -f systemctl.vps.yml \
+                   -f systemctl.monitoring.yml up -d"
   ```
 - [ ] Verify Prometheus targets:
   - http://VPS_IP:9090/targets
@@ -77,7 +77,7 @@
 - ✅ Service health metrics visible
 
 **Files to verify:**
-- `docker-compose.monitoring.yml` ✅
+- `systemctl.monitoring.yml` ✅
 - `monitoring/prometheus.yml` ✅
 - `monitoring/grafana/dashboards/` (if custom)
 
@@ -104,7 +104,7 @@ DATE=$(date +%Y%m%d_%H%M%S)
 echo "$(date) - Starting Redis backup..."
 
 # Trigger BGSAVE
-docker exec quantum_redis redis-cli BGSAVE
+redis-cli BGSAVE
 
 # Wait for BGSAVE to complete
 sleep 10
@@ -144,17 +144,17 @@ LATEST_BACKUP=$(ls -t /home/qt/backups/redis/dump_*.rdb | head -1)
 echo "Testing restore from: $LATEST_BACKUP"
 
 # Stop Redis
-docker compose -f docker-compose.vps.yml stop redis
+docker compose -f systemctl.vps.yml stop redis
 
 # Replace dump.rdb
 docker cp $LATEST_BACKUP quantum_redis:/data/dump.rdb
 
 # Start Redis
-docker compose -f docker-compose.vps.yml start redis
+docker compose -f systemctl.vps.yml start redis
 
 # Verify
 sleep 5
-docker exec quantum_redis redis-cli PING
+redis-cli PING
 echo "✅ Restore test successful"
 EOF
 ```
@@ -320,9 +320,9 @@ echo "✅ Alert rules created"
 EOF
 ```
 
-**D. Update docker-compose.monitoring.yml**
+**D. Update systemctl.monitoring.yml**
 ```yaml
-# Add Alertmanager to docker-compose.monitoring.yml
+# Add Alertmanager to systemctl.monitoring.yml
 alertmanager:
   image: prom/alertmanager:v0.26.0
   container_name: alertmanager
@@ -343,12 +343,12 @@ ssh qt@46.224.116.254 << 'EOF'
 cd /home/qt/quantum_trader
 
 # Restart monitoring stack with Alertmanager
-docker compose -f docker-compose.vps.yml \
-               -f docker-compose.monitoring.yml up -d alertmanager
+docker compose -f systemctl.vps.yml \
+               -f systemctl.monitoring.yml up -d alertmanager
 
 # Reload Prometheus config
-docker compose -f docker-compose.vps.yml \
-               -f docker-compose.monitoring.yml restart prometheus
+docker compose -f systemctl.vps.yml \
+               -f systemctl.monitoring.yml restart prometheus
 
 echo "✅ Alertmanager deployed"
 EOF
@@ -357,7 +357,7 @@ EOF
 **F. Test Alert Delivery**
 ```bash
 # Stop AI Engine to trigger alert
-ssh qt@46.224.116.254 "cd quantum_trader && docker compose -f docker-compose.vps.yml stop ai-engine"
+ssh qt@46.224.116.254 "cd quantum_trader && docker compose -f systemctl.vps.yml stop ai-engine"
 
 # Wait 3 minutes for alert to fire
 sleep 180
@@ -365,7 +365,7 @@ sleep 180
 # Check if Telegram message received
 
 # Restart AI Engine
-ssh qt@46.224.116.254 "cd quantum_trader && docker compose -f docker-compose.vps.yml start ai-engine"
+ssh qt@46.224.116.254 "cd quantum_trader && docker compose -f systemctl.vps.yml start ai-engine"
 ```
 
 **Checklist:**
@@ -444,9 +444,9 @@ docker secret ls
 EOF
 ```
 
-**C. Update docker-compose.vps.yml to use secrets**
+**C. Update systemctl.vps.yml to use secrets**
 ```yaml
-# docker-compose.vps.yml
+# systemctl.vps.yml
 services:
   ai-engine:
     secrets:
@@ -510,7 +510,7 @@ async def health(request: Request):
 
 **Exit Criteria:**
 - ✅ Firewall active with minimal ports exposed
-- ✅ No plaintext secrets in docker-compose.yml
+- ✅ No plaintext secrets in systemctl.yml
 - ✅ SSL certificates valid (if applicable)
 - ✅ Rate limiting tested
 
@@ -594,7 +594,7 @@ ab -n 1000 -c 10 http://46.224.116.254:8001/health
 ssh qt@46.224.116.254
 
 # Tail logs from all services
-docker compose -f docker-compose.vps.yml logs -f ai-engine execution-v2
+docker compose -f systemctl.vps.yml logs -f ai-engine execution-v2
 
 # Trigger signal generation (manual or scheduled)
 # Observe:
@@ -665,16 +665,16 @@ ssh -i $SSH_KEY $VPS_HOST << EOF
   cd $VPS_PATH
   
   if [ "$SERVICE" == "all" ]; then
-    docker compose -f docker-compose.vps.yml up -d --build
+    docker compose -f systemctl.vps.yml up -d --build
   else
-    docker compose -f docker-compose.vps.yml up -d --build $SERVICE
+    docker compose -f systemctl.vps.yml up -d --build $SERVICE
   fi
   
   echo "⏳ Waiting for service to start..."
   sleep 15
   
   echo "🏥 Health check..."
-  docker compose -f docker-compose.vps.yml ps $SERVICE
+  docker compose -f systemctl.vps.yml ps $SERVICE
 EOF
 
 # 3. Verify deployment
@@ -746,18 +746,18 @@ ssh -i $SSH_KEY $VPS_HOST << EOF
   cd /home/qt/quantum_trader
   
   # Stop current service
-  docker compose -f docker-compose.vps.yml stop $SERVICE
+  docker compose -f systemctl.vps.yml stop $SERVICE
   
   # Tag old version as latest
   docker tag quantum_$SERVICE:$TAG quantum_$SERVICE:latest
   
   # Start service
-  docker compose -f docker-compose.vps.yml up -d $SERVICE
+  docker compose -f systemctl.vps.yml up -d $SERVICE
   
   echo "⏳ Waiting for service..."
   sleep 15
   
-  docker compose -f docker-compose.vps.yml ps $SERVICE
+  docker compose -f systemctl.vps.yml ps $SERVICE
 EOF
 
 echo "✅ Rollback complete"
@@ -982,3 +982,4 @@ chmod +x scripts/rollback.sh
 ---
 
 Let's get started! 🚀
+

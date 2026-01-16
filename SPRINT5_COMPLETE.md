@@ -176,7 +176,7 @@ min_confidence: 0.45
 - [ ] 5. Backup database
 - [ ] 6. Set up monitoring alerts (Slack, email)
 - [ ] 7. Configure environment variables in `.env`
-- [ ] 8. Start backend: `docker-compose --profile dev up -d backend`
+- [ ] 8. Start backend: `systemctl --profile dev up -d backend`
 - [ ] 9. Monitor logs for 5 minutes
 - [ ] 10. Place test order manually
 - [ ] 11. Enable trading: `POST /api/trading/enable`
@@ -287,3 +287,4 @@ min_confidence: 0.45
 **Files Modified/Created**: 14  
 **Patches Implemented**: 9 of 10  
 **Final Grade**: B+ (8.5/10)
+

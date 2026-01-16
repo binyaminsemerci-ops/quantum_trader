@@ -441,7 +441,7 @@ docker compose up -d trade-journal
 
 ### View Logs
 ```bash
-docker logs quantum_trade_journal -f
+journalctl -u quantum_trade_journal.service -f
 ```
 
 ### Trigger Manual Report
@@ -452,7 +452,7 @@ docker exec quantum_trade_journal python journal_service.py
 ### View Latest Report
 ```bash
 # From Redis
-docker exec quantum_redis redis-cli GET latest_report | python3 -m json.tool
+redis-cli GET latest_report | python3 -m json.tool
 
 # From Dashboard API
 curl http://46.224.116.254:8501/report | python3 -m json.tool
@@ -529,19 +529,19 @@ curl http://46.224.116.254:8501/reports/history
 ### Issue: No Trades Found
 ```bash
 # Check if auto-executor is running
-docker ps | grep auto_executor
+systemctl list-units | grep auto_executor
 
 # Check trade_log in Redis
-docker exec quantum_redis redis-cli LRANGE trade_log 0 5
+redis-cli LRANGE trade_log 0 5
 
 # If empty, create test trades
-docker exec quantum_redis redis-cli SET live_signals '[{"symbol":"BTCUSDT","action":"BUY","confidence":0.70,"drawdown":2.0}]'
+redis-cli SET live_signals '[{"symbol":"BTCUSDT","action":"BUY","confidence":0.70,"drawdown":2.0}]'
 ```
 
 ### Issue: Reports Not Generating
 ```bash
 # Check service logs
-docker logs quantum_trade_journal --tail 50
+journalctl -u quantum_trade_journal.service --tail 50
 
 # Verify Redis connection
 docker exec quantum_trade_journal python -c "import redis; r=redis.Redis(host='redis'); print(r.ping())"
@@ -553,25 +553,25 @@ docker exec quantum_trade_journal python journal_service.py
 ### Issue: Dashboard Not Showing Reports
 ```bash
 # Check dashboard logs
-docker logs quantum_governance_dashboard --tail 30
+journalctl -u quantum_governance_dashboard.service --tail 30
 
 # Test report endpoint
 curl http://localhost:8501/report
 
 # Check Redis has latest_report
-docker exec quantum_redis redis-cli GET latest_report
+redis-cli GET latest_report
 ```
 
 ### Issue: Incorrect Metrics
 ```bash
 # Verify trade log format
-docker exec quantum_redis redis-cli LRANGE trade_log 0 2 | python3 -m json.tool
+redis-cli LRANGE trade_log 0 2 | python3 -m json.tool
 
 # Check for PnL values
-docker exec quantum_redis redis-cli LRANGE trade_log 0 -1 | grep '"pnl"'
+redis-cli LRANGE trade_log 0 -1 | grep '"pnl"'
 
 # Recalculate report
-docker restart quantum_trade_journal && sleep 10 && docker logs quantum_trade_journal
+docker restart quantum_trade_journal && sleep 10 && journalctl -u quantum_trade_journal.service
 ```
 
 ---
@@ -812,3 +812,4 @@ Phase 7: Trade Journal & Analytics ← JUST COMPLETED
 **Deployment Date:** 2025-12-20  
 **Status:** ✅ PRODUCTION READY  
 **Achievement:** COMPLETE AUTONOMOUS AI HEDGE FUND OPERATING SYSTEM 🚀  
+

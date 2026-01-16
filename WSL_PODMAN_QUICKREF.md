@@ -24,10 +24,10 @@ pwd
 # Output: /home/<user>/quantum_trader
 
 # 3. Start Redis + AI-Engine
-podman-compose -f docker-compose.wsl.yml up -d redis ai-engine
+podman-compose -f systemctl.wsl.yml up -d redis ai-engine
 
 # 4. Sjekk status
-podman-compose -f docker-compose.wsl.yml ps
+podman-compose -f systemctl.wsl.yml ps
 ```
 
 ---
@@ -75,17 +75,17 @@ python -c "from backend.infra.service_health import ServiceHealth; h = ServiceHe
 ### Stop services
 ```bash
 cd ~/quantum_trader
-podman-compose -f docker-compose.wsl.yml down
+podman-compose -f systemctl.wsl.yml down
 ```
 
 ### Restart AI-Engine
 ```bash
-podman-compose -f docker-compose.wsl.yml restart ai-engine
+podman-compose -f systemctl.wsl.yml restart ai-engine
 ```
 
 ### Full cleanup (med volumes)
 ```bash
-podman-compose -f docker-compose.wsl.yml down -v
+podman-compose -f systemctl.wsl.yml down -v
 ```
 
 ---
@@ -150,12 +150,12 @@ podman exec quantum_ai_engine python -c "from microservices.ai_engine.main impor
 
 **Identisk oppsett:**
 - VPS er Linux native (som WSL)
-- Samme `docker-compose.wsl.yml`
+- Samme `systemctl.wsl.yml`
 - Samme PYTHONPATH-logikk
 - Samme mount structure
 
 **Eneste forskjell:**
-- VPS bruker kanskje `docker-compose` i stedet for `podman-compose` (syntax 100% lik)
+- VPS bruker kanskje `systemctl` i stedet for `podman-compose` (syntax 100% lik)
 - VPS kan bruke systemd for auto-start
 
 ---
@@ -211,3 +211,4 @@ System er ready når:
 - [x] ServiceHealth.create() fungerer
 
 **🚀 Da er du klar for trading!**
+

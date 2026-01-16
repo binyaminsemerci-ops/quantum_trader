@@ -125,7 +125,7 @@ def apply_strategy(strategy_name: str):
     
     print(f"\n✅ SUCCESS! Profit maximization strategy applied!")
     print(f"\n📋 NEXT STEPS:")
-    print(f"   1. Restart backend: docker-compose --profile dev restart backend")
+    print(f"   1. Restart backend: sudo systemctl restart quantum-backend.service")
     print(f"   2. Verify settings: python verify_backend_tpsl.py")
     print(f"   3. Monitor results: python quick_status.py")
     

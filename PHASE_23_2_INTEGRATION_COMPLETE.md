@@ -255,7 +255,7 @@ Expected: All targets showing `"health": "up"`
 ### 6. Trigger Test Alert
 ```bash
 ssh root@46.224.116.254
-docker exec quantum_redis redis-cli XADD quantum:stream:errors "*" level ERROR message "Test alert from integration"
+redis-cli XADD quantum:stream:errors "*" level ERROR message "Test alert from integration"
 ```
 
 Should trigger alert in Grafana/Alertmanager
@@ -374,3 +374,4 @@ quantumfond_backend/main.py
 **CI/CD Integration:** GitHub Actions workflow configured  
 
 **Ready for Phase 24!** 🚀
+

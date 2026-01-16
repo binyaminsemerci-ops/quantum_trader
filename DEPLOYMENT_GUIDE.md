@@ -228,7 +228,7 @@ Planlagt forbedring: egen `FuturesRiskGuard` med funding accrual, maintenance ma
 - Vurder å legge til ekstra kill switch basert på unrealized PnL.
 - Utvid risk manager senere for maintenance margin / liquidation buffer.
 
-**Sjekk at `docker-compose.yml` eksisterer:**
+**Sjekk at `systemctl.yml` eksisterer:**
 ```yaml
 version: '3.8'
 services:
@@ -264,10 +264,10 @@ cd /home/user/quantum_trader
 # 4. Opprett .env fil med dine settings
 
 # 5. Bygg og start
-docker-compose up -d
+systemctl up -d
 
 # 6. Sjekk logs
-docker-compose logs -f backend
+systemctl logs -f backend
 ```
 
 ---
@@ -426,7 +426,7 @@ sudo certbot --nginx -d your-domain.com
 sudo journalctl -u quantum-trader -f
 
 # Docker logs
-docker-compose logs -f backend
+systemctl logs -f backend
 
 # Direkte backend logs
 tail -f backend/logs/*.log
@@ -621,3 +621,4 @@ python -c "from database import init_db; init_db()"
 Systemet er testet og klar for deployment. Følg stegene over, start i paper trading mode, og gå gradvis over til live trading når du er komfortabel.
 
 **Lykke til!** 🚀📈💰
+

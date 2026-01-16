@@ -213,7 +213,7 @@
 - **Objective:** Verify XGB+LGBM predictions stable
 - **Actions:**
   - Monitor logs for errors: `docker logs -f quantum_backend | grep "ERROR\|FEATURE"`
-  - Check consensus: `docker logs quantum_backend | grep "Ensemble prediction" | tail -20`
+  - Check consensus: `journalctl -u quantum_backend.service | grep "Ensemble prediction" | tail -20`
   - Verify confidence scores
 - **Success Criteria:** Zero errors, consensus >60%, confidence >0.5
 - **Duration:** 1 hour
@@ -282,12 +282,12 @@
 
 ### Check Model Loading
 ```bash
-docker logs quantum_backend | Select-String "Loaded.*xgboost_v|Loaded.*lightgbm_v"
+journalctl -u quantum_backend.service | Select-String "Loaded.*xgboost_v|Loaded.*lightgbm_v"
 ```
 
 ### Check for Feature Errors
 ```bash
-docker logs quantum_backend | Select-String "features.*expecting|StandardScaler"
+journalctl -u quantum_backend.service | Select-String "features.*expecting|StandardScaler"
 ```
 
 ### Monitor Predictions
@@ -305,3 +305,4 @@ docker exec quantum_backend curl -X POST http://localhost:8000/api/emergency/sto
 **✅ PRIMARY OBJECTIVE ACHIEVED:** Feature mismatch SOLVED. Models loading correctly with 49 features.  
 **🔄 NEXT STEP:** 1 hour monitoring → Paper trading → Gradual production deployment.  
 **⏰ READY TO PROCEED:** YES (immediate start)
+

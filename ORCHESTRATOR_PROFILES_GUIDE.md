@@ -149,11 +149,11 @@ Two complete orchestrator profiles have been implemented to support different tr
 ```bash
 # Windows PowerShell
 $env:ORCH_PROFILE="SAFE"
-docker-compose restart backend
+systemctl restart backend
 
 # Linux/Mac
 export ORCH_PROFILE=SAFE
-docker-compose restart backend
+systemctl restart backend
 
 # For AGGRESSIVE profile
 $env:ORCH_PROFILE="AGGRESSIVE"
@@ -336,10 +336,10 @@ Confidence Adjustment: +0.05
 $env:ORCH_PROFILE="AGGRESSIVE"
 
 # Restart backend to apply
-docker-compose restart backend
+systemctl restart backend
 
 # Verify active profile
-docker logs quantum_backend | Select-String "Loading.*profile"
+journalctl -u quantum_backend.service | Select-String "Loading.*profile"
 ```
 
 ### Profile Validation
@@ -376,7 +376,7 @@ print(f"Base Risk: {profile['base_risk_pct']}%")
 
 ```bash
 # Check profile loading
-docker logs quantum_backend | Select-String "Loading.*profile"
+journalctl -u quantum_backend.service | Select-String "Loading.*profile"
 
 # Example output:
 # 🛡️ Loading SAFE profile: Conservative risk, higher thresholds
@@ -405,3 +405,4 @@ docker logs quantum_backend | Select-String "Loading.*profile"
 - Fast recovery
 
 **Use the right tool for the right job!** 🛡️⚡
+

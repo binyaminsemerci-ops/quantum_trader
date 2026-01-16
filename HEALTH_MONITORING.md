@@ -37,7 +37,7 @@ Restart backend with QT_MODEL_SUPERVISOR_MODE=ENFORCED
 
 **Manuell fix:**
 ```bash
-docker-compose restart backend
+systemctl restart backend
 ```
 
 ---
@@ -112,8 +112,8 @@ Check retraining logs for errors, may need manual trigger
 **Manuell fix:**
 ```bash
 # Restart retraining:
-docker logs quantum_backend | grep "Retraining"
-docker-compose restart backend
+journalctl -u quantum_backend.service | grep "Retraining"
+systemctl restart backend
 ```
 
 ---
@@ -137,7 +137,7 @@ Restart backend to reinitialize executor with Model Supervisor
 
 **Manuell fix:**
 ```bash
-docker-compose restart backend
+systemctl restart backend
 ```
 
 ---
@@ -261,7 +261,7 @@ Response:
 
 ## ⚙️ KONFIGURASJON
 
-I `.env` eller `docker-compose.yml`:
+I `.env` eller `systemctl.yml`:
 
 ```bash
 # Health Monitor
@@ -331,7 +331,7 @@ schedule.daily(time="08:00", func=send_health_report)
 
 ### **1. Sjekk health etter hver deploy**
 ```bash
-docker-compose up -d backend
+systemctl up -d backend
 sleep 10
 python check_system_health.py --fix
 ```
@@ -356,7 +356,7 @@ python check_system_health.py --fix
 
 ### **4. Monitor logs for health issues**
 ```bash
-docker logs quantum_backend --follow | grep "HEALTH\|CRITICAL"
+journalctl -u quantum_backend.service --follow | grep "HEALTH\|CRITICAL"
 ```
 
 ---
@@ -373,10 +373,10 @@ docker logs quantum_backend --follow | grep "HEALTH\|CRITICAL"
 
 **Løsning:**
 ```bash
-# Enable i docker-compose.yml:
+# Enable i systemctl.yml:
 QT_HEALTH_MONITOR_ENABLED=true
 
-docker-compose restart backend
+systemctl restart backend
 ```
 
 ### **Problem: Health check tar for lang tid**
@@ -398,8 +398,8 @@ CRITICAL: Mode mismatch
 
 **Løsning:**
 ```bash
-# Sjekk at .env matcher docker-compose.yml:
-grep MODEL_SUPERVISOR_MODE .env docker-compose.yml
+# Sjekk at .env matcher systemctl.yml:
+grep MODEL_SUPERVISOR_MODE .env systemctl.yml
 ```
 
 ---
@@ -473,3 +473,4 @@ grep MODEL_SUPERVISOR_MODE .env docker-compose.yml
    - Log warnings for manual fixes
 
 **Nå har du full oversikt over systemets helse! 🏥**
+

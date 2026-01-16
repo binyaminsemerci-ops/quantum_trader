@@ -141,7 +141,7 @@ order_type = "STOP_LOSS"  # Guaranteed execution
 
 ### OPTION 3: INCREASE CONFIDENCE THRESHOLD
 ```env
-# In docker-compose.yml
+# In systemctl.yml
 QT_MIN_CONFIDENCE: 0.80  # Fra 0.65 (bare take high confidence trades)
 ```
 
@@ -207,9 +207,9 @@ docker stop quantum_backend
 # Change STOP_MARKET to STOP_LOSS
 
 # 4. Test in paper trading
-docker-compose down
+systemctl down
 # Change QT_PAPER_TRADING=true
-docker-compose up -d
+systemctl up -d
 
 # 5. Verify SL works in paper trading
 # 6. Only then restart live trading
@@ -227,3 +227,4 @@ User må bestemme:
 
 **Last Updated**: 2025-11-20 01:25 UTC
 **Next Check**: Immediately after user decision
+

@@ -669,13 +669,13 @@ else:
 
 **Check:**
 ```bash
-docker logs quantum_backend | grep "RL-SIZING"
+journalctl -u quantum_backend.service | grep "RL-SIZING"
 ```
 
 **Solutions:**
 1. Verify `.env`: `RL_POSITION_SIZING_ENABLED=true`
 2. Check import: `docker exec quantum_backend python -c "from backend.services.rl_position_sizing_agent import get_rl_sizing_agent; print('OK')"`
-3. Restart backend: `docker-compose --profile dev restart backend`
+3. Restart backend: `systemctl --profile dev restart backend`
 
 ### Issue 2: No Learning Updates
 **Symptom:** "📈 Updated for" logs never appear
@@ -708,7 +708,7 @@ cat data/rl_position_sizing_state.json | jq '.metadata.total_updates'
 
 **Check:**
 ```bash
-docker logs quantum_backend | grep "rl_state_key"
+journalctl -u quantum_backend.service | grep "rl_state_key"
 ```
 
 **Solutions:**
@@ -886,4 +886,5 @@ First 50 trades → Validate Q-learning is working → Scale to full deployment
 **Expected Impact:** +4-6% win rate, -33% drawdown, +50% Sharpe
 
 🚀 **AI now controls EVERYTHING. No more manual sizing!** 🚀
+
 

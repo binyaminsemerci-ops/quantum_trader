@@ -76,7 +76,7 @@ healthcheck:
 ---
 
 ### Fix #3: quantum_market_publisher ⏳ PENDING
-**Root Cause**: Missing healthcheck in docker-compose.vps.yml (main compose had correct check)
+**Root Cause**: Missing healthcheck in systemctl.vps.yml (main compose had correct check)
 
 **Application Issue**: WebSocket reconnect loops (non-critical for healthcheck)
 ```
@@ -86,7 +86,7 @@ ERROR: ETHUSDT stream error: Read loop has been closed
 
 **Solution Applied**:
 ```yaml
-# Added to docker-compose.vps.yml:
+# Added to systemctl.vps.yml:
 healthcheck:
   test: ["CMD", "python3", "-c", "import redis; r=redis.Redis(host='redis', port=6379); exit(0 if r.ping() else 1)"]
   interval: 30s
@@ -102,15 +102,15 @@ healthcheck:
 
 ## 3. FILES MODIFIED
 
-1. **docker-compose.yml**:
+1. **systemctl.yml**:
    - Fixed dashboard_frontend healthcheck (ps aux | grep nginx)
    - Improved market_publisher healthcheck retries (3→5) and start_period (10s→30s)
 
-2. **docker-compose.observability.yml**:
+2. **systemctl.observability.yml**:
    - Fixed redis_exporter healthcheck (wget → curl)
    - Added start_period: 10s
 
-3. **docker-compose.vps.yml**:
+3. **systemctl.vps.yml**:
    - Added missing healthcheck for market-publisher
 
 ---
@@ -171,8 +171,8 @@ healthcheck:
 
 ### Container Health Check:
 ```bash
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-docker ps --filter health=unhealthy --format "{{.Names}}: {{.Status}}"
+systemctl list-units --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+systemctl list-units --filter health=unhealthy --format "{{.Names}}: {{.Status}}"
 ```
 
 ### Resource Check:
@@ -192,3 +192,4 @@ docker exec <container> <healthcheck_command>
 ---
 
 **Next Action**: Complete market-publisher deployment and verify all containers healthy
+

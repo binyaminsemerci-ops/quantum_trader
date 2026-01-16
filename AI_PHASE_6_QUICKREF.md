@@ -14,12 +14,12 @@ docker compose --profile microservices up -d auto-executor
 
 ### View Startup Logs
 ```bash
-docker logs quantum_auto_executor --tail 50
+journalctl -u quantum_auto_executor.service --tail 50
 ```
 
 ### Check Health
 ```bash
-docker ps | grep auto_executor
+systemctl list-units | grep auto_executor
 ```
 
 ---
@@ -28,17 +28,17 @@ docker ps | grep auto_executor
 
 ### Live Logs (Follow Mode)
 ```bash
-docker logs quantum_auto_executor -f
+journalctl -u quantum_auto_executor.service -f
 ```
 
 ### Last 20 Log Lines
 ```bash
-docker logs quantum_auto_executor --tail 20
+journalctl -u quantum_auto_executor.service --tail 20
 ```
 
 ### Check Processing Status
 ```bash
-docker logs quantum_auto_executor | grep "Cycle"
+journalctl -u quantum_auto_executor.service | grep "Cycle"
 ```
 
 ---
@@ -47,22 +47,22 @@ docker logs quantum_auto_executor | grep "Cycle"
 
 ### Last 10 Trades
 ```bash
-docker exec quantum_redis redis-cli LRANGE trade_log 0 9 | python3 -m json.tool
+redis-cli LRANGE trade_log 0 9 | python3 -m json.tool
 ```
 
 ### Last 5 Trades (Quick)
 ```bash
-docker exec quantum_redis redis-cli LRANGE trade_log 0 4
+redis-cli LRANGE trade_log 0 4
 ```
 
 ### Total Trade Count
 ```bash
-docker exec quantum_redis redis-cli GET total_trades
+redis-cli GET total_trades
 ```
 
 ### View All Trades
 ```bash
-docker exec quantum_redis redis-cli LRANGE trade_log 0 -1 | python3 -m json.tool
+redis-cli LRANGE trade_log 0 -1 | python3 -m json.tool
 ```
 
 ---
@@ -71,22 +71,22 @@ docker exec quantum_redis redis-cli LRANGE trade_log 0 -1 | python3 -m json.tool
 
 ### Execution Metrics
 ```bash
-docker exec quantum_redis redis-cli HGETALL execution_metrics
+redis-cli HGETALL execution_metrics
 ```
 
 ### Executor Metrics (Detailed)
 ```bash
-docker exec quantum_redis redis-cli GET executor_metrics | python3 -m json.tool
+redis-cli GET executor_metrics | python3 -m json.tool
 ```
 
 ### Current Balance
 ```bash
-docker exec quantum_redis redis-cli HGET execution_metrics balance
+redis-cli HGET execution_metrics balance
 ```
 
 ### Circuit Breaker Status
 ```bash
-docker exec quantum_redis redis-cli HGET execution_metrics circuit_breaker
+redis-cli HGET execution_metrics circuit_breaker
 ```
 
 ---
@@ -95,12 +95,12 @@ docker exec quantum_redis redis-cli HGET execution_metrics circuit_breaker
 
 ### View Current Signals
 ```bash
-docker exec quantum_redis redis-cli GET live_signals | python3 -m json.tool
+redis-cli GET live_signals | python3 -m json.tool
 ```
 
 ### Create Test Signal (BUY)
 ```bash
-docker exec quantum_redis redis-cli SET live_signals '[
+redis-cli SET live_signals '[
   {
     "symbol": "BTCUSDT",
     "action": "BUY",
@@ -114,7 +114,7 @@ docker exec quantum_redis redis-cli SET live_signals '[
 
 ### Create Test Signal (SELL)
 ```bash
-docker exec quantum_redis redis-cli SET live_signals '[
+redis-cli SET live_signals '[
   {
     "symbol": "ETHUSDT",
     "action": "SELL",
@@ -128,7 +128,7 @@ docker exec quantum_redis redis-cli SET live_signals '[
 
 ### Create Multiple Signals
 ```bash
-docker exec quantum_redis redis-cli SET live_signals '[
+redis-cli SET live_signals '[
   {"symbol":"BTCUSDT","action":"BUY","confidence":0.78,"drawdown":2.0},
   {"symbol":"ETHUSDT","action":"SELL","confidence":0.65,"drawdown":1.5}
 ]'
@@ -136,7 +136,7 @@ docker exec quantum_redis redis-cli SET live_signals '[
 
 ### Clear Signals
 ```bash
-docker exec quantum_redis redis-cli DEL live_signals
+redis-cli DEL live_signals
 ```
 
 ---
@@ -176,19 +176,19 @@ docker stop quantum_auto_executor
 
 ### Clear All Signals
 ```bash
-docker exec quantum_redis redis-cli DEL live_signals
+redis-cli DEL live_signals
 ```
 
 ### Reset Metrics
 ```bash
-docker exec quantum_redis redis-cli DEL execution_metrics
-docker exec quantum_redis redis-cli DEL executor_metrics
-docker exec quantum_redis redis-cli SET total_trades 0
+redis-cli DEL execution_metrics
+redis-cli DEL executor_metrics
+redis-cli SET total_trades 0
 ```
 
 ### Circuit Breaker Override (CAREFUL!)
 ```bash
-docker exec quantum_redis redis-cli HSET execution_metrics circuit_breaker false
+redis-cli HSET execution_metrics circuit_breaker false
 ```
 
 ---
@@ -222,13 +222,13 @@ docker exec quantum_auto_executor python3 -c "from binance.client import Client;
 ### Complete System Status
 ```bash
 echo "=== AUTO EXECUTOR STATUS ===" && \
-docker ps --format "{{.Names}}: {{.Status}}" | grep auto_executor && \
+systemctl list-units --format "{{.Names}}: {{.Status}}" | grep auto_executor && \
 echo -e "\n=== RECENT ACTIVITY ===" && \
-docker logs quantum_auto_executor --tail 10 && \
+journalctl -u quantum_auto_executor.service --tail 10 && \
 echo -e "\n=== METRICS ===" && \
-echo "Total Trades: $(docker exec quantum_redis redis-cli GET total_trades)" && \
-echo "Balance: $(docker exec quantum_redis redis-cli HGET execution_metrics balance)" && \
-echo "Circuit Breaker: $(docker exec quantum_redis redis-cli HGET execution_metrics circuit_breaker)"
+echo "Total Trades: $(redis-cli GET total_trades)" && \
+echo "Balance: $(redis-cli HGET execution_metrics balance)" && \
+echo "Circuit Breaker: $(redis-cli HGET execution_metrics circuit_breaker)"
 ```
 
 ---
@@ -237,8 +237,8 @@ echo "Circuit Breaker: $(docker exec quantum_redis redis-cli HGET execution_metr
 
 ### Switch to Production Mode (CAREFUL!)
 ```bash
-# Edit docker-compose.yml
-nano ~/quantum_trader/docker-compose.yml
+# Edit systemctl.yml
+nano ~/quantum_trader/systemctl.yml
 
 # Change:
 TESTNET=false
@@ -250,8 +250,8 @@ docker restart quantum_auto_executor
 
 ### Adjust Risk Parameters
 ```bash
-# Edit docker-compose.yml
-nano ~/quantum_trader/docker-compose.yml
+# Edit systemctl.yml
+nano ~/quantum_trader/systemctl.yml
 
 # Modify:
 MAX_RISK_PER_TRADE=0.001  # Lower risk
@@ -282,12 +282,12 @@ http://46.224.116.254:8501/metrics
 
 ### Check Recent Alerts
 ```bash
-docker exec quantum_redis redis-cli LRANGE governance_alerts 0 9 | python3 -m json.tool
+redis-cli LRANGE governance_alerts 0 9 | python3 -m json.tool
 ```
 
 ### Watch for Execution Alerts
 ```bash
-docker logs quantum_governance_alerts -f | grep -i execution
+journalctl -u quantum_governance_alerts.service -f | grep -i execution
 ```
 
 ---
@@ -300,34 +300,34 @@ docker logs quantum_governance_alerts -f | grep -i execution
 docker compose --profile microservices up -d auto-executor
 
 # 2. Watch logs
-docker logs quantum_auto_executor -f
+journalctl -u quantum_auto_executor.service -f
 
 # 3. Check trades after 2 minutes
-docker exec quantum_redis redis-cli LRANGE trade_log 0 9
+redis-cli LRANGE trade_log 0 9
 ```
 
 ### Workflow 2: Test New Signal
 ```bash
 # 1. Create test signal
-docker exec quantum_redis redis-cli SET live_signals '[{"symbol":"BTCUSDT","action":"BUY","confidence":0.75,"drawdown":2.0}]'
+redis-cli SET live_signals '[{"symbol":"BTCUSDT","action":"BUY","confidence":0.75,"drawdown":2.0}]'
 
 # 2. Wait 15 seconds
 sleep 15
 
 # 3. Check execution
-docker logs quantum_auto_executor --tail 20
+journalctl -u quantum_auto_executor.service --tail 20
 
 # 4. Verify trade logged
-docker exec quantum_redis redis-cli LRANGE trade_log 0 0 | python3 -m json.tool
+redis-cli LRANGE trade_log 0 0 | python3 -m json.tool
 ```
 
 ### Workflow 3: Daily Health Check
 ```bash
 # Check all executor components
-docker ps | grep auto_executor && \
-docker logs quantum_auto_executor --tail 5 && \
-echo "Total Trades: $(docker exec quantum_redis redis-cli GET total_trades)" && \
-echo "Balance: $(docker exec quantum_redis redis-cli GET executor_metrics | python3 -c 'import json,sys; print(json.load(sys.stdin)["balance"])')"
+systemctl list-units | grep auto_executor && \
+journalctl -u quantum_auto_executor.service --tail 5 && \
+echo "Total Trades: $(redis-cli GET total_trades)" && \
+echo "Balance: $(redis-cli GET executor_metrics | python3 -c 'import json,sys; print(json.load(sys.stdin)["balance"])')"
 ```
 
 ---
@@ -337,31 +337,31 @@ echo "Balance: $(docker exec quantum_redis redis-cli GET executor_metrics | pyth
 ### Issue: Executor Not Processing
 ```bash
 # 1. Check for signals
-docker exec quantum_redis redis-cli GET live_signals
+redis-cli GET live_signals
 
 # 2. If empty, create test signal
-docker exec quantum_redis redis-cli SET live_signals '[{"symbol":"BTCUSDT","action":"BUY","confidence":0.70,"drawdown":2.0}]'
+redis-cli SET live_signals '[{"symbol":"BTCUSDT","action":"BUY","confidence":0.70,"drawdown":2.0}]'
 
 # 3. Watch logs
-docker logs quantum_auto_executor -f
+journalctl -u quantum_auto_executor.service -f
 ```
 
 ### Issue: Circuit Breaker Stuck
 ```bash
 # 1. Check current drawdown
-docker exec quantum_redis redis-cli GET live_signals | python3 -m json.tool | grep drawdown
+redis-cli GET live_signals | python3 -m json.tool | grep drawdown
 
 # 2. Create signal with low drawdown
-docker exec quantum_redis redis-cli SET live_signals '[{"symbol":"BTCUSDT","action":"BUY","confidence":0.75,"drawdown":1.0}]'
+redis-cli SET live_signals '[{"symbol":"BTCUSDT","action":"BUY","confidence":0.75,"drawdown":1.0}]'
 ```
 
 ### Issue: No Trades Logging
 ```bash
 # 1. Check confidence threshold
-docker logs quantum_auto_executor | grep "rejected"
+journalctl -u quantum_auto_executor.service | grep "rejected"
 
 # 2. Increase signal confidence
-docker exec quantum_redis redis-cli SET live_signals '[{"symbol":"BTCUSDT","action":"BUY","confidence":0.80,"drawdown":2.0}]'
+redis-cli SET live_signals '[{"symbol":"BTCUSDT","action":"BUY","confidence":0.80,"drawdown":2.0}]'
 ```
 
 ---
@@ -392,7 +392,7 @@ Track successful_trades/total_trades ratio. Target >60% before scaling.
 ### Tip 5: Regular Backups
 Export trade logs weekly:
 ```bash
-docker exec quantum_redis redis-cli LRANGE trade_log 0 -1 > trades_backup_$(date +%Y%m%d).json
+redis-cli LRANGE trade_log 0 -1 > trades_backup_$(date +%Y%m%d).json
 ```
 
 ---
@@ -400,3 +400,4 @@ docker exec quantum_redis redis-cli LRANGE trade_log 0 -1 > trades_backup_$(date
 **Quick Reference Version:** 1.0  
 **Last Updated:** 2025-12-20  
 **For:** Phase 6 Auto Execution Layer  
+

@@ -226,10 +226,11 @@ ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254
 **Key Files:**
 - Consumer: `/root/quantum_trader/backend/events/subscribers/trade_intent_subscriber.py`
 - ExitBrain: `/root/quantum_trader/backend/domains/exits/exit_brain_v3/v35_integration.py`
-- Logs: `docker logs quantum_trade_intent_consumer`
+- Logs: `journalctl -u quantum_trade_intent_consumer.service`
 
 ---
 
 **Report Generated:** 2025-12-24 23:56 UTC  
 **System Status:** 🟢 Operational (with known credential issue)  
 **ExitBrain v3.5:** ✅ LIVE and Computing Adaptive Levels
+

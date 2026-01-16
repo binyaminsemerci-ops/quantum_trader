@@ -189,7 +189,7 @@ python show_20x_status.py
 
 Se backend logs:
 ```bash
-docker logs quantum_backend --tail 50 --follow
+journalctl -u quantum_backend.service --tail 50 --follow
 ```
 
 Test Position Monitor:
@@ -219,3 +219,4 @@ python test_position_monitor.py
 ---
 
 **🎯 AI GJØR JOBBEN - DU BARE FØLGER MED! 🚀**
+

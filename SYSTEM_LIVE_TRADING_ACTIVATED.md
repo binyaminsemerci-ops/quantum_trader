@@ -17,14 +17,14 @@ BINANCE_TESTNET=true       # TESTNET MODE
 PAPER_TRADING=false        # Not paper trading, real testnet
 ```
 
-### 2. docker-compose.yml Oppdatert ✅
+### 2. systemctl.yml Oppdatert ✅
 **Auto Executor** (linje 711-712):
 ```yaml
 - TESTNET=${TESTNET:-false}        # var: true
 - PAPER_TRADING=${PAPER_TRADING:-false}  # var: true
 ```
 
-### 3. docker-compose.vps.yml Oppdatert ✅
+### 3. systemctl.vps.yml Oppdatert ✅
 **Position Monitor** (linje 382):
 ```yaml
 - BINANCE_USE_TESTNET=${BINANCE_TESTNET:-false}  # var: true
@@ -228,10 +228,10 @@ CONFIDENCE_THRESHOLD: 0.45
 ### 2. Overvåk Positioner 📊
 ```bash
 # Sjekk åpne posisjoner
-docker logs quantum_auto_executor --tail 100 | grep "FOUND existing position"
+journalctl -u quantum_auto_executor.service --tail 100 | grep "FOUND existing position"
 
 # Sjekk TP/SL oppdateringer  
-docker logs quantum_position_monitor --tail 50
+journalctl -u quantum_position_monitor.service --tail 50
 ```
 
 ### 3. Start Full Monitoring 🔍
@@ -256,8 +256,8 @@ Trade-intent-consumer krever rebuild men kan vente:
 docker system prune -a -f
 
 # Eller bygg kun trade-intent-consumer senere
-docker compose -f docker-compose.vps.yml build trade-intent-consumer
-docker compose -f docker-compose.vps.yml up -d trade-intent-consumer
+docker compose -f systemctl.vps.yml build trade-intent-consumer
+docker compose -f systemctl.vps.yml up -d trade-intent-consumer
 ```
 
 ---
@@ -269,16 +269,16 @@ docker compose -f docker-compose.vps.yml up -d trade-intent-consumer
 Commit: 34e021bf
 Message: 🔴 CRITICAL: Switch to LIVE TRADING mode - Disable testnet across all services
 Files:
-  - docker-compose.yml (4 insertions, 4 deletions)
-  - docker-compose.vps.yml (4 insertions, 4 deletions)
+  - systemctl.yml (4 insertions, 4 deletions)
+  - systemctl.vps.yml (4 insertions, 4 deletions)
 Status: Committed locally, NOT pushed to GitHub (permission denied)
 ```
 
 ### VPS Endringer (Manuelt Kopiert)
 ```bash
 # .env oppdatert via sed commands
-# docker-compose.yml kopiert via scp
-# docker-compose.vps.yml kopiert via scp
+# systemctl.yml kopiert via scp
+# systemctl.vps.yml kopiert via scp
 ```
 
 ---
@@ -294,7 +294,7 @@ docker stop quantum_auto_executor
 
 **2. Stopp Position Monitor (stopper TP/SL justering):**
 ```bash
-docker compose -f /home/qt/quantum_trader/docker-compose.vps.yml stop position-monitor
+docker compose -f /home/qt/quantum_trader/systemctl.vps.yml stop position-monitor
 ```
 
 **3. Lukk alle posisjoner manuelt:**
@@ -312,7 +312,7 @@ sed -i 's/PAPER_TRADING=false/PAPER_TRADING=true/' .env
 
 # Restart services
 docker compose restart auto-executor
-docker compose -f docker-compose.vps.yml restart position-monitor
+docker compose -f systemctl.vps.yml restart position-monitor
 ```
 
 ---
@@ -342,3 +342,4 @@ docker compose -f docker-compose.vps.yml restart position-monitor
 ---
 
 **VIKTIG:** Dette systemet trader med ekte penger på Binance Futures med leverage opptil 80x. Overvåk nøye og ha emergency stop prosedyre klar!
+

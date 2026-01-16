@@ -227,10 +227,10 @@ Når NEARUSDT-traden ble plassert (kl 18:20:28), var:
 ```powershell
 # Kommenter ut filter i event_driven_executor.py
 # Restart backend
-docker-compose restart backend
+systemctl restart backend
 
 # Monitor
-docker logs quantum_backend --follow | Select-String "high-confidence|DRY-RUN"
+journalctl -u quantum_backend.service --follow | Select-String "high-confidence|DRY-RUN"
 ```
 
 ### Alternativ B: Tren Nye Modeller
@@ -240,7 +240,7 @@ docker logs quantum_backend --follow | Select-String "high-confidence|DRY-RUN"
 python scripts/train_binance_only.py
 
 # Restart backend for å laste nye modeller
-docker-compose restart backend
+systemctl restart backend
 ```
 
 ---
@@ -272,3 +272,4 @@ docker-compose restart backend
 
 **Sist oppdatert:** 19. november 2025, 19:47  
 **Status:** Backend kjører stabilt, men 0 trades pga signal filtering
+

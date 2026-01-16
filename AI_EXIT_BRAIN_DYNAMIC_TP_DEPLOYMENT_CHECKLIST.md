@@ -73,7 +73,7 @@ pytest backend/domains/exits/exit_brain_v3/test_dynamic_executor_partial_tp.py -
 # No special deployment needed - files already in place
 # Just restart the backend container
 
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 
 # Wait for restart (usually 10-15 seconds)
 sleep 15
@@ -82,10 +82,10 @@ sleep 15
 ### Step 5: Verify Backend Started
 ```bash
 # Check container is running
-docker ps | grep quantum_backend
+systemctl list-units | grep quantum_backend
 
 # Check logs for initialization
-docker logs quantum_backend --tail 100 | grep "EXIT_BRAIN_EXECUTOR"
+journalctl -u quantum_backend.service --tail 100 | grep "EXIT_BRAIN_EXECUTOR"
 
 # Expected log:
 # [EXIT_BRAIN_EXECUTOR] Initialized in LIVE/SHADOW MODE
@@ -107,7 +107,7 @@ docker logs -f quantum_backend 2>&1 | grep "EXIT_LOSS_GUARD"
 ### Check 2: TP Execution Flow
 ```bash
 # Wait for a TP to trigger on an open position, then check logs
-docker logs quantum_backend --tail 200 | grep -E "EXIT_TP_TRIGGER|remaining_size|tp_hits_count"
+journalctl -u quantum_backend.service --tail 200 | grep -E "EXIT_TP_TRIGGER|remaining_size|tp_hits_count"
 
 # Expected pattern:
 # [EXIT_TP_TRIGGER] 🎯 SYMBOL SIDE: TP{N} HIT @ $...
@@ -118,7 +118,7 @@ docker logs quantum_backend --tail 200 | grep -E "EXIT_TP_TRIGGER|remaining_size
 ### Check 3: SL Ratcheting
 ```bash
 # After TP trigger, check for ratcheting
-docker logs quantum_backend --tail 200 | grep "EXIT_RATCHET_SL"
+journalctl -u quantum_backend.service --tail 200 | grep "EXIT_RATCHET_SL"
 
 # Expected after TP1:
 # [EXIT_RATCHET_SL] 🎯 SYMBOL SIDE: SL ratcheted $... → $... - breakeven after TP1 (tp_hits=1)
@@ -130,7 +130,7 @@ docker logs quantum_backend --tail 200 | grep "EXIT_RATCHET_SL"
 ### Check 4: No Errors
 ```bash
 # Check for any errors related to new features
-docker logs quantum_backend --tail 500 | grep -i "error" | grep -E "remaining_size|tp_hits|loss_guard|ratchet"
+journalctl -u quantum_backend.service --tail 500 | grep -i "error" | grep -E "remaining_size|tp_hits|loss_guard|ratchet"
 
 # Expected: No errors
 ```
@@ -138,7 +138,7 @@ docker logs quantum_backend --tail 500 | grep -i "error" | grep -E "remaining_si
 ### Check 5: State Initialization
 ```bash
 # Check that new positions have dynamic fields initialized
-docker logs quantum_backend --tail 200 | grep "Created new state"
+journalctl -u quantum_backend.service --tail 200 | grep "Created new state"
 
 # Expected:
 # [EXIT_BRAIN_EXECUTOR] Created new state for SYMBOL:SIDE - entry=$..., initial_size=...
@@ -223,10 +223,10 @@ docker logs quantum_backend --tail 200 | grep "Created new state"
 git reset --hard exit-brain-v3-pre-dynamic-tp
 
 # Restart backend
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 
 # Verify rollback
-docker logs quantum_backend --tail 50 | grep "EXIT_BRAIN_EXECUTOR"
+journalctl -u quantum_backend.service --tail 50 | grep "EXIT_BRAIN_EXECUTOR"
 ```
 
 **Alternative (Disable Features):**
@@ -236,13 +236,13 @@ RATCHET_SL_ENABLED = False
 MAX_UNREALIZED_LOSS_PCT_PER_POSITION = 999.9  # Effectively disabled
 
 # Restart backend
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 ```
 
 ### Rollback Validation:
 ```bash
 # Verify old behavior restored
-docker logs quantum_backend --tail 100 | grep -E "EXIT_RATCHET_SL|EXIT_LOSS_GUARD"
+journalctl -u quantum_backend.service --tail 100 | grep -E "EXIT_RATCHET_SL|EXIT_LOSS_GUARD"
 
 # Expected: No new feature logs
 ```
@@ -256,25 +256,25 @@ docker logs quantum_backend --tail 100 | grep -E "EXIT_RATCHET_SL|EXIT_LOSS_GUAR
 **TP Execution Rate:**
 ```bash
 # Count TP triggers
-docker logs quantum_backend 2>&1 | grep "EXIT_TP_TRIGGER.*HIT" | wc -l
+journalctl -u quantum_backend.service 2>&1 | grep "EXIT_TP_TRIGGER.*HIT" | wc -l
 ```
 
 **SL Ratcheting Events:**
 ```bash
 # Count ratchet events
-docker logs quantum_backend 2>&1 | grep "EXIT_RATCHET_SL.*ratcheted" | wc -l
+journalctl -u quantum_backend.service 2>&1 | grep "EXIT_RATCHET_SL.*ratcheted" | wc -l
 ```
 
 **Loss Guard Triggers:**
 ```bash
 # Count loss guard fires
-docker logs quantum_backend 2>&1 | grep "LOSS GUARD TRIGGERED" | wc -l
+journalctl -u quantum_backend.service 2>&1 | grep "LOSS GUARD TRIGGERED" | wc -l
 ```
 
 **Errors Related to New Features:**
 ```bash
 # Check for errors
-docker logs quantum_backend 2>&1 | grep -i "error" | grep -E "remaining_size|tp_hits|loss_guard|ratchet"
+journalctl -u quantum_backend.service 2>&1 | grep -i "error" | grep -E "remaining_size|tp_hits|loss_guard|ratchet"
 ```
 
 ### Alert Thresholds:
@@ -395,3 +395,4 @@ Before deployment, confirm:
 **Sign-off:**
 - Developer: _________________ Date: _________
 - Reviewer: _________________ Date: _________
+

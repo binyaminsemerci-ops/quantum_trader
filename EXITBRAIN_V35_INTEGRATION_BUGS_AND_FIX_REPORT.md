@@ -27,7 +27,7 @@ Backend logs: "ModuleNotFoundError: No module named 'exitbrain_v3_5'"
 Consumer: Never started due to import failure
 ```
 
-**Fix Applied** (`docker-compose.yml`):
+**Fix Applied** (`systemctl.yml`):
 ```yaml
 services:
   backend:
@@ -135,7 +135,7 @@ pnl_tracker = PnLTracker(max_history=20)
 
 ## 📋 Files Modified
 
-### 1. `docker-compose.yml`
+### 1. `systemctl.yml`
 ```diff
 + volumes:
 +   - ./microservices:/app/microservices
@@ -279,7 +279,7 @@ lsf = engine.compute_lsf(leverage=10.0)             # float
 - Consumer: `backend/events/subscribers/trade_intent_subscriber.py`
 - Runner: `backend/runner.py`
 - Test: `backend/test_exitbrain_core.py`
-- Config: `docker-compose.yml`
+- Config: `systemctl.yml`
 
 ---
 
@@ -304,3 +304,4 @@ lsf = engine.compute_lsf(leverage=10.0)             # float
 ---
 
 **Status**: Core engine validated ✅ | Integration layer needs fixes ❌ | Infrastructure fixed ✅
+

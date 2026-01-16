@@ -269,3 +269,4 @@ Write-Host "Ledig: $([math]::Round($drive.SizeRemaining/1GB,2)) GB av $([math]::
 **NESTE STEG**: Kjør WinDirStat for å finne de største filene, eller bruk PowerShell kommandoene over.
 
 **Mål**: Frigjør minst 20 GB ekstra plass!
+

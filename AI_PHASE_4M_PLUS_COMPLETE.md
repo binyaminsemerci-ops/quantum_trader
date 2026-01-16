@@ -75,7 +75,7 @@ Successfully integrated **Cross-Exchange Intelligence Layer** with **ExitBrain v
      base_sl_pct *= adjustments.sl_multiplier
      ```
 
-2. **`docker-compose.vps.yml`**
+2. **`systemctl.vps.yml`**
    - ✅ **ALREADY HAD** `CROSS_EXCHANGE_ENABLED=true`
    - No changes needed
 
@@ -272,10 +272,10 @@ chmod +x validate_phase4m_plus.sh
 cd ~/quantum_trader
 
 # Rebuild AI Engine with new ExitBrain integration
-docker compose -f docker-compose.vps.yml build ai-engine
+docker compose -f systemctl.vps.yml build ai-engine
 
 # Restart services
-docker compose -f docker-compose.vps.yml up -d ai-engine
+docker compose -f systemctl.vps.yml up -d ai-engine
 ```
 
 ### **Step 3: Verify Health**
@@ -375,10 +375,10 @@ docker logs -f quantum_ai_engine 2>&1 | grep -i "cross-exchange\|adjustments app
 # [EXIT BRAIN] 🌐 Cross-Exchange adjustments applied: Vol:1.80 Div:0.042 Fund:0.0012 | ATR×1.80 TP×1.10 SL×1.17
 
 # Check status stream
-docker exec quantum_redis redis-cli XREVRANGE quantum:stream:exitbrain.status + - COUNT 1
+redis-cli XREVRANGE quantum:stream:exitbrain.status + - COUNT 1
 
 # Check for alerts (should be empty)
-docker exec quantum_redis redis-cli XLEN quantum:stream:exitbrain.alerts
+redis-cli XLEN quantum:stream:exitbrain.alerts
 ```
 
 ---
@@ -390,7 +390,7 @@ docker exec quantum_redis redis-cli XLEN quantum:stream:exitbrain.alerts
 - **Solution**:
   ```bash
   # Check if aggregator is active
-  docker logs quantum_cross_exchange 2>&1 | tail -50
+  journalctl -u quantum_cross_exchange.service 2>&1 | tail -50
   
   # If not publishing to normalized stream:
   docker restart quantum_cross_exchange
@@ -401,7 +401,7 @@ docker exec quantum_redis redis-cli XLEN quantum:stream:exitbrain.alerts
 - **Solution**:
   ```bash
   # Check last normalized entry timestamp
-  docker exec quantum_redis redis-cli XREVRANGE quantum:stream:exchange.normalized + - COUNT 1
+  redis-cli XREVRANGE quantum:stream:exchange.normalized + - COUNT 1
   
   # Restart aggregator if needed
   docker restart quantum_cross_exchange
@@ -415,7 +415,7 @@ docker exec quantum_redis redis-cli XLEN quantum:stream:exitbrain.alerts
   docker exec quantum_ai_engine ls -la /app/backend/domains/exits/exit_brain_v3/ | grep cross_exchange
   
   # If missing, rebuild
-  docker compose -f docker-compose.vps.yml build ai-engine
+  docker compose -f systemctl.vps.yml build ai-engine
   ```
 
 ### **Issue: "Local mode (cross-exchange data unavailable)"**
@@ -428,7 +428,7 @@ docker exec quantum_redis redis-cli XLEN quantum:stream:exitbrain.alerts
   # Should output: CROSS_EXCHANGE_ENABLED=true
   
   # Check Redis connectivity
-  docker exec quantum_ai_engine redis-cli -h redis ping
+  redis-cli -h redis ping
   ```
 
 ---
@@ -523,3 +523,4 @@ Status: Ready for VPS deployment
 **Status:** ✅ **PHASE 4M+ IMPLEMENTATION COMPLETE**  
 **Ready For:** VPS Deployment & Validation  
 **Next Phase:** Performance monitoring and tuning
+

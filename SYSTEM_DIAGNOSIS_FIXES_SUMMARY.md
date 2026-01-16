@@ -107,13 +107,13 @@ STAGING_MODE=false        # REAL ORDERS!
 docker exec quantum_backend env | grep -E "STAGING|PAPER|QT_ENABLE_EXECUTION"
 
 # 2. Sjekk executor logs for rejection reasons
-docker logs quantum_backend --since 5m | grep -E "Blocked|Rejected|Skip|Filter"
+journalctl -u quantum_backend.service --since 5m | grep -E "Blocked|Rejected|Skip|Filter"
 
 # 3. Sjekk Risk Guard state
 docker exec quantum_backend python -c "from backend.services.risk_guard import *; print('RiskGuard check')"
 
 # 4. Sjekk cooldown state
-docker logs quantum_backend | grep -i cooldown | tail -20
+journalctl -u quantum_backend.service | grep -i cooldown | tail -20
 ```
 
 ---
@@ -171,7 +171,7 @@ app_instance.state.risk_guard = risk_guard
 
 ---
 
-### Endringer i `docker-compose.yml`:
+### Endringer i `systemctl.yml`:
 
 ✅ **Lagt til environment variables:**
 ```yaml
@@ -190,16 +190,16 @@ app_instance.state.risk_guard = risk_guard
 **Actions:**
 ```bash
 # A. Verifiser execution er enabled
-docker logs quantum_backend | grep "QT_ENABLE_EXECUTION"
+journalctl -u quantum_backend.service | grep "QT_ENABLE_EXECUTION"
 
 # B. Se hva som skjer med 198 signaler
-docker logs quantum_backend --since 5m | grep -A 20 "Found 198 high-confidence"
+journalctl -u quantum_backend.service --since 5m | grep -A 20 "Found 198 high-confidence"
 
 # C. Sjekk om Risk Guard blokkerer
 docker exec quantum_backend python check_risk_guard_status.py
 
 # D. Sjekk cooldown state per symbol
-docker logs quantum_backend | grep -i "cooldown" | tail -30
+journalctl -u quantum_backend.service | grep -i "cooldown" | tail -30
 ```
 
 ---
@@ -209,7 +209,7 @@ docker logs quantum_backend | grep -i "cooldown" | tail -30
 **Actions:**
 ```bash
 # A. Sjekk universe OS age
-docker logs quantum_backend | grep "universe" | tail -10
+journalctl -u quantum_backend.service | grep "universe" | tail -10
 
 # B. Trigger manual refresh
 curl http://localhost:8000/api/universe/refresh
@@ -352,3 +352,4 @@ Forbedring: +27 poeng (fra 45 til 72) etter Database fix og Model Supervisor dis
 **Estimert tid for fullføring:** 2-3 timer
 
 **Kritisk neste steg:** DEBUG EXECUTION LAYER - hvorfor plasseres ingen ordrer?
+

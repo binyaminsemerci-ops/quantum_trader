@@ -162,13 +162,13 @@ print(f"Downside: {metadata['downside']:.3f}")
 
 ```bash
 # Stop backend
-docker-compose down
+systemctl down
 
 # Restart with new model
-docker-compose up -d
+systemctl up -d
 
 # Verify model loaded
-docker-compose logs backend | grep "TFT"
+systemctl logs backend | grep "TFT"
 # Should see: "✅ TFT model loaded from ai_engine/models/tft_model.pth"
 ```
 
@@ -364,7 +364,7 @@ Get-Content logs/weekly_retrain.log -Tail 100
 
 3. **✅ Deploy to Production** (15 min)
    ```bash
-   docker-compose restart backend
+   systemctl restart backend
    ```
 
 4. **✅ Monitor Performance** (ongoing)
@@ -431,3 +431,4 @@ You now have:
 **System Robustness:** ⭐⭐⭐⭐⭐
 
 Go train that model! 📊💰
+

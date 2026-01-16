@@ -224,3 +224,4 @@ const correlation = (Math.sin(hash) * 0.8).toFixed(2);
 ---
 
 **Issue Resolved:** User can now understand correlation matrix with clear labels, colors, and explanations! 🎉
+

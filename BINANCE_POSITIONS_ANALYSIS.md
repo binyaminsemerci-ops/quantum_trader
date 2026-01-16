@@ -96,7 +96,7 @@ Sannsynligvis har systemet allerede `set_leverage()` implementert et sted, eller
 ### 1. **Verifiser Signal Direction** 🔴 KRITISK
 ```python
 # Sjekk i logs:
-docker logs quantum_backend | Select-String "TRADE APPROVED" | Select-Object -Last 10
+journalctl -u quantum_backend.service | Select-String "TRADE APPROVED" | Select-Object -Last 10
 
 # Se etter:
 - "TRADE APPROVED: SELL BTCUSDT" mens markedet går OPP = FEIL
@@ -179,3 +179,4 @@ TP: -- (skulle vært ~0.411) ⚠️ IKKE SATT?
 **Gap: $2,410 fra forventet!**
 
 **Konklusjon:** Leverage og sizing er perfekt, MEN signal direction må fikses ASAP! 🔴
+

@@ -82,8 +82,8 @@ Verification pending:
 
 4. **Verify module activation** (2-3 min)
    ```powershell
-   docker logs quantum_backend --tail 100
-   docker logs quantum_backend | Select-String "ExitBrainV3|TPOptimizer|RLAgent|RiskGate"
+   journalctl -u quantum_backend.service --tail 100
+   journalctl -u quantum_backend.service | Select-String "ExitBrainV3|TPOptimizer|RLAgent|RiskGate"
    ```
 
 5. **Run smoke tests** (optional, 1-2 min)
@@ -178,3 +178,4 @@ System will be production-ready when:
 **Generated:** 2025-12-17  
 **Next Action:** Start Docker Desktop → Build → Start → Verify logs  
 **Time to Production:** ~20-30 minutes
+

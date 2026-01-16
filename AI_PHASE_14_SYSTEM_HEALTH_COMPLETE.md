@@ -266,7 +266,7 @@ id | event        | cpu  | ram  | disk | details          | severity | timestamp
 - **Disk Usage**: Root filesystem percentage
 - **Uptime**: System boot time in seconds/hours
 
-### Container Metrics (via docker ps)
+### Container Metrics (via systemctl list-units)
 - **Container Names**: All running containers
 - **Status**: Running, restarting, unhealthy
 - **Count**: Total number of active containers
@@ -361,7 +361,7 @@ Only these containers can be restarted via API:
    RUN apt-get update && apt-get install -y docker.io
    ```
 
-2. **Mount Docker Socket** in docker-compose.yml:
+2. **Mount Docker Socket** in systemctl.yml:
    ```yaml
    volumes:
      - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -472,3 +472,4 @@ function SystemHealth() {
 >>> **[Phase 14 Complete – System Health & Self-Healing operational on api.quantumfond.com]** ✅
 
 **Summary**: Real-time system health monitoring with psutil is live in production. CPU, RAM, disk, and uptime metrics are automatically logged to PostgreSQL every health check. Time-series data available for dashboard visualization. Container restart functionality implemented but requires docker socket access for full operation. Admin-protected endpoints enforce role-based access control. All metrics and events are permanently stored with severity levels for audit trails.
+

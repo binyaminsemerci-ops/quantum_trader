@@ -46,7 +46,7 @@ if (os.getenv("STAGING_MODE") or "").strip().lower() in {"1", "true", "yes", "on
 
 ### 1. Stoppet Backend (19:33)
 ```powershell
-docker-compose stop backend
+systemctl stop backend
 ```
 
 ### 2. Endret Config
@@ -56,7 +56,7 @@ docker-compose stop backend
 
 ### 3. Restartet Backend
 ```powershell
-docker-compose up -d backend
+systemctl up -d backend
 ```
 
 ### 4. Verifisert
@@ -141,7 +141,7 @@ async def submit_order(self, symbol: str, side: str, quantity: float, price: flo
 docker exec quantum_backend env | Select-String "STAGING"
 
 # Skal vise "[DRY-RUN]" i logs når ordrer plasseres
-docker logs quantum_backend --follow | Select-String "DRY-RUN"
+journalctl -u quantum_backend.service --follow | Select-String "DRY-RUN"
 ```
 
 ---
@@ -161,3 +161,4 @@ docker logs quantum_backend --follow | Select-String "DRY-RUN"
 - Fremtidige ordrer: ✅ DRY-RUN
 
 **Ingen panikk - problemet er løst! Men du må bestemme hva du vil med NEARUSDT-posisjonen.**
+

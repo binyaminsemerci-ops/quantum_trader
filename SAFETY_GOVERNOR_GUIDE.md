@@ -282,7 +282,7 @@ Generated every 5 minutes (configurable) to `/app/data/safety_governor_report.js
 
 1. **Start System**:
    ```bash
-   docker-compose up -d
+   systemctl up -d
    docker logs -f quantum_backend
    ```
 
@@ -293,7 +293,7 @@ Generated every 5 minutes (configurable) to `/app/data/safety_governor_report.js
 
 3. **Monitor Trade Decisions**:
    ```bash
-   docker logs quantum_backend --since 5m | grep "SAFETY GOVERNOR"
+   journalctl -u quantum_backend.service --since 5m | grep "SAFETY GOVERNOR"
    ```
 
 4. **Check Reports**:
@@ -523,3 +523,4 @@ Defined in `SafetyGovernor._default_config()`:
 
 **IMPLEMENTATION STATUS**: ✅ COMPLETE  
 **NEXT STEPS**: Test in live environment, monitor intervention statistics, tune thresholds based on performance
+

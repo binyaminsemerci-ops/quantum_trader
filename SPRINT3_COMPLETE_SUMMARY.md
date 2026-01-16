@@ -35,7 +35,7 @@ Sprint 3 delivers comprehensive infrastructure hardening for Quantum Trader v5:
 
 **NGINX Gateway**:
 - `infra/nginx/nginx.conf.example` - Reverse proxy config (6 services)
-- `infra/nginx/docker-compose-nginx.yml` - Gateway deployment
+- `infra/nginx/systemctl-nginx.yml` - Gateway deployment
 
 **Unified Logging**:
 - `infra/logging/logging_config.yml` - JSON logging config
@@ -250,7 +250,7 @@ quantum_trader/
 │   │
 │   ├── nginx/
 │   │   ├── nginx.conf.example          ← NEW (Part 1), UPDATED (Part 2)
-│   │   └── docker-compose-nginx.yml    ← NEW (Part 1)
+│   │   └── systemctl-nginx.yml    ← NEW (Part 1)
 │   │
 │   ├── logging/
 │   │   ├── logging_config.yml          ← NEW (Part 1)
@@ -324,7 +324,7 @@ quantum_trader/
    - Test correlation ID propagation
 
 4. **Deploy & Test Infrastructure** (Medium Priority):
-   - Deploy NGINX gateway via docker-compose
+   - Deploy NGINX gateway via systemctl
    - Test Redis Sentinel (3-node cluster)
    - Run Postgres backup/restore
    - Verify metrics collection
@@ -374,7 +374,7 @@ python tests/simulations/run_all_scenarios.py
 pytest tests/simulations/test_flash_crash.py -v -s
 
 # Deploy NGINX gateway
-docker-compose -f infra/nginx/docker-compose-nginx.yml up -d
+systemctl -f infra/nginx/systemctl-nginx.yml up -d
 
 # Check service health (standardized)
 curl http://localhost:8001/health  # ai-engine
@@ -382,14 +382,14 @@ curl http://localhost:8002/health  # execution
 curl http://localhost:8080/health  # monitoring
 
 # Test Redis Sentinel
-docker-compose -f infra/redis/redis-sentinel-example.yml up -d
+systemctl -f infra/redis/redis-sentinel-example.yml up -d
 redis-cli -p 26379 SENTINEL get-master-addr-by-name mymaster
 
 # Backup Postgres
 ./infra/postgres/backup.sh
 
 # View logs
-docker logs quantum_trader-ai-engine-1 --tail 100 -f
+journalctl -u quantum_trader.service-ai-engine-1 --tail 100 -f
 ```
 
 ---
@@ -419,3 +419,4 @@ Ready for integration testing and deployment! 🚀
 **Document Version**: 1.0  
 **Last Updated**: December 4, 2025  
 **Status**: ✅ SPRINT 3 - ALL PARTS COMPLETE
+

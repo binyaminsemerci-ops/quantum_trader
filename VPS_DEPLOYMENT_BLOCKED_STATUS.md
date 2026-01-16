@@ -126,7 +126,7 @@ sudo systemctl enable redis
 sudo systemctl list-units | grep -E 'exitbrain|quantum'
 
 # If using docker:
-docker ps | grep quantum
+systemctl list-units | grep quantum
 
 # If using systemd:
 sudo systemctl restart quantum_trader
@@ -263,3 +263,4 @@ Or:
 **Blocker:** File permissions + missing dependencies  
 **Resolution:** Execute Option A or B steps above with sudo privileges  
 **ETA:** 10-15 minutes once sudo access available  
+

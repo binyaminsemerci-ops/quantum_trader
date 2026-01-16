@@ -91,17 +91,17 @@ fetch('http://localhost:8000/health')
 ### Frontend not loading
 ```bash
 # Check container status
-docker ps | grep quantum_frontend
+systemctl list-units | grep quantum_frontend
 
 # Check logs
-docker logs quantum_frontend
+journalctl -u quantum_frontend.service
 
 # Restart frontend only
 docker restart quantum_frontend
 ```
 
 ### Port 3000 already in use
-Stop the conflicting service or change the port mapping in `docker-compose.yml`:
+Stop the conflicting service or change the port mapping in `systemctl.yml`:
 ```yaml
 ports:
   - "3001:5173"  # Change 3000 to 3001
@@ -112,7 +112,7 @@ ports:
 # Clear node_modules and reinstall
 cd qt-agent-ui
 rm -rf node_modules
-docker-compose --profile dev up -d --build frontend
+systemctl --profile dev up -d --build frontend
 ```
 
 ---
@@ -173,3 +173,4 @@ qt-agent-ui/
 - Container uses Node.js 20 Alpine (lightweight)
 - Port mapping: Container 5173 → Host 3000
 - Backend must be running for API calls to work
+

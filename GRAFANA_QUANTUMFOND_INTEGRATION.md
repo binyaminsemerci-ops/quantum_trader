@@ -19,7 +19,7 @@ Grafana is now integrated directly into your quantumfond.com dashboard instead o
 
 ## 🎯 IMPLEMENTATION SUMMARY
 
-### **1. Docker Compose Changes** (`docker-compose.monitoring.yml`)
+### **1. Docker Compose Changes** (`systemctl.monitoring.yml`)
 
 ```yaml
 grafana:
@@ -68,7 +68,7 @@ wsl bash scripts/deploy_grafana_to_quantumfond.sh
 
 1. **Commit and Push**:
    ```bash
-   git add docker-compose.monitoring.yml nginx/app.quantumfond.com.conf
+   git add systemctl.monitoring.yml nginx/app.quantumfond.com.conf
    git commit -m "feat: Integrate Grafana into quantumfond.com"
    git push origin main
    ```
@@ -78,13 +78,13 @@ wsl bash scripts/deploy_grafana_to_quantumfond.sh
    ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254
    cd /home/qt/quantum_trader
    git pull origin main
-   docker compose -f docker-compose.monitoring.yml up -d grafana
+   docker compose -f systemctl.monitoring.yml up -d grafana
    nginx -t && nginx -s reload
    ```
 
 3. **Verify**:
    ```bash
-   docker logs quantum_grafana --tail 20
+   journalctl -u quantum_grafana.service --tail 20
    curl -I https://app.quantumfond.com/grafana/
    ```
 
@@ -274,8 +274,8 @@ curl -I https://app.quantumfond.com/grafana/
 **Solution**:
 ```bash
 ssh root@46.224.116.254
-docker ps | grep grafana  # Check if running
-docker logs quantum_grafana --tail 50  # Check logs
+systemctl list-units | grep grafana  # Check if running
+journalctl -u quantum_grafana.service --tail 50  # Check logs
 docker restart quantum_grafana
 ```
 
@@ -387,4 +387,5 @@ wsl bash scripts/deploy_grafana_to_quantumfond.sh
 
 **STATUS**: ✅ READY TO DEPLOY  
 **NEXT ACTION**: Run `wsl bash scripts/deploy_grafana_to_quantumfond.sh`
+
 

@@ -114,8 +114,8 @@
 **RECOMMENDATION**: Check om systemet faktisk trader eller bare gir signaler:
 ```bash
 # Check for recent trades
-docker exec quantum_redis redis-cli KEYS "*trade*"
-docker exec quantum_redis redis-cli KEYS "*position*"
+redis-cli KEYS "*trade*"
+redis-cli KEYS "*position*"
 ```
 
 ---
@@ -208,7 +208,7 @@ docker exec quantum_redis redis-cli KEYS "*position*"
 
 1. **IMMEDIATE** - Check if paper trading or live:
    ```bash
-   docker logs quantum_ceo_brain --tail 100 | grep -i "trade\|position"
+   journalctl -u quantum_ceo_brain.service --tail 100 | grep -i "trade\|position"
    ```
 
 2. **SHORT-TERM** - Let trust system rebuild (1-2 dager):
@@ -218,12 +218,12 @@ docker exec quantum_redis redis-cli KEYS "*position*"
 
 3. **MEDIUM-TERM** - Fix regime detection:
    - Universe OS kjører, men ikke oppdaterer regime forecast
-   - Check logs: `docker logs quantum_universe_os --tail 100`
+   - Check logs: `journalctl -u quantum_universe_os.service --tail 100`
 
 4. **Monitor** - Watch consensus evolution:
    ```bash
    # Real-time trust monitoring
-   watch -n 5 'docker exec quantum_redis redis-cli GET quantum:trust:xgb'
+   watch -n 5 'redis-cli GET quantum:trust:xgb'
    ```
 
 ---
@@ -244,3 +244,4 @@ docker exec quantum_redis redis-cli KEYS "*position*"
 **Report Generated**: 25. desember 2025, kl 05:49 UTC  
 **Status**: ✅ **OPERATIONAL** (72% confidence)  
 **Next Action**: Monitor trust weight changes over 24h
+

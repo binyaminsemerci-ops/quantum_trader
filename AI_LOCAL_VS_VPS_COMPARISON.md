@@ -698,8 +698,8 @@ Container Management:
   
 Deployment Flow:
   1. git pull origin main
-  2. docker-compose build
-  3. docker-compose up -d
+  2. systemctl build
+  3. systemctl up -d
   4. Health checks verify startup
   5. Services auto-restart on failure
   
@@ -1193,3 +1193,4 @@ til **production-ready trading system** (9 moduler, robust infra).
 - ⚠️ AI intelligens: **Forenklet** (24 → 9 moduler, -63%)  
 - ✅ Production-readiness: **Betydelig bedre**  
 - 🎯 **Trade-off:** Reliability UP, AI Sophistication DOWN
+

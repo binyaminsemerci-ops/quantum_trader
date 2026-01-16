@@ -403,11 +403,11 @@ ssh -i C:\Users\belen\.ssh\hetzner_fresh qt@46.224.116.254 \
 ```bash
 # CLM status
 ssh -i C:\Users\belen\.ssh\hetzner_fresh qt@46.224.116.254 \
-  "docker logs quantum_execution | grep CLM | tail -10"
+  "journalctl -u quantum_execution.service | grep CLM | tail -10"
 
 # Portfolio Intelligence
 ssh -i C:\Users\belen\.ssh\hetzner_fresh qt@46.224.116.254 \
-  "docker logs quantum_portfolio_intelligence | tail -10"
+  "journalctl -u quantum_portfolio_intelligence.service | tail -10"
 ```
 
 ---
@@ -489,3 +489,4 @@ Systemet vil:
 
 *Last Updated: 2025-12-19 15:20 UTC*  
 *System Status: ✅ FULLY OPERATIONAL & AUTONOMOUS*
+

@@ -29,7 +29,7 @@ class Phase2Diagnostics:
         try:
             # Check recent logs
             result = subprocess.run(
-                ["docker", "logs", "quantum_backend", "--tail", "20"],
+                ["journalctl", "-u", "quantum-backend.service", "-n", "20", "--no-pager"],
                 capture_output=True,
                 text=True
             )
@@ -85,7 +85,7 @@ class Phase2Diagnostics:
             
             # Check logs for circuit breaker activity
             result = subprocess.run(
-                ["docker", "logs", "quantum_backend"],
+                ["journalctl", "-u", "quantum-backend.service", "--no-pager"],
                 capture_output=True,
                 text=True
             )
@@ -117,7 +117,7 @@ class Phase2Diagnostics:
         # Check Redis is running
         try:
             result = subprocess.run(
-                ["docker", "exec", "quantum_redis", "redis-cli", "ping"],
+                ["redis-cli", "ping"],
                 capture_output=True,
                 text=True,
                 timeout=5
@@ -131,31 +131,32 @@ class Phase2Diagnostics:
             print(f"   ❌ Redis ping failed: {e}")
             self.results["redis_connectivity"]["redis_alive"] = False
         
-        # Check DNS resolution from clients
-        for service in ["quantum_cross_exchange", "quantum_eventbus_bridge"]:
+        # Check connectivity from services (systemd services use localhost)
+        for service in ["quantum-cross-exchange", "quantum-eventbus-bridge"]:
             try:
+                # Services connect to redis via localhost, just verify service is active
                 result = subprocess.run(
-                    ["docker", "exec", service, "getent", "hosts", "redis"],
+                    ["systemctl", "is-active", f"{service}.service"],
                     capture_output=True,
                     text=True,
                     timeout=5
                 )
                 
-                dns_result = result.stdout.strip()
-                status = "✅" if dns_result else "❌"
-                print(f"   {service} DNS: {status} {dns_result[:50]}")
+                is_active = result.stdout.strip() == "active"
+                status = "✅" if is_active else "❌"
+                print(f"   {service} service: {status} {result.stdout.strip()}")
                 
-                self.results["redis_connectivity"][f"{service}_dns"] = bool(dns_result)
+                self.results["redis_connectivity"][f"{service}_active"] = is_active
                 
             except Exception as e:
-                print(f"   ❌ {service} DNS check failed: {e}")
-                self.results["redis_connectivity"][f"{service}_dns_error"] = str(e)
+                print(f"   ❌ {service} status check failed: {e}")
+                self.results["redis_connectivity"][f"{service}_check_error"] = str(e)
         
-        # Check recent errors from clients
-        for service in ["quantum_cross_exchange", "quantum_eventbus_bridge"]:
+        # Check recent errors from service logs
+        for service in ["quantum-cross-exchange", "quantum-eventbus-bridge"]:
             try:
                 result = subprocess.run(
-                    ["docker", "logs", service, "--tail", "100"],
+                    ["journalctl", "-u", f"{service}.service", "-n", "100", "--no-pager"],
                     capture_output=True,
                     text=True
                 )
@@ -208,7 +209,7 @@ class Phase2Diagnostics:
         # Redis recommendations
         redis = self.results["redis_connectivity"]
         if not redis.get("redis_alive", False):
-            rec = "🚨 CRITICAL: Redis is not responding - check container health"
+            rec = "🚨 CRITICAL: Redis is not responding - check service health"
             print(f"   {rec}")
             self.results["recommendations"].append(rec)
         

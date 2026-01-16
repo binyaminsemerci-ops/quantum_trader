@@ -114,7 +114,7 @@ async def load_checkpoint(version: int)
 **Verifisering Nødvendig:**
 ```bash
 # Sjekk om RL Meta Strategy kjører
-docker logs quantum_ai_engine | grep -E "RLMetaStrategyAgent|select_strategy|record_reward|PPO.*update"
+journalctl -u quantum_ai_engine.service | grep -E "RLMetaStrategyAgent|select_strategy|record_reward|PPO.*update"
 
 # Sjekk om policy files finnes
 docker exec quantum_ai_engine ls -lh /app/data/rl_policies/
@@ -178,7 +178,7 @@ class RLv3TrainingDaemon:
 **Verifisering Nødvendig:**
 ```bash
 # Sjekk om RL v3 daemon kjører
-docker logs quantum_ai_engine | grep -E "RLv3TrainingDaemon|Starting training|Training complete|episodes"
+journalctl -u quantum_ai_engine.service | grep -E "RLv3TrainingDaemon|Starting training|Training complete|episodes"
 
 # Sjekk om RL v3 policies finnes
 docker exec quantum_ai_engine ls -lh /app/data/rl_v3_policies/
@@ -329,10 +329,10 @@ docker exec quantum_ai_engine python -c "import torch; print(f'PyTorch: {torch._
 docker exec quantum_ai_engine ls -lh /app/data/rl_policies/
 
 # 3. Får den trade events?
-docker logs quantum_ai_engine --since 1h | grep -E "RL.*UPDATE|record_reward|select_strategy"
+journalctl -u quantum_ai_engine.service --since 1h | grep -E "RL.*UPDATE|record_reward|select_strategy"
 
 # 4. Hvor ofte oppdateres policy?
-docker logs quantum_ai_engine --since 1h | grep "PPO.*update\|_update_policy"
+journalctl -u quantum_ai_engine.service --since 1h | grep "PPO.*update\|_update_policy"
 ```
 
 #### RL v3 Training Daemon:
@@ -341,7 +341,7 @@ docker logs quantum_ai_engine --since 1h | grep "PPO.*update\|_update_policy"
 docker exec quantum_ai_engine ps aux | grep training_daemon
 
 # 2. Kjører training hver 30 min?
-docker logs quantum_ai_engine --since 2h | grep -E "RLv3.*Training|episodes|PPO training"
+journalctl -u quantum_ai_engine.service --since 2h | grep -E "RLv3.*Training|episodes|PPO training"
 
 # 3. Finnes trained models?
 docker exec quantum_ai_engine ls -lh /app/data/rl_v3_policies/
@@ -353,7 +353,7 @@ docker exec quantum_ai_engine python -c "from backend.core.policy_store import P
 #### RL v2 Q-Learning:
 ```bash
 # 1. Brukes den fortsatt?
-docker logs quantum_ai_engine --since 1h | grep "RL.*v2\|Q-table"
+journalctl -u quantum_ai_engine.service --since 1h | grep "RL.*v2\|Q-table"
 
 # 2. Finnes Q-table files?
 docker exec quantum_ai_engine find /app/data -name "*q_table*" -o -name "*rl_v2*"
@@ -432,3 +432,4 @@ docker exec quantum_ai_engine find /app/data -name "*q_table*" -o -name "*rl_v2*
 **Rapport generert**: 25. desember 2025, kl 06:45  
 **Av**: GitHub Copilot (Claude Sonnet 4.5)  
 **For**: Quantum Trader AI OS - Hedge Fund Grade System
+

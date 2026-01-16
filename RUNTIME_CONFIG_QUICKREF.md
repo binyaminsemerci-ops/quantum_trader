@@ -7,7 +7,7 @@
 ✓ .env                      - Updated (VPS runtime section added)
 ✓ activation.yaml           - Created (system activation status)
 ✓ config/go_live.yaml       - Verified (existing production config)
-✓ docker-compose.yml        - Verified (PYTHONPATH updated)
+✓ systemctl.yml        - Verified (PYTHONPATH updated)
 ```
 
 ### Critical Environment Variables
@@ -67,7 +67,7 @@ docker compose up -d backend
 
 # Verify
 docker exec quantum_backend env | findstr /I "GO_LIVE PYTHONPATH RL_DEBUG"
-docker logs quantum_backend --tail 100
+journalctl -u quantum_backend.service --tail 100
 ```
 
 ### Verification Checklist
@@ -133,7 +133,7 @@ safety_checks:
 ### Troubleshooting
 
 **Problem:** ModuleNotFoundError for backend modules  
-**Solution:** Verify PYTHONPATH=/app/backend in container and docker-compose.yml
+**Solution:** Verify PYTHONPATH=/app/backend in container and systemctl.yml
 
 **Problem:** GO_LIVE not recognized  
 **Solution:** Check .env file loaded, verify with `docker exec quantum_backend env | grep GO_LIVE`
@@ -155,3 +155,4 @@ Safety Checks:  ✅ All passed
 
 Next Action: Build and start containers
 ```
+

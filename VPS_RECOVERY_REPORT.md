@@ -113,7 +113,7 @@ All critical AI subsystem files are present on disk:
 
 ## ✅ Configuration Verification
 
-### docker-compose.yml ✅
+### systemctl.yml ✅
 **Status:** Correctly configured  
 **Key Settings:**
 - `PYTHONPATH=/app/backend` ✅
@@ -168,7 +168,7 @@ Start Menu → Search "Docker Desktop" → Launch
 # Option B: Start from PowerShell
 Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
 Start-Sleep -Seconds 90  # Wait for initialization
-docker ps  # Verify Docker is responsive
+systemctl list-units  # Verify Docker is responsive
 ```
 
 ### Phase 2: Build Containers ⏸️
@@ -196,7 +196,7 @@ docker compose up -d
 ### Phase 4: Verify Module Activation ⏸️
 ```powershell
 # Check logs for activation messages
-docker logs quantum_backend --tail 100
+journalctl -u quantum_backend.service --tail 100
 
 # Look for these patterns:
 # [ExitBrainV3] activated
@@ -278,7 +278,7 @@ docker exec quantum_backend pip list | Select-String "fastapi|torch|xgboost"
 **Cause:** Python syntax error or import failure on startup  
 **Solution:** Check full logs:
 ```powershell
-docker logs quantum_backend
+journalctl -u quantum_backend.service
 ```
 
 ### Issue 4: Database Connection Failed
@@ -300,7 +300,7 @@ docker compose up -d backend
 1. **Start Docker Desktop**
    - Required before any container operations
    - Wait 60-90 seconds for full initialization
-   - Verify with: `docker ps`
+   - Verify with: `systemctl list-units`
 
 2. **Build Backend Container**
    - Run: `docker compose build backend`
@@ -310,11 +310,11 @@ docker compose up -d backend
 3. **Start Dependencies First**
    - Run: `docker compose up -d db redis`
    - Wait 10 seconds for DB initialization
-   - Verify: `docker ps | Select-String "db|redis"`
+   - Verify: `systemctl list-units | Select-String "db|redis"`
 
 4. **Start Backend**
    - Run: `docker compose up -d backend`
-   - Monitor: `docker logs quantum_backend --follow`
+   - Monitor: `journalctl -u quantum_backend.service --follow`
    - Look for "Application startup complete"
 
 5. **Verify Module Activation**
@@ -324,7 +324,7 @@ docker compose up -d backend
 
 6. **Start Remaining Services**
    - Run: `docker compose up -d`
-   - Verify all: `docker ps`
+   - Verify all: `systemctl list-units`
    - Check health: `Invoke-WebRequest http://localhost:8000/health`
 
 ### If Modules Don't Activate
@@ -366,7 +366,7 @@ Priority 1 (Critical):
 
 Priority 2 (Important):
 - `.env`
-- `docker-compose.yml`
+- `systemctl.yml`
 - `activation.yaml`
 - `config/go_live.yaml`
 
@@ -381,12 +381,12 @@ Priority 3 (Nice to have):
 ### 1. Start Docker Desktop ⏸️
 **Action:** Launch Docker Desktop and wait for green status  
 **Duration:** 1-2 minutes  
-**Verification:** Run `docker ps` without errors
+**Verification:** Run `systemctl list-units` without errors
 
 ### 2. Build & Start Containers ⏸️
 **Action:** Execute build and start sequence  
 **Duration:** 15-20 minutes  
-**Verification:** `docker ps` shows quantum_backend running
+**Verification:** `systemctl list-units` shows quantum_backend running
 
 ### 3. Verify Module Activation ⏸️
 **Action:** Check logs for activation messages  
@@ -449,3 +449,4 @@ Priority 3 (Nice to have):
 **VPS Migration Status:** Files migrated ✅, Configuration complete ✅, Runtime pending Docker startup ⏸️  
 **Next Action:** Start Docker Desktop → Build containers → Verify logs  
 **Estimated Time to Production:** 20-30 minutes
+

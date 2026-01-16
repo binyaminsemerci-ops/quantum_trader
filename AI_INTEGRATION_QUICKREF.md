@@ -35,10 +35,10 @@ export QT_AI_HFOS_ENABLED=true
 export QT_AI_HFOS_MODE=OBSERVE
 
 # Restart backend
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 
 # Check logs
-docker logs quantum_backend | grep "\\[AI-HFOS\\]"
+journalctl -u quantum_backend.service | grep "\\[AI-HFOS\\]"
 ```
 
 **Expected Result:** AI-HFOS logs decisions but doesn't enforce them.
@@ -54,10 +54,10 @@ export QT_AI_HFOS_ENABLED=true
 export QT_AI_HFOS_MODE=ADVISORY
 
 # Restart
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 
 # Check logs
-docker logs quantum_backend | grep "confidence"
+journalctl -u quantum_backend.service | grep "confidence"
 ```
 
 **Expected Result:** AI-HFOS adjusts confidence thresholds and position sizing.
@@ -74,7 +74,7 @@ export QT_AI_EMERGENCY_BRAKE=true
 export QT_AI_HFOS_ENABLED=false
 
 # Restart
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 ```
 
 ---
@@ -265,7 +265,7 @@ curl http://localhost:8000/health/ai/integration
 echo $QT_AI_HFOS_ENABLED
 
 # Check logs for initialization errors
-docker logs quantum_backend | grep "ERROR"
+journalctl -u quantum_backend.service | grep "ERROR"
 
 # Verify file exists
 ls -la backend/services/system_services.py
@@ -281,7 +281,7 @@ ls -la backend/services/system_services.py
 echo $QT_AI_INTEGRATION_STAGE
 
 # Verify ai_services passed to EventDrivenExecutor
-docker logs quantum_backend | grep "AI System Services"
+journalctl -u quantum_backend.service | grep "AI System Services"
 
 # Check if subsystem is enabled
 python -c "from backend.services.system_services import get_ai_services; print(get_ai_services().get_status())"
@@ -295,14 +295,14 @@ python -c "from backend.services.system_services import get_ai_services; print(g
 ```bash
 # Emergency brake is ALWAYS enforced regardless of config
 # Check if it's actually enabled
-docker logs quantum_backend | grep "EMERGENCY"
+journalctl -u quantum_backend.service | grep "EMERGENCY"
 
 # Manually enable
 export QT_AI_EMERGENCY_BRAKE=true
-docker-compose restart quantum_backend
+systemctl restart quantum_backend
 
 # Verify
-docker logs quantum_backend | grep "Emergency brake: ACTIVE"
+journalctl -u quantum_backend.service | grep "Emergency brake: ACTIVE"
 ```
 
 ---
@@ -383,3 +383,4 @@ docker logs quantum_backend | grep "Emergency brake: ACTIVE"
 **Version:** 1.0  
 **Date:** November 23, 2025  
 **Status:** ✅ Integration layer complete, ready for trading loop modification
+

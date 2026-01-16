@@ -19,7 +19,7 @@
 
 ### View All Monitoring Containers
 ```bash
-ssh root@46.224.116.254 "docker ps | grep quantum"
+ssh root@46.224.116.254 "systemctl list-units | grep quantum"
 ```
 
 ### Check Service Health
@@ -44,11 +44,11 @@ curl http://46.224.116.254:9200/metrics | grep ^backend_error
 
 ### View Container Logs
 ```bash
-docker logs quantum_prometheus
-docker logs quantum_grafana
-docker logs quantum_alertmanager
-docker logs quantum_ci_exporter
-docker logs quantum_error_exporter
+journalctl -u quantum_prometheus.service
+journalctl -u quantum_grafana.service
+journalctl -u quantum_alertmanager.service
+journalctl -u quantum_ci_exporter.service
+journalctl -u quantum_error_exporter.service
 ```
 
 ### Restart Services
@@ -198,8 +198,8 @@ quantile_over_time(0.95, backend_error_rate[1h])
 ls -lh /home/qt/quantum_trader/monitoring/logs/
 
 # Check exporter logs
-docker logs quantum_ci_exporter
-docker logs quantum_error_exporter
+journalctl -u quantum_ci_exporter.service
+journalctl -u quantum_error_exporter.service
 
 # Verify file permissions
 chmod 644 /home/qt/quantum_trader/monitoring/logs/*.log
@@ -232,7 +232,7 @@ docker exec quantum_grafana wget -O- http://quantum_prometheus:9090/-/healthy
 
 ```
 /home/qt/quantum_trader/monitoring/
-├── docker-compose.monitoring.yml
+├── systemctl.monitoring.yml
 ├── .env
 ├── logs/
 │   ├── ci_status.log
@@ -273,3 +273,4 @@ docker exec quantum_grafana wget -O- http://quantum_prometheus:9090/-/healthy
 **Phase 23.2 Status:** ✅ **OPERATIONAL**  
 **Deployment Date:** 2025-12-27  
 **Version:** 1.0.0
+

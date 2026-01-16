@@ -63,7 +63,7 @@ asyncio.run(run_subscriber())
 
 ### Consumer Status
 ```bash
-$ docker ps --filter name=quantum_trade_intent_consumer
+$ systemctl list-units --filter name=quantum_trade_intent_consumer
 NAMES                           STATUS
 quantum_trade_intent_consumer   Up 15 minutes
 ```
@@ -216,3 +216,4 @@ The consumer now runs continuously and processes messages from the Redis stream.
 ---
 
 **Status**: ✅ **Consumer Running** | ⏳ **End-to-End Test Pending** | 🎯 **Ready for Next Phase**
+

@@ -345,30 +345,30 @@ DBSIZE: 90 keys
 ### 1. Investigate RL Redis Keys:
 ```bash
 # Run these to find RL data:
-docker exec quantum_redis redis-cli KEYS "policy:*"
-docker exec quantum_redis redis-cli KEYS "*reward*"
-docker exec quantum_redis redis-cli KEYS "*agent*"
+redis-cli KEYS "policy:*"
+redis-cli KEYS "*reward*"
+redis-cli KEYS "*agent*"
 ```
 
 ### 2. Investigate Context Keys:
 ```bash
 # Find context/regime data:
-docker exec quantum_redis redis-cli KEYS "market:*"
-docker exec quantum_redis redis-cli KEYS "*regime*"
-docker exec quantum_redis redis-cli KEYS "universe:*"
+redis-cli KEYS "market:*"
+redis-cli KEYS "*regime*"
+redis-cli KEYS "universe:*"
 ```
 
 ### 3. Check Model Accuracy Keys:
 ```bash
 # Should have accuracy tracking:
-docker exec quantum_redis redis-cli KEYS "quantum:model:*"
-docker exec quantum_redis redis-cli KEYS "*accuracy*"
+redis-cli KEYS "quantum:model:*"
+redis-cli KEYS "*accuracy*"
 ```
 
 ### 4. Monitor Trust Weight Changes:
 ```bash
 # Watch trust adjustments in real-time:
-docker exec quantum_redis redis-cli MONITOR | grep trust
+redis-cli MONITOR | grep trust
 ```
 
 ---
@@ -410,3 +410,4 @@ docker exec quantum_redis redis-cli MONITOR | grep trust
 **Audited by**: GitHub Copilot (Claude Sonnet 4.5)  
 **VPS**: 46.224.116.254 (Hetzner)  
 **Status**: ✅ PASSED (88/100)
+

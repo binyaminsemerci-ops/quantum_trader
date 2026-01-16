@@ -32,7 +32,7 @@ ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "docker exec quantum_backend gre
 ## 3. Check backend is running
 
 ```bash
-ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "docker ps | grep quantum_backend"
+ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "systemctl list-units | grep quantum_backend"
 ```
 
 **Expected:** Container should be running (Up X seconds/minutes)
@@ -110,7 +110,7 @@ ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "curl -s http://localhost:8000/h
 ## 9. Count exit orders in logs (all time)
 
 ```bash
-ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "docker logs quantum_backend 2>&1 | grep -c 'EXIT_GATEWAY.*Submitting'"
+ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "journalctl -u quantum_backend.service 2>&1 | grep -c 'EXIT_GATEWAY.*Submitting'"
 ```
 
 **Expected:** Number > 0 (shows historical exit orders)  
@@ -203,7 +203,7 @@ ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "docker logs --tail 50 quantum_b
 ## QUICK ONE-LINER CHECK
 
 ```bash
-ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "echo '=== Fix Deployed ===' && docker exec quantum_backend grep -c 'REDUCE-ONLY FIX' /app/backend/services/execution/exit_order_gateway.py && echo '=== Recent Errors ===' && docker logs --tail 200 quantum_backend 2>&1 | grep -c '4164' && echo '=== Backend Status ===' && docker ps | grep quantum_backend"
+ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "echo '=== Fix Deployed ===' && docker exec quantum_backend grep -c 'REDUCE-ONLY FIX' /app/backend/services/execution/exit_order_gateway.py && echo '=== Recent Errors ===' && docker logs --tail 200 quantum_backend 2>&1 | grep -c '4164' && echo '=== Backend Status ===' && systemctl list-units | grep quantum_backend"
 ```
 
 **Expected:**
@@ -217,3 +217,4 @@ quantum_backend   Up 2 minutes
 ```
 
 ✅ **If you see this output, fix is deployed and working!**
+

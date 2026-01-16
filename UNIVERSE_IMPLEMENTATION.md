@@ -77,7 +77,7 @@ def universe_info():
 
 ### Mode 1: Explicit List (Manual Control)
 ```bash
-# docker-compose.yml or .env
+# systemctl.yml or .env
 QT_SYMBOLS=BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,ADAUSDT
 
 # No QT_UNIVERSE or QT_MAX_SYMBOLS needed - they are ignored
@@ -93,7 +93,7 @@ QT_SYMBOLS=BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,ADAUSDT
 
 ### Mode 2: Dynamic Universe (Automatic)
 ```bash
-# docker-compose.yml or .env
+# systemctl.yml or .env
 # Remove or comment out QT_SYMBOLS
 QT_UNIVERSE=l1l2-top
 QT_MAX_SYMBOLS=300
@@ -111,7 +111,7 @@ QT_MAX_SYMBOLS=300
 
 ### Mode 3: Safe Fallback (Nothing Configured)
 ```bash
-# docker-compose.yml or .env
+# systemctl.yml or .env
 # QT_SYMBOLS not set
 # QT_UNIVERSE not set (or default)
 # QT_MAX_SYMBOLS not set (or default)
@@ -213,7 +213,7 @@ No changes needed. Explicit QT_SYMBOLS continues to work.
 
 ### Option 2: Switch to Dynamic Universe (Recommended)
 ```bash
-# In docker-compose.yml, REMOVE or COMMENT OUT:
+# In systemctl.yml, REMOVE or COMMENT OUT:
 # QT_SYMBOLS=...
 
 # ADD:
@@ -223,7 +223,7 @@ QT_MAX_SYMBOLS=300  # or any number 10-1000
 
 ### Option 3: Use Safe Megacap Profile
 ```bash
-# In docker-compose.yml, REMOVE:
+# In systemctl.yml, REMOVE:
 # QT_SYMBOLS=...
 
 # ADD (or leave default):
@@ -324,14 +324,14 @@ The system NEVER crashes. It always falls back to a minimal working set.
    ```
 
 3. **Switch to Dynamic Mode:**
-   - Edit `docker-compose.yml`
+   - Edit `systemctl.yml`
    - Comment out `QT_SYMBOLS`
    - Add `QT_UNIVERSE` and `QT_MAX_SYMBOLS`
-   - Restart: `docker-compose restart backend`
+   - Restart: `systemctl restart backend`
 
 4. **Verify Logs:**
    ```bash
-   docker logs quantum_backend | grep "\[UNIVERSE\]"
+   journalctl -u quantum_backend.service | grep "\[UNIVERSE\]"
    ```
 
 ## Files Modified
@@ -351,3 +351,4 @@ The system NEVER crashes. It always falls back to a minimal working set.
 ✅ **Only additive changes - new functionality added**
 
 The implementation is production-ready and fully tested.
+

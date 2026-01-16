@@ -3,14 +3,14 @@
 ## Current Situation Analysis
 
 ### Active Services (KEEP)
-1. **dashboard_v4/** - ACTIVE dashboard used by docker-compose.yml
+1. **dashboard_v4/** - ACTIVE dashboard used by systemctl.yml
    - `dashboard_v4/backend/` → quantum_dashboard_backend (port 8025)
    - `dashboard_v4/frontend/` → quantum_dashboard_frontend (port 8889)
    - Size: ~1.2MB
    - Status: ✅ IN USE
 
 2. **microservices/rl_dashboard/** - ACTIVE RL monitoring dashboard
-   - Used by docker-compose.vps.yml
+   - Used by systemctl.vps.yml
    - Container: quantum_rl_dashboard (port 8026)
    - Purpose: Flask RL monitoring (reads exitbrain.pnl stream)
    - Status: ✅ IN USE
@@ -30,8 +30,8 @@
    - Size: 468KB
    - Status: ❌ NOT IN USE - duplicate of dashboard_v4/frontend
 
-4. **docker-compose.quantumfond.yml** - OLD compose file
-   - Status: ❌ NOT IN USE - functionality moved to docker-compose.yml
+4. **systemctl.quantumfond.yml** - OLD compose file
+   - Status: ❌ NOT IN USE - functionality moved to systemctl.yml
 
 5. **quantumfond-backend.service** - OLD systemd service
    - Status: ❌ NOT IN USE - using Docker now
@@ -52,7 +52,7 @@ deploy-quantumfond-vps.sh
 deploy-quantumfond-vps-docker.sh
 
 # Old compose file
-docker-compose.quantumfond.yml
+systemctl.quantumfond.yml
 
 # Old nginx configs (duplicates)
 nginx-quantumfond.conf
@@ -69,7 +69,7 @@ quantumfond_backend/
 quantumfond_frontend/
 
 # Old compose file
-docker-compose.quantumfond.yml
+systemctl.quantumfond.yml
 
 # Old systemd service
 quantumfond-backend.service
@@ -96,7 +96,7 @@ deploy-quantumfond-vps-docker.sh
 ### Step 1: Verify Active Services
 ```bash
 # On VPS
-docker ps | grep dashboard
+systemctl list-units | grep dashboard
 # Should show:
 # - quantum_dashboard_backend (port 8025)
 # - quantum_dashboard_frontend (port 8889)
@@ -120,7 +120,7 @@ rm -rf quantumfond_backend/
 rm -rf quantumfond_frontend/
 
 # Remove old config files
-rm -f docker-compose.quantumfond.yml
+rm -f systemctl.quantumfond.yml
 rm -f quantumfond-backend.service
 rm -f nginx-quantumfond.conf
 
@@ -146,7 +146,7 @@ Remove-Item deploy-quantumfond-vps.sh
 Remove-Item deploy-quantumfond-vps-docker.sh
 
 # Remove old compose file
-Remove-Item docker-compose.quantumfond.yml
+Remove-Item systemctl.quantumfond.yml
 
 # Remove old nginx configs
 Remove-Item nginx-quantumfond.conf
@@ -199,3 +199,4 @@ curl -I http://localhost:8026
 ## Backup Location
 VPS: `/root/dashboard_backup_20260101.tar.gz` (5.7MB)
 - Can be restored if needed with: `tar -xzf ~/dashboard_backup_20260101.tar.gz -C /home/qt/quantum_trader/`
+

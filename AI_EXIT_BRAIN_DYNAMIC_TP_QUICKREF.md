@@ -169,17 +169,17 @@ pytest backend/domains/exits/exit_brain_v3/test_dynamic_executor_partial_tp.py \
 
 ### Check Loss Guard Status
 ```bash
-docker logs quantum_backend 2>&1 | grep "EXIT_LOSS_GUARD"
+journalctl -u quantum_backend.service 2>&1 | grep "EXIT_LOSS_GUARD"
 ```
 
 ### Check SL Ratcheting
 ```bash
-docker logs quantum_backend 2>&1 | grep "EXIT_RATCHET_SL"
+journalctl -u quantum_backend.service 2>&1 | grep "EXIT_RATCHET_SL"
 ```
 
 ### Check TP Execution with State Updates
 ```bash
-docker logs quantum_backend 2>&1 | grep -E "EXIT_TP_TRIGGER|remaining_size|tp_hits_count"
+journalctl -u quantum_backend.service 2>&1 | grep -E "EXIT_TP_TRIGGER|remaining_size|tp_hits_count"
 ```
 
 ### Monitor All Dynamic TP Activity
@@ -189,7 +189,7 @@ docker logs -f quantum_backend 2>&1 | grep -E "EXIT_RATCHET_SL|EXIT_LOSS_GUARD|E
 
 ### Check State for Specific Symbol
 ```bash
-docker logs quantum_backend 2>&1 | grep "BTCUSDT" | grep -E "EXIT_TP_TRIGGER|EXIT_RATCHET_SL|remaining_size"
+journalctl -u quantum_backend.service 2>&1 | grep "BTCUSDT" | grep -E "EXIT_TP_TRIGGER|EXIT_RATCHET_SL|remaining_size"
 ```
 
 ---
@@ -380,3 +380,4 @@ MAX_UNREALIZED_LOSS_PCT_PER_POSITION = 12.5  # Default
 
 **Last Updated:** December 11, 2025  
 **Version:** Exit Brain V3 + Dynamic TP v1.0
+

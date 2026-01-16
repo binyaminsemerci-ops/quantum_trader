@@ -231,7 +231,7 @@ with trace_context.scope("my-trace-id") as trace_id:
 
 ```bash
 # Filter logs by trace_id
-docker logs quantum_backend | grep "trace_id=abc123"
+journalctl -u quantum_backend.service | grep "trace_id=abc123"
 
 # Shows complete flow:
 # [ai_engine] signal_generated trace_id=abc123
@@ -467,7 +467,7 @@ logger.info("event_published", trace_id=trace_id)
 
 ### Grep logs by trace_id
 ```bash
-docker logs quantum_backend | grep "trace_id=abc123"
+journalctl -u quantum_backend.service | grep "trace_id=abc123"
 ```
 
 ### Check health
@@ -498,3 +498,4 @@ redis-cli GET quantum:policy:current
 ---
 
 **Keep this file open while coding!** 🚀
+
