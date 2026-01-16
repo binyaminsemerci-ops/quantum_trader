@@ -545,50 +545,23 @@ async def execute_order_from_intent(intent: TradeIntent):
             f"Qty={actual_qty}"
         )
         
-        # 4. Place Stop Loss order (STOP_MARKET)
-        if intent.stop_loss:
-            try:
-                sl_side = "SELL" if side_binance == "BUY" else "BUY"  # Opposite side
-                sl_price = round_price(intent.symbol, intent.stop_loss)
-                sl_order = binance_client.futures_create_order(
-                    symbol=intent.symbol,
-                    side=sl_side,
-                    type="STOP_MARKET",
-                    quantity=quantity,  # Use original quantity, not actual_qty (may be 0 on testnet)
-                    stopPrice=sl_price,
-                    reduceOnly=True
-                )
-                sl_order_id = sl_order.get('orderId', 'N/A')
-                logger.info(f"✅ Stop Loss set at ${sl_price:.4f} (OrderID={sl_order_id})")
-            except BinanceAPIException as e:
-                logger.error(f"❌ Failed to place Stop Loss: {e}")
+        # NOTE: TP/SL are NOT placed as hard orders on Binance
+        # ExitBrain v3.5 monitors positions and closes them internally
+        # when price hits TP/SL levels (adaptive management)
+        if intent.take_profit and intent.stop_loss:
+            logger.info(
+                f"📊 TP/SL levels calculated by ExitBrain v3.5 | "
+                f"TP: ${intent.take_profit:.4f} | SL: ${intent.stop_loss:.4f}"
+            )
         
-        # 5. Place Take Profit order (TAKE_PROFIT_MARKET)
-        if intent.take_profit:
-            try:
-                tp_side = "SELL" if side_binance == "BUY" else "BUY"  # Opposite side
-                tp_price = round_price(intent.symbol, intent.take_profit)
-                tp_order = binance_client.futures_create_order(
-                    symbol=intent.symbol,
-                    side=tp_side,
-                    type="TAKE_PROFIT_MARKET",
-                    quantity=quantity,  # Use original quantity, not actual_qty (may be 0 on testnet)
-                    stopPrice=tp_price,
-                    reduceOnly=True
-                )
-                tp_order_id = tp_order.get('orderId', 'N/A')
-                logger.info(f"✅ Take Profit set at ${tp_price:.4f} (OrderID={tp_order_id})")
-            except BinanceAPIException as e:
-                logger.error(f"❌ Failed to place Take Profit: {e}")
-        
-        # 6. Calculate real fee from Binance (commission)
+        # 4. Calculate real fee from Binance (commission)
         fee_usd = 0.0
         if "fills" in market_order:
             for fill in market_order["fills"]:
                 if fill.get("commissionAsset") == "USDT":
                     fee_usd += float(fill["commission"])
         
-        # 7. Create execution result
+        # 5. Create execution result
         result = ExecutionResult(
             symbol=intent.symbol,
             action=intent.side,
@@ -602,10 +575,10 @@ async def execute_order_from_intent(intent: TradeIntent):
             fee_usd=fee_usd
         )
         
-        # 8. Publish result to Redis
+        # 6. Publish result to Redis
         await eventbus.publish_execution(result)
         
-        # 9. Update stats
+        # 7. Update stats
         stats["orders_filled"] += 1
         stats["total_volume_usd"] += result.position_size_usd
         stats["total_fees_usd"] += fee_usd
