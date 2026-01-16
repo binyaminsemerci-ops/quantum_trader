@@ -182,13 +182,33 @@ class ModelTrainer:
             trades = []
             for trade_id, data in trades_raw:
                 try:
-                    payload = json.loads(data.get('payload', '{}'))
-                    if 'pnl_pct' in payload and 'close_price' in payload:
+                    # Try payload format first
+                    if 'payload' in data:
+                        payload = json.loads(data['payload'])
+                        pnl = payload.get('pnl_pct') or payload.get('pnl')
+                        close_price = payload.get('close_price') or payload.get('exit')
+                    else:
+                        # Direct field format
+                        pnl = data.get('pnl_pct') or data.get('pnl')
+                        close_price = data.get('close_price') or data.get('exit')
+                    
+                    if pnl is not None and close_price is not None:
+                        # Convert PnL to percentage if it's absolute value
+                        pnl_val = float(pnl)
+                        close_val = float(close_price)
+                        entry_val = float(data.get('entry', close_val * 0.99))
+                        
+                        # Calculate PnL% if not already percentage
+                        if abs(pnl_val) > 100:  # Likely absolute PnL
+                            pnl_pct = (pnl_val / (entry_val * float(data.get('quantity', 1)) + 1e-8)) * 100
+                        else:
+                            pnl_pct = pnl_val
+                        
                         trades.append({
                             'trade_id': trade_id,
-                            'pnl_pct': float(payload['pnl_pct']),
-                            'close_price': float(payload['close_price']),
-                            'symbol': payload.get('symbol', 'BTCUSDT'),
+                            'pnl_pct': pnl_pct,
+                            'close_price': close_val,
+                            'symbol': data.get('symbol', 'BTCUSDT'),
                         })
                 except Exception as e:
                     logger.debug(f"Skip trade {trade_id}: {e}")
