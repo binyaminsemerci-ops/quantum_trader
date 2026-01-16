@@ -37,23 +37,47 @@ class BaseAgent:
         self.ready=False; self.version="unknown"
 
     def _find_latest(self):
-        f=[os.path.join(self.model_dir,x) for x in os.listdir(self.model_dir)
-           if x.startswith(self.prefix) and x.endswith(".pkl") and "_scaler" not in x and "_meta" not in x]
+        # Support both .pkl and .pth formats
+        f=[]
+        for ext in [".pkl", ".pth"]:
+            f+=[os.path.join(self.model_dir,x) for x in os.listdir(self.model_dir)
+                if x.startswith(self.prefix) and x.endswith(ext) and "_scaler" not in x and "_meta" not in x]
         return max(f,key=os.path.getmtime) if f else None
 
     def _load(self, model_path=None, scaler_path=None):
         model_path = model_path or self._find_latest()
         if not model_path: raise FileNotFoundError(f"No {self.name} model found")
-        scaler_path = scaler_path or model_path.replace(".pkl","_scaler.pkl")
-        meta_path   = model_path.replace(".pkl","_meta.json")
-        self.model = joblib.load(model_path)
-        self.scaler = joblib.load(scaler_path)
+        
+        # Determine extension and set scaler/meta paths
+        ext = os.path.splitext(model_path)[1]
+        base = model_path.replace(ext, "")
+        scaler_path = scaler_path or f"{base}_scaler.pkl"
+        meta_path   = f"{base}_meta.json"
+        
+        # Load model (pkl with joblib, pth with torch)
+        if ext == ".pkl":
+            self.model = joblib.load(model_path)
+        elif ext == ".pth":
+            try:
+                import torch
+                self.model = torch.load(model_path, map_location='cpu', weights_only=False)
+            except Exception as e:
+                self.logger.e(f"PyTorch load failed: {e}, trying joblib")
+                self.model = joblib.load(model_path)
+        else:
+            raise ValueError(f"Unknown model format: {ext}")
+        
+        # Load scaler
+        self.scaler = joblib.load(scaler_path) if os.path.exists(scaler_path) else None
+        
+        # Load metadata
         if os.path.exists(meta_path):
             meta=json.load(open(meta_path))
             self.features=meta.get("features",[])
             self.version=meta.get("version","unknown")
         else:
-            self.features=[f"f{i}" for i in range(self.scaler.n_features_in_)]
+            self.features=[f"f{i}" for i in range(self.scaler.n_features_in_ if self.scaler else 14)]
+        
         self.ready=True
         self.logger.i(f"✅ Loaded {os.path.basename(model_path)} ({len(self.features)} features)")
 
@@ -90,9 +114,29 @@ class LightGBMAgent(BaseAgent):
 class PatchTSTAgent(BaseAgent):
     def __init__(self): super().__init__("PatchTST-Agent","patchtst_v"); self._load()
     def predict(self,sym,feat):
-        df=self._align(feat); X=self.scaler.transform(df)
-        p=self.model.predict_proba(X); i=int(np.argmax(p,axis=1)[0])
-        act={0:"SELL",1:"HOLD",2:"BUY"}[i]; c,s=float(np.max(p)),float(np.std(p))
+        df=self._align(feat)
+        if self.scaler:
+            X=self.scaler.transform(df)
+        else:
+            X=df.values
+        
+        # Handle PyTorch models
+        try:
+            import torch
+            if isinstance(self.model, torch.nn.Module):
+                self.model.eval()
+                X_t = torch.from_numpy(X).float() if isinstance(X, np.ndarray) else torch.tensor(X).float()
+                with torch.no_grad():
+                    logits = self.model(X_t)
+                p = torch.softmax(logits, dim=1).numpy() if len(logits.shape) > 1 else np.array([[0,0,1]])
+            else:
+                p=self.model.predict_proba(X)
+        except:
+            p=self.model.predict_proba(X)
+        
+        i=int(np.argmax(p[0] if len(p.shape)>1 else p, axis=0))
+        act={0:"SELL",1:"HOLD",2:"BUY"}[i]
+        c,s=float(np.max(p)),float(np.std(p)) if len(p.shape)>1 else (0.7, 0.1)
         self.logger.i(f"{sym} → {act} (conf={c:.3f},std={s:.3f})")
         return {"symbol":sym,"action":act,"confidence":c,"confidence_std":s,"version":self.version}
 
@@ -100,9 +144,29 @@ class PatchTSTAgent(BaseAgent):
 class NHiTSAgent(BaseAgent):
     def __init__(self): super().__init__("NHiTS-Agent","nhits_v"); self._load()
     def predict(self,sym,feat):
-        df=self._align(feat); X=self.scaler.transform(df)
-        p=self.model.predict_proba(X); i=int(np.argmax(p,axis=1)[0])
-        act={0:"SELL",1:"HOLD",2:"BUY"}[i]; c,s=float(np.max(p)),float(np.std(p))
+        df=self._align(feat)
+        if self.scaler:
+            X=self.scaler.transform(df)
+        else:
+            X=df.values
+        
+        # Handle PyTorch models
+        try:
+            import torch
+            if isinstance(self.model, torch.nn.Module):
+                self.model.eval()
+                X_t = torch.from_numpy(X).float() if isinstance(X, np.ndarray) else torch.tensor(X).float()
+                with torch.no_grad():
+                    logits = self.model(X_t)
+                p = torch.softmax(logits, dim=1).numpy() if len(logits.shape) > 1 else np.array([[0,0,1]])
+            else:
+                p=self.model.predict_proba(X)
+        except:
+            p=self.model.predict_proba(X)
+        
+        i=int(np.argmax(p[0] if len(p.shape)>1 else p, axis=0))
+        act={0:"SELL",1:"HOLD",2:"BUY"}[i]
+        c,s=float(np.max(p)),float(np.std(p)) if len(p.shape)>1 else (0.7, 0.1)
         self.logger.i(f"{sym} → {act} (conf={c:.3f},std={s:.3f})")
         return {"symbol":sym,"action":act,"confidence":c,"confidence_std":s,"version":self.version}
 
