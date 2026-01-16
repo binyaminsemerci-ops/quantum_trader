@@ -141,12 +141,13 @@ class EnsembleManager:
         self.weight_refresh_interval = 300  # Refresh every 5 minutes
         
         # Default weights (used if ModelSupervisor not available)
+        # 2026-01-16: Equal 25% weights for 4-model ensemble (N-HiTS + PatchTST ACTIVATED)
         if weights is None:
             self.default_weights = {
                 'xgb': 0.25,
                 'lgbm': 0.25,
-                'nhits': 0.30,
-                'patchtst': 0.20
+                'nhits': 0.25,      # ✅ ACTIVATED: Hierarchical time-series model
+                'patchtst': 0.25    # ✅ ACTIVATED: Transformer-based forecasting
             }
         else:
             self.default_weights = weights
@@ -192,22 +193,24 @@ class EnsembleManager:
         if 'nhits' in enabled_models:
             try:
                 self.nhits_agent = NHiTSAgent()
-                logger.info(f"[OK] N-HiTS agent loaded (weight: {self.weights['nhits']*100}%)")
+                logger.info(f"[✅ ACTIVATED] N-HiTS agent loaded (weight: {self.weights['nhits']*100}%)")
             except Exception as e:
-                logger.warning(f"[WARNING] N-HiTS loading failed: {e} - Disabled")
+                logger.warning(f"[⚠️  FALLBACK] N-HiTS loading failed: {e}")
+                logger.info("   └─ Will use consensus from other 3 models")
                 self.nhits_agent = None
         else:
-            logger.info("[SKIP] N-HiTS agent disabled (not in enabled_models)")
+            logger.info("[⏭️  SKIP] N-HiTS agent disabled (not in enabled_models)")
         
         if 'patchtst' in enabled_models:
             try:
                 self.patchtst_agent = PatchTSTAgent()
-                logger.info(f"[OK] PatchTST agent loaded (weight: {self.weights['patchtst']*100}%)")
+                logger.info(f"[✅ ACTIVATED] PatchTST agent loaded (weight: {self.weights['patchtst']*100}%)")
             except Exception as e:
-                logger.warning(f"[WARNING] PatchTST loading failed: {e} - Disabled")
+                logger.warning(f"[⚠️  FALLBACK] PatchTST loading failed: {e}")
+                logger.info("   └─ Will use consensus from other 3 models")
                 self.patchtst_agent = None
         else:
-            logger.info("[SKIP] PatchTST agent disabled (not in enabled_models)")
+            logger.info("[⏭️  SKIP] PatchTST agent disabled (not in enabled_models)")
         
         # Meta Agent (5th agent - meta-learning layer)
         self.meta_agent = None

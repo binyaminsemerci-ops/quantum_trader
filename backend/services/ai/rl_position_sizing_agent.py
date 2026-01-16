@@ -671,9 +671,9 @@ class RLPositionSizingAgent:
                     sharpe_ratio=1.0,  # TODO: Calculate from outcomes
                 )
                 
-                # Calculate optimal parameters
+                # Calculate optimal parameters WITH signal confidence
                 optimal = self.math_ai.calculate_optimal_parameters(
-                    account, market, performance
+                    account, market, performance, confidence  # PASS CONFIDENCE!
                 )
                 
                 # Apply Kelly Criterion if enough trade history
