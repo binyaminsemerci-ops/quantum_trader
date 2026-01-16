@@ -9,6 +9,21 @@ import os, json, joblib, numpy as np, pandas as pd
 from datetime import datetime
 from pathlib import Path
 
+# ---------- DUMMY MODELS (for pickle compatibility) ----------
+class DummyNHiTS:
+    """Dummy N-HiTS model that returns constant predictions."""
+    def __init__(self, mean_pred=11.08):
+        self.mean_pred = mean_pred
+    def predict(self, X):
+        return np.array([self.mean_pred] * len(X))
+
+class DummyPatchTST:
+    """Dummy PatchTST model that returns constant predictions."""
+    def __init__(self, mean_pred=11.08):
+        self.mean_pred = mean_pred
+    def predict(self, X):
+        return np.array([self.mean_pred] * len(X))
+
 # ---------- LOGGER ----------
 class Logger:
     def __init__(self, name):
