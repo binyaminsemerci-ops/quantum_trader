@@ -4,7 +4,7 @@
 set -e
 cd ~/quantum_trader
 
-CONTAINER="quantum_position_monitor"
+SERVICE="quantum-position-monitor"
 SERVICE_DIR=~/quantum_trader/microservices/position_monitor
 
 echo "🔄 Deploying ExitBrain v3.5 Integration..."
@@ -28,23 +28,22 @@ else
   exit 1
 fi
 
-# 4️⃣ Rebuild and restart position-monitor
-echo "🔁 Rebuilding position-monitor with new code..."
-docker compose -f docker-compose.vps.yml build position-monitor
-docker compose -f docker-compose.vps.yml up -d position-monitor
+# 4️⃣ Restart position-monitor service
+echo "🔁 Restarting position-monitor service..."
+sudo systemctl restart $SERVICE.service
 
-# 5️⃣ Wait for container to be healthy
-echo "⏳ Waiting 15 seconds for container to restart..."
+# 5️⃣ Wait for service to be healthy
+echo "⏳ Waiting 15 seconds for service to restart..."
 sleep 15
 
 # 6️⃣ Check logs for ExitBrain initialization
 echo ""
 echo "📊 Checking ExitBrain v3.5 initialization logs..."
 echo "=================================================="
-docker logs --tail=30 $CONTAINER | grep -E "ExitBrain|POSITION MONITOR"
+sudo journalctl -u $SERVICE.service -n 30 --no-pager | grep -E "ExitBrain|POSITION MONITOR"
 
 echo ""
 echo "✅ Deployment complete!"
 echo ""
 echo "To verify ExitBrain is active:"
-echo "  docker logs -f $CONTAINER | grep ExitBrain"
+echo "  sudo journalctl -u $SERVICE.service -f | grep ExitBrain"
