@@ -1918,6 +1918,7 @@ class AIEngineService:
                                 f"(severity={drift_status.get('severity')}, "
                                 f"psi={drift_status.get('psi', 0):.3f}) - ALLOWING on testnet for data collection"
                             )
+                            # Continue processing signal on testnet
                         else:
                             logger.warning(
                                 f"[PHASE 1] 🚫 DRIFT DETECTED: {symbol} "
@@ -1927,7 +1928,7 @@ class AIEngineService:
                             # Trigger retraining if CLM available
                             if self.adaptive_retrainer:
                                 logger.info(f"[PHASE 1] Triggering retrain due to drift...")
-                            return None
+                            return None  # Only block on mainnet
                 except Exception as e:
                     logger.warning(f"[PHASE 1] Drift detection check failed: {e}")
             
