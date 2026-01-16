@@ -1,0 +1,27 @@
+[Unit]
+Description=Quantum Trader - Exit Monitor Service
+Documentation=file:///home/qt/quantum_trader/AI_V5_ARCHITECTURE.md
+After=network.target redis.service quantum-execution.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+EnvironmentFile=/etc/quantum/testnet.env
+Environment="PYTHONPATH=/home/qt/quantum_trader"
+Environment="REDIS_URL=redis://localhost:6379"
+Environment="SERVICE_PORT=8007"
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python3 services/exit_monitor_service.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/quantum/exit-monitor.log
+StandardError=append:/var/log/quantum/exit-monitor.log
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
