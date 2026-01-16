@@ -70,7 +70,7 @@ def get_ai_health():
     logger = logging.getLogger(__name__)
     
     try:
-        # Call AI Engine health endpoint (internal Docker network)
+        # Call AI Engine health endpoint
         response = requests.get('http://ai-engine:8001/health', timeout=10.0)
         response.raise_for_status()
         health_data = response.json()

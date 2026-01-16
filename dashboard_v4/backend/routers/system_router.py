@@ -90,7 +90,6 @@ def get_service_status():
                     active = unit.get('active', 'unknown')
                     sub = unit.get('sub', 'unknown')
                     description = unit.get('description', '')
-                    # Format status like Docker uptime
                     services[name] = f"{active}/{sub}: {description}"
             except json.JSONDecodeError:
                 pass
@@ -159,10 +158,10 @@ def self_heal(token_data: TokenData = Depends(verify_token), db: Session = Depen
     
     healing_actions = []
     try:
-        container_name = "quantum_dashboard_backend"
-        result = subprocess.run(["docker", "restart", container_name], capture_output=True, text=True, timeout=30)
+        service_name = "quantum-dashboard-backend.service"
+        result = subprocess.run(["systemctl", "restart", service_name], capture_output=True, text=True, timeout=30)
         if result.returncode == 0:
-            healing_actions.append(f"Restarted {container_name}")
+            healing_actions.append(f"Restarted {service_name}")
         else:
             healing_actions.append(f"Failed: {result.stderr}")
     except Exception as e:
@@ -173,23 +172,23 @@ def self_heal(token_data: TokenData = Depends(verify_token), db: Session = Depen
     return {"status": "healing_completed", "actions": healing_actions, "metrics": metrics, "user": token_data.username}
 
 
-@router.post("/restart_container")
-def restart_container(container: str, token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
-    """Restart specific container - Admin only"""
+@router.post("/restart_service")
+def restart_service(service: str, token_data: TokenData = Depends(verify_token), db: Session = Depends(get_db)):
+    """Restart specific systemd service - Admin only"""
     if token_data.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
     
-    allowed = ["quantum_dashboard_backend", "quantum_dashboard_frontend", "quantum_postgres", "quantum_redis"]
-    if container not in allowed:
+    allowed = ["quantum-dashboard-backend.service", "quantum-dashboard-frontend.service", "quantum-postgres.service", "quantum-redis.service"]
+    if service not in allowed:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Must be one of: {', '.join(allowed)}")
     
     metrics = get_system_metrics()
     try:
-        result = subprocess.run(["docker", "restart", container], capture_output=True, text=True, timeout=30)
+        result = subprocess.run(["systemctl", "restart", service], capture_output=True, text=True, timeout=30)
         if result.returncode == 0:
-            log_event(db, "container_restart", metrics.get("cpu", 0), metrics.get("ram", 0), 
-                     details=f"{container} restarted by {token_data.username}", severity="warning")
-            return {"status": "success", "message": f"{container} restarted", "user": token_data.username}
+            log_event(db, "service_restart", metrics.get("cpu", 0), metrics.get("ram", 0), 
+                     details=f"{service} restarted by {token_data.username}", severity="warning")
+            return {"status": "success", "message": f"{service} restarted", "user": token_data.username}
         raise HTTPException(status_code=500, detail=f"Failed: {result.stderr}")
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Timeout")
