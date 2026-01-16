@@ -28,11 +28,25 @@ class Logger:
 
 # ---------- BASE ----------
 class BaseAgent:
-    def __init__(self, name, prefix):
+    def __init__(self, name, prefix, model_dir=None):
         self.name, self.prefix = name, prefix
         self.logger = Logger(name)
-        base = os.path.dirname(os.path.dirname(__file__))
-        self.model_dir = os.path.join(base,"models")
+        # FIX: Use absolute path or environment variable for models directory
+        if model_dir:
+            self.model_dir = model_dir
+        else:
+            # Try to resolve from __file__, but fallback to absolute path
+            try:
+                base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                self.model_dir = os.path.join(base, "models")
+            except:
+                # Fallback to hardcoded path for systemd services
+                self.model_dir = "/home/qt/quantum_trader/models"
+        
+        if not os.path.exists(self.model_dir):
+            self.logger.w(f"Model directory not found: {self.model_dir}, trying fallback")
+            self.model_dir = "/home/qt/quantum_trader/models"
+            
         self.model=None; self.scaler=None; self.features=[]
         self.ready=False; self.version="unknown"
 
