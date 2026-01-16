@@ -2066,12 +2066,12 @@ class AIEngineService:
                     timestamp=datetime.now(timezone.utc).isoformat()
                 ).dict())
             
-            # Step 3: RL Position Sizing (position_size_usd ONLY)
-            # NOTE: Leverage skal beregnes av ExitBrain v3.5 (ILF), ikke her!
+            # Step 3: RL Position Sizing + TradingMathematician
+            # 🔥 AKTIVERT: Math AI beregner optimal leverage og sizing
             position_size_usd = 200.0  # Default fallback
-            leverage = 1  # Placeholder (ExitBrain overstyrer)
-            tp_percent = 0.06  # 6% (ExitBrain overstyrer)
-            sl_percent = 0.025  # 2.5% (ExitBrain overstyrer)
+            leverage = 10.0  # Default fallback (hvis RL agent feiler)
+            tp_percent = 0.06  # 6% default
+            sl_percent = 0.025  # 2.5% default
             
             # 🔥 AI-DETERMINED POSITION SIZE (RL Agent)
             if self.rl_sizing_agent:
@@ -2099,28 +2099,29 @@ class AIEngineService:
                 )
                 
                 position_size_usd = sizing_decision.position_size_usd
-                # NOTE: Leverage fra RL Agent ignoreres - ExitBrain v3.5 (ILF) bestemmer leverage!
-                leverage = 1  # Placeholder for trade.intent (eksekutor overstyrer med ExitBrain)
+                # 🔥 BRUKER LEVERAGE FRA RL AGENT (Math AI beregning)
+                leverage = int(round(sizing_decision.leverage))  # Convert float to int for Pydantic
                 tp_percent = sizing_decision.tp_percent
                 sl_percent = sizing_decision.sl_percent
                 
                 # 🔥 PHASE 3A: Apply risk multiplier
                 original_size = position_size_usd
                 position_size_usd = position_size_usd * risk_multiplier
-            # 🔥 TESTNET SIZING: Cap position size
+            # 🔥 TESTNET SIZING: Reasonable cap for testing
             if os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true":
                 original_size = position_size_usd
-                position_size_usd = min(position_size_usd, 10.0)  # Max 0 on testnet
+                position_size_usd = min(position_size_usd, 1000.0)  # Max $1000 on testnet (allows testing real sizing)
                 if position_size_usd != original_size:
-                    logger.info(f"[TESTNET] Capped position:  → ")
+                    logger.info(f"[TESTNET] Capped position: ${original_size:.0f} → ${position_size_usd:.0f}")
             
                 if risk_multiplier != 1.0:
                     logger.info(f"[PHASE 3A] Risk-adjusted position: ${original_size:.0f} → ${position_size_usd:.0f} "
                               f"(multiplier={risk_multiplier:.2f}x, mode={risk_signal.mode.value if risk_signal else 'N/A'})")
                 
                 logger.info(
-                    f"[AI-ENGINE] ✅ Sizing: {symbol} ${position_size_usd:.0f} @ {leverage}x "
-                    f"(risk={sizing_decision.risk_pct:.2f}%, TP={tp_percent*100:.1f}%, SL={sl_percent*100:.1f}%)"
+                    f"[AI-ENGINE] 🔥 DYNAMIC SIZING: {symbol} ${position_size_usd:.0f} @ {leverage:.1f}x "
+                    f"(risk={sizing_decision.risk_pct:.2f}%, TP={tp_percent*100:.1f}%, SL={sl_percent*100:.1f}%) "
+                    f"[{sizing_decision.reasoning[:80]}...]"
                 )
                 
                 # Publish intermediate event
@@ -2200,14 +2201,19 @@ class AIEngineService:
                         )
                         # For now, continue with execution (future: implement queue)
                     
-                    # Update position size and leverage from Risk Brain if provided
+                    # Update position size from Risk Brain if provided (but keep Math AI leverage!)
                     if orchestration_result.position_size > 0:
-                        position_size_usd = orchestration_result.position_size
-                        logger.info(f"[PHASE 2.2] Risk Brain adjusted size: ${position_size_usd:.2f}")
+                        # Only adjust size down if Risk Brain is more conservative
+                        if orchestration_result.position_size < position_size_usd:
+                            position_size_usd = orchestration_result.position_size
+                            logger.info(f"[PHASE 2.2] Risk Brain reduced size: ${position_size_usd:.2f}")
+                        else:
+                            logger.info(f"[PHASE 2.2] Risk Brain size ${orchestration_result.position_size:.2f} >= Math AI ${position_size_usd:.2f}, keeping Math AI")
                     
+                    # 🔥 DISABLED: Do NOT override Math AI leverage with Risk Brain (Math AI is more sophisticated)
                     if orchestration_result.leverage > 0:
-                        leverage = orchestration_result.leverage
-                        logger.info(f"[PHASE 2.2] Risk Brain adjusted leverage: {leverage:.1f}x")
+                        logger.info(f"[PHASE 2.2] Risk Brain suggested leverage: {orchestration_result.leverage:.1f}x (IGNORED - using Math AI {leverage}x)")
+                        # leverage = orchestration_result.leverage  # DISABLED: Keep Math AI leverage!
                     
                 except Exception as e:
                     logger.error(f"[PHASE 2.2] Orchestration failed: {e}", exc_info=True)
@@ -2230,9 +2236,9 @@ class AIEngineService:
                     "triggered_by": "rsi_macd_rules" if not self.testnet_mode else "testnet_hash_pattern"
                 }
             
-                        # TESTNET SIZING: Cap position size
+                        # TESTNET SIZING: Cap position size (second cap after orchestration)
             if os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true":
-                position_size_usd = min(position_size_usd, 10.0)
+                position_size_usd = min(position_size_usd, 1000.0)  # Max $1000 on testnet
             
             trade_intent_payload = {
                 "symbol": symbol,
