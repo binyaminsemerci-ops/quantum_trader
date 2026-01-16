@@ -19,7 +19,7 @@ def parse_trade_logs():
     
     # Get logs from Docker
     result = subprocess.run(
-        ["docker", "logs", "quantum_backend", "--since", "24h"],
+        ["journalctl", "-u", "quantum-backend.service", "--since", "24h"],
         capture_output=True,
         text=True,
         encoding='utf-8',
@@ -123,3 +123,4 @@ def parse_trade_logs():
 
 if __name__ == "__main__":
     parse_trade_logs()
+

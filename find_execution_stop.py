@@ -5,7 +5,7 @@ Find exact line where execution stops after "Direct execution mode"
 import subprocess
 
 result = subprocess.run(
-    ["docker", "logs", "quantum_backend", "--since", "5m"],
+    ["journalctl", "-u", "quantum-backend.service", "--since", "5m"],
     capture_output=True,
     text=True,
     encoding='utf-8',
@@ -22,3 +22,4 @@ for i, line in enumerate(lines):
             if any(x in lines[j] for x in ["event_driven_executor", "BRIEFCASE", "MONEY", "submit", "order", "skip", "block", "fail"]):
                 print(lines[j])
         break
+

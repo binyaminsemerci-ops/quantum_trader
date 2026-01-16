@@ -21,12 +21,12 @@ def run_command(cmd):
 
 def get_recent_signals():
     """Get last signal detection."""
-    cmd = r'docker logs quantum_backend --tail 100 2>&1 | Select-String -Pattern "Found [0-9]+ high-confidence" | Select-Object -Last 1'
+    cmd = r'journalctl -u quantum-backend.service --tail 100 2>&1 | Select-String -Pattern "Found [0-9]+ high-confidence" | Select-Object -Last 1'
     return run_command(cmd)
 
 def get_recent_execution():
     """Get last execution result."""
-    cmd = r'docker logs quantum_backend --tail 100 2>&1 | Select-String -Pattern "orders_submitted" | Select-Object -Last 1'
+    cmd = r'journalctl -u quantum-backend.service --tail 100 2>&1 | Select-String -Pattern "orders_submitted" | Select-Object -Last 1'
     return run_command(cmd)
 
 def get_positions():
@@ -90,3 +90,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

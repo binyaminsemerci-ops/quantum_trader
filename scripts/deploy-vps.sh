@@ -5,9 +5,8 @@ set -euo pipefail
 #   ./scripts/deploy-vps.sh [--build]
 #
 # Pre-req on VPS (Ubuntu):
-#   sudo apt-get update -y
-#   sudo apt-get install -y docker.io docker-compose-plugin
-#   sudo usermod -aG docker $USER && newgrp docker
+#   systemd services already configured
+#   Services running as quantum-*.service units
 #
 # Prepare env:
 #   cp backend/.env.live.example backend/.env.live
@@ -21,11 +20,11 @@ if [[ "${1:-}" == "--build" ]]; then
   BUILD_FLAG="--build"
 fi
 
-echo "[deploy] Using live profile with VPS override"
-docker compose --profile live -f docker-compose.yml -f docker-compose.vps.yml up -d $BUILD_FLAG
+echo "[deploy] Restarting systemd services"
+sudo systemctl restart 'quantum-*.service'
 
 echo "[deploy] Services status:" 
-docker compose ps
+systemctl list-units 'quantum-*.service' --no-pager --no-legend | head -10
 
 echo "[deploy] Health check (frontend):"
 set +e

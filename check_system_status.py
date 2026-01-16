@@ -13,7 +13,7 @@ print("="*80)
 
 # Hent alle logs
 logs = subprocess.run(
-    ["docker", "logs", "quantum_backend"],
+    ["journalctl", "-u", "quantum-backend.service"],
     capture_output=True,
     text=True,
     encoding='utf-8',
@@ -121,7 +121,7 @@ print("-" * 80)
 
 # Get recent activity
 recent_logs = subprocess.run(
-    ["docker", "logs", "quantum_backend", "--since", "10m"],
+    ["journalctl", "-u", "quantum-backend.service", "--since", "10m"],
     capture_output=True,
     text=True,
     encoding='utf-8',
@@ -167,5 +167,6 @@ print("-" * 80)
 print("  1. La systemet kjøre 24-48 timer for mer læring")
 print("  2. Smart Position Sizer vil blokkere trades hvis win rate < 30%")
 print("  3. RL Agent vil optimalisere TP/SL basert på outcomes")
-print("  4. Monitor performance med: docker logs quantum_backend | grep 'RL\\|Smart'")
+print("  4. Monitor performance med: journalctl -u quantum-backend.service | grep 'RL\\|Smart'")
 print("="*80)
+

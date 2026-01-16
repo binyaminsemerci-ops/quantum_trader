@@ -39,7 +39,7 @@ print(f"   Tilgjengelig: ${available:.2f} USDT")
 print(f"\n[SEARCH] SISTE AI AKTIVITET:")
 try:
     result = subprocess.run(
-        ["docker", "logs", "quantum_backend", "--tail", "30"],
+        ["journalctl", "-u", "quantum-backend.service", "--tail", "30"],
         capture_output=True,
         text=True,
         timeout=5
@@ -88,8 +88,9 @@ print(f"   Åpner trade når den finner 70%+ confidence signal.")
 print(f"   Tid siden siste sjekk: Se docker logs")
 
 print(f"\n💡 LIVE MONITORING:")
-print(f"   docker logs quantum_backend --tail 50 --follow")
+print(f"   journalctl -u quantum-backend.service --tail 50 --follow")
 
 print("\n" + "=" * 70)
 print(f"⏰ Status oppdatert: {datetime.now().strftime('%H:%M:%S')}")
 print("=" * 70 + "\n")
+

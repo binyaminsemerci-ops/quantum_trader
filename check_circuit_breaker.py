@@ -55,7 +55,7 @@ def check_circuit_breaker():
     print("⛔ CIRCUIT BREAKER BLOKKERER ALL TRADING!")
     print("\n💡 LØSNINGER:")
     print("   1. ⏰ Vent til cooldown periode utløper (vanligvis 30min - 1 time)")
-    print("   2. 🔄 Restart backend for å resette: docker-compose restart backend")
+    print("   2. 🔄 Restart backend for å resette: sudo systemctl restart quantum-backend.service")
     print("   3. ⚙️  Øk max_daily_drawdown i config (ikke anbefalt)")
     print("=" * 80)
     
@@ -122,3 +122,4 @@ def check_circuit_breaker():
 if __name__ == "__main__":
     success = check_circuit_breaker()
     sys.exit(0 if success else 1)
+

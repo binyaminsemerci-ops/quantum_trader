@@ -121,3 +121,4 @@ else:
     print("\n⚠️  Insufficient log data to diagnose")
 
 print("\n" + "=" * 80)
+

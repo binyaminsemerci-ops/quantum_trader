@@ -46,7 +46,7 @@ class EventMonitor:
         """Get PIL classification count"""
         try:
             result = subprocess.run(
-                ["docker", "exec", "quantum_backend", "python", "-c",
+                ["python3", "quantum_backend", "python", "-c",
                  "from backend.services.position_intelligence import get_position_intelligence; "
                  "pil = get_position_intelligence(); "
                  "print(len(pil.classifications))"],
@@ -242,3 +242,4 @@ class EventMonitor:
 if __name__ == "__main__":
     monitor = EventMonitor()
     monitor.monitor()
+

@@ -139,7 +139,7 @@ def main():
         else:
             print("To switch to SAFE profile:")
             print('   $env:ORCH_PROFILE="SAFE"')
-        print("   docker-compose restart backend")
+        print("   sudo systemctl restart quantum-backend.service")
         print()
         
     except Exception as e:
@@ -150,3 +150,4 @@ def main():
 
 if __name__ == "__main__":
     exit(main())
+
