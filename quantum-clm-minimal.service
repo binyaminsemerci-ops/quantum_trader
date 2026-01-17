@@ -1,0 +1,19 @@
+[Unit]
+Description=Quantum CLM Minimal - Continuous Learning Manager
+After=network.target redis-server.service quantum-utf-publisher.service
+Wants=redis-server.service quantum-utf-publisher.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/lib/quantum/utf
+EnvironmentFile=/etc/quantum/utf.env
+EnvironmentFile=/etc/quantum/clm.env
+ExecStart=/usr/bin/python3 /usr/local/bin/clm_minimal.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

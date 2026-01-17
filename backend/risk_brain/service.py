@@ -122,6 +122,15 @@ async def health():
         "status": "healthy" if redis_ok else "degraded",
         "service": "risk_brain",
         "timestamp": datetime.utcnow().isoformat(),
+        "redis_connected": redis_ok,
+        "version": "1.1.0 (RL-enhanced)"
+    }
+
+
+@app.post("/evaluate")
+async def evaluate(request: RiskRequest):
+    """Risk evaluation with RL policy integration.
+    
     Now integrates RL policy adjustments from quantum:ai_policy_adjustment.
     
     Args:
@@ -179,24 +188,24 @@ async def health():
             logger.debug(f"[RL-SKIPPED] {symbol}: Using base leverage={base_leverage:.1f}x")
     
     max_loss = position_size * 0.02  # 2% max loss
-    Starting Risk Brain Service (RL-enabled)
+    
     return {
-        "position_size": position_size,
-        "leverage": leverage,
+        "approved": True,
+        "adjusted_size_usd": position_size,
+        "adjusted_leverage": leverage,
         "risk_score": risk_score,
         "max_loss": max_loss,
         "timestamp": datetime.utcnow().isoformat(),
         "rl_applied": rl_applied,  # Telemetry flag
-    
-    max_loss = position_size * 0.02  # 2% max loss
-    
-    return {
-        "position_size": position_size,
-        "leverage": leverage,
-        "risk_score": risk_score,
-        "max_loss": max_loss,
-        "timestamp": datetime.utcnow().isoformat(),
+        "reason": f"Risk approved: {mode} mode, leverage={leverage:.2f}x{'(RL)' if rl_applied else ''}"
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    logger.info("📊 Starting Risk Brain Service (RL-enabled) on port 8012...")
+    uvicorn.run(app, host="0.0.0.0", port=8012)
+
 
 
 if __name__ == "__main__":

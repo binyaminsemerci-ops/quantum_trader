@@ -56,6 +56,29 @@ class RiskApprovedSignal:
 
 
 @dataclass
+class TradeIntent:
+    """Trade intent from strategy layer (for execution)"""
+    symbol: str
+    action: str  # BUY, SELL, CLOSE
+    confidence: float
+    position_size_usd: float
+    leverage: float
+    timestamp: str
+    source: str
+    stop_loss_pct: Optional[float] = None
+    take_profit_pct: Optional[float] = None
+    entry_price: Optional[float] = None
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+    quantity: Optional[float] = None
+    
+    @property
+    def side(self):
+        """Backwards compatibility alias for action"""
+        return self.action
+
+
+@dataclass
 class ExecutionResult:
     """Trade execution result"""
     symbol: str
@@ -197,6 +220,99 @@ class EventBusClient:
         """Publish position update to trade.position.update"""
         return await self.publish("trade.position.update", asdict(update))
     
+    async def subscribe_with_group(
+        self,
+        topic: str,
+        group_name: str,
+        consumer_name: str,
+        start_id: str = ">",
+        block_ms: int = 1000,
+        create_group: bool = True
+    ):
+        """
+        Subscribe to Redis stream using consumer group (P0 FIX: Phase 2)
+        
+        Consumer groups provide:
+        - Message acknowledgment (no data loss on restart)
+        - Replay capability via XPENDING
+        - Load balancing across multiple consumers
+        
+        Args:
+            topic: Stream name
+            group_name: Consumer group name
+            consumer_name: This consumer's unique name
+            start_id: Starting message ID (">" = only new, "0" = from beginning)
+            block_ms: Block timeout in milliseconds
+            create_group: Create group if not exists
+        
+        Yields:
+            Parsed message dictionaries with _message_id for ACK
+        """
+        if not self.redis:
+            raise RuntimeError("Not connected to Redis")
+        
+        # Create consumer group if requested
+        if create_group:
+            try:
+                await self.redis.xgroup_create(
+                    topic,
+                    group_name,
+                    id="0",  # Start from beginning for existing stream
+                    mkstream=True  # Create stream if not exists
+                )
+                logger.info(f"✅ Consumer group '{group_name}' created on {topic}")
+            except Exception as e:
+                if "BUSYGROUP" in str(e):
+                    logger.info(f"✅ Consumer group '{group_name}' already exists")
+                else:
+                    logger.error(f"❌ Failed to create consumer group: {e}")
+                    raise
+        
+        logger.info(f"📥 Subscribing to {topic} (group={group_name}, consumer={consumer_name})")
+        last_id = start_id
+        
+        while True:
+            try:
+                # Read from stream using consumer group
+                messages = await self.redis.xreadgroup(
+                    group_name,
+                    consumer_name,
+                    {topic: last_id},
+                    count=10,
+                    block=block_ms
+                )
+                
+                if not messages:
+                    # No new messages, continue blocking
+                    continue
+                
+                # Process messages
+                for stream_name, stream_messages in messages:
+                    for message_id, fields in stream_messages:
+                        # Parse JSON payload
+                        if "data" in fields:
+                            try:
+                                payload = json.loads(fields["data"])
+                                payload["_message_id"] = message_id
+                                payload["_stream_name"] = stream_name
+                                payload["_group_name"] = group_name
+                                yield payload
+                                
+                                # ACK message immediately after processing
+                                await self.redis.xack(stream_name, group_name, message_id)
+                                
+                            except json.JSONDecodeError as e:
+                                logger.error(f"❌ JSON decode error: {e}")
+                                # ACK bad messages to avoid reprocessing
+                                await self.redis.xack(stream_name, group_name, message_id)
+            
+            except asyncio.CancelledError:
+                logger.info(f"🛑 Subscription cancelled: {topic}")
+                break
+            except Exception as e:
+                logger.error(f"❌ Subscribe error on {topic}: {e}")
+                await asyncio.sleep(5)  # Retry delay
+    
     async def subscribe(
         self,
         topic: str,
@@ -204,7 +320,10 @@ class EventBusClient:
         block_ms: int = 1000
     ):
         """
-        Subscribe to Redis stream
+        Subscribe to Redis stream (simple mode - no consumer groups)
+        
+        ⚠️  WARNING: This mode loses unprocessed messages on restart.
+        Use subscribe_with_group() for production reliability.
         
         Args:
             topic: Stream name
