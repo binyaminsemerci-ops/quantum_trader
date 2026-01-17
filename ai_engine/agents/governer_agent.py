@@ -16,6 +16,8 @@ Output: Trade allocation (symbol, size, risk_amount, approved)
 """
 import os
 import json
+import time
+import redis
 import numpy as np
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -74,6 +76,20 @@ class GovernerAgent:
     def __init__(self, config: Optional[RiskConfig] = None, state_file: Optional[str] = None):
         self.name = "Governer-Agent"
         self.config = config or RiskConfig()
+        self.redis = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
+        self.is_testnet = any(
+            val.lower() in {"true", "1", "yes", "y", "on"}
+            for val in [
+                os.getenv("USE_BINANCE_TESTNET", ""),
+                os.getenv("BINANCE_TESTNET", ""),
+                os.getenv("TRADING_MODE", "")
+            ]
+            if val
+        )
+        self.daily_limit = int(os.getenv("GOVERNOR_MAX_DAILY_TRADES", self.config.max_daily_trades))
+        if self.is_testnet:
+            self.daily_limit = max(self.daily_limit, 1_000_000)
+        self._last_daily_log_ts = 0.0
         
         # State file for tracking trades, losses, cooldowns
         self.state_file = Path(state_file or "/app/data/governer_state.json")
@@ -123,13 +139,49 @@ class GovernerAgent:
         except Exception as e:
             safe_log(f"[{self.name}] State save error: {e}")
     
-    def _reset_daily_counter(self):
-        """Reset daily trade counter if new day"""
-        today = datetime.utcnow().strftime("%Y-%m-%d")
-        if self.last_trade_date != today:
-            self.daily_trade_count = 0
-            self.last_trade_date = today
-            safe_log(f"[{self.name}] Daily trade counter reset (new day: {today})")
+    def _daily_key(self) -> str:
+        return f"quantum:governor:daily_trades:{datetime.now().strftime('%Y%m%d')}"
+
+    def _ttl_to_next_midnight(self) -> int:
+        now = datetime.now()
+        tomorrow = (now + timedelta(days=1)).date()
+        expire_at = datetime.combine(tomorrow, datetime.min.time()) + timedelta(hours=1)
+        return max(3600, int((expire_at - now).total_seconds()))
+
+    def _get_daily_count(self) -> int:
+        try:
+            val = self.redis.get(self._daily_key())
+            count = int(val) if val is not None else 0
+            self.daily_trade_count = count
+            return count
+        except Exception as e:
+            safe_log(f"[{self.name}] Redis daily count read failed: {e}")
+            return self.daily_trade_count
+
+    def _increment_daily_count(self) -> int:
+        try:
+            key = self._daily_key()
+            pipe = self.redis.pipeline()
+            pipe.incr(key)
+            ttl = self.redis.ttl(key)
+            if ttl is None or ttl < 0:
+                pipe.expire(key, self._ttl_to_next_midnight())
+            result = pipe.execute()
+            count = int(result[0]) if result else self._get_daily_count()
+            self.daily_trade_count = count
+            return count
+        except Exception as e:
+            safe_log(f"[{self.name}] Redis daily count increment failed: {e}")
+            return self.daily_trade_count
+
+    def _log_daily_count(self):
+        now = time.time()
+        if now - self._last_daily_log_ts >= 60:
+            count = self._get_daily_count()
+            safe_log(
+                f"[{self.name}] DAILY_COUNT key={self._daily_key()} count={count} limit={self.daily_limit} mode={'TESTNET' if self.is_testnet else 'LIVE'}"
+            )
+            self._last_daily_log_ts = now
     
     def _check_circuit_breakers(self) -> Tuple[bool, str]:
         """
@@ -146,10 +198,11 @@ class GovernerAgent:
         if current_drawdown > self.config.max_drawdown_pct:
             return False, f"MAX_DRAWDOWN_EXCEEDED ({current_drawdown:.1%} > {self.config.max_drawdown_pct:.1%})"
         
-        # Daily trade limit
-        self._reset_daily_counter()
-        if self.daily_trade_count >= self.config.max_daily_trades:
-            return False, f"DAILY_TRADE_LIMIT_REACHED ({self.daily_trade_count}/{self.config.max_daily_trades})"
+        # Daily trade limit (Redis-backed)
+        self._log_daily_count()
+        current_count = self._get_daily_count()
+        if current_count >= self.daily_limit:
+            return False, f"DAILY_TRADE_LIMIT_REACHED ({current_count}/{self.daily_limit})"
         
         # Total exposure check
         total_exposure = sum(self.active_positions.values())
@@ -327,8 +380,8 @@ class GovernerAgent:
             f"Meta={meta_override}"
         )
         
-        # Increment daily counter
-        self.daily_trade_count += 1
+        # Increment daily counter (Redis-backed)
+        self._increment_daily_count()
         
         return PositionAllocation(
             symbol=symbol,
@@ -399,7 +452,7 @@ class GovernerAgent:
             "drawdown_pct": current_drawdown,
             "total_exposure_usd": total_exposure,
             "exposure_pct": total_exposure / self.current_balance if self.current_balance > 0 else 0,
-            "daily_trades": self.daily_trade_count,
+            "daily_trades": self._get_daily_count(),
             "recent_win_rate": win_rate,
             "total_trades": len(self.trade_history),
             "active_positions": len(self.active_positions)

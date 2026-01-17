@@ -8,8 +8,9 @@ import httpx
 import redis
 import logging
 import sys
+import time
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Tuple
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,6 +34,7 @@ class AIStrategyRouter:
     def __init__(self):
         self.redis = redis.from_url(REDIS_URL, decode_responses=True)
         self.http_client = httpx.AsyncClient(timeout=5.0)
+        self._last_invalid_warn_ts = 0.0
         
     async def setup(self):
         """Create consumer group if not exists."""
@@ -51,27 +53,54 @@ class AIStrategyRouter:
             else:
                 raise
                 
-    async def route_decision(self, decision: dict, trace_id: str, correlation_id: str):
+    def _build_dedup_key(self, correlation_id: str, trace_id: str, msg_id: str) -> Tuple[str, str, str, str]:
+        """Return dedup key components with sane fallbacks."""
+        corr = (correlation_id or "").strip()
+        trace = (trace_id or "").strip()
+        msg = (msg_id or "").strip()
+
+        def _valid(val: str) -> bool:
+            return bool(val) and val.lower() not in {"0", "null", "none"}
+
+        chosen = corr if _valid(corr) else trace if _valid(trace) else msg
+        return chosen, corr, trace, msg
+
+    def _log_invalid_once(self, message: str) -> None:
+        """Rate-limit invalid metadata warnings to once per minute."""
+        now = time.time()
+        if now - self._last_invalid_warn_ts >= 60:
+            logger.warning(message)
+            self._last_invalid_warn_ts = now
+
+    async def route_decision(self, decision: dict, trace_id: str, correlation_id: str, msg_id: str):
         """Route AI decision through Strategy → Risk → Trade Intent."""
         try:
-            # P0 FIX: Idempotency check - prevent duplicate trade intents
-            dedup_key = f"quantum:dedup:trade_intent:{trace_id}"
+            dedup_id, corr_id_clean, trace_id_clean, msg_id_clean = self._build_dedup_key(correlation_id, trace_id, msg_id)
+
             was_set = await asyncio.to_thread(
                 self.redis.set,
-                dedup_key,
+                f"quantum:dedup:trade_intent:{dedup_id}",
                 "1",
-                nx=True,  # Only set if not exists
-                ex=86400  # 24h TTL
+                nx=True,
+                ex=300  # 5 minute TTL to bound cache
             )
-            
+
             if not was_set:
-                logger.warning(f"🔁 DUPLICATE_SKIP trace_id={trace_id} correlation_id={correlation_id}")
+                logger.warning(
+                    f"🔁 DUPLICATE_SKIP key={dedup_id} corr={corr_id_clean} trace={trace_id_clean} msg_id={msg_id_clean}"
+                )
                 return
             
-            symbol = decision.get("symbol", "UNKNOWN")
-            # Parse 'side' from Redis (buy/sell) or fallback to 'action'
-            side = decision.get("side", decision.get("action", "hold")).upper()
+            symbol = decision.get("symbol", "").strip() if isinstance(decision, dict) else ""
+            side_raw = decision.get("side", decision.get("action", "")).strip() if isinstance(decision, dict) else ""
+            side = side_raw.upper()
             confidence = decision.get("confidence", 0.0)
+
+            if not symbol or not side:
+                self._log_invalid_once(
+                    f"⚠️ INVALID_DECISION_DROP symbol={symbol!r} side={side_raw!r} corr={corr_id_clean} trace={trace_id_clean} msg_id={msg_id_clean}"
+                )
+                return
             
             logger.info(f"📥 AI Decision: {symbol} {side} @ {confidence:.2%} | trace_id={trace_id}")
             
@@ -167,11 +196,11 @@ class AIStrategyRouter:
                         else:
                             decision = msg_data
                         
-                        # Extract trace_id and correlation_id for idempotency
-                        trace_id = msg_data.get('trace_id', msg_id)
-                        correlation_id = msg_data.get('correlation_id', trace_id)
-                        
-                        await self.route_decision(decision, trace_id, correlation_id)
+                        # Extract trace_id and correlation_id for idempotency (corr preferred)
+                        correlation_id = msg_data.get('correlation_id', '')
+                        trace_id = msg_data.get('trace_id', '')
+
+                        await self.route_decision(decision, trace_id, correlation_id, msg_id)
                         
                         # ACK message
                         await asyncio.to_thread(
