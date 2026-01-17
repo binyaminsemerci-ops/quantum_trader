@@ -351,10 +351,14 @@ class AIEngineService:
         
         try:
             # 1. Ensemble Manager
+            logger.info(f"[DEPLOY-DEBUG] settings.ENSEMBLE_MODELS = {getattr(settings, 'ENSEMBLE_MODELS', 'ATTR_MISSING')}")
+            logger.info(f"[DEPLOY-DEBUG] bool(settings.ENSEMBLE_MODELS) = {bool(getattr(settings, 'ENSEMBLE_MODELS', False))}")
+            
             if settings.ENSEMBLE_MODELS:
                 logger.info(f"[AI-ENGINE] Loading ensemble: {settings.ENSEMBLE_MODELS}")
                 try:
                     from ai_engine.ensemble_manager import EnsembleManager
+                    logger.info("[DEPLOY-DEBUG] EnsembleManager imported successfully")
                     
                     self.ensemble_manager = EnsembleManager(
                         weights=settings.ENSEMBLE_WEIGHTS,

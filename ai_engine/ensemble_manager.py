@@ -42,6 +42,11 @@ except ImportError:
     META_AVAILABLE = False
     MetaPredictorAgent = None
 
+# Meta-agent environment controls (P0 patch)
+META_AGENT_ENABLED = os.getenv("META_AGENT_ENABLED", "false").lower() == "true"
+META_OVERRIDE_THRESHOLD = float(os.getenv("META_OVERRIDE_THRESHOLD", "0.99"))
+META_FAIL_OPEN = os.getenv("META_FAIL_OPEN", "true").lower() == "true"
+
 # Import governer agent (risk management)
 try:
     from ai_engine.agents.governer_agent import GovernerAgent, RiskConfig
@@ -239,7 +244,7 @@ class EnsembleManager:
                     min_confidence_threshold=0.65,
                     kelly_fraction=0.25,
                     cooldown_after_loss_minutes=60,
-                    max_daily_trades=20
+                    max_daily_trades=10000  # TESTNET: unlimited for testing
                 )
                 self.governer_agent = GovernerAgent(config=risk_config)
                 logger.info(f"[OK] Governer agent loaded (Risk Management Layer)")
@@ -599,22 +604,59 @@ class EnsembleManager:
                             'confidence': 0.5
                         }
                 
-                # Get meta prediction
-                meta_result = self.meta_agent.predict(ensemble_vector, symbol)
-                
-                # Use meta prediction as final decision
-                if meta_result['confidence'] > 0.6:  # Only override if meta is confident
-                    logger.info(
-                        f"[META] {symbol} override: {action}→{meta_result['action']} "
-                        f"(conf={meta_result['confidence']:.3f})"
-                    )
-                    action = meta_result['action']
-                    confidence = meta_result['confidence']
-                    info['meta_override'] = True
-                    info['meta_confidence'] = meta_result['confidence']
-                else:
+                # P0 PATCH: Check if meta-agent is enabled
+                if not META_AGENT_ENABLED:
+                    logger.debug(f"[META_OVERRIDE] {symbol}: DISABLED (env) - using base ensemble: {action} @ {confidence:.3f}")
                     info['meta_override'] = False
-                    info['meta_confidence'] = meta_result['confidence']
+                    info['meta_enabled'] = False
+                else:
+                    info['meta_enabled'] = True
+                    
+                    # Get meta prediction
+                    meta_result = self.meta_agent.predict(ensemble_vector, symbol)
+                    meta_action = meta_result.get('action', 'INVALID')
+                    meta_conf = meta_result.get('confidence', -1.0)
+                    
+                    # Validate meta output (fail-open safety)
+                    valid_actions = {'BUY', 'SELL', 'HOLD'}
+                    is_valid = (meta_action in valid_actions) and (0 <= meta_conf <= 1)
+                    
+                    if not is_valid:
+                        if META_FAIL_OPEN:
+                            logger.warning(
+                                f"[META_OVERRIDE] {symbol}: INVALID meta output (action={meta_action}, conf={meta_conf}) "
+                                f"- fail-open: using base ensemble {action} @ {confidence:.3f}"
+                            )
+                            info['meta_override'] = False
+                            info['meta_error'] = 'invalid_output'
+                        else:
+                            logger.error(
+                                f"[META_OVERRIDE] {symbol}: INVALID meta output - fail-closed: forcing HOLD"
+                            )
+                            action = 'HOLD'
+                            confidence = 0.0
+                            info['meta_override'] = True
+                            info['meta_error'] = 'invalid_output_fail_closed'
+                    elif meta_conf >= META_OVERRIDE_THRESHOLD:
+                        # Meta override active
+                        logger.info(
+                            f"[META_OVERRIDE] {symbol}: ACTIVE - base={action}@{confidence:.3f} → "
+                            f"meta={meta_action}@{meta_conf:.3f} (threshold={META_OVERRIDE_THRESHOLD})"
+                        )
+                        action = meta_action
+                        confidence = meta_conf
+                        info['meta_override'] = True
+                        info['meta_confidence'] = meta_conf
+                        info['base_action'] = active_predictions
+                    else:
+                        # Meta below threshold
+                        logger.info(
+                            f"[META_OVERRIDE] {symbol}: BELOW_THRESHOLD - meta={meta_action}@{meta_conf:.3f} "
+                            f"(threshold={META_OVERRIDE_THRESHOLD}) - keeping base {action}@{confidence:.3f}"
+                        )
+                        info['meta_override'] = False
+                        info['meta_confidence'] = meta_conf
+                        info['meta_action'] = meta_action
                     
             except Exception as e:
                 logger.error(f"[META] Prediction error: {e} - using base ensemble")

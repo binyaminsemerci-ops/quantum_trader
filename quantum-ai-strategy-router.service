@@ -1,0 +1,28 @@
+[Unit]
+Description=Quantum Trader - AI Strategy Router
+After=network.target redis.service quantum-ai-engine.service quantum-strategy-brain.service quantum-risk-brain.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+Environment="PATH=/opt/quantum/venvs/ai-engine/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/home/qt/quantum_trader"
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python3 /usr/local/bin/ai_strategy_router.py
+
+# Logging
+StandardOutput=append:/var/log/quantum/ai-strategy-router.log
+StandardError=append:/var/log/quantum/ai-strategy-router.log
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Resource limits
+MemoryHigh=100M
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

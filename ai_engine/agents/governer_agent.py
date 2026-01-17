@@ -45,7 +45,7 @@ class RiskConfig:
     min_confidence_threshold: float = 0.65  # Only trade if confidence > 65%
     kelly_fraction: float = 0.25  # Use 25% of full Kelly (safer)
     cooldown_after_loss_minutes: int = 60  # Wait 1 hour after loss
-    max_daily_trades: int = 20  # Max trades per day
+    max_daily_trades: int = 200  # Max trades per day (TESTNET: raised for testing)
     emergency_stop: bool = False  # Manual kill switch
 
 @dataclass

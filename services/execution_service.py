@@ -458,12 +458,13 @@ async def execute_order_from_intent(intent: TradeIntent):
     """
     Execute REAL trade order on Binance Futures Testnet
     
-    1. Calculate quantity from position size and price
-    2. Set leverage
-    3. Place MARKET order on Binance
-    4. Place STOP_MARKET order (Stop Loss)
-    5. Place TAKE_PROFIT_MARKET order (Take Profit)
-    6. Publish execution result
+    1. Idempotency check (second safety layer)
+    2. Calculate quantity from position size and price
+    3. Set leverage
+    4. Place MARKET order on Binance
+    5. Place STOP_MARKET order (Stop Loss)
+    6. Place TAKE_PROFIT_MARKET order (Take Profit)
+    7. Publish execution result
     """
     global stats
     
@@ -471,10 +472,30 @@ async def execute_order_from_intent(intent: TradeIntent):
         stats["orders_received"] += 1
         stats["last_order_time"] = datetime.utcnow().isoformat()
         
+        # P0 FIX: Second-layer idempotency check
+        # Extract trace_id from timestamp (best effort - EventBus doesn't preserve metadata)
+        # Use symbol+timestamp as fallback trace_id
+        trace_id = f"{intent.symbol}_{intent.timestamp}"
+        dedup_key = f"quantum:dedup:order:{trace_id}"
+        
+        # Check if this order was already placed
+        import redis
+        redis_client = redis.from_url("redis://localhost:6379", decode_responses=True)
+        
+        if redis_client.exists(dedup_key):
+            logger.warning(
+                f"🔁 DUPLICATE_ORDER_SKIP: {intent.symbol} {intent.side} "
+                f"trace_id={trace_id} - order already placed"
+            )
+            return
+        
+        # Set dedup key with 24h TTL
+        redis_client.setex(dedup_key, 86400, "1")
+        
         logger.info(
             f"📥 TradeIntent received: {intent.symbol} {intent.side} "
             f"${intent.position_size_usd:.2f} @ ${intent.entry_price:.4f} "
-            f"| Confidence={intent.confidence:.2%} | Leverage={intent.leverage}x"
+            f"| Confidence={intent.confidence:.2%} | Leverage={intent.leverage}x | trace_id={trace_id}"
         )
         
         # 1. Set leverage for symbol
@@ -498,6 +519,13 @@ async def execute_order_from_intent(intent: TradeIntent):
         is_valid, error_msg = validate_quantity(intent.symbol, quantity)
         if not is_valid:
             logger.error(f"❌ {error_msg}")
+            
+            # P0 FIX: Log terminal state for rejection (Phase 2)
+            logger.info(
+                f"🚫 TERMINAL STATE: REJECTED | {intent.symbol} {intent.side} | "
+                f"Reason: {error_msg} | trace_id={trace_id}"
+            )
+            
             result = ExecutionResult(
                 symbol=intent.symbol,
                 action=intent.side,
@@ -578,6 +606,12 @@ async def execute_order_from_intent(intent: TradeIntent):
         # 6. Publish result to Redis
         await eventbus.publish_execution(result)
         
+        # P0 FIX: Log terminal state for watchdog monitoring (Phase 2)
+        logger.info(
+            f"✅ TERMINAL STATE: FILLED | {intent.symbol} {intent.side} | "
+            f"OrderID={order_id} | trace_id={trace_id}"
+        )
+        
         # 7. Update stats
         stats["orders_filled"] += 1
         stats["total_volume_usd"] += result.position_size_usd
@@ -597,9 +631,23 @@ async def execute_order_from_intent(intent: TradeIntent):
     
     except BinanceAPIException as e:
         logger.error(f"❌ Binance API error: {e}")
+        
+        # P0 FIX: Log terminal state for error (Phase 2)
+        logger.info(
+            f"🚫 TERMINAL STATE: FAILED | {intent.symbol} {intent.side} | "
+            f"Reason: Binance API error | trace_id={trace_id}"
+        )
+        
         stats["orders_rejected"] += 1
     except Exception as e:
         logger.error(f"❌ Execution error: {e}", exc_info=True)
+        
+        # P0 FIX: Log terminal state for error (Phase 2)
+        logger.info(
+            f"🚫 TERMINAL STATE: FAILED | {intent.symbol} {intent.side} | "
+            f"Reason: Exception - {str(e)[:100]} | trace_id={trace_id}"
+        )
+        
         stats["orders_rejected"] += 1
 
 
@@ -607,8 +655,24 @@ async def order_consumer():
     """Background task: consume approved orders from quantum:stream:trade.intent"""
     logger.info("🚀 Starting order consumer...")
     
+    import socket
+    import os
+    
+    # P0 FIX: Use consumer groups for reliability (Phase 2)
+    group_name = "quantum:group:execution:trade.intent"
+    consumer_name = f"execution-{socket.gethostname()}-{os.getpid()}"
+    
+    logger.info(f"📥 Consumer group: {group_name}")
+    logger.info(f"📥 Consumer name: {consumer_name}")
+    
     try:
-        async for signal_data in eventbus.subscribe("quantum:stream:trade.intent"):
+        async for signal_data in eventbus.subscribe_with_group(
+            "quantum:stream:trade.intent",
+            group_name=group_name,
+            consumer_name=consumer_name,
+            start_id=">",  # Only new messages
+            create_group=True
+        ):
             # Remove EventBus metadata
             signal_data = {k: v for k, v in signal_data.items() if not k.startswith('_')}
             

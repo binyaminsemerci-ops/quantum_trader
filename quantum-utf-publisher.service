@@ -1,0 +1,18 @@
+[Unit]
+Description=Quantum UTF Publisher - Unified Training Feed
+After=network.target redis-server.service
+Wants=redis-server.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/lib/quantum/utf
+EnvironmentFile=/etc/quantum/utf.env
+ExecStart=/usr/bin/python3 /usr/local/bin/utf_publisher.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
