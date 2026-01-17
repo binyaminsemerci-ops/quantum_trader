@@ -1,0 +1,16 @@
+[Unit]
+Description=Run Quantum Stream Recovery every 2 minutes
+Documentation=file:///home/qt/quantum_trader/AI_PHASE21_ZOMBIE_FIX_FINAL_REPORT.md
+
+[Timer]
+# Start 30 seconds after boot
+OnBootSec=30
+
+# Run every 2 minutes after last completion
+OnUnitActiveSec=120
+
+# Persist timer across reboots
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,17 @@
+[Unit]
+Description=Quantum Stream Recovery (XAUTOCLAIM + zombie cleanup)
+Documentation=file:///home/qt/quantum_trader/AI_PHASE21_ZOMBIE_FIX_FINAL_REPORT.md
+After=redis-server.service
+Wants=redis-server.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/quantum_stream_recover.sh
+
+# Logging
+StandardOutput=append:/var/log/quantum/stream_recover.log
+StandardError=append:/var/log/quantum/stream_recover.log
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
