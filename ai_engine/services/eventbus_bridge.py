@@ -16,6 +16,7 @@ Date: 2026-01-12
 import json
 import asyncio
 import logging
+import os
 from typing import Dict, Any, Optional, Callable, List
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -213,8 +214,17 @@ class EventBusClient:
         return await self.publish("trade.signal.safe", asdict(signal))
     
     async def publish_execution(self, result: ExecutionResult):
-        """Publish execution result to trade.execution.res"""
-        return await self.publish("trade.execution.res", asdict(result))
+        """Publish execution result (primary + optional legacy stream)."""
+        primary_stream = os.getenv("EXECUTION_RESULT_STREAM", "quantum:stream:execution.result")
+        legacy_stream = os.getenv("EXECUTION_RESULT_STREAM_LEGACY", "trade.execution.res")
+        payload = asdict(result)
+        msg_id = await self.publish(primary_stream, payload)
+        if legacy_stream and legacy_stream != primary_stream:
+            try:
+                await self.publish(legacy_stream, payload)
+            except Exception as e:
+                logger.warning(f"⚠️ Legacy execution publish failed: {e}")
+        return msg_id
     
     async def publish_position(self, update: PositionUpdate):
         """Publish position update to trade.position.update"""
