@@ -1,0 +1,2 @@
+redis==5.0.1
+asyncio-contextmanager==1.0.0

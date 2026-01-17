@@ -1,0 +1,44 @@
+[Unit]
+Description=Quantum Trader - HarvestBrain (Profit Harvesting Service)
+Documentation=file:///home/qt/quantum_trader/microservices/harvest_brain/README.md
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/opt/quantum/microservices/harvest_brain
+EnvironmentFile=/etc/quantum/harvest-brain.env
+
+# Python environment
+Environment="PATH=/opt/quantum/venvs/ai-client-base/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONPATH=/home/qt/quantum_trader"
+Environment="PYTHONUNBUFFERED=1"
+
+# Service execution
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python -u harvest_brain.py
+
+# Restart policy
+Restart=always
+RestartSec=2
+StartLimitInterval=60
+StartLimitBurst=5
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=65536
+
+# Logging
+StandardOutput=append:/var/log/quantum/harvest_brain.log
+StandardError=append:/var/log/quantum/harvest_brain.log
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/home/qt /var/log/quantum /tmp
+
+[Install]
+WantedBy=multi-user.target
