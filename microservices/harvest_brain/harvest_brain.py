@@ -108,6 +108,32 @@ class Config:
 # DATA MODELS
 # ============================================================================
 
+# ============================================================================
+# SYMBOL-SPECIFIC CONFIGURATION
+# ============================================================================
+
+@dataclass
+class SymbolConfig:
+    """Per-symbol configuration overrides"""
+    symbol: str
+    min_r: Optional[float] = None
+    harvest_ladder: Optional[str] = None
+    set_be_at_r: Optional[float] = None
+    trail_atr_mult: Optional[float] = None
+    
+    def get_min_r(self, default: float) -> float:
+        """Get min_r with fallback to default"""
+        return self.min_r if self.min_r is not None else default
+    
+    def get_set_be_at_r(self, default: float) -> float:
+        """Get set_be_at_r with fallback to default"""
+        return self.set_be_at_r if self.set_be_at_r is not None else default
+    
+    def get_trail_atr_mult(self, default: float) -> float:
+        """Get trail_atr_mult with fallback to default"""
+        return self.trail_atr_mult if self.trail_atr_mult is not None else default
+
+
 @dataclass
 class Position:
     """Tracked position per symbol"""
@@ -307,8 +333,10 @@ class PositionTracker:
 class HarvestPolicy:
     """Deterministic R-based harvesting policy"""
     
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, redis_client: redis.Redis = None):
         self.config = config
+        self.redis = redis_client
+        self.symbol_configs: Dict[str, SymbolConfig] = {}
         self.parse_ladder()
     
     def parse_ladder(self):
@@ -324,6 +352,79 @@ class HarvestPolicy:
             logger.error(f"Failed to parse harvest ladder: {e}")
             self.ladder = [(0.5, 0.25), (1.0, 0.25), (1.5, 0.25)]
     
+    def _load_symbol_config(self, symbol: str) -> SymbolConfig:
+        """Load or cache symbol-specific configuration from Redis"""
+        if symbol in self.symbol_configs:
+            return self.symbol_configs[symbol]
+        
+        sym_config = SymbolConfig(symbol=symbol)
+        
+        if self.redis:
+            try:
+                config_key = f"quantum:config:harvest:{symbol}"
+                config_data = self.redis.hgetall(config_key)
+                
+                if config_data:
+                    sym_config.min_r = float(config_data.get('min_r', sym_config.min_r))
+                    sym_config.harvest_ladder = config_data.get('ladder', sym_config.harvest_ladder)
+                    sym_config.set_be_at_r = float(config_data.get('set_be_at_r', sym_config.set_be_at_r)) if 'set_be_at_r' in config_data else None
+                    sym_config.trail_atr_mult = float(config_data.get('trail_atr_mult', sym_config.trail_atr_mult)) if 'trail_atr_mult' in config_data else None
+                    logger.debug(f"✅ Loaded symbol config for {symbol}: {config_data}")
+            except Exception as e:
+                logger.debug(f"No symbol-specific config for {symbol}: {e}")
+        
+        self.symbol_configs[symbol] = sym_config
+        return sym_config
+    
+    def _calculate_volatility(self, position: Position) -> float:
+        """
+        Calculate volatility proxy from position.
+        Uses entry_risk as volatility indicator:
+        - High entry_risk (> 2.5% of entry price) = high volatility
+        - Low entry_risk (< 1% of entry price) = low volatility
+        Returns: 0.0 to 2.0 (scale factor for harvest fractions)
+        """
+        if position.entry_price <= 0:
+            return 1.0  # Default to normal ladder
+        
+        risk_pct = (position.entry_risk / position.entry_price) * 100
+        
+        # Volatility scaling:
+        # - risk_pct < 1%: volatility_scale = 1.4 (close more, 35% instead of 25%)
+        # - risk_pct 1-2.5%: volatility_scale = 1.0 (normal ladder)
+        # - risk_pct > 2.5%: volatility_scale = 0.6 (close less, 15% instead of 25%)
+        if risk_pct < 1.0:
+            volatility_scale = 1.4  # Low vol, aggressive closes
+        elif risk_pct > 2.5:
+            volatility_scale = 0.6  # High vol, conservative closes
+        else:
+            volatility_scale = 1.0  # Normal
+        
+        return volatility_scale
+    
+    def _get_dynamic_ladder(self, position: Position) -> List[Tuple[float, float]]:
+        """
+        Get harvest ladder adjusted for volatility.
+        Returns list of (r_trigger, adjusted_fraction)
+        """
+        volatility_scale = self._calculate_volatility(position)
+        dynamic_ladder = []
+        
+        for r_trigger, base_fraction in self.ladder:
+            adjusted_fraction = base_fraction * volatility_scale
+            # Cap at reasonable limits
+            adjusted_fraction = min(max(adjusted_fraction, 0.1), 0.5)
+            dynamic_ladder.append((r_trigger, adjusted_fraction))
+        
+        if volatility_scale != 1.0:
+            logger.debug(
+                f"📈 Dynamic ladder for {position.symbol}: "
+                f"vol_scale={volatility_scale:.2f}, "
+                f"risk_pct={(position.entry_risk/position.entry_price*100):.1f}%"
+            )
+        
+        return dynamic_ladder
+    
     def evaluate(self, position: Position) -> List[HarvestIntent]:
         """Evaluate position for harvesting opportunities"""
         intents = []
@@ -331,17 +432,70 @@ class HarvestPolicy:
         if not position:
             return intents
         
+        # Load symbol-specific config or use defaults
+        sym_cfg = self._load_symbol_config(position.symbol)
+        min_r = sym_cfg.get_min_r(self.config.min_r)
+        be_trigger = sym_cfg.get_set_be_at_r(self.config.harvest_set_be_at_r)
+        trail_mult = sym_cfg.get_trail_atr_mult(self.config.harvest_trail_atr_mult)
+        
         r = position.r_level()
         
         # Skip if below min_r
-        if r < self.config.min_r:
-            logger.debug(f"{position.symbol}: R={r:.2f} < min_r={self.config.min_r}")
+        if r < min_r:
+            logger.debug(f"{position.symbol}: R={r:.2f} < min_r={min_r}")
             return intents
         
         logger.info(f"{position.symbol}: Evaluating R={r:.2f}")
         
+        # Check for trailing stop opportunity after profit accumulates
+        # Trail SL by (entry_risk * trail_atr_mult) below current price
+        trail_distance = position.entry_risk * trail_mult
+        trailing_sl = position.current_price - trail_distance
+        
+        # Only move SL up (reduce loss risk), never down
+        if trailing_sl > position.stop_loss and r >= min_r:
+            trail_intent = HarvestIntent(
+                intent_type='MOVE_SL_TRAIL',
+                symbol=position.symbol,
+                side='MOVE_SL',
+                qty=position.qty,
+                reason=f'Trail SL by {trail_distance:.2f} @ R={r:.2f}',
+                r_level=r,
+                unrealized_pnl=position.unrealized_pnl,
+                correlation_id=f"trail:{position.symbol}:{int(position.last_update_ts)}",
+                trace_id=f"trail:{position.symbol}:{int(position.last_update_ts)}",
+                dry_run=(self.config.harvest_mode == 'shadow')
+            )
+            intents.append(trail_intent)
+            logger.info(
+                f"🔄 Trailing SL: {position.symbol} {position.stop_loss:.2f} → {trailing_sl:.2f} @ R={r:.2f}"
+            )
+        
+        # Check if we should move SL to break-even (symbol-specific trigger)
+        if r >= be_trigger and position.stop_loss < position.entry_price:
+            # Move SL to break-even (entry price)
+            be_intent = HarvestIntent(
+                intent_type='MOVE_SL_BREAKEVEN',
+                symbol=position.symbol,
+                side='MOVE_SL',  # Special side for SL moves
+                qty=position.qty,
+                reason=f'R={r:.2f} >= {be_trigger} (BE)',
+                r_level=r,
+                unrealized_pnl=position.unrealized_pnl,
+                correlation_id=f"be:{position.symbol}:{int(position.last_update_ts)}",
+                trace_id=f"be:{position.symbol}:{int(position.last_update_ts)}",
+                dry_run=(self.config.harvest_mode == 'shadow')
+            )
+            intents.append(be_intent)
+            logger.info(
+                f"📍 Break-Even: {position.symbol} SL → {position.entry_price} @ R={r:.2f}"
+            )
+        
+        # Get volatility-adjusted harvest ladder for this symbol
+        dynamic_ladder = self._get_dynamic_ladder(position)
+        
         # Check each ladder level
-        for r_trigger, fraction_to_close in self.ladder:
+        for r_trigger, fraction_to_close in dynamic_ladder:
             if r >= r_trigger:
                 qty = position.qty * fraction_to_close
                 
@@ -354,7 +508,7 @@ class HarvestPolicy:
                     symbol=position.symbol,
                     side=exit_side,
                     qty=qty,
-                    reason=f'R={r:.2f} >= {r_trigger}',
+                    reason=f'R={r:.2f} >= {r_trigger} (vol-adjusted)',
                     r_level=r,
                     unrealized_pnl=position.unrealized_pnl,
                     correlation_id=f"harvest:{position.symbol}:{r_trigger}:{int(position.last_update_ts)}",
@@ -379,11 +533,17 @@ class DedupManager:
     
     def build_key(self, intent: HarvestIntent) -> str:
         """Build dedup key from intent"""
-        return (
-            f"quantum:dedup:harvest:"
-            f"{intent.symbol}:{intent.intent_type}:{intent.r_level}:"
-            f"{int(intent.unrealized_pnl * 100)}"
-        )
+        if intent.intent_type in ['MOVE_SL_BREAKEVEN', 'MOVE_SL_TRAIL']:
+            # Only one SL move per symbol (either BE or TRAIL, whichever comes first)
+            # Use symbol-only key to prevent duplicate moves
+            return f"quantum:dedup:harvest:{intent.symbol}:{intent.intent_type}"
+        else:
+            # Regular harvest dedup by R level
+            return (
+                f"quantum:dedup:harvest:"
+                f"{intent.symbol}:{intent.intent_type}:{intent.r_level}:"
+                f"{int(intent.unrealized_pnl * 100)}"
+            )
     
     def is_duplicate(self, intent: HarvestIntent) -> bool:
         """Check if intent is duplicate (already processed)"""
@@ -465,18 +625,78 @@ class StreamPublisher:
                 'timestamp': intent.timestamp
             }
             
-            self.redis.xadd(
+            entry_id = self.redis.xadd(
                 self.config.stream_trade_intent,
                 {'payload': json.dumps(payload)}
             )
             logger.warning(
                 f"⚠️  LIVE: {intent.intent_type} {intent.symbol} "
-                f"{intent.qty} @ R={intent.r_level:.2f} - ORDER PUBLISHED"
+                f"{intent.qty} @ R={intent.r_level:.2f} - ORDER PUBLISHED (ID: {entry_id})"
             )
+            
+            # Record harvest history for dashboard/analytics
+            if intent.intent_type == 'HARVEST_PARTIAL':
+                self._record_harvest_history(intent)
+            
             return True
         except Exception as e:
             logger.error(f"Failed to publish live: {e}")
             return False
+    
+    def _record_harvest_history(self, intent: HarvestIntent) -> None:
+        """Record harvest to sorted set for historical tracking"""
+        try:
+            history_key = f"quantum:harvest:history:{intent.symbol}"
+            ts = time.time()
+            
+            # Store in sorted set with timestamp as score
+            history_entry = {
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'qty': intent.qty,
+                'r_level': intent.r_level,
+                'pnl': intent.unrealized_pnl,
+                'reason': intent.reason
+            }
+            
+            self.redis.zadd(
+                history_key,
+                {json.dumps(history_entry): ts}
+            )
+            
+            # Keep last 100 harvests per symbol (trim older ones)
+            self.redis.zremrangebyrank(history_key, 0, -101)
+            
+            logger.debug(f"📊 Recorded harvest history for {intent.symbol}: {ts:.0f}")
+        except Exception as e:
+            logger.warning(f"Failed to record harvest history: {e}")
+    
+    def get_harvest_history(self, symbol: str, hours: int = 24) -> List[dict]:
+        """Retrieve harvest history for symbol in last N hours"""
+        try:
+            history_key = f"quantum:harvest:history:{symbol}"
+            now = time.time()
+            start_ts = now - (hours * 3600)
+            
+            # Get all entries in time range (sorted by score/timestamp)
+            entries = self.redis.zrangebyscore(
+                history_key, 
+                start_ts, 
+                now,
+                withscores=False
+            )
+            
+            history = []
+            for entry_json in entries:
+                try:
+                    entry = json.loads(entry_json)
+                    history.append(entry)
+                except:
+                    pass
+            
+            return history
+        except Exception as e:
+            logger.warning(f"Failed to get harvest history for {symbol}: {e}")
+            return []
 
 
 # ============================================================================
@@ -494,7 +714,7 @@ class HarvestBrainService:
             decode_responses=True
         )
         self.tracker = PositionTracker()
-        self.policy = HarvestPolicy(config)
+        self.policy = HarvestPolicy(config, self.redis)
         self.dedup = DedupManager(self.redis, config)
         self.publisher = StreamPublisher(self.redis, config)
         self.last_id = '0'  # Stream position
