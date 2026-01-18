@@ -28,8 +28,9 @@ import redis
 # LOGGING SETUP
 # ============================================================================
 
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
     format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -115,9 +116,9 @@ class Position:
     qty: float
     entry_price: float
     current_price: float
-    unrealized_pnl: float
     entry_risk: float  # Initial risk (from entry to SL)
     stop_loss: float
+    unrealized_pnl: float = 0.0
     take_profit: Optional[float] = None
     leverage: float = 1.0
     last_update_ts: float = 0.0
@@ -171,27 +172,89 @@ class PositionTracker:
     def ingest_execution(self, exec_event: dict) -> bool:
         """Process execution.result event to update position state"""
         try:
-            payload = json.loads(exec_event.get('payload', '{}'))
-            signal = payload.get('signal', {})
+            # Handle both nested payload.signal and flat dict formats
+            if 'payload' in exec_event:
+                payload = json.loads(exec_event.get('payload', '{}'))
+                signal = payload.get('signal', {})
+                symbol = signal.get('symbol', '').strip()
+                side = signal.get('side', '').strip()
+                status = payload.get('status', '').upper()
+            else:
+                # Flat dict format (direct from stream)
+                symbol = exec_event.get('symbol', '').strip()
+                side = exec_event.get('side', '').strip()
+                status = exec_event.get('status', '').upper()
             
-            symbol = signal.get('symbol', '').strip()
-            side = signal.get('side', '').strip()
+            # PRICE_UPDATE only needs symbol, not side
+            if status == 'PRICE_UPDATE':
+                if not symbol:
+                    logger.debug(f"Skipping PRICE_UPDATE: missing symbol")
+                    return False
+                if symbol in self.positions:
+                    pos = self.positions[symbol]
+                    price = float(exec_event.get('price', pos.current_price))
+                    pos.current_price = price
+                    # Calculate PNL based on position direction
+                    if pos.side in ['BUY', 'LONG']:
+                        pos.unrealized_pnl = (price - pos.entry_price) * pos.qty
+                    else:  # SELL, SHORT
+                        pos.unrealized_pnl = (pos.entry_price - price) * pos.qty
+                    pos.last_update_ts = time.time()
+                    logger.debug(f"💹 Price update: {symbol} @ {price} (pnl={pos.unrealized_pnl:.2f}, R={pos.r_level():.2f})")
+                    return True
+                else:
+                    logger.debug(f"Skipping PRICE_UPDATE for unknown symbol: {symbol}")
+                    return False
             
+            # FILLED/PARTIAL require both symbol and side
             if not symbol or not side:
-                logger.debug(f"Skipping execution: missing symbol/side")
+                logger.debug(f"Skipping execution: missing symbol/side in {list(exec_event.keys())}")
                 return False
             
-            status = payload.get('status', '').upper()
             if status not in ['FILLED', 'PARTIAL']:
+                logger.debug(f"Skipping execution: status={status} for {symbol}")
                 return False
             
-            # TODO: Parse actual fill qty/price from execution event
-            # For now, just acknowledge we've seen the execution
-            logger.debug(f"Ingested execution: {symbol} {side}")
+            # Extract fill details
+            qty = float(exec_event.get('qty', 0))
+            price = float(exec_event.get('price', 0))
+            entry_price = float(exec_event.get('entry_price', price))
+            stop_loss = float(exec_event.get('stop_loss', 0))
+            take_profit = float(exec_event.get('take_profit', 0))
+            
+            if qty <= 0:
+                logger.debug(f"Skipping execution: qty={qty}")
+                return False
+            
+            # Update or create position
+            if symbol not in self.positions:
+                self.positions[symbol] = Position(
+                    symbol=symbol,
+                    side=side,
+                    qty=qty,
+                    entry_price=entry_price,
+                    current_price=price,
+                    entry_risk=abs(entry_price - stop_loss) if stop_loss > 0 else abs(entry_price * 0.02),
+                    stop_loss=stop_loss,
+                    take_profit=take_profit
+                )
+                logger.info(f"✅ New position: {symbol} {side} {qty} @ {entry_price}")
+            else:
+                pos = self.positions[symbol]
+                pos.qty += qty if side == pos.side else -qty
+                pos.current_price = price
+                # Calculate PNL based on position direction
+                if pos.side in ['BUY', 'LONG']:
+                    pos.unrealized_pnl = (price - pos.entry_price) * pos.qty
+                else:  # SELL, SHORT
+                    pos.unrealized_pnl = (pos.entry_price - price) * pos.qty
+                pos.last_update_ts = time.time()
+                logger.info(f"📊 Updated position: {symbol} qty={pos.qty} pnl={pos.unrealized_pnl:.2f}")
+            
             return True
         
         except Exception as e:
-            logger.warning(f"Failed to ingest execution: {e}")
+            logger.warning(f"Failed to ingest execution: {e}", exc_info=True)
             return False
     
     def update_position(self, symbol: str, position_data: dict) -> bool:
@@ -503,8 +566,17 @@ class HarvestBrainService:
     async def process_execution(self, msg_id: str, msg_data: dict) -> None:
         """Process single execution event"""
         try:
-            payload_str = msg_data.get('payload', '{}')
-            exec_event = json.loads(payload_str)
+            # Handle both flat dict and JSON payload formats
+            if 'payload' in msg_data:
+                payload_str = msg_data.get('payload', '{}')
+                exec_event = json.loads(payload_str)
+            else:
+                # Flat dict format (direct from stream)
+                exec_event = {k.decode() if isinstance(k, bytes) else k: 
+                             v.decode() if isinstance(v, bytes) else v 
+                             for k, v in msg_data.items()}
+            
+            logger.debug(f"Processing execution: {exec_event.get('symbol')} {exec_event.get('status')}")
             
             # Ingest to update internal state
             self.tracker.ingest_execution(exec_event)
