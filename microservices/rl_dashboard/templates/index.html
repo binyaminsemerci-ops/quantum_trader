@@ -1,18 +1,381 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>RL Dashboard</title>
+  <title>RL Dashboard v2.0 - HarvestBrain Integration</title>
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-  <style>body{font-family:sans-serif;background:#111;color:#0f0;padding:20px;}h1{color:#0ff;}</style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+      color: #e0e0e0;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      backdrop-filter: blur(10px);
+    }
+    
+    h1 {
+      color: #00ffff;
+      font-size: 2.5em;
+      text-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+    }
+    
+    .metrics-bar {
+      display: flex;
+      gap: 30px;
+    }
+    
+    .metric {
+      text-align: center;
+    }
+    
+    .metric-label {
+      font-size: 0.8em;
+      color: #888;
+      text-transform: uppercase;
+    }
+    
+    .metric-value {
+      font-size: 1.8em;
+      font-weight: bold;
+      color: #00ff88;
+    }
+    
+    .metric-value.negative {
+      color: #ff4444;
+    }
+    
+    .alert-banner {
+      display: none;
+      padding: 15px 20px;
+      background: linear-gradient(90deg, #ff4444 0%, #ff8844 100%);
+      color: white;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      animation: pulse 1s infinite;
+      font-weight: bold;
+      text-align: center;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    
+    .panel {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 20px;
+      backdrop-filter: blur(10px);
+    }
+    
+    .panel-title {
+      font-size: 1.3em;
+      color: #00ffff;
+      margin-bottom: 15px;
+      border-bottom: 2px solid rgba(0, 255, 255, 0.3);
+      padding-bottom: 10px;
+    }
+    
+    .position-card {
+      background: rgba(255, 255, 255, 0.05);
+      border-left: 4px solid #888;
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      transition: transform 0.2s;
+    }
+    
+    .position-card:hover {
+      transform: translateX(5px);
+    }
+    
+    .position-card.profit-high {
+      border-left-color: #00ff88;
+      background: rgba(0, 255, 136, 0.1);
+    }
+    
+    .position-card.profit-medium {
+      border-left-color: #ffaa00;
+      background: rgba(255, 170, 0, 0.1);
+    }
+    
+    .position-card.profit-low {
+      border-left-color: #ff4444;
+      background: rgba(255, 68, 68, 0.1);
+    }
+    
+    .position-symbol {
+      font-size: 1.2em;
+      font-weight: bold;
+      color: #00ffff;
+    }
+    
+    .position-r {
+      font-size: 2em;
+      font-weight: bold;
+      float: right;
+    }
+    
+    .position-details {
+      margin-top: 10px;
+      font-size: 0.9em;
+      color: #aaa;
+    }
+    
+    .harvest-timeline {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .harvest-entry {
+      padding: 10px;
+      margin-bottom: 8px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    .harvest-time {
+      color: #888;
+      font-size: 0.85em;
+    }
+    
+    .harvest-profit {
+      color: #00ff88;
+      font-weight: bold;
+    }
+    
+    .config-btn {
+      background: rgba(0, 255, 255, 0.2);
+      border: 1px solid #00ffff;
+      color: #00ffff;
+      padding: 8px 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .config-btn:hover {
+      background: rgba(0, 255, 255, 0.4);
+      transform: scale(1.05);
+    }
+    
+    .no-data {
+      text-align: center;
+      color: #666;
+      padding: 40px;
+      font-style: italic;
+    }
+    
+    #harvest-chart {
+      max-height: 300px;
+    }
+  </style>
 </head>
 <body>
-  <h1>🧠 RL Dashboard Live</h1>
-  <div id="output"></div>
+  <div class="header">
+    <h1>🚀 RL Dashboard v2.0</h1>
+    <div class="metrics-bar">
+      <div class="metric">
+        <div class="metric-label">Total Harvests</div>
+        <div class="metric-value" id="total-harvests">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Total Profit</div>
+        <div class="metric-value" id="total-profit">$0.00</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Active Positions</div>
+        <div class="metric-value" id="active-positions">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Avg R-Level</div>
+        <div class="metric-value" id="avg-r-level">0.00R</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="alert-banner" id="alert-banner">
+    🔥 HIGH PROFIT ALERT: <span id="alert-text"></span>
+  </div>
+  
+  <div class="dashboard-grid">
+    <div class="panel">
+      <h2 class="panel-title">📊 Live Positions & R-Levels</h2>
+      <div id="positions-container">
+        <div class="no-data">No active positions</div>
+      </div>
+    </div>
+    
+    <div class="panel">
+      <h2 class="panel-title">📈 Harvest Timeline</h2>
+      <canvas id="harvest-chart"></canvas>
+    </div>
+    
+    <div class="panel">
+      <h2 class="panel-title">🎯 Recent Harvests</h2>
+      <div class="harvest-timeline" id="harvest-history">
+        <div class="no-data">No harvests yet</div>
+      </div>
+    </div>
+    
+    <div class="panel">
+      <h2 class="panel-title">🧠 RL Rewards (Original)</h2>
+      <div id="rl-output">
+        <div class="no-data">Waiting for signals...</div>
+      </div>
+    </div>
+  </div>
+  
   <script>
-    const socket=io();
-    socket.on("update",(data)=>{
-      document.getElementById("output").innerHTML+=`<p>${JSON.stringify(data)}</p>`;
+    const socket = io();
+    let positions = {};
+    let harvestChart = null;
+    
+    // Initialize harvest timeline chart
+    const ctx = document.getElementById('harvest-chart').getContext('2d');
+    harvestChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Cumulative Profit',
+          data: [],
+          borderColor: '#00ff88',
+          backgroundColor: 'rgba(0, 255, 136, 0.1)',
+          tension: 0.4,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: {
+            ticks: { color: '#888' },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          },
+          x: {
+            ticks: { color: '#888' },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          }
+        }
+      }
     });
+    
+    // Fetch metrics periodically
+    function updateMetrics() {
+      fetch('/harvest/metrics')
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('total-harvests').textContent = data.total_harvests;
+          document.getElementById('total-profit').textContent = '$' + data.total_profit.toFixed(2);
+          document.getElementById('active-positions').textContent = data.active_positions;
+          document.getElementById('avg-r-level').textContent = data.avg_r_level.toFixed(2) + 'R';
+          
+          if (data.total_profit < 0) {
+            document.getElementById('total-profit').classList.add('negative');
+          } else {
+            document.getElementById('total-profit').classList.remove('negative');
+          }
+        });
+    }
+    
+    // Fetch positions periodically
+    function updatePositions() {
+      fetch('/harvest/positions')
+        .then(r => r.json())
+        .then(data => {
+          if (data.positions.length === 0) {
+            document.getElementById('positions-container').innerHTML = '<div class="no-data">No active positions</div>';
+            return;
+          }
+          
+          let html = '';
+          data.positions.forEach(pos => {
+            let rClass = 'profit-low';
+            if (pos.r_level > 1.0) rClass = 'profit-high';
+            else if (pos.r_level >= 0.5) rClass = 'profit-medium';
+            
+            html += `
+              <div class="position-card ${rClass}">
+                <span class="position-symbol">${pos.symbol}</span>
+                <span class="position-r">${pos.r_level.toFixed(2)}R</span>
+                <div class="position-details">
+                  Entry: $${pos.entry_price.toFixed(2)} | Current: $${pos.current_price.toFixed(2)} | 
+                  PNL: $${pos.unrealized_pnl.toFixed(2)} | Qty: ${pos.qty}
+                </div>
+              </div>
+            `;
+          });
+          
+          document.getElementById('positions-container').innerHTML = html;
+        });
+    }
+    
+    // WebSocket: Position updates
+    socket.on('position_update', (pos) => {
+      positions[pos.symbol] = pos;
+      updatePositions();
+      updateMetrics();
+    });
+    
+    // WebSocket: High profit alert
+    socket.on('high_profit_alert', (alert) => {
+      const banner = document.getElementById('alert-banner');
+      const text = document.getElementById('alert-text');
+      text.textContent = `${alert.symbol} at ${alert.r_level.toFixed(2)}R ($${alert.pnl.toFixed(2)})`;
+      banner.style.display = 'block';
+      
+      // Play alert sound
+      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBzWO0/LTgjMGHm7A7+OZRQ0OVKvn77dlGAg+ltr0xnMpBSx+zPLaizsIGGS56umn');
+      audio.play().catch(() => {});
+      
+      setTimeout(() => {
+        banner.style.display = 'none';
+      }, 5000);
+    });
+    
+    // WebSocket: RL rewards (original)
+    socket.on('rl_update', (data) => {
+      const output = document.getElementById('rl-output');
+      if (output.querySelector('.no-data')) {
+        output.innerHTML = '';
+      }
+      output.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>` + output.innerHTML;
+    });
+    
+    // Initial data load
+    updateMetrics();
+    updatePositions();
+    
+    // Periodic updates
+    setInterval(updateMetrics, 5000);
+    setInterval(updatePositions, 5000);
   </script>
 </body>
 </html>
