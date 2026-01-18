@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>RL Dashboard</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>body{font-family:sans-serif;background:#111;color:#0f0;padding:20px;}h1{color:#0ff;}</style>
+</head>
+<body>
+  <h1>🧠 RL Dashboard Live</h1>
+  <div id="output"></div>
+  <script>
+    const socket=io();
+    socket.on("update",(data)=>{
+      document.getElementById("output").innerHTML+=`<p>${JSON.stringify(data)}</p>`;
+    });
+  </script>
+</body>
+</html>
