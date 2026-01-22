@@ -26,6 +26,59 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
+# SCHEMA VALIDATION
+# ============================================================================
+
+def validate_trade_intent(payload: dict) -> list[str]:
+    """
+    Validate trade intent payload against schema contract v1.1 BRIDGE-PATCH.
+    
+    v1.1: Optional AI fields (ai_size_usd, ai_leverage, ai_harvest_policy) allowed.
+    Extra fields allowed (forward compatibility).
+    
+    Returns list of error messages (empty if valid).
+    See: TRADE_INTENT_SCHEMA_CONTRACT.md
+    """
+    errors = []
+    
+    # v1.1: Required core fields only (size/lev now optional via AI or defaults)
+    required = ["symbol", "action", "confidence", "timestamp"]
+    for field in required:
+        if field not in payload:
+            errors.append(f"Missing required field: {field}")
+    
+    # Validation rules
+    if "symbol" in payload:
+        import re
+        if not re.match(r'^[A-Z]{3,10}USDT$', payload["symbol"]):
+            errors.append(f"Invalid symbol format: {payload['symbol']}")
+    
+    if "action" in payload:
+        if payload["action"] not in ["BUY", "SELL", "CLOSE"]:
+            errors.append(f"Invalid action: {payload['action']}")
+    
+    if "confidence" in payload:
+        if not (0.0 <= payload["confidence"] <= 1.0):
+            errors.append(f"Invalid confidence range: {payload['confidence']}")
+    
+    # v1.1: position_size_usd optional (can be injected by AI)
+    if "position_size_usd" in payload and payload["position_size_usd"] is not None:
+        if payload["position_size_usd"] <= 0:
+            errors.append(f"Invalid position_size_usd: {payload['position_size_usd']}")
+    
+    # v1.1: leverage optional (can be injected by AI)
+    if "leverage" in payload and payload["leverage"] is not None:
+        if not (1 <= payload["leverage"] <= 125):
+            errors.append(f"Invalid leverage range: {payload['leverage']}")
+    
+    # Deprecated field warning
+    if "side" in payload and "action" not in payload:
+        logger.warning("⚠️ Deprecated field 'side' used - use 'action' instead")
+    
+    return errors
+
+
+# ============================================================================
 # MESSAGE SCHEMAS
 # ============================================================================
 
@@ -57,15 +110,42 @@ class RiskApprovedSignal:
 
 
 @dataclass
+class HarvestPolicy:
+    """Exit/harvest policy (TP/SL control)"""
+    mode: str  # 'scalper', 'swing', 'trend_runner'
+    trail_pct: float = 1.0  # Trailing stop %
+    max_time_sec: int = 3600  # Max hold time
+    partial_close_pct: float = 0.0  # Partial close threshold
+    
+    def to_dict(self):
+        return {
+            'mode': self.mode,
+            'trail_pct': self.trail_pct,
+            'max_time_sec': self.max_time_sec,
+            'partial_close_pct': self.partial_close_pct
+        }
+
+
+@dataclass
 class TradeIntent:
-    """Trade intent from strategy layer (for execution)"""
+    """Trade intent from strategy layer (for execution)
+    
+    v1.1 BRIDGE-PATCH: Supports AI-injected sizing/leverage/policy fields.
+    """
     symbol: str
     action: str  # BUY, SELL, CLOSE
     confidence: float
-    position_size_usd: float
-    leverage: float
     timestamp: str
-    source: str
+    # Optional sizing (can come from AI or defaults)
+    position_size_usd: Optional[float] = None
+    leverage: Optional[float] = None
+    # Optional AI-injected fields (before governor clamping)
+    ai_size_usd: Optional[float] = None
+    ai_leverage: Optional[float] = None
+    ai_harvest_policy: Optional[dict] = None
+    harvest_policy: Optional[HarvestPolicy] = None
+    source: Optional[str] = None
+    risk_budget_usd: Optional[float] = None
     stop_loss_pct: Optional[float] = None
     take_profit_pct: Optional[float] = None
     entry_price: Optional[float] = None
@@ -73,10 +153,55 @@ class TradeIntent:
     take_profit: Optional[float] = None
     quantity: Optional[float] = None
     
+    def __post_init__(self):
+        """Convert ai_harvest_policy dict to HarvestPolicy if needed"""
+        if self.ai_harvest_policy and isinstance(self.ai_harvest_policy, dict):
+            try:
+                self.harvest_policy = HarvestPolicy(**self.ai_harvest_policy)
+            except Exception as e:
+                logger.warning(f"Failed to parse harvest_policy: {e}")
+    
     @property
     def side(self):
         """Backwards compatibility alias for action"""
         return self.action
+    
+    def normalized(self):
+        """Return normalized intent with leverage clamped to [5..80]"""
+        result = {
+            'symbol': self.symbol,
+            'action': self.action,
+            'confidence': self.confidence,
+            'timestamp': self.timestamp,
+        }
+        
+        if self.ai_size_usd is not None:
+            result['position_size_usd'] = self.ai_size_usd
+        elif self.position_size_usd is not None:
+            result['position_size_usd'] = self.position_size_usd
+        
+        if self.ai_leverage is not None:
+            result['leverage'] = max(5, min(80, self.ai_leverage))
+        elif self.leverage is not None:
+            result['leverage'] = max(5, min(80, self.leverage))
+        
+        if self.source:
+            result['source'] = self.source
+        if self.risk_budget_usd is not None:
+            result['risk_budget_usd'] = self.risk_budget_usd
+        if self.entry_price is not None:
+            result['entry_price'] = self.entry_price
+        if self.stop_loss is not None:
+            result['stop_loss'] = self.stop_loss
+        if self.take_profit is not None:
+            result['take_profit'] = self.take_profit
+        
+        if self.harvest_policy:
+            result['harvest_policy'] = self.harvest_policy.to_dict()
+        elif self.ai_harvest_policy:
+            result['harvest_policy'] = self.ai_harvest_policy
+        
+        return result
 
 
 @dataclass
@@ -168,17 +293,23 @@ class EventBusClient:
     
     async def publish(
         self,
-        topic: str,
-        message: Dict[str, Any],
-        maxlen: Optional[int] = None
+        stream_name: str,
+        event_type: str,
+        payload: Dict[str, Any],
+        source: str = "unknown",
+        maxlen: Optional[int] = None,
+        validate_schema: bool = True
     ) -> str:
         """
-        Publish message to Redis stream
+        Publish message to Redis stream (Schema Contract v1.0)
         
         Args:
-            topic: Stream name (e.g., "trade.signal.v5")
-            message: Message payload (will be JSON-serialized)
+            stream_name: Stream name (e.g., "quantum:stream:trade.intent")
+            event_type: Event type (e.g., "trade.intent")
+            payload: Message payload (will be JSON-serialized)
+            source: Publisher identifier
             maxlen: Max stream length (uses default if None)
+            validate_schema: Enable schema validation (fail-closed)
         
         Returns:
             Message ID
@@ -186,49 +317,92 @@ class EventBusClient:
         if not self.redis:
             raise RuntimeError("Not connected to Redis")
         
-        # Ensure timestamp
-        if "timestamp" not in message:
-            message["timestamp"] = datetime.utcnow().isoformat() + "Z"
+        # Schema validation (fail-closed for trade.intent)
+        if validate_schema and event_type == "trade.intent":
+            errors = validate_trade_intent(payload)
+            if errors:
+                raise ValueError(f"Schema validation failed: {errors}")
         
-        # Serialize to JSON string
-        payload = {"data": json.dumps(message)}
+        # Ensure timestamp
+        if "timestamp" not in payload:
+            payload["timestamp"] = datetime.utcnow().isoformat() + "Z"
+        
+        # Build Redis stream fields (Schema Contract v1.0)
+        fields = {
+            "event_type": event_type,
+            "payload": json.dumps(payload),  # NOTE: "payload" not "data"
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "source": source
+        }
         
         # Publish with MAXLEN to prevent unbounded growth
         maxlen_val = maxlen or self.max_stream_length
         message_id = await self.redis.xadd(
-            topic,
-            payload,
+            stream_name,
+            fields,
             maxlen=maxlen_val,
             approximate=True
         )
         
-        logger.debug(f"📤 Published to {topic}: {message_id}")
+        logger.debug(f"📤 Published to {stream_name}: {message_id}")
         return message_id
     
     async def publish_signal(self, signal: TradeSignal):
         """Publish trade signal to trade.signal.v5"""
-        return await self.publish("trade.signal.v5", asdict(signal))
+        return await self.publish(
+            stream_name="quantum:stream:trade.signal.v5",
+            event_type="trade.signal",
+            payload=asdict(signal),
+            source="ai-engine",
+            validate_schema=False
+        )
     
     async def publish_approved(self, signal: RiskApprovedSignal):
         """Publish risk-approved signal to trade.signal.safe"""
-        return await self.publish("trade.signal.safe", asdict(signal))
+        return await self.publish(
+            stream_name="quantum:stream:trade.signal.safe",
+            event_type="trade.signal.safe",
+            payload=asdict(signal),
+            source="risk-manager",
+            validate_schema=False
+        )
     
     async def publish_execution(self, result: ExecutionResult):
         """Publish execution result (primary + optional legacy stream)."""
         primary_stream = os.getenv("EXECUTION_RESULT_STREAM", "quantum:stream:execution.result")
         legacy_stream = os.getenv("EXECUTION_RESULT_STREAM_LEGACY", "trade.execution.res")
         payload = asdict(result)
-        msg_id = await self.publish(primary_stream, payload)
+        
+        msg_id = await self.publish(
+            stream_name=primary_stream,
+            event_type="execution.result",
+            payload=payload,
+            source="execution-service",
+            validate_schema=False
+        )
+        
         if legacy_stream and legacy_stream != primary_stream:
             try:
-                await self.publish(legacy_stream, payload)
+                await self.publish(
+                    stream_name=legacy_stream,
+                    event_type="execution.result",
+                    payload=payload,
+                    source="execution-service",
+                    validate_schema=False
+                )
             except Exception as e:
                 logger.warning(f"⚠️ Legacy execution publish failed: {e}")
         return msg_id
     
     async def publish_position(self, update: PositionUpdate):
         """Publish position update to trade.position.update"""
-        return await self.publish("trade.position.update", asdict(update))
+        return await self.publish(
+            stream_name="quantum:stream:position.update",
+            event_type="position.update",
+            payload=asdict(update),
+            source="execution-service",
+            validate_schema=False
+        )
     
     async def subscribe_with_group(
         self,
@@ -280,6 +454,10 @@ class EventBusClient:
         
         logger.info(f"📥 Subscribing to {topic} (group={group_name}, consumer={consumer_name})")
         last_id = start_id
+        msg_count = 0
+        
+        # P0.D.5: Configurable batch size from environment
+        read_count = int(os.getenv('XREADGROUP_COUNT', '10'))
         
         while True:
             try:
@@ -288,7 +466,7 @@ class EventBusClient:
                     group_name,
                     consumer_name,
                     {topic: last_id},
-                    count=10,
+                    count=read_count,
                     block=block_ms
                 )
                 
@@ -299,22 +477,33 @@ class EventBusClient:
                 # Process messages
                 for stream_name, stream_messages in messages:
                     for message_id, fields in stream_messages:
-                        # Parse JSON payload
-                        if "data" in fields:
+                        msg_count += 1
+                        
+                        # Diagnostic logging (controlled by PIPELINE_DIAG env var)
+                        if os.getenv('PIPELINE_DIAG') == 'true' and msg_count % 500 == 0:
+                            logger.info(f"[DIAG] Heartbeat: delivered {msg_count} messages from {stream_name}")
+                        
+                        # Parse JSON payload (stream contract: fields["payload"] contains JSON)
+                        if "payload" in fields:
                             try:
-                                payload = json.loads(fields["data"])
+                                payload = json.loads(fields["payload"])
                                 payload["_message_id"] = message_id
                                 payload["_stream_name"] = stream_name
                                 payload["_group_name"] = group_name
+                                
                                 yield payload
                                 
                                 # ACK message immediately after processing
                                 await self.redis.xack(stream_name, group_name, message_id)
                                 
                             except json.JSONDecodeError as e:
-                                logger.error(f"❌ JSON decode error: {e}")
-                                # ACK bad messages to avoid reprocessing
-                                await self.redis.xack(stream_name, group_name, message_id)
+                                # DO NOT ACK on parse error - let it retry or go to DLQ
+                                logger.error(f"❌ JSON decode error on {message_id}: {e}")
+                                if os.getenv('PIPELINE_DIAG') == 'true':
+                                    raw_data = str(fields).encode('utf-8')[:600].decode('utf-8', errors='ignore')
+                                    logger.error(f"[DIAG] Raw data: {raw_data}")
+                                # Continue without ACK - message stays in pending list
+                                continue
             
             except asyncio.CancelledError:
                 logger.info(f"🛑 Subscription cancelled: {topic}")

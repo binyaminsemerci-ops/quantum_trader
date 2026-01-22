@@ -1,0 +1,43 @@
+groups:
+  - name: quantum_safety
+    interval: 30s
+    rules:
+      - alert: QuantumSafeModeActive
+        expr: quantum_safety_safe_mode == 1
+        for: 1m
+        labels:
+          severity: critical
+          component: safety-kernel
+        annotations:
+          summary: "Quantum Trader in SAFE MODE"
+          description: "Safety kernel activated SAFE MODE. All trading halted."
+
+      - alert: QuantumTelemetryExporterDown
+        expr: up{job="quantum_safety_telemetry"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: telemetry
+        annotations:
+          summary: "Safety telemetry exporter down"
+          description: "Prometheus cannot scrape metrics from safety exporter at localhost:9105."
+
+      - alert: QuantumRedisConnectionLost
+        expr: quantum_safety_redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: redis
+        annotations:
+          summary: "Exporter lost Redis connection"
+          description: "Safety telemetry exporter cannot connect to Redis. Metrics may be stale."
+
+      - alert: QuantumSafetyFaultSpike
+        expr: increase(quantum_safety_faults_last_1h[5m]) > 5
+        for: 3m
+        labels:
+          severity: warning
+          component: safety-kernel
+        annotations:
+          summary: "Safety fault rate spike detected"
+          description: "{{ $value }} new safety faults in last 5 minutes. Check for pattern violations."

@@ -1,0 +1,185 @@
+bridge: AI sizing/leverage/harvest policy injection (fail-closed)
+
+BRIDGE-PATCH v1.0 - Connects AI engine sizing decisions to execution service
+while maintaining ironclad fail-closed safety through Risk Governor enforcement.
+
+MOTIVATION:
+- AI models generate sizing recommendations, but were hardcoded in execution
+- No way to dynamically adjust position size/leverage based on signal confidence
+- No coordination between AI confidence and risk exposure
+- Needed safe, configurable mechanism with audit trail
+
+DESIGN:
+- AI Sizer: Proposes size/leverage/exit_policy based on confidence + volatility
+- Risk Governor: Disposes (enforces safety bounds before order)
+- SHADOW mode: Default safe mode (AI proposes but doesn't inject)
+- LIVE mode: Actual AI sizing injection (after validation)
+- Fail-closed: Conservative defaults, hard bounds enforcement
+
+COMPONENTS:
+
+A) Schema Evolution (ai_engine/services/eventbus_bridge.py)
+   - TradeIntent v1.1: Optional ai_size_usd, ai_leverage, ai_harvest_policy
+   - HarvestPolicy: Exit strategies (scalper/swing/trend_runner)
+   - normalized(): Schema cleanup + leverage clamping [5..80]
+   - Backwards compatible: v1.0 trade.intent still accepted
+
+B) AI Sizer (microservices/ai_engine/ai_sizer_policy.py)
+   - SizingConfig: Environment-configurable bounds
+   - compute_size_and_leverage(): Confidence-based sizing formula
+   - inject_into_payload(): Injects ai_* fields or copies to primary fields
+   - Harvest policy: 3 presets based on signal confidence
+   - Logging: SHADOW/LIVE mode visibility
+
+C) Risk Governor (services/risk_governor.py)
+   - GovernorConfig: Configurable size/leverage/notional bounds
+   - evaluate(): Policy enforcement before order
+   - Policies:
+     * Size: [$MIN_ORDER_USD .. $MAX_POSITION_USD]
+     * Leverage: [5..80]x
+     * Notional: size * leverage <= $MAX_NOTIONAL_USD
+     * Confidence floor (optional)
+     * Risk budget (optional)
+   - Returns: (approved, reason, metadata) with clamped values
+   - Logging: INFO-level decision audit trail
+
+D) AI Engine Integration (microservices/ai_engine/service.py)
+   - Injected at line ~2330 (after rate limiting passes)
+   - Calls ai_sizer.inject_into_payload() before publishing
+   - Fail-graceful: If sizer fails, continue with original payload
+
+E) Execution Service Integration (services/execution_service.py)
+   - Added after margin check, before order placement
+   - Calls governor.evaluate()
+   - Uses clamped values for final order
+   - Logs: [GOVERNOR] ✅ ACCEPT / ❌ REJECT with reason
+
+CONFIGURATION (Environment Variables):
+
+AI Sizing:
+  AI_SIZING_MODE=shadow|live          # Default: shadow (dry-run)
+  AI_MAX_LEVERAGE=80                   # Max AI can recommend
+  AI_MIN_LEVERAGE=5                    # Min AI can recommend
+  MAX_POSITION_USD=10000               # Max size per trade
+  MAX_NOTIONAL_USD=100000              # Max notional exposure
+  MIN_ORDER_USD=50                     # Min size per trade
+
+Governor Policy:
+  MIN_CONFIDENCE=0.0                   # 0=disabled, >0=floor
+  GOVERNOR_FAIL_OPEN=false             # false=hard-fail, true=soft-fail
+
+Suggested /etc/quantum/bridge-patch.env:
+  AI_SIZING_MODE=shadow
+  AI_MAX_LEVERAGE=80
+  AI_MIN_LEVERAGE=5
+  MAX_POSITION_USD=10000
+  MAX_NOTIONAL_USD=100000
+  MIN_ORDER_USD=50
+  MIN_CONFIDENCE=0.0
+  GOVERNOR_FAIL_OPEN=false
+
+DEPLOYMENT:
+
+1. Tests pass:
+   python tests/test_bridge_patch.py
+   python tests/test_trade_intent_schema.py
+
+2. Deploy files:
+   scp microservices/ai_engine/ai_sizer_policy.py root@vps:...
+   scp services/risk_governor.py root@vps:...
+   scp ai_engine/services/eventbus_bridge.py root@vps:...
+   scp microservices/ai_engine/service.py root@vps:...
+   scp services/execution_service.py root@vps:...
+
+3. Create config:
+   /etc/quantum/bridge-patch.env (see above)
+
+4. Update systemd:
+   Add "EnvironmentFile=/etc/quantum/bridge-patch.env" to both services
+
+5. Restart (SHADOW mode):
+   systemctl restart quantum-ai-engine quantum-execution
+
+6. Validate SHADOW (24 hours):
+   journalctl -u quantum-ai-engine | grep SHADOW
+   journalctl -u quantum-execution | grep GOVERNOR
+
+7. Switch to LIVE:
+   sed -i 's/shadow/live/' /etc/quantum/bridge-patch.env
+   systemctl restart quantum-ai-engine quantum-execution
+
+SAFETY GUARANTEES:
+
+- Fail-closed: Defaults conservative, hard bounds before order
+- Audit trail: Every decision (ACCEPT/REJECT reason) logged
+- Backwards compatible: v1.0 trade.intent still works
+- Graceful degradation: Sizer failure non-blocking, governor failure rejects
+- Clamping: All size/leverage bounded [MIN..MAX] before execution
+- Notional check: Hard limit on total exposure
+
+TESTING:
+
+- test_bridge_patch.py: 8 smoke tests (sizer, governor, end-to-end)
+- test_trade_intent_schema.py: Schema validation (v1.1 optional fields)
+- All tests use local objects (no Redis, no Binance)
+- Pre-deploy: Run both test suites
+
+MONITORING:
+
+Health:
+  journalctl -u quantum-ai-engine | grep "AI-SIZER"
+  journalctl -u quantum-execution | grep "GOVERNOR"
+
+Metrics:
+  Count accepts: grep GOVERNOR.*ACCEPT | wc -l
+  Count rejects: grep GOVERNOR.*REJECT | wc -l
+  Recent decisions: grep EXEC_INTENT
+
+ROLLBACK:
+
+Immediate (SHADOW):
+  sed -i 's/live/shadow/' /etc/quantum/bridge-patch.env
+  systemctl restart quantum-ai-engine quantum-execution
+
+Full:
+  git checkout HEAD microservices/ai_engine/service.py
+  git checkout HEAD services/execution_service.py
+  systemctl restart quantum-ai-engine quantum-execution
+
+FILES CHANGED:
+
+Modified:
+  - ai_engine/services/eventbus_bridge.py (TradeIntent v1.1, HarvestPolicy)
+  - microservices/ai_engine/service.py (AI sizer injection)
+  - services/execution_service.py (Risk governor enforcement)
+  - TRADE_INTENT_SCHEMA_CONTRACT.md (v1.1 documentation)
+
+Created:
+  - microservices/ai_engine/ai_sizer_policy.py (NEW)
+  - services/risk_governor.py (NEW)
+  - tests/test_bridge_patch.py (NEW)
+  - BRIDGE_PATCH_RUNBOOK.md (NEW)
+  - BRIDGE_PATCH_SUMMARY.md (NEW)
+
+BACKWARDS COMPATIBILITY:
+
+✅ v1.0 trade.intent still accepted (size/leverage optional)
+✅ Existing orders not affected if BRIDGE-PATCH disabled
+✅ Schema validation relaxed for optional fields
+✅ Exit-brain can read harvest_policy but doesn't require it
+
+NEXT STEPS:
+
+1. Deploy to VPS (SHADOW mode)
+2. Monitor 24-48 hours
+3. Switch to LIVE mode
+4. Integrate harvest_policy into exit-brain
+5. Tune bounds based on real behavior (volatility, account equity, etc)
+6. Advanced: Per-symbol leverage caps, dynamic notional limits
+
+---
+
+Related: P0.D.5 BACKLOG HARDENING (TTL drops, throughput control)
+Fixes: #N/A (part of core AI→execution bridge)
+Co-authored: AI Agent + User
+Date: 2026-01-21
