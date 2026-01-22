@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 P0 MarketState Replay Script - SPEC v1.0
 Demonstrates market state calculations on synthetic/historical data
@@ -82,7 +83,7 @@ def replay_synthetic(regime='trend'):
     
     print(f"\nRegime Probabilities:")
     for regime_name, prob in sorted(state['regime_probs'].items(), key=lambda x: -x[1]):
-        bar = '█' * int(prob * 50)
+        bar = '#' * int(prob * 50)
         print(f"  {regime_name:5s}: {prob:6.2%} {bar}")
     
     print(f"\nFeatures:")
@@ -149,7 +150,7 @@ def replay_file(filepath):
     print(f"TS:    {state['ts']:.6f}")
     print(f"\nRegime Probabilities:")
     for regime_name, prob in sorted(state['regime_probs'].items(), key=lambda x: -x[1]):
-        bar = '█' * int(prob * 50)
+        bar = '#' * int(prob * 50)
         print(f"  {regime_name:5s}: {prob:6.2%} {bar}")
     print(f"{'='*80}\n")
 
