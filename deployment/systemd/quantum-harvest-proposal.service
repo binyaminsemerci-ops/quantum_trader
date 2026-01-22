@@ -1,0 +1,35 @@
+[Unit]
+Description=Quantum Trader - Harvest Proposal Publisher (P2.5)
+After=network.target redis.service quantum-marketstate.service quantum-risk-proposal.service
+Wants=redis.service quantum-marketstate.service quantum-risk-proposal.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+
+# Python virtual environment
+Environment="PYTHONPATH=/home/qt/quantum_trader"
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python3 /home/qt/quantum_trader/microservices/harvest_proposal_publisher/main.py
+
+# Config from environment file
+EnvironmentFile=/etc/quantum/harvest-proposal.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-harvest-proposal
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# Resource limits
+MemoryLimit=512M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target
