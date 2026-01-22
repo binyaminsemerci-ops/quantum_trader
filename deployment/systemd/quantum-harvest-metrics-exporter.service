@@ -1,0 +1,34 @@
+[Unit]
+Description=Quantum Trader - Harvest Metrics Exporter (P2.7)
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+
+# Python environment
+Environment="PYTHONPATH=/home/qt/quantum_trader"
+EnvironmentFile=/etc/quantum/harvest-metrics-exporter.env
+
+# Execute
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python3 /home/qt/quantum_trader/microservices/harvest_metrics_exporter/main.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Resource limits
+LimitNOFILE=4096
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-harvest-metrics
+
+[Install]
+WantedBy=multi-user.target
