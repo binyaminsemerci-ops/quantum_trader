@@ -285,6 +285,42 @@ class HarvestProposalPublisher:
             logger.debug(f"Failed to read risk proposal for {symbol}: {e}")
             return None
     
+    def _extract_k_components(self, harvest_output: Dict[str, Any]) -> Dict[str, float]:
+        """
+        Extract kill score components from harvest_output audit field.
+        Returns dict with regime_flip, sigma_spike, ts_drop, age_penalty.
+        Defaults to 0.0 if missing or invalid (P2.6B robustness).
+        """
+        default_components = {
+            "regime_flip": 0.0,
+            "sigma_spike": 0.0,
+            "ts_drop": 0.0,
+            "age_penalty": 0.0,
+        }
+        
+        try:
+            audit = harvest_output.get("audit")
+            if not audit:
+                return default_components
+            
+            k_components = audit.get("k_components")
+            if not k_components:
+                return default_components
+            
+            # Extract and validate each component
+            result = {}
+            for key in ["regime_flip", "sigma_spike", "ts_drop", "age_penalty"]:
+                try:
+                    value = k_components.get(key, 0.0)
+                    result[key] = float(value)
+                except (ValueError, TypeError):
+                    result[key] = 0.0
+            
+            return result
+        except Exception as e:
+            logger.debug(f"Failed to extract k_components: {e}")
+            return default_components
+    
     def publish_proposal(
         self, 
         symbol: str, 
@@ -294,6 +330,9 @@ class HarvestProposalPublisher:
     ):
         """Publish harvest proposal to Redis hash and optional stream"""
         try:
+            # Extract k_components safely (P2.6B observability)
+            k_components = self._extract_k_components(harvest_output)
+            
             # Build flat hash fields
             fields = {
                 "harvest_action": harvest_output["harvest_action"],
@@ -303,6 +342,11 @@ class HarvestProposalPublisher:
                 "cost_est": str(harvest_output["cost_est"]),
                 "kill_score": str(harvest_output["kill_score"]),
                 "reason_codes": ",".join(harvest_output["reason_codes"]),
+                # P2.6B: Kill score component breakdown
+                "k_regime_flip": str(k_components["regime_flip"]),
+                "k_sigma_spike": str(k_components["sigma_spike"]),
+                "k_ts_drop": str(k_components["ts_drop"]),
+                "k_age_penalty": str(k_components["age_penalty"]),
                 "sigma": str(market_state.sigma),
                 "ts": str(market_state.ts),
                 "p_trend": str(market_state.p_trend),
