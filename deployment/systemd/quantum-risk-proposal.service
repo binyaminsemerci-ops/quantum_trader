@@ -1,0 +1,35 @@
+[Unit]
+Description=Quantum Risk Proposal Publisher (P1.5)
+After=network.target redis.service
+Requires=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+
+# Python environment
+Environment="PATH=/opt/quantum/venvs/ai-engine/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+EnvironmentFile=/etc/quantum/risk-proposal.env
+
+# Main command
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python3 microservices/risk_proposal_publisher/main.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-risk-proposal
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target
