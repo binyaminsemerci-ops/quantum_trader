@@ -1,0 +1,37 @@
+[Unit]
+Description=Quantum Trader - MarketState Metrics Publisher (P0.5)
+Documentation=file:///home/qt/quantum_trader/P0_MARKET_STATE_LOCKED_SPEC_V1.md
+After=network-online.target redis.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/qt/quantum_trader
+EnvironmentFile=/etc/quantum/marketstate.env
+
+# Python virtual environment
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python3 \
+    /home/qt/quantum_trader/microservices/market_state_publisher/main.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=300
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=50%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-marketstate
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
