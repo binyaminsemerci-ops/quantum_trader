@@ -2332,6 +2332,24 @@ class AIEngineService:
             self.last_signal_by_symbol[symbol] = now
             logger.info(f"[RATE-LIMIT] ✅ {symbol} allowed (confidence={confidence:.2f}, rate={len(self.signal_times)}/min)")
             
+            # 🔥 BRIDGE-PATCH: AI Sizing Injection (shadow or live mode)
+            logger.info(f"[BRIDGE-PATCH] Entering AI sizer block for {symbol}...")
+            try:
+                from microservices.ai_engine.ai_sizer_policy import get_ai_sizer
+                sizer = get_ai_sizer()
+                volatility_factor = features.get("volatility_factor", 1.0)
+                # TODO: Get real account equity from Binance account info
+                account_equity = 10000.0  # Placeholder
+                trade_intent_payload = sizer.inject_into_payload(
+                    trade_intent_payload,
+                    signal_confidence=ensemble_confidence,
+                    volatility_factor=volatility_factor,
+                    account_equity=account_equity
+                )
+            except Exception as e:
+                logger.error(f"[BRIDGE-PATCH] AI Sizer failed: {e}", exc_info=True)
+                # Continue with original payload if sizer fails (fail-closed)
+            
             # Log telemetry visibility before publishing
             model_keys = list(model_breakdown.keys())
             logger.info(

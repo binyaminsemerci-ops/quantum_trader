@@ -379,10 +379,10 @@ class GovernerAgent:
             f"Conf={confidence:.3f} | "
             f"Meta={meta_override}"
         )
-        
-        # Increment daily counter (Redis-backed)
-        self._increment_daily_count()
-        
+
+        # P0.6: Daily trades committed after trade.intent publish (router). Do not increment here.
+        # self._increment_daily_count()  # DISABLED: Moved to router publish path
+
         return PositionAllocation(
             symbol=symbol,
             action=action,

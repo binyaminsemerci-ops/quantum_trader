@@ -1,0 +1,11 @@
+
+  # P1.2: Safety Telemetry Exporter
+  - job_name: quantum_safety_telemetry
+    static_configs:
+      - targets: [localhost:9105]
+        labels:
+          service: safety-telemetry
+          component: quantum-trader
+          environment: production
+    scrape_interval: 15s
+    scrape_timeout: 10s

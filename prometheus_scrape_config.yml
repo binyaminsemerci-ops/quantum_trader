@@ -1,0 +1,12 @@
+# P1 Safety Telemetry - Prometheus Scrape Configuration
+# Add this to your prometheus.yml under scrape_configs:
+
+scrape_configs:
+  - job_name: 'quantum_safety_telemetry'
+    static_configs:
+      - targets: ['localhost:9105']
+        labels:
+          service: 'safety-telemetry'
+          component: 'quantum-trader'
+    scrape_interval: 15s
+    scrape_timeout: 10s

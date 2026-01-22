@@ -1,0 +1,1 @@
+                logger.info(f"💓 HEARTBEAT tracked={len(tracked_positions)} exits={stats['exits_triggered']}")

@@ -1,0 +1,289 @@
+{
+  "dashboard": {
+    "title": "Quantum Safety Telemetry (P1)",
+    "tags": ["quantum", "safety", "prometheus"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+      {
+        "title": "SAFE MODE Status",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "quantum_safety_safe_mode",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "colorMode": "value",
+          "justifyMode": "center",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "red"}
+              ]
+            },
+            "mappings": [
+              {"type": "value", "value": "0", "text": "OFF"},
+              {"type": "value", "value": "1", "text": "ON"}
+            ]
+          }
+        }
+      },
+      {
+        "title": "Safe Mode TTL (seconds)",
+        "type": "gauge",
+        "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "quantum_safety_safe_mode_ttl_seconds",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 300,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": -1, "color": "gray"},
+                {"value": 0, "color": "green"},
+                {"value": 60, "color": "yellow"},
+                {"value": 180, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Fault Stream Length",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "quantum_safety_fault_stream_length",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area"
+        }
+      },
+      {
+        "title": "Faults Last Hour",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "quantum_safety_faults_last_1h",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 5, "color": "yellow"},
+                {"value": 20, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Trade Intent Rate (per minute)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+        "targets": [
+          {
+            "expr": "quantum_trade_intent_rate_per_min",
+            "refId": "A",
+            "legendFormat": "Publish Rate"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "intents/min"},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"},
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "pointradius": 2,
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"}
+      },
+      {
+        "title": "Trade Intent Stream Length",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+        "targets": [
+          {
+            "expr": "quantum_trade_intent_stream_length",
+            "refId": "A",
+            "legendFormat": "Stream Length"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "entries"},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"},
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2
+      },
+      {
+        "title": "Global Safety Rate (Current Window)",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 8, "x": 0, "y": 14},
+        "targets": [
+          {
+            "expr": "quantum_safety_rate_global_current_window",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 15, "color": "yellow"},
+                {"value": 20, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Last Fault Details",
+        "type": "table",
+        "gridPos": {"h": 6, "w": 16, "x": 8, "y": 14},
+        "targets": [
+          {
+            "expr": "quantum_safety_last_fault_info",
+            "refId": "A",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "options": {
+          "showHeader": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            }
+          }
+        }
+      },
+      {
+        "title": "Top 5 Symbols (Current Window)",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 20},
+        "targets": [
+          {
+            "expr": "quantum_safety_rate_symbol_top5_info",
+            "refId": "A",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true, "Value": true},
+              "indexByName": {},
+              "renameByName": {
+                "symbol_1": "Symbol 1",
+                "count_1": "Count 1",
+                "symbol_2": "Symbol 2",
+                "count_2": "Count 2",
+                "symbol_3": "Symbol 3",
+                "count_3": "Count 3",
+                "symbol_4": "Symbol 4",
+                "count_4": "Count 4",
+                "symbol_5": "Symbol 5",
+                "count_5": "Count 5"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "title": "Redis Connectivity",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 28},
+        "targets": [
+          {
+            "expr": "quantum_safety_redis_up",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "background"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 1, "color": "green"}
+              ]
+            },
+            "mappings": [
+              {"type": "value", "value": "0", "text": "DOWN"},
+              {"type": "value", "value": "1", "text": "UP"}
+            ]
+          }
+        }
+      },
+      {
+        "title": "Exporter Metrics",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 18, "x": 6, "y": 28},
+        "targets": [
+          {
+            "expr": "quantum_safety_exporter_scrapes_total",
+            "refId": "A",
+            "legendFormat": "Total Scrapes"
+          },
+          {
+            "expr": "quantum_safety_exporter_errors_total",
+            "refId": "B",
+            "legendFormat": "Total Errors"
+          }
+        ],
+        "options": {
+          "orientation": "horizontal",
+          "textMode": "value_and_name"
+        }
+      }
+    ]
+  }
+}
