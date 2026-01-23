@@ -231,6 +231,8 @@ class ApplyPlan:
     decision: str  # EXECUTE, SKIP, BLOCKED, ERROR
     reason_codes: List[str]
     steps: List[Dict[str, Any]]  # execution steps
+    close_qty: float  # P3.2: for Governor daily limits
+    price: Optional[float]  # P3.2: for Governor notional limits
     timestamp: int
 
 
@@ -495,6 +497,8 @@ class ApplyLayer:
             decision=decision.value,
             reason_codes=reason_codes,
             steps=steps,
+            close_qty=0.0,  # P3.2: Will be determined at execution
+            price=None,  # P3.2: Will be fetched at execution
             timestamp=int(time.time())
         )
     
@@ -516,6 +520,8 @@ class ApplyLayer:
                 "decision": plan.decision,
                 "reason_codes": ",".join(plan.reason_codes),
                 "steps": json.dumps(plan.steps),
+                "close_qty": str(plan.close_qty),
+                "price": str(plan.price) if plan.price else "",
                 "timestamp": str(plan.timestamp)
             }
             self.redis.xadd(stream_key, fields, maxlen=10000)
@@ -540,6 +546,23 @@ class ApplyLayer:
     
     def execute_dry_run(self, plan: ApplyPlan) -> ApplyResult:
         """Dry run execution - no actual orders"""
+        
+        # CHECK GOVERNOR PERMIT (P3.2) - LOG ONLY in dry_run
+        permit_key = f"quantum:permit:{plan.plan_id}"
+        permit_data = self.redis.get(permit_key)
+        
+        if not permit_data:
+            logger.info(f"{plan.symbol}: [DRY_RUN] No Governor permit (would block in testnet)")
+        else:
+            try:
+                permit = json.loads(permit_data)
+                if permit.get('granted'):
+                    logger.info(f"{plan.symbol}: [DRY_RUN] Governor permit granted ✓")
+                else:
+                    logger.info(f"{plan.symbol}: [DRY_RUN] Governor permit denied (would block)")
+            except json.JSONDecodeError:
+                logger.warning(f"{plan.symbol}: [DRY_RUN] Invalid permit format")
+        
         steps_results = []
         
         for step in plan.steps:
@@ -609,6 +632,51 @@ class ApplyLayer:
             pos_amt = position['positionAmt']
             pos_side = position['side']
             logger.info(f"{plan.symbol}: Current position: {pos_amt} ({pos_side})")
+            
+            # CHECK GOVERNOR PERMIT (P3.2)
+            permit_key = f"quantum:permit:{plan.plan_id}"
+            permit_data = self.redis.get(permit_key)
+            
+            if not permit_data:
+                logger.warning(f"{plan.symbol}: No execution permit from Governor (blocked)")
+                return ApplyResult(
+                    plan_id=plan.plan_id,
+                    symbol=plan.symbol,
+                    decision="SKIP",
+                    executed=False,
+                    would_execute=False,
+                    steps_results=[{"step": "GOVERNOR_CHECK", "status": "no_permit", "details": "Governor blocked execution"}],
+                    error="no_governor_permit",
+                    timestamp=int(time.time())
+                )
+            
+            try:
+                permit = json.loads(permit_data)
+                if not permit.get('granted'):
+                    logger.warning(f"{plan.symbol}: Governor permit denied")
+                    return ApplyResult(
+                        plan_id=plan.plan_id,
+                        symbol=plan.symbol,
+                        decision="SKIP",
+                        executed=False,
+                        would_execute=False,
+                        steps_results=[{"step": "GOVERNOR_CHECK", "status": "denied", "details": "Governor denied permit"}],
+                        error="governor_permit_denied",
+                        timestamp=int(time.time())
+                    )
+                logger.info(f"{plan.symbol}: Governor permit granted ✓")
+            except json.JSONDecodeError:
+                logger.error(f"{plan.symbol}: Invalid permit data format")
+                return ApplyResult(
+                    plan_id=plan.plan_id,
+                    symbol=plan.symbol,
+                    decision="SKIP",
+                    executed=False,
+                    would_execute=False,
+                    steps_results=[{"step": "GOVERNOR_CHECK", "status": "invalid_permit", "details": "Invalid permit format"}],
+                    error="invalid_governor_permit",
+                    timestamp=int(time.time())
+                )
             
             # Execute each step
             for step in plan.steps:
