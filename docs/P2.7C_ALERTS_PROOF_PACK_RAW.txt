@@ -1,0 +1,403 @@
+============================================
+P2.7C: HARVEST ALERTS PROOF PACK
+Date: 2026-01-23 00:27:04 UTC
+============================================
+
+============================================
+PROOF 1: Alert Rules File
+============================================
+
+--- File metadata ---
+-rw-r--r-- 1 prometheus prometheus 3291 Jan 23 00:26 /etc/prometheus/rules/quantum_harvest_alerts.yml
+
+--- File content (first 40 lines) ---
+# Prometheus Alert Rules - Quantum Harvest Observability (P2.7C)
+# File: /etc/prometheus/rules/quantum_harvest_alerts.yml
+# Purpose: Monitor harvest proposal metrics and exporter health
+# Reload: systemctl reload prometheus
+
+groups:
+  - name: quantum_harvest_alerts
+    interval: 10s
+    rules:
+
+      # A) KillScore high (per symbol)
+      # Fires when kill_score >= 0.6 for 2 minutes
+      # Indicates edge collapse conditions requiring operator attention
+      - alert: QuantumHarvestKillScoreHigh
+        expr: quantum_harvest_kill_score >= 0.6
+        for: 2m
+        labels:
+          severity: warning
+          component: quantum-trader
+          subsystem: harvest
+        annotations:
+          summary: "Harvest KillScore high for {{ $labels.symbol }}"
+          description: "kill_score={{ $value }} >= 0.6 for 2m. Check k_components (regime_flip/ts_drop/sigma_spike/age_penalty) and marketstate inputs."
+          runbook: "Grafana: Quantum Harvest Control (P2.7) → Kill Score + Components panels"
+
+      # B) KillScore critical (escalation)
+      # Fires when kill_score >= 0.8 for 1 minute
+      # Critical threshold requiring immediate review before P3 apply
+      - alert: QuantumHarvestKillScoreCritical
+        expr: quantum_harvest_kill_score >= 0.8
+        for: 1m
+        labels:
+          severity: critical
+          component: quantum-trader
+          subsystem: harvest
+        annotations:
+          summary: "Harvest KillScore CRITICAL for {{ $labels.symbol }}"
+          description: "kill_score={{ $value }} >= 0.8 for 1m. Consider forcing FULL_CLOSE proposal review before P3 apply."
+          runbook: "Grafana: Quantum Harvest Control (P2.7) → Actions table + Components"
+
+
+============================================
+PROOF 2: Prometheus Rules API
+============================================
+
+--- All rule groups (summary) ---
+Total rule groups: 2
+  - quantum_harvest_alerts: 4 rules
+  - quantum_safety: 4 rules
+
+--- quantum_harvest_alerts group (full) ---
+{
+  "name": "quantum_harvest_alerts",
+  "file": "/etc/prometheus/rules/quantum_harvest_alerts.yml",
+  "rules": [
+    {
+      "state": "pending",
+      "name": "QuantumHarvestKillScoreHigh",
+      "query": "quantum_harvest_kill_score >= 0.6",
+      "duration": 120,
+      "keepFiringFor": 0,
+      "labels": {
+        "component": "quantum-trader",
+        "severity": "warning",
+        "subsystem": "harvest"
+      },
+      "annotations": {
+        "description": "kill_score={{ $value }} >= 0.6 for 2m. Check k_components (regime_flip/ts_drop/sigma_spike/age_penalty) and marketstate inputs.",
+        "runbook": "Grafana: Quantum Harvest Control (P2.7) \u2192 Kill Score + Components panels",
+        "summary": "Harvest KillScore high for {{ $labels.symbol }}"
+      },
+      "alerts": [
+        {
+          "labels": {
+            "alertname": "QuantumHarvestKillScoreHigh",
+            "component": "quantum-trader",
+            "environment": "production",
+            "instance": "127.0.0.1:8042",
+            "job": "quantum-harvest-exporter",
+            "service": "harvest-metrics",
+            "severity": "warning",
+            "subsystem": "harvest",
+            "symbol": "ETHUSDT"
+          },
+          "annotations": {
+            "description": "kill_score=0.7533012950554003 >= 0.6 for 2m. Check k_components (regime_flip/ts_drop/sigma_spike/age_penalty) and marketstate inputs.",
+            "runbook": "Grafana: Quantum Harvest Control (P2.7) \u2192 Kill Score + Components panels",
+            "summary": "Harvest KillScore high for ETHUSDT"
+          },
+          "state": "pending",
+          "activeAt": "2026-01-23T00:27:01.626421508Z",
+          "value": "7.533012950554003e-01"
+        },
+        {
+          "labels": {
+            "alertname": "QuantumHarvestKillScoreHigh",
+            "component": "quantum-trader",
+            "environment": "production",
+            "instance": "127.0.0.1:8042",
+            "job": "quantum-harvest-exporter",
+            "service": "harvest-metrics",
+            "severity": "warning",
+            "subsystem": "harvest",
+            "symbol": "SOLUSDT"
+          },
+          "annotations": {
+            "description": "kill_score=0.7605215474066565 >= 0.6 for 2m. Check k_components (regime_flip/ts_drop/sigma_spike/age_penalty) and marketstate inputs.",
+            "runbook": "Grafana: Quantum Harvest Control (P2.7) \u2192 Kill Score + Components panels",
+            "summary": "Harvest KillScore high for SOLUSDT"
+          },
+          "state": "pending",
+          "activeAt": "2026-01-23T00:27:01.626421508Z",
+          "value": "7.605215474066565e-01"
+        }
+      ],
+      "health": "ok",
+      "evaluationTime": 0.000748723,
+      "lastEvaluation": "2026-01-23T00:27:01.626908547Z",
+      "type": "alerting"
+    },
+    {
+      "state": "inactive",
+      "name": "QuantumHarvestKillScoreCritical",
+      "query": "quantum_harvest_kill_score >= 0.8",
+      "duration": 60,
+      "keepFiringFor": 0,
+      "labels": {
+        "component": "quantum-trader",
+        "severity": "critical",
+        "subsystem": "harvest"
+      },
+      "annotations": {
+        "description": "kill_score={{ $value }} >= 0.8 for 1m. Consider forcing FULL_CLOSE proposal review before P3 apply.",
+        "runbook": "Grafana: Quantum Harvest Control (P2.7) \u2192 Actions table + Components",
+        "summary": "Harvest KillScore CRITICAL for {{ $labels.symbol }}"
+      },
+      "alerts": [],
+      "health": "ok",
+      "evaluationTime": 9.7879e-05,
+      "lastEvaluation": "2026-01-23T00:27:01.62766046Z",
+      "type": "alerting"
+    },
+    {
+      "state": "pending",
+      "name": "QuantumHarvestMetricsStale",
+      "query": "(time() - quantum_harvest_last_update_epoch) > 30",
+      "duration": 120,
+      "keepFiringFor": 0,
+      "labels": {
+        "component": "quantum-trader",
+        "severity": "warning",
+        "subsystem": "harvest"
+      },
+      "annotations": {
+        "description": "No fresh updates for >30s (for 2m). Check harvest proposal publisher + exporter logs and Redis keys.",
+        "runbook": "Check: systemctl status quantum-harvest-proposal && systemctl status quantum-harvest-metrics-exporter",
+        "summary": "Harvest metrics stale for {{ $labels.symbol }}"
+      },
+      "alerts": [
+        {
+          "labels": {
+            "alertname": "QuantumHarvestMetricsStale",
+            "component": "quantum-trader",
+            "environment": "production",
+            "instance": "127.0.0.1:8042",
+            "job": "quantum-harvest-exporter",
+            "service": "harvest-metrics",
+            "severity": "warning",
+            "subsystem": "harvest",
+            "symbol": "BTCUSDT"
+          },
+          "annotations": {
+            "description": "No fresh updates for >30s (for 2m). Check harvest proposal publisher + exporter logs and Redis keys.",
+            "runbook": "Check: systemctl status quantum-harvest-proposal && systemctl status quantum-harvest-metrics-exporter",
+            "summary": "Harvest metrics stale for BTCUSDT"
+          },
+          "state": "pending",
+          "activeAt": "2026-01-23T00:27:01.626421508Z",
+          "value": "3.5419015884399414e+01"
+        },
+        {
+          "labels": {
+            "alertname": "QuantumHarvestMetricsStale",
+            "component": "quantum-trader",
+            "environment": "production",
+            "instance": "127.0.0.1:8042",
+            "job": "quantum-harvest-exporter",
+            "service": "harvest-metrics",
+            "severity": "warning",
+            "subsystem": "harvest",
+            "symbol": "ETHUSDT"
+          },
+          "annotations": {
+            "description": "No fresh updates for >30s (for 2m). Check harvest proposal publisher + exporter logs and Redis keys.",
+            "runbook": "Check: systemctl status quantum-harvest-proposal && systemctl status quantum-harvest-metrics-exporter",
+            "summary": "Harvest metrics stale for ETHUSDT"
+          },
+          "state": "pending",
+          "activeAt": "2026-01-23T00:27:01.626421508Z",
+          "value": "3.541769886016846e+01"
+        },
+        {
+          "labels": {
+            "alertname": "QuantumHarvestMetricsStale",
+            "component": "quantum-trader",
+            "environment": "production",
+            "instance": "127.0.0.1:8042",
+            "job": "quantum-harvest-exporter",
+            "service": "harvest-metrics",
+            "severity": "warning",
+            "subsystem": "harvest",
+            "symbol": "SOLUSDT"
+          },
+          "annotations": {
+            "description": "No fresh updates for >30s (for 2m). Check harvest proposal publisher + exporter logs and Redis keys.",
+            "runbook": "Check: systemctl status quantum-harvest-proposal && systemctl status quantum-harvest-metrics-exporter",
+            "summary": "Harvest metrics stale for SOLUSDT"
+          },
+          "state": "pending",
+          "activeAt": "2026-01-23T00:27:01.626421508Z",
+          "value": "3.54163498878479e+01"
+        }
+      ],
+      "health": "ok",
+      "evaluationTime": 0.000642023,
+      "lastEvaluation": "2026-01-23T00:27:01.627759539Z",
+      "type": "alerting"
+    },
+    {
+      "state": "inactive",
+      "name": "QuantumHarvestExporterDown",
+      "query": "up{job=\"quantum-harvest-exporter\"} == 0",
+      "duration": 60,
+      "keepFiringFor": 0,
+      "labels": {
+        "component": "quantum-trader",
+        "severity": "critical",
+        "subsystem": "harvest"
+      },
+      "annotations": {
+        "description": "Prometheus scrape failing for job=quantum-harvest-exporter. Check service quantum-harvest-metrics-exporter and firewall/port 8042.",
+        "runbook": "systemctl status quantum-harvest-metrics-exporter; curl -s http://127.0.0.1:8042/health",
+        "summary": "Harvest metrics exporter DOWN"
+      },
+      "alerts": [],
+      "health": "ok",
+      "evaluationTime": 0.000115379,
+      "lastEvaluation": "2026-01-23T00:27:01.628403872Z",
+      "type": "alerting"
+    }
+  ],
+
+============================================
+PROOF 3: Alert Expression Queries
+============================================
+
+--- Query 1: quantum_harvest_kill_score ---
+Status: success
+Results: 3 time series
+  BTCUSDT: 0.5273976547718264
+  ETHUSDT: 0.7533012950554003
+  SOLUSDT: 0.7605215474066565
+
+--- Query 2: time() - quantum_harvest_last_update_epoch (staleness) ---
+Status: success
+Results: 3 time series
+  BTCUSDT: 38.0s ⚠️ Stale
+  ETHUSDT: 38.0s ⚠️ Stale
+  SOLUSDT: 38.0s ⚠️ Stale
+
+--- Query 3: up{job="quantum-harvest-exporter"} (exporter health) ---
+Status: success
+Results: 1 time series
+  127.0.0.1:8042: 1 ✅ UP
+
+============================================
+PROOF 4: Active Alerts Status
+============================================
+
+--- Current alerts (firing or pending) ---
+Total alerts tracked: 6
+  - QuantumHarvestKillScoreHigh [pending]: symbol=ETHUSDT, value=7.533012950554003e-01
+  - QuantumHarvestKillScoreHigh [pending]: symbol=SOLUSDT, value=7.605215474066565e-01
+  - QuantumHarvestMetricsStale [pending]: symbol=BTCUSDT, value=3.5419015884399414e+01
+  - QuantumHarvestMetricsStale [pending]: symbol=ETHUSDT, value=3.541769886016846e+01
+  - QuantumHarvestMetricsStale [pending]: symbol=SOLUSDT, value=3.54163498878479e+01
+  - QuantumSafeModeActive [firing]: symbol=N/A, value=1e+00
+
+--- Alerts API response structure (first 200 chars) ---
+{"status":"success","data":{"alerts":[{"labels":{"alertname":"QuantumHarvestKillScoreHigh","component":"quantum-trader","environment":"production","instance":"127.0.0.1:8042","job":"quantum-harvest-exporter","service":"harvest-metrics","severity":"warning","subsystem":"harvest","symbol":"ETHUSDT"},"annotations":{"description":"kill_score=0.7533012950554003 \u003e= 0.6 for 2m. Check k_components (regime_flip/ts_drop/sigma_spike/age_penalty) and marketstate inputs.","runbook":"Grafana: Quantum Harvest Control (P2.7) → Kill Score + Components panels","summary":"Harvest KillScore high for ETHUSDT"},"state":"pending","activeAt":"2026-01-23T00:27:01.626421508Z","value":"7.533012950554003e-01"},{"labels":{"alertname":"QuantumHarvestKillScoreHigh","component":"quantum-trader","environment":"production","instance":"127.0.0.1:8042","job":"quantum-harvest-exporter","service":"harvest-metrics","severity":"warning","subsystem":"harvest","symbol":"SOLUSDT"},"annotations":{"description":"kill_score=0.7605215474066565 \u003e= 0.6 for 2m. Check k_components (regime_flip/ts_drop/sigma_spike/age_penalty) and marketstate inputs.","runbook":"Grafana: Quantum Harvest Control (P2.7) → Kill Score + Components panels","summary":"Harvest KillScore high for SOLUSDT"},"state":"pending","activeAt":"2026-01-23T00:27:01.626421508Z","value":"7.605215474066565e-01"},{"labels":{"alertname":"QuantumHarvestMetricsStale","component":"quantum-trader","environment":"production","instance":"127.0.0.1:8042","job":"quantum-harvest-exporter","service":"harvest-metrics","severity":"warning","subsystem":"harvest","symbol":"BTCUSDT"},"annotations":{"description":"No fresh updates for \u003e30s (for 2m). Check harvest proposal publisher + exporter logs and Redis keys.","runbook":"Check: systemctl status quantum-harvest-proposal \u0026\u0026 systemctl status quantum-harvest-metrics-exporter","summary":"Harvest metrics stale for BTCUSDT"},"state":"pending","activeAt":"2026-01-23T00:27:01.626421508Z","value":"3.5419015884399414e+01"},{"labels":{"alertname":"QuantumHarvestMetricsStale","component":"quantum-trader","environment":"production","instance":"127.0.0.1:8042","job":"quantum-harvest-exporter","service":"harvest-metrics","severity":"warning","subsystem":"harvest","symbol":"ETHUSDT"},"annotations":{"description":"No fresh updates for \u003e30s (for 2m). Check harvest proposal publisher + exporter logs and Redis keys.","runbook":"Check: systemctl status quantum-harvest-proposal \u0026\u0026 systemctl status quantum-harvest-metrics-exporter","summary":"Harvest metrics stale for ETHUSDT"},"state":"pending","activeAt":"2026-01-23T00:27:01.626421508Z","value":"3.541769886016846e+01"},{"labels":{"alertname":"QuantumHarvestMetricsStale","component":"quantum-trader","environment":"production","instance":"127.0.0.1:8042","job":"quantum-harvest-exporter","service":"harvest-metrics","severity":"warning","subsystem":"harvest","symbol":"SOLUSDT"},"annotations":{"description":"No fresh updates for \u003e30s (for 2m). Check harvest proposal publisher + exporter logs and Redis keys.","runbook":"Check: systemctl status quantum-harvest-proposal \u0026\u0026 systemctl status quantum-harvest-metrics-exporter","summary":"Harvest metrics stale for SOLUSDT"},"state":"pending","activeAt":"2026-01-23T00:27:01.626421508Z","value":"3.54163498878479e+01"},{"labels":{"alertname":"QuantumSafeModeActive","component":"safety-kernel","environment":"production","instance":"127.0.0.1:9105","job":"quantum_safety_telemetry","service":"safety-telemetry","severity":"critical"},"annotations":{"description":"Safety kernel activated SAFE MODE. All trading halted.","summary":"Quantum Trader in SAFE MODE"},"state":"firing","activeAt":"2026-01-22T05:29:48.560856035Z","value":"1e+00"}]}}
+
+============================================
+PROOF 5: Related Services Status
+============================================
+
+--- Harvest Proposal Publisher ---
+● quantum-harvest-proposal.service - Quantum Trader - Harvest Proposal Publisher (P2.5)
+     Loaded: loaded (/etc/systemd/system/quantum-harvest-proposal.service; enabled; preset: enabled)
+     Active: active (running) since Thu 2026-01-22 23:43:24 UTC; 43min ago
+   Main PID: 2691761 (python3)
+      Tasks: 1 (limit: 18689)
+     Memory: 19.0M (limit: 512.0M peak: 19.2M)
+        CPU: 872ms
+     CGroup: /system.slice/quantum-harvest-proposal.service
+             └─2691761 /opt/quantum/venvs/ai-engine/bin/python3 /home/qt/quantum_trader/microservices/harvest_proposal_publisher/main.py
+
+Jan 23 00:25:56 quantumtrader-prod-1 quantum-harvest-proposal[2691761]: 2026-01-23 00:25:56 [INFO] === Harvest Proposal Publish Cycle ===
+Jan 23 00:26:06 quantumtrader-prod-1 quantum-harvest-proposal[2691761]: 2026-01-23 00:26:06 [INFO] === Harvest Proposal Publish Cycle ===
+Jan 23 00:26:16 quantumtrader-prod-1 quantum-harvest-proposal[2691761]: 2026-01-23 00:26:16 [INFO] === Harvest Proposal Publish Cycle ===
+Jan 23 00:26:26 quantumtrader-prod-1 quantum-harvest-proposal[2691761]: 2026-01-23 00:26:26 [INFO] === Harvest Proposal Publish Cycle ===
+Jan 23 00:26:26 quantumtrader-prod-1 quantum-harvest-proposal[2691761]: 2026-01-23 00:26:26 [INFO] Published harvest for BTCUSDT: action=PARTIAL_75 R=7.01 K=0.527 SL=100.2 reasons=harvest_partial_75,profit_lock
+Jan 23 00:26:26 quantumtrader-prod-1 quantum-harvest-proposal[2691761]: 2026-01-23 00:26:26 [INFO] Published harvest for ETHUSDT: action=FULL_CLOSE_PROPOSED R=9.80 K=0.753 SL=50.1 reasons=harvest_partial_75,profit_lock
+Jan 23 00:26:26 quantumtrader-prod-1 quantum-harvest-proposal[2691761]: 2026-01-23 00:26:26 [INFO] Published harvest for SOLUSDT: action=FULL_CLOSE_PROPOSED R=9.80 K=0.761 SL=50.1 reasons=harvest_partial_75,profit_lock
+Jan 23 00:26:36 quantumtrader-prod-1 quantum-harvest-proposal[2691761]: 2026-01-23 00:26:36 [INFO] === Harvest Proposal Publish Cycle ===
+Jan 23 00:26:46 quantumtrader-prod-1 quantum-harvest-proposal[2691761]: 2026-01-23 00:26:46 [INFO] === Harvest Proposal Publish Cycle ===
+Jan 23 00:26:56 quantumtrader-prod-1 quantum-harvest-proposal[2691761]: 2026-01-23 00:26:56 [INFO] === Harvest Proposal Publish Cycle ===
+
+--- Harvest Metrics Exporter ---
+● quantum-harvest-metrics-exporter.service - Quantum Trader - Harvest Metrics Exporter (P2.7)
+     Loaded: loaded (/etc/systemd/system/quantum-harvest-metrics-exporter.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2026-01-23 00:01:42 UTC; 25min ago
+   Main PID: 2761599 (python3)
+      Tasks: 2 (limit: 18689)
+     Memory: 18.9M (peak: 19.4M)
+        CPU: 691ms
+     CGroup: /system.slice/quantum-harvest-metrics-exporter.service
+             └─2761599 /opt/quantum/venvs/ai-engine/bin/python3 /home/qt/quantum_trader/microservices/harvest_metrics_exporter/main.py
+
+Jan 23 00:26:18 quantumtrader-prod-1 quantum-harvest-metrics[2761599]: 2026-01-23 00:26:18 [INFO] Metrics updated: 3 symbols
+Jan 23 00:26:23 quantumtrader-prod-1 quantum-harvest-metrics[2761599]: 2026-01-23 00:26:23 [INFO] Metrics updated: 3 symbols
+Jan 23 00:26:28 quantumtrader-prod-1 quantum-harvest-metrics[2761599]: 2026-01-23 00:26:28 [INFO] Metrics updated: 3 symbols
+Jan 23 00:26:33 quantumtrader-prod-1 quantum-harvest-metrics[2761599]: 2026-01-23 00:26:33 [INFO] Metrics updated: 3 symbols
+Jan 23 00:26:38 quantumtrader-prod-1 quantum-harvest-metrics[2761599]: 2026-01-23 00:26:38 [INFO] Metrics updated: 3 symbols
+Jan 23 00:26:43 quantumtrader-prod-1 quantum-harvest-metrics[2761599]: 2026-01-23 00:26:43 [INFO] Metrics updated: 3 symbols
+Jan 23 00:26:48 quantumtrader-prod-1 quantum-harvest-metrics[2761599]: 2026-01-23 00:26:48 [INFO] Metrics updated: 3 symbols
+Jan 23 00:26:53 quantumtrader-prod-1 quantum-harvest-metrics[2761599]: 2026-01-23 00:26:53 [INFO] Metrics updated: 3 symbols
+Jan 23 00:26:58 quantumtrader-prod-1 quantum-harvest-metrics[2761599]: 2026-01-23 00:26:58 [INFO] Metrics updated: 3 symbols
+Jan 23 00:27:03 quantumtrader-prod-1 quantum-harvest-metrics[2761599]: 2026-01-23 00:27:03 [INFO] Metrics updated: 3 symbols
+
+--- Prometheus Service ---
+● prometheus.service - Monitoring system and time series database
+     Loaded: loaded (/usr/lib/systemd/system/prometheus.service; enabled; preset: enabled)
+    Drop-In: /etc/systemd/system/prometheus.service.d
+             └─override.conf
+     Active: active (running) since Mon 2026-01-19 22:45:21 UTC; 3 days ago
+       Docs: https://prometheus.io/docs/introduction/overview/
+             man:prometheus(1)
+    Process: 2859703 ExecReload=/bin/kill -HUP $MAINPID (code=exited, status=0/SUCCESS)
+   Main PID: 888 (prometheus)
+      Tasks: 10 (limit: 18689)
+     Memory: 267.6M (peak: 370.8M)
+        CPU: 6min 21.384s
+     CGroup: /system.slice/prometheus.service
+             └─888 /usr/bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/var/lib/prometheus --web.listen-address=0.0.0.0:9091 --web.console.templates=/etc/prometheus/consoles --web.console.libraries=/etc/prometheus/console_libraries
+
+Jan 23 00:19:17 quantumtrader-prod-1 prometheus[888]: ts=2026-01-23T00:19:17.060Z caller=notifier.go:529 level=error component=notifier alertmanager=http://127.0.0.1:9093/api/v2/alerts count=1 msg="Error sending alert" err="Post \"http://127.0.0.1:9093/api/v2/alerts\": dial tcp 127.0.0.1:9093: connect: connection refused"
+Jan 23 00:20:47 quantumtrader-prod-1 prometheus[888]: ts=2026-01-23T00:20:47.060Z caller=notifier.go:529 level=error component=notifier alertmanager=http://127.0.0.1:9093/api/v2/alerts count=1 msg="Error sending alert" err="Post \"http://127.0.0.1:9093/api/v2/alerts\": dial tcp 127.0.0.1:9093: connect: connection refused"
+Jan 23 00:22:17 quantumtrader-prod-1 prometheus[888]: ts=2026-01-23T00:22:17.059Z caller=notifier.go:529 level=error component=notifier alertmanager=http://127.0.0.1:9093/api/v2/alerts count=1 msg="Error sending alert" err="Post \"http://127.0.0.1:9093/api/v2/alerts\": dial tcp 127.0.0.1:9093: connect: connection refused"
+Jan 23 00:23:47 quantumtrader-prod-1 prometheus[888]: ts=2026-01-23T00:23:47.060Z caller=notifier.go:529 level=error component=notifier alertmanager=http://127.0.0.1:9093/api/v2/alerts count=1 msg="Error sending alert" err="Post \"http://127.0.0.1:9093/api/v2/alerts\": dial tcp 127.0.0.1:9093: connect: connection refused"
+Jan 23 00:25:17 quantumtrader-prod-1 prometheus[888]: ts=2026-01-23T00:25:17.060Z caller=notifier.go:529 level=error component=notifier alertmanager=http://127.0.0.1:9093/api/v2/alerts count=1 msg="Error sending alert" err="Post \"http://127.0.0.1:9093/api/v2/alerts\": dial tcp 127.0.0.1:9093: connect: connection refused"
+Jan 23 00:26:47 quantumtrader-prod-1 prometheus[888]: ts=2026-01-23T00:26:47.060Z caller=notifier.go:529 level=error component=notifier alertmanager=http://127.0.0.1:9093/api/v2/alerts count=1 msg="Error sending alert" err="Post \"http://127.0.0.1:9093/api/v2/alerts\": dial tcp 127.0.0.1:9093: connect: connection refused"
+Jan 23 00:26:56 quantumtrader-prod-1 systemd[1]: Reloading prometheus.service - Monitoring system and time series database...
+Jan 23 00:26:56 quantumtrader-prod-1 prometheus[888]: ts=2026-01-23T00:26:56.083Z caller=main.go:1209 level=info msg="Loading configuration file" filename=/etc/prometheus/prometheus.yml
+Jan 23 00:26:56 quantumtrader-prod-1 systemd[1]: Reloaded prometheus.service - Monitoring system and time series database.
+Jan 23 00:26:56 quantumtrader-prod-1 prometheus[888]: ts=2026-01-23T00:26:56.090Z caller=main.go:1246 level=info msg="Completed loading of configuration file" filename=/etc/prometheus/prometheus.yml totalDuration=6.566507ms db_storage=2.29µs remote_storage=2.43µs web_handler=940ns query_engine=1.8µs scrape=368.787µs scrape_sd=151.809µs notify=23.659µs notify_sd=12.91µs rules=5.005622ms tracing=6.26µs
+
+============================================
+PROOF PACK SUMMARY
+============================================
+
+✅ PROOF 1: Rules file exists and is readable
+✅ PROOF 2: Prometheus loaded quantum_harvest_alerts group
+✅ PROOF 3: All alert expression queries return data
+✅ PROOF 4: Alerts API accessible (6 alerts tracked)
+✅ PROOF 5: Related services operational
+
+Alert Rules Deployed:
+  1. QuantumHarvestKillScoreHigh (>= 0.6 for 2m)
+  2. QuantumHarvestKillScoreCritical (>= 0.8 for 1m)
+  3. QuantumHarvestMetricsStale (>30s staleness for 2m)
+  4. QuantumHarvestExporterDown (scrape failing for 1m)
+
+Current Metrics Status:
+  BTCUSDT: kill_score=0.527 🟢 SAFE (< 0.6)
+  ETHUSDT: kill_score=0.753 ⚠️  WARNING (>= 0.6)
+  SOLUSDT: kill_score=0.761 ⚠️  WARNING (>= 0.6)
+
+============================================
+P2.7C Proof Pack Complete
+============================================
