@@ -149,6 +149,8 @@ if [[ $result_count -gt 0 ]]; then
   
   if [[ $would_execute -gt 0 ]]; then
     ok "Found $would_execute results with would_execute=True (correct for dry_run)"
+  else
+    info "No would_execute=True in last 10 results (check older entries or waiting for EXECUTE decisions)"
   fi
 else
   warn "No results to verify"
