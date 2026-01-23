@@ -353,6 +353,8 @@ class HarvestProposalPublisher:
                 "p_mr": str(market_state.p_mr),
                 "p_chop": str(market_state.p_chop),
                 "computed_at_utc": datetime.utcnow().isoformat(),
+                # P2.7C.1: Timestamp source-of-truth for staleness detection
+                "last_update_epoch": str(int(time.time())),
                 "position_side": position.side,
                 "position_age_sec": str(position.age_sec),
                 "position_current_price": str(position.current_price),
