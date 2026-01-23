@@ -466,6 +466,12 @@ class HarvestProposalPublisher:
                 # Rate limiting check
                 if not self.should_publish(symbol, harvest_output):
                     logger.debug(f"{symbol}: No significant change, skipping publish")
+                    # P2.7C.1: Update timestamp even when rate-limited (for staleness detection)
+                    self.redis.hset(
+                        f"quantum:harvest:proposal:{symbol}",
+                        "last_update_epoch",
+                        str(int(time.time()))
+                    )
                     continue
                 
                 # Publish
