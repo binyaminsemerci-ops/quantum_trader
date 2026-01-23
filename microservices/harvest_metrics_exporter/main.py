@@ -143,8 +143,13 @@ def fetch_harvest_data(redis_client: RedisClient) -> Dict[str, Dict[str, Any]]:
                 "computed_at_utc": raw.get("computed_at_utc", ""),
             }
             
-            # Parse timestamp
-            parsed["last_update_epoch"] = parse_timestamp(parsed["computed_at_utc"])
+            # P2.7C.1: Read last_update_epoch directly from Redis (source-of-truth)
+            # Fallback to parsing computed_at_utc for backwards compatibility
+            last_epoch_raw = raw.get("last_update_epoch")
+            if last_epoch_raw:
+                parsed["last_update_epoch"] = safe_float(last_epoch_raw)
+            else:
+                parsed["last_update_epoch"] = parse_timestamp(parsed["computed_at_utc"])
             
             data[symbol] = parsed
             logger.debug(f"{symbol}: action={parsed['harvest_action']}, K={parsed['kill_score']:.3f}")
