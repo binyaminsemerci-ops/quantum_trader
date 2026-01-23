@@ -137,18 +137,18 @@ echo
 # Check no Binance calls in dry_run
 echo "== P3.4: Verify NO execution in dry_run =="
 if [[ $result_count -gt 0 ]]; then
-  # Check results for executed=false and would_execute=true
-  executed_true=$(redis-cli XREVRANGE quantum:stream:apply.result + - COUNT 10 | grep '"executed": true' | wc -l)
-  would_execute=$(redis-cli XREVRANGE quantum:stream:apply.result + - COUNT 10 | grep '"would_execute": true' | wc -l)
+  # Check results for executed=False (Redis RESP format: "executed\nFalse")
+  executed_true=$(redis-cli XREVRANGE quantum:stream:apply.result + - COUNT 10 | grep -A1 '^executed$' | grep -c '^True$')
+  would_execute=$(redis-cli XREVRANGE quantum:stream:apply.result + - COUNT 10 | grep -A1 '^would_execute$' | grep -c '^True$')
   
   if [[ $executed_true -eq 0 ]]; then
-    ok "No actual executions (executed=false in all results)"
+    ok "No actual executions (executed=False in all results)"
   else
-    fail "Found $executed_true results with executed=true (unexpected in dry_run)"
+    fail "Found $executed_true results with executed=True (unexpected in dry_run)"
   fi
   
   if [[ $would_execute -gt 0 ]]; then
-    ok "Found $would_execute results with would_execute=true (correct for dry_run)"
+    ok "Found $would_execute results with would_execute=True (correct for dry_run)"
   fi
 else
   warn "No results to verify"
