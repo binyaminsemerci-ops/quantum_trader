@@ -1,5 +1,16 @@
 # P3.3 Deployment Command
 
+**⚠️ TIMING: Deploy i morgen (ikke i kveld under disarmed + dry_run)**
+
+Grunnen: P3.3 endrer execution gate (ny permit). Deploy i rolig vindu.
+
+**✅ CRITICAL FIX APPLIED (commit 2f4fd71c)**:
+- plan_id matching issue resolved
+- P3.3 now only evaluates EXECUTE decisions
+- Fail-closed: missing plan_id → skip evaluation
+
+---
+
 ## One-Command VPS Deployment
 
 ```powershell
@@ -7,7 +18,7 @@ wsl ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 'bash /home/qt/quantum_trade
 ```
 
 **This will**:
-- Pull latest code from GitHub
+- Pull latest code from GitHub (includes critical plan_id fix)
 - Install P3.3 service
 - Restart Apply Layer
 - Run proof pack
@@ -56,6 +67,18 @@ If successful, you'll see:
 - ✅ Metrics responding on port 8045
 - ✅ Snapshots fresh (< 10s age)
 - ✅ Proof pack: 8/8 checks passed
+
+**VIKTIG i dry_run mode**:
+- Permits kan være **sjeldne** (fordi de fleste plans = SKIP)
+- P3.3 utsteder kun permits for `decision=EXECUTE` plans
+- Hvis Apply Layer blokkerer på allowlist/dedupe → ingen P3.3 permit
+- Dette er **forventet oppførsel**
+
+**Når re-armed**:
+- EXECUTE plans blir hyppigere
+- P3.3 permits utstedes for hver EXECUTE
+- Apply Layer krever **BOTH** Governor + P3.3 permits
+- Fail-closed: missing either → BLOCKED
 
 ---
 
