@@ -1,0 +1,50 @@
+[Unit]
+Description=Quantum Trader - Apply Layer (P3)
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+After=network.target redis.service quantum-harvest-proposal.service
+Requires=redis.service
+Wants=quantum-harvest-proposal.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+
+# Environment configuration
+EnvironmentFile=/etc/quantum/apply-layer.env
+
+# Python unbuffered for real-time logging
+Environment="PYTHONUNBUFFERED=1"
+
+# Virtual environment (if exists)
+Environment="PATH=/home/qt/.venvs/quantum/bin:/usr/local/bin:/usr/bin:/bin"
+
+# Execution
+ExecStart=/usr/bin/python3 -u microservices/apply_layer/main.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=50%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-apply-layer
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/qt/quantum_trader
+
+[Install]
+WantedBy=multi-user.target
+Alias=apply-layer.service
