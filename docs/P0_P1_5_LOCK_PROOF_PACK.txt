@@ -1,0 +1,202 @@
+=== P0→P1.5 LOCK PROOF PACK ===
+Fri Jan 23 01:08:45 AM UTC 2026
+
+== P0: Core health ==
+✅ Redis PING
+✅ quantum-harvest-proposal active
+✅ harvest exporter active
+
+== P0.5: MarketState keys exist + have fields ==
+✅ quantum:marketstate:BTCUSDT HLEN=11
+sigma
+0.01139840
+mu
+0.00279761
+ts
+0.245439
+p_trend
+0.371906
+p_mr
+0.075824
+p_chop
+0.552270
+dp
+0.556863
+vr
+1.007189
+spike_proxy
+0.847535
+ts_timestamp
+1769130486
+
+✅ quantum:marketstate:ETHUSDT HLEN=11
+sigma
+0.00523559
+mu
+0.00048380
+ts
+0.092405
+p_trend
+0.247460
+p_mr
+0.126031
+p_chop
+0.626509
+dp
+0.443137
+vr
+0.801820
+spike_proxy
+1.165913
+ts_timestamp
+1769130486
+
+✅ quantum:marketstate:SOLUSDT HLEN=11
+sigma
+0.00014549
+mu
+0.00000203
+ts
+0.013918
+p_trend
+0.235286
+p_mr
+0.115279
+p_chop
+0.649435
+dp
+0.478431
+vr
+0.864374
+spike_proxy
+1.029309
+ts_timestamp
+1769130486
+
+== P1.5: Risk Proposal keys exist + have fields ==
+✅ quantum:risk:proposal:BTCUSDT HLEN=16
+proposed_sl
+106.08470259210434
+proposed_tp
+106.1003599204416
+stop_dist_pct
+0.0069864121932800005
+tp_dist_pct
+0.01047961828992
+trail_gap_pct
+0.009479901100800001
+reason_codes
+trail_active,sl_tightening,regime_chop
+ts
+0.245439
+sigma
+0.0113984
+p_trend
+0.0
+p_mr
+0.075824
+p_chop
+0.55227
+computed_at_utc
+2026-01-23T01:08:16.201787
+position_side
+
+✅ quantum:risk:proposal:ETHUSDT HLEN=16
+proposed_sl
+1171.9103126729751
+proposed_tp
+1166.55
+stop_dist_pct
+0.005
+tp_dist_pct
+0.01
+trail_gap_pct
+0.005253957496838
+reason_codes
+trail_active,sl_tightening,regime_chop
+ts
+0.092405
+sigma
+0.00523559
+p_trend
+0.0
+p_mr
+0.126031
+p_chop
+0.626509
+computed_at_utc
+2026-01-23T01:08:16.202608
+position_side
+
+✅ quantum:risk:proposal:SOLUSDT HLEN=16
+proposed_sl
+2237.8545
+proposed_tp
+2227.05
+stop_dist_pct
+0.005
+tp_dist_pct
+0.01
+trail_gap_pct
+0.005
+reason_codes
+trail_active,sl_tightening,regime_chop
+ts
+0.013918
+sigma
+0.00014549
+p_trend
+0.0
+p_mr
+0.115279
+p_chop
+0.649435
+computed_at_utc
+2026-01-23T01:08:16.203379
+position_side
+
+== P2.x sanity: Harvest Proposal has K components + timestamp freshness ==
+--- BTCUSDT ---
+0.5273976547718264
+0.0
+0.13983999999999996
+0.054561
+0.041666666666666664
+1769130516
+PARTIAL_75
+7.013614233516237
+100.2
+✅ BTCUSDT last_update_epoch age=9s (<30s)
+
+--- ETHUSDT ---
+0.7533012950554003
+1.0
+0.0
+0.20759499999999997
+0.041666666666666664
+1769130516
+FULL_CLOSE_PROPOSED
+9.8
+50.1
+✅ ETHUSDT last_update_epoch age=9s (<30s)
+
+--- SOLUSDT ---
+0.7605215474066565
+1.0
+0.0
+0.286082
+0.041666666666666664
+1769130516
+FULL_CLOSE_PROPOSED
+9.8
+50.1
+✅ SOLUSDT last_update_epoch age=9s (<30s)
+
+== Prometheus: can we see harvest metrics? ==
+✅ Prometheus ready (:9091)
+symbols=3
+  BTCUSDT: 0.5273976547718264
+  ETHUSDT: 0.7533012950554003
+  SOLUSDT: 0.7605215474066565
+
+=== DONE ===
