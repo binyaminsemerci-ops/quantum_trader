@@ -34,6 +34,17 @@ except ImportError:
     print("ERROR: redis-py not installed. Install with: pip install redis")
     sys.exit(1)
 
+# Binance client
+try:
+    import hmac
+    import hashlib
+    import urllib.request
+    import urllib.parse
+    BINANCE_AVAILABLE = True
+except ImportError:
+    BINANCE_AVAILABLE = False
+    print("WARN: urllib not available, testnet execution disabled")
+
 # Prometheus metrics
 try:
     from prometheus_client import Counter, Gauge, start_http_server, REGISTRY
@@ -61,6 +72,148 @@ class Decision(Enum):
     SKIP = "SKIP"
     BLOCKED = "BLOCKED"
     ERROR = "ERROR"
+
+
+class BinanceTestnetClient:
+    """Minimal Binance Futures Testnet client for reduceOnly orders"""
+    
+    def __init__(self, api_key: str, api_secret: str):
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.base_url = "https://testnet.binancefuture.com"
+        self.exchange_info_cache = {}
+    
+    def _sign_request(self, params: Dict[str, Any]) -> str:
+        """Sign request with HMAC SHA256"""
+        query_string = urllib.parse.urlencode(params)
+        signature = hmac.new(
+            self.api_secret.encode('utf-8'),
+            query_string.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        return signature
+    
+    def _request(self, method: str, endpoint: str, params: Optional[Dict[str, Any]] = None, signed: bool = False) -> Dict[str, Any]:
+        """Make HTTP request to Binance API"""
+        if params is None:
+            params = {}
+        
+        # Add timestamp for signed requests
+        if signed:
+            params['timestamp'] = int(time.time() * 1000)
+            params['signature'] = self._sign_request(params)
+        
+        url = f"{self.base_url}{endpoint}"
+        if params:
+            url += '?' + urllib.parse.urlencode(params)
+        
+        req = urllib.request.Request(url, method=method.upper())
+        req.add_header('X-MBX-APIKEY', self.api_key)
+        
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                return json.loads(response.read().decode('utf-8'))
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode('utf-8')
+            logger.error(f"Binance API error: {e.code} {error_body}")
+            raise Exception(f"Binance API error: {error_body}")
+    
+    def ping(self) -> bool:
+        """Test connectivity"""
+        try:
+            self._request('GET', '/fapi/v1/ping')
+            return True
+        except Exception as e:
+            logger.error(f"Binance ping failed: {e}")
+            return False
+    
+    def get_exchange_info(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """Get exchange info for symbol (cached)"""
+        if symbol in self.exchange_info_cache:
+            return self.exchange_info_cache[symbol]
+        
+        try:
+            data = self._request('GET', '/fapi/v1/exchangeInfo')
+            for sym_info in data.get('symbols', []):
+                if sym_info['symbol'] == symbol:
+                    # Extract filters
+                    filters = {}
+                    for f in sym_info.get('filters', []):
+                        filters[f['filterType']] = f
+                    
+                    info = {
+                        'symbol': symbol,
+                        'status': sym_info.get('status'),
+                        'pricePrecision': sym_info.get('pricePrecision'),
+                        'quantityPrecision': sym_info.get('quantityPrecision'),
+                        'filters': filters
+                    }
+                    self.exchange_info_cache[symbol] = info
+                    return info
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get exchange info for {symbol}: {e}")
+            return None
+    
+    def get_position(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """Get current position for symbol"""
+        try:
+            positions = self._request('GET', '/fapi/v2/positionRisk', signed=True)
+            for pos in positions:
+                if pos['symbol'] == symbol:
+                    return {
+                        'symbol': symbol,
+                        'positionAmt': float(pos.get('positionAmt', 0)),
+                        'entryPrice': float(pos.get('entryPrice', 0)),
+                        'unrealizedProfit': float(pos.get('unRealizedProfit', 0)),
+                        'side': 'LONG' if float(pos.get('positionAmt', 0)) > 0 else 'SHORT'
+                    }
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get position for {symbol}: {e}")
+            return None
+    
+    def round_quantity(self, symbol: str, quantity: float) -> float:
+        """Round quantity to exchange stepSize"""
+        info = self.get_exchange_info(symbol)
+        if not info:
+            return round(quantity, 3)  # Default
+        
+        lot_size = info['filters'].get('LOT_SIZE', {})
+        step_size = float(lot_size.get('stepSize', '0.001'))
+        
+        # Round down to step size
+        return float(int(quantity / step_size) * step_size)
+    
+    def place_market_order(self, symbol: str, side: str, quantity: float, reduce_only: bool = True) -> Dict[str, Any]:
+        """Place market order (reduceOnly for closes)"""
+        # Round quantity
+        quantity = self.round_quantity(symbol, abs(quantity))
+        
+        params = {
+            'symbol': symbol,
+            'side': side,  # BUY or SELL
+            'type': 'MARKET',
+            'quantity': quantity
+        }
+        
+        if reduce_only:
+            params['reduceOnly'] = 'true'
+        
+        try:
+            result = self._request('POST', '/fapi/v1/order', params=params, signed=True)
+            return {
+                'orderId': result.get('orderId'),
+                'symbol': result.get('symbol'),
+                'side': result.get('side'),
+                'quantity': result.get('origQty'),
+                'executedQty': result.get('executedQty'),
+                'status': result.get('status'),
+                'reduceOnly': reduce_only
+            }
+        except Exception as e:
+            logger.error(f"Failed to place order: {e}")
+            raise
 
 
 @dataclass
@@ -408,7 +561,7 @@ class ApplyLayer:
         )
     
     def execute_testnet(self, plan: ApplyPlan) -> ApplyResult:
-        """Testnet execution - actual orders to Binance testnet"""
+        """Testnet execution - REAL orders to Binance Futures testnet"""
         # Check Binance credentials
         api_key = os.getenv("BINANCE_TESTNET_API_KEY")
         api_secret = os.getenv("BINANCE_TESTNET_API_SECRET")
@@ -429,37 +582,118 @@ class ApplyLayer:
         steps_results = []
         
         try:
-            # Import Binance client (assume it exists or implement minimal client)
-            # For now, simulate execution with detailed logging
+            # Initialize Binance client
+            client = BinanceTestnetClient(api_key, api_secret)
+            
+            # Test connectivity
+            if not client.ping():
+                raise Exception("Binance testnet ping failed")
+            
+            logger.info(f"{plan.symbol}: Binance testnet connected")
+            
+            # Get current position
+            position = client.get_position(plan.symbol)
+            if not position or abs(position['positionAmt']) < 0.001:
+                logger.warning(f"{plan.symbol}: No position found, skipping execution")
+                return ApplyResult(
+                    plan_id=plan.plan_id,
+                    symbol=plan.symbol,
+                    decision="SKIP",
+                    executed=False,
+                    would_execute=False,
+                    steps_results=[{"step": "POSITION_CHECK", "status": "no_position", "details": "No position to close"}],
+                    error="no_position",
+                    timestamp=int(time.time())
+                )
+            
+            pos_amt = position['positionAmt']
+            pos_side = position['side']
+            logger.info(f"{plan.symbol}: Current position: {pos_amt} ({pos_side})")
+            
+            # Execute each step
             for step in plan.steps:
                 logger.info(f"{plan.symbol}: Executing step {step['step']} (TESTNET)")
                 
-                # Placeholder for actual Binance API calls
-                # In real implementation:
-                # - Get current position
-                # - Calculate order quantity (respect minNotional, stepSize)
-                # - Place order with reduceOnly flag
-                # - Wait for fill
-                # - Store order ID and status
-                
-                steps_results.append({
-                    "step": step["step"],
-                    "status": "simulated_success",
-                    "details": f"TESTNET simulation: {step}",
-                    "order_id": f"sim_{int(time.time())}"
-                })
-                
-                # Metrics
-                if PROMETHEUS_AVAILABLE:
-                    self.metric_execute_total.labels(
-                        symbol=plan.symbol,
-                        step=step["step"],
-                        status="success"
-                    ).inc()
+                try:
+                    if step['step'] in ['CLOSE_FULL', 'CLOSE_PARTIAL_75', 'CLOSE_PARTIAL_50']:
+                        # Calculate quantity to close
+                        if step['step'] == 'CLOSE_FULL':
+                            close_qty = abs(pos_amt)
+                        elif step['step'] == 'CLOSE_PARTIAL_75':
+                            close_qty = abs(pos_amt) * 0.75
+                        else:  # CLOSE_PARTIAL_50
+                            close_qty = abs(pos_amt) * 0.50
+                        
+                        # Determine order side (opposite of position)
+                        order_side = 'SELL' if pos_amt > 0 else 'BUY'
+                        
+                        logger.info(f"{plan.symbol}: Placing {order_side} order for {close_qty} (reduceOnly)")
+                        
+                        # Place market order with reduceOnly
+                        order_result = client.place_market_order(
+                            symbol=plan.symbol,
+                            side=order_side,
+                            quantity=close_qty,
+                            reduce_only=True
+                        )
+                        
+                        steps_results.append({
+                            "step": step["step"],
+                            "status": "success",
+                            "details": f"Order {order_result['orderId']}: {order_side} {order_result['executedQty']} @ MARKET (reduceOnly)",
+                            "order_id": str(order_result['orderId']),
+                            "side": order_side,
+                            "quantity": order_result['quantity'],
+                            "executed_qty": order_result['executedQty'],
+                            "reduce_only": True
+                        })
+                        
+                        logger.info(f"{plan.symbol}: Order {order_result['orderId']} executed successfully")
+                        
+                    elif step['step'] == 'UPDATE_SL':
+                        # Stop loss modification not implemented yet
+                        steps_results.append({
+                            "step": step["step"],
+                            "status": "not_implemented",
+                            "details": "Stop loss modification not yet supported"
+                        })
+                        logger.warning(f"{plan.symbol}: UPDATE_SL not implemented")
+                    
+                    else:
+                        steps_results.append({
+                            "step": step["step"],
+                            "status": "unknown_step",
+                            "details": f"Unknown step type: {step['step']}"
+                        })
+                    
+                    # Metrics
+                    if PROMETHEUS_AVAILABLE:
+                        self.metric_execute_total.labels(
+                            symbol=plan.symbol,
+                            step=step["step"],
+                            status="success"
+                        ).inc()
+                    
+                except Exception as step_error:
+                    logger.error(f"{plan.symbol}: Step {step['step']} failed: {step_error}")
+                    steps_results.append({
+                        "step": step["step"],
+                        "status": "error",
+                        "details": str(step_error)
+                    })
+                    
+                    # Metrics
+                    if PROMETHEUS_AVAILABLE:
+                        self.metric_execute_total.labels(
+                            symbol=plan.symbol,
+                            step=step["step"],
+                            status="error"
+                        ).inc()
             
-            # Update last success metric
-            if PROMETHEUS_AVAILABLE:
-                self.metric_last_success.labels(symbol=plan.symbol).set(time.time())
+            # Update last success metric if any steps succeeded
+            if any(s['status'] == 'success' for s in steps_results):
+                if PROMETHEUS_AVAILABLE:
+                    self.metric_last_success.labels(symbol=plan.symbol).set(time.time())
             
             return ApplyResult(
                 plan_id=plan.plan_id,
