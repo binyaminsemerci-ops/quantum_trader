@@ -1,14 +1,22 @@
 # P3.2 Governor - Fund-Grade Limits + Auto-Disarm
 
-**Version:** 1.0.0  
-**Date:** 2026-01-23  
-**Status:** Production Ready
+**Version:** 2.0.0 (Hardened)  
+**Date:** 2026-01-24  
+**Status:** Production Ready (Hardened with Real Binance Data)
 
 ---
 
 ## Executive Summary
 
-P3.2 Governor is a safety-critical microservice that enforces fund-grade rate limits and can automatically disarm the Apply Layer under unsafe conditions. It acts as the final gate before trade execution, issuing **execution permits** via Redis that the Apply Layer checks before placing real orders.
+P3.2 Governor is a safety-critical microservice that enforces fund-grade rate limits using **real-time Binance testnet position and price data**. It can automatically disarm the Apply Layer under unsafe conditions. It acts as the final gate before trade execution, issuing **single-use execution permits** (60s TTL) via Redis that the Apply Layer checks before placing real orders.
+
+**P3.2 Hardening (v2.0):**
+- ✅ Fetches REAL `positionAmt` from Binance `/fapi/v2/positionRisk`
+- ✅ Fetches REAL `markPrice` from Binance `/fapi/v1/premiumIndex`
+- ✅ Computes `close_qty` based on position and action type
+- ✅ Enforces limits using computed notional (`qty × markPrice`)
+- ✅ Single-use permits with 60s TTL (down from 3600s)
+- ✅ Apply Layer fail-closed enforcement (blocks if permit missing or Redis error)
 
 ---
 
@@ -30,6 +38,57 @@ Harvest Proposals → Apply Layer → Governor → Execution Permits
 
 ---
 
+## Real Limit Accounting (P3.2 Hardening)
+
+**Problem:** Original implementation relied on placeholder values (`plan.close_qty=0.0`, `plan.price=None`) that made daily limits meaningless.
+
+**Solution:** Governor now fetches real data from Binance testnet:
+
+### 1. Position Data
+```python
+# GET /fapi/v2/positionRisk?symbol=BTCUSDT
+position = binance_client.get_position(symbol)
+pos_amt = abs(position['positionAmt'])  # Current position size
+```
+
+### 2. Price Data
+```python
+# GET /fapi/v1/premiumIndex?symbol=BTCUSDT
+mark_price = binance_client.get_mark_price(symbol)
+```
+
+### 3. Computed Quantities
+```python
+# Based on action type
+if action == 'FULL_CLOSE_PROPOSED':
+    computed_qty = pos_amt  # 100% of position
+elif action == 'PARTIAL_75':
+    computed_qty = pos_amt * 0.75  # 75% of position
+elif action == 'PARTIAL_50':
+    computed_qty = pos_amt * 0.50  # 50% of position
+```
+
+### 4. Computed Notional
+```python
+computed_notional = computed_qty * mark_price
+```
+
+### 5. Limit Enforcement
+- Daily notional limit checked against `computed_notional`
+- Daily qty limit used as fallback if Binance unavailable
+- Permits embed `computed_qty` and `computed_notional` for audit
+
+### Binance Credentials
+```bash
+# /etc/quantum/governor.env
+BINANCE_TESTNET_API_KEY=<your_key>
+BINANCE_TESTNET_API_SECRET=<your_secret>
+```
+
+**Fallback:** If credentials missing, Governor uses qty-only limits (no notional enforcement).
+
+---
+
 ## Safety Gates
 
 ### 1. Hourly Rate Limit (per symbol)
@@ -46,7 +105,9 @@ Harvest Proposals → Apply Layer → Governor → Execution Permits
 ### 3. Daily Notional Limit (per symbol)
 - **Default:** $5,000 USD notional reduced per day
 - **Config:** `GOV_MAX_REDUCE_NOTIONAL_PER_DAY_USD=5000`
-- **Fallback:** If price unavailable, uses qty limit
+- **Data Source:** Real-time `markPrice` from Binance `/fapi/v1/premiumIndex`
+- **Calculation:** `computed_notional = computed_qty × markPrice`
+- **Fallback:** If Binance unavailable, uses qty limit
 - **Behavior:** Blocks execution if daily total would exceed limit
 
 ### 4. Daily Quantity Limit (per symbol)
@@ -123,8 +184,21 @@ METRICS_PORT=8044
 
 ### Permit Keys
 - **Pattern:** `quantum:permit:<plan_id>`
-- **TTL:** 1 hour
-- **Format:** JSON: `{"granted": true, "timestamp": <unix>, "symbol": "BTCUSDT"}`
+- **TTL:** 60 seconds (single-use, race-safe)
+- **Format:** JSON:
+  ```json
+  {
+    "granted": true,
+    "symbol": "BTCUSDT",
+    "decision": "EXECUTE",
+    "computed_qty": 0.015,
+    "computed_notional": 1425.50,
+    "created_at": 1737753600,
+    "consumed": false
+  }
+  ```
+- **Consumption:** Apply Layer DELETEs permit after validation (atomic)
+- **Purpose:** Short TTL prevents stale permits, `computed_*` fields provide audit trail
 
 ### Block Records
 - **Pattern:** `quantum:governor:block:<plan_id>`
@@ -189,20 +263,26 @@ action_taken: APPLY_MODE=dry_run + restart
 - `redis-py` and `prometheus-client` installed
 - Apply Layer deployed (P3.0/P3.1)
 
-### Deploy Script
+### Deploy Script (P3.2 Hardened)
 
 ```bash
-# From /root/quantum_trader
-bash ops/p32_deploy_governor.sh
+# Single idempotent deployment command
+cd /root/quantum_trader && git pull && bash ops/p32_vps_deploy_and_proof.sh
 ```
 
 **Steps:**
-1. Syncs code to `/home/qt/quantum_trader`
-2. Installs config to `/etc/quantum/governor.env`
-3. Installs systemd unit
-4. Installs Python dependencies
-5. Starts service
-6. Verifies metrics endpoint
+1. Pulls latest code from GitHub
+2. Syncs code to `/home/qt/quantum_trader`
+3. Installs config to `/etc/quantum/governor.env` (with Binance credentials)
+4. Installs systemd unit (`quantum-governor.service`)
+5. Starts Governor service
+6. Restarts Apply Layer (to pick up fail-closed enforcement)
+7. Runs comprehensive proof tests
+8. Saves proof output to `docs/P3_2_VPS_PROOF.txt`
+
+**Config Auto-Install:**
+- Copies `BINANCE_TESTNET_API_KEY` and `BINANCE_TESTNET_API_SECRET` from `/etc/quantum/testnet.env`
+- Falls back to qty-only limits if credentials not found
 
 ### Verify
 
@@ -224,27 +304,59 @@ bash ops/p32_proof_governor.sh
 
 ## Integration with Apply Layer
 
-### P3.1 Changes (Permit Check)
+### P3.2 Hardened Integration (Fail-Closed Enforcement)
 
 **In `execute_testnet()` (after position check):**
 
 ```python
-# CHECK GOVERNOR PERMIT (P3.2)
+# CHECK GOVERNOR PERMIT (P3.2) - FAIL-CLOSED
 permit_key = f"quantum:permit:{plan.plan_id}"
-permit_data = self.redis.get(permit_key)
 
+# Fail-closed: Redis error blocks execution
+try:
+    permit_data = self.redis.get(permit_key)
+except Exception as e:
+    logger.error(f"{symbol}: Redis error checking permit: {e}")
+    return ApplyResult(..., decision="BLOCKED", error="missing_permit_or_redis")
+
+# Fail-closed: Missing permit blocks execution
 if not permit_data:
     logger.warning(f"{symbol}: No execution permit from Governor (blocked)")
-    return ApplyResult(..., error="no_governor_permit")
+    return ApplyResult(..., decision="BLOCKED", error="missing_permit_or_redis")
 
-permit = json.loads(permit_data)
-if not permit.get('granted'):
-    logger.warning(f"{symbol}: Governor permit denied")
-    return ApplyResult(..., error="governor_permit_denied")
+# Parse and validate permit
+try:
+    permit = json.loads(permit_data)
+    
+    if not permit.get('granted'):
+        logger.warning(f"{symbol}: Governor permit denied")
+        return ApplyResult(..., decision="BLOCKED", error="missing_permit_or_redis")
+    
+    # Check if already consumed (race protection)
+    if permit.get('consumed'):
+        logger.warning(f"{symbol}: Permit already consumed (race detected)")
+        return ApplyResult(..., decision="BLOCKED", error="missing_permit_or_redis")
+    
+    # CONSUME PERMIT ATOMICALLY (single-use semantics)
+    self.redis.delete(permit_key)
+    logger.info(f"{symbol}: Permit consumed ✓ (qty={permit['computed_qty']:.4f}, notional=${permit['computed_notional']:.2f})")
+    
+except json.JSONDecodeError as e:
+    logger.error(f"{symbol}: Invalid permit format: {e}")
+    return ApplyResult(..., decision="BLOCKED", error="missing_permit_or_redis")
+except Exception as e:
+    logger.error(f"{symbol}: Failed to consume permit: {e}")
+    return ApplyResult(..., decision="BLOCKED", error="missing_permit_or_redis")
 
-logger.info(f"{symbol}: Governor permit granted ✓")
 # ... proceed with execution
 ```
+
+**Key Changes:**
+- Decision changed from `"SKIP"` to `"BLOCKED"` for missing permits
+- Single error code: `"missing_permit_or_redis"` (fail-closed)
+- Atomic permit consumption (DELETE before execution)
+- Redis errors block execution (no fallback)
+- Logs computed qty/notional from permit
 
 **In `execute_dry_run()` (logged only):**
 
