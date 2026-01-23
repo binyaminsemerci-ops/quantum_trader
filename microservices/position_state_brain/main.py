@@ -470,7 +470,16 @@ class PositionStateBrain:
             
             for msg_id, fields in plans:
                 if fields.get('symbol') == symbol:
-                    plan_id = fields.get('plan_id', msg_id.split('-')[0])
+                    # CRITICAL: Must use plan_id from fields (Apply Layer hash)
+                    plan_id = fields.get('plan_id')
+                    if not plan_id:
+                        logger.warning(f"{symbol}: No plan_id in stream message {msg_id}")
+                        continue
+                    
+                    # Only evaluate EXECUTE decisions (skip SKIP/BLOCKED/ERROR)
+                    decision = fields.get('decision', '')
+                    if decision != 'EXECUTE':
+                        continue
                     
                     # Check if we already evaluated this plan
                     permit_key = f"quantum:permit:p33:{plan_id}"
