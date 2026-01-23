@@ -633,48 +633,98 @@ class ApplyLayer:
             pos_side = position['side']
             logger.info(f"{plan.symbol}: Current position: {pos_amt} ({pos_side})")
             
-            # CHECK GOVERNOR PERMIT (P3.2)
+            # CHECK GOVERNOR PERMIT (P3.2) - FAIL-CLOSED
             permit_key = f"quantum:permit:{plan.plan_id}"
-            permit_data = self.redis.get(permit_key)
             
+            # Fail-closed: Redis error blocks execution
+            try:
+                permit_data = self.redis.get(permit_key)
+            except Exception as e:
+                logger.error(f"{plan.symbol}: Redis error checking permit: {e}")
+                return ApplyResult(
+                    plan_id=plan.plan_id,
+                    symbol=plan.symbol,
+                    decision="BLOCKED",
+                    executed=False,
+                    would_execute=False,
+                    steps_results=[{"step": "GOVERNOR_CHECK", "status": "redis_error", "details": f"Redis error: {e}"}],
+                    error="missing_permit_or_redis",
+                    timestamp=int(time.time())
+                )
+            
+            # Fail-closed: Missing permit blocks execution
             if not permit_data:
                 logger.warning(f"{plan.symbol}: No execution permit from Governor (blocked)")
                 return ApplyResult(
                     plan_id=plan.plan_id,
                     symbol=plan.symbol,
-                    decision="SKIP",
+                    decision="BLOCKED",
                     executed=False,
                     would_execute=False,
                     steps_results=[{"step": "GOVERNOR_CHECK", "status": "no_permit", "details": "Governor blocked execution"}],
-                    error="no_governor_permit",
+                    error="missing_permit_or_redis",
                     timestamp=int(time.time())
                 )
             
+            # Parse and validate permit
             try:
                 permit = json.loads(permit_data)
+                
+                # Validate permit structure
                 if not permit.get('granted'):
                     logger.warning(f"{plan.symbol}: Governor permit denied")
                     return ApplyResult(
                         plan_id=plan.plan_id,
                         symbol=plan.symbol,
-                        decision="SKIP",
+                        decision="BLOCKED",
                         executed=False,
                         would_execute=False,
                         steps_results=[{"step": "GOVERNOR_CHECK", "status": "denied", "details": "Governor denied permit"}],
-                        error="governor_permit_denied",
+                        error="missing_permit_or_redis",
                         timestamp=int(time.time())
                     )
-                logger.info(f"{plan.symbol}: Governor permit granted ✓")
-            except json.JSONDecodeError:
-                logger.error(f"{plan.symbol}: Invalid permit data format")
+                
+                # Check if already consumed (race protection)
+                if permit.get('consumed'):
+                    logger.warning(f"{plan.symbol}: Permit already consumed (race detected)")
+                    return ApplyResult(
+                        plan_id=plan.plan_id,
+                        symbol=plan.symbol,
+                        decision="BLOCKED",
+                        executed=False,
+                        would_execute=False,
+                        steps_results=[{"step": "GOVERNOR_CHECK", "status": "already_consumed", "details": "Permit already used"}],
+                        error="missing_permit_or_redis",
+                        timestamp=int(time.time())
+                    )
+                
+                # CONSUME PERMIT ATOMICALLY (single-use semantics)
+                try:
+                    self.redis.delete(permit_key)
+                    logger.info(f"{plan.symbol}: Governor permit consumed ✓ (qty={permit.get('computed_qty', 'N/A')}, notional=${permit.get('computed_notional', 'N/A'):.2f})")
+                except Exception as e:
+                    logger.error(f"{plan.symbol}: Failed to consume permit: {e}")
+                    return ApplyResult(
+                        plan_id=plan.plan_id,
+                        symbol=plan.symbol,
+                        decision="BLOCKED",
+                        executed=False,
+                        would_execute=False,
+                        steps_results=[{"step": "GOVERNOR_CHECK", "status": "consumption_error", "details": f"Failed to consume permit: {e}"}],
+                        error="missing_permit_or_redis",
+                        timestamp=int(time.time())
+                    )
+                
+            except json.JSONDecodeError as e:
+                logger.error(f"{plan.symbol}: Invalid permit data format: {e}")
                 return ApplyResult(
                     plan_id=plan.plan_id,
                     symbol=plan.symbol,
-                    decision="SKIP",
+                    decision="BLOCKED",
                     executed=False,
                     would_execute=False,
-                    steps_results=[{"step": "GOVERNOR_CHECK", "status": "invalid_permit", "details": "Invalid permit format"}],
-                    error="invalid_governor_permit",
+                    steps_results=[{"step": "GOVERNOR_CHECK", "status": "invalid_permit", "details": f"Invalid permit format: {e}"}],
+                    error="missing_permit_or_redis",
                     timestamp=int(time.time())
                 )
             
