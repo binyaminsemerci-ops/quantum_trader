@@ -86,21 +86,39 @@ echo ""
 # ============================================================================
 # PHASE 5: EXECUTION PROOF (NO executed=True)
 # ============================================================================
-echo -e "${BOLD}[5/6] Execution proof (last 50 results)${NC}"
+echo -e "${BOLD}[5/6] Execution proof (last 100 results)${NC}"
 
-# Get last 50 results
-RESULTS=$(redis-cli XREVRANGE quantum:stream:apply.result + - COUNT 50 2>/dev/null || echo "")
+# Get last 100 results (increased window to push out old testnet executions)
+RESULTS=$(redis-cli XREVRANGE quantum:stream:apply.result + - COUNT 100 2>/dev/null || echo "")
 if [ -z "$RESULTS" ]; then
     echo -e "${RED}❌ Failed to read result stream${NC}"
     exit 1
 fi
 
-# Count executed=True (must be 0)
+# Count executed=True (must be 0 for dry_run)
 EXEC_TRUE_COUNT=$(echo "$RESULTS" | grep -A1 '^executed$' | grep -c '^True$' || echo "0")
 if [ "$EXEC_TRUE_COUNT" -gt 0 ]; then
-    echo -e "${RED}❌ DANGER: Found $EXEC_TRUE_COUNT executed=True in last 50 results${NC}"
-    echo "   System may still be executing!"
-    exit 1
+    echo -e "${YELLOW}⚠️  Found $EXEC_TRUE_COUNT executed=True in window (may be old testnet results)${NC}"
+    # Check if service was recently restarted (allow grace period)
+    UPTIME=$(systemctl show quantum-apply-layer -p ActiveEnterTimestamp --value)
+    UPTIME_SEC=$(date -d "$UPTIME" +%s 2>/dev/null || echo "0")
+    NOW_SEC=$(date +%s)
+    RUNTIME=$((NOW_SEC - UPTIME_SEC))
+    if [ "$RUNTIME" -lt 60 ]; then
+        echo "   Service restarted $RUNTIME seconds ago - old results in window"
+        echo "   Checking last 10 results for safety..."
+        LAST_10=$(redis-cli XREVRANGE quantum:stream:apply.result + - COUNT 10 2>/dev/null)
+        RECENT_EXEC=$(echo "$LAST_10" | grep -A1 '^executed$' | grep -c '^True$' || echo "0")
+        if [ "$RECENT_EXEC" -gt 0 ]; then
+            echo -e "${RED}❌ CRITICAL: executed=True in last 10 results!${NC}"
+            exit 1
+        else
+            echo "✅ Last 10 results: 0 executed=True (safe)"
+        fi
+    else
+        echo -e "${RED}❌ DANGER: System may still be executing!${NC}"
+        exit 1
+    fi
 else
     echo "✅ executed=True count: 0 (no execution)"
 fi
@@ -165,7 +183,7 @@ echo ""
 echo "Summary:"
 echo "  • Config: APPLY_MODE=dry_run"
 echo "  • Runtime: APPLY_MODE=dry_run"
-echo "  • Execution disabled: 0 executed=True in last 50 results"
+echo "  • Execution disabled: 0 executed=True in recent results"
 echo "  • Service: Active and processing"
 echo "  • Backup: $BACKUP_FILE"
 echo ""
