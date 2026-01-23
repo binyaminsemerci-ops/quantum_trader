@@ -72,6 +72,76 @@ class Config:
     STREAM_PLANS = os.getenv('STREAM_PLANS', 'quantum:stream:apply.plan')
     STREAM_RESULTS = os.getenv('STREAM_RESULTS', 'quantum:stream:apply.result')
     STREAM_EVENTS = os.getenv('STREAM_EVENTS', 'quantum:stream:governor.events')
+    
+    # Binance testnet credentials (for position/price fetching)
+    BINANCE_TESTNET_API_KEY = os.getenv('BINANCE_TESTNET_API_KEY', '')
+    BINANCE_TESTNET_API_SECRET = os.getenv('BINANCE_TESTNET_API_SECRET', '')
+
+# ============================================================================
+# BINANCE TESTNET CLIENT (for real position/price data)
+# ============================================================================
+class BinanceTestnetClient:
+    """Lightweight client for fetching position and price data"""
+    
+    def __init__(self, api_key: str, api_secret: str):
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.base_url = "https://testnet.binancefuture.com"
+    
+    def _sign_request(self, params: dict) -> str:
+        """Sign request with HMAC SHA256"""
+        query_string = urllib.parse.urlencode(params)
+        signature = hmac.new(
+            self.api_secret.encode('utf-8'),
+            query_string.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        return signature
+    
+    def _request(self, method: str, endpoint: str, params: dict = None, signed: bool = False):
+        """Make HTTP request to Binance API"""
+        if params is None:
+            params = {}
+        
+        if signed:
+            params['timestamp'] = int(time.time() * 1000)
+            params['signature'] = self._sign_request(params)
+        
+        query_string = urllib.parse.urlencode(params)
+        url = f"{self.base_url}{endpoint}?{query_string}"
+        
+        req = urllib.request.Request(url, method=method)
+        req.add_header('X-MBX-APIKEY', self.api_key)
+        
+        try:
+            with urllib.request.urlopen(req, timeout=5) as response:
+                return json.loads(response.read().decode('utf-8'))
+        except Exception as e:
+            logger.error(f"Binance API error: {e}")
+            return None
+    
+    def get_position(self, symbol: str):
+        """Get current position for symbol"""
+        result = self._request('GET', '/fapi/v2/positionRisk', signed=True)
+        if not result:
+            return None
+        
+        for pos in result:
+            if pos['symbol'] == symbol:
+                return {
+                    'positionAmt': float(pos['positionAmt']),
+                    'side': pos['side'],
+                    'unrealizedProfit': float(pos['unrealizedProfit'])
+                }
+        return None
+    
+    def get_mark_price(self, symbol: str):
+        """Get current mark price for symbol"""
+        result = self._request('GET', '/fapi/v1/premiumIndex', params={'symbol': symbol}, signed=False)
+        if not result:
+            return None
+        
+        return float(result['markPrice'])
 
 # ============================================================================
 # GOVERNOR CORE
@@ -85,6 +155,17 @@ class Governor:
             db=config.REDIS_DB,
             decode_responses=True
         )
+        
+        # Binance client for real position/price data
+        self.binance_client = None
+        if config.BINANCE_TESTNET_API_KEY and config.BINANCE_TESTNET_API_SECRET:
+            self.binance_client = BinanceTestnetClient(
+                config.BINANCE_TESTNET_API_KEY,
+                config.BINANCE_TESTNET_API_SECRET
+            )
+            logger.info("Binance testnet client initialized")
+        else:
+            logger.warning("No Binance credentials - will use fallback limits")
         
         # Execution tracking (in-memory + Redis backup)
         self.exec_history = defaultdict(list)  # {symbol: [timestamp, ...]}
@@ -130,19 +211,23 @@ class Governor:
                 time.sleep(1)
     
     def _evaluate_plan(self, plan_id, data):
-        """Evaluate a plan and issue permit or block"""
+        """Evaluate a plan and issue permit or block (using REAL position/price data)"""
         try:
             symbol = data.get('symbol', 'UNKNOWN')
             action = data.get('action', 'UNKNOWN')
+            decision = data.get('decision', 'SKIP')
             kill_score = float(data.get('kill_score', '0'))
-            close_qty = float(data.get('close_qty', '0'))
-            price = float(data.get('price', '0')) if data.get('price') else None
             
-            logger.info(f"{symbol}: Evaluating plan {plan_id[:8]} (action={action}, kill_score={kill_score:.3f})")
+            logger.info(f"{symbol}: Evaluating plan {plan_id[:8]} (action={action}, decision={decision}, kill_score={kill_score:.3f})")
+            
+            # Skip if decision is not EXECUTE
+            if decision != 'EXECUTE':
+                logger.info(f"{symbol}: Plan {plan_id[:8]} decision={decision}, skipping permit")
+                return
             
             # Gate 1: Kill score critical threshold
             if kill_score >= self.config.KILL_SCORE_CRITICAL:
-                if action != 'CLOSE':
+                if action not in ['FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50']:
                     self._block_plan(plan_id, symbol, 'kill_score_critical_non_close')
                     return
             
@@ -166,13 +251,63 @@ class Governor:
                     })
                 return
             
+            # COMPUTE REAL CLOSE_QTY AND NOTIONAL
+            computed_qty = 0.0
+            computed_notional = 0.0
+            
+            if self.binance_client:
+                try:
+                    # Fetch current position
+                    position = self.binance_client.get_position(symbol)
+                    if not position:
+                        logger.warning(f"{symbol}: Could not fetch position, blocking")
+                        self._block_plan(plan_id, symbol, 'position_fetch_failed')
+                        return
+                    
+                    pos_amt = abs(position['positionAmt'])
+                    
+                    # Calculate close qty based on action
+                    if action == 'FULL_CLOSE_PROPOSED':
+                        computed_qty = pos_amt
+                    elif action == 'PARTIAL_75':
+                        computed_qty = pos_amt * 0.75
+                    elif action == 'PARTIAL_50':
+                        computed_qty = pos_amt * 0.50
+                    else:
+                        computed_qty = pos_amt * 0.75  # Default fallback
+                    
+                    # Fetch mark price
+                    mark_price = self.binance_client.get_mark_price(symbol)
+                    if mark_price and mark_price > 0:
+                        computed_notional = computed_qty * mark_price
+                    else:
+                        logger.warning(f"{symbol}: Could not fetch price, using qty limit only")
+                    
+                    logger.info(f"{symbol}: Computed qty={computed_qty:.4f}, notional=${computed_notional:.2f}")
+                    
+                except Exception as e:
+                    logger.error(f"{symbol}: Error computing limits: {e}")
+                    self._block_plan(plan_id, symbol, 'limit_computation_error')
+                    return
+            else:
+                # No Binance client - use conservative fallback
+                logger.warning(f"{symbol}: No Binance client, using fallback limits")
+                computed_qty = 0.01  # Conservative fallback
+                computed_notional = 0.0
+            
             # Gate 4: Daily notional/qty limit
-            if not self._check_daily_limit(symbol, close_qty, price):
+            if not self._check_daily_limit(symbol, computed_qty, computed_notional if computed_notional > 0 else None):
                 self._block_plan(plan_id, symbol, 'daily_limit_exceeded')
                 return
             
-            # All gates passed - issue permit
-            self._issue_permit(plan_id, symbol)
+            # All gates passed - issue permit with computed values
+            self._issue_permit(plan_id, symbol, computed_qty, computed_notional)
+            
+        except Exception as e:
+            logger.error(f"Error evaluating plan {plan_id}: {e}", exc_info=True)
+            self.error_count += 1
+            # Fail closed: do not issue permit
+            self._block_plan(plan_id, symbol, 'evaluation_error')
             
         except Exception as e:
             logger.error(f"Error evaluating plan {plan_id}: {e}", exc_info=True)
@@ -193,17 +328,22 @@ class Governor:
             'symbol': symbol
         }))
     
-    def _issue_permit(self, plan_id, symbol):
-        """Issue execution permit for a plan"""
-        logger.info(f"{symbol}: ALLOW plan {plan_id[:8]} (permit issued)")
+    def _issue_permit(self, plan_id, symbol, computed_qty, computed_notional):
+        """Issue single-use execution permit with computed values (60s TTL)"""
+        logger.info(f"{symbol}: ALLOW plan {plan_id[:8]} (permit issued: qty={computed_qty:.4f}, notional=${computed_notional:.2f})")
         
-        # Write permit key (Apply Layer will check this)
+        # Write permit key with 60s TTL (single-use, race-safe)
         permit_key = f"quantum:permit:{plan_id}"
-        self.redis.setex(permit_key, 3600, json.dumps({
+        permit_data = {
             'granted': True,
-            'timestamp': time.time(),
-            'symbol': symbol
-        }))
+            'symbol': symbol,
+            'decision': 'EXECUTE',
+            'computed_qty': computed_qty,
+            'computed_notional': computed_notional,
+            'created_at': time.time(),
+            'consumed': False
+        }
+        self.redis.setex(permit_key, 60, json.dumps(permit_data))  # 60s TTL
         
         # Track execution (assume will execute - apply layer confirms later)
         self.exec_history[symbol].append(time.time())
@@ -238,7 +378,7 @@ class Governor:
         cutoff = time.time() - 3600  # Keep last hour in memory
         self.exec_history[symbol] = [ts for ts in self.exec_history[symbol] if ts > cutoff]
     
-    def _check_daily_limit(self, symbol, qty, price):
+    def _check_daily_limit(self, symbol, qty, notional=None):
         """Check daily notional or quantity limit"""
         # Get today's executions
         today = datetime.utcnow().strftime('%Y-%m-%d')
@@ -247,9 +387,8 @@ class Governor:
         current_total = float(self.redis.get(daily_key) or 0)
         
         # Calculate new total
-        if price and price > 0:
-            # Notional-based
-            notional = qty * price
+        if notional and notional > 0:
+            # Notional-based (preferred)
             new_total = current_total + notional
             limit = self.config.MAX_REDUCE_NOTIONAL_PER_DAY_USD
             if new_total > limit:
