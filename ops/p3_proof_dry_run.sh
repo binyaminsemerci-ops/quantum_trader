@@ -159,8 +159,8 @@ echo
 # Check allowlist enforcement
 echo "== P3.5: Allowlist enforcement =="
 if [[ $plan_count -gt 0 ]]; then
-  btc_execute=$(redis-cli XREVRANGE quantum:stream:apply.plan + - COUNT 20 | grep -A5 "symbol.*BTCUSDT" | grep -c "decision.*EXECUTE" || echo "0")
-  eth_skip=$(redis-cli XREVRANGE quantum:stream:apply.plan + - COUNT 20 | grep -A5 "symbol.*ETHUSDT" | grep -c "not_in_allowlist" || echo "0")
+  btc_execute=$(redis-cli XREVRANGE quantum:stream:apply.plan + - COUNT 20 | grep -A5 "symbol.*BTCUSDT" | grep "decision.*EXECUTE" | wc -l)
+  eth_skip=$(redis-cli XREVRANGE quantum:stream:apply.plan + - COUNT 20 | grep -A5 "symbol.*ETHUSDT" | grep "not_in_allowlist" | wc -l)
   
   if [[ $btc_execute -gt 0 ]]; then
     ok "BTCUSDT has EXECUTE decisions (allowlist working)"
@@ -202,7 +202,7 @@ echo
 
 # Check service logs for errors
 echo "== P3.7: Service health (recent logs) =="
-error_count=$(journalctl -u quantum-apply-layer --since "5 minutes ago" | grep -c ERROR || echo "0")
+error_count=$(journalctl -u quantum-apply-layer --since "5 minutes ago" | grep ERROR | wc -l || echo "0")
 
 if [[ $error_count -eq 0 ]]; then
   ok "No errors in last 5 minutes"
