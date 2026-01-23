@@ -95,12 +95,12 @@ if [[ $result_count -gt 0 ]]; then
   redis-cli XREVRANGE quantum:stream:apply.result + - COUNT 3 | head -30
   echo
   
-  executed_true=$(redis-cli XREVRANGE quantum:stream:apply.result + - COUNT 10 | grep -c '"executed": true' || echo "0")
+  executed_true=$(redis-cli XREVRANGE quantum:stream:apply.result + - COUNT 10 | grep -A1 '^executed$' | grep -c '^True$')
   
   if [[ $executed_true -gt 0 ]]; then
-    ok "Found $executed_true results with executed=true (testnet execution active)"
+    ok "Found $executed_true results with executed=True (testnet execution active)"
   else
-    warn "No executed=true results yet (service may need time or no EXECUTE plans)"
+    warn "No executed=True results yet (service may need time or no EXECUTE plans)"
   fi
   
   # Check for order IDs
