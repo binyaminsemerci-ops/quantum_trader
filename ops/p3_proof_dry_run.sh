@@ -138,8 +138,8 @@ echo
 echo "== P3.4: Verify NO execution in dry_run =="
 if [[ $result_count -gt 0 ]]; then
   # Check results for executed=false and would_execute=true
-  executed_true=$(redis-cli XREVRANGE quantum:stream:apply.result + - COUNT 10 | grep -c '"executed": true' || echo "0")
-  would_execute=$(redis-cli XREVRANGE quantum:stream:apply.result + - COUNT 10 | grep -c '"would_execute": true' || echo "0")
+  executed_true=$(redis-cli XREVRANGE quantum:stream:apply.result + - COUNT 10 | grep '"executed": true' | wc -l)
+  would_execute=$(redis-cli XREVRANGE quantum:stream:apply.result + - COUNT 10 | grep '"would_execute": true' | wc -l)
   
   if [[ $executed_true -eq 0 ]]; then
     ok "No actual executions (executed=false in all results)"
