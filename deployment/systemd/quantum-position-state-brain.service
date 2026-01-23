@@ -1,0 +1,22 @@
+[Unit]
+Description=Quantum Trading P3.3 Position State Brain
+After=network.target redis.service
+Requires=redis.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/qt/quantum_trader
+EnvironmentFile=/etc/quantum/position-state-brain.env
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/microservices/position_state_brain/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Resource limits
+MemoryLimit=1G
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

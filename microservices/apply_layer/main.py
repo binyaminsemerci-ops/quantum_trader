@@ -728,19 +728,98 @@ class ApplyLayer:
                     timestamp=int(time.time())
                 )
             
+            # CHECK P3.3 POSITION STATE BRAIN PERMIT - FAIL-CLOSED
+            p33_permit_key = f"quantum:permit:p33:{plan.plan_id}"
+            
+            try:
+                p33_permit_data = self.redis.get(p33_permit_key)
+            except Exception as e:
+                logger.error(f"{plan.symbol}: Redis error checking P3.3 permit: {e}")
+                return ApplyResult(
+                    plan_id=plan.plan_id,
+                    symbol=plan.symbol,
+                    decision="BLOCKED",
+                    executed=False,
+                    would_execute=False,
+                    steps_results=[{"step": "P33_CHECK", "status": "redis_error", "details": f"Redis error: {e}"}],
+                    error="missing_or_denied_p33_permit",
+                    timestamp=int(time.time())
+                )
+            
+            if not p33_permit_data:
+                logger.warning(f"{plan.symbol}: No P3.3 position permit (blocked)")
+                return ApplyResult(
+                    plan_id=plan.plan_id,
+                    symbol=plan.symbol,
+                    decision="BLOCKED",
+                    executed=False,
+                    would_execute=False,
+                    steps_results=[{"step": "P33_CHECK", "status": "no_permit", "details": "P3.3 Position State Brain blocked execution"}],
+                    error="missing_or_denied_p33_permit",
+                    timestamp=int(time.time())
+                )
+            
+            try:
+                p33_permit = json.loads(p33_permit_data)
+                
+                if not p33_permit.get('allow'):
+                    reason = p33_permit.get('reason', 'unknown')
+                    logger.warning(f"{plan.symbol}: P3.3 permit denied (reason={reason})")
+                    return ApplyResult(
+                        plan_id=plan.plan_id,
+                        symbol=plan.symbol,
+                        decision="BLOCKED",
+                        executed=False,
+                        would_execute=False,
+                        steps_results=[{"step": "P33_CHECK", "status": "denied", "details": f"P3.3 denied: {reason}"}],
+                        error="missing_or_denied_p33_permit",
+                        timestamp=int(time.time())
+                    )
+                
+                # Extract safe_close_qty from P3.3 permit
+                safe_close_qty = float(p33_permit.get('safe_close_qty', 0))
+                exchange_amt = float(p33_permit.get('exchange_position_amt', 0))
+                
+                if safe_close_qty <= 0:
+                    logger.warning(f"{plan.symbol}: P3.3 safe_close_qty is zero or negative")
+                    return ApplyResult(
+                        plan_id=plan.plan_id,
+                        symbol=plan.symbol,
+                        decision="BLOCKED",
+                        executed=False,
+                        would_execute=False,
+                        steps_results=[{"step": "P33_CHECK", "status": "invalid_qty", "details": f"safe_close_qty={safe_close_qty}"}],
+                        error="missing_or_denied_p33_permit",
+                        timestamp=int(time.time())
+                    )
+                
+                # DELETE P3.3 permit (single-use)
+                self.redis.delete(p33_permit_key)
+                logger.info(f"{plan.symbol}: P3.3 permit consumed ✓ (safe_qty={safe_close_qty:.4f}, exchange_amt={exchange_amt:.4f})")
+                
+            except json.JSONDecodeError as e:
+                logger.error(f"{plan.symbol}: Invalid P3.3 permit format: {e}")
+                return ApplyResult(
+                    plan_id=plan.plan_id,
+                    symbol=plan.symbol,
+                    decision="BLOCKED",
+                    executed=False,
+                    would_execute=False,
+                    steps_results=[{"step": "P33_CHECK", "status": "invalid_format", "details": f"Invalid P3.3 permit: {e}"}],
+                    error="missing_or_denied_p33_permit",
+                    timestamp=int(time.time())
+                )
+            
             # Execute each step
             for step in plan.steps:
                 logger.info(f"{plan.symbol}: Executing step {step['step']} (TESTNET)")
                 
                 try:
                     if step['step'] in ['CLOSE_FULL', 'CLOSE_PARTIAL_75', 'CLOSE_PARTIAL_50']:
-                        # Calculate quantity to close
-                        if step['step'] == 'CLOSE_FULL':
-                            close_qty = abs(pos_amt)
-                        elif step['step'] == 'CLOSE_PARTIAL_75':
-                            close_qty = abs(pos_amt) * 0.75
-                        else:  # CLOSE_PARTIAL_50
-                            close_qty = abs(pos_amt) * 0.50
+                        # USE SAFE_CLOSE_QTY FROM P3.3 PERMIT (already clamped and rounded)
+                        close_qty = safe_close_qty
+                        
+                        logger.info(f"{plan.symbol}: Using P3.3 safe_close_qty={close_qty:.4f} (exchange_amt={exchange_amt:.4f})")
                         
                         # Determine order side (opposite of position)
                         order_side = 'SELL' if pos_amt > 0 else 'BUY'
