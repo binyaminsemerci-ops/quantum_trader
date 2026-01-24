@@ -263,13 +263,15 @@ class Governor:
             # P3.3 Position State Brain is the real safety gate
             if current_mode == 'testnet':
                 logger.info(f"{symbol}: Testnet mode - auto-approving plan {plan_id[:8]}")
-                self._allow_plan(plan_id, symbol, reason='testnet_auto_approve')
+                # Issue permit with minimal values (P3.3 validates actual qty)
+                self._issue_permit(plan_id, symbol, computed_qty=0.0, computed_notional=0.0)
                 return
             
             # DRY_RUN MODE: Auto-approve (no real execution anyway)
             if current_mode == 'dry_run':
                 logger.info(f"{symbol}: Dry-run mode - auto-approving plan {plan_id[:8]}")
-                self._allow_plan(plan_id, symbol, reason='dry_run_auto_approve')
+                # Issue permit with minimal values (not executing anyway)
+                self._issue_permit(plan_id, symbol, computed_qty=0.0, computed_notional=0.0)
                 return
             
             # PRODUCTION MODE: Apply full risk gates
