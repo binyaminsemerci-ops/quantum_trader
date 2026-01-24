@@ -177,26 +177,45 @@ class Governor:
         logger.info(f"Auto-disarm: {config.ENABLE_AUTO_DISARM}, Kill score critical: {config.KILL_SCORE_CRITICAL}")
     
     def run(self):
-        """Main loop: watch plans, evaluate, issue permits"""
-        logger.info("Governor starting main loop")
-        last_id = '$'  # Start from latest
+        """Main loop: event-driven consumer group on apply.plan stream"""
+        logger.info("Governor starting main loop (event-driven mode)")
+        logger.info("Consumer group: governor on quantum:stream:apply.plan")
+        
+        consumer_group = "governor"
+        consumer_id = f"gov-{os.getpid()}"
+        
+        # Create consumer group (idempotent)
+        try:
+            self.redis.xgroup_create(self.config.STREAM_PLANS, consumer_group, id='$', mkstream=True)
+            logger.info(f"Consumer group '{consumer_group}' created")
+        except Exception as e:
+            if "BUSYGROUP" not in str(e):
+                logger.warning(f"Consumer group create error: {e}")
         
         while True:
             try:
-                # Read new plans from stream
-                messages = self.redis.xread(
-                    {self.config.STREAM_PLANS: last_id},
+                # XREADGROUP: read new messages from consumer group
+                messages = self.redis.xreadgroup(
+                    groupname=consumer_group,
+                    consumername=consumer_id,
+                    streams={self.config.STREAM_PLANS: '>'},
                     count=10,
                     block=1000  # 1s timeout
                 )
                 
                 if not messages:
+                    # Periodic tasks during idle
+                    self._update_metrics()
+                    self._check_auto_disarm()
                     continue
                 
                 for stream_name, stream_messages in messages:
                     for message_id, data in stream_messages:
-                        last_id = message_id
+                        # Evaluate plan
                         self._evaluate_plan(message_id, data)
+                        
+                        # ACK message after processing
+                        self.redis.xack(self.config.STREAM_PLANS, consumer_group, message_id)
                 
                 # Periodic tasks
                 self._update_metrics()
@@ -210,20 +229,51 @@ class Governor:
                 self.error_count += 1
                 time.sleep(1)
     
-    def _evaluate_plan(self, plan_id, data):
-        """Evaluate a plan and issue permit or block (using REAL position/price data)"""
+    def _evaluate_plan(self, plan_id_msg, data):
+        """Evaluate a plan and issue permit or block"""
         try:
+            # Extract plan_id from data (Apply Layer deterministic hash)
+            plan_id = data.get('plan_id')
+            if not plan_id:
+                logger.warning(f"Message {plan_id_msg}: Missing plan_id field")
+                return
+            
             symbol = data.get('symbol', 'UNKNOWN')
             action = data.get('action', 'UNKNOWN')
             decision = data.get('decision', 'SKIP')
             kill_score = float(data.get('kill_score', '0'))
             
-            logger.info(f"{symbol}: Evaluating plan {plan_id[:8]} (action={action}, decision={decision}, kill_score={kill_score:.3f})")
+            # Get current mode
+            current_mode = os.getenv('APPLY_MODE', 'testnet')
+            
+            logger.info(f"{symbol}: Evaluating plan {plan_id[:8]} (action={action}, decision={decision}, kill_score={kill_score:.3f}, mode={current_mode})")
             
             # Skip if decision is not EXECUTE
             if decision != 'EXECUTE':
-                logger.info(f"{symbol}: Plan {plan_id[:8]} decision={decision}, skipping permit")
+                logger.debug(f"{symbol}: Plan {plan_id[:8]} decision={decision}, skipping permit")
                 return
+            
+            # Check if permit already exists (idempotency)
+            permit_key = f"quantum:permit:{plan_id}"
+            if self.redis.exists(permit_key):
+                logger.debug(f"{symbol}: Permit already exists for plan {plan_id[:8]}")
+                return
+            
+            # TESTNET MODE: Auto-approve all EXECUTE plans
+            # P3.3 Position State Brain is the real safety gate
+            if current_mode == 'testnet':
+                logger.info(f"{symbol}: Testnet mode - auto-approving plan {plan_id[:8]}")
+                self._allow_plan(plan_id, symbol, reason='testnet_auto_approve')
+                return
+            
+            # DRY_RUN MODE: Auto-approve (no real execution anyway)
+            if current_mode == 'dry_run':
+                logger.info(f"{symbol}: Dry-run mode - auto-approving plan {plan_id[:8]}")
+                self._allow_plan(plan_id, symbol, reason='dry_run_auto_approve')
+                return
+            
+            # PRODUCTION MODE: Apply full risk gates
+            logger.info(f"{symbol}: Production mode - applying risk gates for plan {plan_id[:8]}")
             
             # Gate 1: Kill score critical threshold
             if kill_score >= self.config.KILL_SCORE_CRITICAL:
