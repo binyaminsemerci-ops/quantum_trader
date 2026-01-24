@@ -7,7 +7,7 @@ Requires=redis.service
 Type=simple
 User=root
 WorkingDirectory=/home/qt/quantum_trader
-# Load apply-layer.env for Binance testnet credentials, then P3.3 config
+# Load Binance credentials from apply-layer.env, then P3.3-specific config
 EnvironmentFile=/etc/quantum/apply-layer.env
 EnvironmentFile=/etc/quantum/position-state-brain.env
 ExecStart=/usr/bin/python3 /home/qt/quantum_trader/microservices/position_state_brain/main.py
