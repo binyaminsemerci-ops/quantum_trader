@@ -636,21 +636,29 @@ class ApplyLayer:
             # CHECK GOVERNOR PERMIT (P3.2) - FAIL-CLOSED
             permit_key = f"quantum:permit:{plan.plan_id}"
             
-            # Fail-closed: Redis error blocks execution
-            try:
-                permit_data = self.redis.get(permit_key)
-            except Exception as e:
-                logger.error(f"{plan.symbol}: Redis error checking permit: {e}")
-                return ApplyResult(
-                    plan_id=plan.plan_id,
-                    symbol=plan.symbol,
-                    decision="BLOCKED",
-                    executed=False,
-                    would_execute=False,
-                    steps_results=[{"step": "GOVERNOR_CHECK", "status": "redis_error", "details": f"Redis error: {e}"}],
-                    error="missing_permit_or_redis",
-                    timestamp=int(time.time())
-                )
+            # Wait for permit (up to 2 seconds) to handle SSH inject latency
+            permit_data = None
+            for attempt in range(20):  # 20 x 0.1s = 2s max wait
+                try:
+                    permit_data = self.redis.get(permit_key)
+                    if permit_data:
+                        logger.debug(f"{plan.symbol}: Permit found on attempt {attempt+1}")
+                        break
+                except Exception as e:
+                    if attempt == 19:  # Only log on final failure
+                        logger.error(f"{plan.symbol}: Redis error checking permit: {e}")
+                        return ApplyResult(
+                            plan_id=plan.plan_id,
+                            symbol=plan.symbol,
+                            decision="BLOCKED",
+                            executed=False,
+                            would_execute=False,
+                            steps_results=[{"step": "GOVERNOR_CHECK", "status": "redis_error", "details": f"Redis error: {e}"}],
+                            error="missing_permit_or_redis",
+                            timestamp=int(time.time())
+                        )
+                if attempt < 19 and not permit_data:
+                    time.sleep(0.1)
             
             # Fail-closed: Missing permit blocks execution
             if not permit_data:
