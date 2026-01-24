@@ -460,67 +460,99 @@ class PositionStateBrain:
         except Exception as e:
             logger.error(f"{symbol}: Failed to process apply results: {e}")
     
-    def process_apply_plans(self, symbol: str):
-        """Process recent apply plans to issue P3.3 permits"""
+    def process_apply_plans_stream(self):
+        """Event-driven: consume apply.plan stream via consumer group"""
         plan_stream = "quantum:stream:apply.plan"
+        consumer_group = "p33"
+        consumer_id = f"p33-{os.getpid()}"
+        
+        # Create consumer group (idempotent)
+        try:
+            self.redis.xgroup_create(plan_stream, consumer_group, id='$', mkstream=True)
+            logger.info(f"Consumer group '{consumer_group}' created on {plan_stream}")
+        except Exception as e:
+            if "BUSYGROUP" not in str(e):
+                logger.warning(f"Consumer group create error: {e}")
         
         try:
-            # Get latest plan for this symbol
-            plans = self.redis.xrevrange(plan_stream, count=5)
+            # XREADGROUP: block 1000ms, read up to 10 messages
+            messages = self.redis.xreadgroup(
+                groupname=consumer_group,
+                consumername=consumer_id,
+                streams={plan_stream: '>'},
+                count=10,
+                block=1000  # 1 second block
+            )
             
-            for msg_id, fields in plans:
-                if fields.get('symbol') == symbol:
-                    # CRITICAL: Must use plan_id from fields (Apply Layer hash)
+            if not messages:
+                return  # No new messages
+            
+            for stream_name, stream_messages in messages:
+                for msg_id, fields in stream_messages:
+                    # Parse plan_id (REQUIRED - no fallback)
                     plan_id = fields.get('plan_id')
                     if not plan_id:
-                        logger.warning(f"{symbol}: No plan_id in stream message {msg_id}")
+                        logger.error(f"Message {msg_id}: Missing plan_id field - ACK and skip")
+                        self.redis.xack(plan_stream, consumer_group, msg_id)
                         continue
                     
-                    # Only evaluate EXECUTE decisions (skip SKIP/BLOCKED/ERROR)
+                    symbol = fields.get('symbol', 'UNKNOWN')
                     decision = fields.get('decision', '')
+                    
+                    # Only evaluate EXECUTE decisions
                     if decision != 'EXECUTE':
-                        logger.debug(f"{symbol}: Skipping plan {plan_id[:8]} decision={decision}")
+                        self.redis.xack(plan_stream, consumer_group, msg_id)
                         continue
                     
-                    # Check if we already evaluated this plan
-                    permit_key = f"quantum:permit:p33:{plan_id}"
-                    if self.redis.exists(permit_key):
+                    # Filter by allowlist
+                    if symbol not in self.symbols:
+                        logger.debug(f"{symbol}: Not in allowlist - ACK plan {plan_id[:8]}")
+                        self.redis.xack(plan_stream, consumer_group, msg_id)
                         continue
                     
-                    # Evaluate plan
-                    self.evaluate_plan(plan_id, symbol, fields)
-                    break  # Only evaluate most recent plan
+                    # Evaluate plan (issue or deny permit)
+                    try:
+                        logger.info(f"{symbol}: Evaluating plan {plan_id[:8]} from stream msg {msg_id}")
+                        self.evaluate_plan(plan_id, symbol, fields)
+                    except Exception as eval_err:
+                        logger.error(f"{symbol}: Evaluation error for plan {plan_id[:8]}: {eval_err}")
+                    
+                    # ACK message after processing
+                    self.redis.xack(plan_stream, consumer_group, msg_id)
+                    
         except Exception as e:
-            logger.error(f"{symbol}: Failed to process apply plans: {e}")
+            logger.error(f"Stream read error: {e}")
     
     def run(self):
-        """Main loop"""
-        logger.info("P3.3 Position State Brain starting")
-        logger.info(f"Poll interval: {self.config.POLL_INTERVAL}s")
+        """Main loop - event-driven with periodic snapshot refresh"""
+        logger.info("P3.3 Position State Brain starting (event-driven mode)")
+        logger.info(f"Snapshot refresh: {self.config.POLL_INTERVAL}s")
         logger.info(f"Stale threshold: {self.config.STALE_THRESHOLD_SEC}s")
         logger.info(f"Cooldown: {self.config.COOLDOWN_SEC}s")
         logger.info(f"Permit TTL: {self.config.PERMIT_TTL}s")
+        logger.info("Consumer group: p33 on quantum:stream:apply.plan")
+        
+        last_snapshot_update = 0
         
         while True:
             try:
-                for symbol in self.symbols:
-                    # 1. Update exchange snapshot
-                    self.update_exchange_snapshot(symbol)
-                    
-                    # 2. Process apply results to update ledger
-                    self.process_apply_results(symbol)
-                    
-                    # 3. Process apply plans to issue P3.3 permits
-                    self.process_apply_plans(symbol)
+                # Update exchange snapshots periodically (every POLL_INTERVAL seconds)
+                now = time.time()
+                if now - last_snapshot_update >= self.config.POLL_INTERVAL:
+                    for symbol in self.symbols:
+                        self.update_exchange_snapshot(symbol)
+                        self.process_apply_results(symbol)
+                    last_snapshot_update = now
                 
-                time.sleep(self.config.POLL_INTERVAL)
+                # EVENT-DRIVEN: Read from apply.plan stream (blocks 1s)
+                self.process_apply_plans_stream()
                 
             except KeyboardInterrupt:
                 logger.info("Shutting down...")
                 break
             except Exception as e:
                 logger.error(f"Error in main loop: {e}", exc_info=True)
-                time.sleep(self.config.POLL_INTERVAL)
+                time.sleep(1)
 
 
 def main():
