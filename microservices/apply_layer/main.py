@@ -633,43 +633,88 @@ class ApplyLayer:
             pos_side = position['side']
             logger.info(f"{plan.symbol}: Current position: {pos_amt} ({pos_side})")
             
-            # CHECK GOVERNOR PERMIT (P3.2) - SKIP IN TESTNET (P3.3 is the safety gate)
-            # In testnet, P3.3 permit alone is sufficient for risk validation
-            if self.mode == ApplyMode.TESTNET:
-                logger.info(f"{plan.symbol}: [TESTNET] Skipping Governor permit check (P3.3 is the safety gate)")
-            else:
-                # DRY_RUN and PRODUCTION would require Governor permit (not implemented yet)
-                logger.debug(f"{plan.symbol}: Governor permit check skipped (mode={self.mode.value})")
+            # WAIT FOR BOTH PERMITS (Governor P3.2 + P3.3 Position State Brain)
+            # Max wait: 1200ms for event-driven P3.3 to issue permit after plan publication
+            permit_key = f"quantum:permit:{plan.plan_id}"  # Governor (P3.2)
+            p33_permit_key = f"quantum:permit:p33:{plan.plan_id}"  # P3.3 Position State Brain
             
-            permit_key = f"quantum:permit:{plan.plan_id}"
+            permits_ready = False
+            permit_wait_start = time.time()
+            max_wait_sec = 1.2  # 1200ms controlled wait window
             
-            # CHECK P3.3 POSITION STATE BRAIN PERMIT - FAIL-CLOSED
-            p33_permit_key = f"quantum:permit:p33:{plan.plan_id}"
+            # Permit availability check loop
+            for attempt in range(12):  # 12 x 100ms = 1200ms max
+                try:
+                    gov_exists = self.redis.exists(permit_key)
+                    p33_exists = self.redis.exists(p33_permit_key)
+                    
+                    if gov_exists and p33_exists:
+                        permits_ready = True
+                        wait_time_ms = int((time.time() - permit_wait_start) * 1000)
+                        logger.info(f"{plan.symbol}: Both permits ready after {wait_time_ms}ms (Governor + P3.3)")
+                        break
+                    
+                    if attempt == 11:  # Last attempt
+                        wait_time_ms = int((time.time() - permit_wait_start) * 1000)
+                        missing = []
+                        if not gov_exists:
+                            missing.append("Governor")
+                        if not p33_exists:
+                            missing.append("P3.3")
+                        logger.warning(f"{plan.symbol}: Permit timeout after {wait_time_ms}ms (missing: {', '.join(missing)})")
+                    else:
+                        time.sleep(0.1)  # 100ms between checks
+                        
+                except Exception as e:
+                    logger.error(f"{plan.symbol}: Redis error during permit check: {e}")
+                    return ApplyResult(
+                        plan_id=plan.plan_id,
+                        symbol=plan.symbol,
+                        decision="BLOCKED",
+                        executed=False,
+                        would_execute=False,
+                        steps_results=[{"step": "PERMIT_CHECK", "status": "redis_error", "details": f"Redis error: {e}"}],
+                        error="permit_check_redis_error",
+                        timestamp=int(time.time())
+                    )
             
-            try:
-                p33_permit_data = self.redis.get(p33_permit_key)
-            except Exception as e:
-                logger.error(f"{plan.symbol}: Redis error checking P3.3 permit: {e}")
+            # BLOCK if permits not ready
+            if not permits_ready:
                 return ApplyResult(
                     plan_id=plan.plan_id,
                     symbol=plan.symbol,
                     decision="BLOCKED",
                     executed=False,
                     would_execute=False,
-                    steps_results=[{"step": "P33_CHECK", "status": "redis_error", "details": f"Redis error: {e}"}],
-                    error="missing_or_denied_p33_permit",
+                    steps_results=[{"step": "PERMIT_CHECK", "status": "timeout", "details": "Permits not available within 1200ms window"}],
+                    error="permit_timeout",
                     timestamp=int(time.time())
                 )
             
-            if not p33_permit_data:
-                logger.warning(f"{plan.symbol}: No P3.3 position permit (blocked)")
+            # ATOMICALLY CONSUME P3.3 PERMIT (read + delete)
+            try:
+                p33_permit_data = self.redis.get(p33_permit_key)
+                if not p33_permit_data:
+                    logger.warning(f"{plan.symbol}: P3.3 permit vanished during consumption")
+                    return ApplyResult(
+                        plan_id=plan.plan_id,
+                        symbol=plan.symbol,
+                        decision="BLOCKED",
+                        executed=False,
+                        would_execute=False,
+                        steps_results=[{"step": "P33_CONSUME", "status": "vanished", "details": "P3.3 permit disappeared"}],
+                        error="missing_or_denied_p33_permit",
+                        timestamp=int(time.time())
+                    )
+            except Exception as e:
+                logger.error(f"{plan.symbol}: Redis error reading P3.3 permit: {e}")
                 return ApplyResult(
                     plan_id=plan.plan_id,
                     symbol=plan.symbol,
                     decision="BLOCKED",
                     executed=False,
                     would_execute=False,
-                    steps_results=[{"step": "P33_CHECK", "status": "no_permit", "details": "P3.3 Position State Brain blocked execution"}],
+                    steps_results=[{"step": "P33_CONSUME", "status": "redis_error", "details": f"Redis error: {e}"}],
                     error="missing_or_denied_p33_permit",
                     timestamp=int(time.time())
                 )
