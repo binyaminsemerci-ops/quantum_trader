@@ -479,6 +479,7 @@ class PositionStateBrain:
                     # Only evaluate EXECUTE decisions (skip SKIP/BLOCKED/ERROR)
                     decision = fields.get('decision', '')
                     if decision != 'EXECUTE':
+                        logger.debug(f"{symbol}: Skipping plan {plan_id[:8]} decision={decision}")
                         continue
                     
                     # Check if we already evaluated this plan

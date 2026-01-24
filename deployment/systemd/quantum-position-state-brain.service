@@ -7,6 +7,8 @@ Requires=redis.service
 Type=simple
 User=root
 WorkingDirectory=/home/qt/quantum_trader
+# Load testnet credentials first, then P3.3-specific config
+EnvironmentFile=/etc/quantum/testnet.env
 EnvironmentFile=/etc/quantum/position-state-brain.env
 ExecStart=/usr/bin/python3 /home/qt/quantum_trader/microservices/position_state_brain/main.py
 Restart=always

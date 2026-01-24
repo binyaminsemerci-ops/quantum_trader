@@ -46,24 +46,9 @@ echo ""
 echo "[3/9] Installing /etc/quantum/${CONFIG_FILE}..."
 mkdir -p /etc/quantum
 
-# Copy template
+# Copy template (no credentials needed - systemd loads from testnet.env)
 cp "${VPS_WORK}/deployment/config/${CONFIG_FILE}" "/etc/quantum/${CONFIG_FILE}"
-
-# Copy Binance testnet credentials from apply-layer.env (which has them)
-if [ -f "/etc/quantum/apply-layer.env" ]; then
-    BINANCE_KEY=$(grep "^BINANCE_TESTNET_API_KEY=" /etc/quantum/apply-layer.env | cut -d'=' -f2-)
-    BINANCE_SECRET=$(grep "^BINANCE_TESTNET_API_SECRET=" /etc/quantum/apply-layer.env | cut -d'=' -f2-)
-    
-    if [ -n "${BINANCE_KEY}" ] && [ -n "${BINANCE_SECRET}" ]; then
-        sed -i "s|^BINANCE_TESTNET_API_KEY=.*|BINANCE_TESTNET_API_KEY=${BINANCE_KEY}|" "/etc/quantum/${CONFIG_FILE}"
-        sed -i "s|^BINANCE_TESTNET_API_SECRET=.*|BINANCE_TESTNET_API_SECRET=${BINANCE_SECRET}|" "/etc/quantum/${CONFIG_FILE}"
-        echo "✓ Binance testnet credentials copied"
-    else
-        echo "⚠ WARNING: Binance testnet credentials not found in apply-layer.env"
-    fi
-else
-    echo "⚠ WARNING: /etc/quantum/apply-layer.env not found"
-fi
+echo "✓ P3.3 config installed (credentials from testnet.env)"
 echo ""
 
 # Step 4: Install systemd service
