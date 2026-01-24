@@ -504,13 +504,13 @@ class ApplyLayer:
     
     def publish_plan(self, plan: ApplyPlan):
         """Publish apply plan to Redis stream"""
-                    # Check if plan already published to stream (dedupe)
-                    stream_published_key = f"quantum:apply:stream_published:{plan.plan_id}"
-                    if self.redis.exists(stream_published_key):
-                        logger.debug(f"{plan.symbol}: Plan {plan.plan_id} already published to stream (skipping republish)")
-                        return
-            
         try:
+            # Check if plan already published to stream (dedupe)
+            stream_published_key = f"quantum:apply:stream_published:{plan.plan_id}"
+            if self.redis.exists(stream_published_key):
+                logger.debug(f"{plan.symbol}: Plan {plan.plan_id} already published to stream (skipping republish)")
+                return
+            
             stream_key = "quantum:stream:apply.plan"
             fields = {
                 "plan_id": plan.plan_id,
@@ -532,8 +532,8 @@ class ApplyLayer:
             }
             self.redis.xadd(stream_key, fields, maxlen=10000)
             
-                        # Mark as published to stream (5 min TTL - same as apply cycle)
-                        self.redis.setex(stream_published_key, 300, "1")
+            # Mark as published to stream (5 min TTL - same as apply cycle)
+            self.redis.setex(stream_published_key, 300, "1")
             
             # Metrics
             if PROMETHEUS_AVAILABLE:
