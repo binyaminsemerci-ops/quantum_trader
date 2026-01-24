@@ -46,9 +46,9 @@ echo ""
 echo "[3/9] Installing /etc/quantum/${CONFIG_FILE}..."
 mkdir -p /etc/quantum
 
-# Copy template (no credentials needed - systemd loads from testnet.env)
+# Copy template (no credentials needed - systemd loads from apply-layer.env)
 cp "${VPS_WORK}/deployment/config/${CONFIG_FILE}" "/etc/quantum/${CONFIG_FILE}"
-echo "✓ P3.3 config installed (credentials from testnet.env)"
+echo "✓ P3.3 config installed (credentials from apply-layer.env)"
 echo ""
 
 # Step 4: Install systemd service
