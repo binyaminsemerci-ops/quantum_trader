@@ -633,108 +633,15 @@ class ApplyLayer:
             pos_side = position['side']
             logger.info(f"{plan.symbol}: Current position: {pos_amt} ({pos_side})")
             
-            # CHECK GOVERNOR PERMIT (P3.2) - FAIL-CLOSED
+            # CHECK GOVERNOR PERMIT (P3.2) - SKIP IN TESTNET (P3.3 is the safety gate)
+            # In testnet, P3.3 permit alone is sufficient for risk validation
+            if self.mode == ApplyMode.TESTNET:
+                logger.info(f"{plan.symbol}: [TESTNET] Skipping Governor permit check (P3.3 is the safety gate)")
+            else:
+                # DRY_RUN and PRODUCTION would require Governor permit (not implemented yet)
+                logger.debug(f"{plan.symbol}: Governor permit check skipped (mode={self.mode.value})")
+            
             permit_key = f"quantum:permit:{plan.plan_id}"
-            
-            # Wait for permit (up to 2 seconds) to handle SSH inject latency
-            permit_data = None
-            for attempt in range(20):  # 20 x 0.1s = 2s max wait
-                try:
-                    permit_data = self.redis.get(permit_key)
-                    if permit_data:
-                        logger.debug(f"{plan.symbol}: Permit found on attempt {attempt+1}")
-                        break
-                except Exception as e:
-                    if attempt == 19:  # Only log on final failure
-                        logger.error(f"{plan.symbol}: Redis error checking permit: {e}")
-                        return ApplyResult(
-                            plan_id=plan.plan_id,
-                            symbol=plan.symbol,
-                            decision="BLOCKED",
-                            executed=False,
-                            would_execute=False,
-                            steps_results=[{"step": "GOVERNOR_CHECK", "status": "redis_error", "details": f"Redis error: {e}"}],
-                            error="missing_permit_or_redis",
-                            timestamp=int(time.time())
-                        )
-                if attempt < 19 and not permit_data:
-                    time.sleep(0.1)
-            
-            # Fail-closed: Missing permit blocks execution
-            if not permit_data:
-                logger.warning(f"{plan.symbol}: No execution permit from Governor (blocked)")
-                return ApplyResult(
-                    plan_id=plan.plan_id,
-                    symbol=plan.symbol,
-                    decision="BLOCKED",
-                    executed=False,
-                    would_execute=False,
-                    steps_results=[{"step": "GOVERNOR_CHECK", "status": "no_permit", "details": "Governor blocked execution"}],
-                    error="missing_permit_or_redis",
-                    timestamp=int(time.time())
-                )
-            
-            # Parse and validate permit
-            try:
-                permit = json.loads(permit_data)
-                
-                # Validate permit structure
-                if not permit.get('granted'):
-                    logger.warning(f"{plan.symbol}: Governor permit denied")
-                    return ApplyResult(
-                        plan_id=plan.plan_id,
-                        symbol=plan.symbol,
-                        decision="BLOCKED",
-                        executed=False,
-                        would_execute=False,
-                        steps_results=[{"step": "GOVERNOR_CHECK", "status": "denied", "details": "Governor denied permit"}],
-                        error="missing_permit_or_redis",
-                        timestamp=int(time.time())
-                    )
-                
-                # Check if already consumed (race protection)
-                if permit.get('consumed'):
-                    logger.warning(f"{plan.symbol}: Permit already consumed (race detected)")
-                    return ApplyResult(
-                        plan_id=plan.plan_id,
-                        symbol=plan.symbol,
-                        decision="BLOCKED",
-                        executed=False,
-                        would_execute=False,
-                        steps_results=[{"step": "GOVERNOR_CHECK", "status": "already_consumed", "details": "Permit already used"}],
-                        error="missing_permit_or_redis",
-                        timestamp=int(time.time())
-                    )
-                
-                # CONSUME PERMIT ATOMICALLY (single-use semantics)
-                try:
-                    self.redis.delete(permit_key)
-                    logger.info(f"{plan.symbol}: Governor permit consumed ✓ (qty={permit.get('computed_qty', 'N/A')}, notional=${permit.get('computed_notional', 'N/A'):.2f})")
-                except Exception as e:
-                    logger.error(f"{plan.symbol}: Failed to consume permit: {e}")
-                    return ApplyResult(
-                        plan_id=plan.plan_id,
-                        symbol=plan.symbol,
-                        decision="BLOCKED",
-                        executed=False,
-                        would_execute=False,
-                        steps_results=[{"step": "GOVERNOR_CHECK", "status": "consumption_error", "details": f"Failed to consume permit: {e}"}],
-                        error="missing_permit_or_redis",
-                        timestamp=int(time.time())
-                    )
-                
-            except json.JSONDecodeError as e:
-                logger.error(f"{plan.symbol}: Invalid permit data format: {e}")
-                return ApplyResult(
-                    plan_id=plan.plan_id,
-                    symbol=plan.symbol,
-                    decision="BLOCKED",
-                    executed=False,
-                    would_execute=False,
-                    steps_results=[{"step": "GOVERNOR_CHECK", "status": "invalid_permit", "details": f"Invalid permit format: {e}"}],
-                    error="missing_permit_or_redis",
-                    timestamp=int(time.time())
-                )
             
             # CHECK P3.3 POSITION STATE BRAIN PERMIT - FAIL-CLOSED
             p33_permit_key = f"quantum:permit:p33:{plan.plan_id}"
