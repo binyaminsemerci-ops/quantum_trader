@@ -1149,10 +1149,12 @@ class ApplyLayer:
             # Create consumer group (idempotent)
             try:
                 self.redis.xgroup_create(stream_key, consumer_group, id='0-0', mkstream=True)
+                logger.warning(f"[RECON] Created consumer group {consumer_group}")
             except:
                 pass  # Group already exists
             
             # Read RECONCILE_CLOSE messages
+            logger.warning(f"[RECON] Reading from {stream_key}...")
             messages = self.redis.xreadgroup(
                 groupname=consumer_group,
                 consumername=consumer_id,
@@ -1161,10 +1163,13 @@ class ApplyLayer:
                 block=100  # Short block, don't starve harvest loop
             )
             
+            logger.warning(f"[RECON] Got messages: {messages is not None and len(messages) > 0}")
             if not messages:
                 return
             
+            logger.warning(f"[RECON] Processing {len(messages)} stream(s)")
             for stream_name, stream_messages in messages:
+                logger.warning(f"[RECON] Stream {stream_name}: {len(stream_messages)} messages")
                 for msg_id, fields in stream_messages:
                     # Convert fields to plain dict
                     plan_data = {}
