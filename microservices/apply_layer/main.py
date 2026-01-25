@@ -423,6 +423,28 @@ class ApplyLayer:
             ['symbol']
         )
         
+        # RECONCILE_CLOSE specific metrics (initialized early, not lazy)
+        self.reconcile_close_consumed = Counter(
+            'reconcile_close_consumed_total',
+            'RECONCILE_CLOSE plans consumed',
+            ['symbol']
+        )
+        self.reconcile_close_executed = Counter(
+            'reconcile_close_executed_total',
+            'RECONCILE_CLOSE plans executed',
+            ['symbol', 'status']
+        )
+        self.reconcile_close_rejected = Counter(
+            'reconcile_close_rejected_total',
+            'RECONCILE_CLOSE plans rejected',
+            ['symbol', 'reason']
+        )
+        self.reconcile_guardrail_fail = Counter(
+            'reconcile_close_guardrail_fail_total',
+            'RECONCILE_CLOSE guardrail failures',
+            ['symbol', 'rule']
+        )
+        
         # Start metrics server
         try:
             start_http_server(self.metrics_port)
@@ -998,35 +1020,33 @@ class ApplyLayer:
         
         Invariants:
         1. decision == "RECONCILE_CLOSE"
-        2. HOLD key == 1 for symbol (prevents trading when not in drift)
-        3. reduceOnly == true (string/boolean handled robustly)
-        4. type == "MARKET" only
-        5. qty > 0 and qty <= abs(exchange_amt)
-        6. reason == "reconcile_drift"
+        2. source == "p3.4" (only P3.4 Reconcile Engine can publish)
+        3. HOLD key == 1 for symbol (prevents trading when not in drift)
+        4. reduceOnly == true (string/boolean handled robustly)
+        5. type == "MARKET" only
+        6. qty > 0 and qty <= abs(exchange_amt)
+        7. reason == "reconcile_drift"
         
         Returns: (is_safe, error_message)
         """
         symbol = plan_data.get('symbol')
         decision = plan_data.get('decision')
+        source = plan_data.get('source')
         reduce_only = plan_data.get('reduceOnly')
         order_type = plan_data.get('type')
         reason = plan_data.get('reason')
-        
-        # Initialize guardrail failure metrics
-        if not hasattr(self, 'reconcile_guardrail_fail'):
-            from prometheus_client import Counter
-            self.reconcile_guardrail_fail = Counter(
-                'reconcile_close_guardrail_fail_total',
-                'RECONCILE_CLOSE guardrail failures',
-                ['symbol', 'rule']
-            )
         
         # INVARIANT 1: decision must be RECONCILE_CLOSE
         if decision != 'RECONCILE_CLOSE':
             self.reconcile_guardrail_fail.labels(symbol=symbol, rule='decision').inc()
             return False, f"INVARIANT: decision must be RECONCILE_CLOSE, got {decision}"
         
-        # INVARIANT 2: HOLD key must be active (1 = active)
+        # INVARIANT 2: source must be p3.4 (security: prevent arbitrary Redis writes)
+        if source != 'p3.4':
+            self.reconcile_guardrail_fail.labels(symbol=symbol, rule='source').inc()
+            return False, f"INVARIANT: source must be 'p3.4', got {source}"
+        
+        # INVARIANT 3: HOLD key must be active (1 = active)
         hold_key = f"quantum:reconcile:hold:{symbol}"
         hold_value = self.redis.get(hold_key)
         if not hold_value:
@@ -1048,12 +1068,12 @@ class ApplyLayer:
             self.reconcile_guardrail_fail.labels(symbol=symbol, rule='reduce_only').inc()
             return False, "INVARIANT: reduceOnly must be true"
         
-        # INVARIANT 4: Order type must be MARKET
+        # INVARIANT 5: Order type must be MARKET
         if order_type != 'MARKET':
             self.reconcile_guardrail_fail.labels(symbol=symbol, rule='order_type').inc()
             return False, f"INVARIANT: type must be MARKET, got {order_type}"
         
-        # INVARIANT 5: qty must be safe (positive and <= exchange position)
+        # INVARIANT 6: qty must be safe (positive and <= exchange position)
         try:
             exchange_amt = float(plan_data.get('exchange_amt', 0))
             qty = float(plan_data.get('qty', 0))
@@ -1067,7 +1087,7 @@ class ApplyLayer:
             self.reconcile_guardrail_fail.labels(symbol=symbol, rule='qty_parse').inc()
             return False, f"INVARIANT: invalid qty or exchange_amt: {e}"
         
-        # INVARIANT 6: reason must be reconcile_drift
+        # INVARIANT 7: reason must be reconcile_drift
         if reason != 'reconcile_drift':
             self.reconcile_guardrail_fail.labels(symbol=symbol, rule='reason').inc()
             return False, f"INVARIANT: reason must be 'reconcile_drift', got {reason}"
@@ -1090,25 +1110,7 @@ class ApplyLayer:
         side = plan_data.get('side')
         qty = float(plan_data.get('qty', 0))
         exchange_amt = plan_data.get('exchange_amt', '0')
-        
-        # Initialize metrics
-        if not hasattr(self, 'reconcile_close_consumed'):
-            from prometheus_client import Counter
-            self.reconcile_close_consumed = Counter(
-                'reconcile_close_consumed_total',
-                'RECONCILE_CLOSE plans consumed',
-                ['symbol']
-            )
-            self.reconcile_close_executed = Counter(
-                'reconcile_close_executed_total',
-                'RECONCILE_CLOSE plans executed',
-                ['symbol', 'status']
-            )
-            self.reconcile_close_rejected = Counter(
-                'reconcile_close_rejected_total',
-                'RECONCILE_CLOSE plans rejected',
-                ['symbol', 'reason']
-            )
+        signature = plan_data.get('signature', 'unknown')
         
         self.reconcile_close_consumed.labels(symbol=symbol).inc()
         
@@ -1117,7 +1119,9 @@ class ApplyLayer:
         # EXACTLY-ONCE: Check deduplication to prevent replays
         dedupe_key = f"quantum:apply:dedupe:{plan_id}"
         dedupe_set = self.redis.set(dedupe_key, "1", ex=86400, nx=True)
-        if not dedupe_set:
+        dedupe_hit = not dedupe_set
+        
+        if dedupe_hit:
             logger.warning(f"[RECONCILE_CLOSE] {symbol}: Duplicate plan_id {plan_id[:16]} - dropping")
             self.reconcile_close_rejected.labels(symbol=symbol, reason='duplicate').inc()
             return ApplyResult(
@@ -1126,10 +1130,22 @@ class ApplyLayer:
                 decision="RECONCILE_CLOSE",
                 executed=False,
                 would_execute=False,
-                steps_results=[{"step": "DEDUPLICATION", "status": "duplicate"}],
+                steps_results=[{
+                    "step": "DEDUPLICATION",
+                    "status": "DROPPED_DUPLICATE",
+                    "dedupe_hit": True
+                }],
                 error="Duplicate plan_id",
                 timestamp=int(time.time())
             )
+        
+        # LEASE RENEWAL: Extend HOLD lease now that we're processing
+        # This prevents HOLD from expiring during rate limits or backlog
+        lease_sec = 900
+        self.redis.expire(f"quantum:reconcile:hold:{symbol}", lease_sec)
+        self.redis.expire(f"quantum:reconcile:hold_reason:{symbol}", lease_sec)
+        self.redis.expire(f"quantum:reconcile:hold_sig:{symbol}", lease_sec)
+        logger.info(f"[RECONCILE_CLOSE] {symbol}: HOLD lease renewed (TTL={lease_sec}s)")
         
         # Validate guardrails (STRICT INVARIANTS)
         is_safe, error = self.validate_reconcile_close_guardrails(plan_data)
@@ -1142,7 +1158,12 @@ class ApplyLayer:
                 decision="RECONCILE_CLOSE",
                 executed=False,
                 would_execute=False,
-                steps_results=[{"step": "GUARDRAILS", "status": "failed", "reason": error}],
+                steps_results=[{
+                    "step": "GUARDRAILS",
+                    "status": "REJECTED_GUARDRAIL",
+                    "reason": error,
+                    "dedupe_hit": dedupe_hit
+                }],
                 error=error,
                 timestamp=int(time.time())
             )
@@ -1186,7 +1207,13 @@ class ApplyLayer:
                     decision="RECONCILE_CLOSE",
                     executed=True,
                     would_execute=False,
-                    steps_results=[{"step": "PLACE_ORDER", "status": "success", "order_id": order_id, "qty": qty}],
+                    steps_results=[{
+                        "step": "PLACE_ORDER",
+                        "status": "EXECUTED",
+                        "order_id": order_id,
+                        "qty": qty,
+                        "dedupe_hit": dedupe_hit
+                    }],
                     error=None,
                     timestamp=int(time.time())
                 )
