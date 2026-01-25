@@ -186,6 +186,7 @@ class Decision(Enum):
     SKIP = "SKIP"
     BLOCKED = "BLOCKED"
     ERROR = "ERROR"
+    RECONCILE_CLOSE = "RECONCILE_CLOSE"
 
 
 class BinanceTestnetClient:
@@ -989,6 +990,132 @@ class ApplyLayer:
             )
     
     def publish_result(self, result: ApplyResult):
+            def validate_reconcile_close_guardrails(self, plan_data: Dict) -> tuple[bool, str]:
+                """
+                Validate guardrails for RECONCILE_CLOSE (Patch C).
+        
+                Returns: (is_safe, error_message)
+                """
+                symbol = plan_data.get('symbol')
+        
+                # 1. Check HOLD key exists
+                hold_key = f"quantum:reconcile:hold:{symbol}"
+                if not self.redis.exists(hold_key):
+                    return False, "no_hold_key_active"
+        
+                # 2. Check reduceOnly flag
+                if not plan_data.get('reduceOnly'):
+                    return False, "reduceOnly_not_set"
+        
+                # 3. Check type is MARKET or empty (default MARKET)
+                order_type = plan_data.get('type', 'MARKET')
+                if order_type not in ('MARKET', ''):
+                    return False, "invalid_order_type"
+        
+                # 4. Check qty is safe (not bigger than exchange position)
+                exchange_amt = float(plan_data.get('exchange_amt', 0))
+                qty = float(plan_data.get('qty', 0))
+                if qty > abs(exchange_amt):
+                    return False, "qty_exceeds_exchange_position"
+        
+                # 5. Check reason is reconcile_drift
+                if plan_data.get('reason') != 'reconcile_drift':
+                    return False, "invalid_reason"
+        
+                return True, ""
+    
+            def execute_reconcile_close(self, plan_data: Dict) -> ApplyResult:
+                """
+                Execute RECONCILE_CLOSE plan with strict guardrails (Patch C).
+        
+                Only allowed when:
+                - HOLD key is active for symbol
+                - reduceOnly=true (mandatory)
+                - Order type is MARKET
+                - qty <= abs(exchange_amt)
+                - reason='reconcile_drift'
+                """
+                plan_id = plan_data.get('plan_id')
+                symbol = plan_data.get('symbol')
+                side = plan_data.get('side')
+                qty = float(plan_data.get('qty', 0))
+        
+                logger.info(f"{symbol}: RECONCILE_CLOSE execution started - plan_id={plan_id}, side={side}, qty={qty}")
+        
+                # Validate guardrails
+                is_safe, error = self.validate_reconcile_close_guardrails(plan_data)
+                if not is_safe:
+                    logger.error(f"{symbol}: RECONCILE_CLOSE guardrails failed: {error}")
+                    return ApplyResult(
+                        plan_id=plan_id,
+                        symbol=symbol,
+                        decision="RECONCILE_CLOSE",
+                        executed=False,
+                        would_execute=False,
+                        steps_results=[{"step": "GUARDRAILS", "status": "failed", "reason": error}],
+                        error=error,
+                        timestamp=int(time.time())
+                    )
+        
+                try:
+                    # Get API credentials
+                    api_key = os.getenv("BINANCE_API_KEY", "")
+                    api_secret = os.getenv("BINANCE_API_SECRET", "")
+            
+                    if not api_key or not api_secret:
+                        raise Exception("Missing Binance credentials for RECONCILE_CLOSE")
+            
+                    # Create Binance client
+                    client = BinanceTestnetClient(api_key, api_secret)
+            
+                    # Place market order with reduceOnly
+                    logger.info(f"{symbol}: Placing RECONCILE_CLOSE market order - side={side}, qty={qty}, reduceOnly=true")
+                    result = client.place_market_order(symbol, side, qty, reduce_only=True)
+            
+                    if result.get('orderId'):
+                        order_id = result['orderId']
+                        logger.warning(f"{symbol}: RECONCILE_CLOSE_EXECUTED plan_id={plan_id}, order_id={order_id}, qty={qty}")
+                
+                        if PROMETHEUS_AVAILABLE:
+                            apply_executed.labels(status='reconcile_close_success').inc()
+                
+                        return ApplyResult(
+                            plan_id=plan_id,
+                            symbol=symbol,
+                            decision="RECONCILE_CLOSE",
+                            executed=True,
+                            would_execute=False,
+                            steps_results=[{"step": "PLACE_ORDER", "status": "success", "order_id": order_id, "qty": qty}],
+                            error=None,
+                            timestamp=int(time.time())
+                        )
+                    else:
+                        error_msg = result.get('msg', 'Unknown error')
+                        logger.error(f"{symbol}: RECONCILE_CLOSE order placement failed: {error_msg}")
+                        return ApplyResult(
+                            plan_id=plan_id,
+                            symbol=symbol,
+                            decision="RECONCILE_CLOSE",
+                            executed=False,
+                            would_execute=False,
+                            steps_results=[{"step": "PLACE_ORDER", "status": "failed", "error": error_msg}],
+                            error=error_msg,
+                            timestamp=int(time.time())
+                        )
+        
+                except Exception as e:
+                    logger.error(f"{symbol}: RECONCILE_CLOSE execution error: {e}", exc_info=True)
+                    return ApplyResult(
+                        plan_id=plan_id,
+                        symbol=symbol,
+                        decision="RECONCILE_CLOSE",
+                        executed=False,
+                        would_execute=False,
+                        steps_results=[{"step": "EXECUTION", "status": "error", "error": str(e)}],
+                        error=str(e),
+                        timestamp=int(time.time())
+                    )
+    
         """Publish apply result to Redis stream"""
         try:
             stream_key = "quantum:stream:apply.result"
@@ -1010,8 +1137,70 @@ class ApplyLayer:
             logger.error(f"Error publishing result: {e}")
     
     def run_cycle(self):
+            def process_reconcile_close_plans(self):
+                """Process RECONCILE_CLOSE plans from trading.plan stream (Patch C)"""
+                try:
+                    stream_key = "quantum:stream:trading.plan"
+                    consumer_group = "apply-layer-reconcile"
+                    consumer_id = f"apply-{os.getpid()}"
+            
+                    # Create consumer group (idempotent)
+                    try:
+                        self.redis.xgroup_create(stream_key, consumer_group, id='$', mkstream=True)
+                    except:
+                        pass  # Group already exists
+            
+                    # Read RECONCILE_CLOSE messages
+                    messages = self.redis.xreadgroup(
+                        groupname=consumer_group,
+                        consumername=consumer_id,
+                        streams={stream_key: '>'},
+                        count=10,
+                        block=100  # Short block, don't starve harvest loop
+                    )
+            
+                    if not messages:
+                        return
+            
+                    for stream_name, stream_messages in messages:
+                        for msg_id, fields in stream_messages:
+                            decision = fields.get('decision', b'').decode() if isinstance(fields.get('decision'), bytes) else fields.get('decision', '')
+                    
+                            # Only process RECONCILE_CLOSE messages
+                            if decision != 'RECONCILE_CLOSE':
+                                self.redis.xack(stream_key, consumer_group, msg_id)
+                                continue
+                    
+                            # Convert fields to plain dict
+                            plan_data = {}
+                            for k, v in fields.items():
+                                key = k.decode() if isinstance(k, bytes) else k
+                                val = v.decode() if isinstance(v, bytes) else v
+                                plan_data[key] = val
+                    
+                            symbol = plan_data.get('symbol')
+                            plan_id = plan_data.get('plan_id')
+                    
+                            logger.info(f"{symbol}: Processing RECONCILE_CLOSE plan {plan_id[:8]}")
+                    
+                            # Execute RECONCILE_CLOSE
+                            result = self.execute_reconcile_close(plan_data)
+                            self.publish_result(result)
+                    
+                            # ACK the message
+                            self.redis.xack(stream_key, consumer_group, msg_id)
+        
+                except Exception as e:
+                    logger.error(f"Error in process_reconcile_close_plans: {e}", exc_info=True)
+    
         """Single apply cycle"""
         logger.debug("=== Apply Layer Cycle ===")
+                # Patch C: Check for RECONCILE_CLOSE plans from P3.4 first
+                try:
+                    self.process_reconcile_close_plans()
+                except Exception as e:
+                    logger.error(f"Error processing RECONCILE_CLOSE plans: {e}", exc_info=True)
+        
         
         for symbol in self.symbols:
             try:
