@@ -291,7 +291,7 @@ class ReconcileEngine:
     def _handle_missing_exchange(self, symbol: str):
         """Handle missing exchange snapshot"""
         logger.warning(f"{symbol}: Missing exchange snapshot")
-            self._set_hold(symbol, "missing_exchange", None, None)
+        self._set_hold(symbol, "missing_exchange", None, None)
         self._emit_event("MANUAL_REQUIRED", symbol, {"reason": "missing_exchange"})
         
         if PROMETHEUS_AVAILABLE:
@@ -301,7 +301,7 @@ class ReconcileEngine:
     def _handle_stale_exchange(self, symbol: str, age_sec: int):
         """Handle stale exchange snapshot"""
         logger.warning(f"{symbol}: Stale exchange snapshot ({age_sec}s old)")
-            self._set_hold(symbol, "stale_exchange", None, None)
+        self._set_hold(symbol, "stale_exchange", None, None)
         self._emit_event("MANUAL_REQUIRED", symbol, {"reason": "stale_exchange", "age_sec": age_sec})
         
         if PROMETHEUS_AVAILABLE:
