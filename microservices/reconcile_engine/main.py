@@ -509,6 +509,14 @@ class ReconcileEngine:
             if not cooldown_set:
                 logger.debug(f"{symbol}: Skipping RECONCILE_CLOSE (cooldown active for {signature})")
                 return
+            
+            # LEASE-BASED HOLD: Set with long TTL to survive rate limits and backlog
+            # 900s (15 min) lease ensures HOLD survives 429 bans and processing delays
+            lease_sec = 900
+            self.redis.setex(f"quantum:reconcile:hold:{symbol}", lease_sec, "1")
+            self.redis.setex(f"quantum:reconcile:hold_reason:{symbol}", lease_sec, "reconcile_drift")
+            self.redis.setex(f"quantum:reconcile:hold_sig:{symbol}", lease_sec, signature)
+            logger.info(f"{symbol}: HOLD lease set (TTL={lease_sec}s, signature={signature})")
         
             now_ms = int(time.time() * 1000)
             plan_id = f"reconclose:{symbol}:{signature}:{now_ms}"
@@ -549,6 +557,7 @@ class ReconcileEngine:
                     "reduceOnly": "true",
                     "reason": "reconcile_drift",
                     "source": "p3.4",
+                    "signature": signature,
                     "exchange_amt": str(exchange_amt),
                     "ledger_amt": str(ledger_amt),
                     "ts": str(now_ms),
