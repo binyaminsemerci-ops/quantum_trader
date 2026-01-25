@@ -1019,6 +1019,7 @@ class ApplyLayer:
         This ensures RECONCILE_CLOSE cannot become a trading backdoor.
         
         Invariants:
+        0. HMAC signature valid (prevents unauthorized Redis writes)
         1. decision == "RECONCILE_CLOSE"
         2. source == "p3.4" (only P3.4 Reconcile Engine can publish)
         3. HOLD key == 1 for symbol (prevents trading when not in drift)
@@ -1035,6 +1036,28 @@ class ApplyLayer:
         reduce_only = plan_data.get('reduceOnly')
         order_type = plan_data.get('type')
         reason = plan_data.get('reason')
+        plan_hmac = plan_data.get('hmac', '')
+        plan_id = plan_data.get('plan_id')
+        qty = plan_data.get('qty', '0')
+        signature = plan_data.get('signature', '')
+        ts = plan_data.get('ts', '')
+        
+        # INVARIANT 0: HMAC signature must be valid (SECURITY FINAL BOSS)
+        secret = os.getenv("RECONCILE_CLOSE_SECRET", "quantum_reconcile_secret_change_in_prod")
+        
+        # Extract timestamp from plan_id if not in separate field
+        if not ts and ':' in plan_id:
+            parts = plan_id.split(':')
+            if len(parts) >= 4:
+                ts = parts[3]
+        
+        # Compute expected HMAC
+        hmac_payload = f"{plan_id}|{symbol}|{qty}|{ts}|{signature}"
+        expected_hmac = hmac.new(secret.encode(), hmac_payload.encode(), hashlib.sha256).hexdigest()
+        
+        if not plan_hmac or plan_hmac != expected_hmac:
+            self.reconcile_guardrail_fail.labels(symbol=symbol, rule='hmac').inc()
+            return False, f"INVARIANT: HMAC signature invalid or missing"
         
         # INVARIANT 1: decision must be RECONCILE_CLOSE
         if decision != 'RECONCILE_CLOSE':

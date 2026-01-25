@@ -520,6 +520,11 @@ class ReconcileEngine:
         
             now_ms = int(time.time() * 1000)
             plan_id = f"reconclose:{symbol}:{signature}:{now_ms}"
+            
+            # HMAC signature for security (prevents unauthorized Redis writes)
+            secret = os.getenv("RECONCILE_CLOSE_SECRET", "quantum_reconcile_secret_change_in_prod")
+            hmac_payload = f"{plan_id}|{symbol}|{qty}|{now_ms}|{signature}"
+            plan_hmac = hmac.new(secret.encode(), hmac_payload.encode(), hashlib.sha256).hexdigest()
         
             plan = {
                 "plan_id": plan_id,
@@ -531,6 +536,8 @@ class ReconcileEngine:
                 "reduceOnly": True,
                 "reason": "reconcile_drift",
                 "source": "p3.4",
+                "signature": signature,
+                "hmac": plan_hmac,
                 "exchange_amt": exchange_amt,
                 "ledger_amt": ledger_amt,
                 "ts": now_ms,
@@ -558,6 +565,7 @@ class ReconcileEngine:
                     "reason": "reconcile_drift",
                     "source": "p3.4",
                     "signature": signature,
+                    "hmac": plan_hmac,
                     "exchange_amt": str(exchange_amt),
                     "ledger_amt": str(ledger_amt),
                     "ts": str(now_ms),
