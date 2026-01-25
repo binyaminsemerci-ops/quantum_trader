@@ -46,7 +46,7 @@ echo ""
 # 3. Wait for EXECUTE plan
 echo "Step 3: Waiting for EXECUTE Decision..."
 echo "----------------------------------------"
-TIMEOUT=30
+TIMEOUT=120
 START_TIME=$(date +%s)
 
 while [ $(($(date +%s) - START_TIME)) -lt $TIMEOUT ]; do
