@@ -1,0 +1,251 @@
+# Prometheus Alert Rules for P3 Apply Layer
+# File: /etc/prometheus/rules/apply-layer.yml
+# Reload: curl -X POST http://localhost:9090/-/reload
+
+groups:
+  - name: apply_layer_alerts
+    interval: 30s
+    rules:
+
+      # ========== P3.3 PERMIT DENIES ==========
+      - alert: P33HighDenyRate
+        expr: rate(p33_permit_deny_total[5m]) > 1.0
+        for: 10m
+        severity: warning
+        annotations:
+          summary: "P3.3 deny rate high ({{ $value | humanize }}/sec)"
+          description: "P3.3 is denying {{ $value | humanize }} permits per second. Check position reconciliation."
+          runbook: "PRODUCTION_HYGIENE_GUIDE.md#troubleshooting"
+
+      - alert: P33SpecificReasonDeny
+        expr: |
+          (
+            rate(p33_permit_deny_total{reason="reconcile_required_qty_mismatch"}[5m]) > 0.5
+            or
+            rate(p33_permit_deny_total{reason="position_size_exceeds_limit"}[5m]) > 0.1
+          )
+        for: 5m
+        severity: info
+        annotations:
+          summary: "P3.3 deny reason: {{ $labels.reason }}"
+          description: "Deny rate for '{{ $labels.reason }}': {{ $value | humanize }}/sec"
+
+      # ========== GOVERNOR BLOCKS ==========
+      - alert: GovernorHighBlockRate
+        expr: rate(governor_block_total[5m]) > 0.5
+        for: 10m
+        severity: warning
+        annotations:
+          summary: "Governor blocking {{ $value | humanize }}/sec"
+          description: "Governor block rate is high. Check Governor health."
+          runbook: "systemctl status quantum-governor"
+
+      # ========== EXECUTION FAILURES ==========
+      - alert: ExecutionSuccessRateDropped
+        expr: |
+          (
+            rate(apply_executed_total{status="success"}[5m]) /
+            (rate(apply_executed_total[5m]) + 0.0001)
+          ) < 0.5
+        for: 15m
+        severity: critical
+        annotations:
+          summary: "Execution success rate dropped below 50%"
+          description: "Only {{ $value | humanizePercentage }} of execution attempts succeed"
+          action: "Check logs: journalctl -u quantum-apply-layer -f"
+
+      - alert: KillSwitchActive
+        expr: quantum_global_kill_switch == 1
+        for: 1m
+        severity: critical
+        annotations:
+          summary: "Kill switch is ACTIVE - execution halted"
+          description: "All execution blocked. Deactivate: redis-cli SET quantum:global:kill_switch false"
+          action: "EMERGENCY: System is in safe mode"
+
+      # ========== PERMIT WAIT TIME ==========
+      - alert: PermitWaitTimeHigh
+        expr: permit_wait_ms > 1000
+        for: 5m
+        severity: warning
+        annotations:
+          summary: "Permit wait time {{ $value }}ms (threshold: 1200ms)"
+          description: "Permits are taking long to arrive. Check if Governor/P3.3 are responsive."
+          action: "Increase timeout: APPLY_PERMIT_WAIT_MS=2000"
+
+      - alert: PermitWaitTimeExceeded
+        expr: permit_wait_ms > 1100
+        for: 2m
+        severity: critical
+        annotations:
+          summary: "Permit wait time {{ $value }}ms - approaching timeout!"
+          description: "Next timeout is imminent. Emergency action required."
+          action: "Check Governor/P3.3 service: systemctl status quantum-governor quantum-p33-position-brain"
+
+      # ========== SERVICE HEALTH ==========
+      - alert: ApplyLayerServiceDown
+        expr: up{job="quantum-apply-layer"} == 0
+        for: 1m
+        severity: critical
+        annotations:
+          summary: "Apply Layer service is DOWN"
+          description: "Service is not responding. Restart: systemctl restart quantum-apply-layer"
+
+      - alert: ApplyLayerHighMemory
+        expr: process_resident_memory_bytes{job="quantum-apply-layer"} > 500_000_000
+        for: 10m
+        severity: warning
+        annotations:
+          summary: "Apply Layer using {{ $value | humanize }}B memory"
+          description: "High memory usage detected. May indicate memory leak."
+          action: "Restart service: systemctl restart quantum-apply-layer"
+
+      # ========== POSITION RECONCILIATION ==========
+      - alert: PositionMismatchProlonged
+        expr: position_mismatch_seconds > 3600
+        for: 30m
+        severity: warning
+        annotations:
+          summary: "Position mismatch for {{ $value | humanizeDuration }}"
+          description: "Exchange position != Ledger position for extended period"
+          action: "Reconcile: redis-cli HSET quantum:position:BTCUSDT ledger_amount <amount>"
+
+      # ========== NO ACTIVITY ==========
+      - alert: NoExecutionFor30Minutes
+        expr: increase(apply_executed_total[30m]) == 0
+        for: 5m
+        severity: info
+        annotations:
+          summary: "No execution activity in 30 minutes"
+          description: "Either market conditions suppress trades (OK) or system is stuck (check logs)"
+          action: "Check: journalctl -u quantum-apply-layer -f"
+
+      - alert: NoPlanProcessedFor15Minutes
+        expr: increase(apply_plan_processed_total[15m]) == 0
+        for: 2m
+        severity: warning
+        annotations:
+          summary: "No plans processed in 15 minutes"
+          description: "Apply Layer might not be consuming plans from stream"
+          action: "Check stream: redis-cli XLEN quantum:stream:apply.plan"
+
+---
+
+# Example: How to test these rules in Prometheus
+
+# 1. Simulate P3.3 high deny rate (testing only!)
+# redis-cli INCR test:p33_deny_counter  # Increment 60 times
+# Then query: p33_permit_deny_total (will show increase)
+
+# 2. Check if alert would fire
+# Go to Prometheus: http://localhost:9090/alerts
+# Look for "P33HighDenyRate" status
+
+# 3. Verify alert notification
+# Configure Alertmanager: /etc/prometheus/alertmanager.yml
+# Then alerts will be sent to Slack/PagerDuty/etc
+
+---
+
+# Alertmanager Configuration Example
+# File: /etc/prometheus/alertmanager.yml
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  routes:
+    - match:
+        severity: critical
+      receiver: 'critical'
+      repeat_interval: 5m
+    - match:
+        severity: warning
+      receiver: 'warning'
+      repeat_interval: 1h
+
+receivers:
+  - name: 'default'
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+        channel: '#alerts'
+        title: 'Alert: {{ .GroupLabels.alertname }}'
+
+  - name: 'critical'
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+        channel: '#critical-alerts'
+        title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+    pagerduty_configs:
+      - service_key: 'YOUR_PAGERDUTY_KEY'
+
+  - name: 'warning'
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+        channel: '#warnings'
+        title: '⚠️  {{ .GroupLabels.alertname }}'
+
+---
+
+# Grafana Dashboard JSON (simplified example)
+# Import at: http://localhost:3000/dashboard/new
+
+{
+  "dashboard": {
+    "title": "P3 Apply Layer - Production Hygiene",
+    "panels": [
+      {
+        "title": "Execution Success Rate",
+        "targets": [
+          {
+            "expr": "rate(apply_executed_total{status=\"success\"}[5m]) / (rate(apply_executed_total[5m]) + 0.001)"
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "title": "P3.3 Deny Reasons",
+        "targets": [
+          {
+            "expr": "increase(p33_permit_deny_total[5m]) by (reason)"
+          }
+        ],
+        "type": "piechart"
+      },
+      {
+        "title": "Permit Wait Time (ms)",
+        "targets": [
+          {
+            "expr": "permit_wait_ms"
+          }
+        ],
+        "type": "gauge",
+        "thresholds": [0, 800, 1200]
+      },
+      {
+        "title": "Kill Switch Status",
+        "targets": [
+          {
+            "expr": "quantum_global_kill_switch"
+          }
+        ],
+        "type": "stat",
+        "colorMode": "background"
+      },
+      {
+        "title": "Service Status",
+        "targets": [
+          {
+            "expr": "up{job=\"quantum-apply-layer\"}"
+          }
+        ],
+        "type": "stat"
+      }
+    ]
+  }
+}
