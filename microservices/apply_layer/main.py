@@ -62,6 +62,34 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# ---- PRODUCTION HYGIENE: Hard Mode Switch ----
+# TESTNET=true: Governor bypass (for development/testing)
+# TESTNET=false: Require BOTH permits (production safety)
+TESTNET_MODE = os.getenv("TESTNET", "false").lower() in ("true", "1", "yes")
+if TESTNET_MODE:
+    logger.warning("⚠️  TESTNET MODE ENABLED - Governor bypass active (NO PRODUCTION USAGE)")
+else:
+    logger.info("✅ PRODUCTION MODE - Both permits required (Governor + P3.3)")
+
+# ---- PRODUCTION HYGIENE: Safety Kill Switch ----
+# Set quantum:global:kill_switch = true to halt all execution
+SAFETY_KILL_KEY = "quantum:global:kill_switch"
+
+# ---- PRODUCTION HYGIENE: Prometheus Metrics ----
+if PROMETHEUS_AVAILABLE:
+    # Permit metrics
+    p33_permit_deny = Counter('p33_permit_deny_total', 'Total P3.3 denies', ['reason'])
+    p33_permit_allow = Counter('p33_permit_allow_total', 'Total P3.3 allows')
+    governor_block = Counter('governor_block_total', 'Total Governor blocks', ['reason'])
+    
+    # Execution metrics
+    apply_executed = Counter('apply_executed_total', 'Total executed', ['status'])
+    plan_processed = Counter('apply_plan_processed_total', 'Total plans processed', ['decision'])
+    
+    # Position metrics
+    position_mismatch = Gauge('position_mismatch_seconds', 'Seconds since last position match')
+    permit_wait_time = Gauge('permit_wait_ms', 'Last permit wait time (ms)')
+
 # ---- Permit wait-loop config (fail-closed) ----
 PERMIT_WAIT_MS = int(os.getenv("APPLY_PERMIT_WAIT_MS", "1200"))
 PERMIT_STEP_MS = int(os.getenv("APPLY_PERMIT_STEP_MS", "100"))
@@ -680,6 +708,26 @@ class ApplyLayer:
     
     def execute_testnet(self, plan: ApplyPlan) -> ApplyResult:
         """Testnet execution - REAL orders to Binance Futures testnet"""
+        # ---- PRODUCTION HYGIENE: Safety Kill Switch Check ----
+        try:
+            kill_switch = self.redis.get(SAFETY_KILL_KEY)
+            if kill_switch and kill_switch.lower() in (b"true", b"1", b"yes"):
+                logger.critical(f"[KILL_SWITCH] Execution halted - kill switch is ACTIVE")
+                if PROMETHEUS_AVAILABLE:
+                    apply_executed.labels(status='kill_switch').inc()
+                return ApplyResult(
+                    plan_id=plan.plan_id,
+                    symbol=plan.symbol,
+                    decision=plan.decision,
+                    executed=False,
+                    would_execute=True,
+                    steps_results=[],
+                    error="kill_switch_active",
+                    timestamp=int(time.time())
+                )
+        except Exception as e:
+            logger.warning(f"[KILL_SWITCH] Error checking kill switch: {e}")
+        
         # Check Binance credentials
         api_key = os.getenv("BINANCE_TESTNET_API_KEY")
         api_secret = os.getenv("BINANCE_TESTNET_API_SECRET")
@@ -728,26 +776,39 @@ class ApplyLayer:
             pos_side = position['side']
             logger.info(f"{plan.symbol}: Current position: {pos_amt} ({pos_side})")
             
-            # ---- NEW: WAIT LOOP + ATOMIC CONSUME (fail-closed) ----
-            # Wait for BOTH permits:
-            #  - Governor permit (P3.2): quantum:permit:{plan_id}
-            #  - P3.3 permit (Position Brain): quantum:permit:p33:{plan_id}
-            t0 = time.time()
-            consume_script = _register_consume_script(self.redis)
-            ok, gov_permit, p33_permit = wait_and_consume_permits(
-                self.redis, 
-                plan.plan_id,
-                max_wait_ms=PERMIT_WAIT_MS,
-                step_ms=PERMIT_STEP_MS,
-                consume_script=consume_script
-            )
-            wait_ms = int((time.time() - t0) * 1000)
+            # ---- HARD MODE SWITCH: TESTNET vs PRODUCTION ----
+            if TESTNET_MODE:
+                # TESTNET: Skip all permits, go straight to execution
+                logger.info(f"[TESTNET_BYPASS] Skipping permits for {plan.plan_id}")
+                gov_permit = {"granted": True, "mode": "testnet_bypass"}
+                p33_permit = {"allow": True, "safe_qty": plan.sell_qty, "mode": "testnet_bypass"}
+                ok = True
+                wait_ms = 0
+                if PROMETHEUS_AVAILABLE:
+                    apply_executed.labels(status='testnet_bypass').inc()
+            else:
+                # PRODUCTION: Require BOTH permits (Governor + P3.3)
+                t0 = time.time()
+                consume_script = _register_consume_script(self.redis)
+                ok, gov_permit, p33_permit = wait_and_consume_permits(
+                    self.redis, 
+                    plan.plan_id,
+                    max_wait_ms=PERMIT_WAIT_MS,
+                    step_ms=PERMIT_STEP_MS,
+                    consume_script=consume_script
+                )
+                wait_ms = int((time.time() - t0) * 1000)
+                if PROMETHEUS_AVAILABLE:
+                    permit_wait_time.set(wait_ms)
             
             if not ok:
                 logger.warning(
                     f"[PERMIT_WAIT] BLOCK plan={plan.plan_id} symbol={plan.symbol} "
                     f"wait_ms={wait_ms} info={gov_permit}"
                 )
+                if PROMETHEUS_AVAILABLE:
+                    reason = gov_permit.get('reason', 'unknown')
+                    governor_block.labels(reason=reason).inc()
                 return ApplyResult(
                     plan_id=plan.plan_id,
                     symbol=plan.symbol,
@@ -780,6 +841,8 @@ class ApplyLayer:
                     f"[PERMIT_WAIT] BLOCK p33_denied plan={plan.plan_id} symbol={plan.symbol} "
                     f"reason={reason}"
                 )
+                if PROMETHEUS_AVAILABLE:
+                    p33_permit_deny.labels(reason=reason).inc()
                 return ApplyResult(
                     plan_id=plan.plan_id,
                     symbol=plan.symbol,
@@ -815,6 +878,8 @@ class ApplyLayer:
                 f"[PERMIT_WAIT] OK plan={plan.plan_id} symbol={plan.symbol} "
                 f"wait_ms={wait_ms} safe_qty={safe_close_qty:.4f}"
             )
+            if PROMETHEUS_AVAILABLE:
+                p33_permit_allow.inc()
             
             # Execute each step
             for step in plan.steps:
@@ -897,6 +962,7 @@ class ApplyLayer:
             if any(s['status'] == 'success' for s in steps_results):
                 if PROMETHEUS_AVAILABLE:
                     self.metric_last_success.labels(symbol=plan.symbol).set(time.time())
+                    apply_executed.labels(status='success').inc()
             
             return ApplyResult(
                 plan_id=plan.plan_id,
