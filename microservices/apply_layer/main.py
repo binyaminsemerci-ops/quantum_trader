@@ -1061,8 +1061,8 @@ class ApplyLayer:
         
         try:
             # Get API credentials
-            api_key = os.getenv("BINANCE_API_KEY", "")
-            api_secret = os.getenv("BINANCE_API_SECRET", "")
+            api_key = os.getenv("BINANCE_TESTNET_API_KEY", "")
+            api_secret = os.getenv("BINANCE_TESTNET_API_SECRET", "")
             
             if not api_key or not api_secret:
                 raise Exception("Missing Binance credentials")
