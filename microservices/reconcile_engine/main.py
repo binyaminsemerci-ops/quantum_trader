@@ -540,7 +540,7 @@ class ReconcileEngine:
                     "ledger_amt": str(ledger_amt),
                     "ts": str(now_ms),
                 }
-                self.redis.xadd("quantum:stream:apply.plan", plan_str, id="*")
+                self.redis.xadd("quantum:stream:reconcile.close", plan_str, id="*")
                 self.redis.setex(cooldown_key, 120, "1")
                 logger.info(f"{symbol}: RECONCILE_CLOSE plan published - plan_id={plan_id}, qty={qty}, reason={reason}")
                 if PROMETHEUS_AVAILABLE:
