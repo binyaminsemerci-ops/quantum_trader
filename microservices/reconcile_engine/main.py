@@ -21,6 +21,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from enum import Enum
+import hashlib
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -290,7 +291,7 @@ class ReconcileEngine:
     def _handle_missing_exchange(self, symbol: str):
         """Handle missing exchange snapshot"""
         logger.warning(f"{symbol}: Missing exchange snapshot")
-        self._set_hold(symbol, "missing_exchange")
+            self._set_hold(symbol, "missing_exchange", None, None)
         self._emit_event("MANUAL_REQUIRED", symbol, {"reason": "missing_exchange"})
         
         if PROMETHEUS_AVAILABLE:
@@ -300,7 +301,7 @@ class ReconcileEngine:
     def _handle_stale_exchange(self, symbol: str, age_sec: int):
         """Handle stale exchange snapshot"""
         logger.warning(f"{symbol}: Stale exchange snapshot ({age_sec}s old)")
-        self._set_hold(symbol, "stale_exchange")
+            self._set_hold(symbol, "stale_exchange", None, None)
         self._emit_event("MANUAL_REQUIRED", symbol, {"reason": "stale_exchange", "age_sec": age_sec})
         
         if PROMETHEUS_AVAILABLE:
@@ -314,7 +315,7 @@ class ReconcileEngine:
             f"ledger={ledger.ledger_side}({ledger.ledger_amt})"
         )
         
-        self._set_hold(symbol, "side_mismatch")
+            self._set_hold(symbol, "side_mismatch", exchange, ledger)
         self._update_state(
             symbol, ReconcileStatus.HOLD, "side_mismatch",
             exchange, ledger, 0
@@ -347,7 +348,7 @@ class ReconcileEngine:
         else:
             # No evidence - set HOLD
             logger.warning(f"{symbol}: No evidence for drift - setting HOLD")
-            self._set_hold(symbol, "qty_mismatch_no_evidence")
+                self._set_hold(symbol, "qty_mismatch_no_evidence", exchange, ledger)
             self._update_state(
                 symbol, ReconcileStatus.HOLD, "qty_mismatch_no_evidence",
                 exchange, ledger, diff_amt
@@ -471,12 +472,69 @@ class ReconcileEngine:
             p34_last_fix_age_sec.labels(symbol=symbol).set(0)
     
     def _set_hold(self, symbol: str, reason: str):
+            def _set_hold(self, symbol: str, reason: str, exchange=None, ledger=None):
         """Set reconcile hold"""
+            """Set reconcile hold and publish RECONCILE_CLOSE plan"""
         key = f"quantum:reconcile:hold:{symbol}"
         self.redis.setex(key, HOLD_TTL_SEC, "1")
         logger.warning(f"{symbol}: HOLD set (reason={reason}, TTL={HOLD_TTL_SEC}s)")
         
         self._emit_event("HOLD_SET", symbol, {"reason": reason, "ttl_sec": HOLD_TTL_SEC})
+            if exchange and ledger:
+                self._publish_reconcile_close_plan(symbol, exchange, ledger, reason)
+    
+        def _publish_reconcile_close_plan(self, symbol: str, exchange: ExchangeSnapshot, ledger: Ledger, reason: str):
+            """Publish RECONCILE_CLOSE plan when drift detected (Patch A)"""
+            import time
+        
+            exchange_amt = exchange.position_amt
+            ledger_amt = ledger.ledger_amt
+            exchange_side = exchange.side
+        
+            if exchange_amt == 0:
+                return
+        
+            close_side = "SELL" if exchange_amt > 0 else "BUY"
+        
+            qty = min(abs(exchange_amt), abs(exchange_amt - ledger_amt))
+            if qty <= 0:
+                return
+        
+            sig_key = f"{symbol}:{exchange_side}:{round(abs(exchange_amt), 6)}:{round(abs(ledger_amt), 6)}"
+            signature = hashlib.md5(sig_key.encode()).hexdigest()[:12]
+        
+            cooldown_bucket = int(time.time() / 120)
+            cooldown_key = f"quantum:reconcile:close:cooldown:{symbol}:{signature}:{cooldown_bucket}"
+        
+            if self.redis.exists(cooldown_key):
+                return
+        
+            now_ms = int(time.time() * 1000)
+            plan_id = f"reconclose:{symbol}:{signature}:{now_ms}"
+        
+            plan = {
+                "plan_id": plan_id,
+                "decision": "RECONCILE_CLOSE",
+                "symbol": symbol,
+                "side": close_side,
+                "type": "MARKET",
+                "qty": qty,
+                "reduceOnly": True,
+                "reason": "reconcile_drift",
+                "source": "p3.4",
+                "exchange_amt": exchange_amt,
+                "ledger_amt": ledger_amt,
+                "ts": now_ms,
+            }
+        
+            try:
+                self.redis.xadd("quantum:stream:trading.plan", plan, id="*")
+                self.redis.setex(cooldown_key, 120, "1")
+                logger.info(f"{symbol}: RECONCILE_CLOSE plan published - plan_id={plan_id}, qty={qty}, reason={reason}")
+                if PROMETHEUS_AVAILABLE:
+                    p34_drift_detected.labels(symbol=symbol, reason="reconcile_close_plan").inc()
+            except Exception as e:
+                logger.error(f"{symbol}: Error publishing RECONCILE_CLOSE plan: {e}")
     
     def _clear_hold(self, symbol: str):
         """Clear reconcile hold"""

@@ -314,10 +314,18 @@ class PositionStateBrain:
         decision = data.get('decision')
         action = data.get('action', '')
         
-        # Only evaluate EXECUTE decisions
-        if decision != 'EXECUTE':
+        # Check if this is a RECONCILE_CLOSE (Patch B special handling)
+        is_reconcile_close = (decision == 'RECONCILE_CLOSE')
+        
+        # Only evaluate EXECUTE and RECONCILE_CLOSE decisions
+        if decision not in ('EXECUTE', 'RECONCILE_CLOSE'):
             logger.debug(f"{symbol}: Plan {plan_id[:8]} decision={decision}, skipping P3.3")
             return {'evaluated': False, 'reason': 'not_execute_decision'}
+                # Fast-path for RECONCILE_CLOSE: bypass most checks, validate guardrails only
+                if is_reconcile_close:
+                    logger.info(f"{symbol}: RECONCILE_CLOSE plan detected - fast-track through P3.3 (Patch B)")
+                    return self._grant_permit(plan_id, symbol, 0, 0, 0, is_reconcile_close=True)
+        
         
         # Get exchange snapshot
         snapshot = self.get_exchange_snapshot(symbol)
@@ -395,18 +403,25 @@ class PositionStateBrain:
         return self._grant_permit(plan_id, symbol, safe_close_qty, exchange_amt, ledger['last_known_amt'] if ledger else 0.0)
     
     def _grant_permit(self, plan_id: str, symbol: str, safe_close_qty: float, exchange_amt: float, ledger_amt: float) -> Dict:
-        """Grant P3.3 execution permit (checks P3.4 hold first)"""
+    def _grant_permit(self, plan_id: str, symbol: str, safe_close_qty: float, exchange_amt: float, ledger_amt: float, is_reconcile_close: bool = False) -> Dict:
+        """Grant P3.3 execution permit (checks P3.4 hold first, with RECONCILE_CLOSE bypass)"""
         # P3.4 Integration: Check for reconcile hold
         hold_key = f"quantum:reconcile:hold:{symbol}"
         hold_active = self.redis.get(hold_key)
         
-        if hold_active:
-            # P3.4 has set a hold - deny execution
+        if hold_active and not is_reconcile_close:
+            # P3.4 has set a hold - deny execution (except for RECONCILE_CLOSE)
             logger.warning(f"{symbol}: P3.3 blocked by P3.4 reconcile hold")
             return self._deny_permit(plan_id, symbol, "reconcile_hold_active", {
                 "exchange_amt": exchange_amt,
                 "ledger_amt": ledger_amt,
                 "p34_hold": "active"
+                    # RECONCILE_CLOSE bypass: allow execution even with HOLD, but only if guardrails met
+                    if is_reconcile_close:
+                        logger.info(f"{symbol}: RECONCILE_CLOSE allowed to bypass HOLD (Patch B)")
+                        # Fast-track: no permit needed, log and return allow
+                        return {"result": "permit", "reason": "reconcile_close_bypass"}
+        
             })
         
         # No hold - proceed with permit
@@ -513,8 +528,8 @@ class PositionStateBrain:
                     symbol = fields.get('symbol', 'UNKNOWN')
                     decision = fields.get('decision', '')
                     
-                    # Only evaluate EXECUTE decisions
-                    if decision != 'EXECUTE':
+                    # Only evaluate EXECUTE and RECONCILE_CLOSE decisions
+                    if decision not in ('EXECUTE', 'RECONCILE_CLOSE'):
                         self.redis.xack(plan_stream, consumer_group, msg_id)
                         continue
                     
