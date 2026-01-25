@@ -1138,7 +1138,9 @@ class ApplyLayer:
             
         except Exception as e:
             logger.error(f"Error publishing result: {e}")
-
+    
+    def process_reconcile_close_stream(self):
+        """Process RECONCILE_CLOSE plans from dedicated reconcile.close stream"""
         try:
             stream_key = "quantum:stream:reconcile.close"
             consumer_group = "apply_recon"
