@@ -1196,6 +1196,7 @@ class ApplyLayer:
     
     def run_cycle(self):
         """Single apply cycle"""
+        print("RUN_CYCLE_CALLED_NOW", flush=True)
         logger.debug("=== Apply Layer Cycle ===")
         
         # HIGHEST PRIORITY: Process RECONCILE_CLOSE plans (self-healing)
