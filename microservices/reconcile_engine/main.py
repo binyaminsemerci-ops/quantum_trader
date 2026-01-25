@@ -504,7 +504,10 @@ class ReconcileEngine:
             cooldown_bucket = int(time.time() / 120)
             cooldown_key = f"quantum:reconcile:close:cooldown:{symbol}:{signature}:{cooldown_bucket}"
         
-            if self.redis.exists(cooldown_key):
+            # Atomic cooldown check: SET NX returns None if already exists (idempotent, no KEYS needed)
+            cooldown_set = self.redis.set(cooldown_key, "1", ex=120, nx=True)
+            if not cooldown_set:
+                logger.debug(f"{symbol}: Skipping RECONCILE_CLOSE (cooldown active for {signature})")
                 return
         
             now_ms = int(time.time() * 1000)
@@ -524,6 +527,16 @@ class ReconcileEngine:
                 "ledger_amt": ledger_amt,
                 "ts": now_ms,
             }
+        
+            # Track published metric
+            if not hasattr(self, 'reconcile_close_published'):
+                from prometheus_client import Counter
+                self.reconcile_close_published = Counter(
+                    'p34_reconcile_close_published_total',
+                    'RECONCILE_CLOSE plans published',
+                    ['symbol']
+                )
+            self.reconcile_close_published.labels(symbol=symbol).inc()
         
             try:
                 plan_str = {
