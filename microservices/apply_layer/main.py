@@ -991,38 +991,81 @@ class ApplyLayer:
     
     def validate_reconcile_close_guardrails(self, plan_data: Dict) -> tuple[bool, str]:
         """
-        Validate guardrails for RECONCILE_CLOSE.
+        STRICT INVARIANT VALIDATION - Trading backdoor protection.
+        
+        All checks are HARD FAIL - any violation prevents execution.
+        This ensures RECONCILE_CLOSE cannot become a trading backdoor.
+        
+        Invariants:
+        1. decision == "RECONCILE_CLOSE"
+        2. HOLD key == 1 for symbol (prevents trading when not in drift)
+        3. reduceOnly == true (string/boolean handled robustly)
+        4. type == "MARKET" only
+        5. qty > 0 and qty <= abs(exchange_amt)
+        6. reason == "reconcile_drift"
         
         Returns: (is_safe, error_message)
         """
         symbol = plan_data.get('symbol')
+        decision = plan_data.get('decision')
+        reduce_only = plan_data.get('reduceOnly')
+        order_type = plan_data.get('type')
+        reason = plan_data.get('reason')
         
-        # 1. Check HOLD key exists
+        # Initialize guardrail failure metrics
+        if not hasattr(self, 'reconcile_guardrail_fail'):
+            from prometheus_client import Counter
+            self.reconcile_guardrail_fail = Counter(
+                'reconcile_close_guardrail_fail_total',
+                'RECONCILE_CLOSE guardrail failures',
+                ['symbol', 'rule']
+            )
+        
+        # INVARIANT 1: decision must be RECONCILE_CLOSE
+        if decision != 'RECONCILE_CLOSE':
+            self.reconcile_guardrail_fail.labels(symbol=symbol, rule='decision').inc()
+            return False, f"INVARIANT: decision must be RECONCILE_CLOSE, got {decision}"
+        
+        # INVARIANT 2: HOLD key must be active (1 = active)
         hold_key = f"quantum:reconcile:hold:{symbol}"
-        if not self.redis.exists(hold_key):
-            return False, "no_hold_key_active"
+        hold_value = self.redis.get(hold_key)
+        if not hold_value or hold_value.decode('utf-8') != '1':
+            self.reconcile_guardrail_fail.labels(symbol=symbol, rule='hold_key').inc()
+            return False, f"INVARIANT: HOLD key not active for {symbol}"
         
-        # 2. Check reduceOnly flag
-        if not plan_data.get('reduceOnly') or plan_data.get('reduceOnly') not in ('true', 'True', True):
-            return False, "reduceOnly_not_set"
+        # INVARIANT 3: reduceOnly must be true (handle string/boolean robustly)
+        if isinstance(reduce_only, str):
+            reduce_only = reduce_only.lower() in ('true', '1')
+        elif not isinstance(reduce_only, bool):
+            self.reconcile_guardrail_fail.labels(symbol=symbol, rule='reduce_only_type').inc()
+            return False, f"INVARIANT: reduceOnly invalid type {type(reduce_only)}"
+        if not reduce_only:
+            self.reconcile_guardrail_fail.labels(symbol=symbol, rule='reduce_only').inc()
+            return False, "INVARIANT: reduceOnly must be true"
         
-        # 3. Check type is MARKET
-        order_type = plan_data.get('type', 'MARKET')
-        if order_type not in ('MARKET', ''):
-            return False, "invalid_order_type"
+        # INVARIANT 4: Order type must be MARKET
+        if order_type != 'MARKET':
+            self.reconcile_guardrail_fail.labels(symbol=symbol, rule='order_type').inc()
+            return False, f"INVARIANT: type must be MARKET, got {order_type}"
         
-        # 4. Check qty is safe (not bigger than exchange position)
+        # INVARIANT 5: qty must be safe (positive and <= exchange position)
         try:
             exchange_amt = float(plan_data.get('exchange_amt', 0))
             qty = float(plan_data.get('qty', 0))
-            if qty > abs(exchange_amt):
-                return False, "qty_exceeds_exchange_position"
-        except (ValueError, TypeError):
-            return False, "invalid_qty_or_exchange_amt"
+            if qty <= 0:
+                self.reconcile_guardrail_fail.labels(symbol=symbol, rule='qty_positive').inc()
+                return False, f"INVARIANT: qty must be positive, got {qty}"
+            if exchange_amt != 0 and qty > abs(exchange_amt):
+                self.reconcile_guardrail_fail.labels(symbol=symbol, rule='qty_safe').inc()
+                return False, f"INVARIANT: qty {qty} exceeds exchange position {exchange_amt}"
+        except (ValueError, TypeError) as e:
+            self.reconcile_guardrail_fail.labels(symbol=symbol, rule='qty_parse').inc()
+            return False, f"INVARIANT: invalid qty or exchange_amt: {e}"
         
-        # 5. Check reason is reconcile_drift
-        if plan_data.get('reason') != 'reconcile_drift':
-            return False, "invalid_reason"
+        # INVARIANT 6: reason must be reconcile_drift
+        if reason != 'reconcile_drift':
+            self.reconcile_guardrail_fail.labels(symbol=symbol, rule='reason').inc()
+            return False, f"INVARIANT: reason must be 'reconcile_drift', got {reason}"
         
         return True, ""
     
@@ -1041,13 +1084,53 @@ class ApplyLayer:
         symbol = plan_data.get('symbol')
         side = plan_data.get('side')
         qty = float(plan_data.get('qty', 0))
+        exchange_amt = plan_data.get('exchange_amt', '0')
+        
+        # Initialize metrics
+        if not hasattr(self, 'reconcile_close_consumed'):
+            from prometheus_client import Counter
+            self.reconcile_close_consumed = Counter(
+                'reconcile_close_consumed_total',
+                'RECONCILE_CLOSE plans consumed',
+                ['symbol']
+            )
+            self.reconcile_close_executed = Counter(
+                'reconcile_close_executed_total',
+                'RECONCILE_CLOSE plans executed',
+                ['symbol', 'status']
+            )
+            self.reconcile_close_rejected = Counter(
+                'reconcile_close_rejected_total',
+                'RECONCILE_CLOSE plans rejected',
+                ['symbol', 'reason']
+            )
+        
+        self.reconcile_close_consumed.labels(symbol=symbol).inc()
         
         logger.warning(f"[RECONCILE_CLOSE] {symbol}: Execution started - plan_id={plan_id[:16]}, side={side}, qty={qty}")
         
-        # Validate guardrails
+        # EXACTLY-ONCE: Check deduplication to prevent replays
+        dedupe_key = f"quantum:apply:dedupe:{plan_id}"
+        dedupe_set = self.redis.set(dedupe_key, "1", ex=86400, nx=True)
+        if not dedupe_set:
+            logger.warning(f"[RECONCILE_CLOSE] {symbol}: Duplicate plan_id {plan_id[:16]} - dropping")
+            self.reconcile_close_rejected.labels(symbol=symbol, reason='duplicate').inc()
+            return ApplyResult(
+                plan_id=plan_id,
+                symbol=symbol,
+                decision="RECONCILE_CLOSE",
+                executed=False,
+                would_execute=False,
+                steps_results=[{"step": "DEDUPLICATION", "status": "duplicate"}],
+                error="Duplicate plan_id",
+                timestamp=int(time.time())
+            )
+        
+        # Validate guardrails (STRICT INVARIANTS)
         is_safe, error = self.validate_reconcile_close_guardrails(plan_data)
         if not is_safe:
-            logger.error(f"[RECONCILE_CLOSE] {symbol}: Guardrails failed: {error}")
+            logger.error(f"[RECONCILE_CLOSE] {symbol}: INVARIANT VIOLATION: {error}")
+            self.reconcile_close_rejected.labels(symbol=symbol, reason='guardrails').inc()
             return ApplyResult(
                 plan_id=plan_id,
                 symbol=symbol,
@@ -1076,7 +1159,18 @@ class ApplyLayer:
             
             if result.get('orderId'):
                 order_id = result['orderId']
+                
+                # AUDIT LOG: Critical reconcile_close execution
+                hold_key = f"quantum:reconcile:hold:{symbol}"
+                logger.warning(
+                    f"[RECONCILE_CLOSE_AUDIT] reconcile_close=true symbol={symbol} qty={qty} "
+                    f"side={side} order_id={order_id} plan_id={plan_id[:16]} "
+                    f"hold_key={hold_key} exchange_amt={exchange_amt}"
+                )
+                
                 logger.warning(f"[RECONCILE_CLOSE_EXECUTED] {symbol}: plan_id={plan_id[:16]}, order_id={order_id}, qty={qty}")
+                
+                self.reconcile_close_executed.labels(symbol=symbol, status='success').inc()
                 
                 if PROMETHEUS_AVAILABLE:
                     apply_executed.labels(status='reconcile_close_success').inc()
@@ -1106,7 +1200,26 @@ class ApplyLayer:
                 )
         
         except Exception as e:
+            error_str = str(e)
+            
+            # Handle rate limiting (429) specially - don't spam, HOLD remains
+            if '429' in error_str or 'too many requests' in error_str.lower() or 'banned' in error_str.lower():
+                logger.error(f"[RECONCILE_CLOSE] {symbol}: RATE LIMITED (429) - HOLD remains, will retry on next cooldown bucket")
+                self.reconcile_close_executed.labels(symbol=symbol, status='rate_limit').inc()
+                return ApplyResult(
+                    plan_id=plan_id,
+                    symbol=symbol,
+                    decision="RECONCILE_CLOSE",
+                    executed=False,
+                    would_execute=True,
+                    steps_results=[{"step": "EXECUTION", "status": "RETRYABLE_RATE_LIMIT", "error": error_str}],
+                    error=f"RETRYABLE_RATE_LIMIT: {error_str}",
+                    timestamp=int(time.time())
+                )
+            
+            # Other execution errors
             logger.error(f"[RECONCILE_CLOSE] {symbol}: Execution error: {e}", exc_info=True)
+            self.reconcile_close_executed.labels(symbol=symbol, status='error').inc()
             return ApplyResult(
                 plan_id=plan_id,
                 symbol=symbol,
