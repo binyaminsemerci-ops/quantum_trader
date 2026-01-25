@@ -1200,10 +1200,12 @@ class ApplyLayer:
         logger.debug("=== Apply Layer Cycle ===")
         
         # HIGHEST PRIORITY: Process RECONCILE_CLOSE plans (self-healing)
-        logger.warning("[RECON] Starting process_reconcile_close_stream call...")
         try:
+            logger.warning("[RECON_CYCLE_START] Calling process_reconcile_close_stream...")
             self.process_reconcile_close_stream()
+            logger.warning("[RECON_CYCLE_END] process_reconcile_close_stream completed")
         except Exception as e:
+            logger.warning(f"[RECON_CYCLE_ERROR] {type(e).__name__}: {e}")
             logger.error(f"Error processing RECONCILE_CLOSE stream: {e}", exc_info=True)
         
         # NORMAL: Process harvest proposals
