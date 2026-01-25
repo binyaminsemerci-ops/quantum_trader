@@ -1029,9 +1029,14 @@ class ApplyLayer:
         # INVARIANT 2: HOLD key must be active (1 = active)
         hold_key = f"quantum:reconcile:hold:{symbol}"
         hold_value = self.redis.get(hold_key)
-        if not hold_value or hold_value.decode('utf-8') != '1':
+        if not hold_value:
             self.reconcile_guardrail_fail.labels(symbol=symbol, rule='hold_key').inc()
             return False, f"INVARIANT: HOLD key not active for {symbol}"
+        # Handle both bytes and str
+        hold_str = hold_value.decode('utf-8') if isinstance(hold_value, bytes) else str(hold_value)
+        if hold_str != '1':
+            self.reconcile_guardrail_fail.labels(symbol=symbol, rule='hold_key').inc()
+            return False, f"INVARIANT: HOLD key not active for {symbol} (value={hold_str})"
         
         # INVARIANT 3: reduceOnly must be true (handle string/boolean robustly)
         if isinstance(reduce_only, str):
