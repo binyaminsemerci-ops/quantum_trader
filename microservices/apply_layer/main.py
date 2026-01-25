@@ -1199,6 +1199,7 @@ class ApplyLayer:
         logger.debug("=== Apply Layer Cycle ===")
         
         # HIGHEST PRIORITY: Process RECONCILE_CLOSE plans (self-healing)
+        logger.warning("[RECON] Starting process_reconcile_close_stream call...")
         try:
             self.process_reconcile_close_stream()
         except Exception as e:
