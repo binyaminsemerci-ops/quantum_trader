@@ -1,0 +1,47 @@
+[Unit]
+Description=Quantum Trader - P3.4 Position Reconciliation Engine
+Documentation=https://github.com/yourusername/quantum_trader
+After=network.target redis.service
+Requires=redis.service
+
+[Service]
+Type=simple
+User=quantum
+Group=quantum
+WorkingDirectory=/opt/quantum
+
+# Environment files
+EnvironmentFile=/etc/quantum/apply-layer.env
+EnvironmentFile=/etc/quantum/reconcile-engine.env
+
+# Python environment
+Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONPATH=/opt/quantum"
+
+# Service command
+ExecStart=/opt/quantum/venv/bin/python3 /opt/quantum/microservices/reconcile_engine/main.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=300
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-reconcile-engine
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/quantum/logs
+
+[Install]
+WantedBy=multi-user.target

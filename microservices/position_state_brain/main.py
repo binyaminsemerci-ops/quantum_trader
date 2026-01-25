@@ -395,7 +395,21 @@ class PositionStateBrain:
         return self._grant_permit(plan_id, symbol, safe_close_qty, exchange_amt, ledger['last_known_amt'] if ledger else 0.0)
     
     def _grant_permit(self, plan_id: str, symbol: str, safe_close_qty: float, exchange_amt: float, ledger_amt: float) -> Dict:
-        """Grant P3.3 execution permit"""
+        """Grant P3.3 execution permit (checks P3.4 hold first)"""
+        # P3.4 Integration: Check for reconcile hold
+        hold_key = f"quantum:reconcile:hold:{symbol}"
+        hold_active = self.redis.get(hold_key)
+        
+        if hold_active:
+            # P3.4 has set a hold - deny execution
+            logger.warning(f"{symbol}: P3.3 blocked by P3.4 reconcile hold")
+            return self._deny_permit(plan_id, symbol, "reconcile_hold_active", {
+                "exchange_amt": exchange_amt,
+                "ledger_amt": ledger_amt,
+                "p34_hold": "active"
+            })
+        
+        # No hold - proceed with permit
         permit_key = f"quantum:permit:p33:{plan_id}"
         
         permit_data = {
