@@ -315,7 +315,7 @@ class ReconcileEngine:
             f"ledger={ledger.ledger_side}({ledger.ledger_amt})"
         )
         
-            self._set_hold(symbol, "side_mismatch", exchange, ledger)
+        self._set_hold(symbol, "side_mismatch", exchange, ledger)
         self._update_state(
             symbol, ReconcileStatus.HOLD, "side_mismatch",
             exchange, ledger, 0
@@ -348,7 +348,7 @@ class ReconcileEngine:
         else:
             # No evidence - set HOLD
             logger.warning(f"{symbol}: No evidence for drift - setting HOLD")
-                self._set_hold(symbol, "qty_mismatch_no_evidence", exchange, ledger)
+            self._set_hold(symbol, "qty_mismatch_no_evidence", exchange, ledger)
             self._update_state(
                 symbol, ReconcileStatus.HOLD, "qty_mismatch_no_evidence",
                 exchange, ledger, diff_amt
