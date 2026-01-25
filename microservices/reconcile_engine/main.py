@@ -526,7 +526,21 @@ class ReconcileEngine:
             }
         
             try:
-                self.redis.xadd("quantum:stream:trading.plan", plan, id="*")
+                plan_str = {
+                    "plan_id": plan_id,
+                    "decision": "RECONCILE_CLOSE",
+                    "symbol": symbol,
+                    "side": close_side,
+                    "type": "MARKET",
+                    "qty": str(qty),
+                    "reduceOnly": "true",
+                    "reason": "reconcile_drift",
+                    "source": "p3.4",
+                    "exchange_amt": str(exchange_amt),
+                    "ledger_amt": str(ledger_amt),
+                    "ts": str(now_ms),
+                }
+                self.redis.xadd("quantum:stream:trading.plan", plan_str, id="*")
                 self.redis.setex(cooldown_key, 120, "1")
                 logger.info(f"{symbol}: RECONCILE_CLOSE plan published - plan_id={plan_id}, qty={qty}, reason={reason}")
                 if PROMETHEUS_AVAILABLE:
