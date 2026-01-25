@@ -471,19 +471,17 @@ class ReconcileEngine:
             p34_diff_amt.labels(symbol=symbol).set(0)
             p34_last_fix_age_sec.labels(symbol=symbol).set(0)
     
-    def _set_hold(self, symbol: str, reason: str):
-            def _set_hold(self, symbol: str, reason: str, exchange=None, ledger=None):
-        """Set reconcile hold"""
-            """Set reconcile hold and publish RECONCILE_CLOSE plan"""
+    def _set_hold(self, symbol: str, reason: str, exchange=None, ledger=None):
+        """Set reconcile hold and publish RECONCILE_CLOSE plan"""
         key = f"quantum:reconcile:hold:{symbol}"
         self.redis.setex(key, HOLD_TTL_SEC, "1")
         logger.warning(f"{symbol}: HOLD set (reason={reason}, TTL={HOLD_TTL_SEC}s)")
         
         self._emit_event("HOLD_SET", symbol, {"reason": reason, "ttl_sec": HOLD_TTL_SEC})
-            if exchange and ledger:
-                self._publish_reconcile_close_plan(symbol, exchange, ledger, reason)
+        if exchange and ledger:
+            self._publish_reconcile_close_plan(symbol, exchange, ledger, reason)
     
-        def _publish_reconcile_close_plan(self, symbol: str, exchange: ExchangeSnapshot, ledger: Ledger, reason: str):
+    def _publish_reconcile_close_plan(self, symbol: str, exchange: ExchangeSnapshot, ledger: Ledger, reason: str):
             """Publish RECONCILE_CLOSE plan when drift detected (Patch A)"""
             import time
         
