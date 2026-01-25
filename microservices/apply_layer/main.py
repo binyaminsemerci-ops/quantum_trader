@@ -62,6 +62,92 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# ---- Permit wait-loop config (fail-closed) ----
+PERMIT_WAIT_MS = int(os.getenv("APPLY_PERMIT_WAIT_MS", "1200"))
+PERMIT_STEP_MS = int(os.getenv("APPLY_PERMIT_STEP_MS", "100"))
+
+# Atomic Lua: require BOTH permits then consume both (DEL)
+_LUA_CONSUME_BOTH_PERMITS = r"""
+-- Atomic: require BOTH permits, then consume (DEL) both.
+-- Returns:
+--  {1, gov_json, p33_json} on success
+--  {0, reason, gov_ttl, p33_ttl} on failure
+
+local gov_key = KEYS[1]
+local p33_key = KEYS[2]
+
+local gov = redis.call("GET", gov_key)
+local p33 = redis.call("GET", p33_key)
+
+if (not gov) and (not p33) then
+  return {0, "missing_both", redis.call("TTL", gov_key), redis.call("TTL", p33_key)}
+end
+if not gov then
+  return {0, "missing_governor", redis.call("TTL", gov_key), redis.call("TTL", p33_key)}
+end
+if not p33 then
+  return {0, "missing_p33", redis.call("TTL", gov_key), redis.call("TTL", p33_key)}
+end
+
+redis.call("DEL", gov_key)
+redis.call("DEL", p33_key)
+
+return {1, gov, p33}
+"""
+
+def _register_consume_script(r):
+    """Register Lua script for atomic permit consumption"""
+    return r.register_script(_LUA_CONSUME_BOTH_PERMITS)
+
+def wait_and_consume_permits(
+    r,
+    plan_id: str,
+    max_wait_ms: int = PERMIT_WAIT_MS,
+    step_ms: int = PERMIT_STEP_MS,
+    consume_script=None,
+):
+    """
+    Wait up to max_wait_ms for BOTH permits:
+      - quantum:permit:{plan_id}        (Governor P3.2)
+      - quantum:permit:p33:{plan_id}    (Position State Brain P3.3)
+    Atomically consumes both on success.
+    Returns:
+      (True, gov_dict, p33_dict) on success
+      (False, info_dict, None)  on failure (fail-closed)
+    """
+    gov_key = f"quantum:permit:{plan_id}"
+    p33_key = f"quantum:permit:p33:{plan_id}"
+
+    if consume_script is None:
+        consume_script = _register_consume_script(r)
+
+    deadline = time.time() + (max_wait_ms / 1000.0)
+    last = {"reason": "init", "gov_ttl": -2, "p33_ttl": -2}
+
+    while time.time() < deadline:
+        res = consume_script(keys=[gov_key, p33_key], args=[])
+        if int(res[0]) == 1:
+            try:
+                gov = json.loads(res[1])
+            except Exception:
+                gov = {"raw": res[1]}
+            try:
+                p33 = json.loads(res[2])
+            except Exception:
+                p33 = {"raw": res[2]}
+            return True, gov, p33
+
+        # failure details from lua
+        last = {
+            "reason": str(res[1]),
+            "gov_ttl": int(res[2]),
+            "p33_ttl": int(res[3]),
+        }
+        time.sleep(step_ms / 1000.0)
+
+    return False, last, None
+
+
 class ApplyMode(Enum):
     DRY_RUN = "dry_run"
     TESTNET = "testnet"
@@ -642,142 +728,93 @@ class ApplyLayer:
             pos_side = position['side']
             logger.info(f"{plan.symbol}: Current position: {pos_amt} ({pos_side})")
             
-            # WAIT FOR BOTH PERMITS (Governor P3.2 + P3.3 Position State Brain)
-            # Max wait: 1200ms for event-driven P3.3 to issue permit after plan publication
-            permit_key = f"quantum:permit:{plan.plan_id}"  # Governor (P3.2)
-            p33_permit_key = f"quantum:permit:p33:{plan.plan_id}"  # P3.3 Position State Brain
+            # ---- NEW: WAIT LOOP + ATOMIC CONSUME (fail-closed) ----
+            # Wait for BOTH permits:
+            #  - Governor permit (P3.2): quantum:permit:{plan_id}
+            #  - P3.3 permit (Position Brain): quantum:permit:p33:{plan_id}
+            t0 = time.time()
+            consume_script = _register_consume_script(self.redis)
+            ok, gov_permit, p33_permit = wait_and_consume_permits(
+                self.redis, 
+                plan.plan_id,
+                max_wait_ms=PERMIT_WAIT_MS,
+                step_ms=PERMIT_STEP_MS,
+                consume_script=consume_script
+            )
+            wait_ms = int((time.time() - t0) * 1000)
             
-            permits_ready = False
-            permit_wait_start = time.time()
-            max_wait_sec = 1.2  # 1200ms controlled wait window
-            
-            # Permit availability check loop
-            for attempt in range(12):  # 12 x 100ms = 1200ms max
-                try:
-                    gov_exists = self.redis.exists(permit_key)
-                    p33_exists = self.redis.exists(p33_permit_key)
-                    
-                    if gov_exists and p33_exists:
-                        permits_ready = True
-                        wait_time_ms = int((time.time() - permit_wait_start) * 1000)
-                        logger.info(f"{plan.symbol}: Both permits ready after {wait_time_ms}ms (Governor + P3.3)")
-                        break
-                    
-                    if attempt == 11:  # Last attempt
-                        wait_time_ms = int((time.time() - permit_wait_start) * 1000)
-                        missing = []
-                        if not gov_exists:
-                            missing.append("Governor")
-                        if not p33_exists:
-                            missing.append("P3.3")
-                        logger.warning(f"{plan.symbol}: Permit timeout after {wait_time_ms}ms (missing: {', '.join(missing)})")
-                    else:
-                        time.sleep(0.1)  # 100ms between checks
-                        
-                except Exception as e:
-                    logger.error(f"{plan.symbol}: Redis error during permit check: {e}")
-                    return ApplyResult(
-                        plan_id=plan.plan_id,
-                        symbol=plan.symbol,
-                        decision="BLOCKED",
-                        executed=False,
-                        would_execute=False,
-                        steps_results=[{"step": "PERMIT_CHECK", "status": "redis_error", "details": f"Redis error: {e}"}],
-                        error="permit_check_redis_error",
-                        timestamp=int(time.time())
-                    )
-            
-            # BLOCK if permits not ready
-            if not permits_ready:
+            if not ok:
+                logger.warning(
+                    f"[PERMIT_WAIT] BLOCK plan={plan.plan_id} symbol={plan.symbol} "
+                    f"wait_ms={wait_ms} info={gov_permit}"
+                )
                 return ApplyResult(
                     plan_id=plan.plan_id,
                     symbol=plan.symbol,
                     decision="BLOCKED",
                     executed=False,
                     would_execute=False,
-                    steps_results=[{"step": "PERMIT_CHECK", "status": "timeout", "details": "Permits not available within 1200ms window"}],
-                    error="permit_timeout",
+                    steps_results=[{"step": "PERMIT_WAIT", "status": gov_permit.get('reason', 'unknown'), "details": f"Permits not available: {gov_permit}"}],
+                    error=f"permit_timeout_or_missing:{gov_permit.get('reason','unknown')}",
                     timestamp=int(time.time())
                 )
             
-            # ATOMICALLY CONSUME P3.3 PERMIT (read + delete)
-            try:
-                p33_permit_data = self.redis.get(p33_permit_key)
-                if not p33_permit_data:
-                    logger.warning(f"{plan.symbol}: P3.3 permit vanished during consumption")
-                    return ApplyResult(
-                        plan_id=plan.plan_id,
-                        symbol=plan.symbol,
-                        decision="BLOCKED",
-                        executed=False,
-                        would_execute=False,
-                        steps_results=[{"step": "P33_CONSUME", "status": "vanished", "details": "P3.3 permit disappeared"}],
-                        error="missing_or_denied_p33_permit",
-                        timestamp=int(time.time())
-                    )
-            except Exception as e:
-                logger.error(f"{plan.symbol}: Redis error reading P3.3 permit: {e}")
+            # Validate P3.3 permit
+            if not isinstance(p33_permit, dict):
+                logger.warning(f"[PERMIT_WAIT] BLOCK invalid_p33_format plan={plan.plan_id} symbol={plan.symbol}")
                 return ApplyResult(
                     plan_id=plan.plan_id,
                     symbol=plan.symbol,
                     decision="BLOCKED",
                     executed=False,
                     would_execute=False,
-                    steps_results=[{"step": "P33_CONSUME", "status": "redis_error", "details": f"Redis error: {e}"}],
-                    error="missing_or_denied_p33_permit",
+                    steps_results=[{"step": "P33_PERMIT", "status": "invalid_format", "details": f"Invalid P3.3 permit format"}],
+                    error="invalid_p33_permit_format",
                     timestamp=int(time.time())
                 )
             
-            try:
-                p33_permit = json.loads(p33_permit_data)
-                
-                if not p33_permit.get('allow'):
-                    reason = p33_permit.get('reason', 'unknown')
-                    logger.warning(f"{plan.symbol}: P3.3 permit denied (reason={reason})")
-                    return ApplyResult(
-                        plan_id=plan.plan_id,
-                        symbol=plan.symbol,
-                        decision="BLOCKED",
-                        executed=False,
-                        would_execute=False,
-                        steps_results=[{"step": "P33_CHECK", "status": "denied", "details": f"P3.3 denied: {reason}"}],
-                        error="missing_or_denied_p33_permit",
-                        timestamp=int(time.time())
-                    )
-                
-                # Extract safe_close_qty from P3.3 permit
-                safe_close_qty = float(p33_permit.get('safe_close_qty', 0))
-                exchange_amt = float(p33_permit.get('exchange_position_amt', 0))
-                
-                if safe_close_qty <= 0:
-                    logger.warning(f"{plan.symbol}: P3.3 safe_close_qty is zero or negative")
-                    return ApplyResult(
-                        plan_id=plan.plan_id,
-                        symbol=plan.symbol,
-                        decision="BLOCKED",
-                        executed=False,
-                        would_execute=False,
-                        steps_results=[{"step": "P33_CHECK", "status": "invalid_qty", "details": f"safe_close_qty={safe_close_qty}"}],
-                        error="missing_or_denied_p33_permit",
-                        timestamp=int(time.time())
-                    )
-                
-                # DELETE P3.3 permit (single-use)
-                self.redis.delete(p33_permit_key)
-                logger.info(f"{plan.symbol}: P3.3 permit consumed ✓ (safe_qty={safe_close_qty:.4f}, exchange_amt={exchange_amt:.4f})")
-                
-            except json.JSONDecodeError as e:
-                logger.error(f"{plan.symbol}: Invalid P3.3 permit format: {e}")
+            # Check if P3.3 allow flag is set
+            if not p33_permit.get('allow'):
+                reason = p33_permit.get('reason', 'unknown')
+                logger.warning(
+                    f"[PERMIT_WAIT] BLOCK p33_denied plan={plan.plan_id} symbol={plan.symbol} "
+                    f"reason={reason}"
+                )
                 return ApplyResult(
                     plan_id=plan.plan_id,
                     symbol=plan.symbol,
                     decision="BLOCKED",
                     executed=False,
                     would_execute=False,
-                    steps_results=[{"step": "P33_CHECK", "status": "invalid_format", "details": f"Invalid P3.3 permit: {e}"}],
-                    error="missing_or_denied_p33_permit",
+                    steps_results=[{"step": "P33_CHECK", "status": "denied", "details": f"P3.3 denied: {reason}"}],
+                    error="p33_permit_denied",
                     timestamp=int(time.time())
                 )
+            
+            # Extract safe_close_qty from P3.3 permit
+            safe_close_qty = float(p33_permit.get('safe_close_qty', 0))
+            exchange_amt = float(p33_permit.get('exchange_position_amt', 0))
+            
+            if safe_close_qty <= 0:
+                logger.warning(
+                    f"[PERMIT_WAIT] BLOCK invalid_safe_qty plan={plan.plan_id} symbol={plan.symbol} "
+                    f"safe_qty={safe_close_qty}"
+                )
+                return ApplyResult(
+                    plan_id=plan.plan_id,
+                    symbol=plan.symbol,
+                    decision="BLOCKED",
+                    executed=False,
+                    would_execute=False,
+                    steps_results=[{"step": "P33_VALIDATE", "status": "invalid_qty", "details": f"safe_close_qty={safe_close_qty}"}],
+                    error="invalid_safe_close_qty",
+                    timestamp=int(time.time())
+                )
+            
+            logger.info(
+                f"[PERMIT_WAIT] OK plan={plan.plan_id} symbol={plan.symbol} "
+                f"wait_ms={wait_ms} safe_qty={safe_close_qty:.4f}"
+            )
             
             # Execute each step
             for step in plan.steps:
