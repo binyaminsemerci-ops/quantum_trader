@@ -56,6 +56,9 @@ GAMMA_VOL = float(os.getenv("GAMMA_VOL", "0.2"))
 MIN_BUDGET_K = float(os.getenv("MIN_BUDGET_K", "500"))
 MAX_BUDGET_K = float(os.getenv("MAX_BUDGET_K", "10000"))
 STALE_SEC = int(os.getenv("STALE_SEC", "30"))
+MAX_LKG_AGE_SEC = int(os.getenv("MAX_LKG_AGE_SEC", "900"))  # 15min - max age for last-known-good cache
+BUDGET_HASH_TTL_SEC = int(os.getenv("BUDGET_HASH_TTL_SEC", "300"))  # 5min - budget hash expiry
+P28_TEST_MODE = os.getenv("P28_TEST_MODE", "0") == "1"  # Enable test injection endpoint
 
 HEAT_GATE_METRICS_URL = os.getenv("HEAT_GATE_METRICS_URL", "http://localhost:8056/metrics")
 BUDGET_COMPUTE_INTERVAL_SEC = int(os.getenv("BUDGET_COMPUTE_INTERVAL_SEC", "10"))
@@ -121,12 +124,26 @@ metric_stress_factor = Gauge(
     ["symbol"]
 )
 
+metric_lkg_cache_used = Counter(
+    "p28_lkg_cache_used_total",
+    "Portfolio state served from last-known-good cache"
+)
+
+metric_portfolio_too_old = Counter(
+    "p28_portfolio_too_old_total",
+    "Portfolio state older than MAX_LKG_AGE_SEC (fail-open)"
+)
+
 # ============================================================================
 # FASTAPI
 # ============================================================================
 
 app = FastAPI(title="P2.8 Portfolio Risk Governor")
 redis_client: Optional[aioredis.Redis] = None
+
+# Last-known-good portfolio state cache
+lkg_portfolio_state: Optional[Dict[str, Any]] = None
+lkg_portfolio_timestamp: int = 0
 
 # ============================================================================
 # BUDGET ENGINE
@@ -189,7 +206,13 @@ async def fetch_portfolio_heat() -> Optional[float]:
 
 async def fetch_portfolio_state() -> Optional[Dict[str, Any]]:
     """
-    Fetch quantum:state:portfolio hash.
+    Fetch quantum:state:portfolio hash with last-known-good (LKG) cache fallback.
+    
+    Strategy:
+    1. Try to fetch fresh portfolio state from Redis
+    2. If found and fresh (<30s), update LKG cache and return
+    3. If stale but LKG cache is valid (<15min), use cached value
+    4. If both too old, fail-open (return None)
     
     Returns:
       {
@@ -198,20 +221,59 @@ async def fetch_portfolio_state() -> Optional[Dict[str, Any]]:
         "timestamp": int
       }
     """
+    global lkg_portfolio_state, lkg_portfolio_timestamp
+    
     try:
+        # Attempt to fetch fresh state
         data = await redis_client.hgetall("quantum:state:portfolio")
-        if not data:
-            return None
         
-        decoded = {k.decode(): v.decode() for k, v in data.items()}
+        if data:
+            decoded = {k.decode(): v.decode() for k, v in data.items()}
+            
+            state = {
+                "equity_usd": float(decoded.get("equity_usd", 0)),
+                "drawdown": float(decoded.get("drawdown", 0)),
+                "timestamp": int(decoded.get("timestamp", 0))
+            }
+            
+            # If fresh, update LKG cache
+            age = time.time() - state["timestamp"]
+            if age < STALE_SEC:
+                lkg_portfolio_state = state
+                lkg_portfolio_timestamp = int(time.time())
+                logger.debug(f"Portfolio state fresh (age={age:.0f}s), updated LKG cache")
+                return state
+            else:
+                logger.debug(f"Portfolio state stale (age={age:.0f}s), checking LKG cache")
         
-        return {
-            "equity_usd": float(decoded.get("equity_usd", 0)),
-            "drawdown": float(decoded.get("drawdown", 0)),
-            "timestamp": int(decoded.get("timestamp", 0))
-        }
+        # Fresh state not available or stale - check LKG cache
+        if lkg_portfolio_state is not None:
+            cache_age = time.time() - lkg_portfolio_timestamp
+            
+            if cache_age < MAX_LKG_AGE_SEC:
+                logger.info(f"Using last-known-good portfolio state (cache_age={cache_age:.0f}s)")
+                metric_lkg_cache_used.inc()
+                return lkg_portfolio_state
+            else:
+                logger.warning(f"LKG cache too old ({cache_age:.0f}s > {MAX_LKG_AGE_SEC}s), fail-open")
+                metric_portfolio_too_old.inc()
+                return None
+        
+        # No fresh state and no LKG cache
+        logger.warning("No portfolio state available (neither fresh nor cached)")
+        return None
+        
     except Exception as e:
-        logger.warning(f"Failed to fetch portfolio state: {e}")
+        logger.error(f"Failed to fetch portfolio state: {e}", exc_info=True)
+        
+        # On error, try LKG cache
+        if lkg_portfolio_state is not None:
+            cache_age = time.time() - lkg_portfolio_timestamp
+            if cache_age < MAX_LKG_AGE_SEC:
+                logger.warning(f"Error fetching portfolio, using LKG cache (age={cache_age:.0f}s)")
+                metric_lkg_cache_used.inc()
+                return lkg_portfolio_state
+        
         return None
 
 
@@ -340,7 +402,7 @@ async def compute_and_publish_budget(symbol: str) -> None:
         }
         
         await redis_client.hset(hash_key, mapping=hash_data)
-        await redis_client.expire(hash_key, 60)  # TTL 60s
+        await redis_client.expire(hash_key, BUDGET_HASH_TTL_SEC)  # TTL 5min (300s)
         
         # 5. Update metrics
         metric_budget_computed.labels(symbol=symbol).inc()
@@ -499,6 +561,40 @@ async def health():
 async def metrics():
     """Prometheus metrics endpoint."""
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.post("/test/inject_portfolio_state")
+async def inject_portfolio_state(equity_usd: float, drawdown: float = 0.0):
+    """
+    TEST-ONLY: Inject portfolio state for testing.
+    Only active when P28_TEST_MODE=1.
+    """
+    if not P28_TEST_MODE:
+        raise HTTPException(status_code=403, detail="Test mode not enabled (P28_TEST_MODE=0)")
+    
+    try:
+        key = "quantum:state:portfolio"
+        data = {
+            "equity_usd": str(equity_usd),
+            "drawdown": str(drawdown),
+            "timestamp": str(int(time.time()))
+        }
+        
+        # Write to Redis with 2min TTL
+        for field, value in data.items():
+            await redis_client.hset(key, field, value)
+        await redis_client.expire(key, 120)
+        
+        logger.info(f"TEST: Injected portfolio state equity={equity_usd} drawdown={drawdown}")
+        
+        return {
+            "success": True,
+            "injected": data,
+            "message": "Portfolio state injected (TTL 120s)"
+        }
+    except Exception as e:
+        logger.error(f"Failed to inject portfolio state: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/budget/check")
