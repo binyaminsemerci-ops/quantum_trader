@@ -275,6 +275,11 @@ class Governor:
             if current_mode == 'testnet':
                 logger.info(f"{symbol}: Testnet mode - applying fund caps for plan {plan_id[:8]}")
                 
+                # Gate -1: P2.8 Budget Check (TESTNET: log only, don't block)
+                budget_violation = self._check_portfolio_budget(symbol, plan_id)
+                if budget_violation:
+                    logger.warning(f"{symbol}: P2.8 budget violation detected (testnet mode - NOT blocking)")
+                
                 # Gate 0: Kill-switch check
                 kill_switch = self.redis.get('quantum:kill')
                 if kill_switch == '1':
