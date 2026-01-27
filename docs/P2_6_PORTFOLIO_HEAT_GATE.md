@@ -1,5 +1,16 @@
 # P2.6 Portfolio Heat Gate - Hedge Fund OS Edition
 
+**⚠️ DEPLOYMENT STATUS**: SHADOW MODE (deployed 2026-01-26, logging only, not affecting trading)  
+**📋 ACTIVATION PLAN**: See [P2_6_HEAT_GATE_ACTIVATION_PLAN.md](P2_6_HEAT_GATE_ACTIVATION_PLAN.md)
+
+---
+
+**⚠️ NOTE: This is different from P2.6 Portfolio Gate** (which IS live with P2.7)
+- **P2.6 Portfolio Gate** (`microservices/portfolio_gate/main.py`) — LIVE, integrates P2.7 cluster stress
+- **P2.6 Portfolio Heat Gate** (`microservices/portfolio_heat_gate/main.py`) — SHADOW MODE, heat-based exit calibration
+
+---
+
 ## Overview
 
 Portfolio-level safety calibration layer that prevents premature FULL_CLOSE decisions based on portfolio-wide risk metrics. Sits between Harvest Kernel (P2.5) and Apply Layer.
