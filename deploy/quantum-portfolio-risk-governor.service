@@ -1,0 +1,27 @@
+[Unit]
+Description=P2.8 Portfolio Risk Governor
+After=network.target redis.service quantum-portfolio-heat-gate.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/opt/quantum
+EnvironmentFile=/etc/quantum/portfolio-risk-governor.env
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python microservices/portfolio_risk_governor/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-portfolio-risk-governor
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/quantum/logs
+
+[Install]
+WantedBy=multi-user.target

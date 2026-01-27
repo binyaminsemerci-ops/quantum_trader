@@ -1,0 +1,23 @@
+[Unit]
+Description=Quantum Ledger Sync Service
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+
+[Service]
+Type=oneshot
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+EnvironmentFile=/etc/quantum/apply-layer.env
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/scripts/sync_ledger.py
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-ledger-sync
+
+[Install]
+WantedBy=multi-user.target

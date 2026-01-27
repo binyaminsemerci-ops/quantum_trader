@@ -1,0 +1,156 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "iteration": 165702,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Published (P3.4)",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (symbol) (increase(p34_reconcile_close_published_total[5m]))",
+          "legendFormat": "{{symbol}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Consumed (Apply)",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (symbol) (increase(reconcile_close_consumed_total[5m]))",
+          "legendFormat": "{{symbol}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Executed success",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (symbol) (increase(reconcile_close_executed_total{status=\"success\"}[5m]))",
+          "legendFormat": "{{symbol}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Rate limited",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (symbol) (increase(reconcile_close_executed_total{status=\"rate_limit\"}[5m]))",
+          "legendFormat": "{{symbol}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeSeries",
+      "title": "Guardrail failures by rule",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [
+        {
+          "expr": "sum by (symbol,rule) (increase(reconcile_close_guardrail_fail_total[15m]))",
+          "legendFormat": "{{symbol}} • {{rule}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeSeries",
+      "title": "Rejections by reason",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "targets": [
+        {
+          "expr": "sum by (symbol,reason) (increase(reconcile_close_rejected_total[15m]))",
+          "legendFormat": "{{symbol}} • {{reason}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Dedup hits",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 14 },
+      "targets": [
+        {
+          "expr": "increase(quantum_apply_dedupe_hits_total[15m])",
+          "legendFormat": "dedupe",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Last success age (s)",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 14 },
+      "targets": [
+        {
+          "expr": "(time() - max by (symbol) (quantum_apply_last_success_epoch))",
+          "legendFormat": "{{symbol}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeSeries",
+      "title": "Drift detected (P3.4)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "targets": [
+        {
+          "expr": "sum by (symbol,reason) (increase(p34_reconcile_drift_total[15m]))",
+          "legendFormat": "{{symbol}} • {{reason}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["reconcile", "apply", "p3.4"],
+  "templating": {
+    "list": [
+      {
+        "name": "symbol",
+        "type": "query",
+        "datasource": "Prometheus",
+        "refresh": 1,
+        "query": "label_values(reconcile_close_consumed_total, symbol)",
+        "includeAll": true,
+        "multi": true,
+        "current": {"text": "All", "value": ["$__all"]}
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "Reconcile Close Overview",
+  "version": 1
+}
