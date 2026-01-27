@@ -135,6 +135,21 @@ python3 ops/ops_ledger_append.py \
 tail -30 docs/OPS_CHANGELOG.md
 ```
 
+#### Rollback Logging
+```bash
+# After rolling back a deployment
+python3 ops/ops_ledger_append.py \
+  --operation "P2.7 Rollback" \
+  --objective "Revert P2.7 deployment due to issue" \
+  --outcome ROLLBACK \
+  --rollback_of OPS-2026-01-27-010 \
+  --risk_class SERVICE_RESTART \
+  --blast_radius "Portfolio gating layer only" \
+  --allowed_services quantum-portfolio-clusters quantum-portfolio-gate \
+  --changes_summary "Stopped P2.7, disabled service, reverted to proxy correlation" \
+  --notes "Rollback due to [reason]"
+```
+
 ### CLI Arguments
 
 **Required:**
@@ -153,6 +168,7 @@ tail -30 docs/OPS_CHANGELOG.md
 - `--metrics_grep` - Regex patterns to filter metrics (repeatable)
 - `--redis_cmds` - Redis commands to execute (repeatable, e.g., "HGETALL key")
 - `--outcome` - SUCCESS | PARTIAL | ROLLBACK (default: SUCCESS)
+- `--rollback_of` - Original operation_id being rolled back (for outcome=ROLLBACK)
 - `--notes` - Additional context
 - `--strict` - Fail deployment if ledger append fails (default: false)
 
@@ -161,6 +177,11 @@ tail -30 docs/OPS_CHANGELOG.md
 **Idempotency:**
 - If `operation_id` already exists in changelog → exit 0 with "already recorded" message
 - Safe to re-run deploy scripts multiple times
+
+**Rollback Logging:**
+- Use `--outcome ROLLBACK` for rollback operations
+- Use `--rollback_of OPS-YYYY-MM-DD-NNN` to reference the original operation being reverted
+- Auto-collects rollback evidence (services stopped, metrics after revert, git SHA)
 
 **Strict Mode:**
 - `STRICT_LEDGER=false` (default): Ledger failure prints warning, deployment succeeds
@@ -183,6 +204,7 @@ Appends YAML block to correct month section in `docs/OPS_CHANGELOG.md`:
 
 ### Example Output
 
+**Deploy Operation:**
 ```yaml
 ---
 operation_id: OPS-2026-01-27-011
@@ -224,6 +246,33 @@ redis_snapshot: |
   updated_ts
   1769492127
 notes: Auto-ledger via P5+ ops_ledger_append.py
+```
+
+**Rollback Operation:**
+```yaml
+---
+operation_id: OPS-2026-01-27-012
+operation_name: P2.7 Rollback
+requested_by: SELF
+approved_by: SELF
+approval_timestamp: 2026-01-27T08:30:15Z
+execution_timestamp: 2026-01-27T08:30:15Z
+git_commit: e5f6a7b8
+git_branch: main
+hostname: quantumtrader-prod-1
+risk_class: SERVICE_RESTART
+blast_radius: Portfolio gating layer only
+changes_summary: Stopped P2.7, disabled service, reverted to proxy correlation
+objective: Revert P2.7 deployment due to correlation computation issue
+outcome: ROLLBACK
+rollback_of: OPS-2026-01-27-010
+allowed_services:
+  - quantum-portfolio-clusters
+  - quantum-portfolio-gate
+services_status:
+  quantum-portfolio-clusters: inactive
+  quantum-portfolio-gate: active
+notes: Rollback completed - P2.6 using proxy correlation fallback
 ```
 
 ### Integration Status
