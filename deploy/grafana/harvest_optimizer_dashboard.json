@@ -1,6 +1,5 @@
 {
-  "dashboard": {
-    "title": "Harvest Optimizer - P3.9",
+  "title": "Harvest Optimizer - P3.9",
     "tags": ["quantum", "harvest", "optimizer", "recommendations"],
     "timezone": "utc",
     "schemaVersion": 16,
@@ -236,4 +235,3 @@
       }
     ]
   }
-}
