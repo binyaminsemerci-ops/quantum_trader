@@ -38,7 +38,19 @@ verification_metrics: |
   p26_snapshot_age_seconds_max: <300s
 allowed_paths: microservices/portfolio_clusters/, microservices/portfolio_gate/main.py, deployment/systemd/quantum-portfolio-clusters.service, deployment/config/portfolio-clusters.env, ops/p27_deploy_and_proof.sh
 allowed_services: quantum-portfolio-clusters, quantum-portfolio-gate
-commits: b556c2d8 (atomic deploy + warmup metrics), 2b442892 (monitoring guide), f57ce883 (verification report), 53e57de9 (ledger entry)
+commits:
+  - b556c2d8  # atomic deploy + warmup metrics
+  - 2b442892  # monitoring guide
+  - f57ce883  # verification report
+  - 53e57de9  # ledger entry
+  - e34d41ce  # deployment timeline + verification evidence
+evidence_commands:
+  - "curl -s http://127.0.0.1:8048/metrics | grep -E 'p27_(corr_ready|clusters_count|cluster_stress_sum|updates_total|min_points|points_per_symbol)'"
+  - "curl -s http://127.0.0.1:8047/metrics | grep p26_cluster"
+  - "redis-cli HGETALL quantum:portfolio:cluster_state"
+  - "journalctl -u quantum-portfolio-gate --since '10 seconds ago' | grep -E 'K=|cluster'"
+  - "systemctl status quantum-portfolio-clusters"
+  - "systemctl status quantum-portfolio-gate"
 ```
 
 ```yaml
