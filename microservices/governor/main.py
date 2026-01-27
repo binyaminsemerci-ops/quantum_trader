@@ -560,9 +560,15 @@ class Governor:
             
             # Check mode
             p28_mode = decoded.get('mode', 'shadow')
+            budget_usd = float(decoded.get('budget_usd', 0))
+            stress_factor = float(decoded.get('stress_factor', 0))
+            
             if p28_mode != 'enforce':
                 # Shadow mode = don't block
-                logger.debug(f"{symbol}: P2.8 in shadow mode, allowing")
+                logger.info(
+                    f"{symbol}: P2.8 budget=${budget_usd:.0f} stress={stress_factor:.3f} "
+                    f"mode={p28_mode} - allowing (shadow mode)"
+                )
                 return False
             
             # Check stale data (fail-open if stale)
