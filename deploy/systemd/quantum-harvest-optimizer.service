@@ -16,12 +16,5 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=quantum-harvest-optimizer
 
-# Security
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/tmp
-
 [Install]
 WantedBy=multi-user.target
