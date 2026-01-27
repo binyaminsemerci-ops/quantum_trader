@@ -82,6 +82,10 @@ if PROMETHEUS_AVAILABLE:
     p26_concentration = Gauge('p26_concentration', 'Directional concentration (0-1)')
     p26_corr_proxy = Gauge('p26_corr_proxy', 'Correlation proxy (0-1)')
     
+    # Observability: portfolio state visibility
+    p26_symbols_with_snapshot = Gauge('p26_symbols_with_snapshot', 'Number of symbols with valid snapshots')
+    p26_total_abs_notional = Gauge('p26_total_abs_notional', 'Total absolute notional across portfolio (USD)')
+    
     p26_stream_reads = Counter('p26_stream_reads_total', 'Total stream read attempts')
     p26_plans_seen = Counter('p26_plans_seen_total', 'Total proposals seen', ['action_proposed'])
     p26_actions_downgraded = Counter('p26_actions_downgraded_total', 'Actions downgraded', ['from_action', 'to_action', 'reason'])
@@ -280,6 +284,8 @@ class PortfolioGate:
             p26_concentration.set(concentration)
             p26_corr_proxy.set(corr_proxy)
             p26_stress.set(stress)
+            p26_symbols_with_snapshot.set(len(fresh))
+            p26_total_abs_notional.set(total_notional)
         
         return PortfolioMetrics(
             heat=heat_normalized,
@@ -322,7 +328,7 @@ class PortfolioGate:
         if symbol not in ALLOWLIST:
             final_action = "HOLD"
             gate_reason = "not_allowed"
-            logger.info(f"{symbol}: Not in allowlist, HOLD")
+            logger.warning(f"{symbol}: HOLD - Not in allowlist (allowed: {ALLOWLIST})")
             if PROMETHEUS_AVAILABLE:
                 p26_fail_closed.labels(reason='not_allowed').inc()
             
@@ -344,7 +350,7 @@ class PortfolioGate:
         if metrics is None:
             final_action = "HOLD"
             gate_reason = "fail_closed_portfolio_state"
-            logger.warning(f"{symbol}: Portfolio state missing/invalid, fail-closed HOLD")
+            logger.error(f"{symbol}: HOLD - Fail-closed due to missing/invalid portfolio state (no valid snapshots or all stale)")
             if PROMETHEUS_AVAILABLE:
                 p26_fail_closed.labels(reason='portfolio_state').inc()
             
@@ -501,7 +507,7 @@ class PortfolioGate:
                             self.issue_permit(decision.plan_id)
                             self.set_cooldown(decision.symbol)
                         else:
-                            logger.info(f"{decision.symbol}: No permit issued (final_action=HOLD)")
+                            logger.info(f"{decision.symbol}: No permit issued (final_action=HOLD, reason={decision.gate_reason})")
                         
                         # ACK message
                         self.redis.xack(STREAM_HARVEST_PROPOSAL, CONSUMER_GROUP, msg_id)
