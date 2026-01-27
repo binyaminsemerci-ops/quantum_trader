@@ -15,7 +15,8 @@ fi
 
 PROOF_OUTPUT="/home/qt/P2_7_PROOF_$(date +%Y%m%d_%H%M%S).txt"
 
-echo "[1/10] Syncing files to /home/qt/quantum_trader..."
+echo "[1/10] Syncing P2.7 and P2.6 patch to /home/qt/quantum_trader..."
+# Sync P2.7 microservice
 rsync -av \
     --exclude='.git' \
     --exclude='__pycache__' \
@@ -26,7 +27,22 @@ rsync -av \
     microservices/portfolio_clusters/ \
     /home/qt/quantum_trader/microservices/portfolio_clusters/
 
+# Sync P2.6 patch (cluster stress integration)
+rsync -av \
+    microservices/portfolio_gate/main.py \
+    /home/qt/quantum_trader/microservices/portfolio_gate/main.py
+
 echo "✓ Files synced"
+echo ""
+
+echo "[1.5/10] RSYNC PROOF (self-verification)..."
+echo "  Checking P2.6 cluster integration patch..."
+grep -n "p26_cluster_stress_used" /home/qt/quantum_trader/microservices/portfolio_gate/main.py | head -1 || (echo "✗ P26 PATCH MISSING" && exit 1)
+echo "  ✓ P2.6 patch verified"
+
+echo "  Checking P2.7 main service..."
+test -f /home/qt/quantum_trader/microservices/portfolio_clusters/main.py || (echo "✗ P27 CODE MISSING" && exit 1)
+echo "  ✓ P2.7 code verified"
 echo ""
 
 echo "[2/10] Installing /etc/quantum/portfolio-clusters.env..."

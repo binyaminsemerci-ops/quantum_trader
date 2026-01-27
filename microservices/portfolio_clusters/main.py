@@ -71,6 +71,11 @@ if PROMETHEUS_AVAILABLE:
     p27_cluster_stress_sum = Gauge('p27_cluster_stress_sum', 'Sum of cluster stress (ClusterStress)')
     p27_updates_total = Counter('p27_updates_total', 'Total cluster state updates')
     p27_fail_closed_total = Counter('p27_fail_closed_total', 'Fail-closed events', ['reason'])
+    
+    # Warmup observability
+    p27_min_points_per_symbol = Gauge('p27_min_points_per_symbol', 'Minimum data points across all symbols (warmup tracker)')
+    p27_points_per_symbol = Gauge('p27_points_per_symbol', 'Data points collected per symbol', ['symbol'])
+
 
 
 # ========== DATA STRUCTURES ==========
@@ -371,6 +376,15 @@ class PortfolioClusters:
             
             # Update price buffers
             self.update_price_buffers(snapshots)
+            
+            # Track warmup progress
+            if PROMETHEUS_AVAILABLE:
+                for symbol in ALLOWLIST:
+                    buf_len = len(self.price_buffers.get(symbol, []))
+                    p27_points_per_symbol.labels(symbol=symbol).set(buf_len)
+                
+                all_lengths = [len(self.price_buffers[s]) for s in ALLOWLIST]
+                p27_min_points_per_symbol.set(min(all_lengths) if all_lengths else 0)
             
             # Check if we have enough data
             ready_symbols = [s for s in ALLOWLIST if len(self.price_buffers[s]) >= 10]
