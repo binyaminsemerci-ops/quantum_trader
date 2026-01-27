@@ -1,0 +1,6 @@
+scrape_configs:
+  - job_name: 'harvest_optimizer'
+    static_configs:
+      - targets: ['localhost:8052']
+    scrape_interval: 15s
+    scrape_timeout: 10s
