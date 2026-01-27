@@ -1,0 +1,239 @@
+{
+  "dashboard": {
+    "title": "Harvest Optimizer - P3.9",
+    "tags": ["quantum", "harvest", "optimizer", "recommendations"],
+    "timezone": "utc",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Expectancy by Regime",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "quantum_ho_expectancy",
+            "legendFormat": "{{symbol}} {{regime}} {{exit_type}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Expectancy (USDT)"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Profit Factor by Regime",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "quantum_ho_profit_factor",
+            "legendFormat": "{{symbol}} {{regime}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Profit Factor"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Exit Efficiency",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "quantum_ho_exit_efficiency",
+            "legendFormat": "{{symbol}} {{regime}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percentunit", "label": "Exit / MFE Ratio"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Time Efficiency ($/hour)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "quantum_ho_time_efficiency",
+            "legendFormat": "{{symbol}} {{regime}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "USDT/hour"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Win Rate by Regime",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 16, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "quantum_ho_win_rate",
+            "legendFormat": "{{symbol}} {{regime}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percentunit", "label": "Win Rate"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Payoff Ratio",
+        "type": "graph",
+        "gridPos": {"x": 8, "y": 16, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "quantum_ho_payoff_ratio",
+            "legendFormat": "{{symbol}} {{regime}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Avg Win / Avg Loss"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Adverse Recovery Rate",
+        "type": "graph",
+        "gridPos": {"x": 16, "y": 16, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "quantum_ho_adverse_recovery_rate",
+            "legendFormat": "{{symbol}} {{regime}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percentunit", "label": "Recovery from MAE"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Average Time in Trade",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "quantum_ho_avg_time_seconds",
+            "legendFormat": "{{symbol}} {{regime}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Seconds"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Recommendation Scores",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "quantum_ho_recommendation_score",
+            "legendFormat": "{{symbol}} {{regime}} {{rule}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percentunit", "label": "Confidence"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Regime Stability",
+        "type": "gauge",
+        "gridPos": {"x": 0, "y": 32, "w": 8, "h": 6},
+        "targets": [
+          {
+            "expr": "quantum_ho_regime_stability",
+            "legendFormat": "{{symbol}} {{regime}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 0.5, "color": "yellow"},
+                {"value": 0.7, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "Reports Generated",
+        "type": "stat",
+        "gridPos": {"x": 8, "y": 32, "w": 8, "h": 6},
+        "targets": [
+          {
+            "expr": "quantum_ho_reports_generated_total",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "Last Update",
+        "type": "stat",
+        "gridPos": {"x": 16, "y": 32, "w": 8, "h": 6},
+        "targets": [
+          {
+            "expr": "quantum_ho_last_update_timestamp",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "colorMode": "background"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "dateTimeFromNow"
+          }
+        }
+      }
+    ]
+  }
+}
