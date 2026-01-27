@@ -88,3 +88,53 @@ Every operation must end with:
 - See `docs/OPS_RUNBOOK_TEMPLATE.md` for a runnable ops template.
 - See `ops/ops_prompt_template_v1.txt` for the canonical prompt body.
 - Use `ops/ops_prompt_fill.py` to generate a filled prompt fast.
+
+## P5: Change Approval & Signoff Ledger (Optional)
+
+### Purpose
+Provides an **audit trail** for approved changes with human oversight. Useful for:
+- Multi-person teams requiring approval before execution
+- Regulatory/compliance contexts requiring sign-off records
+- High-risk operations (FILESYSTEM_WRITE, SERVICE_RESTART with trading impact)
+
+### When to Use
+- **LOW_RISK_CONFIG:** Optional — signoff can be informal (commit message reference)
+- **SERVICE_RESTART / FILESYSTEM_WRITE:** Recommended — capture approval + outcome
+- **Custom high-risk ops:** Required — full ledger entry with pre/post verification
+
+### Ledger Entry Format
+```yaml
+---
+operation_id: OPS-YYYY-MM-DD-NNN
+operation_name: <short name>
+requested_by: <username/email>
+approved_by: <username/email | SELF if solo>
+approval_timestamp: <ISO8601 UTC>
+execution_timestamp: <ISO8601 UTC>
+risk_class: <class>
+blast_radius: <scope>
+changes_summary: <1-line summary>
+rollback_ref: <git commit | command | procedure>
+outcome: SUCCESS | ROLLBACK | PARTIAL
+notes: <optional>
+```
+
+### Ledger Storage
+- **Option A (lightweight):** Append to `docs/OPS_CHANGELOG.md` in YAML frontmatter blocks.
+- **Option B (structured):** Maintain `ops/ledger/YYYY-MM.yaml` with monthly archives.
+- **Option C (Git-native):** Use annotated tags: `git tag -a ops-2026-01-27-001 -m "<ledger entry>"`.
+
+### Integration with Runbook
+- Add **"6) Signoff & Ledger Entry"** section to runbook template (see updated template).
+- Fill after operation completes and evidence is verified.
+- Commit ledger entry alongside operation changes (same commit or immediate follow-up).
+
+### Enforcement (optional)
+- Manual: Review ledger during sprint retrospectives or audits.
+- Automated: Add pre-commit hook to verify ledger entry exists for ops/ or docs/governance changes.
+
+### Rollback Impact
+If operation is rolled back:
+- Update ledger entry with `outcome: ROLLBACK`.
+- Add rollback execution timestamp and verification evidence.
+- Preserve original approval record for audit continuity.
