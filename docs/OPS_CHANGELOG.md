@@ -15,13 +15,20 @@ operation_name: P2.7 Go-Live — Portfolio Clusters + P2.6 Cluster-K Switch
 requested_by: SELF
 approved_by: SELF
 approval_timestamp: 2026-01-27T14:05:00Z
-execution_timestamp: 2026-01-27T05:22:27Z
+deploy_started_utc: 2026-01-27T05:22:27Z
+verified_live_utc: 2026-01-27T05:35:00Z
+warmup_duration: 13 minutes (need 11 points for correlation ready)
 risk_class: SERVICE_RESTART
 blast_radius: Portfolio risk gating layer only (P2.6 Portfolio Gate, P2.7 Portfolio Clusters). No direct execution, no order placement, no exchange connectivity impacted.
 changes_summary: Deployed P2.7 portfolio cluster service (correlation matrix + connected-component clustering). Added warmup observability metrics and atomic deploy with rsync proof. Verified Redis cluster_state publishing and automatic P2.6 switch from proxy K to cluster-based K with transparent fallback.
 rollback_ref: systemctl stop quantum-portfolio-clusters && systemctl disable quantum-portfolio-clusters && git revert f57ce883 && rsync -av --delete /root/quantum_trader/ /home/qt/quantum_trader/ && systemctl restart quantum-portfolio-gate
 outcome: SUCCESS
-notes: Atomic deploy script syncs both P2.7 and P2.6 patch with rsync proof. Warmup observability (p27_points_per_symbol, p27_min_points_per_symbol) prevents silent readiness failures. Soft-fallback in P2.6 verified operational. Metrics verified - p27_corr_ready=1, p27_clusters_count=1, p26_cluster_stress_used=1, cluster_stress=0.788 in Redis. Documentation created - P2_7_PRODUCTION_MONITORING.md and P2_7_LIVE_VERIFICATION.md.
+verification_evidence:
+  - "P2.7: p27_corr_ready=1, p27_clusters_count=1, cluster_stress=0.788"
+  - "P2.6: log 'K=0.748 (cluster)' + metric p26_cluster_stress_used=1"
+  - "Redis: HGETALL quantum:portfolio:cluster_state shows updated_ts=1769492127, cluster_stress=0.788493010732072"
+  - "Services: Both quantum-portfolio-clusters and quantum-portfolio-gate active, <1% CPU, ~18MB RAM"
+notes: Atomic deploy script syncs both P2.7 and P2.6 patch with rsync proof. Warmup observability (p27_points_per_symbol, p27_min_points_per_symbol) prevents silent readiness failures. Soft-fallback in P2.6 verified operational. Switchover from proxy to cluster occurred automatically after warmup complete. Documentation created - P2_7_PRODUCTION_MONITORING.md and P2_7_LIVE_VERIFICATION.md.
 verification_metrics: |
   p27_corr_ready: 1
   p27_clusters_count: 1
@@ -31,7 +38,7 @@ verification_metrics: |
   p26_snapshot_age_seconds_max: <300s
 allowed_paths: microservices/portfolio_clusters/, microservices/portfolio_gate/main.py, deployment/systemd/quantum-portfolio-clusters.service, deployment/config/portfolio-clusters.env, ops/p27_deploy_and_proof.sh
 allowed_services: quantum-portfolio-clusters, quantum-portfolio-gate
-commits: b556c2d8 (atomic deploy + warmup metrics), 2b442892 (monitoring guide), f57ce883 (verification report)
+commits: b556c2d8 (atomic deploy + warmup metrics), 2b442892 (monitoring guide), f57ce883 (verification report), 53e57de9 (ledger entry)
 ```
 
 ```yaml
