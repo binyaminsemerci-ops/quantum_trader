@@ -491,11 +491,11 @@ class PortfolioGate:
                 for msg_id, fields in stream_messages:
                     t0 = time.time()  # Start latency timer
                     try:
-                        # Parse proposal
+                        # Parse proposal (support legacy 'action' field for backwards compat)
                         proposal = HarvestProposal(
                             plan_id=fields['plan_id'],
                             symbol=fields['symbol'],
-                            action_proposed=fields.get('action_proposed', fields.get('harvest_action', 'HOLD')),
+                            action_proposed=fields.get('action_proposed', fields.get('harvest_action', fields.get('action', 'HOLD'))),
                             kill_score=float(fields.get('kill_score', 0)),
                             r_net=float(fields['r_net']) if 'r_net' in fields and fields['r_net'] else None,
                             ts_epoch=int(fields.get('ts_epoch', time.time()))

@@ -169,3 +169,15 @@ echo "  systemctl stop quantum-portfolio-gate"
 echo "  systemctl disable quantum-portfolio-gate"
 echo "  git revert <commit>"
 echo "  rsync + systemctl restart quantum-apply-layer"
+echo ""
+
+# Exit 0 on success (CI/ops best practice)
+if systemctl is-active --quiet quantum-portfolio-gate && \
+   curl -sf http://127.0.0.1:8047/metrics > /dev/null && \
+   [ -f "${PROOF_OUTPUT}" ]; then
+    echo "✅ Deployment verified - exit 0"
+    exit 0
+else
+    echo "❌ Deployment verification failed - exit 1"
+    exit 1
+fi
