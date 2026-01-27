@@ -1,0 +1,18 @@
+[Unit]
+Description=Quantum Trader P2.7 Portfolio Clusters
+After=network.target redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+EnvironmentFile=/etc/quantum/portfolio-clusters.env
+ExecStart=/usr/bin/python3 -m microservices.portfolio_clusters.main
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
