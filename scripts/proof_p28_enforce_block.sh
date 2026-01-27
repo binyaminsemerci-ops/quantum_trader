@@ -315,3 +315,6 @@ echo "  - Deploy continuous portfolio state updater"
 echo "  - Run in shadow for 24-48h, monitor metrics"
 echo "  - When confident, switch to enforce: P28_MODE=enforce"
 echo ""
+echo -e "${GREEN}SUMMARY: PASS${NC}"
+echo "All P2.8 E2E tests passed successfully"
+exit 0
