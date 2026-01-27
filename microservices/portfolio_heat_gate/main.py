@@ -109,6 +109,9 @@ class PortfolioHeatGate:
             self.metric_lag = Histogram("p26_stream_lag_ms", "Stream processing lag in ms")
             self.metric_processed = Counter("p26_proposals_processed_total", "Total proposals processed")
             self.metric_failures = Counter("p26_failures_total", "Total processing failures", ["reason"])
+            self.metric_hash_writes = Counter("p26_hash_writes_total", "Total hash writes to proposal keys")
+            self.metric_hash_failures = Counter("p26_hash_write_fail_total", "Total hash write failures")
+            self.metric_enforce_mode = Gauge("p26_enforce_mode", "Enforce mode active (1=enforce, 0=shadow)")
         
         self._setup()
     
@@ -323,16 +326,61 @@ class PortfolioHeatGate:
             # ALWAYS write to output stream (both shadow and enforce modes)
             msg_id = self.redis.xadd(self.config.OUTPUT_STREAM, calibrated)
             
-            # In shadow mode, log comparison but don't affect apply layer
-            if self.config.MODE == "shadow":
+            # In enforce mode, also write calibrated proposal to hash key that Apply Layer reads
+            if self.config.MODE == "enforce":
+                try:
+                    # Write to quantum:harvest:proposal:{symbol} hash key
+                    # This overwrites the original proposal with the calibrated one
+                    hash_key = f"quantum:harvest:proposal:{symbol}"
+                    
+                    # Prepare hash data (string keys for Apply Layer compatibility)
+                    hash_data = {
+                        "trace_id": trace_id,
+                        "plan_id": plan_id,
+                        "symbol": symbol,
+                        "action": calibrated_action,  # Use calibrated action
+                        "original_action": action,
+                        "heat_value": str(heat_value),
+                        "heat_bucket": heat_bucket,
+                        "calibrated": "1",
+                        "calibrated_by": "p26_heat_gate",
+                        "downgrade_reason": reason,
+                        "ts": str(int(time.time()))
+                    }
+                    
+                    # Copy additional fields from original proposal
+                    for key in data:
+                        key_str = key.decode() if isinstance(key, bytes) else key
+                        if key_str not in hash_data and key_str not in ("action",):
+                            val = data[key]
+                            hash_data[key_str] = val.decode() if isinstance(val, bytes) else str(val)
+                    
+                    # Write to hash key
+                    self.redis.hset(hash_key, mapping=hash_data)
+                    # Set TTL to 5 minutes
+                    self.redis.expire(hash_key, 300)
+                    
+                    logger.info(
+                        f"📤 ENFORCE: {plan_id[:8]} | {symbol} {action}→{calibrated_action} | "
+                        f"hash={hash_key} stream={msg_id.decode()}"
+                    )
+                    
+                    if PROMETHEUS_AVAILABLE:
+                        self.metric_hash_writes.inc()
+                        
+                except Exception as e:
+                    logger.error(f"❌ HASH WRITE FAILED for {symbol}: {e} - FAIL-OPEN (keeping original proposal)")
+                    if PROMETHEUS_AVAILABLE:
+                        self.metric_hash_failures.inc()
+                    # Fail-open: if hash write fails, don't crash - original proposal remains
+            else:
+                # Shadow mode: log comparison but don't affect apply layer
                 logger.info(
                     f"🔍 SHADOW-COMPARE: {plan_id[:8]} | "
                     f"proposal={action} vs calibrated={calibrated_action} | "
                     f"heat={heat_value:.4f} {heat_bucket} | "
                     f"downgraded={downgraded} reason={reason}"
                 )
-            else:
-                logger.info(f"📤 ENFORCE: {plan_id[:8]} → {msg_id.decode()}")
             
             if PROMETHEUS_AVAILABLE:
                 self.metric_processed.inc()
@@ -364,6 +412,8 @@ class PortfolioHeatGate:
             try:
                 start_http_server(self.config.METRICS_PORT)
                 logger.info(f"✅ Metrics server started on :{self.config.METRICS_PORT}")
+                # Set enforce mode gauge
+                self.metric_enforce_mode.set(1 if self.config.MODE == "enforce" else 0)
             except Exception as e:
                 logger.warning(f"Failed to start metrics server: {e}")
         
