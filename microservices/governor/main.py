@@ -540,7 +540,7 @@ class Governor:
             False if OK (allow)
         """
         try:
-            logger.debug(f"{symbol}: Checking P2.8 portfolio budget (plan_id={plan_id[:8]})")
+            logger.info(f"{symbol}: Checking P2.8 portfolio budget (plan_id={plan_id[:8]})")
             
             # Read budget hash
             budget_key = f"quantum:portfolio:budget:{symbol}"
