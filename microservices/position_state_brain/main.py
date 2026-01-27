@@ -316,17 +316,17 @@ class PositionStateBrain:
         
         # Check if this is a RECONCILE_CLOSE (Patch B special handling)
         is_reconcile_close = (decision == 'RECONCILE_CLOSE')
-        
+
         # Only evaluate EXECUTE and RECONCILE_CLOSE decisions
         if decision not in ('EXECUTE', 'RECONCILE_CLOSE'):
             logger.debug(f"{symbol}: Plan {plan_id[:8]} decision={decision}, skipping P3.3")
             return {'evaluated': False, 'reason': 'not_execute_decision'}
-                # Fast-path for RECONCILE_CLOSE: bypass most checks, validate guardrails only
-                if is_reconcile_close:
-                    logger.info(f"{symbol}: RECONCILE_CLOSE plan detected - fast-track through P3.3 (Patch B)")
-                    return self._grant_permit(plan_id, symbol, 0, 0, 0, is_reconcile_close=True)
-        
-        
+
+        # Fast-path for RECONCILE_CLOSE: bypass most checks, validate guardrails only
+        if is_reconcile_close:
+            logger.info(f"{symbol}: RECONCILE_CLOSE plan detected - fast-track through P3.3 (Patch B)")
+            return self._grant_permit(plan_id, symbol, 0, 0, 0, is_reconcile_close=True)
+
         # Get exchange snapshot
         snapshot = self.get_exchange_snapshot(symbol)
         
@@ -340,9 +340,48 @@ class PositionStateBrain:
                 self.metric_snapshot_age.labels(symbol=symbol).set(age)
             return self._deny_permit(plan_id, symbol, 'stale_exchange_state', {'age_seconds': age})
         
-        # Check 2: No position on exchange
+        # Check 2: Handle OPEN (no position) vs CLOSE (position exists)
         exchange_amt = snapshot['position_amt']
-        if abs(exchange_amt) < 0.0001:
+        has_position = abs(exchange_amt) >= 0.0001
+        
+        # Extract reduceOnly flag to determine OPEN vs CLOSE
+        # Handle both string "false"/"true" and boolean False/True
+        reduce_only_raw = data.get('reduceOnly', False)
+        if isinstance(reduce_only_raw, str):
+            reduce_only = reduce_only_raw.lower() in ('true', '1', 'yes')
+        else:
+            reduce_only = bool(reduce_only_raw)
+        
+        logger.debug(f"{symbol}: Plan {plan_id[:8]} reduceOnly={reduce_only} (raw={reduce_only_raw}, has_position={has_position})")
+        
+        # OPEN pathway: reduceOnly=false + no position
+        if not reduce_only and not has_position:
+            # Allow opens when: snapshot fresh + cooldown satisfied + allowlist OK
+            cooldown_key = f"quantum:cooldown:last_exec_ts:{symbol}"
+            last_exec_ts_ms = self.redis.get(cooldown_key)
+            
+            if last_exec_ts_ms:
+                try:
+                    last_exec_ms = int(last_exec_ts_ms)
+                    now_ms = int(time.time() * 1000)
+                    elapsed_ms = now_ms - last_exec_ms
+                    elapsed_sec = elapsed_ms / 1000.0
+                    
+                    if elapsed_sec < self.config.COOLDOWN_SEC:
+                        return self._deny_permit(plan_id, symbol, 'cooldown_in_flight', {
+                            'seconds_since_exec': round(elapsed_sec, 2),
+                            'cooldown_sec': self.config.COOLDOWN_SEC,
+                            'last_exec_ts_ms': last_exec_ms
+                        })
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Invalid cooldown timestamp for {symbol}: {e}")
+            
+            # Grant OPEN permit (safe_qty=0 for opens, will be computed by executor from plan qty)
+            logger.info(f"{symbol}: P3.3 ALLOW OPEN plan {plan_id[:8]} (exchange_amt=0, reduceOnly=false)")
+            return self._grant_permit(plan_id, symbol, safe_qty=0, exchange_amt=0, ledger_amt=0, is_open=True)
+        
+        # CLOSE pathway: requires existing position
+        if not has_position:
             return self._deny_permit(plan_id, symbol, 'no_position', {'exchange_amt': exchange_amt})
         
         # Get ledger state
@@ -372,14 +411,26 @@ class PositionStateBrain:
                     'tolerance': tolerance
                 })
         
-        # Check 5: Cooldown (order-in-flight guard)
-        if ledger:
-            time_since_last = int(time.time()) - ledger['updated_at']
-            if time_since_last < self.config.COOLDOWN_SEC:
-                return self._deny_permit(plan_id, symbol, 'cooldown_in_flight', {
-                    'seconds_since_last': time_since_last,
-                    'cooldown_sec': self.config.COOLDOWN_SEC
-                })
+        # Check 5: Cooldown (execution-based, not plan-based)
+        # Only trigger cooldown if there was a recent EXECUTION (not just a plan evaluation)
+        cooldown_key = f"quantum:cooldown:last_exec_ts:{symbol}"
+        last_exec_ts_ms = self.redis.get(cooldown_key)
+        
+        if last_exec_ts_ms:
+            try:
+                last_exec_ms = int(last_exec_ts_ms)
+                now_ms = int(time.time() * 1000)
+                elapsed_ms = now_ms - last_exec_ms
+                elapsed_sec = elapsed_ms / 1000.0
+                
+                if elapsed_sec < self.config.COOLDOWN_SEC:
+                    return self._deny_permit(plan_id, symbol, 'cooldown_in_flight', {
+                        'seconds_since_exec': round(elapsed_sec, 2),
+                        'cooldown_sec': self.config.COOLDOWN_SEC,
+                        'last_exec_ts_ms': last_exec_ms
+                    })
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid cooldown timestamp for {symbol}: {e}")
         
         # Check 6: Compute safe_close_qty
         # Parse requested qty from action
@@ -402,49 +453,42 @@ class PositionStateBrain:
         # Grant permit
         return self._grant_permit(plan_id, symbol, safe_close_qty, exchange_amt, ledger['last_known_amt'] if ledger else 0.0)
     
-    def _grant_permit(self, plan_id: str, symbol: str, safe_close_qty: float, exchange_amt: float, ledger_amt: float) -> Dict:
-    def _grant_permit(self, plan_id: str, symbol: str, safe_close_qty: float, exchange_amt: float, ledger_amt: float, is_reconcile_close: bool = False) -> Dict:
+    def _grant_permit(self, plan_id: str, symbol: str, safe_qty: float, exchange_amt: float, ledger_amt: float, is_reconcile_close: bool = False, is_open: bool = False) -> Dict:
         """Grant P3.3 execution permit (checks P3.4 hold first, with RECONCILE_CLOSE bypass)"""
-        # P3.4 Integration: Check for reconcile hold
         hold_key = f"quantum:reconcile:hold:{symbol}"
         hold_active = self.redis.get(hold_key)
-        
+
         if hold_active and not is_reconcile_close:
-            # P3.4 has set a hold - deny execution (except for RECONCILE_CLOSE)
             logger.warning(f"{symbol}: P3.3 blocked by P3.4 reconcile hold")
             return self._deny_permit(plan_id, symbol, "reconcile_hold_active", {
                 "exchange_amt": exchange_amt,
                 "ledger_amt": ledger_amt,
                 "p34_hold": "active"
-                    # RECONCILE_CLOSE bypass: allow execution even with HOLD, but only if guardrails met
-                    if is_reconcile_close:
-                        logger.info(f"{symbol}: RECONCILE_CLOSE allowed to bypass HOLD (Patch B)")
-                        # Fast-track: no permit needed, log and return allow
-                        return {"result": "permit", "reason": "reconcile_close_bypass"}
-        
             })
-        
-        # No hold - proceed with permit
+
+        if hold_active and is_reconcile_close:
+            logger.info(f"{symbol}: RECONCILE_CLOSE allowed to bypass HOLD (Patch B)")
+
         permit_key = f"quantum:permit:p33:{plan_id}"
-        
+
         permit_data = {
             'allow': True,
             'symbol': symbol,
-            'safe_close_qty': safe_close_qty,
+            'safe_qty': safe_qty,  # Renamed from safe_close_qty (0 for opens)
             'exchange_position_amt': exchange_amt,
             'ledger_amt': ledger_amt,
             'created_at': time.time(),
-            'reason': 'sanity_checks_passed'
+            'reason': 'sanity_checks_passed' if not is_reconcile_close else ('open_permit_granted' if is_open else 'reconcile_close_bypass')
         }
-        
+
         self.redis.setex(permit_key, self.config.PERMIT_TTL, json.dumps(permit_data))
-        
+
         if PROMETHEUS_AVAILABLE:
             self.metric_permit_allow.labels(symbol=symbol).inc()
-        
-        logger.info(f"{symbol}: P3.3 ALLOW plan {plan_id[:8]} (safe_qty={safe_close_qty:.4f}, exchange_amt={exchange_amt:.4f})")
-        
-        return {'evaluated': True, 'allow': True, 'safe_close_qty': safe_close_qty}
+
+        logger.info(f"{symbol}: P3.3 ALLOW plan {plan_id[:8]} (safe_qty={safe_qty:.4f}, exchange_amt={exchange_amt:.4f})")
+
+        return {'evaluated': True, 'allow': True, 'safe_qty': safe_qty}
     
     def _deny_permit(self, plan_id: str, symbol: str, reason: str, context: Dict) -> Dict:
         """Deny P3.3 execution permit"""

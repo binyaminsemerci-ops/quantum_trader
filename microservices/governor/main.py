@@ -16,6 +16,8 @@ import hashlib
 import logging
 import redis
 import subprocess
+import urllib.request
+import urllib.parse
 from datetime import datetime, timedelta
 from collections import defaultdict
 from prometheus_client import Counter, Gauge, start_http_server
@@ -53,6 +55,12 @@ class Config:
     MAX_EXEC_PER_5MIN = int(os.getenv('GOV_MAX_EXEC_PER_5MIN', '2'))
     MAX_REDUCE_NOTIONAL_PER_DAY_USD = float(os.getenv('GOV_MAX_REDUCE_NOTIONAL_PER_DAY_USD', '5000'))
     MAX_REDUCE_QTY_PER_DAY = float(os.getenv('GOV_MAX_REDUCE_QTY_PER_DAY', '0.02'))
+    
+    # Fund caps (testnet protection)
+    MAX_OPEN_POSITIONS = int(os.getenv('GOV_MAX_OPEN_POSITIONS', '10'))
+    MAX_NOTIONAL_PER_TRADE_USDT = float(os.getenv('GOV_MAX_NOTIONAL_PER_TRADE_USDT', '200'))
+    MAX_TOTAL_NOTIONAL_USDT = float(os.getenv('GOV_MAX_TOTAL_NOTIONAL_USDT', '2000'))
+    SYMBOL_COOLDOWN_SECONDS = int(os.getenv('GOV_SYMBOL_COOLDOWN_SECONDS', '60'))
     
     # Kill score gate
     KILL_SCORE_CRITICAL = float(os.getenv('GOV_KILL_SCORE_CRITICAL', '0.8'))
@@ -175,6 +183,8 @@ class Governor:
         logger.info("Governor initialized")
         logger.info(f"Max exec/hour: {config.MAX_EXEC_PER_HOUR}, Max exec/5min: {config.MAX_EXEC_PER_5MIN}")
         logger.info(f"Auto-disarm: {config.ENABLE_AUTO_DISARM}, Kill score critical: {config.KILL_SCORE_CRITICAL}")
+        logger.info(f"Fund caps: {config.MAX_OPEN_POSITIONS} positions, ${config.MAX_NOTIONAL_PER_TRADE_USDT}/trade, ${config.MAX_TOTAL_NOTIONAL_USDT} total")
+        logger.info(f"Symbol cooldown: {config.SYMBOL_COOLDOWN_SECONDS}s")
     
     def run(self):
         """Main loop: event-driven consumer group on apply.plan stream"""
@@ -242,6 +252,8 @@ class Governor:
             action = data.get('action', 'UNKNOWN')
             decision = data.get('decision', 'SKIP')
             kill_score = float(data.get('kill_score', '0'))
+            side = data.get('side', '')
+            qty = data.get('qty', '0')
             
             # Get current mode
             current_mode = os.getenv('APPLY_MODE', 'testnet')
@@ -259,12 +271,92 @@ class Governor:
                 logger.debug(f"{symbol}: Permit already exists for plan {plan_id[:8]}")
                 return
             
-            # TESTNET MODE: Auto-approve all EXECUTE plans
-            # P3.3 Position State Brain is the real safety gate
+            # TESTNET MODE: Apply fund caps for protection
             if current_mode == 'testnet':
-                logger.info(f"{symbol}: Testnet mode - auto-approving plan {plan_id[:8]}")
-                # Issue permit with minimal values (P3.3 validates actual qty)
+                logger.info(f"{symbol}: Testnet mode - applying fund caps for plan {plan_id[:8]}")
+                
+                # Gate 0: Kill-switch check
+                kill_switch = self.redis.get('quantum:kill')
+                if kill_switch == '1':
+                    logger.warning(f"{symbol}: KILL-SWITCH ACTIVE - blocking all execution")
+                    self._block_plan(plan_id, symbol, 'kill_switch_active')
+                    return
+                
+                # Identify if this is a CLOSE action (exempt from fund caps)
+                is_close_action = action in ['FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50', 'PARTIAL_25']
+                
+                if is_close_action:
+                    logger.info(f"{symbol}: CLOSE action ({action}) - bypassing fund caps")
+                    self._issue_permit(plan_id, symbol, computed_qty=0.0, computed_notional=0.0)
+                    self.redis.setex(f"quantum:governor:last_exec:{symbol}", 3600, str(time.time()))
+                    return
+                
+                # OPEN actions: Apply full fund cap gates
+                logger.info(f"{symbol}: OPEN action ({action}) - applying fund caps")
+                
+                # Gate 1: Symbol cooldown (60s between executions)
+                last_exec_key = f"quantum:governor:last_exec:{symbol}"
+                last_exec_ts = self.redis.get(last_exec_key)
+                if last_exec_ts:
+                    time_since_last = time.time() - float(last_exec_ts)
+                    if time_since_last < self.config.SYMBOL_COOLDOWN_SECONDS:
+                        remaining = self.config.SYMBOL_COOLDOWN_SECONDS - time_since_last
+                        logger.warning(f"{symbol}: Cooldown active - {remaining:.1f}s remaining")
+                        self._block_plan(plan_id, symbol, 'symbol_cooldown')
+                        return
+                
+                # Gate 2: Max open positions (fetch from Binance)
+                if self.binance_client and side in ['BUY', 'LONG']:
+                    try:
+                        account_data = self.binance_client._request('GET', '/fapi/v2/account', signed=True)
+                        if account_data:
+                            positions = account_data.get('positions', [])
+                            open_positions = [p for p in positions if abs(float(p.get('positionAmt', 0))) > 0.0001]
+                            position_count = len(open_positions)
+                            
+                            if position_count >= self.config.MAX_OPEN_POSITIONS:
+                                logger.warning(f"{symbol}: Max positions reached ({position_count}/{self.config.MAX_OPEN_POSITIONS})")
+                                self._block_plan(plan_id, symbol, 'max_positions_reached')
+                                return
+                            
+                            logger.info(f"Portfolio: {position_count}/{self.config.MAX_OPEN_POSITIONS} positions open")
+                    except Exception as e:
+                        logger.error(f"Error checking position count: {e}")
+                
+                # Gate 3: Max notional per trade
+                if self.binance_client:
+                    try:
+                        mark_price = self.binance_client.get_mark_price(symbol)
+                        if mark_price and qty:
+                            notional = abs(float(qty)) * mark_price
+                            if notional > self.config.MAX_NOTIONAL_PER_TRADE_USDT:
+                                logger.warning(f"{symbol}: Notional ${notional:.2f} exceeds ${self.config.MAX_NOTIONAL_PER_TRADE_USDT} limit")
+                                self._block_plan(plan_id, symbol, 'notional_per_trade_exceeded')
+                                return
+                            logger.info(f"{symbol}: Notional ${notional:.2f} OK (limit ${self.config.MAX_NOTIONAL_PER_TRADE_USDT})")
+                    except Exception as e:
+                        logger.error(f"Error checking notional: {e}")
+                
+                # Gate 4: Max total portfolio notional
+                if self.binance_client:
+                    try:
+                        account_data = self.binance_client._request('GET', '/fapi/v2/account', signed=True)
+                        if account_data:
+                            positions = account_data.get('positions', [])
+                            total_notional = sum(abs(float(p.get('notional', 0))) for p in positions)
+                            
+                            if total_notional >= self.config.MAX_TOTAL_NOTIONAL_USDT:
+                                logger.warning(f"Portfolio notional ${total_notional:.2f} >= ${self.config.MAX_TOTAL_NOTIONAL_USDT}")
+                                self._block_plan(plan_id, symbol, 'total_notional_exceeded')
+                                return
+                            
+                            logger.info(f"Portfolio notional: ${total_notional:.2f}/{self.config.MAX_TOTAL_NOTIONAL_USDT} USDT")
+                    except Exception as e:
+                        logger.error(f"Error checking total notional: {e}")
+                
+                # All gates passed - issue permit and record execution timestamp
                 self._issue_permit(plan_id, symbol, computed_qty=0.0, computed_notional=0.0)
+                self.redis.setex(last_exec_key, 3600, str(time.time()))  # Record for cooldown
                 return
             
             # DRY_RUN MODE: Auto-approve (no real execution anyway)
