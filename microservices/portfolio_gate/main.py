@@ -77,6 +77,8 @@ EPSILON = 1e-9
 # ========== PROMETHEUS METRICS ==========
 
 if PROMETHEUS_AVAILABLE:
+    from prometheus_client import Histogram
+    
     p26_stress = Gauge('p26_stress', 'Portfolio stress level (0-1)')
     p26_heat = Gauge('p26_heat', 'Portfolio heat metric (0-1 normalized)')
     p26_concentration = Gauge('p26_concentration', 'Directional concentration (0-1)')
@@ -91,6 +93,13 @@ if PROMETHEUS_AVAILABLE:
     p26_actions_downgraded = Counter('p26_actions_downgraded_total', 'Actions downgraded', ['from_action', 'to_action', 'reason'])
     p26_permit_issued = Counter('p26_permit_issued_total', 'Permits issued')
     p26_fail_closed = Counter('p26_fail_closed_total', 'Fail-closed events', ['reason'])
+    
+    # Latency histogram: harvest.proposal → permit:p26:{plan_id}
+    p26_time_to_permit_seconds = Histogram(
+        'p26_time_to_permit_seconds',
+        'Time from proposal read to permit issuance',
+        buckets=(0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5, 5.0)
+    )
 
 
 # ========== DATA STRUCTURES ==========
@@ -480,6 +489,7 @@ class PortfolioGate:
             
             for stream_name, stream_messages in messages:
                 for msg_id, fields in stream_messages:
+                    t0 = time.time()  # Start latency timer
                     try:
                         # Parse proposal
                         proposal = HarvestProposal(
@@ -506,6 +516,10 @@ class PortfolioGate:
                         if decision.final_action != "HOLD":
                             self.issue_permit(decision.plan_id)
                             self.set_cooldown(decision.symbol)
+                            
+                            # Record latency for successful permit issuance
+                            if PROMETHEUS_AVAILABLE:
+                                p26_time_to_permit_seconds.observe(time.time() - t0)
                         else:
                             logger.info(f"{decision.symbol}: No permit issued (final_action=HOLD, reason={decision.gate_reason})")
                         
