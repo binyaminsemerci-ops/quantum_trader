@@ -182,6 +182,50 @@ if systemctl is-active --quiet quantum-portfolio-clusters && \
    curl -sf http://127.0.0.1:8048/metrics > /dev/null && \
    [ -f "${PROOF_OUTPUT}" ]; then
     echo "✅ Deployment verified - exit 0"
+    
+    # P5+ Auto-ledger
+    echo ""
+    echo "=============================="
+    echo "P5+ AUTO-LEDGER"
+    echo "=============================="
+    
+    STRICT_LEDGER=${STRICT_LEDGER:-false}
+    
+    python3 ops/ops_ledger_append.py \
+        --operation "P2.7 Deploy — Portfolio Clusters (atomic) + P2.6 sync" \
+        --objective "Deploy P2.7 correlation matrix + capital clustering and verify P2.6 cluster K integration" \
+        --risk_class SERVICE_RESTART \
+        --blast_radius "Portfolio gating + clusters only; no execution impact" \
+        --allowed_paths microservices/portfolio_clusters/ \
+        --allowed_paths microservices/portfolio_gate/main.py \
+        --allowed_paths deployment/systemd/quantum-portfolio-clusters.service \
+        --allowed_paths deployment/config/portfolio-clusters.env \
+        --allowed_paths ops/p27_deploy_and_proof.sh \
+        --allowed_services quantum-portfolio-clusters \
+        --allowed_services quantum-portfolio-gate \
+        --changes_summary "Deployed P2.7 + synced P2.6 patch; atomic rsync with proof" \
+        --proof_path "${PROOF_OUTPUT}" \
+        --metrics_urls "http://127.0.0.1:8048/metrics" \
+        --metrics_urls "http://127.0.0.1:8047/metrics" \
+        --metrics_grep "p27_(corr_ready|clusters_count|cluster_stress_sum|updates_total|min_points|points_per_symbol)" \
+        --metrics_grep "p26_cluster_(stress_used|fallback)" \
+        --redis_cmds "HGETALL quantum:portfolio:cluster_state" \
+        --notes "Auto-ledger via P5+ ops_ledger_append.py" \
+        ${STRICT_LEDGER:+--strict}
+    
+    LEDGER_RC=$?
+    if [ $LEDGER_RC -ne 0 ]; then
+        echo "⚠️  Auto-ledger failed (exit $LEDGER_RC)"
+        if [ "$STRICT_LEDGER" = "true" ]; then
+            echo "❌ STRICT_LEDGER=true - deployment fails"
+            exit 1
+        else
+            echo "ℹ️  STRICT_LEDGER=false - deployment succeeds despite ledger failure"
+        fi
+    else
+        echo "✓ Auto-ledger entry created"
+    fi
+    
     exit 0
 else
     echo "❌ Deployment verification failed - exit 1"
