@@ -39,5 +39,27 @@ python ops/ops_prompt_fill.py \
 ```
 
 ## Documentation
-- `docs/OPS_GOVERNOR.md` - Core governance framework
-- `docs/OPS_RUNBOOK_TEMPLATE.md` - Template for ops runbooks
+- `docs/OPS_GOVERNOR.md` - Core governance framework (includes P5: Signoff Ledger)
+- `docs/OPS_RUNBOOK_TEMPLATE.md` - Template for ops runbooks (with optional ledger section)
+- `docs/OPS_CHANGELOG.md` - Operations changelog & signoff ledger (audit trail)
+
+## P5: Change Approval & Signoff Ledger
+
+**Optional** governance layer for operations requiring human approval or audit trails.
+
+**When to use:**
+- LOW_RISK_CONFIG: Optional (informal commit reference)
+- SERVICE_RESTART / FILESYSTEM_WRITE: Recommended
+- High-risk custom ops: Required
+
+**Ledger storage options:**
+1. **Markdown ledger:** Append YAML blocks to `docs/OPS_CHANGELOG.md`
+2. **Structured files:** Maintain `ops/ledger/YYYY-MM.yaml` (monthly archives)
+3. **Git-native:** Use annotated tags: `git tag -a ops-2026-01-27-001 -m "<yaml>"`
+
+**Integration:**
+- Fill **Section 6** of runbook template after operation completes
+- Commit ledger entry with (or right after) operation changes
+- For rollbacks: update entry with `outcome: ROLLBACK` + rollback timestamp
+
+See [docs/OPS_GOVERNOR.md](../docs/OPS_GOVERNOR.md#p5-change-approval--signoff-ledger-optional) for full details.
