@@ -206,10 +206,43 @@ redis-cli XADD quantum:stream:apply.plan "*" \
 3. Intent Executor sends reduceOnly=true orders to Binance
 4. Cooldown prevents rapid-fire execution (60s per symbol)
 
-**Next action**: Run controlled EXIT test after cooldown expiry or on a different symbol to capture ORDER FILLED log and apply.result entry. No code changes required — system is ready.
+**EXIT flow is verified end-to-end for control-plane correctness**: Governor classifies CLOSE actions and can issue permits; Intent Executor consumes plans and requests P3.3 permits; P3.3 enforces exchange position reality (deny on no_position); Intent Executor writes an auditable record to quantum:stream:apply.result with full permit context.
+
+**Remaining optional proof**: capture a single ORDER FILLED reduceOnly close on a symbol with a confirmed live position.
+
+### ✅ Gold Proof Captured (2026-01-27 00:52:47)
+
+**Plan**: exit_proof_filled_eth_001  
+**Symbol**: ETHUSDT SELL (reduceOnly close of LONG position)  
+**Result**: ORDER FILLED qty=0.0100 order_id=8205830455  
+
+**Governor (00:52:45)**:
+- `Evaluating plan exit_pro (action=FULL_CLOSE_PROPOSED)`
+- `CLOSE action (FULL_CLOSE_PROPOSED) - bypassing fund caps`
+
+**Executor (00:52:47)**:
+- `ORDER FILLED: ETHUSDT SELL qty=0.0100 order_id=8205830455 status=FILLED`
+
+**apply.result**:
+```json
+{
+  "plan_id": "exit_proof_filled_eth_001",
+  "executed": true,
+  "side": "SELL",
+  "qty": 0.01,
+  "order_id": 8205830455,
+  "order_status": "FILLED",
+  "permit": {
+    "allow": true,
+    "safe_qty": 3.681,
+    "exchange_position_amt": 3.681,
+    "reason": "sanity_checks_passed"
+  }
+}
+```
 
 ---
 
-**Status**: ✅ **OPERATIONAL** (architecture verified, pending cooldown-free execution test)  
+**Status**: ✅ **FULLY VERIFIED** (control-plane + data-plane ORDER FILLED confirmed)  
 **Risk**: 🟢 **LOW** (all gates working as designed)  
 **Ready for**: Autonomous testnet trading with OPEN + CLOSE flows
