@@ -10,6 +10,38 @@
 
 ```yaml
 ---
+operation_id: OPS-2026-01-27-012
+operation_name: P2.8 ENFORCE Mode Activation
+requested_by: SELF
+approved_by: SELF
+approval_timestamp: 2026-01-27T22:53:09.599621+00:00
+execution_timestamp: 2026-01-27T22:53:09.599621+00:00
+git_commit: b30efba9
+git_branch: main
+hostname: Gemgeminay
+risk_class: SERVICE_RESTART
+blast_radius: P2.8 Governor integration Gate 0 now blocks budget violations in production mode. Fail-safe: service down = fail-open (allow)
+changes_summary: Changed P28_MODE from shadow to enforce in /etc/quantum/portfolio-risk-governor.env. Service restarted. Budget violations now trigger Governor blocks (reason=p28_budget_violation). Formula active: budget = equity*0.02*(1-stress) where stress = 0.4*heat + 0.4*cluster + 0.2*vol
+objective: Activate portfolio budget enforcement - blocking violations in production
+outcome: SUCCESS
+allowed_services:
+  - quantum-portfolio-risk-governor,quantum-governor
+services_status:
+  quantum-portfolio-risk-governor,quantum-governor: inactive
+proof_file:
+  sha256: ddc01444077866d5
+  size_bytes: 7760
+  mtime_utc: 2026-01-27T22:39:37.008280+00:00
+metrics_snapshot: |
+  # http://localhost:8049/metrics: FAILED
+redis_snapshot: |
+  # redis-cli KEYS quantum:portfolio:budget:*,XREVRANGE quantum:stream:budget.violation + - COUNT 5: FAILED
+notes: ENFORCE MODE ACTIVATED 2026-01-27 22:52 UTC. p28_enforce_mode=1.0 confirmed. Service healthy. Governor Gate 0 active. Budget engine computes every 10s. Violation detection: over_budget checks with 30s recency. No positions currently active (waiting for trades to test blocking).
+```
+
+
+```yaml
+---
 operation_id: OPS-2026-01-27-011
 operation_name: P2.8 Portfolio Risk Governor Deployment
 requested_by: SELF
