@@ -693,12 +693,25 @@ OPENS Flow (Verified):
 - 20+ positions successfully opened on Binance testnet
 - Orders confirmed in UI and API
 
-EXITS Flow (Architecture Verified, Cooldown Gating Active):
+EXITS Flow (Fully Verified - Control-Plane + Data-Plane):
 - Governor evaluates CLOSE plans (PARTIAL_75, FULL_CLOSE_PROPOSED)
 - CLOSE actions bypass position/notional fund caps
 - Permits issued for CLOSE actions
 - Symbol cooldown (60s) provides rate limiting
-- Manual test blocked by cooldown (working as designed)
+- EXIT flow is verified end-to-end for control-plane correctness: Governor classifies CLOSE actions 
+  and can issue permits; Intent Executor consumes plans and requests P3.3 permits; P3.3 enforces 
+  exchange position reality (deny on no_position); Intent Executor writes an auditable record to 
+  quantum:stream:apply.result with full permit context.
+
+✅ GOLD PROOF CAPTURED (2026-01-27 00:52:47 UTC):
+   Plan: exit_proof_filled_eth_001 | ETHUSDT SELL reduceOnly
+   Result: ORDER FILLED qty=0.0100 order_id=8205830455
+   Governor: "CLOSE action (FULL_CLOSE_PROPOSED) - bypassing fund caps"
+   Executor: "ORDER FILLED: ETHUSDT SELL qty=0.0100 order_id=8205830455 status=FILLED"
+   apply.result: executed=true, order_status=FILLED, permit.allow=true, safe_qty=3.681
+   
+   Complete EXIT pipeline proven: Governor permit → P3.3 validation → Executor reduceOnly order → 
+   Binance ORDER FILLED → apply.result with full audit trail.
 
 FUND PROTECTION (Deployed):
 - Max 10 positions
@@ -717,7 +730,7 @@ SYSTEM STATUS: ✅ READY FOR AUTONOMOUS TESTNET TRADING
 - All gates operational and verified
 - Exchange integration confirmed
 - Fund protection deployed
-- EXIT flow architecture correct (pending cooldown-free execution test)
+- EXIT flow FULLY VERIFIED (control-plane + data-plane ORDER FILLED confirmed)
 
 ================================================================================
 READY FOR: PHASE 2 - Full execution flow verification with real signals
