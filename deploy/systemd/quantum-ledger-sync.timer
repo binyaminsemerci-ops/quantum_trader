@@ -1,0 +1,12 @@
+[Unit]
+Description=Quantum Ledger Sync Timer (every 15 seconds)
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+Requires=quantum-ledger-sync.service
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=15s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

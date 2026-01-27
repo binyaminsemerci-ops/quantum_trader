@@ -522,7 +522,11 @@ class ReconcileEngine:
             plan_id = f"reconclose:{symbol}:{signature}:{now_ms}"
             
             # HMAC signature for security (prevents unauthorized Redis writes)
-            secret = os.getenv("RECONCILE_CLOSE_SECRET", "quantum_reconcile_secret_change_in_prod")
+            # Prefer RECONCILE_HMAC_SECRET; fallback to legacy RECONCILE_CLOSE_SECRET
+            secret = (
+                os.getenv("RECONCILE_HMAC_SECRET")
+                or os.getenv("RECONCILE_CLOSE_SECRET", "quantum_reconcile_secret_change_in_prod")
+            )
             hmac_payload = f"{plan_id}|{symbol}|{qty}|{now_ms}|{signature}"
             plan_hmac = hmac.new(secret.encode(), hmac_payload.encode(), hashlib.sha256).hexdigest()
         

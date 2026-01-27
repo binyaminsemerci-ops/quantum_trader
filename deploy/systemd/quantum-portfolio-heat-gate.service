@@ -1,0 +1,29 @@
+[Unit]
+Description=Quantum P2.6 Portfolio Heat Gate (Hedge Fund OS)
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+EnvironmentFile=/etc/quantum/portfolio-heat-gate.env
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/microservices/portfolio_heat_gate/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-portfolio-heat-gate
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=512M
+CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target

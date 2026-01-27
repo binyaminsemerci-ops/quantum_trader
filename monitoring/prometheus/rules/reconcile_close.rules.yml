@@ -1,0 +1,43 @@
+groups:
+  - name: reconcile-close
+    interval: 30s
+    rules:
+      - alert: ReconcileGuardrailFailures
+        expr: sum by (symbol) (increase(reconcile_close_guardrail_fail_total[5m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Guardrail failures detected for {{ $labels.symbol }}"
+          description: "One or more guardrail rules failed in the last 5m. Investigate potential backdoor attempts or drift mismatch."
+
+      - alert: ReconcileExecutionLag
+        expr: (time() - max by (symbol) (quantum_apply_last_success_epoch)) > 900
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No successful apply execution for {{ $labels.symbol }} in >15m"
+          description: "Check Apply Layer and Reconcile Engine; ensure HOLD not stuck and rate limits not blocking."
+
+      - alert: PublishedVsExecutedDrop
+        expr: (
+          sum by (symbol) (increase(reconcile_close_executed_total{status="success"}[10m]))
+          /
+          sum by (symbol) (increase(p34_reconcile_close_published_total[10m]))
+        ) < 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Executed/published ratio low for {{ $labels.symbol }}"
+          description: "Less than 50% of published reconcile-close plans executed in last 10m."
+
+      - alert: DedupSpike
+        expr: increase(quantum_apply_dedupe_hits_total[10m]) > 10
+        for: 2m
+        labels:
+          severity: info
+        annotations:
+          summary: "High dedup hits"
+          description: "Detected more than 10 dedupe hits in the last 10m; check publisher idempotency and cooldowns."

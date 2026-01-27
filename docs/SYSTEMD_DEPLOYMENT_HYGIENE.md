@@ -25,7 +25,11 @@ EnvironmentFile=/etc/quantum/apply-layer.env
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 -u microservices/apply_layer/main.py
 Restart=always
-RestartSec=10s
+RestartSec=5s
+KillMode=control-group
+TimeoutStopSec=15s
+# Optional: pre-emptively free metrics port (if a stray process leaked it)
+# ExecStartPre=/bin/bash -c 'command -v fuser >/dev/null 2>&1 && fuser -k 8043/tcp || true'
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=quantum-apply-layer
@@ -120,6 +124,9 @@ systemctl cat quantum-apply-layer | grep -E "WorkingDirectory|User|ExecStart|Env
 # Group=qt
 # EnvironmentFile=/etc/quantum/apply-layer.env
 # ExecStart=/usr/bin/python3 -u microservices/apply_layer/main.py
+# KillMode=control-group
+# TimeoutStopSec=15s
+# RestartSec=5s
 ```
 
 ### 4. Deployment Script
@@ -189,6 +196,7 @@ SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT
 APPLY_ALLOWLIST=BTCUSDT
 APPLY_POLL_SEC=5
 APPLY_METRICS_PORT=8043
+RECONCILE_HMAC_SECRET=change_me_in_production
 
 # Safety
 K_BLOCK_CRITICAL=0.80
@@ -216,6 +224,39 @@ P34_METRICS_PORT=8046
 
 # RECONCILE_CLOSE Lease
 P34_RECONCILE_HOLD_LEASE_SEC=900
+
+---
+
+## Port Hygiene (8043)
+
+If you see "Address already in use" when starting the Apply Layer metrics server:
+
+- Identify the stray owner of port 8043:
+
+```bash
+sudo ss -tulpn | grep 8043
+```
+
+- Restart Apply Layer cleanly with control-group KillMode:
+
+```bash
+sudo systemctl restart quantum-apply-layer
+```
+
+- If a leaked Python process still holds the port, use the optional `ExecStartPre` line shown above or run manually:
+
+```bash
+sudo fuser -k 8043/tcp || true
+sudo systemctl restart quantum-apply-layer
+```
+
+- Ensure a single source of truth for the metrics port in `/etc/quantum/apply-layer.env`:
+
+```bash
+grep APPLY_METRICS_PORT /etc/quantum/apply-layer.env
+```
+
+- Disable metrics temporarily by setting `APPLY_METRICS_PORT=0` (service restart required).
 ```
 
 ---

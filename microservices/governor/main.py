@@ -369,6 +369,12 @@ class Governor:
             # PRODUCTION MODE: Apply full risk gates
             logger.info(f"{symbol}: Production mode - applying risk gates for plan {plan_id[:8]}")
             
+            # Gate 0: P2.8 Portfolio Budget (via budget governor integration)
+            budget_violation = self._check_portfolio_budget(symbol, plan_id)
+            if budget_violation:
+                self._block_plan(plan_id, symbol, 'p28_budget_violation')
+                return
+            
             # Gate 1: Kill score critical threshold
             if kill_score >= self.config.KILL_SCORE_CRITICAL:
                 if action not in ['FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50']:
@@ -516,6 +522,85 @@ class Governor:
         # Count recent
         recent = [ts for ts in self.exec_history[symbol] if ts > cutoff]
         return len(recent)
+    
+    def _check_portfolio_budget(self, symbol: str, plan_id: str) -> bool:
+        """
+        Check P2.8 Portfolio Budget violation.
+        
+        Reads quantum:portfolio:budget:{symbol} hash from Portfolio Risk Governor.
+        If enforce mode AND budget violation exists, returns True (block permit).
+        
+        Returns:
+            True if violation (should block)
+            False if OK (allow)
+        """
+        try:
+            # Read budget hash
+            budget_key = f"quantum:portfolio:budget:{symbol}"
+            budget_data = self.redis.hgetall(budget_key)
+            
+            if not budget_data:
+                # No budget data = fail-open (P2.8 might not be running)
+                logger.debug(f"{symbol}: No P2.8 budget data, fail-open")
+                return False
+            
+            # Decode
+            decoded = {k.decode(): v.decode() for k, v in budget_data.items()}
+            
+            # Check mode
+            p28_mode = decoded.get('mode', 'shadow')
+            if p28_mode != 'enforce':
+                # Shadow mode = don't block
+                logger.debug(f"{symbol}: P2.8 in shadow mode, allowing")
+                return False
+            
+            # Check stale data (fail-open if stale)
+            timestamp = int(decoded.get('timestamp', 0))
+            age = time.time() - timestamp
+            if age > 60:
+                logger.warning(f"{symbol}: P2.8 budget data stale ({age:.0f}s), fail-open")
+                return False
+            
+            # Get position notional from plan data or current position
+            # For now, check if we're attempting to increase position size
+            # In future, could fetch exact notional from plan metadata
+            
+            # Read budget value
+            budget_usd = float(decoded.get('budget_usd', 0))
+            stress_factor = float(decoded.get('stress_factor', 0))
+            
+            logger.info(
+                f"{symbol}: P2.8 budget check - "
+                f"budget=${budget_usd:.0f} stress={stress_factor:.3f} mode={p28_mode}"
+            )
+            
+            # For now, don't block (until we have position notional in plan data)
+            # This gate serves as integration point - actual violation detection
+            # happens in P2.8 service which publishes to budget.violation stream
+            
+            # Check if violation event exists in stream
+            stream_key = "quantum:stream:budget.violation"
+            recent_events = self.redis.xrevrange(stream_key, count=10)
+            
+            for event_id, event_data in recent_events:
+                event_json = json.loads(event_data.get(b'json', b'{}'))
+                event_symbol = event_json.get('symbol')
+                event_ts = event_json.get('timestamp', 0)
+                
+                # Check if violation is for this symbol and recent (< 30s)
+                if event_symbol == symbol and (time.time() - event_ts) < 30:
+                    logger.warning(
+                        f"{symbol}: P2.8 budget violation detected - "
+                        f"over_budget=${event_json.get('over_budget', 0):.0f}"
+                    )
+                    return True  # Block
+            
+            return False  # Allow
+            
+        except Exception as e:
+            logger.error(f"{symbol}: Error checking P2.8 budget: {e}")
+            # Fail-open on errors
+            return False
     
     def _trim_exec_history(self, symbol):
         """Remove old timestamps from in-memory cache"""
