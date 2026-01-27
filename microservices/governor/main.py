@@ -549,8 +549,12 @@ class Governor:
                 logger.debug(f"{symbol}: No P2.8 budget data, fail-open")
                 return False
             
-            # Decode
-            decoded = {k.decode(): v.decode() for k, v in budget_data.items()}
+            # Decode (handle both bytes and strings)
+            decoded = {}
+            for k, v in budget_data.items():
+                key = k.decode() if isinstance(k, bytes) else k
+                val = v.decode() if isinstance(v, bytes) else v
+                decoded[key] = val
             
             # Check mode
             p28_mode = decoded.get('mode', 'shadow')
