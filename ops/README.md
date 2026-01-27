@@ -135,6 +135,47 @@ python3 ops/ops_ledger_append.py \
 tail -30 docs/OPS_CHANGELOG.md
 ```
 
+#### Validation Examples (P5+.1)
+```bash
+# Example 1: ROLLBACK without rollback_of (non-strict → warning)
+python3 ops/ops_ledger_append.py \
+  --operation "Test Rollback Validation" \
+  --objective "Test validation behavior" \
+  --outcome ROLLBACK \
+  --risk_class LOW_RISK_CONFIG \
+  --blast_radius "None" \
+  --changes_summary "Test" \
+  --notes "Expected output: WARNING"
+# Expected: "WARNING: ERROR: outcome=ROLLBACK requires --rollback_of parameter (continuing in non-strict mode)"
+
+# Example 2: ROLLBACK with invalid format (non-strict → warning)
+python3 ops/ops_ledger_append.py \
+  --operation "Test Format Validation" \
+  --objective "Test format validation" \
+  --outcome ROLLBACK \
+  --rollback_of "INVALID-FORMAT" \
+  --risk_class LOW_RISK_CONFIG \
+  --blast_radius "None" \
+  --changes_summary "Test" \
+  --notes "Expected output: WARNING"
+# Expected: "WARNING: ERROR: rollback_of 'INVALID-FORMAT' does not match expected format OPS-YYYY-MM-DD-NNN (continuing in non-strict mode)"
+
+# Example 3: ROLLBACK with valid rollback_of (success)
+python3 ops/ops_ledger_append.py \
+  --operation "Test Valid Rollback" \
+  --objective "Test valid rollback reference" \
+  --outcome ROLLBACK \
+  --rollback_of OPS-2026-01-27-010 \
+  --risk_class LOW_RISK_CONFIG \
+  --blast_radius "None" \
+  --changes_summary "Test" \
+  --notes "Expected output: SUCCESS"
+# Expected: "Auto-generated operation_id: OPS-2026-01-27-XXX" (no warnings)
+
+# Clean up test entries
+git checkout docs/OPS_CHANGELOG.md
+```
+
 #### Rollback Logging
 ```bash
 # After rolling back a deployment
@@ -182,6 +223,13 @@ python3 ops/ops_ledger_append.py \
 - Use `--outcome ROLLBACK` for rollback operations
 - Use `--rollback_of OPS-YYYY-MM-DD-NNN` to reference the original operation being reverted
 - Auto-collects rollback evidence (services stopped, metrics after revert, git SHA)
+
+**Rollback Validation (P5+.1):**
+- When `outcome=ROLLBACK`:
+  - `--rollback_of` is **required** (must match format `OPS-YYYY-MM-DD-NNN`)
+  - Missing or invalid `rollback_of` → **ERROR in strict mode**, **WARNING in non-strict mode**
+- Non-strict mode (default): validation failures print warnings but allow ledger entry
+- Strict mode (`--strict`): validation failures raise `ValueError` and fail deployment
 
 **Strict Mode:**
 - `STRICT_LEDGER=false` (default): Ledger failure prints warning, deployment succeeds

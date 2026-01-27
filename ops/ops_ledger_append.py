@@ -62,6 +62,39 @@ def get_hostname() -> str:
     return hostname if rc == 0 else "UNKNOWN"
 
 
+def validate_rollback(outcome: str, rollback_of: str | None, strict: bool) -> None:
+    """Validate rollback_of parameter when outcome=ROLLBACK.
+    
+    Args:
+        outcome: Operation outcome (SUCCESS, PARTIAL, ROLLBACK)
+        rollback_of: Original operation_id being rolled back
+        strict: Whether to fail (True) or warn (False) on validation errors
+    
+    Raises:
+        ValueError: If validation fails and strict=True
+    """
+    if outcome != "ROLLBACK":
+        return  # No validation needed for non-rollback outcomes
+    
+    # Validation 1: rollback_of must be provided for ROLLBACK outcomes
+    if not rollback_of or not rollback_of.strip():
+        msg = "ERROR: outcome=ROLLBACK requires --rollback_of parameter"
+        if strict:
+            raise ValueError(msg)
+        else:
+            print(f"WARNING: {msg} (continuing in non-strict mode)")
+            return
+    
+    # Validation 2: rollback_of should match operation_id format (OPS-YYYY-MM-DD-NNN)
+    pattern = r'^OPS-\d{4}-\d{2}-\d{2}-\d{3}$'
+    if not re.match(pattern, rollback_of):
+        msg = f"ERROR: rollback_of '{rollback_of}' does not match expected format OPS-YYYY-MM-DD-NNN"
+        if strict:
+            raise ValueError(msg)
+        else:
+            print(f"WARNING: {msg} (continuing in non-strict mode)")
+
+
 def get_service_status(service: str) -> dict:
     """Get systemd service status and recent logs"""
     rc, active = run_cmd(["systemctl", "is-active", service])
@@ -315,6 +348,9 @@ def main() -> int:
     args = p.parse_args()
     
     try:
+        # Validate rollback parameters
+        validate_rollback(args.outcome, args.rollback_of, args.strict)
+        
         # Get auto-collected info
         git_commit, git_branch = get_git_info()
         hostname = get_hostname()
