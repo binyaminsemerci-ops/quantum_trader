@@ -27,7 +27,7 @@ Paste the output into Sonnet/Ops agent to ensure bounded, verifiable, audit-safe
 # Show help
 python ops/ops_prompt_fill.py --help
 
-# Generate a filled prompt
+# Generate a filled prompt (original mode)
 python ops/ops_prompt_fill.py \
   --operation "Your operation name" \
   --objective "What this achieves" \
@@ -36,6 +36,18 @@ python ops/ops_prompt_fill.py \
   --rollback_strategy "How to revert" \
   --allowed_paths "/path1" "/path2" \
   --allowed_services "service1" "service2"
+
+# Generate a P5 ledger YAML snippet (new in P5)
+python ops/ops_prompt_fill.py --ledger \
+  --operation "Your operation name" \
+  --objective "What this achieves" \
+  --risk_class LOW_RISK_CONFIG \
+  --blast_radius "What can be affected" \
+  --rollback_strategy "git-revert-<commit>" \
+  --allowed_paths "/path1" "/path2" \
+  --allowed_services "service1" "service2" \
+  --changes_summary "1-line summary of what changed" \
+  --notes "Optional context"
 ```
 
 ## Documentation

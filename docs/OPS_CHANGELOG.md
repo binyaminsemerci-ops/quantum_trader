@@ -10,6 +10,22 @@
 
 ```yaml
 ---
+operation_id: OPS-2026-01-27-002
+operation_name: P5 Change Approval & Signoff Ledger Extension
+requested_by: binyamin
+approved_by: SELF
+approval_timestamp: 2026-01-27T04:08:00Z
+execution_timestamp: 2026-01-27T04:11:30Z
+risk_class: LOW_RISK_CONFIG
+blast_radius: Repository only (docs/ops framework extension)
+changes_summary: Extended OPS_GOVERNOR + RUNBOOK with P5 ledger, created OPS_CHANGELOG.md, updated ops README
+rollback_ref: git-revert-b5cbafcf
+outcome: SUCCESS
+notes: Completed P5 governance layer. Added ledger entry format (YAML), 3 storage options (markdown/YAML/git-tags), integration guidance. Tested commit flow, pushed to origin/main.
+```
+
+```yaml
+---
 operation_id: OPS-2026-01-27-001
 operation_name: P4 Ops Governor Implementation
 requested_by: binyamin
