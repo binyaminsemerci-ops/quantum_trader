@@ -75,3 +75,174 @@ python ops/ops_prompt_fill.py --ledger \
 - For rollbacks: update entry with `outcome: ROLLBACK` + rollback timestamp
 
 See [docs/OPS_GOVERNOR.md](../docs/OPS_GOVERNOR.md#p5-change-approval--signoff-ledger-optional) for full details.
+
+---
+
+## P5+ Auto-Ledger (Automated Ops Logging)
+
+**Tool:** `ops/ops_ledger_append.py`
+
+Automatically appends YAML ledger entries to `docs/OPS_CHANGELOG.md` after successful deploy/rollback.
+
+### Features
+- **Idempotent:** Re-running with same operation_id won't create duplicates
+- **Auto-collect:** Git SHA, timestamp, service status, metrics, Redis state, proof file hash
+- **Safe:** Deploy still succeeds even if ledger fails (unless `STRICT_LEDGER=true`)
+- **Evidence-rich:** Captures proof files, metrics snapshots, Redis keys, service logs
+
+### Usage
+
+#### Manual Invocation
+```bash
+python3 ops/ops_ledger_append.py \
+  --operation "P2.7 Deploy — Portfolio Clusters" \
+  --objective "Deploy correlation matrix + capital clustering" \
+  --risk_class SERVICE_RESTART \
+  --blast_radius "Portfolio gating layer only" \
+  --allowed_paths microservices/portfolio_clusters/ \
+  --allowed_services quantum-portfolio-clusters quantum-portfolio-gate \
+  --changes_summary "Deployed P2.7 with warmup observability" \
+  --proof_path "/home/qt/P2_7_PROOF_20260127.txt" \
+  --metrics_urls "http://127.0.0.1:8048/metrics" \
+  --metrics_grep "p27_corr_ready" \
+  --redis_cmds "HGETALL quantum:portfolio:cluster_state" \
+  --notes "Manual ledger entry"
+```
+
+#### Integrated in Deploy Scripts
+Deploy scripts (`p27_deploy_and_proof.sh`) automatically call this after successful proof:
+
+```bash
+# Set STRICT_LEDGER=true to fail deployment if ledger fails (default: false)
+export STRICT_LEDGER=false
+
+# Run deploy - ledger entry created automatically
+bash ops/p27_deploy_and_proof.sh
+```
+
+#### Self-Test (No Network)
+```bash
+# Test auto-generation of operation_id
+python3 ops/ops_ledger_append.py \
+  --operation "Self-Test" \
+  --objective "Test ledger append" \
+  --risk_class READ_ONLY \
+  --blast_radius "None" \
+  --changes_summary "Test entry" \
+  --notes "Testing P5+ auto-ledger"
+
+# Check it was appended
+tail -30 docs/OPS_CHANGELOG.md
+```
+
+### CLI Arguments
+
+**Required:**
+- `--operation` - Operation name (short description)
+- `--objective` - What this operation achieves
+- `--risk_class` - READ_ONLY | LOW_RISK_CONFIG | SERVICE_RESTART | FILESYSTEM_WRITE
+- `--blast_radius` - What can break
+- `--changes_summary` - 1-line summary
+
+**Optional:**
+- `--operation_id` - Auto-generated if omitted (OPS-YYYY-MM-DD-NNN)
+- `--allowed_paths` - Paths modified (repeatable)
+- `--allowed_services` - Services affected (repeatable)
+- `--proof_path` - Path to proof file (collects sha256 + size + mtime)
+- `--metrics_urls` - Metrics endpoints to curl (repeatable)
+- `--metrics_grep` - Regex patterns to filter metrics (repeatable)
+- `--redis_cmds` - Redis commands to execute (repeatable, e.g., "HGETALL key")
+- `--outcome` - SUCCESS | PARTIAL | ROLLBACK (default: SUCCESS)
+- `--notes` - Additional context
+- `--strict` - Fail deployment if ledger append fails (default: false)
+
+### Behavior
+
+**Idempotency:**
+- If `operation_id` already exists in changelog → exit 0 with "already recorded" message
+- Safe to re-run deploy scripts multiple times
+
+**Strict Mode:**
+- `STRICT_LEDGER=false` (default): Ledger failure prints warning, deployment succeeds
+- `STRICT_LEDGER=true`: Ledger failure causes deployment to fail (exit 1)
+
+**Auto-Collection:**
+- Git commit SHA (HEAD) + branch
+- Hostname
+- Timestamp (UTC ISO8601)
+- Service status: `systemctl is-active` + last 30 log lines
+- Proof file: sha256 hash (first 16 chars), size, mtime
+- Metrics: curl endpoints and grep for patterns
+- Redis: execute commands and capture output
+
+**Output:**
+Appends YAML block to correct month section in `docs/OPS_CHANGELOG.md`:
+- Creates month section (e.g., `## 2026-01`) if missing
+- Inserts at top of section (most recent first)
+- Includes all auto-collected evidence + manual args
+
+### Example Output
+
+```yaml
+---
+operation_id: OPS-2026-01-27-011
+operation_name: P2.7 Deploy — Portfolio Clusters (atomic) + P2.6 sync
+requested_by: SELF
+approved_by: SELF
+approval_timestamp: 2026-01-27T06:15:30Z
+execution_timestamp: 2026-01-27T06:15:30Z
+git_commit: a1b2c3d4
+git_branch: main
+hostname: quantumtrader-prod-1
+risk_class: SERVICE_RESTART
+blast_radius: Portfolio gating + clusters only; no execution impact
+changes_summary: Deployed P2.7 + synced P2.6 patch; atomic rsync with proof
+objective: Deploy P2.7 correlation matrix + capital clustering and verify P2.6 cluster K integration
+outcome: SUCCESS
+allowed_paths:
+  - microservices/portfolio_clusters/
+  - microservices/portfolio_gate/main.py
+  - deployment/systemd/quantum-portfolio-clusters.service
+allowed_services:
+  - quantum-portfolio-clusters
+  - quantum-portfolio-gate
+services_status:
+  quantum-portfolio-clusters: active
+  quantum-portfolio-gate: active
+proof_file:
+  sha256: 7f3e9a2b1c4d8e6f
+  size_bytes: 15234
+  mtime_utc: 2026-01-27T06:15:28Z
+metrics_snapshot: |
+  # http://127.0.0.1:8048/metrics | grep 'p27_corr_ready'
+  p27_corr_ready 1.0
+  p27_clusters_count 1.0
+redis_snapshot: |
+  # redis-cli HGETALL quantum:portfolio:cluster_state
+  cluster_stress
+  0.788493010732072
+  updated_ts
+  1769492127
+notes: Auto-ledger via P5+ ops_ledger_append.py
+```
+
+### Integration Status
+
+**Currently integrated:**
+- ✅ `ops/p27_deploy_and_proof.sh` - P2.7 Portfolio Clusters deployment
+
+**To be integrated:**
+- ⏳ `ops/p26_deploy_and_proof.sh` - P2.6 Portfolio Gate deployment
+- ⏳ `ops/p28_deploy_and_proof.sh` - P2.8 Risk Governor deployment (when created)
+- ⏳ Rollback scripts
+
+### Dependencies
+
+**Runtime:** Python 3.10+ (stdlib only, no external packages)
+
+**Optional tools** (for evidence collection):
+- `curl` - Metrics collection
+- `redis-cli` - Redis snapshots
+- `systemctl` - Service status
+- `journalctl` - Service logs
+- `git` - Commit SHA collection
