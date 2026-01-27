@@ -548,7 +548,7 @@ class Governor:
             
             if not budget_data:
                 # No budget data = fail-open (P2.8 might not be running)
-                logger.debug(f"{symbol}: No P2.8 budget data, fail-open")
+                logger.info(f"{symbol}: No P2.8 budget hash found - fail-open (allow)")
                 return False
             
             # Decode (handle both bytes and strings)
