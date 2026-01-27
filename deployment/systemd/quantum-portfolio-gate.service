@@ -1,0 +1,25 @@
+[Unit]
+Description=Quantum Trader P2.6 Portfolio Gate
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=/etc/quantum/portfolio-gate.env
+ExecStart=/usr/bin/python3 -m microservices.portfolio_gate.main
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-portfolio-gate
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

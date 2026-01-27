@@ -64,12 +64,12 @@ logger = logging.getLogger(__name__)
 
 # ---- PRODUCTION HYGIENE: Hard Mode Switch ----
 # TESTNET=true: Governor bypass (for development/testing)
-# TESTNET=false: Require BOTH permits (production safety)
+# TESTNET=false: Require THREE permits (production safety)
 TESTNET_MODE = os.getenv("TESTNET", "false").lower() in ("true", "1", "yes")
 if TESTNET_MODE:
     logger.warning("⚠️  TESTNET MODE ENABLED - Governor bypass active (NO PRODUCTION USAGE)")
 else:
-    logger.info("✅ PRODUCTION MODE - Both permits required (Governor + P3.3)")
+    logger.info("✅ PRODUCTION MODE - Three permits required (Governor + P3.3 + P2.6)")
 
 # ---- PRODUCTION HYGIENE: Safety Kill Switch ----
 # Set quantum:global:kill_switch = true to halt all execution
@@ -94,38 +94,44 @@ if PROMETHEUS_AVAILABLE:
 PERMIT_WAIT_MS = int(os.getenv("APPLY_PERMIT_WAIT_MS", "1200"))
 PERMIT_STEP_MS = int(os.getenv("APPLY_PERMIT_STEP_MS", "100"))
 
-# Atomic Lua: require BOTH permits then consume both (DEL)
-_LUA_CONSUME_BOTH_PERMITS = r"""
--- Atomic: require BOTH permits, then consume (DEL) both.
+# Atomic Lua: require THREE permits then consume all (DEL)
+_LUA_CONSUME_THREE_PERMITS = r"""
+-- Atomic: require THREE permits (Governor + P3.3 + P2.6), then consume (DEL) all.
 -- Returns:
---  {1, gov_json, p33_json} on success
---  {0, reason, gov_ttl, p33_ttl} on failure
+--  {1, gov_json, p33_json, p26_json} on success
+--  {0, reason, gov_ttl, p33_ttl, p26_ttl} on failure
 
 local gov_key = KEYS[1]
 local p33_key = KEYS[2]
+local p26_key = KEYS[3]
 
 local gov = redis.call("GET", gov_key)
 local p33 = redis.call("GET", p33_key)
+local p26 = redis.call("GET", p26_key)
 
-if (not gov) and (not p33) then
-  return {0, "missing_both", redis.call("TTL", gov_key), redis.call("TTL", p33_key)}
+if (not gov) and (not p33) and (not p26) then
+  return {0, "missing_all", redis.call("TTL", gov_key), redis.call("TTL", p33_key), redis.call("TTL", p26_key)}
 end
 if not gov then
-  return {0, "missing_governor", redis.call("TTL", gov_key), redis.call("TTL", p33_key)}
+  return {0, "missing_governor", redis.call("TTL", gov_key), redis.call("TTL", p33_key), redis.call("TTL", p26_key)}
 end
 if not p33 then
-  return {0, "missing_p33", redis.call("TTL", gov_key), redis.call("TTL", p33_key)}
+  return {0, "missing_p33", redis.call("TTL", gov_key), redis.call("TTL", p33_key), redis.call("TTL", p26_key)}
+end
+if not p26 then
+  return {0, "missing_p26", redis.call("TTL", gov_key), redis.call("TTL", p33_key), redis.call("TTL", p26_key)}
 end
 
 redis.call("DEL", gov_key)
 redis.call("DEL", p33_key)
+redis.call("DEL", p26_key)
 
-return {1, gov, p33}
+return {1, gov, p33, p26}
 """
 
 def _register_consume_script(r):
-    """Register Lua script for atomic permit consumption"""
-    return r.register_script(_LUA_CONSUME_BOTH_PERMITS)
+    """Register Lua script for atomic permit consumption (THREE permits)"""
+    return r.register_script(_LUA_CONSUME_THREE_PERMITS)
 
 def wait_and_consume_permits(
     r,
@@ -135,25 +141,27 @@ def wait_and_consume_permits(
     consume_script=None,
 ):
     """
-    Wait up to max_wait_ms for BOTH permits:
+    Wait up to max_wait_ms for THREE permits:
       - quantum:permit:{plan_id}        (Governor P3.2)
       - quantum:permit:p33:{plan_id}    (Position State Brain P3.3)
-    Atomically consumes both on success.
+      - quantum:permit:p26:{plan_id}    (Portfolio Gate P2.6)
+    Atomically consumes all three on success.
     Returns:
-      (True, gov_dict, p33_dict) on success
-      (False, info_dict, None)  on failure (fail-closed)
+      (True, gov_dict, p33_dict, p26_dict) on success
+      (False, info_dict, None, None)  on failure (fail-closed)
     """
     gov_key = f"quantum:permit:{plan_id}"
     p33_key = f"quantum:permit:p33:{plan_id}"
+    p26_key = f"quantum:permit:p26:{plan_id}"
 
     if consume_script is None:
         consume_script = _register_consume_script(r)
 
     deadline = time.time() + (max_wait_ms / 1000.0)
-    last = {"reason": "init", "gov_ttl": -2, "p33_ttl": -2}
+    last = {"reason": "init", "gov_ttl": -2, "p33_ttl": -2, "p26_ttl": -2}
 
     while time.time() < deadline:
-        res = consume_script(keys=[gov_key, p33_key], args=[])
+        res = consume_script(keys=[gov_key, p33_key, p26_key], args=[])
         if int(res[0]) == 1:
             try:
                 gov = json.loads(res[1])
@@ -163,17 +171,22 @@ def wait_and_consume_permits(
                 p33 = json.loads(res[2])
             except Exception:
                 p33 = {"raw": res[2]}
-            return True, gov, p33
+            try:
+                p26 = json.loads(res[3]) if len(res) > 3 else {"granted": True}
+            except Exception:
+                p26 = {"raw": res[3] if len(res) > 3 else "1"}
+            return True, gov, p33, p26
 
         # failure details from lua
         last = {
             "reason": str(res[1]),
             "gov_ttl": int(res[2]),
             "p33_ttl": int(res[3]),
+            "p26_ttl": int(res[4]) if len(res) > 4 else -2,
         }
         time.sleep(step_ms / 1000.0)
 
-    return False, last, None
+    return False, last, None, None
 
 
 class ApplyMode(Enum):
@@ -386,7 +399,9 @@ class ApplyLayer:
         self.kill_switch = os.getenv("APPLY_KILL_SWITCH", "false").lower() == "true"
         
         # Prometheus metrics
-        self.metrics_port = int(os.getenv("APPLY_METRICS_PORT", 8043))
+        # Single-source via env: set APPLY_METRICS_PORT; disable with 0/empty
+        raw_port = os.getenv("APPLY_METRICS_PORT", "8043").strip()
+        self.metrics_port = int(raw_port) if raw_port.isdigit() else 0
         self.setup_metrics()
         
         logger.info(f"ApplyLayer initialized:")
@@ -401,6 +416,11 @@ class ApplyLayer:
     def setup_metrics(self):
         """Setup Prometheus metrics"""
         if not PROMETHEUS_AVAILABLE:
+            return
+        
+        # If metrics port disabled (<=0), skip starting server
+        if getattr(self, "metrics_port", 0) <= 0:
+            logger.info("Prometheus metrics disabled (APPLY_METRICS_PORT<=0)")
             return
         
         self.metric_plan_total = Counter(
@@ -445,9 +465,10 @@ class ApplyLayer:
             ['symbol', 'rule']
         )
         
-        # Start metrics server
+        # Start metrics server (single owner)
         try:
             start_http_server(self.metrics_port)
+            logger.info(f"metrics_listen=:{self.metrics_port}")
             logger.info(f"Prometheus metrics available on :{self.metrics_port}/metrics")
         except Exception as e:
             logger.warning(f"Failed to start metrics server: {e}")
@@ -805,15 +826,16 @@ class ApplyLayer:
                 logger.info(f"[TESTNET_BYPASS] Skipping permits for {plan.plan_id}")
                 gov_permit = {"granted": True, "mode": "testnet_bypass"}
                 p33_permit = {"allow": True, "safe_qty": plan.sell_qty, "mode": "testnet_bypass"}
+                p26_permit = {"granted": True, "mode": "testnet_bypass"}
                 ok = True
                 wait_ms = 0
                 if PROMETHEUS_AVAILABLE:
                     apply_executed.labels(status='testnet_bypass').inc()
             else:
-                # PRODUCTION: Require BOTH permits (Governor + P3.3)
+                # PRODUCTION: Require THREE permits (Governor + P3.3 + P2.6)
                 t0 = time.time()
                 consume_script = _register_consume_script(self.redis)
-                ok, gov_permit, p33_permit = wait_and_consume_permits(
+                ok, gov_permit, p33_permit, p26_permit = wait_and_consume_permits(
                     self.redis, 
                     plan.plan_id,
                     max_wait_ms=PERMIT_WAIT_MS,
@@ -1043,7 +1065,11 @@ class ApplyLayer:
         ts = plan_data.get('ts', '')
         
         # INVARIANT 0: HMAC signature must be valid (SECURITY FINAL BOSS)
-        secret = os.getenv("RECONCILE_CLOSE_SECRET", "quantum_reconcile_secret_change_in_prod")
+        # Prefer RECONCILE_HMAC_SECRET; fallback to legacy RECONCILE_CLOSE_SECRET
+        secret = (
+            os.getenv("RECONCILE_HMAC_SECRET")
+            or os.getenv("RECONCILE_CLOSE_SECRET", "quantum_reconcile_secret_change_in_prod")
+        )
         
         # Extract timestamp from plan_id if not in separate field
         if not ts and ':' in plan_id:
