@@ -95,6 +95,9 @@ if PROMETHEUS_AVAILABLE:
     p26_actions_downgraded = Counter('p26_actions_downgraded_total', 'Actions downgraded', ['from_action', 'to_action', 'reason'])
     p26_permit_issued = Counter('p26_permit_issued_total', 'Permits issued')
     p26_fail_closed = Counter('p26_fail_closed_total', 'Fail-closed events', ['reason'])
+    p26_cluster_fallback = Counter('p26_cluster_fallback_total', 'Cluster stress fallback to proxy (P2.7 unavailable)')
+    p26_cluster_stress_used = Gauge('p26_cluster_stress_used', 'Cluster stress from P2.7 (0=proxy, 1=cluster)')
+
     
     # Latency histogram: harvest.proposal → permit:p26:{plan_id}
     p26_time_to_permit_seconds = Histogram(
@@ -173,6 +176,32 @@ class PortfolioGate:
                 logger.info(f"Consumer group '{CONSUMER_GROUP}' already exists")
             else:
                 raise
+    
+    def get_cluster_stress(self) -> Optional[float]:
+        """Read cluster stress from P2.7 (with freshness check and fallback)"""
+        try:
+            data = self.redis.hgetall('quantum:portfolio:cluster_state')
+            if not data:
+                return None
+            
+            cluster_stress = float(data.get('cluster_stress', 0))
+            updated_ts = int(data.get('updated_ts', 0))
+            now = int(time.time())
+            age = now - updated_ts
+            
+            # Freshness check: P2.7 should update every UPDATE_SEC seconds
+            # Allow 2x grace period
+            p27_update_sec = int(os.getenv("P27_UPDATE_SEC", 60))
+            if age > 2 * p27_update_sec:
+                logger.debug(f"Cluster stress stale (age={age}s), using fallback")
+                return None
+            
+            logger.debug(f"Using cluster stress from P2.7: {cluster_stress:.3f} (age={age}s)")
+            return cluster_stress
+        
+        except Exception as e:
+            logger.debug(f"Error reading cluster stress: {e}")
+            return None
     
     def get_position_snapshots(self) -> Dict[str, PositionSnapshot]:
         """Fetch position snapshots for all allowlist symbols"""
@@ -288,10 +317,23 @@ class PortfolioGate:
                 if ((snap.position_amt > 0 and net_sign > 0) or (snap.position_amt < 0 and net_sign < 0))
             )
         
-        # Stress composite
-        stress = max(0.0, min(1.0, A_COEF * heat_normalized + B_COEF * concentration + C_COEF * corr_proxy))
+        # Correlation/clustering: Use P2.7 cluster stress if available, else fallback to proxy
+        cluster_stress = self.get_cluster_stress()
+        if cluster_stress is not None:
+            K = cluster_stress
+            cluster_used = True
+            logger.debug(f"Using cluster stress from P2.7: K={K:.3f}")
+        else:
+            K = corr_proxy
+            cluster_used = False
+            logger.debug(f"P2.7 unavailable, using proxy correlation: K={K:.3f}")
+            if PROMETHEUS_AVAILABLE:
+                p26_cluster_fallback.inc()
         
-        logger.info(f"Portfolio metrics: heat={heat_normalized:.3f}, conc={concentration:.3f}, corr={corr_proxy:.3f}, stress={stress:.3f}, notional=${total_notional:.2f}")
+        # Stress composite (with cluster stress)
+        stress = max(0.0, min(1.0, A_COEF * heat_normalized + B_COEF * concentration + C_COEF * K))
+        
+        logger.info(f"Portfolio metrics: heat={heat_normalized:.3f}, conc={concentration:.3f}, corr_proxy={corr_proxy:.3f}, K={K:.3f} ({'cluster' if cluster_used else 'proxy'}), stress={stress:.3f}, notional=${total_notional:.2f}")
         
         # Update Prometheus
         if PROMETHEUS_AVAILABLE:
@@ -301,6 +343,7 @@ class PortfolioGate:
             p26_stress.set(stress)
             p26_symbols_with_snapshot.set(len(fresh))
             p26_total_abs_notional.set(total_notional)
+            p26_cluster_stress_used.set(1 if cluster_used else 0)
         
         return PortfolioMetrics(
             heat=heat_normalized,
