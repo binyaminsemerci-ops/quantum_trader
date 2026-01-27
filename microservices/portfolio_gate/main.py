@@ -87,9 +87,11 @@ if PROMETHEUS_AVAILABLE:
     # Observability: portfolio state visibility
     p26_symbols_with_snapshot = Gauge('p26_symbols_with_snapshot', 'Number of symbols with valid snapshots')
     p26_total_abs_notional = Gauge('p26_total_abs_notional', 'Total absolute notional across portfolio (USD)')
+    p26_snapshot_age_seconds = Gauge('p26_snapshot_age_seconds', 'Age of oldest snapshot in seconds (staleness detector)', ['symbol'])
     
     p26_stream_reads = Counter('p26_stream_reads_total', 'Total stream read attempts')
     p26_plans_seen = Counter('p26_plans_seen_total', 'Total proposals seen', ['action_proposed'])
+    p26_gate_writes = Counter('p26_gate_writes_total', 'Gate decisions written to stream')
     p26_actions_downgraded = Counter('p26_actions_downgraded_total', 'Actions downgraded', ['from_action', 'to_action', 'reason'])
     p26_permit_issued = Counter('p26_permit_issued_total', 'Permits issued')
     p26_fail_closed = Counter('p26_fail_closed_total', 'Fail-closed events', ['reason'])
@@ -214,6 +216,10 @@ class PortfolioGate:
                     ts_epoch=ts_epoch,
                     stale=stale
                 )
+                
+                # Track snapshot age for staleness detection
+                if PROMETHEUS_AVAILABLE:
+                    p26_snapshot_age_seconds.labels(symbol=symbol).set(age)
                 
                 if stale:
                     logger.warning(f"{symbol}: Snapshot is stale (age={age:.0f}s)")
@@ -463,6 +469,10 @@ class PortfolioGate:
         
         self.redis.xadd(STREAM_PORTFOLIO_GATE, fields)
         logger.debug(f"Published decision: {decision.symbol} {decision.final_action} (reason: {decision.gate_reason})")
+        
+        # Track gate writes for "plans flowing but no output" alarm
+        if PROMETHEUS_AVAILABLE:
+            p26_gate_writes.inc()
     
     def process_proposals(self):
         """Process batch of harvest proposals"""
