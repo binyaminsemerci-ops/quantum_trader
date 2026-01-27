@@ -66,7 +66,7 @@ PARTIAL actions always pass unchanged.
 }
 ```
 
-**Output Stream:** `quantum:stream:harvest.calibrated`
+**Output Stream:** `quantum:stream:harvest.calibrated` (always written for analysis)
 ```
 {
   "trace_id": "uuid",
@@ -82,6 +82,12 @@ PARTIAL actions always pass unchanged.
   "timestamp": 1234567890
 }
 ```
+
+**Live Path (enforce mode):** `quantum:harvest:proposal:{symbol}` (HASH)
+- In enforce mode, Heat Gate writes calibrated proposal to hash key that Apply Layer reads
+- Overwrites original proposal with calibrated version
+- TTL: 5 minutes
+- Fail-safe: if hash write fails, original proposal remains (fail-open)
 
 **Data Sources:**
 - `quantum:state:portfolio` - equity_usd, total_positions
@@ -126,6 +132,9 @@ ssh root@vps 'cd /home/qt/quantum_trader && ./deploy/proof_p26_heat_gate.sh'
 - `p26_proposals_processed_total` - Total proposals processed
 - `p26_stream_lag_ms` - Stream processing latency
 - `p26_failures_total{reason}` - Failures by reason
+- `p26_hash_writes_total` - Hash writes to proposal keys (enforce mode)
+- `p26_hash_write_fail_total` - Hash write failures
+- `p26_enforce_mode` - Enforce mode active (1=enforce, 0=shadow)
 
 ## Test Scenarios
 
