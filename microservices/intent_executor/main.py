@@ -50,6 +50,18 @@ BINANCE_BASE_URL = "https://testnet.binancefuture.com"
 ALLOWLIST_STR = os.getenv("INTENT_EXECUTOR_ALLOWLIST", "BTCUSDT,ETHUSDT,TRXUSDT")
 ALLOWLIST = set([s.strip().upper() for s in ALLOWLIST_STR.split(",") if s.strip()])
 
+# Source allowlist (audit-safe: default only allows intent_bridge)
+SOURCE_ALLOWLIST_STR = os.getenv("INTENT_EXECUTOR_SOURCE_ALLOWLIST", "intent_bridge")
+SOURCE_ALLOWLIST = set([s.strip() for s in SOURCE_ALLOWLIST_STR.split(",") if s.strip()])
+
+# Manual lane configuration (audit-safe: disabled by default)
+MANUAL_LANE_ENABLED = os.getenv("INTENT_EXECUTOR_MANUAL_LANE_ENABLED", "false").lower() == "true"
+MANUAL_STREAM = os.getenv("INTENT_EXECUTOR_MANUAL_STREAM", "quantum:stream:apply.plan.manual")
+MANUAL_GROUP = os.getenv("INTENT_EXECUTOR_MANUAL_GROUP", "intent_executor_manual")
+
+# Prometheus metrics port
+METRICS_PORT = int(os.getenv("INTENT_EXECUTOR_METRICS_PORT", "8044"))
+
 # Optional: Update ledger after execution (timer handles sync, this is redundant but can be enabled)
 UPDATE_LEDGER_AFTER_EXEC = os.getenv("INTENT_EXECUTOR_UPDATE_LEDGER_AFTER_EXEC", "false").lower() == "true"
 
@@ -90,13 +102,22 @@ class IntentExecutor:
         logger.info("=" * 80)
         logger.info(f"Redis: {REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
         logger.info(f"Consumer: {CONSUMER_GROUP} / {CONSUMER_NAME}")
-        logger.info(f"Allowlist: {sorted(ALLOWLIST)}")
+        logger.info(f"Symbol allowlist: {sorted(ALLOWLIST)}")
+        logger.info(f"Source allowlist: {sorted(SOURCE_ALLOWLIST)}")
         logger.info(f"Binance: {BINANCE_BASE_URL}")
         logger.info(f"Apply plan stream: {APPLY_PLAN_STREAM}")
         logger.info(f"Apply result stream: {APPLY_RESULT_STREAM}")
+        logger.info(f"Manual lane enabled: {MANUAL_LANE_ENABLED}")
+        if MANUAL_LANE_ENABLED:
+            logger.info(f"Manual stream: {MANUAL_STREAM}")
+            logger.info(f"Manual group: {MANUAL_GROUP}")
+        logger.info(f"Metrics port: {METRICS_PORT}")
         logger.info(f"Allow upsize: {ALLOW_UPSIZE}")
         logger.info(f"Min notional override: {MIN_NOTIONAL_OVERRIDE}")
         logger.info("=" * 80)
+        
+        # Metrics initialization
+        self._init_metrics()
         
         # Verify Binance keys
         if not BINANCE_API_KEY or not BINANCE_API_SECRET:
@@ -107,6 +128,70 @@ class IntentExecutor:
         
         # Create consumer group
         self._ensure_consumer_group()
+        
+        # Create manual consumer group if enabled
+        if MANUAL_LANE_ENABLED:
+            self._ensure_manual_consumer_group()
+    
+    def _init_metrics(self):
+        """Initialize Prometheus metrics (simple dict-based counters/gauges)"""
+        # Use simple dicts for metrics (no external dependencies)
+        self.metrics_processed_total = {}  # {(lane, result): count}
+        self.metrics_skipped_total = {}  # {(lane, reason, source): count}
+        self.metrics_last_processed_ts = {}  # {lane: timestamp}
+        
+        logger.info(f"📊 Metrics initialized (HTTP endpoint on port {METRICS_PORT})")
+        
+        # Start metrics HTTP server in background thread
+        import threading
+        metrics_thread = threading.Thread(target=self._run_metrics_server, daemon=True)
+        metrics_thread.start()
+    
+    def _run_metrics_server(self):
+        """Simple HTTP server for Prometheus metrics"""
+        from http.server import HTTPServer, BaseHTTPRequestHandler
+        
+        class MetricsHandler(BaseHTTPRequestHandler):
+            def __init__(self, executor, *args, **kwargs):
+                self.executor = executor
+                super().__init__(*args, **kwargs)
+            
+            def do_GET(self):
+                if self.path == "/metrics":
+                    self.send_response(200)
+                    self.send_header("Content-type", "text/plain")
+                    self.end_headers()
+                    
+                    # Generate Prometheus format
+                    lines = ["# HELP ie_processed_total Total plans processed",
+                            "# TYPE ie_processed_total counter"]
+                    for (lane, result), count in self.executor.metrics_processed_total.items():
+                        lines.append(f'ie_processed_total{{lane="{lane}",result="{result}"}} {count}')
+                    
+                    lines.append("# HELP ie_skipped_total Total plans skipped")
+                    lines.append("# TYPE ie_skipped_total counter")
+                    for (lane, reason, source), count in self.executor.metrics_skipped_total.items():
+                        lines.append(f'ie_skipped_total{{lane="{lane}",reason="{reason}",source="{source}"}} {count}')
+                    
+                    lines.append("# HELP ie_last_processed_ts_seconds Last processed timestamp")
+                    lines.append("# TYPE ie_last_processed_ts_seconds gauge")
+                    for lane, ts in self.executor.metrics_last_processed_ts.items():
+                        lines.append(f'ie_last_processed_ts_seconds{{lane="{lane}"}} {ts}')
+                    
+                    self.wfile.write("\\n".join(lines).encode() + b"\\n")
+                else:
+                    self.send_response(404)
+                    self.end_headers()
+            
+            def log_message(self, format, *args):
+                pass  # Suppress HTTP logs
+        
+        def handler(*args, **kwargs):
+            MetricsHandler(self, *args, **kwargs)
+        
+        server = HTTPServer(("0.0.0.0", METRICS_PORT), handler)
+        logger.info(f"🚀 Metrics server started on port {METRICS_PORT}")
+        server.serve_forever()
         
     def _fetch_exchange_info(self):
         """Fetch exchangeInfo for filters (minNotional, LOT_SIZE)"""
@@ -155,6 +240,22 @@ class IntentExecutor:
             else:
                 raise
     
+    def _ensure_manual_consumer_group(self):
+        """Create manual consumer group if not exists"""
+        try:
+            self.redis.xgroup_create(
+                MANUAL_STREAM,
+                MANUAL_GROUP,
+                id="$",
+                mkstream=True
+            )
+            logger.info(f"✅ Manual consumer group created: {MANUAL_GROUP} on {MANUAL_STREAM}")
+        except redis.exceptions.ResponseError as e:
+            if "BUSYGROUP" in str(e):
+                logger.info(f"✅ Manual consumer group exists: {MANUAL_GROUP}")
+            else:
+                raise
+    
     def _is_done(self, plan_id: str) -> bool:
         """Check if plan already executed (idempotency)"""
         key = f"quantum:intent_executor:done:{plan_id}"
@@ -164,6 +265,17 @@ class IntentExecutor:
         """Mark plan as executed"""
         key = f"quantum:intent_executor:done:{plan_id}"
         self.redis.setex(key, IDEMPOTENCY_TTL, "1")
+    
+    def _inc_metric_processed(self, lane: str, result: str):
+        """Increment processed counter"""
+        key = (lane, result)
+        self.metrics_processed_total[key] = self.metrics_processed_total.get(key, 0) + 1
+        self.metrics_last_processed_ts[lane] = time.time()
+    
+    def _inc_metric_skipped(self, lane: str, reason: str, source: str):
+        """Increment skipped counter"""
+        key = (lane, reason, source)
+        self.metrics_skipped_total[key] = self.metrics_skipped_total.get(key, 0) + 1
     
     def _wait_for_permit(self, plan_id: str) -> Optional[Dict]:
         """Wait for P3.3 permit with timeout"""
@@ -403,8 +515,14 @@ class IntentExecutor:
         
         logger.info(f"📝 Result written: plan={plan_id[:8]} executed={executed}")
     
-    def process_plan(self, stream_id: bytes, event_data: Dict):
-        """Process single apply.plan message"""
+    def process_plan(self, stream_id: bytes, event_data: Dict, lane: str = "primary"):
+        """Process single apply.plan message
+        
+        Args:
+            stream_id: Redis stream entry ID
+            event_data: Plan data from stream
+            lane: 'primary' or 'manual' for metrics/logging
+        """
         stream_id_str = stream_id.decode()
         
         # Parse event
@@ -414,10 +532,11 @@ class IntentExecutor:
                 logger.debug(f"Skip old nested payload format: {stream_id_str}")
                 return True  # ACK but skip
             
-            # Check source filter
+            # Check source allowlist
             source = event_data.get(b"source", b"").decode()
-            if source != "intent_bridge":
-                logger.debug(f"Skip non-intent_bridge plan: source={source}")
+            if source not in SOURCE_ALLOWLIST:
+                logger.info(f"Skip plan (source_not_allowed): plan_id={event_data.get(b'plan_id', b'?').decode()[:8]} source={source} allowlist={sorted(SOURCE_ALLOWLIST)}")
+                self._inc_metric_skipped(lane, "source_not_allowed", source)
                 return True  # ACK but skip
             
             # Extract plan details (FLAT format)
@@ -567,6 +686,7 @@ class IntentExecutor:
                     order_status=final_status,
                     permit=permit
                 )
+                self._inc_metric_processed(lane, "ok")
             else:
                 logger.error(f"❌ ORDER FAILED: {order_result.get('error')}")
                 self._write_result(
@@ -576,6 +696,7 @@ class IntentExecutor:
                     qty=qty_to_use,
                     permit=permit
                 )
+                self._inc_metric_processed(lane, "error")
             
             # Mark as done
             self._mark_done(plan_id)
@@ -583,38 +704,68 @@ class IntentExecutor:
             
         except Exception as e:
             logger.error(f"Failed to process plan: {e}", exc_info=True)
+            self._inc_metric_processed(lane, "error")
             return True  # ACK to avoid blocking stream
     
     def run(self):
-        """Main processing loop"""
+        """Main processing loop - consumes primary and optionally manual lane"""
         logger.info("✅ Redis connected")
         logger.info("🚀 Intent Executor started")
-        logger.info(f"Consuming: {APPLY_PLAN_STREAM} (source=intent_bridge only)")
+        logger.info(f"Consuming PRIMARY: {APPLY_PLAN_STREAM}")
+        if MANUAL_LANE_ENABLED:
+            logger.info(f"Consuming MANUAL: {MANUAL_STREAM}")
         
-        last_id = ">"  # Only new messages
+        last_id_primary = ">"  # Only new messages
+        last_id_manual = ">" if MANUAL_LANE_ENABLED else None
         
         while True:
             try:
-                # Read from stream (XREADGROUP)
+                # Build streams dict for XREADGROUP
+                streams_dict = {APPLY_PLAN_STREAM: last_id_primary}
+                if MANUAL_LANE_ENABLED and last_id_manual:
+                    streams_dict[MANUAL_STREAM] = last_id_manual
+                
+                # Read from primary stream (XREADGROUP)
                 messages = self.redis.xreadgroup(
                     CONSUMER_GROUP,
                     CONSUMER_NAME,
-                    {APPLY_PLAN_STREAM: last_id},
+                    {APPLY_PLAN_STREAM: last_id_primary},
                     count=10,
-                    block=5000  # 5 sec timeout
+                    block=2000  # 2 sec timeout (shorter for manual lane polling)
                 )
                 
-                if not messages:
-                    continue
+                if messages:
+                    for stream_name, stream_messages in messages:
+                        for message_id, event_data in stream_messages:
+                            # Process plan (primary lane)
+                            ack = self.process_plan(message_id, event_data, lane="primary")
+                            
+                            # ACK message
+                            if ack:
+                                self.redis.xack(APPLY_PLAN_STREAM, CONSUMER_GROUP, message_id)
                 
-                for stream_name, stream_messages in messages:
-                    for message_id, event_data in stream_messages:
-                        # Process plan
-                        ack = self.process_plan(message_id, event_data)
+                # Read from manual lane if enabled
+                if MANUAL_LANE_ENABLED:
+                    try:
+                        manual_messages = self.redis.xreadgroup(
+                            MANUAL_GROUP,
+                            f"{CONSUMER_NAME}-manual",
+                            {MANUAL_STREAM: last_id_manual},
+                            count=5,
+                            block=1000  # 1 sec timeout
+                        )
                         
-                        # ACK message
-                        if ack:
-                            self.redis.xack(APPLY_PLAN_STREAM, CONSUMER_GROUP, message_id)
+                        if manual_messages:
+                            for stream_name, stream_messages in manual_messages:
+                                for message_id, event_data in stream_messages:
+                                    # Process plan (manual lane)
+                                    ack = self.process_plan(message_id, event_data, lane="manual")
+                                    
+                                    # ACK message
+                                    if ack:
+                                        self.redis.xack(MANUAL_STREAM, MANUAL_GROUP, message_id)
+                    except Exception as e:
+                        logger.error(f"Error reading manual lane: {e}")
                 
             except KeyboardInterrupt:
                 logger.info("Shutting down...")
