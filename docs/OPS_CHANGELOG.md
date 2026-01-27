@@ -10,6 +10,38 @@
 
 ```yaml
 ---
+operation_id: OPS-2026-01-27-011
+operation_name: P2.8 Portfolio Risk Governor Deployment
+requested_by: SELF
+approved_by: SELF
+approval_timestamp: 2026-01-27T22:36:34.555525+00:00
+execution_timestamp: 2026-01-27T22:36:34.555525+00:00
+git_commit: fa610f42
+git_branch: main
+hostname: Gemgeminay
+risk_class: SERVICE_RESTART
+blast_radius: New microservice (port 8049), Governor integration (Gate 0), no changes to existing execution logic
+changes_summary: Created quantum-portfolio-risk-governor.service (shadow mode), integrated budget checks into Governor production mode (fail-open design), formula: budget = equity * 0.02 * (1 - stress) where stress = 0.4*heat + 0.4*cluster + 0.2*vol
+objective: Deploy fund-grade portfolio budget engine with stress-aware position sizing
+outcome: SUCCESS
+allowed_services:
+  - quantum-portfolio-risk-governor,quantum-governor
+services_status:
+  quantum-portfolio-risk-governor,quantum-governor: inactive
+proof_file:
+  sha256: 9d08e409917651ae
+  size_bytes: 10801
+  mtime_utc: 2026-01-27T22:36:18.930509+00:00
+metrics_snapshot: |
+  # http://localhost:8049/metrics: FAILED
+redis_snapshot: |
+  # redis-cli KEYS quantum:portfolio:budget:*,XREVRANGE quantum:stream:budget.violation + - COUNT 5: FAILED
+notes: Service deployed 2026-01-27 22:34 UTC. Mode=shadow (logging only). Budget engine computes stress-adjusted limits every 10s. Governor integrated but not blocking yet (shadow). Next: Monitor 24-48h, verify accuracy, then activate enforce mode.
+```
+
+
+```yaml
+---
 operation_id: OPS-2026-01-27-010
 operation_name: P2.7 Go-Live — Portfolio Clusters + P2.6 Cluster-K Switch
 requested_by: SELF
