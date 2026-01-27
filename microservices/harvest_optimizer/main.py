@@ -617,6 +617,13 @@ class HarvestAnalyzer:
         total_expectancy = sum(p.expectancy for p in self.performance_cache.values())
         avg_exit_efficiency = sum(p.exit_efficiency for p in self.performance_cache.values()) / max(len(self.performance_cache), 1)
         
+        top_rec = ""
+        if recommendations:
+            rec = recommendations[0]
+            top_rec = f"{rec.action.upper()} {rec.rule_name} for {rec.symbol} in {rec.regime.value} (confidence: {rec.confidence:.0%})"
+        else:
+            top_rec = "No recommendations yet"
+        
         summary = f"""
 Harvest Optimizer Report - {now.strftime('%Y-%m-%d %H:%M:%S')} UTC
 
@@ -625,7 +632,7 @@ Recommendations Generated: {len(recommendations)}
 Average Exit Efficiency: {avg_exit_efficiency:.2%}
 Combined Expectancy: {total_expectancy:.2f} USDT
 
-Top Recommendation: {recommendations[0].action.upper()} {recommendations[0].rule_name} for {recommendations[0].symbol} in {recommendations[0].regime.value} (confidence: {recommendations[0].confidence:.0%}) if recommendations else "No recommendations yet"}
+Top Recommendation: {top_rec}
 """
         
         return AnalyticsReport(
