@@ -837,11 +837,20 @@ class ExitIntelligenceService:
                 
                 for stream, stream_messages in messages:
                     for msg_id, msg_data in stream_messages:
-                        # Decode message
-                        decoded = {
-                            k.decode(): json.loads(v.decode()) if v else None
-                            for k, v in msg_data.items()
-                        }
+                        # Decode message (same pattern as metricpack_builder)
+                        decoded = {}
+                        for k, v in msg_data.items():
+                            key = k.decode() if isinstance(k, bytes) else k
+                            val = v.decode() if isinstance(v, bytes) else v
+                            
+                            # Only parse 'data' field as JSON
+                            if key == "data":
+                                try:
+                                    decoded[key] = json.loads(val)
+                                except:
+                                    decoded[key] = {}
+                            else:
+                                decoded[key] = val
                         
                         self.process_apply_result(decoded)
                         
