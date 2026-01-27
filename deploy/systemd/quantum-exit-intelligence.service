@@ -1,0 +1,28 @@
+[Unit]
+Description=Quantum Exit Intelligence Service
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader/microservices/exit_intelligence
+
+EnvironmentFile=/etc/quantum/exit-intelligence.env
+
+ExecStart=/home/qt/quantum_trader/venv/bin/python3 /home/qt/quantum_trader/microservices/exit_intelligence/main.py
+
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-exit-intelligence
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
