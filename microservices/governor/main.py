@@ -218,6 +218,7 @@ class Governor:
         # Testnet flatten status (DANGEROUS - requires ESS + confirmation)
         if config.TESTNET_FORCE_FLATTEN and config.TESTNET_FORCE_FLATTEN_CONFIRM == "FLATTEN_NOW":
             logger.warning("Testnet flatten ARMED (GOV_TESTNET_FORCE_FLATTEN=true + CONFIRM=FLATTEN_NOW)")
+            logger.warning(f"Testnet flatten guards: MAX_SYMBOLS={config.MAX_FLATTEN_SYMBOLS} MIN_NOTIONAL=${config.MIN_FLATTEN_NOTIONAL_USD}")
             logger.warning("Testnet flatten requires ESS active + Redis arm key")
             METRIC_TESTNET_FLATTEN_ENABLED.set(1)
         else:
@@ -966,22 +967,52 @@ class Governor:
                 logger.info("Testnet flatten: No positions found")
                 return
             
+            # Fetch mark prices for notional calculation
+            try:
+                mark_prices_raw = self.binance_client.futures_mark_price()
+                mark_prices = {item['symbol']: float(item['markPrice']) for item in mark_prices_raw}
+            except Exception as e:
+                logger.warning(f"Testnet flatten: Could not fetch mark prices: {e} (will include all positions)")
+                mark_prices = {}
+            
             # Filter for positions with non-zero qty (float-safe threshold)
+            symbols_seen = len(result)
+            symbols_nonzero = 0
             open_positions = []
             for pos in result:
+                symbol = pos.get('symbol')
                 qty = float(pos.get('positionAmt', 0))
+                
                 if abs(qty) > 1e-8:  # Float-safe threshold (Binance min notional ~$5)
+                    symbols_nonzero += 1
+                    
+                    # Check notional if mark price available
+                    mark_price = mark_prices.get(symbol, 0)
+                    if mark_price > 0:
+                        notional = abs(qty) * mark_price
+                        if notional < self.config.MIN_FLATTEN_NOTIONAL_USD:
+                            logger.info(f"Testnet flatten: Skipping {symbol} dust (${notional:.2f} < ${self.config.MIN_FLATTEN_NOTIONAL_USD})")
+                            continue
+                    
                     open_positions.append({
-                        'symbol': pos.get('symbol'),
+                        'symbol': symbol,
                         'positionAmt': qty,
                         'positionSide': pos.get('positionSide', 'BOTH')
                     })
             
-            if not open_positions:
-                logger.info("Testnet flatten: No open positions (all qty=0)")
+            # Hard cap check (API glitch guard)
+            if len(open_positions) > self.config.MAX_FLATTEN_SYMBOLS:
+                logger.error(f"Testnet flatten: SAFETY CAP TRIGGERED - found {len(open_positions)} positions (max {self.config.MAX_FLATTEN_SYMBOLS})")
+                logger.error("Testnet flatten: This may indicate API glitch or universe expansion - ABORTING")
+                METRIC_TESTNET_FLATTEN_ERRORS.inc()
                 return
             
-            logger.warning(f"Testnet flatten: Found {len(open_positions)} open positions - placing reduceOnly MARKET close orders")
+            if not open_positions:
+                logger.info(f"Testnet flatten: No positions to close (seen={symbols_seen} nonzero={symbols_nonzero} above_notional=0)")
+                return
+            
+            logger.warning(f"Testnet flatten: Found {len(open_positions)} positions to close (seen={symbols_seen} nonzero={symbols_nonzero})")
+            logger.warning("Testnet flatten: Placing reduceOnly MARKET close orders...")
             
             orders_placed = 0
             errors = 0
@@ -1024,7 +1055,7 @@ class Governor:
             # Write cooldown timestamp
             self.redis.set(cooldown_key, str(time.time()), ex=3600)  # 1h expiry
             
-            logger.warning(f"TESTNET_FLATTEN done symbols={len(open_positions)} orders={orders_placed} errors={errors}")
+            logger.warning(f"TESTNET_FLATTEN done: symbols_seen={symbols_seen} nonzero={symbols_nonzero} above_notional={len(open_positions)} orders_sent={orders_placed} orders_ok={orders_placed-errors} errors={errors}")
             
         except Exception as e:
             logger.error(f"Testnet flatten: Fatal error: {e}", exc_info=True)
