@@ -13,8 +13,13 @@ set -euo pipefail
 # Exit codes: 0 = PASS, 1 = FAIL
 # ==============================================================================
 
+# Auto-detect script directory and repo root (location-agnostic)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 REDIS="redis-cli"
-TEST_SYMBOL="BTCUSDT"
+TEST_SYMBOLS=("BTCUSDT" "ETHUSDT" "TRXUSDT")  # Use different symbols to avoid cooldown
+TEST_SYMBOL="${TEST_SYMBOLS[0]}"              # Test 1 uses BTCUSDT
 FAILURES=0
 
 echo "===================================================================="
@@ -47,7 +52,7 @@ wait_for_governor() {
 
 cleanup() {
     echo ""
-    echo "Cleanup: Removing test keys..."
+    echo "Cleanup: Removing test keys for $TEST_SYMBOL..."
     $REDIS DEL "quantum:capital:efficiency:$TEST_SYMBOL" >/dev/null 2>&1 || true
 }
 
@@ -80,6 +85,9 @@ echo "[1] Test: Low efficiency (score=0.2, conf=0.9) → eff_action=DOWNSIZE"
 
 cleanup
 
+# Use first test symbol (BTCUSDT)
+TEST_SYMBOL="${TEST_SYMBOLS[0]}"
+
 # Inject low efficiency
 NOW=$(date +%s)
 $REDIS HSET "quantum:capital:efficiency:$TEST_SYMBOL" \
@@ -92,7 +100,12 @@ $REDIS HSET "quantum:capital:efficiency:$TEST_SYMBOL" \
 PLAN_ID=$(generate_plan_id)
 echo "   Generated plan_id: $PLAN_ID"
 
-python3 /root/quantum_trader/scripts/proof_p31_step2_inject_plan.py "$PLAN_ID" "$TEST_SYMBOL" "FULL_CLOSE_PROPOSED" "EXECUTE"
+# Inline inject: full_close_proposed plan with type EXECUTE
+$REDIS HSET "quantum:proposal:$PLAN_ID" \
+    symbol "$TEST_SYMBOL" \
+    type "FULL_CLOSE_PROPOSED" \
+    hint_type "EXECUTE" \
+    ts "$NOW" >/dev/null
 
 wait_for_governor
 
@@ -136,6 +149,9 @@ echo "[2] Test: High efficiency (score=0.8, conf=0.9) → eff_action=NONE"
 
 cleanup
 
+# Use second test symbol (ETHUSDT) to avoid cooldown from Test 1
+TEST_SYMBOL="${TEST_SYMBOLS[1]}"
+
 # Inject high efficiency
 NOW=$(date +%s)
 $REDIS HSET "quantum:capital:efficiency:$TEST_SYMBOL" \
@@ -146,7 +162,13 @@ $REDIS HSET "quantum:capital:efficiency:$TEST_SYMBOL" \
 
 # Inject plan
 PLAN_ID=$(generate_plan_id)
-python3 scripts/proof_p31_step2_inject_plan.py "$PLAN_ID" "$TEST_SYMBOL" "OPEN_PROPOSED" "EXECUTE"
+
+# Inline inject: open_proposed plan
+$REDIS HSET "quantum:proposal:$PLAN_ID" \
+    symbol "$TEST_SYMBOL" \
+    type "OPEN_PROPOSED" \
+    hint_type "EXECUTE" \
+    ts "$NOW" >/dev/null
 
 wait_for_governor
 
@@ -175,11 +197,21 @@ echo "[3] Test: Missing efficiency → eff_action=NONE, eff_reason=missing_eff"
 
 cleanup
 
+# Use third test symbol (TRXUSDT) to avoid cooldown from previous tests
+TEST_SYMBOL="${TEST_SYMBOLS[2]}"
+
 # No efficiency data injected
 
 # Inject plan
 PLAN_ID=$(generate_plan_id)
-python3 scripts/proof_p31_step2_inject_plan.py "$PLAN_ID" "$TEST_SYMBOL" "OPEN_PROPOSED" "EXECUTE"
+
+# Inline inject: open_proposed plan
+NOW=$(date +%s)
+$REDIS HSET "quantum:proposal:$PLAN_ID" \
+    symbol "$TEST_SYMBOL" \
+    type "OPEN_PROPOSED" \
+    hint_type "EXECUTE" \
+    ts "$NOW" >/dev/null
 
 wait_for_governor
 
@@ -208,6 +240,13 @@ echo "[4] Test: Low confidence (conf=0.3 < MIN_CONF=0.65) → eff_action=NONE, r
 
 cleanup
 
+# Wait 65 seconds so we can reuse first symbol (BTCUSDT) without cooldown
+echo "   Waiting 65s for cooldown to clear..."
+sleep 65
+
+# Reuse first symbol (BTCUSDT) after cooldown expires
+TEST_SYMBOL="${TEST_SYMBOLS[0]}"
+
 # Inject efficiency with low confidence
 NOW=$(date +%s)
 $REDIS HSET "quantum:capital:efficiency:$TEST_SYMBOL" \
@@ -218,7 +257,13 @@ $REDIS HSET "quantum:capital:efficiency:$TEST_SYMBOL" \
 
 # Inject plan
 PLAN_ID=$(generate_plan_id)
-python3 scripts/proof_p31_step2_inject_plan.py "$PLAN_ID" "$TEST_SYMBOL" "OPEN_PROPOSED" "EXECUTE"
+
+# Inline inject: open_proposed plan
+$REDIS HSET "quantum:proposal:$PLAN_ID" \
+    symbol "$TEST_SYMBOL" \
+    type "OPEN_PROPOSED" \
+    hint_type "EXECUTE" \
+    ts "$NOW" >/dev/null
 
 wait_for_governor
 
