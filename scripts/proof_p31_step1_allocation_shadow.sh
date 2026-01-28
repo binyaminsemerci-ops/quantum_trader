@@ -14,7 +14,12 @@ set -euo pipefail
 # Exit codes: 0 = PASS, 1 = FAIL
 # ==============================================================================
 
+# Auto-detect repo root (works whether script run from any directory)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 REDIS="redis-cli"
+PYTHON3_INJECT="python3 $REPO_ROOT/scripts/proof_p31_step1_inject_efficiency.py"
 TEST_SYMBOL="BTCUSDT"
 BASE_TARGET=1000.0
 FAILURES=0
@@ -86,7 +91,13 @@ $REDIS HSET "quantum:allocation:target:$TEST_SYMBOL" \
     mode enforce >/dev/null
 
 # Inject high efficiency
-python3 scripts/proof_p31_step1_inject_efficiency.py "$TEST_SYMBOL" 0.9 0.9
+# Inject high efficiency
+NOW=$(date +%s)
+$REDIS HSET "quantum:capital:efficiency:$TEST_SYMBOL" \
+    efficiency_score "0.9" \
+    confidence "0.9" \
+    ts "$NOW" \
+    mode "enforce" >/dev/null
 
 wait_for_processing
 
@@ -153,7 +164,13 @@ $REDIS HSET "quantum:allocation:target:$TEST_SYMBOL" \
     mode enforce >/dev/null
 
 # Inject low efficiency
-python3 scripts/proof_p31_step1_inject_efficiency.py "$TEST_SYMBOL" 0.3 0.9
+# Inject low efficiency
+NOW=$(date +%s)
+$REDIS HSET "quantum:capital:efficiency:$TEST_SYMBOL" \
+    efficiency_score "0.3" \
+    confidence "0.9" \
+    ts "$NOW" \
+    mode "enforce" >/dev/null
 
 wait_for_processing
 
@@ -236,7 +253,13 @@ $REDIS HSET "quantum:allocation:target:$TEST_SYMBOL" \
     mode enforce >/dev/null
 
 # Inject efficiency with low confidence
-python3 scripts/proof_p31_step1_inject_efficiency.py "$TEST_SYMBOL" 0.8 0.5
+# Inject low confidence efficiency
+NOW=$(date +%s)
+$REDIS HSET "quantum:capital:efficiency:$TEST_SYMBOL" \
+    efficiency_score "0.8" \
+    confidence "0.5" \
+    ts "$NOW" \
+    mode "enforce" >/dev/null
 
 wait_for_processing
 
@@ -275,7 +298,14 @@ $REDIS HSET "quantum:allocation:target:$TEST_SYMBOL" \
     mode enforce >/dev/null
 
 # Inject stale efficiency (700s ago)
-python3 scripts/proof_p31_step1_inject_efficiency.py "$TEST_SYMBOL" 0.9 0.9 stale
+# Inject stale efficiency (timestamp old)
+NOW=$(date +%s)
+STALE_TS=$((NOW - 700))  # 700 seconds old (past 600s threshold)
+$REDIS HSET "quantum:capital:efficiency:$TEST_SYMBOL" \
+    efficiency_score "0.9" \
+    confidence "0.9" \
+    ts "$STALE_TS" \
+    mode "enforce" >/dev/null
 
 wait_for_processing
 
