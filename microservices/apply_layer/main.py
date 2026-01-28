@@ -28,6 +28,13 @@ from enum import Enum
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+# P2.8A Apply Heat Observer
+try:
+    from microservices.apply_layer import heat_observer
+except ImportError:
+    heat_observer = None
+    print("WARN: heat_observer module not found, P2.8A observability disabled")
+
 try:
     import redis
 except ImportError:
@@ -404,6 +411,13 @@ class ApplyLayer:
         self.metrics_port = int(raw_port) if raw_port.isdigit() else 0
         self.setup_metrics()
         
+        # P2.8A Heat Observer config
+        self.p28_enabled = heat_observer and heat_observer.is_enabled(os.getenv("P28_HEAT_OBS_ENABLED", "true"))
+        self.p28_stream = os.getenv("P28_HEAT_OBS_STREAM", "quantum:stream:apply.heat.observed")
+        self.p28_lookup_prefix = os.getenv("P28_HEAT_LOOKUP_PREFIX", "quantum:harvest:heat:by_plan:")
+        self.p28_dedupe_ttl = int(os.getenv("P28_DEDUPE_TTL_SEC", "600"))
+        self.p28_max_debug = int(os.getenv("P28_MAX_DEBUG_CHARS", "400"))
+        
         logger.info(f"ApplyLayer initialized:")
         logger.info(f"  Mode: {self.mode.value}")
         logger.info(f"  Symbols: {self.symbols}")
@@ -412,6 +426,7 @@ class ApplyLayer:
         logger.info(f"  K thresholds: critical={self.k_block_critical}, warning={self.k_block_warning}")
         logger.info(f"  Kill switch: {self.kill_switch}")
         logger.info(f"  Metrics port: {self.metrics_port}")
+        logger.info(f"  P2.8A Heat Observer: {self.p28_enabled}")
     
     def setup_metrics(self):
         """Setup Prometheus metrics"""
@@ -642,7 +657,7 @@ class ApplyLayer:
                 decision = Decision.ERROR
                 reason_codes.append(f"unknown_action_{action}")
         
-        return ApplyPlan(
+        plan = ApplyPlan(
             plan_id=plan_id,
             symbol=symbol,
             action=proposal["harvest_action"],
@@ -659,6 +674,27 @@ class ApplyLayer:
             price=None,  # P3.2: Will be fetched at execution
             timestamp=int(time.time())
         )
+        
+        # P2.8A: Shadow observation (read HeatBridge, emit observed stream)
+        # FAIL-OPEN: Never blocks, never changes decisions, errors logged
+        if self.p28_enabled and heat_observer:
+            try:
+                heat_observer.observe(
+                    redis_client=self.redis,
+                    plan_id=plan_id,
+                    symbol=symbol,
+                    apply_decision=decision.value,
+                    enabled=self.p28_enabled,
+                    stream_name=self.p28_stream,
+                    lookup_prefix=self.p28_lookup_prefix,
+                    dedupe_ttl_sec=self.p28_dedupe_ttl,
+                    max_debug_chars=self.p28_max_debug
+                )
+            except Exception as e:
+                # Catch-all to protect Apply (fail-open)
+                logger.warning(f"{symbol}: Heat observer error (ignored): {e}")
+        
+        return plan
     
     def publish_plan(self, plan: ApplyPlan):
         """Publish apply plan to Redis stream"""
