@@ -423,6 +423,7 @@ class ApplyLayer:
         self.p28_late_max_wait_ms = int(os.getenv("P28_LATE_OBS_MAX_WAIT_MS", "2000"))
         self.p28_late_poll_ms = int(os.getenv("P28_LATE_OBS_POLL_MS", "100"))
         self.p28_late_max_workers = int(os.getenv("P28_LATE_OBS_MAX_WORKERS", "4"))
+        self.p28_late_max_inflight = int(os.getenv("P28_LATE_OBS_MAX_INFLIGHT", "200"))
         
         logger.info(f"ApplyLayer initialized:")
         logger.info(f"  Mode: {self.mode.value}")
@@ -433,7 +434,7 @@ class ApplyLayer:
         logger.info(f"  Kill switch: {self.kill_switch}")
         logger.info(f"  Metrics port: {self.metrics_port}")
         logger.info(f"  P2.8A Heat Observer: {self.p28_enabled}")
-        logger.info(f"  P2.8A.3 Late Observer: {self.p28_late_enabled} (wait={self.p28_late_max_wait_ms}ms, poll={self.p28_late_poll_ms}ms, workers={self.p28_late_max_workers})")
+        logger.info(f"  P2.8A.3 Late Observer: {self.p28_late_enabled} (wait={self.p28_late_max_wait_ms}ms, poll={self.p28_late_poll_ms}ms, workers={self.p28_late_max_workers}, max_inflight={self.p28_late_max_inflight})")
     
     def setup_metrics(self):
         """Setup Prometheus metrics"""
@@ -746,16 +747,17 @@ class ApplyLayer:
                         redis_client=self.redis,
                         plan_id=plan.plan_id,
                         symbol=plan.symbol,
+                        lookup_prefix=self.p28_lookup_prefix,  # REQUIRED: same prefix as early observer
                         apply_decision=plan.decision,
                         obs_stream=self.p28_stream,
-                        lookup_prefix=self.p28_lookup_prefix,
                         max_wait_ms=self.p28_late_max_wait_ms,
                         poll_ms=self.p28_late_poll_ms,
                         dedupe_ttl_sec=self.p28_dedupe_ttl,
                         max_debug_chars=self.p28_max_debug,
                         obs_point="publish_plan_post",
                         logger=logger,
-                        max_workers=self.p28_late_max_workers
+                        max_workers=self.p28_late_max_workers,
+                        max_inflight=self.p28_late_max_inflight
                     )
                 except Exception as e:
                     # Fail-open: don't crash Apply if late observer fails
