@@ -1,0 +1,17 @@
+[Unit]
+Description=Quantum Trader ESS Watch Service (checks flag every 5s)
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'if [[ -f /var/run/quantum/ESS_ON ]]; then /home/qt/quantum_trader/ops/ess_controller.sh activate; fi'
+StandardOutput=journal
+StandardError=journal
+
+# No rate limiting - idempotent controller handles duplicates
+StartLimitIntervalSec=0
+StartLimitBurst=0
+
+[Install]
+WantedBy=multi-user.target

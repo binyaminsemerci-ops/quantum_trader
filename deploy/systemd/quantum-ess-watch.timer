@@ -1,0 +1,11 @@
+[Unit]
+Description=Quantum Trader ESS Watch Timer (polls flag every 5s)
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+
+[Timer]
+OnBootSec=5s
+OnUnitActiveSec=5s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
