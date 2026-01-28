@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 # P2.8A.3: Bounded thread pool for late observer (production-safe)
 _late_observer_executor: Optional[ThreadPoolExecutor] = None
+_late_observer_inflight: int = 0
+_late_observer_inflight_lock = None  # Lazy init for thread safety
 
 # P2.8A.2: Prometheus metrics (fail-open)
 try:
@@ -216,16 +218,17 @@ def observe_late_async(
     redis_client,
     plan_id: str,
     symbol: str,
+    lookup_prefix: str,
     apply_decision: str = "",
     obs_stream: str = "quantum:stream:apply.heat.observed",
-    lookup_prefix: str = "quantum:harvest:heat:by_plan:",
     max_wait_ms: int = 2000,
     poll_ms: int = 100,
     dedupe_ttl_sec: int = 600,
     max_debug_chars: int = 400,
     obs_point: str = "publish_plan_post",
     logger=None,
-    max_workers: int = 4
+    max_workers: int = 4,
+    max_inflight: int = 200
 ) -> None:
     """
     P2.8A.3: Delayed heat observation after publish_plan (non-blocking, bounded).
@@ -248,9 +251,9 @@ def observe_late_async(
         redis_client: Redis connection
         plan_id: Apply plan ID
         symbol: Trading symbol
+        lookup_prefix: HeatBridge key prefix (REQUIRED - must match P28_HEAT_LOOKUP_PREFIX)
         apply_decision: Apply decision
         obs_stream: Output observed stream name
-        lookup_prefix: HeatBridge key prefix
         max_wait_ms: Max polling time in milliseconds (default: 2000)
         poll_ms: Polling interval in milliseconds (default: 100)
         dedupe_ttl_sec: Deduplication TTL
@@ -258,11 +261,25 @@ def observe_late_async(
         obs_point: Observation point identifier (default: "publish_plan_post")
         logger: Logger instance
         max_workers: Max thread pool size (default: 4)
+        max_inflight: Max concurrent tasks (backpressure, default: 200)
     
     Returns:
         None (spawns background task, never blocks)
     """
-    global _late_observer_executor
+    global _late_observer_executor, _late_observer_inflight, _late_observer_inflight_lock
+    
+    # Lazy init inflight lock (thread-safe)
+    if _late_observer_inflight_lock is None:
+        import threading
+        _late_observer_inflight_lock = threading.Lock()
+    
+    # Check inflight limit (backpressure - fail-open on saturation)
+    with _late_observer_inflight_lock:
+        if _late_observer_inflight >= max_inflight:
+            log = logger or logging.getLogger(__name__)
+            log.debug(f"{symbol}: Late observer inflight limit reached ({_late_observer_inflight}/{max_inflight}), skipping (fail-open)")
+            return  # Drop on saturation - better than OOM
+        _late_observer_inflight += 1
     
     # Initialize bounded thread pool (singleton, production-safe)
     if _late_observer_executor is None:
@@ -280,19 +297,29 @@ def observe_late_async(
     
     def _poll_and_observe():
         """Background polling logic."""
+        global _late_observer_inflight, _late_observer_inflight_lock
         try:
             log = logger or logging.getLogger(__name__)
             heat_key = f"{lookup_prefix}{plan_id}"
             start_time = time.time()
             max_wait_sec = max_wait_ms / 1000.0
             poll_sec = poll_ms / 1000.0
+            redis_errors = 0
+            max_redis_errors = 2
             
             # Poll for by_plan key
             heat_found = False
             while (time.time() - start_time) < max_wait_sec:
-                if redis_client.exists(heat_key):
-                    heat_found = True
-                    break
+                try:
+                    if redis_client.exists(heat_key):
+                        heat_found = True
+                        break
+                except Exception as e:
+                    redis_errors += 1
+                    log.warning(f"{symbol}: Redis error in late observer (attempt {redis_errors}/{max_redis_errors}): {e}")
+                    if redis_errors >= max_redis_errors:
+                        log.warning(f"{symbol}: Late observer aborting after {redis_errors} redis errors")
+                        break
                 time.sleep(poll_sec)
             
             # Emit observation (will read full heat data if found)
@@ -313,12 +340,18 @@ def observe_late_async(
             if heat_found:
                 log.debug(f"{symbol}: Late observer found heat after {wait_time_ms}ms (plan={plan_id[:16]})")
             else:
-                log.debug(f"{symbol}: Late observer no heat after {wait_time_ms}ms (plan={plan_id[:16]})")
+                reason = "timeout" if redis_errors < max_redis_errors else "redis_error"
+                log.debug(f"{symbol}: Late observer no heat after {wait_time_ms}ms (reason={reason}, plan={plan_id[:16]})")
         
         except Exception as e:
             log = logger or logging.getLogger(__name__)
             log.warning(f"{symbol}: Late observer error: {e}")
             # Fail-open: don't crash, just log
+        
+        finally:
+            # Always decrement inflight counter (backpressure cleanup)
+            with _late_observer_inflight_lock:
+                _late_observer_inflight -= 1
     
     # Submit to bounded thread pool (production-safe)
     try:
