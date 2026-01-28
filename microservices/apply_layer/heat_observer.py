@@ -10,8 +10,12 @@ import json
 import logging
 import time
 from typing import Optional, Dict, Any
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
+
+# P2.8A.3: Bounded thread pool for late observer (production-safe)
+_late_observer_executor: Optional[ThreadPoolExecutor] = None
 
 # P2.8A.2: Prometheus metrics (fail-open)
 try:
@@ -220,18 +224,25 @@ def observe_late_async(
     dedupe_ttl_sec: int = 600,
     max_debug_chars: int = 400,
     obs_point: str = "publish_plan_post",
-    logger=None
+    logger=None,
+    max_workers: int = 4
 ) -> None:
     """
-    P2.8A.3: Delayed heat observation after publish_plan (non-blocking).
+    P2.8A.3: Delayed heat observation after publish_plan (non-blocking, bounded).
     
     Polls for HeatBridge by_plan key for up to max_wait_ms, then emits observed event.
-    Runs in background thread to avoid blocking Apply processing.
+    Uses bounded ThreadPoolExecutor to prevent resource leaks at high throughput.
     
     WHY THIS EXISTS:
     - Observer at create_apply_plan runs BEFORE publish → HeatBridge hasn't written by_plan yet
     - This late observer runs AFTER publish → HeatBridge has time to write by_plan key
     - Result: Better heat coverage without changing execution timing
+    
+    PRODUCTION SAFETY:
+    - Bounded thread pool (max_workers) prevents unbounded thread spawn
+    - Fail-open (swallows all exceptions)
+    - Non-blocking (returns immediately)
+    - Separate obs_point and dedupe key
     
     Args:
         redis_client: Redis connection
@@ -246,11 +257,26 @@ def observe_late_async(
         max_debug_chars: Max debug JSON chars
         obs_point: Observation point identifier (default: "publish_plan_post")
         logger: Logger instance
+        max_workers: Max thread pool size (default: 4)
     
     Returns:
-        None (spawns background thread, never blocks)
+        None (spawns background task, never blocks)
     """
-    import threading
+    global _late_observer_executor
+    
+    # Initialize bounded thread pool (singleton, production-safe)
+    if _late_observer_executor is None:
+        try:
+            _late_observer_executor = ThreadPoolExecutor(
+                max_workers=max_workers,
+                thread_name_prefix="p28a3_late_obs"
+            )
+            log = logger or logging.getLogger(__name__)
+            log.info(f"P2.8A.3: Late observer pool created (max_workers={max_workers})")
+        except Exception as e:
+            log = logger or logging.getLogger(__name__)
+            log.warning(f"P2.8A.3: Failed to create thread pool: {e}")
+            return  # Fail-open: don't crash Apply
     
     def _poll_and_observe():
         """Background polling logic."""
@@ -294,13 +320,12 @@ def observe_late_async(
             log.warning(f"{symbol}: Late observer error: {e}")
             # Fail-open: don't crash, just log
     
-    # Start background thread (daemon=True so it doesn't block shutdown)
+    # Submit to bounded thread pool (production-safe)
     try:
-        thread = threading.Thread(target=_poll_and_observe, daemon=True)
-        thread.start()
+        _late_observer_executor.submit(_poll_and_observe)
     except Exception as e:
         log = logger or logging.getLogger(__name__)
-        log.warning(f"{symbol}: Failed to start late observer thread: {e}")
+        log.warning(f"{symbol}: Failed to submit late observer task: {e}")
         # Fail-open: don't crash Apply
 
 

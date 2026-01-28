@@ -422,6 +422,7 @@ class ApplyLayer:
         self.p28_late_enabled = heat_observer and heat_observer.is_enabled(os.getenv("P28_LATE_OBS_ENABLED", "true"))
         self.p28_late_max_wait_ms = int(os.getenv("P28_LATE_OBS_MAX_WAIT_MS", "2000"))
         self.p28_late_poll_ms = int(os.getenv("P28_LATE_OBS_POLL_MS", "100"))
+        self.p28_late_max_workers = int(os.getenv("P28_LATE_OBS_MAX_WORKERS", "4"))
         
         logger.info(f"ApplyLayer initialized:")
         logger.info(f"  Mode: {self.mode.value}")
@@ -432,7 +433,7 @@ class ApplyLayer:
         logger.info(f"  Kill switch: {self.kill_switch}")
         logger.info(f"  Metrics port: {self.metrics_port}")
         logger.info(f"  P2.8A Heat Observer: {self.p28_enabled}")
-        logger.info(f"  P2.8A.3 Late Observer: {self.p28_late_enabled} (wait={self.p28_late_max_wait_ms}ms, poll={self.p28_late_poll_ms}ms)")
+        logger.info(f"  P2.8A.3 Late Observer: {self.p28_late_enabled} (wait={self.p28_late_max_wait_ms}ms, poll={self.p28_late_poll_ms}ms, workers={self.p28_late_max_workers})")
     
     def setup_metrics(self):
         """Setup Prometheus metrics"""
@@ -753,7 +754,8 @@ class ApplyLayer:
                         dedupe_ttl_sec=self.p28_dedupe_ttl,
                         max_debug_chars=self.p28_max_debug,
                         obs_point="publish_plan_post",
-                        logger=logger
+                        logger=logger,
+                        max_workers=self.p28_late_max_workers
                     )
                 except Exception as e:
                     # Fail-open: don't crash Apply if late observer fails

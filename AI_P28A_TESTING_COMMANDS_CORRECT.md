@@ -33,8 +33,12 @@ OBS_ID=$(redis-cli --raw XREVRANGE quantum:stream:apply.heat.observed + - COUNT 
 echo "OBS_ID=$OBS_ID"
 
 echo ""
-echo "Compare:"
-[ "$PLAN_ID" = "$OBS_ID" ] && echo "MATCH ✅" || echo "MISMATCH ❌"
+echo "Compare (checking if observed plan exists in apply.plan stream):"
+if redis-cli --raw XREVRANGE quantum:stream:apply.plan + - COUNT 2000 | grep -q "$OBS_ID"; then
+  echo "✅ FOUND IN apply.plan (IDs match)"
+else
+  echo "❌ NOT FOUND"
+fi
 ```
 
 ### 2. Sjekk by_plan Key Eksistens
@@ -274,6 +278,60 @@ for i in 0 1 2 3; do
     fi
     [ $i -lt 3 ] && sleep 1
 done
+```
+
+---
+
+## P2.8A.3 Verification (Late Observer)
+
+### A) Confirm publish_plan_post Appearing
+
+```bash
+redis-cli XREVRANGE quantum:stream:apply.heat.observed + - COUNT 200 | grep -c "publish_plan_post"
+# Should be > 0 if late observer is running
+```
+
+### B) Coverage Split by obs_point
+
+```bash
+redis-cli --raw XREVRANGE quantum:stream:apply.heat.observed + - COUNT 800 | awk '
+  tolower($0)=="obs_point"{getline; op=$0}
+  tolower($0)=="heat_found"{getline; hf=$0; c[op,hf]++}
+  END{
+    for (k in c) print k, c[k]
+  }' | sort
+```
+
+**Expected**:
+```
+create_apply_plan 0 150  (early, still mostly 0)
+create_apply_plan 1 10
+publish_plan_post 0 20
+publish_plan_post 1 140  (late, mostly 1!)
+```
+
+### C) Metrics Confirmation
+
+```bash
+curl -s http://localhost:8043/metrics | grep -E '^p28_observed_total|^p28_heat_reason_total' | grep publish_plan_post
+```
+
+**Expected**: `p28_observed_total{obs_point="publish_plan_post",heat_found="1"}` increasing
+
+### D) Verify Wiring Still Correct
+
+```bash
+# HeatGate input
+cat /etc/quantum/heat-gate.env | grep HEAT_STREAM_IN
+# Expected: HEAT_STREAM_IN=quantum:stream:apply.plan
+
+# HeatBridge config
+cat /etc/quantum/heat-bridge.env | grep -E 'P27_STREAM_IN|TTL'
+# Expected: P27_STREAM_IN=quantum:stream:harvest.heat.decision, TTL=1800+
+
+# Consumer group exists
+redis-cli XINFO GROUPS quantum:stream:harvest.heat.decision
+# Expected: heat_bridge group exists
 ```
 
 ---
