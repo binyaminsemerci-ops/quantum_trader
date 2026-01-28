@@ -434,7 +434,9 @@ class ApplyLayer:
         logger.info(f"  Kill switch: {self.kill_switch}")
         logger.info(f"  Metrics port: {self.metrics_port}")
         logger.info(f"  P2.8A Heat Observer: {self.p28_enabled}")
-        logger.info(f"  P2.8A.3 Late Observer: {self.p28_late_enabled} (wait={self.p28_late_max_wait_ms}ms, poll={self.p28_late_poll_ms}ms, workers={self.p28_late_max_workers}, max_inflight={self.p28_late_max_inflight})")
+        logger.info(f"  P2.8A.3 Late Observer: enabled={self.p28_late_enabled}, max_wait={self.p28_late_max_wait_ms}ms, "
+                   f"poll={self.p28_late_poll_ms}ms, max_workers={self.p28_late_max_workers}, "
+                   f"max_inflight={self.p28_late_max_inflight}, lookup_prefix={self.p28_lookup_prefix}")
     
     def setup_metrics(self):
         """Setup Prometheus metrics"""

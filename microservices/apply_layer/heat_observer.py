@@ -36,6 +36,11 @@ try:
         'Apply heat lookup reasons',
         ['obs_point', 'reason']
     )
+    # P2.8A.3: Track executor saturation (tuning signal)
+    p28_late_obs_dropped = Counter(
+        'p28_late_obs_dropped_total',
+        'Late observer tasks dropped due to max_inflight saturation'
+    )
     METRICS_AVAILABLE = True
 except ImportError:
     METRICS_AVAILABLE = False
