@@ -19,6 +19,7 @@ def observe(
     plan_id: str,
     symbol: str,
     apply_decision: str = "",
+    obs_point: str = "create_apply_plan",
     enabled: bool = True,
     stream_name: str = "quantum:stream:apply.heat.observed",
     lookup_prefix: str = "quantum:harvest:heat:by_plan:",
@@ -39,6 +40,7 @@ def observe(
         plan_id: Apply plan ID
         symbol: Trading symbol (e.g., BTCUSDT)
         apply_decision: Apply decision (EXECUTE/SKIP/BLOCKED/UNKNOWN, default: "")
+        obs_point: Observation point identifier (default: "create_apply_plan")
         enabled: If False, silently skip (default: True)
         stream_name: Output observed stream name
         lookup_prefix: HeatBridge key prefix
@@ -63,10 +65,10 @@ def observe(
     debug_data = {}
     
     try:
-        # Check deduplication
-        dedupe_key = f"quantum:dedupe:p28:{plan_id}"
+        # Check deduplication (per observation point)
+        dedupe_key = f"quantum:dedupe:p28:{obs_point}:{plan_id}"
         if redis_client.exists(dedupe_key):
-            logger.debug(f"{symbol}: Plan {plan_id[:16]} already observed (dedupe skip)")
+            logger.debug(f"{symbol}: Plan {plan_id[:16]} already observed at {obs_point} (dedupe skip)")
             # Increment dedupe metric if available (optional)
             try:
                 # Try to increment p28_heat_obs_skipped_dedupe_total if metrics exist
@@ -76,7 +78,7 @@ def observe(
                 pass
             return
         
-        # Set dedupe key
+        # Set dedupe key (per observation point)
         try:
             redis_client.setex(dedupe_key, dedupe_ttl_sec, "1")
         except Exception as e:
@@ -146,6 +148,7 @@ def observe(
                 "plan_id": plan_id,
                 "symbol": symbol,
                 "apply_component": "apply",
+                "obs_point": obs_point,
                 "heat_found": str(heat_found),
                 "heat_ts_epoch": heat_ts_epoch,
                 "heat_level": heat_level,
