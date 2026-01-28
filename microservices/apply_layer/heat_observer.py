@@ -13,6 +13,24 @@ from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+# P2.8A.2: Prometheus metrics (fail-open)
+try:
+    from prometheus_client import Counter
+    p28_observed = Counter(
+        'p28_observed_total',
+        'Apply shadow observability events',
+        ['obs_point', 'heat_found']
+    )
+    p28_heat_reason = Counter(
+        'p28_heat_reason_total',
+        'Apply heat lookup reasons',
+        ['obs_point', 'reason']
+    )
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+    logger.debug("prometheus_client not available, P2.8A metrics disabled")
+
 
 def observe(
     redis_client,
@@ -165,13 +183,19 @@ def observe(
             
             logger.debug(f"{symbol}: Observed event emitted (plan={plan_id[:16]}, heat_found={heat_found})")
             
-            # Increment metrics if available (optional)
-            try:
-                # Try to increment p28_heat_obs_total{found=..., reason=...} if metrics exist
-                # This is optional and fails silently if no metrics framework
-                pass
-            except:
-                pass
+            # P2.8A.2: Increment Prometheus metrics (fail-open)
+            if METRICS_AVAILABLE:
+                try:
+                    p28_observed.labels(
+                        obs_point=obs_point,
+                        heat_found=str(heat_found)
+                    ).inc()
+                    p28_heat_reason.labels(
+                        obs_point=obs_point,
+                        reason=heat_reason
+                    ).inc()
+                except Exception as e:
+                    logger.debug(f"P2.8A.2: metrics increment failed: {e}")
         
         except Exception as e:
             # Stream write error - log and continue
