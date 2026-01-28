@@ -1,0 +1,34 @@
+[Unit]
+Description=Quantum Capital Allocation Brain (P2.9)
+After=network.target redis.service quantum-portfolio-state-publisher.service quantum-portfolio-risk-governor.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+
+# Environment
+EnvironmentFile=/etc/quantum/capital-allocation.env
+
+# Execution
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/microservices/capital_allocation/main.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-capital-allocation
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
