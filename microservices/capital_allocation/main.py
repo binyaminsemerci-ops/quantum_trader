@@ -326,6 +326,7 @@ class RedisClient:
                 "cluster_factor": str(factors.get("cluster_factor", 1.0)),
                 "drawdown_factor": str(factors.get("drawdown_factor", 1.0)),
                 "performance_factor": str(factors.get("performance_factor", 1.0)),
+                "performance_source": factors.get("performance_source", "fallback"),
             }
             self.client.xadd("quantum:stream:allocation.decision", event, maxlen=1000)
         except Exception as e:
@@ -366,13 +367,39 @@ class AllocationEngine:
         else:
             return DD_FACTOR_HIGH, "HIGH"
     
-    def get_performance_factor(self, alpha: float) -> float:
-        """Get performance factor: sigmoid(alpha)."""
-        # Sigmoid: 1 / (1 + exp(-alpha))
+    def get_performance_factor(self, symbol: str) -> Tuple[float, str]:
+        """
+        Get performance factor from P3.0 Performance Attribution Brain.
+        
+        Returns: (performance_factor, source) where source is "P3.0" or "fallback"
+        """
         try:
-            return 1.0 / (1.0 + math.exp(-alpha))
-        except OverflowError:
-            return 1.0 if alpha > 0 else 0.0
+            # Read from quantum:alpha:attribution:{symbol}
+            key = f"quantum:alpha:attribution:{symbol}"
+            data = self.redis.client.hgetall(key)
+            
+            if not data:
+                logger.debug(f"{symbol}: No P3.0 attribution data, using fallback")
+                return 1.0, "fallback"
+            
+            # Check timestamp freshness
+            ts_utc = int(data.get("ts_utc", 0))
+            age = int(time.time()) - ts_utc
+            
+            if age > STALE_DATA_SEC:
+                logger.warning(f"{symbol}: P3.0 attribution stale ({age}s), using fallback")
+                return 1.0, "fallback"
+            
+            # Extract performance_factor
+            performance_factor = float(data.get("performance_factor", 1.0))
+            source = data.get("source", "P3.0")
+            
+            logger.debug(f"{symbol}: P3.0 performance_factor={performance_factor:.4f} (source={source})")
+            return performance_factor, "P3.0"
+            
+        except Exception as e:
+            logger.error(f"{symbol}: Error reading P3.0 attribution: {e}")
+            return 1.0, "fallback"
     
     def compute_allocation(
         self,
@@ -420,14 +447,15 @@ class AllocationEngine:
             # Cluster factor
             if cluster_stress and not self.is_data_stale(cluster_stress.timestamp):
                 cluster_factor = self.get_cluster_factor(cluster_stress.stress)
-                performance_factor = self.get_performance_factor(cluster_stress.alpha)
                 cluster_id = cluster_stress.cluster_id
             else:
                 logger.warning(f"{budget.symbol}: Cluster data stale, using default")
                 metrics_stale_fallback.labels(data_source="cluster").inc()
                 cluster_factor = 1.0
-                performance_factor = 1.0
                 cluster_id = "UNKNOWN"
+            
+            # Performance factor (from P3.0 Performance Attribution Brain)
+            performance_factor, perf_source = self.get_performance_factor(budget.symbol)
             
             # Drawdown factor
             if not self.is_data_stale(portfolio.timestamp):
@@ -482,6 +510,7 @@ class AllocationEngine:
             "cluster_factor": cluster_factor,
             "drawdown_factor": drawdown_factor,
             "performance_factor": performance_factor,
+            "performance_source": perf_source,
         }
         
         return target, factors

@@ -1,0 +1,30 @@
+[Unit]
+Description=Quantum Trading P3.0 Performance Attribution Brain
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=/home/qt/quantum_trader/deploy/performance-attribution.env
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/microservices/performance_attribution/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-performance-attribution
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/tmp
+
+# Resource limits
+MemoryMax=256M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

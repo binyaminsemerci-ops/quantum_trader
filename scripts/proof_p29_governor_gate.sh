@@ -252,8 +252,32 @@ fi
 
 echo ""
 
-# Test 10: Verify Governor metrics incrementing
-echo "[TEST 10] Metrics Verification"
+# Test 10: Testnet P2.9 Gate Flag
+echo "[TEST 10] Testnet P2.9 Gate Flag"
+
+# Check if testnet flag is enabled
+TESTNET_FLAG=$(grep GOV_TESTNET_ENABLE_P29 /etc/quantum/portfolio-risk-governor.env 2>/dev/null || echo "not found")
+
+if echo "$TESTNET_FLAG" | grep -q "true"; then
+    pass "GOV_TESTNET_ENABLE_P29=true (testnet P2.9 gate enabled)"
+    
+    # Check recent logs for testnet P2.9 gate execution
+    RECENT_TESTNET_LOGS=$(journalctl -u quantum-governor --since "30 seconds ago" --no-pager | grep -i "testnet.*p2.9\|testnet.*allocation")
+    
+    if [ -n "$RECENT_TESTNET_LOGS" ]; then
+        pass "Testnet P2.9 gate logs found in Governor"
+        info "Sample log: $(echo "$RECENT_TESTNET_LOGS" | head -1 | cut -c1-100)..."
+    else
+        info "No recent testnet P2.9 logs (may need trade activity)"
+    fi
+else
+    info "GOV_TESTNET_ENABLE_P29 not enabled (production path only)"
+fi
+
+echo ""
+
+# Test 11: Verify Governor metrics incrementing
+echo "[TEST 11] Metrics Verification"
 
 # Check P2.9 metrics
 CHECKED_COUNT=$(curl -s http://localhost:8044/metrics | grep "gov_p29_checked_total" | head -1 | awk '{print $2}' || echo "0")

@@ -76,6 +76,9 @@ class Config:
     DISARM_ON_ERROR_COUNT = int(os.getenv('GOV_DISARM_ON_ERROR_COUNT', '5'))
     DISARM_ON_BURST_BREACH = os.getenv('GOV_DISARM_ON_BURST_BREACH', 'true').lower() == 'true'
     
+    # Testnet P2.9 gate
+    TESTNET_ENABLE_P29 = os.getenv('GOV_TESTNET_ENABLE_P29', 'false').lower() == 'true'
+    
     # Apply Layer config path (for disarm action)
     APPLY_CONFIG_PATH = os.getenv('APPLY_CONFIG_PATH', '/etc/quantum/apply-layer.env')
     
@@ -285,6 +288,13 @@ class Governor:
                 budget_violation = self._check_portfolio_budget(symbol, plan_id)
                 if budget_violation:
                     logger.warning(f"{symbol}: P2.8 budget violation detected (testnet mode - NOT blocking)")
+                
+                # Gate 0.5: P2.9 Allocation Target Check (TESTNET: only if flag enabled)
+                if self.config.TESTNET_ENABLE_P29:
+                    logger.info(f"{symbol}: Testnet P2.9 gate enabled - checking allocation target")
+                    p29_block, p29_reason = self._check_p29_allocation_target(symbol, plan_id)
+                    if p29_block:
+                        logger.warning(f"{symbol}: P2.9 allocation violation: {p29_reason} (testnet mode - NOT blocking)")
                 
                 # Gate 0: Kill-switch check
                 kill_switch = self.redis.get('quantum:kill')
