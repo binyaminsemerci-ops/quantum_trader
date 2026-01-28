@@ -259,6 +259,45 @@ fi
 
 echo ""
 echo "===================================================================="
+echo "[E] P2.8A.2: Prometheus Metrics Validation"
+echo "===================================================================="
+
+# Attempt to scrape Apply metrics endpoint
+APPLY_METRICS_PORT="${APPLY_METRICS_PORT:-8043}"
+METRICS_URL="http://localhost:${APPLY_METRICS_PORT}/metrics"
+
+echo "[E] Checking Apply metrics endpoint: $METRICS_URL"
+
+if curl -s --connect-timeout 3 "$METRICS_URL" >/dev/null 2>&1; then
+    METRICS=$(curl -s "$METRICS_URL")
+    
+    if echo "$METRICS" | grep -q "^p28_observed_total{"; then
+        pass "Metrics: p28_observed_total found"
+        
+        # Show sample metrics
+        echo "$METRICS" | grep "^p28_observed_total{" | head -5
+    else
+        fail "Metrics: p28_observed_total NOT found (may be zero events)"
+        echo "Note: Metrics appear only after first observed event"
+    fi
+    
+    if echo "$METRICS" | grep -q "^p28_heat_reason_total{"; then
+        pass "Metrics: p28_heat_reason_total found"
+        
+        # Show sample metrics
+        echo "$METRICS" | grep "^p28_heat_reason_total{" | head -5
+    else
+        fail "Metrics: p28_heat_reason_total NOT found (may be zero events)"
+        echo "Note: Metrics appear only after first observed event"
+    fi
+else
+    echo "⚠️  WARN: Apply metrics endpoint not available at $METRICS_URL"
+    echo "    Set APPLY_METRICS_PORT or check Apply service metrics config"
+    echo "    Skipping metrics validation (not a test failure)"
+fi
+
+echo ""
+echo "===================================================================="
 if [ $FAILURES -eq 0 ]; then
     echo "✅ SUMMARY: PASS (all tests passed)"
     echo "===================================================================="
@@ -273,6 +312,7 @@ else
     echo "  redis-cli KEYS 'quantum:harvest:heat:by_plan:*' | head -5"
     echo "  redis-cli XREVRANGE quantum:stream:apply.heat.observed + - COUNT 10"
     echo "  redis-cli KEYS 'quantum:dedupe:p28:*'"
+    echo "  curl -s http://localhost:${APPLY_METRICS_PORT}/metrics | grep p28_"
     echo ""
     exit 1
 fi
