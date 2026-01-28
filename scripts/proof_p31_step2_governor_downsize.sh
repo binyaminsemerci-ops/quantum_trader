@@ -92,7 +92,7 @@ $REDIS HSET "quantum:capital:efficiency:$TEST_SYMBOL" \
 PLAN_ID=$(generate_plan_id)
 echo "   Generated plan_id: $PLAN_ID"
 
-python3 /root/quantum_trader/scripts/proof_p31_step2_inject_plan.py "$PLAN_ID" "$TEST_SYMBOL" "OPEN_PROPOSED" "EXECUTE"
+python3 /root/quantum_trader/scripts/proof_p31_step2_inject_plan.py "$PLAN_ID" "$TEST_SYMBOL" "FULL_CLOSE_PROPOSED" "EXECUTE"
 
 wait_for_governor
 
