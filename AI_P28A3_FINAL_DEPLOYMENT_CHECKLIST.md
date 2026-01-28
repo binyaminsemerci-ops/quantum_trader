@@ -89,9 +89,9 @@ P2.8A.3: Late observer pool created (max_workers=4)
 
 ---
 
-## ✅ Post-Deploy Verification (2 Minutes)
+## ✅ Post-Deploy Verification (3 Minutes)
 
-**Wait 5-10 minutes** after deploy for events to flow, then run these two never-lie commands:
+**Wait 5-10 minutes** after deploy for events to flow, then run these three never-lie commands:
 
 ### Verification 1: Confirm publish_plan_post Events Appear
 
@@ -141,6 +141,24 @@ p28_heat_reason_total{obs_point="publish_plan_post",reason="redis_error"} 0
 **If timeout rate is high** (>50%), consider:
 - Increase `P28_LATE_OBS_MAX_WAIT_MS` to 3000-5000ms
 - Check HeatBridge consumer lag
+
+### Verification 3: Confirm Dropped Counter Exists
+
+```bash
+curl -s http://localhost:8043/metrics | grep -E '^p28_late_obs_dropped_total(\{| )'
+```
+
+**Expected Output**:
+```
+p28_late_obs_dropped_total 0
+```
+
+**Key Indicators**:
+- ✅ Counter exists → Saturation monitoring active (tune with data, not gut feel)
+- ✅ `= 0` → No saturation (max_inflight=200 is sufficient)
+- ⚠️ `> 0` → Saturation detected, increase `P28_LATE_OBS_MAX_INFLIGHT` or `MAX_WORKERS`
+
+**If counter is missing** → Metrics not working (check prometheus_client)
 
 ---
 
@@ -226,26 +244,56 @@ journalctl -u quantum-apply-layer -n 10 --no-pager | grep "P2.8A.3"
 
 **Add panels for late observer**:
 
-### Panel 1: Coverage Split by obs_point
+### Panel 1: Late Observer Saturation
+```promql
+rate(p28_late_obs_dropped_total[5m])
+```
+
+**Tuning Guide**:
+- If `> 0` over time → Increase `P28_LATE_OBS_MAX_INFLIGHT` or `MAX_WORKERS`
+- Or reduce `POLL_MS`/`MAX_WAIT_MS` to free up slots faster
+
+### Panel 2: Late Observer Outcome Split (publish_plan_post)
+```promql
+sum by (heat_found) (rate(p28_observed_total{obs_point="publish_plan_post"}[5m]))
+```
+
+### Panel 3: Coverage Split by obs_point
 ```promql
 sum by (obs_point, heat_found) (rate(p28_observed_total[5m]))
 ```
 
-### Panel 2: Reason Distribution (Late Observer)
+### Panel 4: Reason Distribution (Late Observer)
 ```promql
 sum by (reason) (rate(p28_heat_reason_total{obs_point="publish_plan_post"}[5m]))
 ```
 
-### Panel 3: Timeout Rate
+### Alert 1: Saturation Sustained
+
+**Trigger**: System dropping tasks continuously
 ```promql
-rate(p28_heat_reason_total{obs_point="publish_plan_post",reason="timeout"}[5m])
-/ rate(p28_observed_total{obs_point="publish_plan_post"}[5m])
+sum(rate(p28_late_obs_dropped_total[10m])) > 0
 ```
 
-### Alert: High Redis Error Rate
+**Action**: Increase `P28_LATE_OBS_MAX_INFLIGHT` or `MAX_WORKERS`
+
+### Alert 2: Late Observer Timing Too Short
+
+**Trigger**: Timeout dominates (>50% of observations)
+```promql
+sum(rate(p28_heat_reason_total{obs_point="publish_plan_post",reason="timeout"}[10m]))
+>
+sum(rate(p28_observed_total{obs_point="publish_plan_post"}[10m])) * 0.5
+```
+
+**Action**: Increase `MAX_WAIT_MS` or check HeatBridge latency
+
+### Alert 3: High Redis Error Rate
 ```promql
 rate(p28_heat_reason_total{reason="redis_error"}[5m]) > 0.1
 ```
+
+**Action**: Check Redis connection/capacity
 
 ---
 
