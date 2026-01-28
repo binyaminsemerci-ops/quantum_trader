@@ -244,13 +244,13 @@ journalctl -u quantum-apply-layer -n 10 --no-pager | grep "P2.8A.3"
 
 **Add panels for late observer**:
 
-### Panel 1: Late Observer Saturation
+### Panel 1: Late Observer Saturation (drops/min)
 ```promql
-rate(p28_late_obs_dropped_total[5m])
+60 * rate(p28_late_obs_dropped_total[5m])
 ```
 
 **Tuning Guide**:
-- If `> 0` over time → Increase `P28_LATE_OBS_MAX_INFLIGHT` or `MAX_WORKERS`
+- If `> 0` sustained → Increase `P28_LATE_OBS_MAX_INFLIGHT` or `MAX_WORKERS`
 - Or reduce `POLL_MS`/`MAX_WAIT_MS` to free up slots faster
 
 ### Panel 2: Late Observer Outcome Split (publish_plan_post)
@@ -270,10 +270,12 @@ sum by (reason) (rate(p28_heat_reason_total{obs_point="publish_plan_post"}[5m]))
 
 ### Alert 1: Saturation Sustained
 
-**Trigger**: System dropping tasks continuously
+**Trigger**: System dropping tasks continuously (sustained rate, not single drops)
 ```promql
-sum(rate(p28_late_obs_dropped_total[10m])) > 0
+sum(rate(p28_late_obs_dropped_total[10m])) > 0.01
 ```
+
+**Threshold**: `> 0.01` avoids flapping from single drops (use `> 0.1` for high volume)
 
 **Action**: Increase `P28_LATE_OBS_MAX_INFLIGHT` or `MAX_WORKERS`
 
