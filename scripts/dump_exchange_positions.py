@@ -83,7 +83,7 @@ def load_env_file(path):
             return True
     
     except Exception as e:
-        print(f"❌ ERROR: Failed to load env file {path}: {e}", file=sys.stderr)
+        print(f"❌ ERROR: Failed to load env file: {e}", file=sys.stderr)
         return False
 
 def main():

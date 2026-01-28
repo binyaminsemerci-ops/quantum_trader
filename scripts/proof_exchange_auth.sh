@@ -62,6 +62,12 @@ if echo "$OUTPUT1" | grep -qE "BINANCE_TESTNET_API_KEY|BINANCE_TESTNET_API_SECRE
     exit 1
 fi
 
+if echo "$OUTPUT1" | grep -qE "e9ZqWh|ZowBZE"; then
+    echo "❌ FAIL: Output contains legacy key fragments (security leak)"
+    echo "$OUTPUT1" | grep -E "e9ZqWh|ZowBZE"
+    exit 1
+fi
+
 if ! echo "$OUTPUT1" | grep -qiE "Active positions:|positions"; then
     echo "❌ FAIL: Output missing position information"
     exit 1
@@ -111,6 +117,12 @@ if echo "$OUTPUT2" | grep -qE "BINANCE_TESTNET_API_KEY|BINANCE_TESTNET_API_SECRE
     exit 1
 fi
 
+if echo "$OUTPUT2" | grep -qE "e9ZqWh|ZowBZE"; then
+    echo "❌ FAIL: systemd-run output contains legacy key fragments (security leak)"
+    echo "$OUTPUT2" | grep -E "e9ZqWh|ZowBZE"
+    exit 1
+fi
+
 if ! echo "$OUTPUT2" | grep -qiE "Active positions:|positions"; then
     echo "❌ FAIL: systemd-run output missing position information"
     exit 1
@@ -142,7 +154,7 @@ echo "Test Results:"
 echo "  [✓] Direct execution with --env-file"
 echo "  [✓] systemd-run with EnvironmentFile"
 echo "  [✓] No authentication errors"
-echo "  [✓] API keys loaded from: $ENV_FILE"
+echo "  [✓] Env source: env-file OK"
 echo "  [✓] Active positions: $POS_COUNT"
 echo ""
 echo "Security:"
