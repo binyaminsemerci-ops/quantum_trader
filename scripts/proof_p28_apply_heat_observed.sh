@@ -86,13 +86,17 @@ if ! systemctl is-active --quiet quantum-apply-layer 2>/dev/null; then
 fi
 
 echo "[0] Preflight: Clean up previous test data"
-$REDIS DEL quantum:dedupe:p28:test_plan_a >/dev/null 2>&1 || true
-$REDIS DEL quantum:dedupe:p28:test_plan_b >/dev/null 2>&1 || true
-$REDIS DEL quantum:dedupe:p28:test_plan_c >/dev/null 2>&1 || true
+# Hard cleanup: Delete all test plan keys (heat + dedupe for both obs_points)
 $REDIS DEL quantum:harvest:heat:by_plan:test_plan_a >/dev/null 2>&1 || true
 $REDIS DEL quantum:harvest:heat:by_plan:test_plan_b >/dev/null 2>&1 || true
 $REDIS DEL quantum:harvest:heat:by_plan:test_plan_c >/dev/null 2>&1 || true
-echo "    Test keys cleaned"
+$REDIS DEL quantum:dedupe:p28:create_apply_plan:test_plan_a >/dev/null 2>&1 || true
+$REDIS DEL quantum:dedupe:p28:create_apply_plan:test_plan_b >/dev/null 2>&1 || true
+$REDIS DEL quantum:dedupe:p28:create_apply_plan:test_plan_c >/dev/null 2>&1 || true
+$REDIS DEL quantum:dedupe:p28:reconcile_close_consume:test_plan_a >/dev/null 2>&1 || true
+$REDIS DEL quantum:dedupe:p28:reconcile_close_consume:test_plan_b >/dev/null 2>&1 || true
+$REDIS DEL quantum:dedupe:p28:reconcile_close_consume:test_plan_c >/dev/null 2>&1 || true
+echo "    Test keys cleaned (heat + dedupe for both obs_points)"
 
 # ==============================================================================
 # Test A: Heat Found (apply.plan + heat key)
@@ -144,8 +148,8 @@ fi
 echo ""
 echo "[B] Test: Deduplication → re-inject same plan_id, no duplicate event"
 
-# Check dedupe key exists
-DEDUPE_KEY="quantum:dedupe:p28:$PLAN_A"
+# Check dedupe key exists (for reconcile_close_consume obs_point)
+DEDUPE_KEY="quantum:dedupe:p28:reconcile_close_consume:$PLAN_A"
 if ! $REDIS EXISTS "$DEDUPE_KEY" >/dev/null; then
     fail "Test B: Dedupe key not found (observer may not have run)"
 else
