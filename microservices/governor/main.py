@@ -144,11 +144,11 @@ class BinanceTestnetClient:
             return None
         
         for pos in result:
-            if pos['symbol'] == symbol:
+            if pos.get('symbol') == symbol:
                 return {
-                    'positionAmt': float(pos['positionAmt']),
-                    'side': pos['side'],
-                    'unrealizedProfit': float(pos['unrealizedProfit'])
+                    'positionAmt': float(pos.get('positionAmt', 0)),
+                    'side': pos.get('positionSide', 'BOTH'),  # Hedge mode uses positionSide
+                    'unrealizedProfit': float(pos.get('unrealizedProfit', 0))
                 }
         return None
     
