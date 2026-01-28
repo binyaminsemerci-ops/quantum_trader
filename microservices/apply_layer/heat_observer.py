@@ -357,6 +357,9 @@ def observe_late_async(
     try:
         _late_observer_executor.submit(_poll_and_observe)
     except Exception as e:
+        # CRITICAL: Decrement inflight if submit fails (prevent leak)
+        with _late_observer_inflight_lock:
+            _late_observer_inflight -= 1
         log = logger or logging.getLogger(__name__)
         log.warning(f"{symbol}: Failed to submit late observer task: {e}")
         # Fail-open: don't crash Apply
