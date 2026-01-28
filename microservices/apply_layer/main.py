@@ -1413,6 +1413,26 @@ class ApplyLayer:
                     
                     logger.warning(f"[RECONCILE_CLOSE] {symbol}: Plan {plan_id[:16]} - Starting execution")
                     
+                    # P2.8A.1: Shadow observation on apply.plan consumption (deterministic proof support)
+                    # FAIL-OPEN: Never blocks, never changes execution
+                    if self.p28_enabled and heat_observer and plan_id and symbol:
+                        try:
+                            decision = plan_data.get('decision', 'UNKNOWN')
+                            heat_observer.observe(
+                                redis_client=self.redis,
+                                plan_id=plan_id,
+                                symbol=symbol,
+                                apply_decision=decision,
+                                enabled=self.p28_enabled,
+                                stream_name=self.p28_stream,
+                                lookup_prefix=self.p28_lookup_prefix,
+                                dedupe_ttl_sec=self.p28_dedupe_ttl,
+                                max_debug_chars=self.p28_max_debug
+                            )
+                        except Exception as e:
+                            # Catch-all to protect Apply (fail-open)
+                            logger.warning(f"{symbol}: Heat observer error on apply.plan (ignored): {e}")
+                    
                     # Execute RECONCILE_CLOSE (with strict guardrails)
                     result = self.execute_reconcile_close(plan_data)
                     self.publish_result(result)
