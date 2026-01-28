@@ -186,10 +186,17 @@ Part 1 (hotfix) stays active - only Part 2 (late observer) disabled.
 
 ## Next Steps
 
-1. **User reviews deployment guide**
-2. **User approves Part 2 deployment**
-3. **Deploy P2.8A.3 to VPS** (5 min)
-4. **Monitor coverage for 24h**
+**BEFORE DEPLOYING**: Run golden verification (15 seconds):
+- See `AI_P28A_GOLDEN_VERIFICATION.md` for complete guide
+- Golden pipeline test: Proves apply.plan → heat.decision → by_plan key
+- Timing test: Measures publish → key delay (expect 1-3s)
+- Port sanity check: Verifies all 5 service endpoints
+
+**Then**:
+1. ✅ **Run golden verification** (AI_P28A_GOLDEN_VERIFICATION.md)
+2. **User approves Part 2 deployment** (if verification passes)
+3. **Deploy P2.8A.3 to VPS** (AI_P28A3_LATE_OBSERVER_DEPLOYMENT.md, 5 min)
+4. **Monitor coverage for 24h** (expect 50-90%)
 5. **Tune timeouts if needed** (increase max_wait_ms)
 6. **Update Grafana dashboards** (add late observer panels)
 
