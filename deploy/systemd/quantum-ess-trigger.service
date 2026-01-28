@@ -1,0 +1,9 @@
+[Unit]
+Description=Quantum Trader ESS Trigger (activated by path monitor)
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+
+[Service]
+Type=oneshot
+ExecStart=/home/qt/quantum_trader/ops/ess_controller.sh activate
+StandardOutput=journal
+StandardError=journal

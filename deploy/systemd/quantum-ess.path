@@ -1,0 +1,10 @@
+[Unit]
+Description=Quantum Trader ESS Flag Monitor
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+
+[Path]
+PathExists=/var/run/quantum/ESS_ON
+Unit=quantum-ess-trigger.service
+
+[Install]
+WantedBy=multi-user.target
