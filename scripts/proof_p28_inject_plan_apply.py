@@ -27,11 +27,11 @@ def inject_apply_plan_direct(
     redis_port: int = 6379
 ):
     """
-    Inject directly into quantum:stream:apply.plan for deterministic proof testing.
+    Inject directly into quantum:stream:reconcile.close for deterministic proof testing.
     
     This bypasses the normal harvest→Apply flow and directly injects a plan
-    into the apply.plan stream with a known plan_id, enabling deterministic
-    observation point testing.
+    into the reconcile.close stream (which Apply actually consumes) with a known 
+    plan_id, enabling deterministic observation point testing.
     
     Args:
         plan_id: Deterministic plan ID (e.g., "test_plan_001")
@@ -51,7 +51,7 @@ def inject_apply_plan_direct(
     
     ts_now = int(time.time())
     
-    print(f"[DETERMINISTIC] Injecting apply.plan with fixed plan_id: {plan_id}")
+    print(f"[DETERMINISTIC] Injecting reconcile.close with fixed plan_id: {plan_id}")
     print(f"  Symbol: {symbol}")
     print(f"  Action: {action}")
     print(f"  Decision: {decision}")
@@ -85,8 +85,8 @@ def inject_apply_plan_direct(
     else:
         print(f"✗ HeatBridge key NOT created (heat_level={heat_level})")
     
-    # 2. Inject apply.plan stream message
-    apply_plan_stream = "quantum:stream:apply.plan"
+    # 2. Inject reconcile.close stream message (Apply consumes this)
+    reconcile_stream = "quantum:stream:reconcile.close"
     plan_message = {
         "plan_id": plan_id,
         "symbol": symbol,
@@ -100,14 +100,14 @@ def inject_apply_plan_direct(
         "test_mode": "p28_deterministic"
     }
     
-    msg_id = r.xadd(apply_plan_stream, plan_message, maxlen=1000)
-    print(f"✓ Apply plan injected: {apply_plan_stream}")
+    msg_id = r.xadd(reconcile_stream, plan_message, maxlen=1000)
+    print(f"✓ Reconcile plan injected: {reconcile_stream}")
     print(f"  Message ID: {msg_id}")
     print()
     
     print(f"Injection complete. Plan ID: {plan_id}")
     print()
-    print("Apply will consume from apply.plan stream on next cycle.")
+    print("Apply will consume from reconcile.close stream on next cycle.")
     print("Observer should emit event to quantum:stream:apply.heat.observed")
     print()
     print("Verify with:")

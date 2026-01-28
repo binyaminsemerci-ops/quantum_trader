@@ -4,11 +4,11 @@ set -euo pipefail
 # ==============================================================================
 # P2.8A.1 Apply Heat Observer - Deterministic Proof Script
 # ==============================================================================
-# Uses direct apply.plan injection for deterministic plan_id matching.
+# Uses direct reconcile.close injection for deterministic plan_id matching.
 # Tests:
-# A) Heat found: inject plan+heat to apply.plan, verify observed event with heat_found=1
+# A) Heat found: inject plan+heat to reconcile.close, verify observed event with heat_found=1
 # B) Deduplication: re-inject same plan_id, verify no duplicate observed event
-# C) Heat missing: inject plan to apply.plan without heat, verify heat_found=0
+# C) Heat missing: inject plan to reconcile.close without heat, verify heat_found=0
 # D) Stream integrity: verify observed stream has events
 #
 # Exit codes: 0 = PASS, 1 = FAIL
@@ -103,7 +103,7 @@ echo "[A] Test: Heat found → observed event with heat_found=1"
 
 PLAN_A="test_plan_a"
 
-echo "   Injecting plan+heat to apply.plan stream (deterministic)..."
+echo "   Injecting plan+heat to reconcile.close stream (deterministic)..."
 $PYTHON3 "$INJECT_SCRIPT" \
     --inject_apply_plan \
     --plan_id "$PLAN_A" \
@@ -115,7 +115,7 @@ $PYTHON3 "$INJECT_SCRIPT" \
     --heat_action PASS_THROUGH \
     >/dev/null 2>&1
 
-echo "   Waiting 8s for Apply to consume apply.plan..."
+echo "   Waiting 8s for Apply to consume reconcile.close..."
 sleep 8
 
 # Verify heat key exists
@@ -192,7 +192,7 @@ echo "[C] Test: Heat missing → observed event with heat_found=0"
 
 PLAN_C="test_plan_c"
 
-echo "   Injecting plan WITHOUT heat to apply.plan stream..."
+echo "   Injecting plan WITHOUT heat to reconcile.close stream..."
 $PYTHON3 "$INJECT_SCRIPT" \
     --inject_apply_plan \
     --plan_id "$PLAN_C" \
