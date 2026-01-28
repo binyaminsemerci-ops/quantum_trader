@@ -244,7 +244,7 @@ echo "[E] Verify HeatBridge health endpoint"
 HEALTH=$(curl -s http://localhost:8071/health 2>/dev/null || echo "")
 
 if echo "$HEALTH" | grep -q '"status"'; then
-    STATUS=$(echo "$HEALTH" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+    STATUS=$(echo "$HEALTH" | python3 -c "import sys, json; print(json.load(sys.stdin).get('status', 'unknown'))" 2>/dev/null || echo "parse_error")
     if [ "$STATUS" = "ok" ]; then
         pass "Test E: Health endpoint responds with status=ok"
     else
