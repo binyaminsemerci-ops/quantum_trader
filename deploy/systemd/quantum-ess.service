@@ -1,0 +1,14 @@
+[Unit]
+Description=Quantum Trader Emergency Stop System (ESS)
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/qt/quantum_trader/ops/ess_controller.sh activate
+RemainAfterExit=no
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
