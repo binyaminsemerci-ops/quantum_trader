@@ -281,19 +281,31 @@ sum(rate(p28_late_obs_dropped_total[10m])) > 0.01
 
 ### Alert 2: Late Observer Timing Too Short
 
-**Trigger**: Timeout dominates (>50% of observations)
+**Trigger**: Timeout dominates (>50% of observations) with sufficient volume
 ```promql
-sum(rate(p28_heat_reason_total{obs_point="publish_plan_post",reason="timeout"}[10m]))
+(
+  sum(rate(p28_heat_reason_total{obs_point="publish_plan_post",reason="timeout"}[10m]))
 >
-sum(rate(p28_observed_total{obs_point="publish_plan_post"}[10m])) * 0.5
+  sum(rate(p28_observed_total{obs_point="publish_plan_post"}[10m])) * 0.5
+)
+and
+(
+  sum(rate(p28_observed_total{obs_point="publish_plan_post"}[10m])) > 0.05
+)
 ```
+
+**Guard**: `> 0.05/s` (~3 events/min) prevents noise during low traffic
 
 **Action**: Increase `MAX_WAIT_MS` or check HeatBridge latency
 
-### Alert 3: High Redis Error Rate
+### Alert 3: Redis Error (Infra vs Timing)
+
+**Trigger**: Redis connection/capacity issues detected
 ```promql
-rate(p28_heat_reason_total{reason="redis_error"}[5m]) > 0.1
+sum(rate(p28_heat_reason_total{reason="redis_error"}[5m])) > 0
 ```
+
+**Purpose**: Distinguish infrastructure problems (Redis sick) from timing problems (wait too short)
 
 **Action**: Check Redis connection/capacity
 
