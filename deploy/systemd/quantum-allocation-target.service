@@ -1,0 +1,26 @@
+[Unit]
+Description=Quantum Allocation Target Shadow Proposer (P3.1 Integration)
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+EnvironmentFile=/etc/quantum/allocation-target.env
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/microservices/allocation_target/main.py
+Restart=always
+RestartSec=2
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/home/qt/quantum_trader /tmp
+
+# Resource limits
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

@@ -18,7 +18,8 @@ import redis
 import subprocess
 import urllib.request
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 from prometheus_client import Counter, Gauge, start_http_server
 
@@ -55,6 +56,10 @@ METRIC_TESTNET_FLATTEN_NOOP = Counter('gov_testnet_flatten_noop_total', 'Testnet
 METRIC_TESTNET_FLATTEN_ORDERS = Counter('gov_testnet_flatten_orders_total', 'Testnet flatten orders placed')
 METRIC_TESTNET_FLATTEN_ERRORS = Counter('gov_testnet_flatten_errors_total', 'Testnet flatten errors')
 
+# P3.1 Capital Efficiency metrics
+METRIC_EFF_APPLY = Counter('p32_eff_apply_total', 'P3.1 efficiency applications', ['action', 'reason'])
+METRIC_EFF_FACTOR = Gauge('p32_eff_factor', 'P3.1 efficiency downsize factor', ['symbol'])
+
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
@@ -78,6 +83,13 @@ class Config:
     
     # Kill score gate
     KILL_SCORE_CRITICAL = float(os.getenv('GOV_KILL_SCORE_CRITICAL', '0.8'))
+    
+    # P3.1 Capital Efficiency integration
+    P31_MIN_CONF = float(os.getenv('P31_MIN_CONF', '0.65'))
+    P31_DOWNSIZE_THRESHOLD = float(os.getenv('P31_DOWNSIZE_THRESHOLD', '0.45'))
+    P31_MIN_FACTOR = float(os.getenv('P31_MIN_FACTOR', '0.25'))
+    P31_MAX_EXTRA_COOLDOWN_SEC = int(os.getenv('P31_MAX_EXTRA_COOLDOWN_SEC', '120'))
+    P31_EFF_TTL_SEC = int(os.getenv('P31_EFF_TTL_SEC', '600'))
     
     # Auto-disarm
     ENABLE_AUTO_DISARM = os.getenv('GOV_ENABLE_AUTO_DISARM', 'true').lower() == 'true'
@@ -541,8 +553,52 @@ class Governor:
         }))
     
     def _issue_permit(self, plan_id, symbol, computed_qty, computed_notional):
-        """Issue single-use execution permit with computed values (60s TTL)"""
-        logger.info(f"{symbol}: ALLOW plan {plan_id[:8]} (permit issued: qty={computed_qty:.4f}, notional=${computed_notional:.2f})")
+        """
+        Issue single-use execution permit with computed values (60s TTL).
+        
+        Also reads P3.1 Capital Efficiency and applies downsize factor hint to permit.
+        Never blocks (fail-open), only modifies caps/cooldown as hint.
+        """
+        # Read P3.1 efficiency data
+        eff_score, eff_confidence, eff_stale, eff_reason = self._read_p31_efficiency(symbol)
+        
+        # Compute downsize factor (never hard-block, only hint)
+        eff_action = "NONE"
+        eff_factor = 1.0
+        extra_cooldown_sec = 0
+        
+        if eff_score is not None and eff_score < self.config.P31_DOWNSIZE_THRESHOLD:
+            # Low efficiency = apply downsize factor
+            eff_action = "DOWNSIZE"
+            eff_factor = max(self.config.P31_MIN_FACTOR, eff_score / self.config.P31_DOWNSIZE_THRESHOLD)
+            extra_cooldown_sec = round((1 - eff_score) * self.config.P31_MAX_EXTRA_COOLDOWN_SEC)
+            
+            # Update metrics
+            METRIC_EFF_APPLY.labels(action="DOWNSIZE", reason="low_score").inc()
+            METRIC_EFF_FACTOR.labels(symbol=symbol).set(eff_factor)
+            
+            logger.info(
+                f"{symbol}: P3.1 DOWNSIZE - score={eff_score:.3f} < threshold={self.config.P31_DOWNSIZE_THRESHOLD} "
+                f"→ factor={eff_factor:.3f} extra_cooldown={extra_cooldown_sec}s"
+            )
+        else:
+            # Efficiency OK or missing = no downsize
+            if eff_score is not None:
+                logger.info(
+                    f"{symbol}: P3.1 OK - score={eff_score:.3f} >= threshold={self.config.P31_DOWNSIZE_THRESHOLD}, "
+                    f"factor={eff_factor:.3f}"
+                )
+            else:
+                logger.info(f"{symbol}: P3.1 data unavailable - {eff_reason}, factor={eff_factor:.3f} (no-op)")
+            
+            METRIC_EFF_APPLY.labels(action="NONE", reason=eff_reason).inc()
+            METRIC_EFF_FACTOR.labels(symbol=symbol).set(eff_factor)
+        
+        logger.info(
+            f"{symbol}: ALLOW plan {plan_id[:8]} "
+            f"(qty={computed_qty:.4f}, notional=${computed_notional:.2f}) "
+            f"P3.1: action={eff_action} factor={eff_factor:.3f}"
+        )
         
         # Write permit key with 60s TTL (single-use, race-safe)
         permit_key = f"quantum:permit:{plan_id}"
@@ -553,7 +609,17 @@ class Governor:
             'computed_qty': computed_qty,
             'computed_notional': computed_notional,
             'created_at': time.time(),
-            'consumed': False
+            'consumed': False,
+            # P3.1 efficiency fields (always present, safe for downstream)
+            'eff_score': f"{eff_score:.4f}" if eff_score is not None else "",
+            'eff_confidence': f"{eff_confidence:.3f}" if eff_confidence is not None else "",
+            'eff_stale': "1" if eff_stale else "0",
+            'eff_factor': f"{eff_factor:.4f}",
+            'eff_action': eff_action,
+            'eff_reason': eff_reason,
+            # Downsize hints (for Apply Layer to use)
+            'downsize_factor': f"{eff_factor:.4f}",
+            'extra_cooldown_sec': str(extra_cooldown_sec)
         }
         self.redis.setex(permit_key, 60, json.dumps(permit_data))  # 60s TTL
         
@@ -793,6 +859,57 @@ class Governor:
             logger.error(f"{symbol}: Error checking P2.9 allocation: {e}")
             # Fail-open on errors
             return False, ""
+    
+    def _read_p31_efficiency(self, symbol: str) -> Tuple[Optional[float], Optional[float], bool, str]:
+        """
+        Read P3.1 Capital Efficiency data for downsize hint.
+        
+        Returns:
+            (score: float, confidence: float, stale: bool, reason: str)
+        
+        Fail-open: missing/stale → returns (None, None, True, reason)
+        Success: returns (score, confidence, False, "ok")
+        """
+        try:
+            key = f"quantum:capital:efficiency:{symbol}"
+            data = self.redis.hgetall(key)
+            
+            if not data:
+                # Missing efficiency data = fail-open
+                METRIC_EFF_APPLY.labels(action="NONE", reason="missing_eff").inc()
+                return None, None, True, "missing_eff"
+            
+            # Decode data
+            decoded = {}
+            for k, v in data.items():
+                key_str = k.decode() if isinstance(k, bytes) else k
+                val = v.decode() if isinstance(v, bytes) else v
+                decoded[key_str] = val
+            
+            # Extract fields
+            score = float(decoded.get('efficiency_score', 0))
+            confidence = float(decoded.get('confidence', 0))
+            timestamp = int(decoded.get('ts', 0))
+            
+            # Check staleness (fail-open if too old)
+            age = time.time() - timestamp
+            if age > self.config.P31_EFF_TTL_SEC:
+                METRIC_EFF_APPLY.labels(action="NONE", reason="stale_eff").inc()
+                return None, None, True, "stale_eff"
+            
+            # Check confidence (fail-open if too low)
+            if confidence < self.config.P31_MIN_CONF:
+                METRIC_EFF_APPLY.labels(action="NONE", reason="low_conf").inc()
+                return None, None, True, "low_conf"
+            
+            # Valid efficiency data
+            return score, confidence, False, "ok"
+        
+        except Exception as e:
+            logger.error(f"{symbol}: Error reading P3.1 efficiency: {e}")
+            METRIC_EFF_APPLY.labels(action="NONE", reason="redis_error").inc()
+            # Fail-open on errors
+            return None, None, True, "redis_error"
     
     def _trim_exec_history(self, symbol):
         """Remove old timestamps from in-memory cache"""
