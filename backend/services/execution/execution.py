@@ -2560,8 +2560,8 @@ async def run_portfolio_rebalance(
                         binance_api_secret = os.getenv("BINANCE_TESTNET_SECRET_KEY")
                         logger.info(f"[TEST_TUBE] Using TESTNET mode for {intent.symbol}")
                     else:
-                        binance_api_key = os.getenv("BINANCE_API_KEY") or "e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD"
-                        binance_api_secret = os.getenv("BINANCE_API_SECRET") or "ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja"
+                        binance_api_key = os.getenv("BINANCE_API_KEY") or "your_binance_testnet_api_key_here"
+                        binance_api_secret = os.getenv("BINANCE_API_SECRET") or "your_binance_testnet_api_secret_here"
                     
                     if binance_api_key and binance_api_secret:
                         logger.info(f"🔑 Binance credentials found for {intent.symbol}")

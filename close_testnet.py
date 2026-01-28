@@ -5,12 +5,12 @@ sys.path.insert(0, "/home/qt/quantum_trader")
 from binance.client import Client
 
 # Load manually since dotenv not installed
-api_key = "e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD"
-api_secret = "ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja"
+api_key = "your_binance_testnet_api_key_here"
+api_secret = "your_binance_testnet_api_secret_here"
 
 # Load manually since dotenv not installed
-api_key = "e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD"
-api_secret = "ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja"
+api_key = "your_binance_testnet_api_key_here"
+api_secret = "your_binance_testnet_api_secret_here"
 
 client = Client(
     api_key=api_key,

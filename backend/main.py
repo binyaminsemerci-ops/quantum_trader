@@ -237,8 +237,8 @@ async def initialize_phase3():
                 raise RuntimeError("EventBus not initialized - cannot start Trade Intent Subscriber")
             
             # Initialize execution adapter
-            api_key = os.getenv("BINANCE_API_KEY") or "e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD"
-            api_secret = os.getenv("BINANCE_API_SECRET") or "ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja"
+            api_key = os.getenv("BINANCE_API_KEY") or "your_binance_testnet_api_key_here"
+            api_secret = os.getenv("BINANCE_API_SECRET") or "your_binance_testnet_api_secret_here"
             
             if not api_key or not api_secret:
                 logger.warning("[PHASE 3B] ⚠️ Missing BINANCE_API_KEY/SECRET - subscriber will skip execution")
@@ -316,8 +316,8 @@ async def initialize_trade_intent_subscriber():
         
         # Initialize execution adapter
         try:
-            api_key = os.getenv("BINANCE_API_KEY") or "e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD"
-            api_secret = os.getenv("BINANCE_API_SECRET") or "ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja"
+            api_key = os.getenv("BINANCE_API_KEY") or "your_binance_testnet_api_key_here"
+            api_secret = os.getenv("BINANCE_API_SECRET") or "your_binance_testnet_api_secret_here"
             
             if not api_key or not api_secret:
                 logger.warning("[TRADE_INTENT] ⚠️ Missing BINANCE_API_KEY/SECRET")

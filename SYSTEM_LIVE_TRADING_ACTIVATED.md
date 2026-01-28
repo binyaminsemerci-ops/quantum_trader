@@ -85,8 +85,8 @@ Note: Kan brukes senere når disk space frigjøres
 **NB! Sørg for at disse er LIVE API nøkler, ikke testnet!**
 
 ```bash
-BINANCE_API_KEY=e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD
-BINANCE_API_SECRET=ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja
+BINANCE_API_KEY=your_binance_testnet_api_key_here
+BINANCE_API_SECRET=your_binance_testnet_api_secret_here
 ```
 
 **ADVARSEL:** Disse nøklene er synlige i logs. Verifiser at de er for LIVE trading!

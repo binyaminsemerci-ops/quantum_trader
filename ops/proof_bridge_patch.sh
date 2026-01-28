@@ -22,7 +22,7 @@ echo ""
 echo "3. EXECUTION SERVICE: Status & Recent Activity"
 echo "----------------------------------------------------------------------"
 echo "Service: $(systemctl is-active quantum-execution)"
-echo "Testnet Balance: $(python3 -c "from binance.client import Client; import os; os.environ['BINANCE_TESTNET_API_KEY']='e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD'; os.environ['BINANCE_TESTNET_SECRET_KEY']='ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja'; c=Client(os.environ['BINANCE_TESTNET_API_KEY'],os.environ['BINANCE_TESTNET_SECRET_KEY'],testnet=True); c.FUTURES_URL='https://testnet.binancefuture.com'; print(c.futures_account()['availableBalance'])" 2>/dev/null) USDT"
+echo "Testnet Balance: $(python3 -c "from binance.client import Client; import os; os.environ['BINANCE_TESTNET_API_KEY']='your_binance_testnet_api_key_here'; os.environ['BINANCE_TESTNET_SECRET_KEY']='your_binance_testnet_api_secret_here'; c=Client(os.environ['BINANCE_TESTNET_API_KEY'],os.environ['BINANCE_TESTNET_SECRET_KEY'],testnet=True); c.FUTURES_URL='https://testnet.binancefuture.com'; print(c.futures_account()['availableBalance'])" 2>/dev/null) USDT"
 echo ""
 
 echo "4. RISK GOVERNOR: Recent Activity"
@@ -39,8 +39,8 @@ echo "6. BINANCE: Current Open Positions"
 echo "----------------------------------------------------------------------"
 /opt/quantum/venvs/ai-engine/bin/python3 << 'PYEOF'
 import os
-os.environ["BINANCE_TESTNET_API_KEY"] = "e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD"
-os.environ["BINANCE_TESTNET_SECRET_KEY"] = "ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja"
+os.environ["BINANCE_TESTNET_API_KEY"] = "your_binance_testnet_api_key_here"
+os.environ["BINANCE_TESTNET_SECRET_KEY"] = "your_binance_testnet_api_secret_here"
 from binance.client import Client
 try:
     client = Client(os.environ["BINANCE_TESTNET_API_KEY"], os.environ["BINANCE_TESTNET_SECRET_KEY"], testnet=True)

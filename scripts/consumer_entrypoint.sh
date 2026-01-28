@@ -14,7 +14,7 @@ fi
 echo "🚀 Starting consumer with API keys..."
 # Use exec to replace bash process with python, ensuring environment is inherited
 exec env \
-  BINANCE_API_KEY="e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD" \
-  BINANCE_API_SECRET="ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja" \
+  BINANCE_API_KEY="your_binance_testnet_api_key_here" \
+  BINANCE_API_SECRET="your_binance_testnet_api_secret_here" \
   python /app/trade_intent_runner.py
 

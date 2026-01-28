@@ -5,8 +5,15 @@ Direct Exchange Position Dump - Ground Truth for Position State
 Queries Binance Testnet directly (same API Governor uses) and displays
 all non-zero positions with mark price and notional value.
 
+**SECURITY**: Never prints credentials. Reads from environment only.
+
 Usage:
-    python3 dump_exchange_positions.py
+    # Via systemd env file (recommended)
+    sudo -u quantum systemd-run --unit=temp-dump --setenv=EnvironmentFile=/etc/quantum/governor.env \
+        python3 /home/qt/quantum_trader/scripts/dump_exchange_positions.py
+    
+    # Or with explicit env vars
+    BINANCE_TESTNET_API_KEY=xxx BINANCE_TESTNET_API_SECRET=yyy python3 dump_exchange_positions.py
 
 Requirements:
     - BINANCE_TESTNET_API_KEY and BINANCE_TESTNET_API_SECRET in env
@@ -14,6 +21,8 @@ Requirements:
 
 Output:
     Symbol | Side | Qty | Mark Price | Notional USD | Leverage
+
+⚠️  NEVER pass credentials via CLI args or print them in output
 """
 
 import os
@@ -22,13 +31,15 @@ from binance.client import Client
 from decimal import Decimal
 
 def main():
-    # Load testnet credentials
+    # Load testnet credentials from environment ONLY (no CLI, no printing)
     api_key = os.getenv('BINANCE_TESTNET_API_KEY')
     api_secret = os.getenv('BINANCE_TESTNET_API_SECRET')
     
     if not api_key or not api_secret:
         print("❌ ERROR: Missing BINANCE_TESTNET_API_KEY or BINANCE_TESTNET_API_SECRET")
         print("Set them in your environment or /etc/quantum/governor.env")
+        print("\nRecommended usage:")
+        print("  sudo systemd-run --setenv=EnvironmentFile=/etc/quantum/governor.env python3 dump_exchange_positions.py")
         sys.exit(1)
     
     # Initialize client
