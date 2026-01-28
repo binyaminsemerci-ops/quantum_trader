@@ -207,8 +207,8 @@ else
 fi
 
 # Check recent logs for errors
-ERROR_COUNT=$(journalctl -u quantum-capital-efficiency.service --since "2 minutes ago" -n 50 2>/dev/null | grep -ciE "error|exception|fatal" || echo "0")
-if [ "$ERROR_COUNT" -eq 0 ]; then
+ERROR_COUNT=$(journalctl -u quantum-capital-efficiency.service --since "2 minutes ago" -n 50 2>/dev/null | grep -ciE "error|exception|fatal" || true)
+if [ -z "$ERROR_COUNT" ] || [ "$ERROR_COUNT" -eq 0 ]; then
     pass "No errors in recent logs"
 else
     fail "Found $ERROR_COUNT errors in recent logs"
