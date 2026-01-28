@@ -5,18 +5,21 @@ Direct Exchange Position Dump - Ground Truth for Position State
 Queries Binance Testnet directly (same API Governor uses) and displays
 all non-zero positions with mark price and notional value.
 
-**SECURITY**: Never prints credentials. Reads from environment only.
+**SECURITY**: Never prints credentials. Reads from environment or file.
 
 Usage:
-    # Via systemd env file (recommended)
-    sudo -u quantum systemd-run --unit=temp-dump --setenv=EnvironmentFile=/etc/quantum/governor.env \
-        python3 /home/qt/quantum_trader/scripts/dump_exchange_positions.py
+    # Via env-file (recommended)
+    python3 dump_exchange_positions.py --env-file /etc/quantum/governor.env
     
-    # Or with explicit env vars
-    BINANCE_TESTNET_API_KEY=xxx BINANCE_TESTNET_API_SECRET=yyy python3 dump_exchange_positions.py
+    # Via systemd EnvironmentFile (gold standard)
+    systemd-run --pipe --wait -p EnvironmentFile=/etc/quantum/governor.env \
+        python3 dump_exchange_positions.py
+    
+    # With filtering
+    python3 dump_exchange_positions.py --symbol ETHUSDT --max 10
 
 Requirements:
-    - BINANCE_TESTNET_API_KEY and BINANCE_TESTNET_API_SECRET in env
+    - BINANCE_TESTNET_API_KEY and BINANCE_TESTNET_API_SECRET in env or file
     - python-binance library (pip install python-binance)
 
 Output:
@@ -27,20 +30,106 @@ Output:
 
 import os
 import sys
+import argparse
 from binance.client import Client
 from decimal import Decimal
 
+def load_env_file(path):
+    """
+    Load environment variables from file (KEY=VALUE format).
+    Supports comments (#), blank lines, quoted values.
+    Only sets if not already in environment.
+    
+    SECURITY: Never prints values, only success/failure.
+    """
+    if not os.path.exists(path):
+        print(f"❌ ERROR: Env file not found: {path}", file=sys.stderr)
+        return False
+    
+    loaded_keys = []
+    try:
+        with open(path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                
+                # Skip blank lines and comments
+                if not line or line.startswith('#'):
+                    continue
+                
+                # Parse KEY=VALUE
+                if '=' not in line:
+                    continue
+                
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                
+                # Remove quotes if present
+                if value.startswith('"') and value.endswith('"'):
+                    value = value[1:-1]
+                elif value.startswith("'") and value.endswith("'"):
+                    value = value[1:-1]
+                
+                # Only set if not already in environment
+                if key and value and key not in os.environ:
+                    os.environ[key] = value
+                    loaded_keys.append(key)
+        
+        if loaded_keys:
+            print(f"✅ Loaded {len(loaded_keys)} keys from: {path}", file=sys.stderr)
+            return True
+        else:
+            print(f"⚠️  No new keys loaded from: {path}", file=sys.stderr)
+            return True
+    
+    except Exception as e:
+        print(f"❌ ERROR: Failed to load env file {path}: {e}", file=sys.stderr)
+        return False
+
 def main():
-    # Load testnet credentials from environment ONLY (no CLI, no printing)
+    # Parse arguments
+    parser = argparse.ArgumentParser(
+        description='Query Binance Testnet positions (ground truth)',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='SECURITY: Never prints API credentials'
+    )
+    parser.add_argument(
+        '--env-file',
+        default='/etc/quantum/governor.env',
+        help='Path to env file with BINANCE_TESTNET_API_KEY/SECRET (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--symbol',
+        help='Filter to specific symbol (e.g., ETHUSDT)'
+    )
+    parser.add_argument(
+        '--max',
+        type=int,
+        help='Max positions to display'
+    )
+    
+    args = parser.parse_args()
+    
+    # Load credentials from env-file if not already in environment
     api_key = os.getenv('BINANCE_TESTNET_API_KEY')
     api_secret = os.getenv('BINANCE_TESTNET_API_SECRET')
     
     if not api_key or not api_secret:
-        print("❌ ERROR: Missing BINANCE_TESTNET_API_KEY or BINANCE_TESTNET_API_SECRET")
-        print("Set them in your environment or /etc/quantum/governor.env")
-        print("\nRecommended usage:")
-        print("  sudo systemd-run --setenv=EnvironmentFile=/etc/quantum/governor.env python3 dump_exchange_positions.py")
-        sys.exit(1)
+        # Try loading from env-file
+        if not load_env_file(args.env_file):
+            sys.exit(2)
+        
+        # Re-check after loading
+        api_key = os.getenv('BINANCE_TESTNET_API_KEY')
+        api_secret = os.getenv('BINANCE_TESTNET_API_SECRET')
+    
+    if not api_key or not api_secret:
+        print("❌ ERROR: Missing BINANCE_TESTNET_API_KEY or BINANCE_TESTNET_API_SECRET", file=sys.stderr)
+        print(f"Tried: environment variables + {args.env_file}", file=sys.stderr)
+        print("\nRecommended usage:", file=sys.stderr)
+        print("  python3 dump_exchange_positions.py --env-file /etc/quantum/governor.env", file=sys.stderr)
+        print("  systemd-run --pipe -p EnvironmentFile=/etc/quantum/governor.env python3 dump_exchange_positions.py", file=sys.stderr)
+        sys.exit(2)
     
     # Initialize client
     try:
@@ -106,6 +195,18 @@ def main():
     if not active_positions:
         print("\n✅ ALL FLAT - No active positions found (qty threshold: {:.0e})".format(THRESHOLD))
         return
+    
+    # Apply symbol filter if specified
+    if args.symbol:
+        active_positions = [p for p in active_positions if p['symbol'] == args.symbol.upper()]
+        if not active_positions:
+            print(f"\n⚠️  No positions found for symbol: {args.symbol}")
+            return
+    
+    # Apply max limit if specified
+    if args.max and len(active_positions) > args.max:
+        print(f"\n⚠️  Limiting to top {args.max} positions (total: {len(active_positions)})")
+        active_positions = active_positions[:args.max]
     
     # Sort by notional descending
     active_positions.sort(key=lambda x: x['notional'], reverse=True)
