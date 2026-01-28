@@ -41,6 +41,12 @@ METRIC_DISARM = Counter('quantum_govern_disarm_total', 'Auto-disarm events', ['r
 METRIC_EXEC_HOUR = Gauge('quantum_govern_exec_count_hour', 'Executions in last hour', ['symbol'])
 METRIC_EXEC_5MIN = Gauge('quantum_govern_exec_count_5min', 'Executions in last 5min', ['symbol'])
 
+# P2.9 Capital Allocation metrics
+METRIC_P29_CHECKED = Counter('gov_p29_checked_total', 'P2.9 allocation checks', ['symbol'])
+METRIC_P29_BLOCK = Counter('gov_p29_block_total', 'P2.9 allocation blocks', ['symbol'])
+METRIC_P29_MISSING = Counter('gov_p29_missing_total', 'P2.9 allocation target missing', ['symbol'])
+METRIC_P29_STALE = Counter('gov_p29_stale_total', 'P2.9 allocation target stale', ['symbol'])
+
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
@@ -380,6 +386,15 @@ class Governor:
                 self._block_plan(plan_id, symbol, 'p28_budget_violation')
                 return
             
+            # Gate 0.5: P2.9 Capital Allocation Target (fail-open if missing/stale)
+            # Fetch position notional for comparison (will compute after fetching position)
+            allocation_violation, allocation_reason = self._check_p29_allocation_target(
+                symbol, plan_id, position_notional_usd=None  # Will check after position fetch
+            )
+            if allocation_violation:
+                self._block_plan(plan_id, symbol, allocation_reason)
+                return
+            
             # Gate 1: Kill score critical threshold
             if kill_score >= self.config.KILL_SCORE_CRITICAL:
                 if action not in ['FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50']:
@@ -618,6 +633,118 @@ class Governor:
             logger.error(f"{symbol}: Error checking P2.8 budget: {e}")
             # Fail-open on errors
             return False
+    
+    def _check_p29_allocation_target(self, symbol: str, plan_id: str, position_notional_usd: float = None) -> tuple:
+        """
+        Gate 0.5: Check P2.9 Capital Allocation Target.
+        
+        Reads quantum:allocation:target:{symbol} hash from Capital Allocation Brain.
+        If enforce mode AND requested notional > target, returns (True, reason) to block.
+        
+        Fail-open: missing/stale target → allow execution.
+        
+        Args:
+            symbol: Trading symbol
+            plan_id: Plan ID for logging
+            position_notional_usd: Current position notional (optional, for logging)
+        
+        Returns:
+            (should_block: bool, reason: str)
+        """
+        try:
+            METRIC_P29_CHECKED.labels(symbol=symbol).inc()
+            
+            # Read allocation target hash
+            target_key = f"quantum:allocation:target:{symbol}"
+            target_data = self.redis.hgetall(target_key)
+            
+            if not target_data:
+                # No target data = fail-open (P2.9 might not be running or in shadow)
+                logger.info(f"{symbol}: No P2.9 allocation target found - fail-open (allow)")
+                METRIC_P29_MISSING.labels(symbol=symbol).inc()
+                return False, ""
+            
+            # Decode data
+            decoded = {}
+            for k, v in target_data.items():
+                key = k.decode() if isinstance(k, bytes) else k
+                val = v.decode() if isinstance(v, bytes) else v
+                decoded[key] = val
+            
+            # Extract fields
+            target_usd = float(decoded.get('target_usd', 0))
+            mode = decoded.get('mode', 'shadow')
+            timestamp = int(decoded.get('timestamp', 0))
+            confidence = float(decoded.get('confidence', 0))
+            
+            # Check stale data (fail-open if >300s old)
+            age = time.time() - timestamp
+            if age > 300:
+                logger.warning(f"{symbol}: P2.9 allocation target stale ({age:.0f}s) - fail-open (allow)")
+                METRIC_P29_STALE.labels(symbol=symbol).inc()
+                return False, ""
+            
+            # Shadow mode = log only, don't block
+            if mode == 'shadow':
+                logger.info(
+                    f"{symbol}: P2.9 allocation target=${target_usd:.2f} "
+                    f"mode={mode} conf={confidence:.3f} - allowing (shadow mode)"
+                )
+                return False, ""
+            
+            # Enforce mode: need position notional to compare
+            if position_notional_usd is None:
+                # If position not computed yet, fetch it
+                try:
+                    if self.binance_client:
+                        position = self.binance_client.get_position(symbol)
+                        if position and 'notional' in position:
+                            position_notional_usd = abs(float(position['notional']))
+                        else:
+                            logger.warning(f"{symbol}: Could not fetch position notional for P2.9 check - fail-open")
+                            return False, ""
+                    else:
+                        logger.warning(f"{symbol}: No Binance client for P2.9 position check - fail-open")
+                        return False, ""
+                except Exception as e:
+                    logger.error(f"{symbol}: Error fetching position for P2.9: {e}")
+                    return False, ""
+            
+            # Check if position notional exceeds allocation target
+            if position_notional_usd > target_usd:
+                logger.warning(
+                    f"{symbol}: P2.9 ALLOCATION CAP - "
+                    f"position=${position_notional_usd:.2f} > target=${target_usd:.2f} "
+                    f"(mode={mode}, conf={confidence:.3f})"
+                )
+                METRIC_P29_BLOCK.labels(symbol=symbol).inc()
+                
+                # Publish event to stream
+                self.redis.xadd(self.config.STREAM_EVENTS, {
+                    'event': 'P29_ALLOCATION_CAP_BLOCK',
+                    'symbol': symbol,
+                    'plan_id': plan_id,
+                    'position_notional_usd': str(position_notional_usd),
+                    'target_usd': str(target_usd),
+                    'mode': mode,
+                    'confidence': str(confidence),
+                    'timestamp': str(time.time())
+                })
+                
+                return True, 'p29_allocation_cap'
+            
+            # Within allocation target
+            logger.info(
+                f"{symbol}: P2.9 allocation check passed - "
+                f"position=${position_notional_usd:.2f} <= target=${target_usd:.2f} "
+                f"(mode={mode}, conf={confidence:.3f})"
+            )
+            return False, ""
+            
+        except Exception as e:
+            logger.error(f"{symbol}: Error checking P2.9 allocation: {e}")
+            # Fail-open on errors
+            return False, ""
     
     def _trim_exec_history(self, symbol):
         """Remove old timestamps from in-memory cache"""
