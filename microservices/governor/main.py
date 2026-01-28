@@ -708,10 +708,16 @@ class Governor:
                 try:
                     if self.binance_client:
                         position = self.binance_client.get_position(symbol)
-                        if position and 'notional' in position:
-                            position_notional_usd = abs(float(position['notional']))
+                        if position and 'positionAmt' in position:
+                            # Compute notional from position amount × mark price
+                            mark_price = self.binance_client.get_mark_price(symbol)
+                            if mark_price:
+                                position_notional_usd = abs(float(position['positionAmt']) * mark_price)
+                            else:
+                                logger.warning(f"{symbol}: Could not fetch mark price for P2.9 check - fail-open")
+                                return False, ""
                         else:
-                            logger.warning(f"{symbol}: Could not fetch position notional for P2.9 check - fail-open")
+                            logger.warning(f"{symbol}: Could not fetch position for P2.9 check - fail-open")
                             return False, ""
                     else:
                         logger.warning(f"{symbol}: No Binance client for P2.9 position check - fail-open")
