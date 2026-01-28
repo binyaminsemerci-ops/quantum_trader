@@ -212,7 +212,8 @@ sleep 8
 
 # Verify heat key does NOT exist
 HEAT_KEY_C="quantum:harvest:heat:by_plan:$PLAN_C"
-if $REDIS EXISTS "$HEAT_KEY_C" >/dev/null; then
+HEAT_EXISTS=$($REDIS EXISTS "$HEAT_KEY_C" || echo "0")
+if [ "$HEAT_EXISTS" = "1" ]; then
     fail "Test C: Heat key should not exist: $HEAT_KEY_C"
 else
     pass "Test C: Heat key correctly missing"
