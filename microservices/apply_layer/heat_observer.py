@@ -14,10 +14,14 @@ from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
+# P2.8A.3: Initialization lock (prevents race on lazy init)
+import threading
+_late_observer_init_lock = threading.Lock()
+
 # P2.8A.3: Bounded thread pool for late observer (production-safe)
 _late_observer_executor: Optional[ThreadPoolExecutor] = None
 _late_observer_inflight: int = 0
-_late_observer_inflight_lock = None  # Lazy init for thread safety
+_late_observer_inflight_lock: Optional[threading.Lock] = None
 
 # P2.8A.2: Prometheus metrics (fail-open)
 try:
@@ -48,7 +52,8 @@ def observe(
     enabled: bool = True,
     stream_name: str = "quantum:stream:apply.heat.observed",
     dedupe_ttl_sec: int = 600,
-    max_debug_chars: int = 400
+    max_debug_chars: int = 400,
+    reason_override: Optional[str] = None
 ) -> None:
     """
     Shadow observation: Read HeatBridge cache and emit observed stream.
@@ -70,6 +75,7 @@ def observe(
         stream_name: Output observed stream name
         dedupe_ttl_sec: Deduplication TTL (default: 600s)
         max_debug_chars: Max debug JSON chars (default: 400)
+        reason_override: Override reason (for late observer timeout/redis_error propagation)
     
     Returns:
         None (always succeeds, errors logged)
@@ -150,7 +156,8 @@ def observe(
             else:
                 # No heat data found
                 heat_found = 0
-                heat_reason = "missing"
+                # Use reason_override if provided (late observer timeout/redis_error)
+                heat_reason = reason_override if reason_override else "missing"
                 debug_data = {"apply_decision": apply_decision}
                 logger.debug(f"{symbol}: No heat data for plan {plan_id[:16]}")
         
@@ -268,10 +275,10 @@ def observe_late_async(
     """
     global _late_observer_executor, _late_observer_inflight, _late_observer_inflight_lock
     
-    # Lazy init inflight lock (thread-safe)
-    if _late_observer_inflight_lock is None:
-        import threading
-        _late_observer_inflight_lock = threading.Lock()
+    # Lazy init inflight lock with init lock (prevents race)
+    with _late_observer_init_lock:
+        if _late_observer_inflight_lock is None:
+            _late_observer_inflight_lock = threading.Lock()
     
     # Check inflight limit (backpressure - fail-open on saturation)
     with _late_observer_inflight_lock:
@@ -282,21 +289,22 @@ def observe_late_async(
         _late_observer_inflight += 1
     
     # Initialize bounded thread pool (singleton, production-safe)
-    if _late_observer_executor is None:
-        try:
-            _late_observer_executor = ThreadPoolExecutor(
-                max_workers=max_workers,
-                thread_name_prefix="p28a3_late_obs"
-            )
-            log = logger or logging.getLogger(__name__)
-            log.info(f"P2.8A.3: Late observer pool created (max_workers={max_workers})")
-        except Exception as e:
-            # CRITICAL: Decrement inflight if pool creation fails
-            with _late_observer_inflight_lock:
-                _late_observer_inflight -= 1
-            log = logger or logging.getLogger(__name__)
-            log.warning(f"P2.8A.3: Failed to create thread pool: {e}")
-            return  # Fail-open: don't crash Apply
+    with _late_observer_init_lock:
+        if _late_observer_executor is None:
+            try:
+                _late_observer_executor = ThreadPoolExecutor(
+                    max_workers=max_workers,
+                    thread_name_prefix="p28a3_late_obs"
+                )
+                log = logger or logging.getLogger(__name__)
+                log.info(f"P2.8A.3: Late observer pool created (max_workers={max_workers})")
+            except Exception as e:
+                # CRITICAL: Decrement inflight if pool creation fails
+                with _late_observer_inflight_lock:
+                    _late_observer_inflight -= 1
+                log = logger or logging.getLogger(__name__)
+                log.warning(f"P2.8A.3: Failed to create thread pool: {e}")
+                return  # Fail-open: don't crash Apply
     
     def _poll_and_observe():
         """Background polling logic."""
@@ -325,6 +333,14 @@ def observe_late_async(
                         break
                 time.sleep(poll_sec)
             
+            # Determine reason ONCE (deterministic)
+            if heat_found:
+                late_reason = None  # observe() will use "ok"
+            elif redis_errors >= max_redis_errors:
+                late_reason = "redis_error"
+            else:
+                late_reason = "timeout"
+            
             # Emit observation (will read full heat data if found)
             observe(
                 redis_client=redis_client,
@@ -336,15 +352,15 @@ def observe_late_async(
                 stream_name=obs_stream,
                 lookup_prefix=lookup_prefix,
                 dedupe_ttl_sec=dedupe_ttl_sec,
-                max_debug_chars=max_debug_chars
+                max_debug_chars=max_debug_chars,
+                reason_override=late_reason
             )
             
             wait_time_ms = int((time.time() - start_time) * 1000)
             if heat_found:
                 log.debug(f"{symbol}: Late observer found heat after {wait_time_ms}ms (plan={plan_id[:16]})")
             else:
-                reason = "timeout" if redis_errors < max_redis_errors else "redis_error"
-                log.debug(f"{symbol}: Late observer no heat after {wait_time_ms}ms (reason={reason}, plan={plan_id[:16]})")
+                log.debug(f"{symbol}: Late observer no heat after {wait_time_ms}ms (reason={late_reason}, plan={plan_id[:16]})")
         
         except Exception as e:
             log = logger or logging.getLogger(__name__)
