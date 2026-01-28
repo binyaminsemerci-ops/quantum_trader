@@ -48,6 +48,13 @@ METRIC_P29_MISSING = Counter('gov_p29_missing_total', 'P2.9 allocation target mi
 METRIC_P29_STALE = Counter('gov_p29_stale_total', 'P2.9 allocation target stale', ['symbol'])
 METRIC_TESTNET_P29_ENABLED = Gauge('gov_testnet_p29_enabled', 'Testnet P2.9 gate enabled (0/1)')
 
+# Testnet flatten metrics
+METRIC_TESTNET_FLATTEN_ENABLED = Gauge('gov_testnet_flatten_enabled', 'Testnet flatten enabled (0/1)')
+METRIC_TESTNET_FLATTEN_ATTEMPT = Counter('gov_testnet_flatten_attempt_total', 'Testnet flatten attempts')
+METRIC_TESTNET_FLATTEN_NOOP = Counter('gov_testnet_flatten_noop_total', 'Testnet flatten no-ops (preconditions not met)')
+METRIC_TESTNET_FLATTEN_ORDERS = Counter('gov_testnet_flatten_orders_total', 'Testnet flatten orders placed')
+METRIC_TESTNET_FLATTEN_ERRORS = Counter('gov_testnet_flatten_errors_total', 'Testnet flatten errors')
+
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
@@ -79,6 +86,10 @@ class Config:
     
     # Testnet P2.9 gate
     TESTNET_ENABLE_P29 = os.getenv('GOV_TESTNET_ENABLE_P29', 'false').lower() == 'true'
+    
+    # Testnet flatten (DANGEROUS - requires ESS + double confirmation)
+    TESTNET_FORCE_FLATTEN = os.getenv('GOV_TESTNET_FORCE_FLATTEN', 'false').lower() == 'true'
+    TESTNET_FORCE_FLATTEN_CONFIRM = os.getenv('GOV_TESTNET_FORCE_FLATTEN_CONFIRM', '')
     
     # Apply Layer config path (for disarm action)
     APPLY_CONFIG_PATH = os.getenv('APPLY_CONFIG_PATH', '/etc/quantum/apply-layer.env')
@@ -203,6 +214,15 @@ class Governor:
         else:
             logger.info("Testnet P2.9 gate disabled")
             METRIC_TESTNET_P29_ENABLED.set(0)
+        
+        # Testnet flatten status (DANGEROUS - requires ESS + confirmation)
+        if config.TESTNET_FORCE_FLATTEN and config.TESTNET_FORCE_FLATTEN_CONFIRM == "FLATTEN_NOW":
+            logger.warning("Testnet flatten ARMED (GOV_TESTNET_FORCE_FLATTEN=true + CONFIRM=FLATTEN_NOW)")
+            logger.warning("Testnet flatten requires ESS active + Redis arm key")
+            METRIC_TESTNET_FLATTEN_ENABLED.set(1)
+        else:
+            logger.info("Testnet flatten disabled")
+            METRIC_TESTNET_FLATTEN_ENABLED.set(0)
     
     def run(self):
         """Main loop: event-driven consumer group on apply.plan stream"""
@@ -235,6 +255,7 @@ class Governor:
                     # Periodic tasks during idle
                     self._update_metrics()
                     self._check_auto_disarm()
+                    self._check_testnet_flatten_arm()
                     continue
                 
                 for stream_name, stream_messages in messages:
@@ -248,6 +269,7 @@ class Governor:
                 # Periodic tasks
                 self._update_metrics()
                 self._check_auto_disarm()
+                self._check_testnet_flatten_arm()
                 
             except KeyboardInterrupt:
                 logger.info("Governor shutting down")
@@ -866,6 +888,147 @@ class Governor:
                 'error': str(e),
                 'timestamp': time.time()
             }))
+    
+    def _check_testnet_flatten_arm(self):
+        """Check if testnet flatten is armed via Redis key"""
+        try:
+            arm_key = "quantum:gov:testnet:flatten:arm"
+            arm_value = self.redis.get(arm_key)
+            
+            if arm_value == "1":
+                logger.info("Testnet flatten arm key detected - attempting flatten")
+                self.redis.delete(arm_key)  # Delete immediately to prevent re-trigger
+                self._testnet_flatten_if_armed()
+        except Exception as e:
+            logger.error(f"Error checking flatten arm key: {e}")
+    
+    def _testnet_flatten_if_armed(self):
+        """
+        TESTNET ONLY: Flatten all open positions if all safety conditions met.
+        
+        Safety requirements:
+        1. Config flags: TESTNET_FORCE_FLATTEN=true + TESTNET_FORCE_FLATTEN_CONFIRM=FLATTEN_NOW
+        2. ESS active: /var/run/quantum/ESS_ON exists
+        3. Rate limit: max 1 flatten per 60s
+        
+        Fail-open: errors do NOT crash Governor, just log and count.
+        """
+        METRIC_TESTNET_FLATTEN_ATTEMPT.inc()
+        
+        try:
+            # Check 1: Config flags
+            if not self.config.TESTNET_FORCE_FLATTEN:
+                logger.warning("Testnet flatten: GOV_TESTNET_FORCE_FLATTEN not true - NO-OP")
+                METRIC_TESTNET_FLATTEN_NOOP.inc()
+                return
+            
+            if self.config.TESTNET_FORCE_FLATTEN_CONFIRM != "FLATTEN_NOW":
+                logger.warning(f"Testnet flatten: CONFIRM not 'FLATTEN_NOW' (got '{self.config.TESTNET_FORCE_FLATTEN_CONFIRM}') - NO-OP")
+                METRIC_TESTNET_FLATTEN_NOOP.inc()
+                return
+            
+            # Check 2: ESS active latch file
+            ess_latch = "/var/run/quantum/ESS_ON"
+            if not os.path.exists(ess_latch):
+                logger.warning(f"Testnet flatten: ESS latch file {ess_latch} not found - NO-OP")
+                METRIC_TESTNET_FLATTEN_NOOP.inc()
+                return
+            
+            # Check 3: Rate limit (cooldown)
+            cooldown_key = "quantum:gov:testnet:flatten:last_ts"
+            last_ts_str = self.redis.get(cooldown_key)
+            
+            if last_ts_str:
+                last_ts = float(last_ts_str)
+                elapsed = time.time() - last_ts
+                if elapsed < 60:
+                    logger.warning(f"Testnet flatten: Cooldown active ({elapsed:.1f}s < 60s) - NO-OP")
+                    METRIC_TESTNET_FLATTEN_NOOP.inc()
+                    return
+            
+            # All checks passed - proceed with flatten
+            logger.warning("Testnet flatten: ALL SAFETY CHECKS PASSED - executing flatten")
+            
+            if not self.binance_client:
+                logger.error("Testnet flatten: No Binance client available")
+                METRIC_TESTNET_FLATTEN_ERRORS.inc()
+                return
+            
+            # Fetch all open positions from exchange
+            try:
+                result = self.binance_client._request('GET', '/fapi/v2/positionRisk', signed=True)
+            except Exception as e:
+                logger.error(f"Testnet flatten: Error fetching positions: {e}")
+                METRIC_TESTNET_FLATTEN_ERRORS.inc()
+                return
+            
+            if not result:
+                logger.info("Testnet flatten: No positions found")
+                return
+            
+            # Filter for positions with non-zero qty
+            open_positions = []
+            for pos in result:
+                qty = float(pos.get('positionAmt', 0))
+                if abs(qty) > 0:
+                    open_positions.append({
+                        'symbol': pos.get('symbol'),
+                        'positionAmt': qty,
+                        'positionSide': pos.get('positionSide', 'BOTH')
+                    })
+            
+            if not open_positions:
+                logger.info("Testnet flatten: No open positions (all qty=0)")
+                return
+            
+            logger.warning(f"Testnet flatten: Found {len(open_positions)} open positions - placing reduceOnly MARKET close orders")
+            
+            orders_placed = 0
+            errors = 0
+            
+            for pos in open_positions:
+                symbol = pos['symbol']
+                qty = abs(pos['positionAmt'])
+                side = 'SELL' if pos['positionAmt'] > 0 else 'BUY'  # Opposite side to close
+                
+                try:
+                    # Place reduceOnly MARKET order
+                    order_params = {
+                        'symbol': symbol,
+                        'side': side,
+                        'type': 'MARKET',
+                        'quantity': qty,
+                        'reduceOnly': 'true'
+                    }
+                    
+                    logger.info(f"Testnet flatten: Closing {symbol} {side} qty={qty}")
+                    close_result = self.binance_client._request('POST', '/fapi/v1/order', params=order_params, signed=True)
+                    
+                    if close_result:
+                        logger.info(f"Testnet flatten: {symbol} close order placed: {close_result.get('orderId')}")
+                        orders_placed += 1
+                        METRIC_TESTNET_FLATTEN_ORDERS.inc()
+                    else:
+                        logger.error(f"Testnet flatten: {symbol} close order failed (no result)")
+                        errors += 1
+                        METRIC_TESTNET_FLATTEN_ERRORS.inc()
+                
+                except Exception as e:
+                    logger.error(f"Testnet flatten: {symbol} close order error: {e}")
+                    errors += 1
+                    METRIC_TESTNET_FLATTEN_ERRORS.inc()
+                
+                # Small delay between orders
+                time.sleep(0.1)
+            
+            # Write cooldown timestamp
+            self.redis.set(cooldown_key, str(time.time()), ex=3600)  # 1h expiry
+            
+            logger.warning(f"TESTNET_FLATTEN done symbols={len(open_positions)} orders={orders_placed} errors={errors}")
+            
+        except Exception as e:
+            logger.error(f"Testnet flatten: Fatal error: {e}", exc_info=True)
+            METRIC_TESTNET_FLATTEN_ERRORS.inc()
     
     def _check_auto_disarm(self):
         """Periodic check for auto-disarm conditions"""
