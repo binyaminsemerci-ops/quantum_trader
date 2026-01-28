@@ -7,3 +7,7 @@ Type=oneshot
 ExecStart=/home/qt/quantum_trader/ops/ess_controller.sh activate
 StandardOutput=journal
 StandardError=journal
+
+# No rate limiting - idempotent controller handles duplicates
+StartLimitIntervalSec=0
+StartLimitBurst=0
