@@ -67,6 +67,10 @@ if ! systemctl is-active --quiet quantum-governor 2>/dev/null; then
     echo "⚠️  WARNING: Governor service not running, tests may fail"
 fi
 
+echo "[0] Preflight: Clearing symbol cooldowns for testing"
+$REDIS DEL quantum:cooldown:last_exec_ts:BTCUSDT quantum:cooldown:last_exec_ts:ETHUSDT quantum:cooldown:last_exec_ts:TRXUSDT >/dev/null
+pass "Cooldowns cleared"
+
 # ==============================================================================
 # Test 1: Low Efficiency (score=0.2) → DOWNSIZE
 # ==============================================================================
@@ -88,7 +92,7 @@ $REDIS HSET "quantum:capital:efficiency:$TEST_SYMBOL" \
 PLAN_ID=$(generate_plan_id)
 echo "   Generated plan_id: $PLAN_ID"
 
-python3 scripts/proof_p31_step2_inject_plan.py "$PLAN_ID" "$TEST_SYMBOL" "OPEN_PROPOSED" "EXECUTE"
+python3 /root/quantum_trader/scripts/proof_p31_step2_inject_plan.py "$PLAN_ID" "$TEST_SYMBOL" "OPEN_PROPOSED" "EXECUTE"
 
 wait_for_governor
 
