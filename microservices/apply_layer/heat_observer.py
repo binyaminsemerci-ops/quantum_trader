@@ -42,11 +42,11 @@ def observe(
     redis_client,
     plan_id: str,
     symbol: str,
+    lookup_prefix: str,
     apply_decision: str = "",
     obs_point: str = "create_apply_plan",
     enabled: bool = True,
     stream_name: str = "quantum:stream:apply.heat.observed",
-    lookup_prefix: str = "quantum:harvest:heat:by_plan:",
     dedupe_ttl_sec: int = 600,
     max_debug_chars: int = 400
 ) -> None:
@@ -63,11 +63,11 @@ def observe(
         redis_client: Redis connection
         plan_id: Apply plan ID
         symbol: Trading symbol (e.g., BTCUSDT)
+        lookup_prefix: HeatBridge key prefix (REQUIRED - must match P28_HEAT_LOOKUP_PREFIX)
         apply_decision: Apply decision (EXECUTE/SKIP/BLOCKED/UNKNOWN, default: "")
         obs_point: Observation point identifier (default: "create_apply_plan")
         enabled: If False, silently skip (default: True)
         stream_name: Output observed stream name
-        lookup_prefix: HeatBridge key prefix
         dedupe_ttl_sec: Deduplication TTL (default: 600s)
         max_debug_chars: Max debug JSON chars (default: 400)
     
@@ -291,6 +291,9 @@ def observe_late_async(
             log = logger or logging.getLogger(__name__)
             log.info(f"P2.8A.3: Late observer pool created (max_workers={max_workers})")
         except Exception as e:
+            # CRITICAL: Decrement inflight if pool creation fails
+            with _late_observer_inflight_lock:
+                _late_observer_inflight -= 1
             log = logger or logging.getLogger(__name__)
             log.warning(f"P2.8A.3: Failed to create thread pool: {e}")
             return  # Fail-open: don't crash Apply
