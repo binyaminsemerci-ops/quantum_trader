@@ -1,0 +1,27 @@
+[Unit]
+Description=Quantum Trader - P2.6 Portfolio Heat Gate
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader/microservices/heat_gate
+EnvironmentFile=/etc/quantum/heat-gate.env
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/microservices/heat_gate/main.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-heat-gate
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/tmp
+
+[Install]
+WantedBy=multi-user.target
