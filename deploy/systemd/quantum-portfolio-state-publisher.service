@@ -1,0 +1,24 @@
+[Unit]
+Description=Quantum Trader Portfolio State Publisher
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+After=network.target redis.service
+Requires=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+EnvironmentFile=/etc/quantum/portfolio-state-publisher.env
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/microservices/portfolio_state_publisher/main.py
+Restart=always
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+# Resource limits
+MemoryLimit=256M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target
