@@ -1,0 +1,166 @@
+┌─────────────────────────────────────────────────────────────────┐
+│ 🔐 API KEY ROTATION - QUICK REFERENCE CARD                     │
+│ Critical Security Action Required Within 24 Hours              │
+└─────────────────────────────────────────────────────────────────┘
+
+📋 FULL CHECKLIST: See SECURITY_ROTATION_CHECKLIST.md
+📖 DETAILED GUIDE: See SECURITY_API_KEY_ROTATION_REQUIRED.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 STEP-BY-STEP EXECUTION
+
+┌─ STEP 1: Binance UI (YOU DO THIS) ──────────────────────────┐
+│                                                               │
+│ URL: https://testnet.binancefuture.com/                      │
+│                                                               │
+│ 1. Go to: Account → API Management                           │
+│ 2. DELETE old keys: e9ZqWh...pzUPD                           │
+│ 3. CREATE new keys:                                          │
+│    • Label: quantum_trader_v2_jan2026                        │
+│    • Permissions: ✅ Futures Trading only                     │
+│    • IP Whitelist: 46.224.116.254 (if supported)             │
+│ 4. SAVE keys in password manager (NOT in terminal)           │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
+
+┌─ STEP 2-4: VPS Update (AUTOMATED SCRIPT) ────────────────────┐
+│                                                               │
+│ # SSH to VPS                                                 │
+│ ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254              │
+│                                                               │
+│ # Run rotation script (it's already there: /tmp/)           │
+│ bash /tmp/rotate_testnet_keys.sh \                           │
+│   'YOUR_NEW_API_KEY' \                                       │
+│   'YOUR_NEW_API_SECRET'                                      │
+│                                                               │
+│ # Script will:                                               │
+│ • Backup old configs → /etc/quantum/backup_TIMESTAMP/        │
+│ • Update 4 config files in /etc/quantum/                     │
+│ • Verify (shows key lengths only, no secrets)                │
+│                                                               │
+│ # Restart services                                           │
+│ systemctl restart quantum-governor quantum-apply-layer \     │
+│   quantum-intent-executor                                    │
+│                                                               │
+│ # Check status                                               │
+│ systemctl is-active quantum-governor quantum-apply-layer     │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
+
+┌─ STEP 5: Verify (NO SECRETS EXPOSED) ────────────────────────┐
+│                                                               │
+│ # Test exchange connection                                   │
+│ cd /home/qt/quantum_trader                                   │
+│ python3 scripts/dump_exchange_positions.py                   │
+│                                                               │
+│ # Expected: Position dump with no auth errors                │
+│                                                               │
+│ # Check Governor logs                                        │
+│ journalctl -u quantum-governor --since "2 min ago" | tail -30│
+│                                                               │
+│ # Good: "Governor starting", "P2.9 gate ENABLED"             │
+│ # Bad: "401", "-2015", "Invalid API-key"                     │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
+
+┌─ STEP 6: Clean Repo ──────────────────────────────────────────┐
+│                                                               │
+│ # Pull scrubbed code                                         │
+│ cd /home/qt/quantum_trader                                   │
+│ git pull                                                      │
+│                                                               │
+│ # Verify no hardcoded secrets                                │
+│ grep -RIn "e9ZqWh\|ZowBZE" . 2>/dev/null | grep -v ".git"    │
+│                                                               │
+│ # Expected: 0 results                                        │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
+
+┌─ STEP 7: Git History Scrub (OPTIONAL) ────────────────────────┐
+│                                                               │
+│ # On Windows (local repo)                                    │
+│ pip install git-filter-repo                                  │
+│ bash scripts/scrub_git_history.sh                            │
+│                                                               │
+│ # Follow prompts:                                            │
+│ • Type "yes" to confirm                                      │
+│ • Script creates backup tag                                  │
+│ • Rewrites history locally                                   │
+│                                                               │
+│ # Force push                                                 │
+│ git push --force --all                                       │
+│ git push --force --tags                                      │
+│                                                               │
+│ Alternative: Skip if keys rotated (acceptable risk)          │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ QUICK TROUBLESHOOTING
+
+┌───────────────────────────────────────────────────────────────┐
+│ Problem: "401 Unauthorized" after rotation                    │
+│ Fix: Verify keys copied correctly (no extra spaces)           │
+│      Check IP whitelist on Binance includes VPS               │
+│                                                               │
+│ Problem: Script can't find keys                               │
+│ Fix: export $(grep BINANCE_TESTNET /etc/quantum/governor.env)│
+│                                                               │
+│ Problem: Services won't start                                 │
+│ Fix: systemctl status quantum-governor -l                     │
+│      Check /etc/quantum/*.env syntax (no quotes/spaces)       │
+│                                                               │
+│ Problem: Need to rollback                                     │
+│ Fix: ls /etc/quantum/backup_*                                 │
+│      cp /etc/quantum/backup_TIMESTAMP/*.env /etc/quantum/     │
+│      systemctl restart quantum-*                              │
+└───────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📁 SECURITY FILES CREATED
+
+Local Repo:
+• SECURITY_API_KEY_ROTATION_REQUIRED.md (284 lines) - Full guide
+• SECURITY_ROTATION_CHECKLIST.md (548 lines) - Step-by-step
+• scripts/rotate_testnet_keys.sh (114 lines) - Automated rotation
+• scripts/scrub_git_history.sh (109 lines) - History cleaner
+• scripts/scrub_secrets.sh (45 lines) - Repo scrubber
+• scripts/dump_exchange_positions.py (HARDENED) - Safe verification
+
+VPS Ready:
+• /tmp/rotate_testnet_keys.sh (deployed and executable)
+
+Git Commits:
+• bae8d387: Fund-grade guards + dump script
+• 2d90a3b3: Secret scrubbing (15 files)
+• 6ad784a2: Rotation guide
+• bd214987: Rotation toolkit
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ READY FOR EXECUTION
+
+Status: All tools deployed, waiting for Step 1 (Binance UI)
+Timeline: Complete within 24 hours for LOW risk
+Risk: MEDIUM (testnet only, no mainnet exposure)
+
+Once Step 1 complete (new keys from Binance):
+→ SSH to VPS
+→ Run /tmp/rotate_testnet_keys.sh with new keys
+→ Total time: 5-10 minutes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 REMEMBER
+
+✅ DO: Use rotation script (it creates backups automatically)
+✅ DO: Verify with dump_exchange_positions.py (no secret exposure)
+✅ DO: Save new keys in password manager
+❌ DON'T: Paste keys in terminal history or logs
+❌ DON'T: Commit keys to repo
+❌ DON'T: Print keys in scripts or logs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
