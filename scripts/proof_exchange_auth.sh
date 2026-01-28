@@ -56,6 +56,12 @@ if echo "$OUTPUT1" | grep -qiE "401|unauthorized|-2015"; then
     exit 1
 fi
 
+if echo "$OUTPUT1" | grep -qE "BINANCE_TESTNET_API_KEY|BINANCE_TESTNET_API_SECRET"; then
+    echo "❌ FAIL: Output contains credential key names (privacy leak)"
+    echo "$OUTPUT1" | grep -E "BINANCE_TESTNET_API_KEY|BINANCE_TESTNET_API_SECRET"
+    exit 1
+fi
+
 if ! echo "$OUTPUT1" | grep -qiE "Active positions:|positions"; then
     echo "❌ FAIL: Output missing position information"
     exit 1
@@ -96,6 +102,12 @@ fi
 if echo "$OUTPUT2" | grep -qiE "401|unauthorized|-2015"; then
     echo "❌ FAIL: Authentication error in systemd-run"
     echo "$OUTPUT2" | grep -iE "401|unauthorized|-2015"
+    exit 1
+fi
+
+if echo "$OUTPUT2" | grep -qE "BINANCE_TESTNET_API_KEY|BINANCE_TESTNET_API_SECRET"; then
+    echo "❌ FAIL: systemd-run output contains credential key names (privacy leak)"
+    echo "$OUTPUT2" | grep -E "BINANCE_TESTNET_API_KEY|BINANCE_TESTNET_API_SECRET"
     exit 1
 fi
 
