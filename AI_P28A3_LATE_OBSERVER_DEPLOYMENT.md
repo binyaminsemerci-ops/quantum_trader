@@ -113,13 +113,14 @@ git log --oneline -3
 # Backup current config
 cp /etc/quantum/apply-layer.env /etc/quantum/apply-layer.env.bak.p28a3_$(date +%Y%m%d_%H%M%S)
 
-# Add P2.8A.3 config
-cat >> /etc/quantum/apply-layer.env << 'EOF'
+# Add P2.8A.3 config (idempotent - safe to run multiple times)
+grep -q "^P28_LATE_OBS_ENABLED=" /etc/quantum/apply-layer.env || cat >> /etc/quantum/apply-layer.env << 'EOF'
 
 # P2.8A.3 Late Observer (post-publish delayed observation)
 P28_LATE_OBS_ENABLED=true
 P28_LATE_OBS_MAX_WAIT_MS=2000
 P28_LATE_OBS_POLL_MS=100
+P28_LATE_OBS_MAX_WORKERS=4
 EOF
 
 # Verify config
@@ -131,6 +132,7 @@ grep P28_LATE /etc/quantum/apply-layer.env
 P28_LATE_OBS_ENABLED=true
 P28_LATE_OBS_MAX_WAIT_MS=2000
 P28_LATE_OBS_POLL_MS=100
+P28_LATE_OBS_MAX_WORKERS=4
 ```
 
 ### Step 3: Restart Apply Service
@@ -148,7 +150,8 @@ journalctl -u quantum-apply-layer -n 20 --no-pager | grep "P2.8A"
 
 **Expected log line**:
 ```
-P2.8A.3 Late Observer: True (wait=2000ms, poll=100ms)
+P2.8A.3 Late Observer: True (wait=2000ms, poll=100ms, workers=4)
+P2.8A.3: Late observer pool created (max_workers=4)
 ```
 
 ### Step 4: Verify Late Observer is Working
@@ -156,32 +159,59 @@ P2.8A.3 Late Observer: True (wait=2000ms, poll=100ms)
 Wait 2-3 minutes for events to flow, then:
 
 ```bash
-# Check for new obs_point in observed stream
-redis-cli XREVRANGE quantum:stream:apply.heat.observed + - COUNT 20 | grep -c "publish_plan_post"
-
+# A) Confirm publish_plan_post is appearing
+redis-cli XREVRANGE quantum:stream:apply.heat.observed + - COUNT 200 | grep -c "publish_plan_post"
 # Should show count > 0 (new events with obs_point=publish_plan_post)
 
-# Check heat_found distribution for late observer
-redis-cli XREVRANGE quantum:stream:apply.heat.observed + - COUNT 100 | \
-awk '/obs_point/ {getline; if ($0 == "publish_plan_post") {getline; getline; getline; if ($0 == "heat_found") {getline; count[$0]++}}} END {for (k in count) print "heat_found=" k ": " count[k]}'
+# B) Coverage split by obs_point (fast + real)
+redis-cli --raw XREVRANGE quantum:stream:apply.heat.observed + - COUNT 800 | awk '
+  tolower($0)=="obs_point"{getline; op=$0}
+  tolower($0)=="heat_found"{getline; hf=$0; c[op,hf]++}
+  END{
+    for (k in c) print k, c[k]
+  }' | sort
+
+# Expected output:
+# create_apply_plan 0 <high>  (early observer, still mostly 0)
+# create_apply_plan 1 <low>
+# publish_plan_post 0 <low>
+# publish_plan_post 1 <high>  (late observer, mostly 1!)
 ```
 
 **Expected output** (after 5-10 min):
 ```
-heat_found=1: 15
-heat_found=0: 5
+create_apply_plan 0 150
+create_apply_plan 1 10
+publish_plan_post 0 20
+publish_plan_post 1 140
 ```
-(~75% coverage from late observer!)
+(Late observer: 140/160 = ~87.5% coverage!)
 
 ### Step 5: Monitor Metrics
 
 ```bash
-# Check P2.8A metrics
-curl -s http://localhost:8043/metrics | grep p28_observed_total
+# C) Metrics confirmation (best - production truth)
+curl -s http://localhost:8043/metrics | grep -E '^p28_observed_total|^p28_heat_reason_total' | grep publish_plan_post
 
-# Look for TWO obs_points:
-# - obs_point="create_apply_plan" (original, still ~0% heat_found=1)
-# - obs_point="publish_plan_post" (NEW, should have 50-90% heat_found=1)
+# Expected: p28_observed_total{obs_point="publish_plan_post",heat_found="1"} should be INCREASING
+```
+
+### Step 6: Verify Wiring Still Correct (Don't Regress!)
+
+```bash
+# Verify HeatGate still reads apply.plan
+cat /etc/quantum/heat-gate.env | grep HEAT_STREAM_IN
+# Expected: HEAT_STREAM_IN=quantum:stream:apply.plan
+
+# Verify HeatBridge config
+cat /etc/quantum/heat-bridge.env | grep -E 'P27_STREAM_IN|TTL'
+# Expected:
+#   P27_STREAM_IN=quantum:stream:harvest.heat.decision
+#   P27_TTL_PLAN_SEC=1800 (or higher)
+
+# Verify HeatBridge consumer group
+redis-cli XINFO GROUPS quantum:stream:harvest.heat.decision
+# Expected: heat_bridge group exists
 ```
 
 ---
