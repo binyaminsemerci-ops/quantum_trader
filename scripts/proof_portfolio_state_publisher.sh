@@ -23,6 +23,7 @@ PSP_SERVICE="quantum-portfolio-state-publisher.service"
 PORTFOLIO_KEY="quantum:state:portfolio"
 STREAM_KEY="quantum:stream:portfolio.state"
 TEST_DURATION=20  # seconds
+PSP_INTERVAL_SEC=5  # Expected interval
 
 echo -e "${BLUE}============================================================${NC}"
 echo -e "${BLUE}PORTFOLIO STATE PUBLISHER - E2E PROOF${NC}"
