@@ -3,8 +3,8 @@ import os
 import sys
 
 # Set credentials
-os.environ["BINANCE_TESTNET_API_KEY"] = "e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD"
-os.environ["BINANCE_TESTNET_SECRET_KEY"] = "ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja"
+os.environ["BINANCE_TESTNET_API_KEY"] = "your_binance_testnet_api_key_here"
+os.environ["BINANCE_TESTNET_SECRET_KEY"] = "your_binance_testnet_api_secret_here"
 
 from binance.client import Client
 
