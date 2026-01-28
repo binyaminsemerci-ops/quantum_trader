@@ -46,6 +46,7 @@ METRIC_P29_CHECKED = Counter('gov_p29_checked_total', 'P2.9 allocation checks', 
 METRIC_P29_BLOCK = Counter('gov_p29_block_total', 'P2.9 allocation blocks', ['symbol'])
 METRIC_P29_MISSING = Counter('gov_p29_missing_total', 'P2.9 allocation target missing', ['symbol'])
 METRIC_P29_STALE = Counter('gov_p29_stale_total', 'P2.9 allocation target stale', ['symbol'])
+METRIC_TESTNET_P29_ENABLED = Gauge('gov_testnet_p29_enabled', 'Testnet P2.9 gate enabled (0/1)')
 
 # ============================================================================
 # CONFIGURATION
@@ -194,6 +195,14 @@ class Governor:
         logger.info(f"Auto-disarm: {config.ENABLE_AUTO_DISARM}, Kill score critical: {config.KILL_SCORE_CRITICAL}")
         logger.info(f"Fund caps: {config.MAX_OPEN_POSITIONS} positions, ${config.MAX_NOTIONAL_PER_TRADE_USDT}/trade, ${config.MAX_TOTAL_NOTIONAL_USDT} total")
         logger.info(f"Symbol cooldown: {config.SYMBOL_COOLDOWN_SECONDS}s")
+        
+        # Testnet P2.9 gate status
+        if config.TESTNET_ENABLE_P29:
+            logger.info("Testnet P2.9 gate ENABLED (GOV_TESTNET_ENABLE_P29=true)")
+            METRIC_TESTNET_P29_ENABLED.set(1)
+        else:
+            logger.info("Testnet P2.9 gate disabled")
+            METRIC_TESTNET_P29_ENABLED.set(0)
     
     def run(self):
         """Main loop: event-driven consumer group on apply.plan stream"""
