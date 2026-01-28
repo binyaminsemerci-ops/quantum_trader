@@ -59,8 +59,9 @@ def inject_apply_plan_direct(
     print()
     
     # 1. Inject HeatBridge by_plan key (if heat_level != "none")
+    heat_key = f"quantum:harvest:heat:by_plan:{plan_id}"
+    
     if heat_level and heat_level != "none":
-        heat_key = f"quantum:harvest:heat:by_plan:{plan_id}"
         heat_data = {
             "ts_epoch": str(ts_now),
             "symbol": symbol,
@@ -83,7 +84,9 @@ def inject_apply_plan_direct(
         print(f"  Heat level: {heat_level}")
         print(f"  Heat action: {heat_action}")
     else:
-        print(f"✗ HeatBridge key NOT created (heat_level={heat_level})")
+        # Explicitly delete heat key to ensure test_plan_c has no heat
+        r.delete(heat_key)
+        print(f"✗ HeatBridge key DELETED (heat_level={heat_level})")
     
     # 2. Inject reconcile.close stream message (Apply consumes this)
     reconcile_stream = "quantum:stream:reconcile.close"
