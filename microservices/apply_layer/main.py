@@ -418,6 +418,11 @@ class ApplyLayer:
         self.p28_dedupe_ttl = int(os.getenv("P28_DEDUPE_TTL_SEC", "600"))
         self.p28_max_debug = int(os.getenv("P28_MAX_DEBUG_CHARS", "400"))
         
+        # P2.8A.3 Late Observer config (post-publish delayed observation)
+        self.p28_late_enabled = heat_observer and heat_observer.is_enabled(os.getenv("P28_LATE_OBS_ENABLED", "true"))
+        self.p28_late_max_wait_ms = int(os.getenv("P28_LATE_OBS_MAX_WAIT_MS", "2000"))
+        self.p28_late_poll_ms = int(os.getenv("P28_LATE_OBS_POLL_MS", "100"))
+        
         logger.info(f"ApplyLayer initialized:")
         logger.info(f"  Mode: {self.mode.value}")
         logger.info(f"  Symbols: {self.symbols}")
@@ -427,6 +432,7 @@ class ApplyLayer:
         logger.info(f"  Kill switch: {self.kill_switch}")
         logger.info(f"  Metrics port: {self.metrics_port}")
         logger.info(f"  P2.8A Heat Observer: {self.p28_enabled}")
+        logger.info(f"  P2.8A.3 Late Observer: {self.p28_late_enabled} (wait={self.p28_late_max_wait_ms}ms, poll={self.p28_late_poll_ms}ms)")
     
     def setup_metrics(self):
         """Setup Prometheus metrics"""
@@ -729,6 +735,29 @@ class ApplyLayer:
             
             # Mark as published to stream (5 min TTL - same as apply cycle)
             self.redis.setex(stream_published_key, 300, "1")
+            
+            # P2.8A.3: Late observer (post-publish delayed observation)
+            # WHY: Observer at create_apply_plan runs BEFORE publish → HeatBridge hasn't written by_plan yet
+            #      This late observer runs AFTER publish → HeatBridge has time to write by_plan key
+            if self.p28_late_enabled and heat_observer:
+                try:
+                    heat_observer.observe_late_async(
+                        redis_client=self.redis,
+                        plan_id=plan.plan_id,
+                        symbol=plan.symbol,
+                        apply_decision=plan.decision,
+                        obs_stream=self.p28_stream,
+                        lookup_prefix=self.p28_lookup_prefix,
+                        max_wait_ms=self.p28_late_max_wait_ms,
+                        poll_ms=self.p28_late_poll_ms,
+                        dedupe_ttl_sec=self.p28_dedupe_ttl,
+                        max_debug_chars=self.p28_max_debug,
+                        obs_point="publish_plan_post",
+                        logger=logger
+                    )
+                except Exception as e:
+                    # Fail-open: don't crash Apply if late observer fails
+                    logger.debug(f"{plan.symbol}: Late observer spawn failed: {e}")
             
             # Metrics
             if PROMETHEUS_AVAILABLE:

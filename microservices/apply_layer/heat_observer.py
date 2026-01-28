@@ -208,6 +208,102 @@ def observe(
         # Silently continue - fail-open guarantee
 
 
+def observe_late_async(
+    redis_client,
+    plan_id: str,
+    symbol: str,
+    apply_decision: str = "",
+    obs_stream: str = "quantum:stream:apply.heat.observed",
+    lookup_prefix: str = "quantum:harvest:heat:by_plan:",
+    max_wait_ms: int = 2000,
+    poll_ms: int = 100,
+    dedupe_ttl_sec: int = 600,
+    max_debug_chars: int = 400,
+    obs_point: str = "publish_plan_post",
+    logger=None
+) -> None:
+    """
+    P2.8A.3: Delayed heat observation after publish_plan (non-blocking).
+    
+    Polls for HeatBridge by_plan key for up to max_wait_ms, then emits observed event.
+    Runs in background thread to avoid blocking Apply processing.
+    
+    WHY THIS EXISTS:
+    - Observer at create_apply_plan runs BEFORE publish → HeatBridge hasn't written by_plan yet
+    - This late observer runs AFTER publish → HeatBridge has time to write by_plan key
+    - Result: Better heat coverage without changing execution timing
+    
+    Args:
+        redis_client: Redis connection
+        plan_id: Apply plan ID
+        symbol: Trading symbol
+        apply_decision: Apply decision
+        obs_stream: Output observed stream name
+        lookup_prefix: HeatBridge key prefix
+        max_wait_ms: Max polling time in milliseconds (default: 2000)
+        poll_ms: Polling interval in milliseconds (default: 100)
+        dedupe_ttl_sec: Deduplication TTL
+        max_debug_chars: Max debug JSON chars
+        obs_point: Observation point identifier (default: "publish_plan_post")
+        logger: Logger instance
+    
+    Returns:
+        None (spawns background thread, never blocks)
+    """
+    import threading
+    
+    def _poll_and_observe():
+        """Background polling logic."""
+        try:
+            log = logger or logging.getLogger(__name__)
+            heat_key = f"{lookup_prefix}{plan_id}"
+            start_time = time.time()
+            max_wait_sec = max_wait_ms / 1000.0
+            poll_sec = poll_ms / 1000.0
+            
+            # Poll for by_plan key
+            heat_found = False
+            while (time.time() - start_time) < max_wait_sec:
+                if redis_client.exists(heat_key):
+                    heat_found = True
+                    break
+                time.sleep(poll_sec)
+            
+            # Emit observation (will read full heat data if found)
+            observe(
+                redis_client=redis_client,
+                plan_id=plan_id,
+                symbol=symbol,
+                apply_decision=apply_decision,
+                obs_point=obs_point,
+                enabled=True,
+                stream_name=obs_stream,
+                lookup_prefix=lookup_prefix,
+                dedupe_ttl_sec=dedupe_ttl_sec,
+                max_debug_chars=max_debug_chars
+            )
+            
+            wait_time_ms = int((time.time() - start_time) * 1000)
+            if heat_found:
+                log.debug(f"{symbol}: Late observer found heat after {wait_time_ms}ms (plan={plan_id[:16]})")
+            else:
+                log.debug(f"{symbol}: Late observer no heat after {wait_time_ms}ms (plan={plan_id[:16]})")
+        
+        except Exception as e:
+            log = logger or logging.getLogger(__name__)
+            log.warning(f"{symbol}: Late observer error: {e}")
+            # Fail-open: don't crash, just log
+    
+    # Start background thread (daemon=True so it doesn't block shutdown)
+    try:
+        thread = threading.Thread(target=_poll_and_observe, daemon=True)
+        thread.start()
+    except Exception as e:
+        log = logger or logging.getLogger(__name__)
+        log.warning(f"{symbol}: Failed to start late observer thread: {e}")
+        # Fail-open: don't crash Apply
+
+
 def is_enabled(env_value: Optional[str]) -> bool:
     """
     Check if heat observation is enabled via environment variable.
