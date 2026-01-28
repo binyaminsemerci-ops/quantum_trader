@@ -311,6 +311,57 @@ sum(rate(p28_heat_reason_total{reason="redis_error"}[5m])) > 0
 
 ---
 
+## Alert Response Playbook (On-Call Safe)
+
+**When Alert 1 fires (Saturation Sustained)**:
+```bash
+# Step 1: Increase MAX_INFLIGHT first (cheapest fix)
+sed -i 's/^P28_LATE_OBS_MAX_INFLIGHT=.*/P28_LATE_OBS_MAX_INFLIGHT=400/' /etc/quantum/apply-layer.env
+sudo systemctl restart quantum-apply-layer.service
+
+# Step 2: If still saturated, increase MAX_WORKERS (more CPU/threads)
+sed -i 's/^P28_LATE_OBS_MAX_WORKERS=.*/P28_LATE_OBS_MAX_WORKERS=8/' /etc/quantum/apply-layer.env
+sudo systemctl restart quantum-apply-layer.service
+```
+
+**Tuning order**: MAX_INFLIGHT first (cheap), then MAX_WORKERS (more resources)
+
+**When Alert 2 fires (Timing Too Short)**:
+```bash
+# Check drops first
+curl -s http://localhost:8043/metrics | grep p28_late_obs_dropped_total
+
+# If drops ≈ 0 → increase wait time (not workers)
+sed -i 's/^P28_LATE_OBS_MAX_WAIT_MS=.*/P28_LATE_OBS_MAX_WAIT_MS=3000/' /etc/quantum/apply-layer.env
+sudo systemctl restart quantum-apply-layer.service
+
+# If still timing out, try 4000ms
+sed -i 's/^P28_LATE_OBS_MAX_WAIT_MS=.*/P28_LATE_OBS_MAX_WAIT_MS=4000/' /etc/quantum/apply-layer.env
+sudo systemctl restart quantum-apply-layer.service
+```
+
+**Critical**: Only tune MAX_WAIT_MS if drops ≈ 0 (typical: 2000 → 3000 → 4000)
+
+**When Alert 3 fires (Redis Error)**:
+```bash
+# DO NOT tune P2.8A.3 config - fix Redis directly
+
+# Check Redis health
+redis-cli PING
+redis-cli INFO stats | grep -E "total_connections_received|rejected_connections"
+redis-cli INFO clients | grep connected_clients
+
+# Check Redis latency
+redis-cli --latency-history
+
+# Check connection limits
+redis-cli CONFIG GET maxclients
+```
+
+**Critical**: redis_error = infrastructure issue, NOT config tuning
+
+---
+
 ## Expected Results
 
 **Before P2.8A.3**:
