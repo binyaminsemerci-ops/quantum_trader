@@ -76,10 +76,10 @@ def load_env_file(path):
                     loaded_keys.append(key)
         
         if loaded_keys:
-            print(f"✅ Loaded {len(loaded_keys)} keys from: {path}", file=sys.stderr)
+            print(f"✅ Loaded env-file: yes", file=sys.stderr)
             return True
         else:
-            print(f"⚠️  No new keys loaded from: {path}", file=sys.stderr)
+            print(f"⚠️  Loaded env-file: no (keys already in environment)", file=sys.stderr)
             return True
     
     except Exception as e:
