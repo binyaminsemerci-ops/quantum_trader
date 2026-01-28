@@ -2,7 +2,28 @@
 
 **Purpose**: Prove entire pipeline works in 15 seconds, without false negatives.
 
-**Hard-Coded Truths** (never change these):
+---
+
+## ⚠️ Common Pitfalls (Anti-False-Negative Checklist)
+
+**Read these first to avoid false negatives**:
+
+1. **Prefix Always**: `quantum:harvest:heat:by_plan:` (NOT `quantum:heat:bridge:by_plan:`)
+2. **Never KEYS**: Use SCAN (KEYS blocks Redis in production)
+3. **redis-cli EXISTS**: Returns stdout `0` or `1`, NOT exit code
+4. **Grep fields vs values**: Use `--raw` or `awk` to parse stream correctly
+5. **COUNT window**: Must be large enough (2000-5000 for heat.decision)
+
+**Golden rules**:
+- ✅ Use `if [ "$EXISTS" = "1" ]` (test stdout value)
+- ✅ Use `grep -q` in if-condition (proper branching)
+- ❌ Never `cmd ; echo ✅ ; echo ❌` (prints both!)
+- ❌ Never `redis-cli KEYS` (use SCAN loop)
+
+---
+
+## Hard-Coded Truths (Never Change These)
+
 - ✅ Prefix: `quantum:harvest:heat:by_plan:<plan_id>`
 - ✅ Search window: `COUNT 5000` (not 100)
 - ✅ Apply metrics: `http://localhost:8043/metrics`
@@ -11,39 +32,45 @@
 
 ---
 
-## 1. Golden Pipeline Test (15 Seconds)
+## 1. Golden Pipeline Test (15 Seconds) - Production-Safe
+
+## 1. Golden Pipeline Test (15 Seconds) - Production-Safe
 
 **Tests entire chain**: apply.plan → heat.decision → by_plan key
 
 ```bash
-PLAN_ID=$(
-  redis-cli --raw XREVRANGE quantum:stream:apply.plan + - COUNT 1 \
-  | awk 'tolower($0)=="plan_id"{getline; print; exit}'
-)
+set -euo pipefail
 
-echo "PLAN_ID=$PLAN_ID"
+PID=$(redis-cli --raw XREVRANGE quantum:stream:apply.plan + - COUNT 1 \
+  | awk 'tolower($0)=="plan_id"{getline; print; exit}')
+
+echo "PLAN_ID=$PID"
 echo ""
 
-echo "A) HeatGate decision exists? (search last 5000)"
-if redis-cli --raw XREVRANGE quantum:stream:harvest.heat.decision + - COUNT 5000 | grep -q "$PLAN_ID"; then
-  echo "✅ heat.decision contains plan_id"
+echo "A) by_plan exists?"
+EX=$(redis-cli --raw EXISTS "quantum:harvest:heat:by_plan:$PID")
+if [ "$EX" = "1" ]; then
+  echo "✅ by_plan exists"
 else
-  echo "❌ missing in heat.decision window"
+  echo "❌ by_plan missing"
 fi
 
 echo ""
-echo "B) HeatBridge by_plan key?"
-EXISTS=$(redis-cli EXISTS "quantum:harvest:heat:by_plan:$PLAN_ID")
-echo "EXISTS=$EXISTS"
-if [ "$EXISTS" = "1" ]; then
-  echo "✅ by_plan key exists"
+echo "B) by_plan TTL (if exists):"
+redis-cli --raw TTL "quantum:harvest:heat:by_plan:$PID" || true
+
+echo ""
+echo "C) heat.decision contains plan_id (sample last 2000):"
+if redis-cli --raw XREVRANGE quantum:stream:harvest.heat.decision + - COUNT 2000 | grep -q "$PID"; then
+  echo "✅ FOUND in heat.decision window"
 else
-  echo "❌ by_plan key missing"
+  echo "❌ NOT FOUND in last 2000 heat.decision events"
+  echo "   (Increase COUNT to 5000 if needed)"
 fi
 
 echo ""
-echo "C) by_plan content (first 40 lines)"
-redis-cli HGETALL "quantum:harvest:heat:by_plan:$PLAN_ID" | head -40
+echo "D) by_plan content (first 20 lines):"
+redis-cli --raw HGETALL "quantum:harvest:heat:by_plan:$PID" | head -20
 ```
 
 ### Interpretation:
@@ -56,31 +83,26 @@ redis-cli HGETALL "quantum:harvest:heat:by_plan:$PLAN_ID" | head -40
 
 ---
 
-## 2. Port Sanity Check (Freeze This!)
+## 2. Port Sanity Check - Production Truth
 
 **Correct ports** (never trust memory, always verify):
 
 ```bash
 echo "=== Port Sanity Check ==="
-for url in \
-  http://localhost:8068/metrics \
-  http://localhost:8069/health \
-  http://localhost:8070/metrics \
-  http://localhost:8071/health \
-  http://localhost:8043/metrics
-do
-  echo -n "$url => "
-  curl -s -o /dev/null -w "%{http_code}\n" "$url"
-done
+curl -s -o /dev/null -w "apply_metrics 8043 => %{http_code}\n" http://localhost:8043/metrics
+curl -s -o /dev/null -w "heatgate_metrics 8068 => %{http_code}\n" http://localhost:8068/metrics
+curl -s -o /dev/null -w "heatgate_health 8069 => %{http_code}\n" http://localhost:8069/health
+curl -s -o /dev/null -w "heatbridge_metrics 8070 => %{http_code}\n" http://localhost:8070/metrics
+curl -s -o /dev/null -w "heatbridge_health 8071 => %{http_code}\n" http://localhost:8071/health
 ```
 
-**Expected**:
+**Expected Output**:
 ```
-http://localhost:8068/metrics => 200  (HeatGate metrics)
-http://localhost:8069/health => 200   (HeatGate health)
-http://localhost:8070/metrics => 200  (HeatBridge metrics)
-http://localhost:8071/health => 200   (HeatBridge health)
-http://localhost:8043/metrics => 200  (Apply metrics)
+apply_metrics 8043 => 200
+heatgate_metrics 8068 => 200
+heatgate_health 8069 => 200
+heatbridge_metrics 8070 => 200
+heatbridge_health 8071 => 200
 ```
 
 **Service → Port Mapping** (permanent truth):
@@ -99,17 +121,24 @@ http://localhost:8043/metrics => 200  (Apply metrics)
 **Wrong** ❌: `quantum:heat:bridge:by_plan:<plan_id>`  
 **Right** ✅: `quantum:harvest:heat:by_plan:<plan_id>`
 
-**Verify**:
+**Verify** (safe SCAN, never KEYS):
 ```bash
-redis-cli KEYS "quantum:harvest:heat:by_plan:*" | wc -l
+# Count matching keys (production-safe)
+redis-cli --raw SCAN 0 MATCH "quantum:harvest:heat:by_plan:*" COUNT 5000 \
+  | sed '1d' | wc -l
 # Should be > 0
+
+# Sample 5 keys
+redis-cli --raw SCAN 0 MATCH "quantum:harvest:heat:by_plan:*" COUNT 5000 \
+  | sed '1d' | head -5
 ```
 
 ### Cause B: Keys Expired (TTL)
 
-**Check TTL on existing key**:
+**Check TTL on existing key** (safe SCAN):
 ```bash
-K=$(redis-cli --raw KEYS "quantum:harvest:heat:by_plan:*" | head -1)
+K=$(redis-cli --raw SCAN 0 MATCH "quantum:harvest:heat:by_plan:*" COUNT 1000 \
+  | sed '1d' | head -1)
 echo "Sample key: $K"
 redis-cli TTL "$K"
 # Should be > 0 (e.g., 1500-1800 for 30min TTL)
@@ -133,37 +162,25 @@ redis-cli XINFO CONSUMERS quantum:stream:harvest.heat.decision heat_bridge 2>/de
 
 ---
 
-## 4. Timing Test (Prove P2.8A.3 is Needed)
+## 4. Timing Test - Prove P2.8A.3 is Needed
 
 **Purpose**: Measure delay between publish → by_plan key exists
 
 ```bash
-PLAN_ID=$(
-  redis-cli --raw XREVRANGE quantum:stream:apply.plan + - COUNT 1 \
-  | awk 'tolower($0)=="plan_id"{getline; print; exit}'
-)
+set -euo pipefail
 
-echo "PLAN_ID=$PLAN_ID"
-echo "Watching for by_plan key to appear..."
+PID=$(redis-cli --raw XREVRANGE quantum:stream:apply.plan + - COUNT 1 \
+  | awk 'tolower($0)=="plan_id"{getline; print; exit}')
+echo "PLAN_ID=$PID"
 echo ""
 
-for s in 0 1 2 3 4 5; do
+for i in 0 1 2 3 4 5; do
+  ex=$(redis-cli --raw EXISTS "quantum:harvest:heat:by_plan:$PID")
+  echo "t=${i}s exists=$ex"
+  [ "$ex" = "1" ] && break
   sleep 1
-  EXISTS=$(redis-cli EXISTS "quantum:harvest:heat:by_plan:$PLAN_ID")
-  echo "t+${s}s exists=$EXISTS"
-  if [ "$EXISTS" = "1" ]; then
-    echo ""
-    echo "✅ Key appeared after ${s} seconds"
-    echo "This proves P2.8A.3 late observer is needed!"
-    break
-  fi
 done
 ```
-
-**If key goes from 0 → 1 after 1-3 seconds**:
-- ✅ **P2.8A.3 is 100% correct solution**
-- Early observer (t+0s) will always miss
-- Late observer (wait 2s) will catch it
 
 ---
 
@@ -200,24 +217,27 @@ Before deploying P2.8A.3, verify:
 
 ---
 
-## Quick Copy/Paste: Full Diagnostic
+## Quick Copy/Paste: Full Diagnostic (Production-Safe)
 
 ```bash
 #!/bin/bash
+set -euo pipefail
+
 echo "=== P2.8A Golden Verification ==="
 echo ""
 
 # 1. Golden pipeline test
-PLAN_ID=$(redis-cli --raw XREVRANGE quantum:stream:apply.plan + - COUNT 1 | awk 'tolower($0)=="plan_id"{getline; print; exit}')
+PLAN_ID=$(redis-cli --raw XREVRANGE quantum:stream:apply.plan + - COUNT 1 \
+  | awk 'tolower($0)=="plan_id"{getline; print; exit}')
 echo "1. Latest plan_id: $PLAN_ID"
 
-if redis-cli --raw XREVRANGE quantum:stream:harvest.heat.decision + - COUNT 5000 | grep -q "$PLAN_ID"; then
+if redis-cli --raw XREVRANGE quantum:stream:harvest.heat.decision + - COUNT 2000 | grep -q "$PLAN_ID"; then
   echo "   ✅ In heat.decision"
 else
-  echo "   ❌ Not in heat.decision"
+  echo "   ❌ Not in heat.decision (increase COUNT to 5000 if needed)"
 fi
 
-EXISTS=$(redis-cli EXISTS "quantum:harvest:heat:by_plan:$PLAN_ID")
+EXISTS=$(redis-cli --raw EXISTS "quantum:harvest:heat:by_plan:$PLAN_ID")
 if [ "$EXISTS" = "1" ]; then
   echo "   ✅ by_plan key exists"
   TTL=$(redis-cli TTL "quantum:harvest:heat:by_plan:$PLAN_ID")
@@ -228,23 +248,29 @@ fi
 
 echo ""
 echo "2. Port check:"
-for port in 8043 8068 8069 8070 8071; do
-  CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$port/metrics 2>/dev/null || curl -s -o /dev/null -w "%{http_code}" http://localhost:$port/health 2>/dev/null)
-  echo "   Port $port: $CODE"
-done
+curl -s -o /dev/null -w "apply_metrics 8043 => %{http_code}\n" http://localhost:8043/metrics
+curl -s -o /dev/null -w "heatgate_metrics 8068 => %{http_code}\n" http://localhost:8068/metrics
+curl -s -o /dev/null -w "heatgate_health 8069 => %{http_code}\n" http://localhost:8069/health
+curl -s -o /dev/null -w "heatbridge_metrics 8070 => %{http_code}\n" http://localhost:8070/metrics
+curl -s -o /dev/null -w "heatbridge_health 8071 => %{http_code}\n" http://localhost:8071/health
 
 echo ""
 echo "3. Wiring check:"
 echo -n "   HeatGate input: "
-cat /etc/quantum/heat-gate.env | grep HEAT_STREAM_IN | cut -d= -f2
+grep HEAT_STREAM_IN /etc/quantum/heat-gate.env | cut -d= -f2
 
 echo ""
 echo "4. TTL config:"
-cat /etc/quantum/heat-bridge.env | grep TTL
+grep TTL /etc/quantum/heat-bridge.env
 
 echo ""
 echo "5. Consumer lag:"
 redis-cli XINFO GROUPS quantum:stream:harvest.heat.decision | grep -E "name:|lag:" | paste -d' ' - -
+
+echo ""
+echo "6. Sample keys (SCAN safe):"
+redis-cli --raw SCAN 0 MATCH "quantum:harvest:heat:by_plan:*" COUNT 1000 \
+  | sed '1d' | head -3
 
 echo ""
 echo "=== Diagnostic Complete ==="
