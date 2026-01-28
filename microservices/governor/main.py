@@ -966,11 +966,11 @@ class Governor:
                 logger.info("Testnet flatten: No positions found")
                 return
             
-            # Filter for positions with non-zero qty
+            # Filter for positions with non-zero qty (float-safe threshold)
             open_positions = []
             for pos in result:
                 qty = float(pos.get('positionAmt', 0))
-                if abs(qty) > 0:
+                if abs(qty) > 1e-8:  # Float-safe threshold (Binance min notional ~$5)
                     open_positions.append({
                         'symbol': pos.get('symbol'),
                         'positionAmt': qty,
