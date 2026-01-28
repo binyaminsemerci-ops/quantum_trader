@@ -24,7 +24,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Config
-ESS_CONTROLLER="/opt/quantum/ops/ess_controller.sh"
+ESS_CONTROLLER="${ESS_CONTROLLER:-/home/qt/quantum_trader/ops/ess_controller.sh}"
 ESS_FLAG_FILE="/var/run/quantum/ESS_ON"
 MAX_STOP_TIME=2  # seconds
 
