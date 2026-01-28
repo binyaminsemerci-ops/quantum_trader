@@ -18,7 +18,7 @@ def observe(
     redis_client,
     plan_id: str,
     symbol: str,
-    apply_decision: str,
+    apply_decision: str = "",
     enabled: bool = True,
     stream_name: str = "quantum:stream:apply.heat.observed",
     lookup_prefix: str = "quantum:harvest:heat:by_plan:",
@@ -38,7 +38,7 @@ def observe(
         redis_client: Redis connection
         plan_id: Apply plan ID
         symbol: Trading symbol (e.g., BTCUSDT)
-        apply_decision: Apply decision (EXECUTE/SKIP/BLOCKED)
+        apply_decision: Apply decision (EXECUTE/SKIP/BLOCKED/UNKNOWN, default: "")
         enabled: If False, silently skip (default: True)
         stream_name: Output observed stream name
         lookup_prefix: HeatBridge key prefix
@@ -154,7 +154,7 @@ def observe(
                 "heat_out_action": heat_out_action,
                 "heat_recommended_partial": heat_recommended_partial,
                 "heat_reason": heat_reason,
-                "apply_decision": apply_decision,
+                "apply_decision": apply_decision or "",
                 "debug_json": debug_json
             }
             
