@@ -181,6 +181,7 @@ def publish_portfolio_state(r: redis.Redis):
         # Prepare state
         state = {
             "ts_utc": str(now),
+            "timestamp": str(now),  # P2.8 compatibility
             "equity_usd": f"{equity_usd:.2f}",
             "balance_usd": f"{balance_usd:.2f}",
             "unrealized_pnl_usd": f"{total_unrealized_pnl:.2f}",
