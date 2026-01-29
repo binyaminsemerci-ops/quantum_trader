@@ -188,28 +188,88 @@ def is_exit_executor_kill_switch_active() -> bool:
     return kill_switch in ("true", "1", "yes", "on", "enabled")
 
 
-def is_exit_brain_live_fully_enabled() -> bool:
+def get_exit_rollout_pct() -> int:
+    """
+    Get Exit Brain LIVE rollout percentage (0-100).
+    
+    This controls what percentage of symbols get LIVE mode.
+    The rest operate in SHADOW mode (deterministic per symbol).
+    
+    Returns:
+        Integer 0-100 (default: 0 = all SHADOW)
+    """
+    try:
+        pct = int(os.getenv("EXIT_LIVE_ROLLOUT_PCT", "0"))
+        return max(0, min(100, pct))  # Clamp to 0-100
+    except (ValueError, TypeError):
+        logger.warning("[EXIT_MODE] Invalid EXIT_LIVE_ROLLOUT_PCT, defaulting to 0")
+        return 0
+
+
+def is_symbol_in_live_rollout(symbol: str) -> bool:
+    """
+    Check if a symbol is included in the LIVE rollout percentage.
+    
+    Uses deterministic hash-based selection:
+    - hash(symbol) % 100 < EXIT_LIVE_ROLLOUT_PCT → LIVE
+    - Otherwise → SHADOW
+    
+    This ensures consistent behavior per symbol across restarts.
+    
+    Args:
+        symbol: Trading symbol (e.g., "BTCUSDT")
+        
+    Returns:
+        True if symbol is in LIVE rollout, False if SHADOW
+    """
+    rollout_pct = get_exit_rollout_pct()
+    
+    # 0% = all SHADOW, 100% = all LIVE
+    if rollout_pct == 0:
+        return False
+    if rollout_pct == 100:
+        return True
+    
+    # Deterministic hash-based rollout
+    symbol_hash = hash(symbol) % 100
+    return symbol_hash < rollout_pct
+
+
+def is_exit_brain_live_fully_enabled(symbol: str = None) -> bool:
     """
     Check if Exit Brain v3 LIVE mode is FULLY enabled.
     
-    For AI to actually place orders, ALL conditions must be true:
-    1. EXIT_MODE == "EXIT_BRAIN_V3"
-    2. EXIT_EXECUTOR_MODE == "LIVE"
-    3. EXIT_BRAIN_V3_LIVE_ROLLOUT == "ENABLED"
-    4. EXIT_EXECUTOR_KILL_SWITCH != "true" (fail-closed safety)
+    Enforcement hierarchy (KILL_SWITCH > MODE > ROLLOUT > DEFAULT):
+    1. EXIT_EXECUTOR_KILL_SWITCH == "true" → SHADOW (fail-closed)
+    2. EXIT_MODE != "EXIT_BRAIN_V3" → SHADOW
+    3. EXIT_EXECUTOR_MODE != "LIVE" → SHADOW
+    4. EXIT_BRAIN_V3_LIVE_ROLLOUT != "ENABLED" → SHADOW
+    5. If symbol provided: check EXIT_LIVE_ROLLOUT_PCT (hash-based)
     
+    Args:
+        symbol: Optional trading symbol for rollout percentage check
+        
     Returns:
-        True if all conditions are met and kill-switch is OFF
+        True if all conditions are met and symbol is in LIVE rollout
     """
-    # Kill-switch overrides everything (fail-closed)
+    # PRIORITY 1: Kill-switch overrides everything (fail-closed)
     if is_exit_executor_kill_switch_active():
         return False
     
-    return (
+    # PRIORITY 2: Base mode checks
+    if not (
         is_exit_brain_mode() and
         is_exit_executor_live_mode() and
         is_exit_brain_live_rollout_enabled()
-    )
+    ):
+        return False
+    
+    # PRIORITY 3: Rollout percentage (if symbol provided)
+    if symbol is not None:
+        return is_symbol_in_live_rollout(symbol)
+    
+    # No symbol = global check passed
+    return True
 
 
 # Log mode on module import for visibility
@@ -218,15 +278,44 @@ _executor_mode = get_exit_executor_mode()
 _live_rollout = "ENABLED" if is_exit_brain_live_rollout_enabled() else "DISABLED"
 _brain_profile = get_exit_brain_profile()
 _kill_switch = "ACTIVE" if is_exit_executor_kill_switch_active() else "OFF"
+_rollout_pct = get_exit_rollout_pct()
 
 logger.info(
     f"[EXIT_MODE] Configuration loaded: "
     f"EXIT_MODE={_current_mode}, "
     f"EXIT_EXECUTOR_MODE={_executor_mode}, "
     f"EXIT_BRAIN_V3_LIVE_ROLLOUT={_live_rollout}, "
+    f"ROLLOUT_PCT={_rollout_pct}%, "
     f"EXIT_BRAIN_PROFILE={_brain_profile}, "
     f"KILL_SWITCH={_kill_switch}"
 )
+
+# Log control state to Redis for audit trail
+try:
+    import redis
+    import json
+    from datetime import datetime, timezone
+    
+    r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+    
+    state = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "exit_mode": _current_mode,
+        "executor_mode": _executor_mode,
+        "kill_switch": _kill_switch == "ACTIVE",
+        "live_rollout": _live_rollout,
+        "rollout_pct": _rollout_pct,
+        "brain_profile": _brain_profile
+    }
+    
+    # Store as list (latest first, keep last 100)
+    key = "quantum:ops:exitbrain:control"
+    r.lpush(key, json.dumps(state))
+    r.ltrim(key, 0, 99)  # Keep last 100 entries
+    
+    logger.info(f"[EXIT_MODE] Control state logged to Redis: {key}")
+except Exception as e:
+    logger.debug(f"[EXIT_MODE] Redis audit logging not available: {e}")
 
 # Check if LIVE mode is fully enabled
 if is_exit_executor_kill_switch_active():
