@@ -1,0 +1,26 @@
+[Unit]
+Description=Quantum Exit Brain v3.5 (TESTNET)
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+WorkingDirectory=/home/qt/quantum_trader
+EnvironmentFile=/etc/quantum/testnet.env
+Environment=EXIT_BRAIN_V35_ENABLED=true
+Environment=EXIT_MODE=EXIT_BRAIN_V3
+Environment=EXIT_EXECUTOR_MODE=LIVE
+Environment=EXIT_BRAIN_V3_LIVE_ROLLOUT=ENABLED
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/home/qt/quantum_trader:/home/qt/quantum_trader/microservices
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python3 microservices/position_monitor/main_exitbrain.py
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=append:/var/log/quantum/exitbrain_v35.log
+StandardError=append:/var/log/quantum/exitbrain_v35.log
+
+[Install]
+WantedBy=multi-user.target

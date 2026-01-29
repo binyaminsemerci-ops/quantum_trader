@@ -1,0 +1,24 @@
+[Unit]
+Description=P2.8A.3 Late Observer Latency Proof (Read-Only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+EnvironmentFile=-/etc/quantum/p28a3-latency-proof.env
+
+ExecStart=/usr/local/bin/p28a3-latency-proof.sh
+
+TimeoutStartSec=20
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+SuccessExitStatus=0
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,27 @@
+[Unit]
+Description=P2.8A.3 Late Observer Latency Proof (Read-Only)
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader/blob/main/scripts/p28a3_verify_latency.py
+After=network-online.target redis.service
+
+[Service]
+Type=oneshot
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+EnvironmentFile=-/etc/quantum/p28a3-latency-proof.env
+
+# Run script and filter to TRUTH line only (fail-open)
+ExecStart=/bin/bash -c 'set +e; output=$(/usr/bin/python3 scripts/p28a3_verify_latency.py 2>&1); truth=$(echo "$output" | grep -m1 "\\[TRUTH\\]"); if [ -n "$truth" ]; then echo "$truth"; else echo "[TRUTH] missing (script output did not contain TRUTH line)"; fi; exit 0'
+
+# Production-safe settings
+TimeoutStartSec=20
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+# Fail-open: never mark service as failed
+SuccessExitStatus=0
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

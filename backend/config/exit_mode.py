@@ -174,18 +174,37 @@ def is_exit_brain_live_rollout_enabled() -> bool:
     return flag == ROLLOUT_ENABLED
 
 
+def is_exit_executor_kill_switch_active() -> bool:
+    """
+    Check if Exit Brain executor kill-switch is active.
+    
+    This is a fail-closed safety mechanism that forces shadow mode
+    regardless of other settings. When active, NO orders will be placed.
+    
+    Returns:
+        True if EXIT_EXECUTOR_KILL_SWITCH == "true" (case-insensitive)
+    """
+    kill_switch = os.getenv("EXIT_EXECUTOR_KILL_SWITCH", "false").lower()
+    return kill_switch in ("true", "1", "yes", "on", "enabled")
+
+
 def is_exit_brain_live_fully_enabled() -> bool:
     """
     Check if Exit Brain v3 LIVE mode is FULLY enabled.
     
-    For AI to actually place orders, ALL THREE conditions must be true:
+    For AI to actually place orders, ALL conditions must be true:
     1. EXIT_MODE == "EXIT_BRAIN_V3"
     2. EXIT_EXECUTOR_MODE == "LIVE"
     3. EXIT_BRAIN_V3_LIVE_ROLLOUT == "ENABLED"
+    4. EXIT_EXECUTOR_KILL_SWITCH != "true" (fail-closed safety)
     
     Returns:
-        True if all three conditions are met
+        True if all conditions are met and kill-switch is OFF
     """
+    # Kill-switch overrides everything (fail-closed)
+    if is_exit_executor_kill_switch_active():
+        return False
+    
     return (
         is_exit_brain_mode() and
         is_exit_executor_live_mode() and
@@ -198,17 +217,25 @@ _current_mode = get_exit_mode()
 _executor_mode = get_exit_executor_mode()
 _live_rollout = "ENABLED" if is_exit_brain_live_rollout_enabled() else "DISABLED"
 _brain_profile = get_exit_brain_profile()
+_kill_switch = "ACTIVE" if is_exit_executor_kill_switch_active() else "OFF"
 
 logger.info(
     f"[EXIT_MODE] Configuration loaded: "
     f"EXIT_MODE={_current_mode}, "
     f"EXIT_EXECUTOR_MODE={_executor_mode}, "
     f"EXIT_BRAIN_V3_LIVE_ROLLOUT={_live_rollout}, "
-    f"EXIT_BRAIN_PROFILE={_brain_profile}"
+    f"EXIT_BRAIN_PROFILE={_brain_profile}, "
+    f"KILL_SWITCH={_kill_switch}"
 )
 
 # Check if LIVE mode is fully enabled
-if is_exit_brain_live_fully_enabled():
+if is_exit_executor_kill_switch_active():
+    logger.warning(
+        "[EXIT_MODE] 🔴 KILL-SWITCH ACTIVE 🔴 "
+        "Exit Brain forced to SHADOW mode. No orders will be placed. "
+        "Set EXIT_EXECUTOR_KILL_SWITCH=false to re-enable."
+    )
+elif is_exit_brain_live_fully_enabled():
     logger.warning(
         "[EXIT_MODE] 🔴 EXIT BRAIN V3 LIVE MODE ACTIVE 🔴 "
         "AI executor will place real orders. Legacy exit modules will be blocked."
