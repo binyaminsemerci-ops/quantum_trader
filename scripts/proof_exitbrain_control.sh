@@ -5,8 +5,6 @@
 # Tests: Control env loaded, symbol rollout logic, enforcement hierarchy
 # Exit codes: 0=PASS, 2=SHADOW forced, 9=KILL-SWITCH active
 
-set -euo pipefail
-
 echo "================================================================"
 echo "EXIT BRAIN CONTROL LAYER V1 - OPERATIONAL PROOF"
 echo "================================================================"
