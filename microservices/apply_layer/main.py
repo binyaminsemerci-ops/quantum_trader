@@ -516,8 +516,17 @@ class ApplyLayer:
                 except (ValueError, TypeError):
                     return default
             
+            # P0.FIX: Read calibrated action if available (from P2.6 Heat Gate)
+            # If calibrated=1, use "action" field (calibrated), else fall back to "harvest_action"
+            is_calibrated = data.get("calibrated") == "1"
+            if is_calibrated and data.get("action"):
+                action = data.get("action")
+                logger.debug(f"{symbol}: Using calibrated action={action} (heat gate)")
+            else:
+                action = data.get("harvest_action")
+            
             proposal = {
-                "harvest_action": data.get("harvest_action"),
+                "harvest_action": action,  # Use calibrated action if available,
                 "kill_score": safe_float("kill_score"),
                 "k_regime_flip": safe_float("k_regime_flip", 0.0),
                 "k_sigma_spike": safe_float("k_sigma_spike", 0.0),
@@ -528,6 +537,8 @@ class ApplyLayer:
                 "last_update_epoch": safe_float("last_update_epoch"),
                 "computed_at_utc": data.get("computed_at_utc", ""),
                 "reason_codes": data.get("reason_codes", "").split(","),
+                "p26_calibrated": is_calibrated,
+                "p26_original_action": data.get("original_action") if is_calibrated else None,
             }
             
             # Validate required fields
