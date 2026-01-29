@@ -2563,6 +2563,49 @@ async def run_portfolio_rebalance(
                         binance_api_key = os.getenv("BINANCE_API_KEY") or "your_binance_testnet_api_key_here"
                         binance_api_secret = os.getenv("BINANCE_API_SECRET") or "your_binance_testnet_api_secret_here"
                     
+                    # ========================================================================
+                    # TPSL SHIELD: DISABLED BY DEFAULT (Policy: Internal Intents Only)
+                    # ========================================================================
+                    # Historical context: This shield placed conditional TP/SL orders on
+                    # Binance after entry execution. This violates Quantum Trader architecture:
+                    # ALL exits must flow through Exit Brain → internal intents → MARKET only.
+                    #
+                    # To re-enable (NOT RECOMMENDED):
+                    # Set EXECUTION_TPSL_SHIELD_ENABLED=true in environment.
+                    # ========================================================================
+                    tpsl_shield_enabled = os.getenv("EXECUTION_TPSL_SHIELD_ENABLED", "false").lower() in ("true", "1", "yes", "enabled")
+                    
+                    if not tpsl_shield_enabled:
+                        logger.info(
+                            f"[TPSL_SHIELD] Disabled for {intent.symbol} (policy: internal intents only). "
+                            f"Exit Brain v3.5 owns all exit decisions."
+                        )
+                        # Continue to next intent without placing TP/SL
+                        working_positions[intent.symbol] = projected_qty
+                        exposure_by_symbol[intent.symbol] = projected_notional
+                        current_gross = projected_total
+                        summary["orders_submitted"] += 1
+                        entries.append(
+                            ExecutionJournal(
+                                run_id=run.id,
+                                symbol=intent.symbol,
+                                side=intent.side,
+                                target_weight=intent.target_weight,
+                                quantity=intent.quantity,
+                                status="filled",
+                                reason=f"order_id={order_id}; {intent.reason}",
+                                created_at=datetime.now(timezone.utc),
+                                executed_at=datetime.now(timezone.utc),
+                            )
+                        )
+                        continue  # Skip TPSL placement
+                    
+                    # TPSL shield explicitly enabled (legacy path)
+                    logger.warning(
+                        f"[TPSL_SHIELD] ⚠️  ENABLED for {intent.symbol} (EXECUTION_TPSL_SHIELD_ENABLED=true). "
+                        f"This bypasses Exit Brain architecture. Use with caution."
+                    )
+                    
                     if binance_api_key and binance_api_secret:
                         logger.info(f"🔑 Binance credentials found for {intent.symbol}")
                         
