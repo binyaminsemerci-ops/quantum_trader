@@ -1,0 +1,12 @@
+[Unit]
+Description=P2.8A.3 Latency Proof Timer (Every 30 Minutes)
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader/blob/main/scripts/p28a3_verify_latency.py
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+RandomizedDelaySec=60
+Persistent=true
+
+[Install]
+WantedBy=timers.target

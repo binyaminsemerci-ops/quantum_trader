@@ -1,0 +1,14 @@
+# P2.8A.3 Latency Proof Configuration
+# Read by systemd service via EnvironmentFile
+
+# Python output (script itself does not read this)
+PYTHONUNBUFFERED=1
+
+# Pushgateway Push (optional)
+P28A3_TRUTH_PUSH_ENABLED=false
+P28A3_TRUTH_PUSHGATEWAY_URL=http://localhost:9091
+P28A3_TRUTH_PUSH_JOB=quantum_p28a3_latency_proof
+P28A3_TRUTH_PUSH_TIMEOUT_SEC=2
+
+# Loki Structured Logging (optional)
+P28A3_TRUTH_LOKI_STRUCTURED_ENABLED=true
