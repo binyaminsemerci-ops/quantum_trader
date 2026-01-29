@@ -6,7 +6,8 @@ import logging
 import signal
 from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
+from prometheus_client import REGISTRY, generate_latest, CONTENT_TYPE_LATEST
 
 # Load .env from project root
 from dotenv import load_dotenv
@@ -16,17 +17,38 @@ from microservices.portfolio_intelligence.config import settings
 from microservices.portfolio_intelligence.service import PortfolioIntelligenceService
 from microservices.portfolio_intelligence import api
 
-# Configure logging
-logging.basicConfig(
-    level=settings.LOG_LEVEL,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(f"{settings.LOG_DIR}/portfolio_intelligence.log")
-    ]
-)
+# [EPIC-OBS-001] Initialize observability (tracing, metrics, structured logging)
+try:
+    from backend.infra.observability import (
+        init_observability,
+        get_logger,
+        instrument_fastapi,
+        add_metrics_middleware,
+    )
+    OBSERVABILITY_AVAILABLE = True
+except ImportError:
+    OBSERVABILITY_AVAILABLE = False
+    # Fallback to basic logging
+    logging.basicConfig(
+        level=settings.LOG_LEVEL,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler(f"{settings.LOG_DIR}/portfolio_intelligence.log")
+        ]
+    )
 
-logger = logging.getLogger(__name__)
+# Initialize observability at module level (before service starts)
+if OBSERVABILITY_AVAILABLE:
+    init_observability(
+        service_name="portfolio-intelligence",
+        log_level=settings.LOG_LEVEL,
+        enable_tracing=True,
+        enable_metrics=True,
+    )
+    logger = get_logger(__name__)
+else:
+    logger = logging.getLogger(__name__)
 
 # Global service instance
 service: PortfolioIntelligenceService = None
@@ -87,6 +109,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# [EPIC-OBS-001] Instrument FastAPI with tracing & metrics
+if OBSERVABILITY_AVAILABLE:
+    instrument_fastapi(app)
+    add_metrics_middleware(app)
+
 # Include API routes
 app.include_router(api.router)
 
@@ -127,6 +154,32 @@ async def health_check():
                 health_data["total_unrealized_pnl"] = service._current_snapshot.total_unrealized_pnl
     
     return health_data
+
+
+@app.get("/health/live")
+async def liveness_probe():
+    """Kubernetes liveness probe."""
+    return {"status": "ok"}
+
+
+@app.get("/health/ready")
+async def readiness_probe():
+    """Kubernetes readiness probe."""
+    if service is None:
+        return {"status": "not_ready", "ready": False}
+    # Check if service has a public running status
+    is_running = getattr(service, 'is_running', lambda: getattr(service, '_running', False))
+    if callable(is_running):
+        ready = is_running()
+    else:
+        ready = is_running
+    return {"status": "ready" if ready else "not_ready", "ready": ready}
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint."""
+    return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
 
 def get_service() -> PortfolioIntelligenceService:
