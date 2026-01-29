@@ -322,7 +322,35 @@ async def submit_exit_order(
             f"params_keys={list(order_params.keys())}"
         )
         
-        # Forward to actual exchange client
+        # ========================================================================
+        # POLICY ENFORCEMENT: BLOCK ALL CONDITIONAL ORDERS
+        # ========================================================================
+        # Quantum Trader architecture: ALL exits must use internal intents,
+        # executed as MARKET orders only. Conditional orders (STOP_MARKET,
+        # TAKE_PROFIT_MARKET, etc.) bypass internal decision pipeline.
+        #
+        # Enforcement: Hard fail-closed at gateway choke point.
+        # Owner: Exit Brain v3.5 (sole exit decision authority).
+        # ========================================================================
+        BLOCKED_CONDITIONAL_TYPES = [
+            'STOP', 'STOP_MARKET', 'STOP_LOSS', 'STOP_LOSS_LIMIT',
+            'TAKE_PROFIT', 'TAKE_PROFIT_MARKET', 'TAKE_PROFIT_LIMIT',
+            'TRAILING_STOP_MARKET'
+        ]
+        
+        if order_type in BLOCKED_CONDITIONAL_TYPES:
+            logger.error(
+                f"[EXIT_GATEWAY] 🚨 POLICY VIOLATION: Conditional order blocked. "
+                f"type={order_type}, module={module_name}, symbol={symbol}, "
+                f"params={order_params}"
+            )
+            raise ValueError(
+                f"Conditional orders not allowed (type={order_type}). "
+                f"Use internal intents with MARKET execution only. "
+                f"See Exit Brain v3.5 architecture for proper exit flow."
+            )
+        
+        # Forward to actual exchange client (MARKET orders only)
         result = client.futures_create_order(**order_params)
         
         # Log success
