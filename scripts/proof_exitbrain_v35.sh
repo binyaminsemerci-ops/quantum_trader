@@ -134,10 +134,10 @@ echo ""
 # Test 6: Recent order placement activity
 echo "TEST 6: Order Placement History"
 echo "================================"
-RECENT_ORDERS=$(grep -E "orderId.*executed successfully" /var/log/quantum/exitbrain_v35.log 2>/dev/null | tail -1)
+RECENT_ORDERS=$(timeout 3 grep -E "orderId.*executed successfully" /var/log/quantum/exitbrain_v35.log 2>/dev/null | tail -1 || true)
 if [ -n "$RECENT_ORDERS" ]; then
-    ORDER_ID=$(echo $RECENT_ORDERS | grep -oE "orderId=[0-9]+" | cut -d= -f2)
-    ORDER_SYMBOL=$(echo $RECENT_ORDERS | grep -oE "[A-Z]{3,}USDT" | head -1)
+    ORDER_ID=$(echo "$RECENT_ORDERS" | grep -oE "orderId=[0-9]+" | cut -d= -f2 || echo "N/A")
+    ORDER_SYMBOL=$(echo "$RECENT_ORDERS" | grep -oE "[A-Z]{3,}USDT" | head -1 || echo "UNKNOWN")
     echo "✅ PASS: Order placement capability verified"
     echo "   Last order: ${ORDER_SYMBOL} orderId=${ORDER_ID}"
     echo "   (Logs show Exit Brain has placed real orders)"
