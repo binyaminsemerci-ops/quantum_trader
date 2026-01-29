@@ -164,8 +164,14 @@ class PositionMonitor:
             if not api_key or not api_secret:
                 raise ValueError("Missing Binance TESTNET credentials (BINANCE_API_KEY, BINANCE_API_SECRET)")
             logger.info("[TEST_TUBE] Position Monitor: Using Binance Testnet API")
-            self.client = Client(api_key, api_secret, testnet=True)
+            # CRITICAL: python-binance testnet=True uses WRONG URL for futures!
+            # testnet=True defaults to https://fapi.binance.com (MAINNET!)
+            # We need: https://testnet.binancefuture.com (TESTNET!)
+            # Fix: Create client WITHOUT testnet flag, then override URLs
+            self.client = Client(api_key, api_secret)
             self.client.API_URL = 'https://testnet.binancefuture.com'
+            self.client.FUTURES_URL = 'https://testnet.binancefuture.com/fapi'
+            self.client.FUTURES_DATA_URL = 'https://testnet.binancefuture.com/fapi'
         else:
             api_key = os.getenv("BINANCE_API_KEY") or "your_binance_testnet_api_key_here"
             api_secret = os.getenv("BINANCE_API_SECRET") or "your_binance_testnet_api_secret_here"
