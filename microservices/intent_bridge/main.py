@@ -268,7 +268,7 @@ class IntentBridge:
             stop_loss = payload.get("stop_loss")
             take_profit = payload.get("take_profit")
             
-            logger.debug(f"Parsed {symbol} {action}: qty={qty:.4f}, leverage={leverage}, sl={stop_loss}, tp={take_profit}")
+            logger.info(f"✓ Parsed {symbol} {action}: qty={qty:.4f}, leverage={leverage}, sl={stop_loss}, tp={take_profit}")
             
             return {
                 "symbol": symbol,
@@ -315,13 +315,13 @@ class IntentBridge:
         # 🔥 RL SIZING METADATA: Add leverage, TP/SL if available
         if leverage is not None:
             message_fields[b"leverage"] = str(leverage).encode()
-            logger.debug(f"Added leverage={leverage}")
+            logger.info(f"✓ Added leverage={leverage} to {intent['symbol']}")
         if stop_loss is not None:
             message_fields[b"stop_loss"] = str(stop_loss).encode()
-            logger.debug(f"Added stop_loss={stop_loss}")
+            logger.info(f"✓ Added stop_loss={stop_loss} to {intent['symbol']}")
         if take_profit is not None:
             message_fields[b"take_profit"] = str(take_profit).encode()
-            logger.debug(f"Added take_profit={take_profit}")
+            logger.info(f"✓ Added take_profit={take_profit} to {intent['symbol']}")
         
         # Publish to quantum:stream:apply.plan with FLAT structure
         message_id = self.redis.xadd(
