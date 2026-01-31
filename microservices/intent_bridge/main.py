@@ -312,6 +312,9 @@ class IntentBridge:
         stop_loss = intent.get("stop_loss")
         take_profit = intent.get("take_profit")
         
+        # DIAGNOSTIC: Show full intent dict for troubleshooting
+        logger.info(f"📋 Publishing plan for {intent['symbol']} {intent['side']}: leverage={leverage}, sl={stop_loss}, tp={take_profit}")
+        
         # 🔥 RL SIZING METADATA: Add leverage, TP/SL if available
         if leverage is not None:
             message_fields[b"leverage"] = str(leverage).encode()
