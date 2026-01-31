@@ -8,17 +8,16 @@ Audits the 3-permit gate infrastructure (Governor, P2.6 Portfolio Gate, P3.3 Pos
 **Read-only, safe to run anytime.**
 
 ```bash
-# Basic audit
+# LOCAL EXECUTION (on VPS)
+cd /home/qt/quantum_trader
 ./ops/permit_audit.sh
-
-# JSON output for automation
 ./ops/permit_audit.sh --json
-
-# Custom SSH settings
-./ops/permit_audit.sh --host root@myserver --key ~/.ssh/mykey
-
-# More samples
 ./ops/permit_audit.sh --sample 5
+
+# REMOTE EXECUTION (from workstation via SSH)
+./ops/permit_audit.sh --remote
+./ops/permit_audit.sh --remote --host root@myserver --key ~/.ssh/mykey
+./ops/permit_audit.sh --remote --json
 ```
 
 **Exit codes:**
@@ -37,23 +36,18 @@ Searches `apply.result` stream for execution proof (`executed=True` + `order_id`
 **Read-only, safe to run anytime.**
 
 ```bash
-# Basic search (last 400 entries)
+# LOCAL EXECUTION (on VPS)
+cd /home/qt/quantum_trader
 ./ops/proof_order_id.sh
-
-# Search specific symbol
 ./ops/proof_order_id.sh --symbol TRXUSDT
+./ops/proof_order_id.sh --count 200
+./ops/proof_order_id.sh --follow --timeout 180
 
-# Follow mode (poll until proof found or timeout)
-./ops/proof_order_id.sh --follow --symbol TRXUSDT --timeout 180
-
-# Search more entries
-./ops/proof_order_id.sh --count 1000
-
-# JSON output
-./ops/proof_order_id.sh --json
-
-# Check specific plan
-./ops/proof_order_id.sh --plan_id a2c7d3839f66267a
+# REMOTE EXECUTION (from workstation via SSH)
+./ops/proof_order_id.sh --remote
+./ops/proof_order_id.sh --remote --symbol TRXUSDT
+./ops/proof_order_id.sh --remote --count 100 --json
+./ops/proof_order_id.sh --remote --follow --symbol TRXUSDT
 ```
 
 **Exit codes:**
@@ -71,6 +65,11 @@ Searches `apply.result` stream for execution proof (`executed=True` + `order_id`
 ## Ops Governor Prompt Generator
 
 Template:
+**⚠️ Important Git Workflow:**
+- **VPS is deploy-only** - Do NOT commit from VPS
+- Always commit + push from workstation (Windows/Mac/Linux)
+- VPS: `git pull` to sync, never `git commit` or `git push`
+
 - `ops/ops_prompt_template_v1.txt`
 
 Generator:
