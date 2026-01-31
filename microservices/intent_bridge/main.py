@@ -268,6 +268,8 @@ class IntentBridge:
             stop_loss = payload.get("stop_loss")
             take_profit = payload.get("take_profit")
             
+            logger.debug(f"Parsed {symbol} {action}: qty={qty:.4f}, leverage={leverage}, sl={stop_loss}, tp={take_profit}")
+            
             return {
                 "symbol": symbol,
                 "side": action,
