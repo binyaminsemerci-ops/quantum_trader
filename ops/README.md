@@ -1,5 +1,73 @@
 # Ops Tools (P4)
 
+## Permit Audit & Execution Proof
+
+### permit_audit.sh
+Audits the 3-permit gate infrastructure (Governor, P2.6 Portfolio Gate, P3.3 Position Gate).
+
+**Read-only, safe to run anytime.**
+
+```bash
+# Basic audit
+./ops/permit_audit.sh
+
+# JSON output for automation
+./ops/permit_audit.sh --json
+
+# Custom SSH settings
+./ops/permit_audit.sh --host root@myserver --key ~/.ssh/mykey
+
+# More samples
+./ops/permit_audit.sh --sample 5
+```
+
+**Exit codes:**
+- `0` = All three permit sources active
+- `2` = One or more permit sources missing (infrastructure gap)
+- `1` = Runtime error
+
+**What it checks:**
+- Governor permits: `quantum:permit:{plan_id}`
+- P2.6 Portfolio Gate: `quantum:permit:p26:{plan_id}`
+- P3.3 Position Gate: `quantum:permit:p33:{plan_id}`
+
+### proof_order_id.sh
+Searches `apply.result` stream for execution proof (`executed=True` + `order_id`).
+
+**Read-only, safe to run anytime.**
+
+```bash
+# Basic search (last 400 entries)
+./ops/proof_order_id.sh
+
+# Search specific symbol
+./ops/proof_order_id.sh --symbol TRXUSDT
+
+# Follow mode (poll until proof found or timeout)
+./ops/proof_order_id.sh --follow --symbol TRXUSDT --timeout 180
+
+# Search more entries
+./ops/proof_order_id.sh --count 1000
+
+# JSON output
+./ops/proof_order_id.sh --json
+
+# Check specific plan
+./ops/proof_order_id.sh --plan_id a2c7d3839f66267a
+```
+
+**Exit codes:**
+- `0` = Execution proof found (order_id present)
+- `3` = No proof found (infrastructure OK, waiting on execution)
+- `1` = Runtime error
+
+**Proof criteria:**
+- `executed` field = `True`
+- `order_id` field exists and non-empty
+- Matches all provided filters (symbol, plan_id)
+
+---
+
 ## Ops Governor Prompt Generator
 
 Template:
