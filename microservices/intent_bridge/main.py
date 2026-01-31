@@ -305,13 +305,21 @@ class IntentBridge:
             b"timestamp": str(ts_unix).encode()
         }
         
+        # DEBUG: Log what we're trying to add
+        leverage = intent.get("leverage")
+        stop_loss = intent.get("stop_loss")
+        take_profit = intent.get("take_profit")
+        
         # 🔥 RL SIZING METADATA: Add leverage, TP/SL if available
-        if intent.get("leverage") is not None and intent.get("leverage"):
-            message_fields[b"leverage"] = str(intent["leverage"]).encode()
-        if intent.get("stop_loss") is not None:
-            message_fields[b"stop_loss"] = str(intent["stop_loss"]).encode()
-        if intent.get("take_profit") is not None:
-            message_fields[b"take_profit"] = str(intent["take_profit"]).encode()
+        if leverage is not None:
+            message_fields[b"leverage"] = str(leverage).encode()
+            logger.debug(f"Added leverage={leverage}")
+        if stop_loss is not None:
+            message_fields[b"stop_loss"] = str(stop_loss).encode()
+            logger.debug(f"Added stop_loss={stop_loss}")
+        if take_profit is not None:
+            message_fields[b"take_profit"] = str(take_profit).encode()
+            logger.debug(f"Added take_profit={take_profit}")
         
         # Publish to quantum:stream:apply.plan with FLAT structure
         message_id = self.redis.xadd(
@@ -321,7 +329,7 @@ class IntentBridge:
         
         logger.info(
             f"✅ Published plan: {plan_id[:8]} | {intent['symbol']} {intent['side']} "
-            f"qty={intent['qty']:.4f} leverage={intent.get('leverage', 1)}x "
+            f"qty={intent['qty']:.4f} leverage={leverage}x "
             f"reduceOnly={intent['reduceOnly']} | msg={message_id.decode()}"
         )
     
