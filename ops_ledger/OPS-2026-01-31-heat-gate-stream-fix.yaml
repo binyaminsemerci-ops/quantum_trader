@@ -1,0 +1,99 @@
+---
+ops_entry_id: OPS-2026-01-31-HEAT-GATE-STREAM-FIX
+date: 2026-01-31
+operator: forensic_investigation
+category: infrastructure_fix
+severity: critical
+status: deployed
+
+title: "P2.6 Permit Pipeline Fix: Heat Gate Stream Topology + Field Compatibility"
+
+root_cause:
+  issue_1:
+    description: "Stream topology mismatch between Heat Gate output and Portfolio Gate input"
+    evidence:
+      - "Heat Gate published to: quantum:stream:harvest.heat.decision"
+      - "Portfolio Gate consumed from: quantum:stream:harvest.proposal"
+      - "Result: Portfolio Gate never received decisions → zero P2.6 permits"
+    
+  issue_2:
+    description: "Field name mismatch between Heat Gate output and Portfolio Gate expectations"
+    evidence:
+      - "Heat Gate published: out_action field"
+      - "Portfolio Gate expected: action_proposed, harvest_action, or action fields"
+      - "Result: Portfolio Gate defaulted to HOLD → no permits issued even when connected"
+
+fixes_applied:
+  config_change:
+    file: /etc/quantum/heat-gate.env
+    change: "HEAT_STREAM_OUT=quantum:stream:harvest.heat.decision → quantum:stream:harvest.proposal"
+    backup: /etc/quantum/heat-gate.env.bak.1769838487
+    service_restart: quantum-heat-gate
+    
+  code_change:
+    file: microservices/heat_gate/logic.py
+    lines: [238, 279]
+    change: 'Added "action": out_action field to decision dictionaries'
+    git_commit: 6ba70408
+    commit_message: "Fix P2.6 permit pipeline: Heat Gate stream routing + field compatibility"
+
+verification:
+  infrastructure:
+    - "✅ P2.6 permits publishing: 3+ active with 60s TTL"
+    - "✅ Portfolio Gate logs show: Permit issued for FULL_CLOSE_PROPOSED"
+    - "✅ Apply Layer 3-permit gate operational (Governor + P3.3 + P2.6)"
+    - "✅ Apply Layer missing_p26 errors eliminated"
+  
+  permit_inventory:
+    governor: "quantum:permit:{plan_id} - Active"
+    p33_position_gate: "quantum:permit:p33:{plan_id} - Active"
+    p26_portfolio_gate: "quantum:permit:p26:{plan_id} - Active (FIXED)"
+  
+  execution_status:
+    infrastructure: "Fully operational - all 3 permit sources publishing"
+    order_execution: "Not yet verified with order_id (waiting on market triggers)"
+    blockers:
+      - "BTCUSDT: P3.4 reconcile_hold_active (safety gate, intentional)"
+      - "ETHUSDT: no_position on testnet"
+      - "TRXUSDT: Exit Brain waiting for TP threshold"
+      - "SOLUSDT: Intent Bridge waiting for entry signal generation"
+
+deployment_info:
+  environment: production
+  server: quantumtrader-prod-1 (46.224.116.254)
+  deployment_time: "2026-01-31 05:46:28 UTC"
+  downtime: ~10 seconds (service restart)
+  rollback_plan: "Restore backup config + revert git commit 6ba70408"
+
+configuration_template:
+  description: "Heat Gate must publish to stream that Portfolio Gate consumes"
+  required_settings:
+    HEAT_STREAM_IN: "quantum:stream:apply.plan"
+    HEAT_STREAM_OUT: "quantum:stream:harvest.proposal"
+  validation:
+    - "redis-cli XLEN quantum:stream:harvest.proposal > 0"
+    - "redis-cli --scan --pattern 'quantum:permit:p26:*' | wc -l > 0"
+    - "journalctl -u quantum-portfolio-gate | grep 'Permit issued'"
+
+lessons_learned:
+  - "Stream topology mismatches create invisible infrastructure failures"
+  - "Field schema compatibility must be verified across service boundaries"
+  - "Permit gates can silently fail if upstream data doesn't arrive or doesn't match schema"
+  - "Redis permit patterns: Governor uses base pattern, gates use namespaced patterns"
+  - "Duplicate detection and safety gates work correctly once infrastructure fixed"
+
+monitoring_added:
+  - "Monitor redis permit counts per gate (p26, p33, gov)"
+  - "Alert on missing_p26 errors in apply-layer logs"
+  - "Track permit TTL to detect timing/race issues"
+
+related_tickets:
+  - "Initial investigation: HARVEST_MODE=LIVE ramp for SOLUSDT"
+  - "Exit Brain activation: EXIT_EXECUTOR_KILL_SWITCH=false"
+  - "Forensic analysis: Zero trade executions despite LIVE mode"
+
+next_steps:
+  - "Wait for natural TRXUSDT exit to verify full end-to-end with order_id"
+  - "OR: Open small ETHUSDT position for controlled execution proof"
+  - "Monitor for any missing_p33 errors (currently no infrastructure issues detected)"
+  - "Document P3.4 reconcile hold mechanism for future reference"

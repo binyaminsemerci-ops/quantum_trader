@@ -211,12 +211,20 @@ class IntentBridge:
             order_type = payload.get("type", "MARKET").upper()
             reduce_only = str(payload.get("reduceOnly", "false")).lower() in ("true", "1", "yes")
             
+            # 🔥 RL SIZING METADATA: Extract leverage, TP/SL from RL Position Sizing Agent
+            leverage = payload.get("leverage", 1)
+            stop_loss = payload.get("stop_loss")
+            take_profit = payload.get("take_profit")
+            
             return {
                 "symbol": symbol,
                 "side": action,
                 "qty": qty,
                 "type": order_type,
                 "reduceOnly": reduce_only,
+                "leverage": leverage,
+                "stop_loss": stop_loss,
+                "take_profit": take_profit,
                 "source_payload": payload
             }
             
@@ -231,26 +239,38 @@ class IntentBridge:
         # Apply Layer expects top-level fields, NOT nested payload JSON
         ts_unix = int(time.time())
         
+        # Base message fields (required)
+        message_fields = {
+            b"plan_id": plan_id.encode(),
+            b"decision": b"EXECUTE",
+            b"symbol": intent["symbol"].encode(),
+            b"side": intent["side"].encode(),
+            b"type": intent["type"].encode(),
+            b"qty": str(intent["qty"]).encode(),
+            b"reduceOnly": str(intent["reduceOnly"]).lower().encode(),
+            b"source": b"intent_bridge",
+            b"signature": b"intent_bridge",
+            b"timestamp": str(ts_unix).encode()
+        }
+        
+        # 🔥 RL SIZING METADATA: Add leverage, TP/SL if available
+        if intent.get("leverage"):
+            message_fields[b"leverage"] = str(intent["leverage"]).encode()
+        if intent.get("stop_loss"):
+            message_fields[b"stop_loss"] = str(intent["stop_loss"]).encode()
+        if intent.get("take_profit"):
+            message_fields[b"take_profit"] = str(intent["take_profit"]).encode()
+        
         # Publish to quantum:stream:apply.plan with FLAT structure
         message_id = self.redis.xadd(
             PLAN_STREAM,
-            {
-                b"plan_id": plan_id.encode(),
-                b"decision": b"EXECUTE",
-                b"symbol": intent["symbol"].encode(),
-                b"side": intent["side"].encode(),
-                b"type": intent["type"].encode(),
-                b"qty": str(intent["qty"]).encode(),
-                b"reduceOnly": str(intent["reduceOnly"]).lower().encode(),
-                b"source": b"intent_bridge",
-                b"signature": b"intent_bridge",
-                b"timestamp": str(ts_unix).encode()
-            }
+            message_fields
         )
         
         logger.info(
             f"✅ Published plan: {plan_id[:8]} | {intent['symbol']} {intent['side']} "
-            f"qty={intent['qty']:.4f} reduceOnly={intent['reduceOnly']} | msg={message_id.decode()}"
+            f"qty={intent['qty']:.4f} leverage={intent.get('leverage', 1)}x "
+            f"reduceOnly={intent['reduceOnly']} | msg={message_id.decode()}"
         )
     
     def process_intent(self, stream_id: bytes, event_data: Dict):
