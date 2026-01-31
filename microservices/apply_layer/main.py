@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 #!/usr/bin/env python3
 """
 P3 Apply Layer - Harvest Proposal Consumer
@@ -75,9 +74,9 @@ logger = logging.getLogger(__name__)
 # TESTNET=false: Require THREE permits (production safety)
 TESTNET_MODE = os.getenv("TESTNET", "false").lower() in ("true", "1", "yes")
 if TESTNET_MODE:
-    logger.warning("⚠️  TESTNET MODE ENABLED - Governor bypass active (NO PRODUCTION USAGE)")
+    logger.warning("ΓÜá∩╕Å  TESTNET MODE ENABLED - Governor bypass active (NO PRODUCTION USAGE)")
 else:
-    logger.info("✅ PRODUCTION MODE - Three permits required (Governor + P3.3 + P2.6)")
+    logger.info("Γ£à PRODUCTION MODE - Three permits required (Governor + P3.3 + P2.6)")
 
 # ---- PRODUCTION HYGIENE: Safety Kill Switch ----
 # Set quantum:global:kill_switch = true to halt all execution
@@ -753,8 +752,8 @@ class ApplyLayer:
             self.redis.setex(stream_published_key, 300, "1")
             
             # P2.8A.3: Late observer (post-publish delayed observation)
-            # WHY: Observer at create_apply_plan runs BEFORE publish → HeatBridge hasn't written by_plan yet
-            #      This late observer runs AFTER publish → HeatBridge has time to write by_plan key
+            # WHY: Observer at create_apply_plan runs BEFORE publish ΓåÆ HeatBridge hasn't written by_plan yet
+            #      This late observer runs AFTER publish ΓåÆ HeatBridge has time to write by_plan key
             if self.p28_late_enabled and heat_observer:
                 try:
                     heat_observer.observe_late_async(
@@ -808,7 +807,7 @@ class ApplyLayer:
             try:
                 permit = json.loads(permit_data)
                 if permit.get('granted'):
-                    logger.info(f"{plan.symbol}: [DRY_RUN] Governor permit granted ✓")
+                    logger.info(f"{plan.symbol}: [DRY_RUN] Governor permit granted Γ£ô")
                 else:
                     logger.info(f"{plan.symbol}: [DRY_RUN] Governor permit denied (would block)")
             except json.JSONDecodeError:
@@ -1567,7 +1566,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-=======
 #!/usr/bin/env python3
 """
 P3 Apply Layer - Harvest Proposal Consumer
@@ -1644,9 +1642,9 @@ logger = logging.getLogger(__name__)
 # TESTNET=false: Require THREE permits (production safety)
 TESTNET_MODE = os.getenv("TESTNET", "false").lower() in ("true", "1", "yes")
 if TESTNET_MODE:
-    logger.warning("⚠️  TESTNET MODE ENABLED - Governor bypass active (NO PRODUCTION USAGE)")
+    logger.warning("ΓÜá∩╕Å  TESTNET MODE ENABLED - Governor bypass active (NO PRODUCTION USAGE)")
 else:
-    logger.info("✅ PRODUCTION MODE - Three permits required (Governor + P3.3 + P2.6)")
+    logger.info("Γ£à PRODUCTION MODE - Three permits required (Governor + P3.3 + P2.6)")
 
 # ---- PRODUCTION HYGIENE: Safety Kill Switch ----
 # Set quantum:global:kill_switch = true to halt all execution
@@ -2322,8 +2320,8 @@ class ApplyLayer:
             self.redis.setex(stream_published_key, 300, "1")
             
             # P2.8A.3: Late observer (post-publish delayed observation)
-            # WHY: Observer at create_apply_plan runs BEFORE publish → HeatBridge hasn't written by_plan yet
-            #      This late observer runs AFTER publish → HeatBridge has time to write by_plan key
+            # WHY: Observer at create_apply_plan runs BEFORE publish ΓåÆ HeatBridge hasn't written by_plan yet
+            #      This late observer runs AFTER publish ΓåÆ HeatBridge has time to write by_plan key
             if self.p28_late_enabled and heat_observer:
                 try:
                     heat_observer.observe_late_async(
@@ -2377,7 +2375,7 @@ class ApplyLayer:
             try:
                 permit = json.loads(permit_data)
                 if permit.get('granted'):
-                    logger.info(f"{plan.symbol}: [DRY_RUN] Governor permit granted ✓")
+                    logger.info(f"{plan.symbol}: [DRY_RUN] Governor permit granted Γ£ô")
                 else:
                     logger.info(f"{plan.symbol}: [DRY_RUN] Governor permit denied (would block)")
             except json.JSONDecodeError:
@@ -3136,4 +3134,3 @@ def main():
 
 if __name__ == "__main__":
     main()
->>>>>>> Stashed changes
