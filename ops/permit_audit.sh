@@ -22,9 +22,9 @@ Usage: $0 [OPTIONS]
 Audit Quantum Trader 3-permit gate infrastructure (read-only).
 
 OPTIONS:
-    --remote           Execute via SSH (default: local execution)
-    --host <host>      SSH host (only with --remote, default: $SSH_HOST)
-    --key <path>       SSH key path (only with --remote, default: $SSH_KEY)
+    --remote           Execute on remote VPS via SSH (default: local)
+    --host <host>      SSH host (default: $SSH_HOST)
+    --key <path>       SSH key path (default: $SSH_KEY)
     --sample <N>       Sample keys per type (default: $SAMPLE_COUNT)
     --json             Output JSON format
     -h, --help         Show this help
@@ -35,14 +35,10 @@ EXIT CODES:
     1 = Runtime error or invalid usage
 
 EXAMPLES:
-    # Local execution (on VPS)
     $0
     $0 --json
+    $0 --host root@myserver --key ~/.ssh/mykey
     $0 --sample 5
-    
-    # Remote execution (from workstation)
-    $0 --remote
-    $0 --remote --host root@myserver --key ~/.ssh/mykey
 
 PERMIT PATTERNS:
     Governor:       quantum:permit:{plan_id}
@@ -54,9 +50,7 @@ EOF
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
-    case $1 in
-        --remote) REMOTE_MODE=true; shift ;;
-        --host) SSH_HOST="$2"; shift 2 ;;
+    case $1 in        --remote) REMOTE_MODE=true; shift ;;        --host) SSH_HOST="$2"; shift 2 ;;
         --key) SSH_KEY="$2"; shift 2 ;;
         --sample) SAMPLE_COUNT="$2"; shift 2 ;;
         --json) OUTPUT_FORMAT="json"; shift ;;
@@ -65,22 +59,22 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Command wrapper (local or remote)
+# Execution wrapper - local or remote
 exec_cmd() {
-    if [[ "$REMOTE_MODE" == true ]]; then
+    if [[ "$REMOTE_MODE" == "true" ]]; then
         ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=10 "$SSH_HOST" "$@"
     else
-        bash -c "$@"
+        bash -c "$*"
     fi
 }
 
 # Main audit logic
-main() {exec_cmd
+main() {
     local exit_code=0
     
     # Fetch all permits
     local all_permits
-    if ! all_permits=$(ssh_exec "redis-cli --scan --pattern 'quantum:permit:*' 2>/dev/null"); then
+    if ! all_permits=$(exec_cmd "redis-cli --scan --pattern 'quantum:permit:*' 2>/dev/null"); then
         echo "Error: Failed to connect to Redis" >&2
         exit 1
     fi
@@ -138,7 +132,12 @@ output_human() {
     echo "  P3.3 Position:  quantum:permit:p33:{plan_id}"
     echo ""
     
-    # Sample detailsexec_cmd "redis-cli TTL '$key' 2>/dev/null" || echo "-1")
+    # Sample details
+    if [[ $gov_count -gt 0 ]]; then
+        echo "GOVERNOR SAMPLES (up to $SAMPLE_COUNT):"
+        while IFS= read -r key; do
+            [[ -z "$key" ]] && continue
+            local ttl=$(exec_cmd "redis-cli TTL '$key' 2>/dev/null" || echo "-1")
             local value=$(exec_cmd "redis-cli GET '$key' 2>/dev/null | head -c 300" || echo "")
             echo "  Key: $key"
             echo "  TTL: ${ttl}s"
@@ -161,12 +160,7 @@ output_human() {
         echo "P3.3 SAMPLES (up to $SAMPLE_COUNT):"
         while IFS= read -r key; do
             [[ -z "$key" ]] && continue
-            local ttl=$(exec_cmd
-    if [[ $p33_count -gt 0 ]]; then
-        echo "P3.3 SAMPLES (up to $SAMPLE_COUNT):"
-        while IFS= read -r key; do
-            [[ -z "$key" ]] && continue
-            local ttl=$(ssh_exec "redis-cli TTL '$key' 2>/dev/null" || echo "-1")
+            local ttl=$(exec_cmd "redis-cli TTL '$key' 2>/dev/null" || echo "-1")
             echo "  $key: TTL=${ttl}s"
         done <<< "$p33_samples"
         echo ""
