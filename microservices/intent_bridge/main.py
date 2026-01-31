@@ -77,6 +77,9 @@ def _ledger_last_known_amt(r: redis.Redis, symbol: str) -> float:
 ALLOWLIST_STR = os.getenv("INTENT_BRIDGE_ALLOWLIST", "BTCUSDT")
 ALLOWLIST = set([s.strip() for s in ALLOWLIST_STR.split(",") if s.strip()])
 
+# Position limits (Governor-style risk management)
+MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "8"))
+
 # FLAT SELL skip (avoid no_position spam)
 SKIP_FLAT_SELL = os.getenv("INTENT_BRIDGE_SKIP_FLAT_SELL", "true").lower() == "true"
 FLAT_EPS = float(os.getenv("INTENT_BRIDGE_FLAT_EPS", "0.0") or "0.0")
@@ -130,6 +133,22 @@ class IntentBridge:
                 logger.info(f"✅ Consumer group exists: {CONSUMER_GROUP}")
             else:
                 raise
+    
+    def _count_open_positions(self) -> int:
+        """Count current open positions via ledger"""
+        try:
+            count = 0
+            for symbol in ALLOWLIST:
+                key = f"quantum:ledger:{symbol}"
+                data = self.redis.hgetall(key)
+                if data and b'position_amt' in data:
+                    amt = float(data[b'position_amt'].decode())
+                    if abs(amt) > FLAT_EPS:
+                        count += 1
+            return count
+        except Exception as e:
+            logger.warning(f"Failed to count open positions: {e}")
+            return 0
     
     def _make_plan_id(self, stream_id: str, symbol: str, side: str, qty: float) -> str:
         """Generate deterministic 16-hex plan_id"""
@@ -314,6 +333,18 @@ class IntentBridge:
                 self._mark_seen(stream_id_str)
                 self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
                 return
+        
+        # Gate: MAX_OPEN_POSITIONS check for new entries (BUY only)
+        if intent["side"].upper() == "BUY":
+            open_positions = self._count_open_positions()
+            if open_positions >= MAX_OPEN_POSITIONS:
+                logger.info(
+                    f"Skip publish: {intent['symbol']} BUY rejected (open_positions={open_positions} >= MAX={MAX_OPEN_POSITIONS}, plan_id={plan_id[:8]})"
+                )
+                self._mark_seen(stream_id_str)
+                self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
+                return
+
         
         # Publish to apply.plan
         try:
