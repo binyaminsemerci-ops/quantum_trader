@@ -229,6 +229,9 @@ class HeatGateLogic:
             }
             debug_json = json.dumps(debug_data, separators=(',', ':'))[:400]
             
+            # Get operation mode from env (default shadow)
+            heat_mode = os.getenv("HEAT_MODE", "shadow").lower()
+            
             return {
                 "ts_epoch": ts_now,
                 "symbol": symbol,
@@ -242,7 +245,7 @@ class HeatGateLogic:
                 "recommended_partial": recommended_partial if recommended_partial else "",
                 "reason": "ok",
                 "inputs_age_sec": age_sec,
-                "mode": "shadow",
+                "mode": heat_mode,
                 "debug_json": debug_json
             }
         
@@ -262,6 +265,7 @@ class HeatGateLogic:
     ) -> Dict[str, Any]:
         """Build fail decision (FAIL-CLOSED or FAIL-OPEN based on HEAT_FAIL_MODE env)."""
         fail_mode = os.getenv("HEAT_FAIL_MODE", "CLOSED").upper()
+        heat_mode = os.getenv("HEAT_MODE", "shadow").lower()
         
         if fail_mode == "CLOSED":
             # FAIL-CLOSED: block execution when inputs missing/stale
@@ -285,6 +289,6 @@ class HeatGateLogic:
             "recommended_partial": "",
             "reason": f"{log_prefix}({reason})",
             "inputs_age_sec": age_sec if age_sec is not None else "",
-            "mode": "shadow",
+            "mode": heat_mode,
             "debug_json": json.dumps({"fail_mode": fail_mode})
         }
