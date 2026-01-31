@@ -77,8 +77,8 @@ def _ledger_last_known_amt(r: redis.Redis, symbol: str) -> float:
 ALLOWLIST_STR = os.getenv("INTENT_BRIDGE_ALLOWLIST", "BTCUSDT")
 ALLOWLIST = set([s.strip() for s in ALLOWLIST_STR.split(",") if s.strip()])
 
-# Position limits (Governor-style risk management)
-MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "8"))
+# Portfolio exposure limits (AI-driven, not hardcoded position count)
+MAX_EXPOSURE_PCT = float(os.getenv("MAX_EXPOSURE_PCT", "80.0"))  # From Exposure Balancer
 
 # FLAT SELL skip (avoid no_position spam)
 SKIP_FLAT_SELL = os.getenv("INTENT_BRIDGE_SKIP_FLAT_SELL", "true").lower() == "true"
@@ -133,6 +133,39 @@ class IntentBridge:
                 logger.info(f"✅ Consumer group exists: {CONSUMER_GROUP}")
             else:
                 raise
+    
+    def _get_portfolio_exposure(self) -> float:
+        """
+        Get current portfolio exposure from quantum:state:portfolio.
+        
+        Returns:
+            Exposure percentage (0-100), or 0 if unavailable
+        """
+        try:
+            data = self.redis.hgetall(b"quantum:state:portfolio")
+            if not data:
+                return 0.0
+            
+            equity_usd = float(data.get(b'equity_usd', b'10000').decode())
+            total_notional = 0.0
+            
+            # Sum absolute notional across all ledger positions
+            for symbol in ALLOWLIST:
+                ledger_key = f"quantum:ledger:{symbol}".encode()
+                ledger_data = self.redis.hgetall(ledger_key)
+                if ledger_data and b'notional_usd' in ledger_data:
+                    notional = float(ledger_data[b'notional_usd'].decode())
+                    total_notional += abs(notional)
+            
+            if equity_usd <= 0:
+                return 0.0
+            
+            exposure_pct = (total_notional / equity_usd) * 100.0
+            return exposure_pct
+            
+        except Exception as e:
+            logger.warning(f"Failed to get portfolio exposure: {e}")
+            return 0.0
     
     def _count_open_positions(self) -> int:
         """Count current open positions via ledger"""
@@ -334,12 +367,13 @@ class IntentBridge:
                 self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
                 return
         
-        # Gate: MAX_OPEN_POSITIONS check for new entries (BUY only)
+        # Gate: AI-driven exposure check for new entries (BUY only)
+        # Let RL Agent + Governor decide optimal position count via exposure limits
         if intent["side"].upper() == "BUY":
-            open_positions = self._count_open_positions()
-            if open_positions >= MAX_OPEN_POSITIONS:
+            current_exposure = self._get_portfolio_exposure()
+            if current_exposure >= MAX_EXPOSURE_PCT:
                 logger.info(
-                    f"Skip publish: {intent['symbol']} BUY rejected (open_positions={open_positions} >= MAX={MAX_OPEN_POSITIONS}, plan_id={plan_id[:8]})"
+                    f"Skip publish: {intent['symbol']} BUY rejected (exposure={current_exposure:.1f}% >= MAX={MAX_EXPOSURE_PCT:.1f}%, plan_id={plan_id[:8]})"
                 )
                 self._mark_seen(stream_id_str)
                 self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
