@@ -229,12 +229,13 @@ class PortfolioGate:
                 
                 if notional_usd:
                     notional_usd = float(notional_usd)
-                elif mark_price and position_amt != 0:
+                elif mark_price:
                     # Derive notional if mark_price available
+                    # position_amt=0 is VALID (flat state), so notional=0
                     mark_price = float(mark_price)
                     notional_usd = abs(position_amt * mark_price)
                 else:
-                    logger.warning(f"{symbol}: Cannot determine notional (position_amt={position_amt}, mark_price={mark_price})")
+                    logger.warning(f"{symbol}: Cannot determine notional (missing mark_price)")
                     continue
                 
                 snapshots[symbol] = PositionSnapshot(
