@@ -89,7 +89,7 @@ class HeatGateService:
         self.group = os.getenv("HEAT_GROUP", "heat_gate")
         self.consumer = os.getenv("HEAT_CONSUMER", "heat_gate_1")
         self.poll_ms = int(os.getenv("HEAT_POLL_MS", "500"))
-        self.state_key = os.getenv("HEAT_STATE_KEY", "quantum:portfolio:state")
+        self.state_key = os.getenv("HEAT_STATE_KEY", "quantum:state:portfolio")
         
         # Initialize Redis clients
         self.redis_client = redis.Redis(
