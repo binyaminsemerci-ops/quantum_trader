@@ -51,6 +51,28 @@ REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB = int(os.getenv("REDIS_DB", "0"))
 
+
+def _ledger_last_known_amt(r: redis.Redis, symbol: str) -> float:
+    """
+    Get last known position amount from ledger.
+    Returns NaN if not found.
+    """
+    try:
+        key = f"quantum:ledger:{symbol}"
+        data = r.hgetall(key)
+        if not data:
+            return float('nan')
+        
+        amt_bytes = data.get(b'position_amt')
+        if not amt_bytes:
+            return float('nan')
+        
+        return float(amt_bytes.decode())
+    except Exception as e:
+        logger.warning(f"Failed to read ledger for {symbol}: {e}")
+        return float('nan')
+
+
 # Allowlist (CSV)
 ALLOWLIST_STR = os.getenv("INTENT_BRIDGE_ALLOWLIST", "BTCUSDT")
 ALLOWLIST = set([s.strip() for s in ALLOWLIST_STR.split(",") if s.strip()])
