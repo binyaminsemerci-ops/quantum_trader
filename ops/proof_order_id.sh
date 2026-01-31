@@ -26,9 +26,9 @@ Usage: $0 [OPTIONS]
 Search for trade execution proof (executed=True + order_id) in apply.result stream.
 
 OPTIONS:
-    --remote           Execute via SSH (default: local execution)
-    --host <host>      SSH host (only with --remote, default: $SSH_HOST)
-    --key <path>       SSH key path (only with --remote, default: $SSH_KEY)
+    --remote           Execute on remote VPS via SSH (default: local)
+    --host <host>      SSH host (default: $SSH_HOST)
+    --key <path>       SSH key path (default: $SSH_KEY)
     --count <N>        Apply.result entries to check (default: $RESULT_COUNT)
     --symbol <SYM>     Filter by symbol (e.g., TRXUSDT)
     --plan_id <ID>     Filter by specific plan_id
@@ -43,15 +43,12 @@ EXIT CODES:
     1 = Runtime error or invalid usage
 
 EXAMPLES:
-    # Local execution (on VPS)
     $0
     $0 --count 200
     $0 --symbol TRXUSDT
     $0 --follow --symbol TRXUSDT --timeout 180
-    
-    # Remote execution (from workstation)
-    $0 --remote --count 100
-    $0 --remote --symbol TRXUSDT --json
+    $0 --json
+    $0 --plan_id a2c7d3839f66267a
 
 PROOF CRITERIA:
     - executed field must be "true" or "True"
@@ -61,7 +58,10 @@ EOF
     exit 0
 }
 
-# Parse arremote) REMOTE_MODE=true; shift ;;
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --remote) REMOTE_MODE=true; shift ;;
         --host) SSH_HOST="$2"; shift 2 ;;
         --key) SSH_KEY="$2"; shift 2 ;;
         --count) RESULT_COUNT="$2"; shift 2 ;;
@@ -72,25 +72,23 @@ EOF
         --json) OUTPUT_FORMAT="json"; shift ;;
         -h|--help) usage ;;
         *) echo "Error: Unknown option $1" >&2; usage ;;
+        *) echo "Error: Unknown option $1" >&2; usage ;;
     esac
 done
 
-# Command wrapper (local or remote)
+# Execution wrapper - local or remote
 exec_cmd() {
-    if [[ "$REMOTE_MODE" == true ]]; then
+    if [[ "$REMOTE_MODE" == "true" ]]; then
         ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=10 "$SSH_HOST" "$@"
     else
-        bash -c "$@"
+        bash -c "$*"
     fi
-# SSH command wrapper
-ssh_exec() {
-    ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=10 "$SSH_HOST" "$@"
-}exec_cmd
+}
 
 # Search for execution proof
 search_proof() {
     local results
-    if ! results=$(ssh_exec "redis-cli XREVRANGE quantum:stream:apply.result + - COUNT $RESULT_COUNT 2>/dev/null"); then
+    if ! results=$(exec_cmd "redis-cli XREVRANGE quantum:stream:apply.result + - COUNT $RESULT_COUNT 2>/dev/null"); then
         echo "Error: Failed to fetch apply.result stream" >&2
         return 1
     fi

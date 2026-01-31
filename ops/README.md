@@ -1,75 +1,8 @@
 # Ops Tools (P4)
 
-## Permit Audit & Execution Proof
-
-### permit_audit.sh
-Audits the 3-permit gate infrastructure (Governor, P2.6 Portfolio Gate, P3.3 Position Gate).
-
-**Read-only, safe to run anytime.**
-
-```bash
-# LOCAL EXECUTION (on VPS)
-cd /home/qt/quantum_trader
-./ops/permit_audit.sh
-./ops/permit_audit.sh --json
-./ops/permit_audit.sh --sample 5
-
-# REMOTE EXECUTION (from workstation via SSH)
-./ops/permit_audit.sh --remote
-./ops/permit_audit.sh --remote --host root@myserver --key ~/.ssh/mykey
-./ops/permit_audit.sh --remote --json
-```
-
-**Exit codes:**
-- `0` = All three permit sources active
-- `2` = One or more permit sources missing (infrastructure gap)
-- `1` = Runtime error
-
-**What it checks:**
-- Governor permits: `quantum:permit:{plan_id}`
-- P2.6 Portfolio Gate: `quantum:permit:p26:{plan_id}`
-- P3.3 Position Gate: `quantum:permit:p33:{plan_id}`
-
-### proof_order_id.sh
-Searches `apply.result` stream for execution proof (`executed=True` + `order_id`).
-
-**Read-only, safe to run anytime.**
-
-```bash
-# LOCAL EXECUTION (on VPS)
-cd /home/qt/quantum_trader
-./ops/proof_order_id.sh
-./ops/proof_order_id.sh --symbol TRXUSDT
-./ops/proof_order_id.sh --count 200
-./ops/proof_order_id.sh --follow --timeout 180
-
-# REMOTE EXECUTION (from workstation via SSH)
-./ops/proof_order_id.sh --remote
-./ops/proof_order_id.sh --remote --symbol TRXUSDT
-./ops/proof_order_id.sh --remote --count 100 --json
-./ops/proof_order_id.sh --remote --follow --symbol TRXUSDT
-```
-
-**Exit codes:**
-- `0` = Execution proof found (order_id present)
-- `3` = No proof found (infrastructure OK, waiting on execution)
-- `1` = Runtime error
-
-**Proof criteria:**
-- `executed` field = `True`
-- `order_id` field exists and non-empty
-- Matches all provided filters (symbol, plan_id)
-
----
-
 ## Ops Governor Prompt Generator
 
 Template:
-**⚠️ Important Git Workflow:**
-- **VPS is deploy-only** - Do NOT commit from VPS
-- Always commit + push from workstation (Windows/Mac/Linux)
-- VPS: `git pull` to sync, never `git commit` or `git push`
-
 - `ops/ops_prompt_template_v1.txt`
 
 Generator:
@@ -410,3 +343,132 @@ notes: Rollback completed - P2.6 using proxy correlation fallback
 - `systemctl` - Service status
 - `journalctl` - Service logs
 - `git` - Commit SHA collection
+
+---
+
+## Infrastructure Audit Scripts
+
+**Tool:** `ops/permit_audit.sh` and `ops/proof_order_id.sh`
+
+Read-only verification scripts for Quantum Trader's permit pipeline and trade execution proof.
+
+### permit_audit.sh - 3-Permit Gate Infrastructure Audit
+
+Audits all three permit sources:
+1. **Governor Permits** (`quantum:permit:{plan_id}`)
+2. **P2.6 Portfolio Gate** (`quantum:permit:p26:{plan_id}`)
+3. **P3.3 Position Gate** (`quantum:permit:p33:{plan_id}`)
+
+#### Usage
+
+**LOCAL execution** (default - runs on current machine):
+```bash
+# Quick check with 3 samples per type
+./ops/permit_audit.sh --sample 3
+
+# JSON output for parsing
+./ops/permit_audit.sh --json
+
+# Single sample for quick verification
+./ops/permit_audit.sh --sample 1
+```
+
+**REMOTE execution** (via SSH to VPS):
+```bash
+# From Windows/WSL to VPS
+./ops/permit_audit.sh --remote --sample 3
+
+# Custom SSH host/key
+./ops/permit_audit.sh --remote --host user@host --key ~/.ssh/mykey
+```
+
+#### Exit Codes
+- **0**: All three permit types present (healthy)
+- **2**: One or more permit types missing (infrastructure failure)
+- **1**: Error (connection failure, Redis down)
+
+#### Output Example
+```
+═══════════════════════════════════════════════════════════
+Quantum Trader 3-Permit Gate Infrastructure Audit
+═══════════════════════════════════════════════════════════
+Total Permits: 47
+
+GOVERNOR PERMITS: 15 keys
+P2.6 PERMITS:     16 keys
+P3.3 PERMITS:     16 keys
+
+STATUS: ✅ ALL THREE PERMIT SOURCES ACTIVE
+═══════════════════════════════════════════════════════════
+```
+
+### proof_order_id.sh - Trade Execution Proof
+
+Searches `quantum:stream:apply.result` for executed trades with order_id proof.
+
+**Proof criteria:**
+- `executed: true`
+- `order_id` field exists and non-empty
+
+#### Usage
+
+**LOCAL execution** (default):
+```bash
+# Check last 50 apply.result entries
+./ops/proof_order_id.sh --count 50
+
+# Filter by symbol
+./ops/proof_order_id.sh --symbol SOLUSDT --count 100
+
+# Filter by plan_id
+./ops/proof_order_id.sh --plan_id harv_sol_001 --count 100
+```
+
+**REMOTE execution** (via SSH):
+```bash
+# From Windows/WSL to VPS
+./ops/proof_order_id.sh --remote --count 50
+
+# Verify specific trade remotely
+./ops/proof_order_id.sh --remote --symbol BTCUSDT --count 200
+```
+
+#### Exit Codes
+- **0**: Execution proof found (order_id present)
+- **3**: No proof found (zero trades or no order_id)
+- **1**: Error (connection failure, Redis down)
+
+#### Output Example
+```
+═══════════════════════════════════════════════════════════
+Quantum Trader Order Execution Proof
+═══════════════════════════════════════════════════════════
+Searching 50 apply.result entries...
+
+✅ PROOF FOUND: executed=true + order_id present
+
+Entry ID:    1738035441234-0
+Symbol:      SOLUSDT
+Plan ID:     harv_sol_001
+Executed:    true
+Order ID:    12345678
+Side:        BUY
+Quantity:    0.5
+Price:       125.45
+Timestamp:   2026-01-27 15:30:41
+═══════════════════════════════════════════════════════════
+```
+
+### Git Workflow Note
+
+**⚠️ IMPORTANT:** VPS is deploy-only. Do NOT commit from VPS.
+
+**Correct workflow:**
+1. Modify scripts on Windows/development machine
+2. Test locally: `./ops/permit_audit.sh --sample 1`
+3. Commit and push from Windows: `git commit && git push`
+4. Deploy to VPS: `ssh root@vps 'cd /home/qt/quantum_trader && git pull'`
+5. Test on VPS locally: `./ops/permit_audit.sh --sample 1`
+6. Test remote access: `./ops/permit_audit.sh --remote --sample 1` (from Windows)
+
+**Scripts default to LOCAL execution** to prevent SSH recursion when run on VPS.
