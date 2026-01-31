@@ -315,7 +315,7 @@ class SimpleTradingBot:
                 "stop_loss": stop_loss,
                 "take_profit": take_profit,
                 "position_size_usd": 150,  # Increased to $150 to meet Binance min notional
-                "leverage": 1,
+                "leverage": 10.0,  # 🔥 RL-like leverage (consistent with RL Agent)
                 "model": "fallback-trend-following",
                 "reason": f"24h change: {price_change_pct:+.2f}% (fallback strategy)"
             }
