@@ -306,11 +306,11 @@ class IntentBridge:
         }
         
         # 🔥 RL SIZING METADATA: Add leverage, TP/SL if available
-        if intent.get("leverage"):
+        if intent.get("leverage") is not None and intent.get("leverage"):
             message_fields[b"leverage"] = str(intent["leverage"]).encode()
-        if intent.get("stop_loss"):
+        if intent.get("stop_loss") is not None:
             message_fields[b"stop_loss"] = str(intent["stop_loss"]).encode()
-        if intent.get("take_profit"):
+        if intent.get("take_profit") is not None:
             message_fields[b"take_profit"] = str(intent["take_profit"]).encode()
         
         # Publish to quantum:stream:apply.plan with FLAT structure
