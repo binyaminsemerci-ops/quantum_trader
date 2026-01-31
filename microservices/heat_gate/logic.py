@@ -2,9 +2,10 @@
 P2.6 Portfolio Heat Gate - Core Logic Module
 =============================================
 Deterministic heat calculation and moderation policy.
-FAIL-OPEN: missing/stale inputs => no downgrade.
+FAIL-CLOSED: missing/stale inputs => block or NOOP (configurable via HEAT_FAIL_MODE).
 """
 
+import os
 import json
 import time
 from typing import Dict, Any, Optional, Tuple
@@ -258,19 +259,30 @@ class HeatGateLogic:
         reason: str,
         age_sec: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Build fail-open decision (no moderation applied)."""
+        """Build fail decision (FAIL-CLOSED or FAIL-OPEN based on HEAT_FAIL_MODE env)."""
+        fail_mode = os.getenv("HEAT_FAIL_MODE", "CLOSED").upper()
+        
+        if fail_mode == "CLOSED":
+            # FAIL-CLOSED: block execution when inputs missing/stale
+            out_action = "NOOP"
+            log_prefix = "FAIL-CLOSED"
+        else:
+            # FAIL-OPEN: allow execution (legacy behavior)
+            out_action = in_action
+            log_prefix = "FAIL-OPEN"
+        
         return {
             "ts_epoch": ts_now,
             "symbol": symbol,
             "plan_id": plan_id,
             "in_action": in_action,
-            "out_action": in_action,  # No change
+            "out_action": out_action,
             "heat_level": "unknown",
             "heat_score": 0.0,
             "heat_action": "NONE",
             "recommended_partial": "",
-            "reason": reason,
+            "reason": f"{log_prefix}({reason})",
             "inputs_age_sec": age_sec if age_sec is not None else "",
             "mode": "shadow",
-            "debug_json": "{}"
+            "debug_json": json.dumps({"fail_mode": fail_mode})
         }
