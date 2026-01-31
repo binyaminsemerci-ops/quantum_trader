@@ -193,8 +193,8 @@ class HeatGateLogic:
                 ts_now, symbol, plan_id, in_action, "missing_inputs"
             )
         
-        # Check staleness
-        state_ts = portfolio_state.get("ts_epoch")
+        # Check staleness (try both ts_epoch and timestamp for compatibility)
+        state_ts = portfolio_state.get("ts_epoch") or portfolio_state.get("timestamp")
         if state_ts is None:
             return self._build_failopen_decision(
                 ts_now, symbol, plan_id, in_action, "missing_ts"
