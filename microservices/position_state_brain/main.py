@@ -860,7 +860,7 @@ class PositionStateBrain:
                     if self.config.SNAPSHOT_TOP_N > 0:
                         sorted_symbols = sorted(list(self.allowlist))  # Deterministic order
                         symbols_to_snapshot = set(sorted_symbols[:self.config.SNAPSHOT_TOP_N])
-                        logger.debug(f"Snapshotting TOP {len(symbols_to_snapshot)} symbols from allowlist (alpha-sorted)")
+                        logger.info(f"P3.3 snapshotting TOP {len(symbols_to_snapshot)}/{len(self.allowlist)} symbols (alpha-sorted)")
                     else:
                         # TOP_N = 0: snapshot ALL allowlist symbols (not recommended in prod with 566 symbols)
                         symbols_to_snapshot = set(self.allowlist)
