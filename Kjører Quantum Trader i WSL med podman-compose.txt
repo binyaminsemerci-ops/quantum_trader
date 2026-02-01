@@ -14360,6 +14360,11 @@ Ran terminal command: wsl bash -c "cd /mnt/c/quantum_trader && chmod +x setup-ws
 
 
 Quantumtrader2025!
+Credentials
+User	root
+Password		tUdjwqF3PuVH
+
+
 
 PS C:\quantum_trader> & C:/quantum_trader/.venv/Scripts/Activate.ps1
 (.venv) PS C:\quantum_trader> # Generer nøkkel
@@ -14391,3 +14396,34 @@ The key's randomart image is:
 +----[SHA256]-----+
 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA/v1ReJXYsMYR3yj2DjlHWxCP3QJevbFWK6prrF+n2j quantum-trader-hetzner
 (.venv) PS C:\quantum_trader> 
+
+
+
+ssh -i $env:USERPROFILE\.ssh\hetzner_fresh qt@46.224.116.254 "cd quantum_trader && git pull && docker restart quantum_backend"
+
+ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "ps aux | grep python | grep 8001"
+ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 "cd /home/qt/quantum_trader && /usr/bin/python3 -m pip list | grep uvicorn"
+
+Username: admin
+Password: AdminPass123
+
+You have pending orders or positions. You can reset after canceling all pending orders or closing all positions.
+
+
+
+14 calle Milan
+Apt PH J
+GUAYNABO,PR 00966
+United States
+
+HMAC
+qquanrtum
+Scan to get address
+API Key
+vuIr6UHh0jrjszt41IDZWnSoK0xMULOY57qr2Zs9vMSF4SGjAFeWwRThpGlYzjvk
+Secret Key
+3hrwpxaeflkFVnPTnvfiGLkyo41Fm4JfXasx9DDemt748E223HTdW7D8xh5810UR
+API restrictions
+Enable Reading
+Enable Spot & Margin Trading
+Enable Futures
