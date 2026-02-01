@@ -832,8 +832,11 @@ class PositionStateBrain:
             try:
                 # Update exchange snapshots periodically (every POLL_INTERVAL seconds)
                 now = time.time()
+                age_since_last = now - last_snapshot_update
+                logger.info(f"P3.3 loop tick: age={age_since_last:.1f}s, interval={self.config.POLL_INTERVAL}s, will_snapshot={age_since_last >= self.config.POLL_INTERVAL}")
+                
                 if now - last_snapshot_update >= self.config.POLL_INTERVAL:
-                    logger.info(f"P3.3 snapshot refresh triggered (last_update={last_snapshot_update}, now={now}, interval={self.config.POLL_INTERVAL})")
+                    logger.info(f"P3.3 snapshot refresh triggered")
                     
                     # Refresh allowlist from Universe (3-tier fallback: active → last_ok → env)
                     self._refresh_allowlist()
