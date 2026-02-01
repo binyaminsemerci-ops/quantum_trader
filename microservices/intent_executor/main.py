@@ -616,20 +616,28 @@ class IntentExecutor:
             source = event_data.get(b"source", b"").decode()
             symbol = event_data.get(b"symbol", b"").decode().upper()
             
-            # MAIN LANE: Check source allowlist
-            # P3.3 permits allow bypass of source check (empty source = P3.3-managed plan)
+            # MAIN LANE: Check source allowlist (but allow empty source for P3.3 bypass)
+            # P3.3 permits = plans with empty source that come via Apply Layer
             if lane == "main":
-                # Check if P3.3 permit exists (means P3.3 evaluated and permitted the plan)
-                permit_key = f"quantum:permit:p33:{plan_id}"
-                has_p33_permit = bool(self.redis.get(permit_key))
-                
-                if source not in SOURCE_ALLOWLIST and not has_p33_permit:
+                # Only reject if source is NOT in allowlist AND source is NOT empty
+                # Empty source = P3.3 bypass, will be validated by permit check later
+                if source and source not in SOURCE_ALLOWLIST:
                     logger.info(f"🚫 [lane={lane}] Skip plan (source_not_allowed): plan_id={plan_id[:8]} source={source} allowlist={sorted(SOURCE_ALLOWLIST)}")
                     self._inc_redis_counter("blocked_source")
-                    return True  # ACK but skip
-                
-                if has_p33_permit and source == '':
-                    logger.info(f"ℹ️  [lane={lane}] Plan {plan_id[:8]} has P3.3 permit, bypassing source check (source='')")
+                    # IMPORTANT: Extract fields for result before returning
+                    side = event_data.get(b"side", b"").decode().upper()
+                    qty_str = event_data.get(b"qty", b"0").decode()
+                    try:
+                        qty = float(qty_str)
+                    except:
+                        qty = 0
+                    self._write_result(
+                        plan_id, symbol, executed=False,
+                        error=f"source_not_allowed:{source}",
+                        side=side, qty=qty
+                    )
+                    self._mark_done(plan_id)
+                    return True  # ACK and mark done
             
             # MANUAL LANE: Check TTL-guarded enablement
             elif lane == "manual":
@@ -637,7 +645,20 @@ class IntentExecutor:
                     ttl = self._get_manual_lane_ttl()
                     logger.info(f"🚫 [lane={lane}] Skip plan (manual_lane_disabled): plan_id={plan_id[:8]} ttl={ttl}")
                     self._inc_redis_counter("manual_blocked_disabled")
-                    return True  # ACK but skip
+                    # IMPORTANT: Extract fields for result before returning
+                    side = event_data.get(b"side", b"").decode().upper()
+                    qty_str = event_data.get(b"qty", b"0").decode()
+                    try:
+                        qty = float(qty_str)
+                    except:
+                        qty = 0
+                    self._write_result(
+                        plan_id, symbol, executed=False,
+                        error=f"manual_lane_disabled",
+                        side=side, qty=qty
+                    )
+                    self._mark_done(plan_id)
+                    return True  # ACK and mark done
                 
                 # Manual lane enabled - log consumption
                 logger.info(f"🔓 [lane={lane}] Consuming manual plan: {plan_id[:8]}")
@@ -652,14 +673,32 @@ class IntentExecutor:
             # Validate required fields (FLAT format must have all these)
             if not plan_id or not symbol or not side or not qty_str:
                 logger.debug(f"Skip plan with missing fields: {stream_id_str}")
-                return True  # ACK but skip
+                # Try to write result with minimal info
+                try:
+                    side_val = event_data.get(b"side", b"").decode().upper() or "UNKNOWN"
+                    qty_val = float(qty_str or "0")
+                    self._write_result(
+                        plan_id, symbol, executed=False,
+                        error="missing_required_fields",
+                        side=side_val, qty=qty_val
+                    )
+                    self._mark_done(plan_id)
+                except:
+                    pass  # Couldn't write result, but still mark done
+                return True  # ACK and mark done
             
             qty = float(qty_str)
             
             # Allowlist check
             if symbol not in self.allowlist:
                 logger.debug(f"Symbol not in allowlist: {symbol}")
-                return True  # ACK but skip
+                self._write_result(
+                    plan_id, symbol, executed=False,
+                    error=f"symbol_not_in_allowlist:{symbol}",
+                    side=side, qty=qty
+                )
+                self._mark_done(plan_id)
+                return True  # ACK and mark done
             
             # Idempotency check
             if self._is_done(plan_id):
@@ -668,9 +707,31 @@ class IntentExecutor:
             
             logger.info(f"▶️  Processing plan: {plan_id[:8]} | {symbol} {side} qty={qty:.4f}")
             
-            # Wait for P3.3 permit
-            logger.info(f"⏳ Waiting for P3.3 permit: {plan_id[:8]}")
-            permit = self._wait_for_permit(plan_id)
+            # Get P3.3 permit
+            # For empty source (P3.3 bypass), wait for permit (it will be created after plan arrives)
+            # For other sources, try cached permit first, then wait if needed
+            permit_key = f"quantum:permit:p33:{plan_id}"
+            permit_json = self.redis.get(permit_key)
+            
+            if permit_json:
+                # Permit already exists (cached)
+                try:
+                    permit = json.loads(permit_json.decode() if isinstance(permit_json, bytes) else permit_json)
+                    if source == '':
+                        logger.info(f"✅ Permit found immediately (P3.3 bypass): {plan_id[:8]}")
+                    else:
+                        logger.info(f"✅ Permit cached: {plan_id[:8]}")
+                except Exception as e:
+                    logger.warning(f"Failed to parse cached permit: {e}")
+                    permit = None
+            else:
+                # Permit not in cache - wait for it
+                # This handles race condition where P3.3 permit not created yet
+                if source == '':
+                    logger.info(f"⏳ P3.3 permit not cached, waiting for creation: {plan_id[:8]}")
+                else:
+                    logger.info(f"⏳ Waiting for P3.3 permit: {plan_id[:8]}")
+                permit = self._wait_for_permit(plan_id)
             
             if not permit:
                 logger.warning(f"❌ No P3.3 permit: {plan_id[:8]}")
