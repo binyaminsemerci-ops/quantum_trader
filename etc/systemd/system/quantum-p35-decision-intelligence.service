@@ -20,15 +20,14 @@ StandardError=journal
 SyslogIdentifier=p35-decision-intel
 
 # Resource limits
-MemoryLimit=256M
+MemoryMax=256M
 CPUQuota=20%
 
 # Security
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=yes
-ReadWritePaths=/home/qt/quantum_trader /var/log
+ProtectSystem=full
+ProtectHome=read-only
 
 [Install]
 WantedBy=multi-user.target
