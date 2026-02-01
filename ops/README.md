@@ -82,48 +82,78 @@ symbols = universe['symbols']  # List of tradeable symbols
 mode = universe['mode']        # testnet or mainnet
 ```
 
-### P1: P3.3 Universe Integration
+### P1: P3.3 Universe Integration (3-Tier Fallback)
 
-**Status:** Integrated (P3.3 Position State Brain)
+**Status:** Integrated with fail-closed protection
 
-P3.3 now reads allowlist from Universe Service with fail-closed fallback to `P33_ALLOWLIST` env var.
+P3.3 now reads allowlist from Universe Service with 3-tier fallback: **universe:active → universe:last_ok → env var**.
 
 **Configuration:**
 ```bash
 # /etc/quantum/position-state-brain.env
-UNIVERSE_ENABLE=true           # Enable Universe integration (default: true)
-UNIVERSE_CACHE_SECONDS=60      # Cache duration (default: 60s)
-P33_ALLOWLIST=BTCUSDT          # Fallback if Universe unavailable
+P33_ALLOWLIST_SOURCE=universe        # universe|env (default: universe)
+P33_UNIVERSE_KEY_ACTIVE=quantum:cfg:universe:active
+P33_UNIVERSE_KEY_LAST_OK=quantum:cfg:universe:last_ok
+P33_UNIVERSE_KEY_META=quantum:cfg:universe:meta
+P33_UNIVERSE_MAX_AGE_S=300          # Reject universe if older than 5min
+P33_ALLOWLIST_REFRESH_S=60          # Refresh cache every 60s
+P33_ALLOWLIST=BTCUSDT               # Final fallback (fail-closed)
 ```
 
+**3-Tier Fallback Logic:**
+1. **Tier 1 (Primary):** `universe:active` 
+   - Used if: `stale=0` AND `count>0` AND `age < MAX_AGE_S`
+   - Source logged as: `source=universe`
+   
+2. **Tier 2 (Backup):** `universe:last_ok`
+   - Used if: Tier 1 fails but `last_ok` exists AND `age < MAX_AGE_S`
+   - Source logged as: `source=last_ok stale=1`
+   
+3. **Tier 3 (Fallback):** `P33_ALLOWLIST` env var
+   - Used if: Both universe sources fail
+   - Source logged as: `source=env`
+   
+4. **Fail-Closed:** If all tiers fail → `source=none` → deny all permits
+
 **Behavior:**
-- **Universe fresh** (stale=0): P3.3 uses `quantum:cfg:universe:active` symbols
-- **Universe stale** (stale=1): P3.3 falls back to `P33_ALLOWLIST` env var
-- **Universe missing**: P3.3 falls back to `P33_ALLOWLIST` env var
-- Cache refreshed every 60s (configurable)
-- Logs source on startup and refresh: `Allowlist source=universe|fallback`
+- Cache refreshed every `P33_ALLOWLIST_REFRESH_S` seconds
+- Logs on startup and refresh: `P3.3 allowlist source=<universe|last_ok|env|none> stale=<0|1> count=<n> asof_epoch=<x> age_s=<y>`
+- If `source=none` → service denies all permits (fail-closed)
+- Service never crashes due to missing allowlist (degrades gracefully)
 
 **Verification:**
 ```bash
-# Check which source P3.3 is using
-bash ops/proof_p33_universe_source.sh
+# Run comprehensive proof script
+bash ops/proof_p33_universe.sh
 
 # Watch logs for source changes
-journalctl -u quantum-position-state-brain -f | grep 'Allowlist source'
+journalctl -u quantum-position-state-brain -f | grep 'P3.3 allowlist'
 
-# Test integration
-python3 ops/test_p33_universe_integration.py
+# Check which tier is active
+journalctl -u quantum-position-state-brain -n 100 | grep 'P3.3 allowlist source'
 ```
 
-**Testing:**
+**Deployment:**
 ```bash
-# Test universe integration
-python3 ops/test_p33_universe_integration.py
+# Method 1: Use deploy helper (git pull + restart + proof)
+bash ops/p33_deploy_and_proof.sh
 
-# This script tests:
-# - Universe fresh (stale=0) → P3.3 uses universe symbols
-# - Universe stale (stale=1) → P3.3 falls back to P33_ALLOWLIST
-# - Universe missing → P3.3 falls back to P33_ALLOWLIST
+# Method 2: Manual (from VPS)
+cd /home/qt/quantum_trader
+git fetch origin && git reset --hard origin/main
+systemctl restart quantum-position-state-brain
+bash ops/proof_p33_universe.sh
+```
+
+**Testing Fail-Closed:**
+```bash
+# Stop Universe Service to test fail-closed
+systemctl stop quantum-universe-service
+
+# Check P3.3 logs (should show source=last_ok or source=env)
+journalctl -u quantum-position-state-brain -n 50
+
+# If last_ok older than MAX_AGE_S, should show source=env or source=none
 ```
 
 ---
