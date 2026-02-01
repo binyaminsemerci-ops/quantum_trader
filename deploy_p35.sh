@@ -63,13 +63,18 @@ echo -e "${GREEN}✅ Cache cleared${NC}"
 echo ""
 
 # ============================================================================
-# STEP 5: Start service
+# STEP 5: Enable and start service
 # ============================================================================
-echo -e "${YELLOW}[STEP 5]${NC} Starting service..."
+echo -e "${YELLOW}[STEP 5]${NC} Enabling and starting service..."
 
-sudo systemctl enable quantum-p35-decision-intelligence
-sudo systemctl start quantum-p35-decision-intelligence
-echo -e "${GREEN}✅ Service started${NC}"
+# Idempotent: enable + start (or restart if already running)
+if sudo systemctl is-active --quiet quantum-p35-decision-intelligence; then
+    echo "   Service already running, restarting..."
+    sudo systemctl restart quantum-p35-decision-intelligence
+else
+    sudo systemctl enable --now quantum-p35-decision-intelligence
+fi
+echo -e "${GREEN}✅ Service enabled and started${NC}"
 
 sleep 2
 if sudo systemctl is-active --quiet quantum-p35-decision-intelligence; then
