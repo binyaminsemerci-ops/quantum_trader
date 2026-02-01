@@ -66,8 +66,12 @@ class Config:
     BINANCE_TESTNET_API_KEY: str = os.getenv("BINANCE_TESTNET_API_KEY", "")
     BINANCE_TESTNET_API_SECRET: str = os.getenv("BINANCE_TESTNET_API_SECRET", "")
     
-    # Symbol allowlist
+    # Symbol allowlist (fallback if Universe unavailable)
     ALLOWLIST: str = os.getenv("P33_ALLOWLIST", os.getenv("APPLY_ALLOWLIST", "BTCUSDT"))
+    
+    # Universe Service integration
+    UNIVERSE_ENABLE: bool = os.getenv("UNIVERSE_ENABLE", "true").lower() in ("true", "1", "yes")
+    UNIVERSE_CACHE_SECONDS: int = int(os.getenv("UNIVERSE_CACHE_SECONDS", "60"))
     
     # Polling interval
     POLL_INTERVAL: int = int(os.getenv("P33_POLL_SEC", "5"))
@@ -184,9 +188,14 @@ class PositionStateBrain:
             logger.error("Missing Binance credentials - P3.3 cannot function")
             sys.exit(1)
         
-        # Parse allowlist
-        self.symbols = [s.strip() for s in config.ALLOWLIST.split(',')]
-        logger.info(f"Monitoring symbols: {self.symbols}")
+        # Universe Service integration
+        self.universe_cache_ts = 0
+        self.universe_symbols = None
+        self.universe_meta = {}
+        
+        # Load initial allowlist (from Universe or fallback)
+        self.symbols = self._load_allowlist()
+        self._log_allowlist_source()
         
         # Metrics
         if PROMETHEUS_AVAILABLE:
@@ -199,6 +208,100 @@ class PositionStateBrain:
             # Start metrics server
             start_http_server(config.METRICS_PORT)
             logger.info(f"Metrics server started on port {config.METRICS_PORT}")
+    
+    def _load_universe_symbols(self) -> tuple:
+        """Load symbols from Universe Service with metadata
+        
+        Returns:
+            (symbols: list, meta: dict, ok: bool)
+        """
+        try:
+            # Check if universe exists
+            if not self.redis.exists('quantum:cfg:universe:active'):
+                return (None, {}, False)
+            
+            # Get metadata
+            meta = self.redis.hgetall('quantum:cfg:universe:meta')
+            stale = int(meta.get('stale', 1))
+            
+            # If stale, don't use universe
+            if stale == 1:
+                return (None, meta, False)
+            
+            # Load universe JSON
+            universe_json = self.redis.get('quantum:cfg:universe:active')
+            if not universe_json:
+                return (None, meta, False)
+            
+            universe = json.loads(universe_json)
+            symbols = universe.get('symbols', [])
+            
+            if not symbols:
+                return (None, meta, False)
+            
+            return (symbols, meta, True)
+            
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.warning(f"Universe parse error: {e}")
+            return (None, {}, False)
+        except Exception as e:
+            logger.error(f"Universe load error: {e}")
+            return (None, {}, False)
+    
+    def _load_allowlist(self) -> list:
+        """Load allowlist from Universe or fallback to env var
+        
+        Returns:
+            List of symbol strings
+        """
+        # Try Universe if enabled
+        if self.config.UNIVERSE_ENABLE:
+            symbols, meta, ok = self._load_universe_symbols()
+            
+            if ok:
+                self.universe_symbols = symbols
+                self.universe_meta = meta
+                self.universe_cache_ts = time.time()
+                return symbols
+        
+        # Fallback to env var
+        fallback_symbols = [s.strip() for s in self.config.ALLOWLIST.split(',')]
+        self.universe_symbols = None
+        self.universe_meta = {'source': 'fallback'}
+        return fallback_symbols
+    
+    def _refresh_allowlist_if_needed(self):
+        """Refresh allowlist from Universe if cache expired"""
+        if not self.config.UNIVERSE_ENABLE:
+            return
+        
+        now = time.time()
+        age = now - self.universe_cache_ts
+        
+        if age < self.config.UNIVERSE_CACHE_SECONDS:
+            return  # Cache still fresh
+        
+        # Reload from Universe
+        old_count = len(self.symbols)
+        self.symbols = self._load_allowlist()
+        new_count = len(self.symbols)
+        
+        if new_count != old_count:
+            logger.info(f"Allowlist updated: {old_count} → {new_count} symbols")
+            self._log_allowlist_source()
+    
+    def _log_allowlist_source(self):
+        """Log which allowlist source is active"""
+        if self.universe_symbols is not None:
+            # Using Universe
+            asof = self.universe_meta.get('asof_epoch', 'na')
+            stale = self.universe_meta.get('stale', '0')
+            count = len(self.symbols)
+            logger.info(f"Allowlist source=universe stale={stale} count={count} asof_epoch={asof}")
+        else:
+            # Using fallback
+            count = len(self.symbols)
+            logger.info(f"Allowlist source=fallback count={count} asof_epoch=na")
     
     def update_exchange_snapshot(self, symbol: str) -> bool:
         """Fetch and store exchange position snapshot"""
@@ -612,6 +715,9 @@ class PositionStateBrain:
                 # Update exchange snapshots periodically (every POLL_INTERVAL seconds)
                 now = time.time()
                 if now - last_snapshot_update >= self.config.POLL_INTERVAL:
+                    # Refresh allowlist from Universe if cache expired
+                    self._refresh_allowlist_if_needed()
+                    
                     for symbol in self.symbols:
                         self.update_exchange_snapshot(symbol)
                         self.process_apply_results(symbol)

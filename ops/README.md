@@ -82,6 +82,50 @@ symbols = universe['symbols']  # List of tradeable symbols
 mode = universe['mode']        # testnet or mainnet
 ```
 
+### P1: P3.3 Universe Integration
+
+**Status:** Integrated (P3.3 Position State Brain)
+
+P3.3 now reads allowlist from Universe Service with fail-closed fallback to `P33_ALLOWLIST` env var.
+
+**Configuration:**
+```bash
+# /etc/quantum/position-state-brain.env
+UNIVERSE_ENABLE=true           # Enable Universe integration (default: true)
+UNIVERSE_CACHE_SECONDS=60      # Cache duration (default: 60s)
+P33_ALLOWLIST=BTCUSDT          # Fallback if Universe unavailable
+```
+
+**Behavior:**
+- **Universe fresh** (stale=0): P3.3 uses `quantum:cfg:universe:active` symbols
+- **Universe stale** (stale=1): P3.3 falls back to `P33_ALLOWLIST` env var
+- **Universe missing**: P3.3 falls back to `P33_ALLOWLIST` env var
+- Cache refreshed every 60s (configurable)
+- Logs source on startup and refresh: `Allowlist source=universe|fallback`
+
+**Verification:**
+```bash
+# Check which source P3.3 is using
+bash ops/proof_p33_universe_source.sh
+
+# Watch logs for source changes
+journalctl -u quantum-position-state-brain -f | grep 'Allowlist source'
+
+# Test integration
+python3 ops/test_p33_universe_integration.py
+```
+
+**Testing:**
+```bash
+# Test universe integration
+python3 ops/test_p33_universe_integration.py
+
+# This script tests:
+# - Universe fresh (stale=0) → P3.3 uses universe symbols
+# - Universe stale (stale=1) → P3.3 falls back to P33_ALLOWLIST
+# - Universe missing → P3.3 falls back to P33_ALLOWLIST
+```
+
 ---
 
 ## Ops Governor Prompt Generator
