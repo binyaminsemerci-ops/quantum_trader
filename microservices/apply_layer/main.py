@@ -409,50 +409,6 @@ except ImportError:
     print("WARN: urllib not available, testnet execution disabled")
 
 # Prometheus metrics
-try:
-    from prometheus_client import Counter, Gauge, start_http_server, REGISTRY
-    PROMETHEUS_AVAILABLE = True
-except ImportError:
-    PROMETHEUS_AVAILABLE = False
-    print("WARN: prometheus_client not installed, metrics disabled")
-
-
-logging.basicConfig(
-    level=os.getenv("APPLY_LOG_LEVEL", "INFO"),
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
-logger = logging.getLogger(__name__)
-
-
-# ---- PRODUCTION HYGIENE: Hard Mode Switch ----
-# TESTNET=true: Governor bypass (for development/testing)
-# TESTNET=false: Require THREE permits (production safety)
-TESTNET_MODE = os.getenv("TESTNET", "false").lower() in ("true", "1", "yes")
-if TESTNET_MODE:
-    logger.warning("ΓÜá∩╕Å  TESTNET MODE ENABLED - Governor bypass active (NO PRODUCTION USAGE)")
-else:
-    logger.info("Γ£à PRODUCTION MODE - Three permits required (Governor + P3.3 + P2.6)")
-
-# ---- PRODUCTION HYGIENE: Safety Kill Switch ----
-# Set quantum:global:kill_switch = true to halt all execution
-SAFETY_KILL_KEY = "quantum:global:kill_switch"
-
-# ---- PRODUCTION HYGIENE: Prometheus Metrics ----
-if PROMETHEUS_AVAILABLE:
-    # Permit metrics
-    p33_permit_deny = Counter('p33_permit_deny_total', 'Total P3.3 denies', ['reason'])
-    p33_permit_allow = Counter('p33_permit_allow_total', 'Total P3.3 allows')
-    governor_block = Counter('governor_block_total', 'Total Governor blocks', ['reason'])
-    
-    # Execution metrics
-    apply_executed = Counter('apply_executed_total', 'Total executed', ['status'])
-    plan_processed = Counter('apply_plan_processed_total', 'Total plans processed', ['decision'])
-    
-    # Position metrics
-    position_mismatch = Gauge('position_mismatch_seconds', 'Seconds since last position match')
-    permit_wait_time = Gauge('permit_wait_ms', 'Last permit wait time (ms)')
-
 # ---- Permit wait-loop config (fail-closed) ----
 PERMIT_WAIT_MS = int(os.getenv("APPLY_PERMIT_WAIT_MS", "1200"))
 PERMIT_STEP_MS = int(os.getenv("APPLY_PERMIT_STEP_MS", "100"))
