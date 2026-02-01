@@ -1,5 +1,89 @@
 # Ops Tools (P4)
 
+## Universe Service (P0)
+
+**Purpose:** Single source of truth for tradeable symbols. Fetches Binance Futures exchangeInfo and publishes allowed symbol set to Redis for all gates to consume.
+
+**Files:**
+- Service: `microservices/universe_service/main.py`
+- Config: `/etc/quantum/universe-service.env` (copy from `microservices/universe_service/universe-service.env.example`)
+- Systemd: `ops/systemd/quantum-universe-service.service`
+- Proof script: `ops/proof_universe.sh`
+
+**Redis Keys:**
+- `quantum:cfg:universe:active` - Current active symbols (JSON)
+- `quantum:cfg:universe:last_ok` - Last successful fetch (JSON, fail-closed backup)
+- `quantum:cfg:universe:meta` - Metadata hash (asof_epoch, last_ok_epoch, count, stale, error)
+
+**Configuration:**
+```bash
+# /etc/quantum/universe-service.env
+UNIVERSE_MODE=testnet           # testnet|mainnet
+UNIVERSE_REFRESH_SEC=60         # Fetch interval
+UNIVERSE_MAX=800                # Safety cap on symbol count
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+HTTP_TIMEOUT_SEC=10
+```
+
+**Deployment:**
+```bash
+# 1. Copy example config
+sudo cp microservices/universe_service/universe-service.env.example /etc/quantum/universe-service.env
+sudo chown qt:qt /etc/quantum/universe-service.env
+
+# 2. Edit config if needed
+sudo nano /etc/quantum/universe-service.env
+
+# 3. Install systemd unit
+sudo cp ops/systemd/quantum-universe-service.service /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# 4. Start service
+sudo systemctl enable quantum-universe-service
+sudo systemctl start quantum-universe-service
+
+# 5. Verify
+sudo systemctl status quantum-universe-service
+bash ops/proof_universe.sh
+```
+
+**Usage:**
+```bash
+# Check universe status
+bash ops/proof_universe.sh
+
+# View active symbols
+redis-cli GET quantum:cfg:universe:active | jq -r '.symbols[]'
+
+# Check metadata
+redis-cli HGETALL quantum:cfg:universe:meta
+
+# Service logs
+journalctl -u quantum-universe-service -f
+```
+
+**Failure Mode:**
+- FAIL-CLOSED: On fetch failure, preserves `last_ok` and marks `stale=1`
+- Validation: Ensures non-empty symbol list, regex match `^[A-Z0-9]{3,20}USDT$`, count <= UNIVERSE_MAX
+- Bootstrap: On boot, copies `last_ok` → `active` if active missing (marked stale until first success)
+
+**Integration:**
+Other services read from `quantum:cfg:universe:active` as single source of truth:
+```python
+import redis
+import json
+
+r = redis.Redis(decode_responses=True)
+universe_json = r.get('quantum:cfg:universe:active')
+universe = json.loads(universe_json)
+symbols = universe['symbols']  # List of tradeable symbols
+mode = universe['mode']        # testnet or mainnet
+```
+
+---
+
 ## Ops Governor Prompt Generator
 
 Template:
