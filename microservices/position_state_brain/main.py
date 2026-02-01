@@ -77,14 +77,24 @@ class Config:
     UNIVERSE_MAX_AGE_S: int = int(os.getenv("P33_UNIVERSE_MAX_AGE_S", "300"))  # 5 minutes
     ALLOWLIST_REFRESH_S: int = int(os.getenv("P33_ALLOWLIST_REFRESH_S", "60"))  # Refresh every 60s
     
-    # TOP-N filtering (2026-02-01): Prevent 566-symbol snapshot flood
-    # ================================================================
-    # ISSUE: Universe returns ALL symbols (566), P3.3 tries to snapshot all
-    #        → 170+ seconds of Binance API calls, blocks event loop
-    # FIX: Limit to TOP-N symbols by volume/liquidity (via quantum:cfg:universe:ranked)
-    # DEFAULT: 50 symbols (balances coverage vs API rate limits)
-    # SET TO 0: Disable filtering (use all Universe symbols - NOT recommended in production)
-    SNAPSHOT_TOP_N: int = int(os.getenv("P33_SNAPSHOT_TOP_N", "50"))
+    # Candidate-based snapshot system (2026-02-02)
+    # =============================================
+    # SMART COVERAGE: Snapshot only candidates = open_positions + recent_intents + topK(universe)
+    # - Prevents 566-symbol API flood (170+ seconds blocking)
+    # - Ensures coverage for symbols that are actually traded
+    # - K is formula-based from measured latency (not hardcoded)
+    
+    # Recent intent window (symbols from trade.intent stream)
+    INTENT_WINDOW_SEC: int = int(os.getenv("P33_INTENT_WINDOW_SEC", "1800"))  # 30 minutes
+    
+    # Formula-based top-K: K = max(min_k, floor(target_cycle_sec / ewma_latency_sec))
+    TARGET_CYCLE_SEC: float = float(os.getenv("P33_TARGET_CYCLE_SEC", "3.0"))  # Snapshot cycle budget
+    MIN_TOP_K: int = int(os.getenv("P33_MIN_TOP_K", "20"))  # Minimum universe symbols
+    EWMA_ALPHA: float = 0.3  # Exponential weighted moving average for latency
+    
+    # On-demand snapshot (if missing during permit check)
+    ONDEMAND_ENABLED: bool = os.getenv("P33_ONDEMAND_SNAPSHOT", "true").lower() == "true"
+    ONDEMAND_TTL_SEC: int = int(os.getenv("P33_ONDEMAND_TTL_SEC", "300"))  # 5 minutes
     
     # Polling interval
     POLL_INTERVAL: int = int(os.getenv("P33_POLL_SEC", "5"))
@@ -216,6 +226,10 @@ class PositionStateBrain:
         # Legacy: Keep self.symbols for backwards compatibility
         self.symbols = list(self.allowlist)
         
+        # Snapshot performance tracking (2026-02-02 candidate system)
+        self.ewma_latency_ms = 100.0  # Initial estimate: 100ms per snapshot
+        self.last_stats_log = 0  # Last time we logged stats
+        
         # Metrics
         if PROMETHEUS_AVAILABLE:
             self.metric_permit_allow = Counter('p33_permit_allow_total', 'P3.3 permits granted', ['symbol'])
@@ -223,6 +237,8 @@ class PositionStateBrain:
             self.metric_snapshot_age = Gauge('p33_snapshot_age_seconds', 'Exchange snapshot age', ['symbol'])
             self.metric_ledger_amt = Gauge('p33_ledger_position_amt', 'Ledger position amount', ['symbol'])
             self.metric_exchange_amt = Gauge('p33_exchange_position_amt', 'Exchange position amount', ['symbol'])
+            self.metric_snapshot_candidates = Gauge('p33_snapshot_candidates', 'Number of candidate symbols')
+            self.metric_ondemand_snapshots = Counter('p33_ondemand_snapshots_total', 'On-demand snapshots created')
             
             # Start metrics server
             start_http_server(config.METRICS_PORT)
@@ -421,12 +437,70 @@ class PositionStateBrain:
         
         logger.info(f"P3.3 allowlist source={source} stale={stale} count={count} asof_epoch={asof} age_s={age_s}")
     
-    def update_exchange_snapshot(self, symbol: str) -> bool:
-        """Fetch and store exchange position snapshot"""
+    def _build_snapshot_candidates(self) -> set:
+        """Build candidate list: open_positions + recent_intents + topK(universe)
+        
+        Formula-based K = max(MIN_TOP_K, floor(TARGET_CYCLE_SEC / (ewma_latency_ms/1000)))
+        """
+        candidates = set()
+        
+        # 1) Open positions (from ledger keys)
+        try:
+            ledger_keys = self.redis.keys("quantum:position:ledger:*")
+            for key in ledger_keys:
+                symbol = key.split(":")[-1]
+                if symbol and symbol in self.allowlist:
+                    candidates.add(symbol)
+        except Exception as e:
+            logger.warning(f"Failed to load open positions: {e}")
+        
+        # 2) Recent intent symbols (from trade.intent stream, last INTENT_WINDOW_SEC)
+        try:
+            cutoff = int((time.time() - self.config.INTENT_WINDOW_SEC) * 1000)
+            intent_stream = "quantum:stream:trade.intent"
+            messages = self.redis.xrevrange(intent_stream, count=1000)  # Last 1000 messages
+            
+            for msg_id, fields in messages:
+                # Parse timestamp from msg_id (format: timestamp-sequence)
+                msg_ts = int(msg_id.split(b'-')[0]) if isinstance(msg_id, bytes) else int(msg_id.split('-')[0])
+                if msg_ts < cutoff:
+                    break  # Older than window
+                
+                symbol = fields.get('symbol') if isinstance(fields, dict) else fields.get(b'symbol')
+                if symbol:
+                    if isinstance(symbol, bytes):
+                        symbol = symbol.decode('utf-8')
+                    if symbol in self.allowlist:
+                        candidates.add(symbol)
+        except Exception as e:
+            logger.debug(f"No recent intents or stream read error: {e}")
+        
+        # 3) Top-K from universe (formula-based)
+        top_k = max(
+            self.config.MIN_TOP_K,
+            int(self.config.TARGET_CYCLE_SEC / (self.ewma_latency_ms / 1000))
+        )
+        
+        # Get top-K symbols alphabetically (deterministic)
+        sorted_allowlist = sorted(list(self.allowlist))
+        for symbol in sorted_allowlist[:top_k]:
+            candidates.add(symbol)
+        
+        return candidates
+    
+    def update_exchange_snapshot(self, symbol: str, ttl_sec: int = 3600) -> tuple[bool, float]:
+        """Fetch and store exchange position snapshot
+        
+        Returns:
+            (success: bool, latency_ms: float)
+        """
+        start = time.time()
         position = self.binance_client.get_position(symbol)
+        latency_ms = (time.time() - start) * 1000
         
         if position is None:
             logger.warning(f"{symbol}: Failed to fetch exchange position")
+            return False, latency_ms
             return False
         
         snapshot_key = f"quantum:position:snapshot:{symbol}"
@@ -442,18 +516,39 @@ class PositionStateBrain:
         }
         
         self.redis.hset(snapshot_key, mapping=snapshot_data)
-        self.redis.expire(snapshot_key, 3600)  # 1 hour TTL
+        self.redis.expire(snapshot_key, ttl_sec)
         
         if PROMETHEUS_AVAILABLE:
             self.metric_exchange_amt.labels(symbol=symbol).set(position['positionAmt'])
         
-        logger.debug(f"{symbol}: Snapshot updated (amt={position['positionAmt']}, side={position['side']})")
-        return True
+        logger.debug(f"{symbol}: Snapshot updated (amt={position['positionAmt']}, latency={latency_ms:.1f}ms)")
+        return True, latency_ms
     
-    def get_exchange_snapshot(self, symbol: str) -> Optional[Dict]:
-        """Get cached exchange snapshot"""
+    def get_exchange_snapshot(self, symbol: str, on_demand: bool = False) -> Optional[Dict]:
+        """Get cached exchange snapshot (with optional on-demand fetch)
+        
+        Args:
+            symbol: Symbol to get snapshot for
+            on_demand: If True and snapshot missing, fetch immediately
+        
+        Returns:
+            Snapshot dict or None
+        """
         snapshot_key = f"quantum:position:snapshot:{symbol}"
         data = self.redis.hgetall(snapshot_key)
+        
+        if not data and on_demand and self.config.ONDEMAND_ENABLED:
+            # On-demand snapshot: fetch immediately for this symbol
+            logger.info(f"{symbol}: On-demand snapshot (missing during permit check)")
+            success, latency = self.update_exchange_snapshot(symbol, ttl_sec=self.config.ONDEMAND_TTL_SEC)
+            
+            if success:
+                if PROMETHEUS_AVAILABLE:
+                    self.metric_ondemand_snapshots.inc()
+                data = self.redis.hgetall(snapshot_key)
+            else:
+                logger.warning(f"{symbol}: On-demand snapshot failed")
+                return None
         
         if not data:
             return None
@@ -548,8 +643,8 @@ class PositionStateBrain:
             logger.info(f"{symbol}: RECONCILE_CLOSE plan detected - fast-track through P3.3 (Patch B)")
             return self._grant_permit(plan_id, symbol, 0, 0, 0, is_reconcile_close=True)
 
-        # Get exchange snapshot
-        snapshot = self.get_exchange_snapshot(symbol)
+        # Get exchange snapshot (on-demand if missing)
+        snapshot = self.get_exchange_snapshot(symbol, on_demand=True)
         
         # Check 1: Stale snapshot
         if not snapshot:
@@ -828,7 +923,10 @@ class PositionStateBrain:
         
         last_snapshot_update = 0
         
+        logger.info("P3.3 entering main event loop")
+        
         while True:
+            logger.info("P3.3 loop iteration START")
             try:
                 # Update exchange snapshots periodically (every POLL_INTERVAL seconds)
                 now = time.time()
@@ -861,19 +959,38 @@ class PositionStateBrain:
                     # TODO: Add volume-based ranking when Universe Service provides it
                     # FUTURE: Implement async/parallel Binance API fetching if snapshot time > 5s
                     
-                    # Get TOP-N symbols (alphabetically sorted for determinism)
-                    if self.config.SNAPSHOT_TOP_N > 0:
-                        sorted_symbols = sorted(list(self.allowlist))  # Deterministic order
-                        symbols_to_snapshot = set(sorted_symbols[:self.config.SNAPSHOT_TOP_N])
-                        logger.info(f"P3.3 snapshotting TOP {len(symbols_to_snapshot)}/{len(self.allowlist)} symbols (alpha-sorted)")
-                    else:
-                        # TOP_N = 0: snapshot ALL allowlist symbols (not recommended in prod with 566 symbols)
-                        symbols_to_snapshot = set(self.allowlist)
-                        logger.warning(f"TOP_N filter disabled - snapshotting ALL {len(symbols_to_snapshot)} allowlist symbols (may block event loop)")
+                    # CANDIDATE-BASED SNAPSHOT (2026-02-02)
+                    # Build candidates: open_positions + recent_intents + topK(universe)
+                    candidates = self._build_snapshot_candidates()
                     
-                    for symbol in symbols_to_snapshot:
-                        self.update_exchange_snapshot(symbol)
+                    # Snapshot with latency tracking
+                    cycle_start = time.time()
+                    latencies = []
+                    
+                    for symbol in candidates:
+                        success, latency = self.update_exchange_snapshot(symbol)
+                        if success:
+                            latencies.append(latency)
                         self.process_apply_results(symbol)
+                    
+                    # Update EWMA latency
+                    if latencies:
+                        avg_latency = sum(latencies) / len(latencies)
+                        self.ewma_latency_ms = (self.config.EWMA_ALPHA * avg_latency + 
+                                                (1 - self.config.EWMA_ALPHA) * self.ewma_latency_ms)
+                    
+                    cycle_ms = (time.time() - cycle_start) * 1000
+                    
+                    # Update metrics
+                    if PROMETHEUS_AVAILABLE:
+                        self.metric_snapshot_candidates.set(len(candidates))
+                    
+                    # Log summary once per minute
+                    now_log = time.time()
+                    if now_log - self.last_stats_log >= 60:
+                        logger.info(f"P3.3 snapshot: candidates={len(candidates)}, cycle_ms={cycle_ms:.0f}, ewma_ms={self.ewma_latency_ms:.1f}")
+                        self.last_stats_log = now_log
+                    
                     last_snapshot_update = now
                 
                 # EVENT-DRIVEN: Read from apply.plan stream (blocks 1s)
