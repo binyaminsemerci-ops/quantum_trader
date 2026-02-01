@@ -368,57 +368,34 @@ class ApplyPlan:
     steps: List[Dict[str, Any]]  # execution steps
     close_qty: float  # P3.2: for Governor daily limits
     price: Optional[float]  # P3.2: for Governor notional limits
-def main():
-    logger.info("=== P3 Apply Layer ===")
-    
-    apply_layer = ApplyLayer()
-    apply_layer.run_loop()
+    timestamp: int
 
 
-if __name__ == "__main__":
-    main()
-#!/usr/bin/env python3
-"""
-P3 Apply Layer - Harvest Proposal Consumer
+@dataclass
+class ApplyResult:
+    """Result of executing apply plan"""
+    plan_id: str
+    symbol: str
+    decision: str
+    executed: bool
+    would_execute: bool  # true in dry_run mode
+    steps_results: List[Dict[str, Any]]
+    error: Optional[str]
+    timestamp: int
 
-Reads harvest proposals from Redis, creates apply plans, and optionally executes them.
 
-Modes:
-- dry_run (P3.0): Plans published, no execution
-- testnet (P3.1): Plans executed against Binance testnet
+class ApplyMode(Enum):
+    DRY_RUN = "dry_run"
+    TESTNET = "testnet"
 
-Safety gates:
-- Allowlist (default: BTCUSDT only)
-- Kill score thresholds (>=0.8 block all, >=0.6 block risk increase)
-- Idempotency (Redis SETNX dedupe)
-- Kill switch (emergency stop)
-"""
 
-import os
-import sys
-import time
-import json
-import hashlib
-import logging
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
-from datetime import datetime
-from enum import Enum
+class Decision(Enum):
+    EXECUTE = "EXECUTE"
+    SKIP = "SKIP"
+    BLOCKED = "BLOCKED"
+    ERROR = "ERROR"
+    RECONCILE_CLOSE = "RECONCILE_CLOSE"
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
-# P2.8A Apply Heat Observer
-try:
-    from microservices.apply_layer import heat_observer
-except ImportError:
-    heat_observer = None
-    print("WARN: heat_observer module not found, P2.8A observability disabled")
-
-try:
-    import redis
-except ImportError:
-    print("ERROR: redis-py not installed. Install with: pip install redis")
-    sys.exit(1)
 
 # Binance client
 try:
