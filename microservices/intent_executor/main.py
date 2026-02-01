@@ -619,10 +619,11 @@ class IntentExecutor:
             # P3.5 GUARD: Check decision field - NEVER execute BLOCKED/SKIP plans
             plan_decision = event_data.get(b"decision", event_data.get(b"plan_decision", b"")).decode().upper()
             if plan_decision in ("BLOCKED", "SKIP"):
-                # Extract reason from plan (prefer error, then reason, then default)
+                # Extract reason from plan (prefer error, then reason, then reason_codes, then default)
                 reason = (
                     event_data.get(b"error", b"").decode() or
                     event_data.get(b"reason", b"").decode() or
+                    event_data.get(b"reason_codes", b"").decode() or
                     plan_decision.lower()
                 )
                 
