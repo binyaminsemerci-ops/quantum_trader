@@ -47,8 +47,8 @@ BINANCE_API_KEY = os.getenv("BINANCE_TESTNET_API_KEY", "")
 BINANCE_API_SECRET = os.getenv("BINANCE_TESTNET_API_SECRET", "")
 BINANCE_BASE_URL = "https://testnet.binancefuture.com"
 
-ALLOWLIST_STR = os.getenv("INTENT_EXECUTOR_ALLOWLIST", "BTCUSDT,ETHUSDT,TRXUSDT")
-ALLOWLIST = set([s.strip().upper() for s in ALLOWLIST_STR.split(",") if s.strip()])
+# P2 Universe integration: ALLOWLIST now loaded dynamically in __init__
+# Legacy INTENT_EXECUTOR_ALLOWLIST used as fallback
 
 # Source allowlist (audit-safe: default only allows intent_bridge)
 SOURCE_ALLOWLIST_STR = os.getenv("INTENT_EXECUTOR_SOURCE_ALLOWLIST", "intent_bridge,apply_layer")
@@ -93,18 +93,27 @@ class IntentExecutor:
             decode_responses=False
         )
         
+        # P2 Universe integration: dynamic allowlist from Universe Service
+        self.universe_enable = os.getenv("UNIVERSE_ENABLE", "true").lower() in ("true", "1", "yes")
+        self.universe_cache_seconds = int(os.getenv("UNIVERSE_CACHE_SECONDS", "60"))
+        self.universe_last_refresh = 0
+        self.allowlist = set(self._load_allowlist())
+        
         # Exchange info cache (filters)
         self.exchange_filters = {}  # symbol -> {minNotional, minQty, stepSize}
         
         # Heartbeat tracking
         self.last_heartbeat_ts = 0
         
+        # Log allowlist source (universe or fallback)
+        self._log_allowlist_source()
+        
         logger.info("=" * 80)
         logger.info("Intent Executor - apply.plan → P3.3 permit → Binance")
         logger.info("=" * 80)
         logger.info(f"Redis: {REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
         logger.info(f"Consumer: {CONSUMER_GROUP} / {CONSUMER_NAME}")
-        logger.info(f"Symbol allowlist: {sorted(ALLOWLIST)}")
+        logger.info(f"Symbol allowlist: {sorted(self.allowlist)}")
         logger.info(f"Source allowlist: {sorted(SOURCE_ALLOWLIST)}")
         logger.info(f"Binance: {BINANCE_BASE_URL}")
         logger.info(f"Apply plan stream: {APPLY_PLAN_STREAM}")
@@ -136,6 +145,91 @@ class IntentExecutor:
         
         # Create manual consumer group
         self._ensure_manual_consumer_group()
+    
+    def _load_universe_symbols(self) -> list:
+        """Load symbols from Universe Service Redis key (P2 Universe integration)"""
+        try:
+            # Use decode_responses temporarily for this call
+            r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
+            meta = r.hgetall("quantum:cfg:universe:meta")
+            if not meta:
+                logger.warning("Universe meta not found, using fallback")
+                return []
+            
+            stale = int(meta.get("stale", "1"))
+            count = int(meta.get("count", "0"))
+            asof_epoch = int(meta.get("asof_epoch", "0"))
+            
+            if stale == 1:
+                logger.warning("Universe is stale, using fallback")
+                return []
+            
+            # Get active symbols list
+            universe_json = r.get("quantum:cfg:universe:active")
+            if not universe_json:
+                logger.warning("Universe active key missing, using fallback")
+                return []
+            
+            try:
+                universe = json.loads(universe_json)
+                symbols = universe.get("symbols", [])
+                logger.debug(f"Universe loaded: {len(symbols)} symbols (asof_epoch={asof_epoch})")
+                return symbols
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse universe JSON: {e}")
+                return []
+                
+        except Exception as e:
+            logger.warning(f"Error loading universe: {e}")
+            return []
+    
+    def _load_allowlist(self) -> list:
+        """Load allowlist from Universe or fallback to INTENT_EXECUTOR_ALLOWLIST env (P2 Universe integration)"""
+        if self.universe_enable:
+            symbols = self._load_universe_symbols()
+            if symbols:
+                return symbols
+            else:
+                logger.warning("Universe unavailable, falling back to INTENT_EXECUTOR_ALLOWLIST")
+        
+        # Fallback to env var
+        allowlist_str = os.getenv("INTENT_EXECUTOR_ALLOWLIST", "BTCUSDT,ETHUSDT,TRXUSDT")
+        return [s.strip().upper() for s in allowlist_str.split(",") if s.strip()]
+    
+    def _refresh_allowlist_if_needed(self):
+        """Refresh allowlist cache if expired (P2 Universe integration)"""
+        now = time.time()
+        if now - self.universe_last_refresh >= self.universe_cache_seconds:
+            new_allowlist = set(self._load_allowlist())
+            if new_allowlist != self.allowlist:
+                logger.info(f"Allowlist updated: {len(self.allowlist)} → {len(new_allowlist)} symbols")
+                self.allowlist = new_allowlist
+                self._log_allowlist_source()
+            self.universe_last_refresh = now
+    
+    def _log_allowlist_source(self):
+        """Log allowlist source (universe or fallback) with metadata (P2 Universe integration)"""
+        if not self.universe_enable:
+            logger.info(f"Intent Executor allowlist source=env count={len(self.allowlist)}")
+            return
+        
+        try:
+            # Use decode_responses temporarily for this call
+            r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
+            meta = r.hgetall("quantum:cfg:universe:meta")
+            if meta:
+                stale = int(meta.get("stale", "1"))
+                count = int(meta.get("count", "0"))
+                asof_epoch = int(meta.get("asof_epoch", "0"))
+                
+                if stale == 0 and count > 0:
+                    logger.info(f"Intent Executor allowlist source=universe stale=0 count={count} asof_epoch={asof_epoch}")
+                else:
+                    logger.warning(f"Intent Executor allowlist source=fallback reason=stale={stale} count={count}")
+            else:
+                logger.warning(f"Intent Executor allowlist source=fallback reason=meta_missing count={len(self.allowlist)}")
+        except Exception as e:
+            logger.warning(f"Error logging allowlist source: {e}")
     
     def _get_manual_lane_ttl(self) -> int:
         """Get remaining TTL for manual lane enablement key"""
@@ -191,7 +285,7 @@ class IntentExecutor:
             
             for symbol_info in data.get("symbols", []):
                 symbol = symbol_info["symbol"]
-                if symbol not in ALLOWLIST:
+                if symbol not in self.allowlist:
                     continue
                 
                 filters = {}
@@ -555,7 +649,7 @@ class IntentExecutor:
             qty = float(qty_str)
             
             # Allowlist check
-            if symbol not in ALLOWLIST:
+            if symbol not in self.allowlist:
                 logger.debug(f"Symbol not in allowlist: {symbol}")
                 return True  # ACK but skip
             
@@ -724,6 +818,9 @@ class IntentExecutor:
         
         while True:
             try:
+                # P2 Universe: Refresh allowlist cache if expired
+                self._refresh_allowlist_if_needed()
+                
                 # Emit periodic heartbeat
                 self._emit_heartbeat()
                 
