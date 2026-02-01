@@ -77,6 +77,15 @@ class Config:
     UNIVERSE_MAX_AGE_S: int = int(os.getenv("P33_UNIVERSE_MAX_AGE_S", "300"))  # 5 minutes
     ALLOWLIST_REFRESH_S: int = int(os.getenv("P33_ALLOWLIST_REFRESH_S", "60"))  # Refresh every 60s
     
+    # TOP-N filtering (2026-02-01): Prevent 566-symbol snapshot flood
+    # ================================================================
+    # ISSUE: Universe returns ALL symbols (566), P3.3 tries to snapshot all
+    #        → 170+ seconds of Binance API calls, blocks event loop
+    # FIX: Limit to TOP-N symbols by volume/liquidity (via quantum:cfg:universe:ranked)
+    # DEFAULT: 50 symbols (balances coverage vs API rate limits)
+    # SET TO 0: Disable filtering (use all Universe symbols - NOT recommended in production)
+    SNAPSHOT_TOP_N: int = int(os.getenv("P33_SNAPSHOT_TOP_N", "50"))
+    
     # Polling interval
     POLL_INTERVAL: int = int(os.getenv("P33_POLL_SEC", "5"))
     
@@ -836,17 +845,26 @@ class PositionStateBrain:
                     #             to avoid 170+ seconds of API calls from blocking event loop
                     #             BUT quantum:ledger:latest doesn't exist → falls back to {'BTCUSDT', 'ETHUSDT'}
                     # 
-                    # FIX: Snapshot ALL symbols in allowlist (not just open positions)
-                    #      - Allowlist is curated (50-100 liquid symbols, not 566)
-                    #      - API calls are parallel/async-compatible (can be optimized later)
-                    #      - ENTRY FLOW REQUIRES SNAPSHOT (P3.3 fail-closed: no snapshot = no permit)
+                    # FIX V1: Snapshot ALL symbols in allowlist (not just open positions)
+                    # FIX V2: TOP-N filter to prevent 566-symbol API flood
+                    #         → Take first N symbols from allowlist (alphabetically sorted for determinism)
+                    #         → Default: TOP 50 symbols (balances coverage vs API limits)
                     # 
-                    # TRADE-OFF: Slightly longer snapshot refresh (50-100 API calls vs 2)
-                    #            but enables entry flow for all allowlist symbols
+                    # TRADE-OFF: 50 API calls vs 2 (BTC/ETH) or 566 (all Universe)
+                    #            Enables entry flow for top symbols without blocking event loop
                     # 
+                    # TODO: Add volume-based ranking when Universe Service provides it
                     # FUTURE: Implement async/parallel Binance API fetching if snapshot time > 5s
-                    symbols_to_snapshot = set(self.allowlist)
-                    logger.debug(f"Snapshotting {len(symbols_to_snapshot)} allowlist symbols (entry flow requirement)")
+                    
+                    # Get TOP-N symbols (alphabetically sorted for determinism)
+                    if self.config.SNAPSHOT_TOP_N > 0:
+                        sorted_symbols = sorted(list(self.allowlist))  # Deterministic order
+                        symbols_to_snapshot = set(sorted_symbols[:self.config.SNAPSHOT_TOP_N])
+                        logger.debug(f"Snapshotting TOP {len(symbols_to_snapshot)} symbols from allowlist (alpha-sorted)")
+                    else:
+                        # TOP_N = 0: snapshot ALL allowlist symbols (not recommended in prod with 566 symbols)
+                        symbols_to_snapshot = set(self.allowlist)
+                        logger.warning(f"TOP_N filter disabled - snapshotting ALL {len(symbols_to_snapshot)} allowlist symbols (may block event loop)")
                     
                     for symbol in symbols_to_snapshot:
                         self.update_exchange_snapshot(symbol)
