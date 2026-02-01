@@ -51,7 +51,7 @@ ALLOWLIST_STR = os.getenv("INTENT_EXECUTOR_ALLOWLIST", "BTCUSDT,ETHUSDT,TRXUSDT"
 ALLOWLIST = set([s.strip().upper() for s in ALLOWLIST_STR.split(",") if s.strip()])
 
 # Source allowlist (audit-safe: default only allows intent_bridge)
-SOURCE_ALLOWLIST_STR = os.getenv("INTENT_EXECUTOR_SOURCE_ALLOWLIST", "intent_bridge")
+SOURCE_ALLOWLIST_STR = os.getenv("INTENT_EXECUTOR_SOURCE_ALLOWLIST", "intent_bridge,apply_layer")
 SOURCE_ALLOWLIST = set([s.strip() for s in SOURCE_ALLOWLIST_STR.split(",") if s.strip()])
 
 # Manual lane configuration (separate stream, TTL-guarded)
