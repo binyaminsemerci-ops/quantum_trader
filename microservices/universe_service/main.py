@@ -73,8 +73,8 @@ class UniverseService:
     KEY_LAST_OK = 'quantum:cfg:universe:last_ok'
     KEY_META = 'quantum:cfg:universe:meta'
     
-    # Symbol validation regex
-    SYMBOL_REGEX = re.compile(r'^[A-Z0-9]{3,20}USDT$')
+    # Symbol validation regex (allows 1-20 chars + USDT/USDC/BTC suffix)
+    SYMBOL_REGEX = re.compile(r'^[A-Z0-9]{1,20}(USDT|USDC|BTC)$')
     
     def __init__(self, config: Config):
         self.config = config
@@ -125,7 +125,7 @@ class UniverseService:
         """
         Validate symbol list
         - Non-empty
-        - All match regex ^[A-Z0-9]{3,20}USDT$
+        - All match regex (ASCII alphanumeric only)
         - Count <= UNIVERSE_MAX
         """
         if not symbols:
@@ -136,15 +136,25 @@ class UniverseService:
             logger.warning(f"Symbol count {len(symbols)} exceeds UNIVERSE_MAX {self.config.UNIVERSE_MAX}, truncating")
             # Note: We'll truncate in publish, not reject
         
-        invalid = [s for s in symbols if not self.SYMBOL_REGEX.match(s)]
+        # Filter out non-ASCII symbols (testnet has Chinese test symbols)
+        invalid = [s for s in symbols if not self.SYMBOL_REGEX.match(s) or not s.isascii()]
         if invalid:
-            logger.error(f"Invalid symbols found (first 10): {invalid[:10]}")
+            logger.warning(f"Filtering {len(invalid)} non-ASCII or invalid symbols (first 10): {invalid[:10]}")
+            # Don't reject - just filter them out in build_universe_json
+        
+        # Check if we have any valid symbols left
+        valid = [s for s in symbols if self.SYMBOL_REGEX.match(s) and s.isascii()]
+        if not valid:
+            logger.error("No valid ASCII symbols remaining after filtering")
             return False
         
         return True
     
     def build_universe_json(self, symbols: List[str]) -> str:
         """Build universe JSON document"""
+        # Filter to ASCII-only valid symbols
+        symbols = [s for s in symbols if self.SYMBOL_REGEX.match(s) and s.isascii()]
+        
         # Cap to UNIVERSE_MAX
         if len(symbols) > self.config.UNIVERSE_MAX:
             symbols = symbols[:self.config.UNIVERSE_MAX]
