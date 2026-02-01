@@ -69,9 +69,13 @@ class Config:
     # Symbol allowlist (fallback if Universe unavailable)
     ALLOWLIST: str = os.getenv("P33_ALLOWLIST", os.getenv("APPLY_ALLOWLIST", "BTCUSDT"))
     
-    # Universe Service integration
-    UNIVERSE_ENABLE: bool = os.getenv("UNIVERSE_ENABLE", "true").lower() in ("true", "1", "yes")
-    UNIVERSE_CACHE_SECONDS: int = int(os.getenv("UNIVERSE_CACHE_SECONDS", "60"))
+    # Universe Service integration (3-tier fallback: active → last_ok → env)
+    ALLOWLIST_SOURCE: str = os.getenv("P33_ALLOWLIST_SOURCE", "universe")  # universe|env
+    UNIVERSE_KEY_ACTIVE: str = os.getenv("P33_UNIVERSE_KEY_ACTIVE", "quantum:cfg:universe:active")
+    UNIVERSE_KEY_LAST_OK: str = os.getenv("P33_UNIVERSE_KEY_LAST_OK", "quantum:cfg:universe:last_ok")
+    UNIVERSE_KEY_META: str = os.getenv("P33_UNIVERSE_KEY_META", "quantum:cfg:universe:meta")
+    UNIVERSE_MAX_AGE_S: int = int(os.getenv("P33_UNIVERSE_MAX_AGE_S", "300"))  # 5 minutes
+    ALLOWLIST_REFRESH_S: int = int(os.getenv("P33_ALLOWLIST_REFRESH_S", "60"))  # Refresh every 60s
     
     # Polling interval
     POLL_INTERVAL: int = int(os.getenv("P33_POLL_SEC", "5"))
@@ -188,14 +192,20 @@ class PositionStateBrain:
             logger.error("Missing Binance credentials - P3.3 cannot function")
             sys.exit(1)
         
-        # Universe Service integration
-        self.universe_cache_ts = 0
-        self.universe_symbols = None
-        self.universe_meta = {}
+        # Universe Service integration (3-tier fallback)
+        self.allowlist_refresh_ts = 0
+        self.allowlist = set()  # Current active allowlist
+        self.allowlist_source = "none"  # Track source: universe|last_ok|env|none
+        self.allowlist_meta = {}  # Metadata about current source
         
         # Load initial allowlist (from Universe or fallback)
-        self.symbols = self._load_allowlist()
-        self._log_allowlist_source()
+        self._refresh_allowlist(force=True)
+        
+        if not self.allowlist:
+            logger.error("FAIL-CLOSED: No valid allowlist loaded - service will deny all permits")
+        
+        # Legacy: Keep self.symbols for backwards compatibility
+        self.symbols = list(self.allowlist)
         
         # Metrics
         if PROMETHEUS_AVAILABLE:
@@ -209,99 +219,198 @@ class PositionStateBrain:
             start_http_server(config.METRICS_PORT)
             logger.info(f"Metrics server started on port {config.METRICS_PORT}")
     
-    def _load_universe_symbols(self) -> tuple:
-        """Load symbols from Universe Service with metadata
+    def _load_universe_active(self) -> tuple:
+        """Try to load from universe:active (primary source)
         
         Returns:
-            (symbols: list, meta: dict, ok: bool)
+            (symbols: list, meta: dict, source: str, ok: bool)
         """
         try:
-            # Check if universe exists
-            if not self.redis.exists('quantum:cfg:universe:active'):
-                return (None, {}, False)
+            # Check if universe:active exists
+            if not self.redis.exists(self.config.UNIVERSE_KEY_ACTIVE):
+                return (None, {}, "none", False)
             
             # Get metadata
-            meta = self.redis.hgetall('quantum:cfg:universe:meta')
+            meta = self.redis.hgetall(self.config.UNIVERSE_KEY_META)
             stale = int(meta.get('stale', 1))
+            count = int(meta.get('count', 0))
+            asof_epoch = int(meta.get('asof_epoch', 0))
             
-            # If stale, don't use universe
-            if stale == 1:
-                return (None, meta, False)
+            # Check staleness
+            now_epoch = int(time.time())
+            age_s = now_epoch - asof_epoch
+            
+            # Criteria: stale=0 AND count>0 AND age not too old
+            if stale != 0:
+                logger.debug(f"Universe active rejected: stale={stale}")
+                return (None, meta, "stale", False)
+            
+            if count == 0:
+                logger.debug(f"Universe active rejected: count=0")
+                return (None, meta, "empty", False)
+            
+            if age_s > self.config.UNIVERSE_MAX_AGE_S:
+                logger.debug(f"Universe active rejected: age={age_s}s > max={self.config.UNIVERSE_MAX_AGE_S}s")
+                return (None, meta, "too_old", False)
             
             # Load universe JSON
-            universe_json = self.redis.get('quantum:cfg:universe:active')
+            universe_json = self.redis.get(self.config.UNIVERSE_KEY_ACTIVE)
             if not universe_json:
-                return (None, meta, False)
+                return (None, meta, "missing", False)
             
             universe = json.loads(universe_json)
             symbols = universe.get('symbols', [])
             
             if not symbols:
-                return (None, meta, False)
+                return (None, meta, "no_symbols", False)
             
-            return (symbols, meta, True)
+            # Success: active is usable
+            meta['age_s'] = age_s
+            return (symbols, meta, "universe", True)
             
         except (json.JSONDecodeError, KeyError, ValueError) as e:
-            logger.warning(f"Universe parse error: {e}")
-            return (None, {}, False)
+            logger.warning(f"Universe active parse error: {e}")
+            return (None, {}, "parse_error", False)
         except Exception as e:
-            logger.error(f"Universe load error: {e}")
-            return (None, {}, False)
+            logger.error(f"Universe active load error: {e}")
+            return (None, {}, "load_error", False)
     
-    def _load_allowlist(self) -> list:
-        """Load allowlist from Universe or fallback to env var
+    def _load_universe_last_ok(self) -> tuple:
+        """Try to load from universe:last_ok (backup source)
         
         Returns:
-            List of symbol strings
+            (symbols: list, meta: dict, source: str, ok: bool)
         """
-        # Try Universe if enabled
-        if self.config.UNIVERSE_ENABLE:
-            symbols, meta, ok = self._load_universe_symbols()
+        try:
+            # Check if last_ok exists
+            if not self.redis.exists(self.config.UNIVERSE_KEY_LAST_OK):
+                logger.debug("Universe last_ok not found")
+                return (None, {}, "none", False)
+            
+            # Load last_ok JSON
+            last_ok_json = self.redis.get(self.config.UNIVERSE_KEY_LAST_OK)
+            if not last_ok_json:
+                return (None, {}, "missing", False)
+            
+            last_ok = json.loads(last_ok_json)
+            symbols = last_ok.get('symbols', [])
+            asof_epoch = last_ok.get('asof_epoch', 0)
+            
+            if not symbols:
+                return (None, {}, "no_symbols", False)
+            
+            # Check age
+            now_epoch = int(time.time())
+            age_s = now_epoch - asof_epoch
+            
+            if age_s > self.config.UNIVERSE_MAX_AGE_S:
+                logger.debug(f"Universe last_ok rejected: age={age_s}s > max={self.config.UNIVERSE_MAX_AGE_S}s")
+                return (None, {}, "too_old", False)
+            
+            # Success: last_ok is usable
+            meta = {
+                'stale': '1',  # Mark as stale (backup source)
+                'count': str(len(symbols)),
+                'asof_epoch': str(asof_epoch),
+                'age_s': age_s
+            }
+            return (symbols, meta, "last_ok", True)
+            
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.warning(f"Universe last_ok parse error: {e}")
+            return (None, {}, "parse_error", False)
+        except Exception as e:
+            logger.error(f"Universe last_ok load error: {e}")
+            return (None, {}, "load_error", False)
+    
+    def _load_env_allowlist(self) -> tuple:
+        """Load from env var (final fallback)
+        
+        Returns:
+            (symbols: list, meta: dict, source: str, ok: bool)
+        """
+        symbols = [s.strip() for s in self.config.ALLOWLIST.split(',') if s.strip()]
+        
+        if not symbols:
+            logger.warning("Env allowlist (P33_ALLOWLIST) is empty!")
+            return (None, {}, "empty", False)
+        
+        meta = {
+            'stale': 'env',
+            'count': str(len(symbols)),
+            'asof_epoch': 'static',
+            'age_s': 0
+        }
+        return (symbols, meta, "env", True)
+    
+    def _refresh_allowlist(self, force: bool = False):
+        """Refresh allowlist using 3-tier fallback: active → last_ok → env
+        
+        Args:
+            force: If True, skip cache age check and refresh immediately
+        """
+        # Check if refresh needed
+        if not force:
+            now = time.time()
+            age = now - self.allowlist_refresh_ts
+            
+            if age < self.config.ALLOWLIST_REFRESH_S:
+                return  # Cache still fresh
+        
+        old_count = len(self.allowlist)
+        old_source = self.allowlist_source
+        
+        # Tier 1: Try universe:active
+        if self.config.ALLOWLIST_SOURCE == "universe":
+            symbols, meta, source, ok = self._load_universe_active()
             
             if ok:
-                self.universe_symbols = symbols
-                self.universe_meta = meta
-                self.universe_cache_ts = time.time()
-                return symbols
+                self.allowlist = set(symbols)
+                self.allowlist_source = source
+                self.allowlist_meta = meta
+                self.allowlist_refresh_ts = time.time()
+                self._log_allowlist_source()
+                return
+            
+            # Tier 2: Try universe:last_ok
+            symbols, meta, source, ok = self._load_universe_last_ok()
+            
+            if ok:
+                self.allowlist = set(symbols)
+                self.allowlist_source = source
+                self.allowlist_meta = meta
+                self.allowlist_refresh_ts = time.time()
+                self._log_allowlist_source()
+                return
         
-        # Fallback to env var
-        fallback_symbols = [s.strip() for s in self.config.ALLOWLIST.split(',')]
-        self.universe_symbols = None
-        self.universe_meta = {'source': 'fallback'}
-        return fallback_symbols
-    
-    def _refresh_allowlist_if_needed(self):
-        """Refresh allowlist from Universe if cache expired"""
-        if not self.config.UNIVERSE_ENABLE:
+        # Tier 3: Fallback to env
+        symbols, meta, source, ok = self._load_env_allowlist()
+        
+        if ok:
+            self.allowlist = set(symbols)
+            self.allowlist_source = source
+            self.allowlist_meta = meta
+            self.allowlist_refresh_ts = time.time()
+            self._log_allowlist_source()
             return
         
-        now = time.time()
-        age = now - self.universe_cache_ts
-        
-        if age < self.config.UNIVERSE_CACHE_SECONDS:
-            return  # Cache still fresh
-        
-        # Reload from Universe
-        old_count = len(self.symbols)
-        self.symbols = self._load_allowlist()
-        new_count = len(self.symbols)
-        
-        if new_count != old_count:
-            logger.info(f"Allowlist updated: {old_count} → {new_count} symbols")
+        # FAIL-CLOSED: No valid allowlist
+        if not self.allowlist:  # Only warn if we have nothing
+            logger.error("FAIL-CLOSED: No valid allowlist from any source!")
+            self.allowlist = set()  # Empty set = deny all
+            self.allowlist_source = "none"
+            self.allowlist_meta = {}
             self._log_allowlist_source()
     
     def _log_allowlist_source(self):
-        """Log which allowlist source is active"""
-        if self.universe_symbols is not None:
-            # Using Universe
-            asof = self.universe_meta.get('asof_epoch', 'na')
-            stale = self.universe_meta.get('stale', '0')
-            count = len(self.symbols)
-            logger.info(f"Allowlist source=universe stale={stale} count={count} asof_epoch={asof}")
-        else:
-            # Using fallback
-            count = len(self.symbols)
-            logger.info(f"Allowlist source=fallback count={count} asof_epoch=na")
+        """Log which allowlist source is active with full metadata"""
+        source = self.allowlist_source
+        stale = self.allowlist_meta.get('stale', '?')
+        count = self.allowlist_meta.get('count', len(self.allowlist))
+        asof = self.allowlist_meta.get('asof_epoch', '?')
+        age_s = self.allowlist_meta.get('age_s', '?')
+        
+        logger.info(f"P3.3 allowlist source={source} stale={stale} count={count} asof_epoch={asof} age_s={age_s}")
     
     def update_exchange_snapshot(self, symbol: str) -> bool:
         """Fetch and store exchange position snapshot"""
@@ -680,9 +789,9 @@ class PositionStateBrain:
                         self.redis.xack(plan_stream, consumer_group, msg_id)
                         continue
                     
-                    # Filter by allowlist
-                    if symbol not in self.symbols:
-                        logger.debug(f"{symbol}: Not in allowlist - ACK plan {plan_id[:8]}")
+                    # Filter by allowlist (fail-closed: deny if not in allowlist)
+                    if symbol not in self.allowlist:
+                        logger.debug(f"{symbol}: Not in allowlist (source={self.allowlist_source}) - ACK plan {plan_id[:8]}")
                         self.redis.xack(plan_stream, consumer_group, msg_id)
                         continue
                     
@@ -715,10 +824,10 @@ class PositionStateBrain:
                 # Update exchange snapshots periodically (every POLL_INTERVAL seconds)
                 now = time.time()
                 if now - last_snapshot_update >= self.config.POLL_INTERVAL:
-                    # Refresh allowlist from Universe if cache expired
-                    self._refresh_allowlist_if_needed()
+                    # Refresh allowlist from Universe (3-tier fallback: active → last_ok → env)
+                    self._refresh_allowlist()
                     
-                    for symbol in self.symbols:
+                    for symbol in self.allowlist:
                         self.update_exchange_snapshot(symbol)
                         self.process_apply_results(symbol)
                     last_snapshot_update = now
