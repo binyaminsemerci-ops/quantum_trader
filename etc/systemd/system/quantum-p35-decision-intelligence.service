@@ -1,0 +1,34 @@
+[Unit]
+Description=Quantum Trader - P3.5 Decision Intelligence Service
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+After=network-online.target redis-server.service
+Wants=network-online.target
+StartLimitInterval=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=qt
+WorkingDirectory=/home/qt/quantum_trader
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+EnvironmentFile=/etc/quantum/p35-decision-intelligence.env
+ExecStart=/usr/bin/python3 -u microservices/decision_intelligence/main.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=p35-decision-intel
+
+# Resource limits
+MemoryLimit=256M
+CPUQuota=20%
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/home/qt/quantum_trader /var/log
+
+[Install]
+WantedBy=multi-user.target

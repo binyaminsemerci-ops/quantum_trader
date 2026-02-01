@@ -158,6 +158,108 @@ journalctl -u quantum-position-state-brain -n 50
 
 ---
 
+## P3.5 Decision Intelligence Service
+
+**Purpose:** Real-time analytics on trading decisions. Consumes `quantum:stream:apply.result` to produce rolling-window aggregates (1m, 5m, 15m, 1h) tracking why plans are EXECUTEd, SKIPped, or BLOCKed.
+
+**Files:**
+- Service: `microservices/decision_intelligence/main.py`
+- Config: `/etc/quantum/p35-decision-intelligence.env`
+- Systemd: `/etc/systemd/system/quantum-p35-decision-intelligence.service`
+- Proof script: `scripts/proof_p35_decision_intelligence.sh`
+
+**Redis Keys (Output):**
+- Per-minute buckets: `quantum:p35:bucket:<YYYYMMDDHHMM>` (HASH, 48h TTL)
+  - Fields: `decision:<DECISION>`, `reason:<ERROR_REASON>`, `symbol_reason:<SYMBOL>:<REASON>`
+- Snapshot decision counts: `quantum:p35:decision:counts:<window>` (HASH, 24h TTL)
+  - Windows: `1m`, `5m`, `15m`, `1h`
+  - Fields: `EXECUTE`, `SKIP`, `BLOCKED`, `ERROR`
+- Snapshot top reasons: `quantum:p35:reason:top:<window>` (ZSET, top 50, 24h TTL)
+  - Common reasons: `no_position`, `not_in_allowlist`, `duplicate_plan`, `kill_score_critical`, `kill_score_warning`, `action_hold`, `none` (executed)
+- Status: `quantum:p35:status` (HASH)
+  - Fields: `last_id`, `last_ts`, `processed_total`, `pending_estimate`, `service_start_ts`, `consumer_name`
+
+**Configuration:**
+```bash
+# /etc/quantum/p35-decision-intelligence.env
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+LOG_LEVEL=INFO
+ENABLE_SYMBOL_BREAKDOWN=true    # Track symbol-reason pairs (optional, adds storage)
+```
+
+**Deployment:**
+```bash
+# 1. Copy config
+sudo cp etc/quantum/p35-decision-intelligence.env /etc/quantum/
+sudo chown qt:qt /etc/quantum/p35-decision-intelligence.env
+
+# 2. Copy systemd unit
+sudo cp etc/systemd/system/quantum-p35-decision-intelligence.service /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# 3. Start service
+sudo systemctl enable quantum-p35-decision-intelligence
+sudo systemctl start quantum-p35-decision-intelligence
+
+# 4. Verify
+bash scripts/proof_p35_decision_intelligence.sh
+```
+
+**Usage:**
+```bash
+# Service status
+journalctl -u quantum-p35-decision-intelligence -f
+
+# Check analytics status
+redis-cli HGETALL quantum:p35:status
+
+# Top skip reasons (last 5 minutes)
+redis-cli ZREVRANGE quantum:p35:reason:top:5m 0 20 WITHSCORES
+
+# Decision distribution (last 5 minutes)
+redis-cli HGETALL quantum:p35:decision:counts:5m
+
+# Consumer group health
+redis-cli XPENDING quantum:stream:apply.result p35_decision_intel
+
+# Verify ACKing is working
+redis-cli XINFO GROUPS quantum:stream:apply.result
+```
+
+**Analytics Insights:**
+- High `no_position` → Positions closed before execution, consider longer hold periods
+- High `not_in_allowlist` → Symbol allowlist too restrictive, check Universe Service
+- High `duplicate_plan` → Harvest deduplication working, expected for stable strategies
+- High `kill_score_critical` → Risk management active, positions at risk limit
+- High `kill_score_warning` → Exposure control active, consider risk parameter tuning
+
+**Failure Modes:**
+- Consumer lag: If `pending_estimate` > 100, check service logs + CPU usage
+- No analytics: Service may still be initializing (first snapshot ~60 seconds after start)
+- Missing windows: Older windows need at least `window_size` of real-time data to populate
+
+**Integration:**
+```python
+import redis
+r = redis.Redis(decode_responses=True)
+
+# Get why plans are being skipped
+top_reasons = r.zrevrange('quantum:p35:reason:top:5m', 0, 10, withscores=True)
+print(f"Top skip reasons: {top_reasons}")
+
+# Check decision distribution
+decisions = r.hgetall('quantum:p35:decision:counts:5m')
+print(f"Decisions: {decisions}")  # e.g., {"EXECUTE": 42, "SKIP": 150, "BLOCKED": 3}
+
+# Monitor service health
+status = r.hgetall('quantum:p35:status')
+print(f"Processed: {status['processed_total']}, Pending: {status['pending_estimate']}")
+```
+
+---
+
 ## Ops Governor Prompt Generator
 
 Template:
