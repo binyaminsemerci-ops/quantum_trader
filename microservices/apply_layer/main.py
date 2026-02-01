@@ -733,6 +733,7 @@ class ApplyLayer:
                 "symbol": plan.symbol,
                 "action": plan.action,
                 "kill_score": str(plan.kill_score),
+                    "source": "apply_layer",  # Required for Intent Executor source allowlist
                 "k_regime_flip": str(plan.k_components["regime_flip"]),
                 "k_sigma_spike": str(plan.k_components["sigma_spike"]),
                 "k_ts_drop": str(plan.k_components["ts_drop"]),
