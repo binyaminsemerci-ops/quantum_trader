@@ -113,6 +113,81 @@ class DecisionIntelligenceService:
         
         logger.info(f"✅ Service initialized (consumer: {CONSUMER_NAME})")
     
+    def _normalize_decision(self, data: dict) -> str:
+        """
+        Normalize decision field from apply.result event.
+        
+        Maps:
+        - executed=true → EXECUTE
+        - executed=false + error present → BLOCKED or SKIP
+        - decision field (if present) → normalized value
+        
+        Returns normalized decision: EXECUTE, SKIP, BLOCKED, ERROR, or UNKNOWN:<raw>
+        """
+        # Try explicit decision field first
+        if "decision" in data:
+            raw = str(data["decision"]).strip().upper()
+            # Normalize synonyms
+            if raw in ["EXECUTE", "EXECUTED", "EXEC"]:
+                return "EXECUTE"
+            elif raw in ["SKIP", "SKIPPED"]:
+                return "SKIP"
+            elif raw in ["BLOCKED", "BLOCK"]:
+                return "BLOCKED"
+            elif raw in ["ERROR", "FAILED", "FAIL"]:
+                return "ERROR"
+            else:
+                # Store unknown decision for debugging
+                return f"UNKNOWN:{raw}"
+        
+        # Fallback: parse from executed boolean
+        executed = data.get("executed", "")
+        if executed == "true" or executed is True:
+            return "EXECUTE"
+        elif executed == "false" or executed is False:
+            # Check error to determine SKIP vs BLOCKED
+            error = self._normalize_reason(data)
+            if error in ["none", ""]:
+                return "SKIP"  # No error, just skipped
+            else:
+                return "BLOCKED"  # Has error, was blocked
+        
+        # Unknown state
+        return "UNKNOWN"
+    
+    def _normalize_reason(self, data: dict) -> str:
+        """
+        Normalize reason/error field from apply.result event.
+        
+        Priority:
+        1. Top-level 'error' field
+        2. details JSON 'error' field
+        3. Top-level 'reason' field
+        4. Empty string → "none"
+        
+        Returns normalized reason or "none" if empty.
+        """
+        # Try top-level error
+        if "error" in data and data["error"]:
+            return str(data["error"]).strip()
+        
+        # Try details JSON
+        if "details" in data:
+            try:
+                import json
+                details = json.loads(data["details"])
+                if "error" in details and details["error"]:
+                    return str(details["error"]).strip()
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        # Try top-level reason
+        if "reason" in data and data["reason"]:
+            return str(data["reason"]).strip()
+        
+        # Default: no reason
+        return "none"
+    
     def _ensure_consumer_group(self):
         """Create consumer group if it doesn't exist."""
         try:
@@ -157,9 +232,9 @@ class DecisionIntelligenceService:
             True if processed successfully, False otherwise
         """
         try:
-            # Extract fields with defaults
-            decision = data.get("decision", "UNKNOWN")
-            error = data.get("error", "")
+            # Extract and normalize fields
+            decision = self._normalize_decision(data)
+            reason = self._normalize_reason(data)
             symbol = data.get("symbol", "")
             timestamp_str = data.get("timestamp", "")
             
@@ -172,12 +247,26 @@ class DecisionIntelligenceService:
             # Get bucket key for this message's timestamp
             bucket_key = self._get_current_bucket_key(ts)
             
+            # Track unknown decisions for debugging
+            if decision.startswith("UNKNOWN"):
+                # Store raw decision value in ZSET for debugging
+                unknown_key = "quantum:p35:unknown_decision:top:5m"
+                raw_value = data.get("decision", f"executed={data.get('executed')}")
+                self.redis.zincrby(unknown_key, 1, raw_value)
+                self.redis.expire(unknown_key, 300)  # 5 minutes TTL
+                
+                # Log sample (once per minute max)
+                if self.processed_count % 100 == 0:
+                    logger.warning(
+                        f"⚠️  Unknown decision detected: {raw_value} "
+                        f"(msg_id: {msg_id}, symbol: {symbol})"
+                    )
+            
             # Update per-minute bucket
             # - Decision count
             self.redis.hincrby(bucket_key, f"decision:{decision}", 1)
             
-            # - Reason count (use error if present, else "none")
-            reason = error if error else "none"
+            # - Reason count
             self.redis.hincrby(bucket_key, f"reason:{reason}", 1)
             
             # - Symbol-reason breakdown (optional, if enabled)
