@@ -1932,6 +1932,8 @@ class ApplyLayer:
                     self.publish_result(result)
                 else:
                     # Publish skip/blocked result
+                    # Extract reason from reason_codes if available
+                    error_reason = reason_codes[0] if reason_codes else plan.decision
                     result = ApplyResult(
                         plan_id=plan.plan_id,
                         symbol=plan.symbol,
@@ -1939,7 +1941,7 @@ class ApplyLayer:
                         executed=False,
                         would_execute=False,
                         steps_results=[],
-                        error=None,
+                        error=error_reason,  # Set error to skip reason
                         timestamp=int(time.time())
                     )
                     self.publish_result(result)
