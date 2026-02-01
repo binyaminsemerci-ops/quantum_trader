@@ -54,6 +54,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Build tag for deployment verification
+BUILD_TAG = "p3.3-snapshot-ondemand-v2"
+
 
 @dataclass
 class Config:
@@ -539,15 +542,19 @@ class PositionStateBrain:
         
         if not data and on_demand and self.config.ONDEMAND_ENABLED:
             # On-demand snapshot: fetch immediately for this symbol
-            logger.info(f"{symbol}: On-demand snapshot (missing during permit check)")
-            success, latency = self.update_exchange_snapshot(symbol, ttl_sec=self.config.ONDEMAND_TTL_SEC)
-            
-            if success:
-                if PROMETHEUS_AVAILABLE:
-                    self.metric_ondemand_snapshots.inc()
-                data = self.redis.hgetall(snapshot_key)
-            else:
-                logger.warning(f"{symbol}: On-demand snapshot failed")
+            try:
+                logger.info(f"{symbol}: On-demand snapshot (missing during permit check)")
+                success, latency = self.update_exchange_snapshot(symbol, ttl_sec=self.config.ONDEMAND_TTL_SEC)
+                
+                if success:
+                    if PROMETHEUS_AVAILABLE:
+                        self.metric_ondemand_snapshots.inc()
+                    data = self.redis.hgetall(snapshot_key)
+                else:
+                    logger.warning(f"{symbol}: On-demand snapshot failed")
+                    return None
+            except Exception as e:
+                logger.warning(f"{symbol}: On-demand exception: {type(e).__name__}: {e}")
                 return None
         
         if not data:
@@ -648,6 +655,7 @@ class PositionStateBrain:
         
         # Check 1: Stale snapshot
         if not snapshot:
+            logger.info(f"P3.3_SNAPSHOT_MISS symbol={symbol} plan={plan_id[:8]} ondemand_enabled={self.config.ONDEMAND_ENABLED} attempted={on_demand}")
             return self._deny_permit(plan_id, symbol, 'no_exchange_snapshot', {})
         
         age = int(time.time()) - snapshot['ts_epoch']
@@ -915,11 +923,17 @@ class PositionStateBrain:
     def run(self):
         """Main loop - event-driven with periodic snapshot refresh"""
         logger.info("P3.3 Position State Brain starting (event-driven mode)")
+        logger.info(f"P3.3_BUILD_TAG={BUILD_TAG}")
         logger.info(f"Snapshot refresh: {self.config.POLL_INTERVAL}s")
         logger.info(f"Stale threshold: {self.config.STALE_THRESHOLD_SEC}s")
         logger.info(f"Cooldown: {self.config.COOLDOWN_SEC}s")
         logger.info(f"Permit TTL: {self.config.PERMIT_TTL}s")
         logger.info("Consumer group: p33 on quantum:stream:apply.plan")
+        
+        # Snapshot config (deployment verification)
+        logger.info(f"P3.3 snapshot config: ONDEMAND={self.config.ONDEMAND_ENABLED}, TTL={self.config.ONDEMAND_TTL_SEC}s")
+        logger.info(f"P3.3 candidate config: INTENT_WINDOW={self.config.INTENT_WINDOW_SEC}s, TARGET_CYCLE={self.config.TARGET_CYCLE_SEC}s, MIN_TOP_K={self.config.MIN_TOP_K}")
+        logger.info(f"P3.3 allowlist: source={self.allowlist_source}, count={len(self.allowlist)}")
         
         last_snapshot_update = 0
         
