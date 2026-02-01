@@ -617,11 +617,19 @@ class IntentExecutor:
             symbol = event_data.get(b"symbol", b"").decode().upper()
             
             # MAIN LANE: Check source allowlist
+            # P3.3 permits allow bypass of source check (empty source = P3.3-managed plan)
             if lane == "main":
-                if source not in SOURCE_ALLOWLIST:
+                # Check if P3.3 permit exists (means P3.3 evaluated and permitted the plan)
+                permit_key = f"quantum:permit:p33:{plan_id}"
+                has_p33_permit = bool(self.redis.get(permit_key))
+                
+                if source not in SOURCE_ALLOWLIST and not has_p33_permit:
                     logger.info(f"🚫 [lane={lane}] Skip plan (source_not_allowed): plan_id={plan_id[:8]} source={source} allowlist={sorted(SOURCE_ALLOWLIST)}")
                     self._inc_redis_counter("blocked_source")
                     return True  # ACK but skip
+                
+                if has_p33_permit and source == '':
+                    logger.info(f"ℹ️  [lane={lane}] Plan {plan_id[:8]} has P3.3 permit, bypassing source check (source='')")
             
             # MANUAL LANE: Check TTL-guarded enablement
             elif lane == "manual":

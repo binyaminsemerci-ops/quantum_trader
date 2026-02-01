@@ -827,7 +827,22 @@ class PositionStateBrain:
                     # Refresh allowlist from Universe (3-tier fallback: active → last_ok → env)
                     self._refresh_allowlist()
                     
-                    for symbol in self.allowlist:
+                    # OPTIMIZATION: Only snapshot symbols with open positions (not all 566)
+                    # This prevents 170+ seconds of Binance API calls from blocking the event loop
+                    open_positions = set()
+                    try:
+                        ledger_data = self.redis.hgetall('quantum:ledger:latest') or {}
+                        for symbol, state in ledger_data.items():
+                            if state and str(state).lower() not in ('none', '0', 'closed'):
+                                open_positions.add(symbol)
+                    except Exception as e:
+                        logger.warning(f"Failed to load open positions: {e}")
+                    
+                    # Snapshot symbols with open positions (only these matter for exit/close)
+                    symbols_to_snapshot = open_positions if open_positions else {'BTCUSDT', 'ETHUSDT'}
+                    logger.debug(f"Snapshotting {len(symbols_to_snapshot)} open positions (instead of {len(self.allowlist)} universe symbols)")
+                    
+                    for symbol in symbols_to_snapshot:
                         self.update_exchange_snapshot(symbol)
                         self.process_apply_results(symbol)
                     last_snapshot_update = now
