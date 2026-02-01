@@ -616,6 +616,29 @@ class IntentExecutor:
             source = event_data.get(b"source", b"").decode()
             symbol = event_data.get(b"symbol", b"").decode().upper()
             
+            # P3.5 GUARD: Check decision field - NEVER execute BLOCKED/SKIP plans
+            plan_decision = event_data.get(b"decision", event_data.get(b"plan_decision", b"")).decode().upper()
+            if plan_decision in ("BLOCKED", "SKIP"):
+                # Extract reason from plan (prefer error, then reason, then default)
+                reason = (
+                    event_data.get(b"error", b"").decode() or
+                    event_data.get(b"reason", b"").decode() or
+                    plan_decision.lower()
+                )
+                
+                logger.info(f"P3.5_GUARD decision={plan_decision} plan_id={plan_id[:8]} symbol={symbol} reason={reason}")
+                
+                # Write result with decision preserved, executed=False, would_execute=False
+                self._write_result(
+                    plan_id, symbol, executed=False,
+                    decision=plan_decision,
+                    would_execute=False,
+                    error=reason
+                )
+                self._mark_done(plan_id)
+                self._inc_redis_counter("p35_guard_blocked")
+                return True  # ACK and skip execution
+            
             # MAIN LANE: Check source allowlist (but allow empty source for P3.3 bypass)
             # P3.3 permits = plans with empty source that come via Apply Layer
             if lane == "main":
