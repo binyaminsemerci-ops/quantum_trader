@@ -93,14 +93,22 @@ CONSUMER_NAME = f"{socket.gethostname()}_{os.getpid()}"
 # Idempotency TTL
 IDEMPOTENCY_TTL = int(os.getenv("INTENT_BRIDGE_IDEMPOTENCY_TTL", "86400"))  # 24h
 
+# Ledger gate config (avoid chicken-and-egg deadlock for new symbols)
+REQUIRE_LEDGER_FOR_OPEN = os.getenv("INTENT_BRIDGE_REQUIRE_LEDGER_FOR_OPEN", "false").lower() == "true"
+
+# Build tag for deployment verification
+BUILD_TAG = "intent-bridge-ledger-open-v1"
+
 logger.info("=" * 80)
-logger.info("Intent Bridge - trade.intent → apply.plan")
+logger.info(f"Intent Bridge - trade.intent → apply.plan [{BUILD_TAG}]")
 logger.info("=" * 80)
 logger.info(f"Redis: {REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
 logger.info(f"Consumer: {CONSUMER_GROUP} / {CONSUMER_NAME}")
 logger.info(f"Allowlist: {sorted(ALLOWLIST)}")
 logger.info(f"Intent stream: {INTENT_STREAM}")
 logger.info(f"Plan stream: {PLAN_STREAM}")
+logger.info(f"Require ledger for OPEN: {REQUIRE_LEDGER_FOR_OPEN}")
+logger.info(f"Skip flat SELL: {SKIP_FLAT_SELL}")
 logger.info("=" * 80)
 
 
@@ -365,20 +373,41 @@ class IntentBridge:
             intent["qty"]
         )
         
-        # Gate: skip SELL if flat (avoid no_position spam)
-        if SKIP_FLAT_SELL and intent["side"].upper() == "SELL":
-            ledger_amt = _ledger_last_known_amt(self.redis, intent["symbol"])
-            if math.isnan(ledger_amt):
-                # If ledger missing, safest is to skip SELL (prevents spam & accidental close attempts)
-                logger.info(f"Skip publish: {intent['symbol']} SELL but ledger unknown (plan_id={plan_id[:8]})")
-                self._mark_seen(stream_id_str)
-                self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
-                return
-            if abs(ledger_amt) <= FLAT_EPS:
-                logger.info(f"Skip publish: {intent['symbol']} SELL but ledger flat (last_known_amt={ledger_amt}, plan_id={plan_id[:8]})")
-                self._mark_seen(stream_id_str)
-                self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
-                return
+        # Gate: Ledger check (avoid chicken-and-egg deadlock)
+        # OPEN (BUY): Don't require ledger (will be created after first fill)
+        # CLOSE (SELL): Require ledger to avoid accidental closes on flat positions
+        
+        if intent["side"].upper() == "BUY":
+            # BUY/OPEN: Check ledger only if explicitly required (default: false)
+            if REQUIRE_LEDGER_FOR_OPEN:
+                ledger_amt = _ledger_last_known_amt(self.redis, intent["symbol"])
+                if math.isnan(ledger_amt):
+                    logger.info(f"Skip publish: {intent['symbol']} BUY but ledger unknown (strict mode, plan_id={plan_id[:8]})")
+                    self._mark_seen(stream_id_str)
+                    self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
+                    return
+            else:
+                # Default: Allow OPEN even without ledger (deadlock fix)
+                ledger_amt = _ledger_last_known_amt(self.redis, intent["symbol"])
+                if math.isnan(ledger_amt):
+                    logger.info(f"LEDGER_MISSING_OPEN allowed: symbol={intent['symbol']} side=BUY (plan_id={plan_id[:8]})")
+        
+        elif intent["side"].upper() == "SELL":
+            # SELL/CLOSE: Always check ledger if SKIP_FLAT_SELL enabled
+            if SKIP_FLAT_SELL:
+                ledger_amt = _ledger_last_known_amt(self.redis, intent["symbol"])
+                if math.isnan(ledger_amt):
+                    # Prefer snapshot truth over ledger, but if both missing, block
+                    # TODO: Check quantum:position:snapshot:{symbol} as fallback
+                    logger.info(f"Skip publish: {intent['symbol']} SELL but ledger unknown (plan_id={plan_id[:8]})")
+                    self._mark_seen(stream_id_str)
+                    self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
+                    return
+                if abs(ledger_amt) <= FLAT_EPS:
+                    logger.info(f"Skip publish: {intent['symbol']} SELL but ledger flat (last_known_amt={ledger_amt}, plan_id={plan_id[:8]})")
+                    self._mark_seen(stream_id_str)
+                    self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
+                    return
         
         # Gate: AI-driven exposure check for new entries (BUY only)
         # Let RL Agent + Governor decide optimal position count via exposure limits
