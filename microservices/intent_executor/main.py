@@ -567,6 +567,82 @@ class IntentExecutor:
         except Exception as e:
             logger.error(f"Failed to update ledger for {symbol}: {e}")
     
+    def _commit_ledger_exactly_once(self, symbol: str, order_id: int, filled_qty: float):
+        """
+        Exactly-once ledger commit on FILLED orders (idempotent on order_id)
+        
+        This ensures quantum:position:ledger:<symbol> reflects exchange truth
+        with zero lag, using exchange snapshot as source of truth.
+        
+        Dedup: Uses quantum:ledger:seen_orders set to prevent double-counting
+        Source: quantum:position:snapshot:<symbol> (updated by P3.3 from exchange)
+        
+        Args:
+            symbol: Trading pair
+            order_id: Binance order ID (unique)
+            filled_qty: Quantity filled on this order
+        """
+        try:
+            # Dedup check: Skip if order already processed
+            seen_orders_key = "quantum:ledger:seen_orders"
+            is_duplicate = self.redis.sismember(seen_orders_key, str(order_id))
+            
+            if is_duplicate:
+                logger.debug(f"LEDGER_COMMIT_SKIP symbol={symbol} order_id={order_id} (duplicate)")
+                return
+            
+            # Mark order as seen (atomic, idempotent)
+            self.redis.sadd(seen_orders_key, str(order_id))
+            
+            # Fetch exchange truth from P3.3 snapshot
+            snapshot_key = f"quantum:position:snapshot:{symbol}"
+            snapshot = self.redis.hgetall(snapshot_key)
+            
+            if not snapshot:
+                logger.warning(
+                    f"LEDGER_COMMIT_SKIP symbol={symbol} order_id={order_id} "
+                    f"(no snapshot available, P3.3 may not have refreshed yet)"
+                )
+                return
+            
+            # Extract position data from snapshot (exchange truth)
+            position_amt = float(snapshot.get(b"position_amt", b"0").decode())
+            entry_price = float(snapshot.get(b"entry_price", b"0").decode())
+            side = snapshot.get(b"side", b"FLAT").decode()
+            unrealized_pnl = float(snapshot.get(b"unrealized_pnl", b"0").decode())
+            leverage = int(float(snapshot.get(b"leverage", b"1").decode()))
+            
+            # Build ledger payload (source: exchange snapshot)
+            ledger_key = f"quantum:position:ledger:{symbol}"
+            ledger_payload = {
+                "position_amt": str(abs(position_amt)),
+                "avg_entry_price": str(entry_price),
+                "side": side,
+                "unrealized_pnl": str(unrealized_pnl),
+                "leverage": str(leverage),
+                "last_order_id": str(order_id),
+                "last_filled_qty": str(filled_qty),
+                "last_update_ts": str(int(time.time())),
+                "source": "intent_executor_exactly_once"
+            }
+            
+            # Atomic ledger write
+            self.redis.hset(ledger_key, mapping=ledger_payload)
+            
+            logger.info(
+                f"LEDGER_COMMIT symbol={symbol} order_id={order_id} "
+                f"amt={abs(position_amt):.4f} side={side} "
+                f"entry_price={entry_price:.2f} unrealized_pnl={unrealized_pnl:.2f} "
+                f"filled_qty={filled_qty:.4f}"
+            )
+            
+        except Exception as e:
+            logger.error(
+                f"LEDGER_COMMIT_FAILED symbol={symbol} order_id={order_id}: {e}",
+                exc_info=True
+            )
+            # Non-blocking: Log failure but don't crash execution flow
+    
     def _write_result(self, plan_id: str, symbol: str, executed: bool, **kwargs):
         """Write execution result to apply.result stream"""
         result = {
@@ -863,6 +939,10 @@ class IntentExecutor:
                 # Update ledger with fresh position after order (optional, timer already syncs)
                 if UPDATE_LEDGER_AFTER_EXEC:
                     self._update_ledger(symbol)
+                
+                # Exactly-once ledger commit (idempotent on order_id)
+                if final_status == "FILLED":
+                    self._commit_ledger_exactly_once(symbol, order_id, final_filled)
                 
                 self._write_result(
                     plan_id, symbol, executed=True,
