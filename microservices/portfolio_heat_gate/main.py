@@ -271,7 +271,8 @@ class PortfolioHeatGate:
             # Extract proposal fields
             plan_id = data.get(b"plan_id", b"").decode()
             symbol = data.get(b"symbol", b"").decode()
-            action = data.get(b"action", b"").decode()
+            # FIX: Harvest Proposal Publisher writes "harvest_action" not "action"
+            action = data.get(b"harvest_action", b"").decode()
             trace_id = data.get(b"trace_id", str(uuid.uuid4()).encode()).decode()
             
             if not plan_id or not symbol or not action:
