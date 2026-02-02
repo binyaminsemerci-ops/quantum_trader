@@ -362,10 +362,16 @@ class IntentExecutor:
         start_time = time.time()
         
         while time.time() - start_time < PERMIT_TIMEOUT_SEC:
-            permit_json = self.redis.get(key)
-            if permit_json:
+            # Permit is stored as HASH not STRING
+            permit_data = self.redis.hgetall(key)
+            if permit_data:
                 try:
-                    permit = json.loads(permit_json.decode() if isinstance(permit_json, bytes) else permit_json)
+                    # Convert bytes keys/values to strings
+                    permit = {
+                        k.decode() if isinstance(k, bytes) else k: 
+                        v.decode() if isinstance(v, bytes) else v 
+                        for k, v in permit_data.items()
+                    }
                     return permit
                 except Exception as e:
                     logger.warning(f"Failed to parse permit: {e}")
@@ -613,17 +619,39 @@ class IntentExecutor:
             unrealized_pnl = float(snapshot.get(b"unrealized_pnl", b"0").decode())
             leverage = int(float(snapshot.get(b"leverage", b"1").decode()))
             
+            # Derive ledger side from SIGNED position_amt (P3.3 contract)
+            eps = 1e-12
+            if abs(position_amt) <= eps:
+                ledger_side = "FLAT"
+                # Zero out all fields when FLAT (clean state)
+                entry_price = 0.0
+                unrealized_pnl = 0.0
+                filled_qty = 0.0
+            elif position_amt > 0:
+                ledger_side = "LONG"
+            else:
+                ledger_side = "SHORT"
+            
             # Build ledger payload (source: exchange snapshot)
+            # CRITICAL: position_amt MUST be signed (negative=SHORT, positive=LONG)
+            # P3.3 reads last_known_amt to derive ledger_side by sign
             ledger_key = f"quantum:position:ledger:{symbol}"
             ledger_payload = {
-                "position_amt": str(abs(position_amt)),
+                "position_amt": str(position_amt),  # SIGNED: keep negative for SHORT
+                "last_known_amt": str(position_amt),  # P3.3 reads this field
+                "qty": str(abs(position_amt)),  # Magnitude (always positive)
+                "side": ledger_side,  # Derived from sign
+                "last_side": ledger_side,
                 "avg_entry_price": str(entry_price),
-                "side": side,
+                "entry_price": str(entry_price),
                 "unrealized_pnl": str(unrealized_pnl),
                 "leverage": str(leverage),
                 "last_order_id": str(order_id),
                 "last_filled_qty": str(filled_qty),
+                "last_executed_qty": str(filled_qty),
                 "last_update_ts": str(int(time.time())),
+                "updated_at": str(int(time.time())),
+                "synced_at": str(int(time.time())),
                 "source": "intent_executor_exactly_once"
             }
             
@@ -632,7 +660,7 @@ class IntentExecutor:
             
             logger.info(
                 f"LEDGER_COMMIT symbol={symbol} order_id={order_id} "
-                f"amt={abs(position_amt):.4f} side={side} "
+                f"amt={position_amt:.4f} side={ledger_side} "
                 f"entry_price={entry_price:.2f} unrealized_pnl={unrealized_pnl:.2f} "
                 f"filled_qty={filled_qty:.4f}"
             )
@@ -812,12 +840,17 @@ class IntentExecutor:
             # For empty source (P3.3 bypass), wait for permit (it will be created after plan arrives)
             # For other sources, try cached permit first, then wait if needed
             permit_key = f"quantum:permit:p33:{plan_id}"
-            permit_json = self.redis.get(permit_key)
+            permit_data = self.redis.hgetall(permit_key)  # FIX: HASH not STRING
             
-            if permit_json:
+            if permit_data:
                 # Permit already exists (cached)
                 try:
-                    permit = json.loads(permit_json.decode() if isinstance(permit_json, bytes) else permit_json)
+                    # Convert bytes keys/values to strings
+                    permit = {
+                        k.decode() if isinstance(k, bytes) else k: 
+                        v.decode() if isinstance(v, bytes) else v 
+                        for k, v in permit_data.items()
+                    }
                     if source == '':
                         logger.info(f"✅ Permit found immediately (P3.3 bypass): {plan_id[:8]}")
                     else:
