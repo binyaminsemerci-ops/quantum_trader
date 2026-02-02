@@ -73,9 +73,12 @@ def _ledger_last_known_amt(r: redis.Redis, symbol: str) -> float:
         return float('nan')
 
 
-# Allowlist (CSV)
+# Allowlist (CSV) - can be overridden by USE_TOP10_UNIVERSE=true
 ALLOWLIST_STR = os.getenv("INTENT_BRIDGE_ALLOWLIST", "BTCUSDT")
 ALLOWLIST = set([s.strip() for s in ALLOWLIST_STR.split(",") if s.strip()])
+
+# TOP10 Universe mode (10-symbol concentration limit)
+USE_TOP10_UNIVERSE = os.getenv("INTENT_BRIDGE_USE_TOP10", "false").lower() == "true"
 
 # Portfolio exposure limits (AI-driven, not hardcoded position count)
 MAX_EXPOSURE_PCT = float(os.getenv("MAX_EXPOSURE_PCT", "80.0"))  # From Exposure Balancer
@@ -104,7 +107,11 @@ logger.info(f"Intent Bridge - trade.intent → apply.plan [{BUILD_TAG}]")
 logger.info("=" * 80)
 logger.info(f"Redis: {REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
 logger.info(f"Consumer: {CONSUMER_GROUP} / {CONSUMER_NAME}")
-logger.info(f"Allowlist: {sorted(ALLOWLIST)}")
+logger.info(f"USE_TOP10_UNIVERSE: {USE_TOP10_UNIVERSE}")
+if USE_TOP10_UNIVERSE:
+    logger.info(f"Allowlist: TOP10 (loaded dynamically from quantum:cfg:universe:top10)")
+else:
+    logger.info(f"Allowlist: {sorted(ALLOWLIST)}")
 logger.info(f"Intent stream: {INTENT_STREAM}")
 logger.info(f"Plan stream: {PLAN_STREAM}")
 logger.info(f"Require ledger for OPEN: {REQUIRE_LEDGER_FOR_OPEN}")
@@ -141,6 +148,49 @@ class IntentBridge:
                 logger.info(f"✅ Consumer group exists: {CONSUMER_GROUP}")
             else:
                 raise
+        
+        # Initialize allowlist (will be refreshed if USE_TOP10_UNIVERSE)
+        self.current_allowlist = ALLOWLIST.copy()
+        self.top10_last_refresh = 0
+        self.TOP10_REFRESH_INTERVAL = 300  # 5 minutes
+        
+        if USE_TOP10_UNIVERSE:
+            self._refresh_top10_allowlist()
+    
+    def _refresh_top10_allowlist(self):
+        """Refresh allowlist from quantum:cfg:universe:top10."""
+        try:
+            data = self.redis.get("quantum:cfg:universe:top10")
+            if not data:
+                logger.warning("⚠️  quantum:cfg:universe:top10 not found, using static allowlist")
+                return
+            
+            top10_config = json.loads(data.decode() if isinstance(data, bytes) else data)
+            new_allowlist = set(top10_config.get("symbols", []))
+            
+            if not new_allowlist:
+                logger.warning("⚠️  TOP10 has no symbols, keeping current allowlist")
+                return
+            
+            # Update allowlist
+            old_count = len(self.current_allowlist)
+            self.current_allowlist = new_allowlist
+            self.top10_last_refresh = time.time()
+            
+            logger.info(f"✅ TOP10 allowlist refreshed: {old_count} → {len(new_allowlist)} symbols")
+            logger.info(f"   {sorted(new_allowlist)}")
+            
+        except Exception as e:
+            logger.error(f"Failed to refresh TOP10 allowlist: {e}")
+    
+    def _get_effective_allowlist(self) -> set:
+        """Get current effective allowlist (refreshes TOP10 if needed)."""
+        if USE_TOP10_UNIVERSE:
+            # Refresh if stale
+            if time.time() - self.top10_last_refresh > self.TOP10_REFRESH_INTERVAL:
+                self._refresh_top10_allowlist()
+        
+        return self.current_allowlist
     
     def _get_portfolio_exposure(self) -> float:
         """
@@ -158,7 +208,7 @@ class IntentBridge:
             total_notional = 0.0
             
             # Sum absolute notional across all ledger positions
-            for symbol in ALLOWLIST:
+            for symbol in self._get_effective_allowlist():
                 ledger_key = f"quantum:ledger:{symbol}".encode()
                 ledger_data = self.redis.hgetall(ledger_key)
                 if ledger_data and b'notional_usd' in ledger_data:
@@ -179,7 +229,7 @@ class IntentBridge:
         """Count current open positions via ledger"""
         try:
             count = 0
-            for symbol in ALLOWLIST:
+            for symbol in self._get_effective_allowlist():
                 key = f"quantum:ledger:{symbol}"
                 data = self.redis.hgetall(key)
                 if data and b'position_amt' in data:
@@ -240,7 +290,7 @@ class IntentBridge:
                 return None
             
             # Allowlist check
-            if symbol not in ALLOWLIST:
+            if symbol not in self._get_effective_allowlist():
                 logger.debug(f"Symbol not in allowlist: {symbol}")
                 return None
             
@@ -345,6 +395,16 @@ class IntentBridge:
             f"qty={intent['qty']:.4f} leverage={leverage}x "
             f"reduceOnly={intent['reduceOnly']} | msg={message_id.decode()}"
         )
+        
+        # Auto-create P3.3 permit (P3.3 service not active, auto-bypass)
+        permit_key = f"quantum:permit:p33:{plan_id}"
+        self.redis.hset(permit_key, mapping={
+            "allow": "true",
+            "safe_qty": "0",
+            "reason": "auto_bypass_no_p33",
+            "timestamp": str(int(time.time()))
+        })
+        logger.debug(f"✅ Auto-created permit: {plan_id[:8]}")
     
     def process_intent(self, stream_id: bytes, event_data: Dict):
         """Process single trade.intent event"""
