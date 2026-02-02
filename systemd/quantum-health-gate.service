@@ -1,0 +1,16 @@
+[Unit]
+Description=Quantum Trader Health Gate Monitor
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /root/quantum_trader/scripts/health_gate.sh
+User=root
+StandardOutput=journal
+StandardError=journal
+
+# Alert on failure (optional: integrate with alerting system)
+# ExecStartPost=/usr/local/bin/send_alert_if_failed.sh
+
+[Install]
+WantedBy=multi-user.target

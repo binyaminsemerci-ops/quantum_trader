@@ -1,0 +1,13 @@
+[Unit]
+Description=Quantum Trader Health Gate Monitor (Every 5 Minutes)
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+Requires=quantum-health-gate.service
+
+[Timer]
+# Run every 5 minutes
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
