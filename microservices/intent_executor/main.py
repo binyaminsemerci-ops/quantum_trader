@@ -927,6 +927,8 @@ class IntentExecutor:
                     f"order_id={order_id} status={final_status} filled={final_filled:.4f}"
                 )
                 
+                logger.info(f"🔍 DEBUG: final_status='{final_status}' type={type(final_status)} equals_FILLED={final_status == 'FILLED'}")
+                
                 # Set execution-based cooldown timestamp (ms)
                 cooldown_key = f"quantum:cooldown:last_exec_ts:{symbol}"
                 self.redis.set(cooldown_key, str(int(time.time() * 1000)))
