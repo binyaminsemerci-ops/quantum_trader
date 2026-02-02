@@ -2,6 +2,8 @@
 """
 P3 Apply Layer - Harvest Proposal Consumer
 
+BUILD_TAG: apply-layer-entry-exit-sep-v1
+
 Reads harvest proposals from Redis, creates apply plans, and optionally executes them.
 
 Modes:
@@ -10,6 +12,7 @@ Modes:
 
 Safety gates:
 - Allowlist (default: BTCUSDT only)
+- Entry/Exit separation (open_threshold=0.85, close_threshold=0.65, qty_scale)
 - Kill score thresholds (>=0.8 block all, >=0.6 block risk increase)
 - Idempotency (Redis SETNX dedupe)
 - Kill switch (emergency stop)
@@ -21,6 +24,7 @@ import time
 import json
 import hashlib
 import logging
+import math
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -73,6 +77,16 @@ logger = logging.getLogger(__name__)
 # TESTNET=true: Governor bypass (for development/testing)
 # TESTNET=false: Require THREE permits (production safety)
 TESTNET_MODE = os.getenv("TESTNET", "false").lower() in ("true", "1", "yes")
+
+# ---- DEV MODE: Dedupe bypass for rapid testing ----
+# APPLY_DEDUPE_BYPASS=true: 5s TTL (dev/QA only)
+# APPLY_DEDUPE_BYPASS=false: 5min TTL (production default)
+DEDUPE_BYPASS = os.getenv("APPLY_DEDUPE_BYPASS", "false").lower() in ("true", "1", "yes")
+DEDUPE_TTL = 5 if DEDUPE_BYPASS else 300  # 5 sec vs 5 min
+
+# ---- Position Guard: Epsilon for floating point comparison ----
+POSITION_EPSILON = 1e-12  # abs(position_amt) > epsilon means "has position"
+
 if TESTNET_MODE:
     logger.warning("ΓÜá∩╕Å  TESTNET MODE ENABLED - Governor bypass active (NO PRODUCTION USAGE)")
 else:
@@ -721,6 +735,13 @@ class ApplyLayer:
         # Safety thresholds
         self.k_block_critical = float(os.getenv("K_BLOCK_CRITICAL", 0.80))
         self.k_block_warning = float(os.getenv("K_BLOCK_WARNING", 0.60))
+        
+        # Entry/Exit Separation (apply-layer-entry-exit-sep-v1)
+        self.k_open_threshold = float(os.getenv("K_OPEN_THRESHOLD", 0.85))
+        self.k_close_threshold = float(os.getenv("K_CLOSE_THRESHOLD", 0.65))
+        self.k_open_critical = float(os.getenv("K_OPEN_CRITICAL", 0.95))
+        self.qty_scale_alpha = float(os.getenv("QTY_SCALE_ALPHA", 2.0))
+        self.qty_scale_min = float(os.getenv("QTY_SCALE_MIN", 0.25))
         self.kill_switch = os.getenv("APPLY_KILL_SWITCH", "false").lower() == "true"
         
         # Prometheus metrics
@@ -752,6 +773,9 @@ class ApplyLayer:
         logger.info(f"  Allowlist: {self.allowlist}")
         logger.info(f"  Poll interval: {self.poll_interval}s")
         logger.info(f"  K thresholds: critical={self.k_block_critical}, warning={self.k_block_warning}")
+        logger.info(f"  Entry/Exit: open_threshold={self.k_open_threshold}, close_threshold={self.k_close_threshold}, "
+                    f"open_critical={self.k_open_critical}, qty_scale_alpha={self.qty_scale_alpha}, qty_scale_min={self.qty_scale_min}")
+        logger.info(f"  Dedupe: TTL={DEDUPE_TTL}s (bypass={DEDUPE_BYPASS})")
         logger.info(f"  Kill switch: {self.kill_switch}")
         logger.info(f"  Metrics port: {self.metrics_port}")
         logger.info(f"  P2.8A Heat Observer: {self.p28_enabled}")
@@ -964,13 +988,110 @@ class ApplyLayer:
         fingerprint = f"{symbol}:{proposal['harvest_action']}:{proposal['kill_score']:.6f}:{proposal.get('new_sl_proposed', 'none')}:{proposal['computed_at_utc']}"
         return hashlib.sha256(fingerprint.encode()).hexdigest()[:16]
     
+    def has_position(self, symbol: str) -> bool:
+        """
+        Check if symbol has an active position (fail-soft UPDATE_SL guard)
+        
+        Checks Redis position snapshot (quantum:position:snapshot:<symbol>)
+        Returns: True if position exists with abs(position_amt) > POSITION_EPSILON
+        
+        Handles:
+        - SHORT positions (negative position_amt)
+        - Empty string or missing field (treated as 0.0)
+        - Redis errors (fail-soft to False)
+        """
+        try:
+            key = f"quantum:position:snapshot:{symbol}"
+            data = self.redis.hgetall(key)
+            if not data:
+                return False
+            
+            # Handle missing field, empty string, or None
+            position_amt_raw = data.get("position_amt", "0")
+            if not position_amt_raw or position_amt_raw == "":
+                position_amt = 0.0
+            else:
+                position_amt = float(position_amt_raw)
+            
+            # Use abs() to handle SHORT positions (negative amounts)
+            has_pos = abs(position_amt) > POSITION_EPSILON
+            return has_pos
+        except (ValueError, TypeError) as e:
+            logger.warning(f"{symbol}: Position parse failed: {e}")
+            return False  # Fail-soft: assume no position
+        except Exception as e:
+            logger.warning(f"{symbol}: Position check failed: {e}")
+            return False  # Fail-soft: assume no position
+    
+    def normalize_action(self, action: str, proposal: Dict[str, Any], symbol: str) -> tuple[str, Optional[str]]:
+        """
+        Normalize action field to standard values (apply-layer-entry-exit-sep-v1)
+        
+        Handles:
+        - UNKNOWN action → infer from proposal fields
+        - Synonyms (ENTRY/ENTER/OPEN → OPEN, EXIT/REDUCE/CLOSE → CLOSE)
+        - Missing action → default to HOLD
+        
+        Returns: (normalized_action, reason_code_or_none)
+        """
+        original_action = action
+        reason_code = None
+        
+        # Handle UNKNOWN or None
+        if not action or action == "UNKNOWN":
+            # Infer from proposal fields
+            if proposal.get("new_sl_proposed"):
+                # Has SL update → CHECK if position exists (fail-soft guard)
+                if self.has_position(symbol):
+                    action = "UPDATE_SL"
+                    reason_code = f"action_normalized_unknown_to_update_sl"
+                    logger.info(f"ACTION_NORMALIZED {symbol}: from={original_action} to={action} (has new_sl_proposed={proposal['new_sl_proposed']:.2f})")
+                else:
+                    # No position → HOLD (fail-soft)
+                    action = "HOLD"
+                    reason_code = f"update_sl_no_position_skip"
+                    logger.info(f"UPDATE_SL_SKIP_NO_POSITION {symbol}: proposed_sl={proposal['new_sl_proposed']:.2f} (no_position)")
+            else:
+                # No action indicators → HOLD (safe default)
+                action = "HOLD"
+                reason_code = f"action_normalized_unknown_to_hold"
+                logger.info(f"ACTION_NORMALIZED {symbol}: from={original_action} to={action} (no_indicators)")
+            return action, reason_code
+        
+        # Normalize synonyms
+        action_upper = action.upper()
+        
+        # CLOSE synonyms
+        if action_upper in ["EXIT", "REDUCE", "CLOSE", "FULL_CLOSE"]:
+            action = "FULL_CLOSE_PROPOSED"
+            reason_code = f"action_normalized_{original_action.lower()}_to_close"
+            logger.info(f"ACTION_NORMALIZED {symbol}: from={original_action} to={action} (close_synonym)")
+        
+        # OPEN synonyms (not used in harvest context, but handle for robustness)
+        elif action_upper in ["ENTRY", "ENTER", "OPEN"]:
+            action = "HOLD"  # Harvest layer doesn't open positions, map to HOLD
+            reason_code = f"action_normalized_{original_action.lower()}_to_hold"
+            logger.info(f"ACTION_NORMALIZED {symbol}: from={original_action} to={action} (open_synonym_ignored)")
+        
+        # Already standard actions (pass through)
+        elif action in ["FULL_CLOSE_PROPOSED", "PARTIAL_75", "PARTIAL_50", "UPDATE_SL", "HOLD"]:
+            pass  # No normalization needed, reason_code=None
+        
+        else:
+            # Unknown action variant → default to HOLD (fail-soft)
+            logger.warning(f"ACTION_NORMALIZED {symbol}: from={original_action} to=HOLD (unknown_variant_fail_soft)")
+            action = "HOLD"
+            reason_code = f"action_normalized_{original_action.lower()}_unknown_variant"
+        
+        return action, reason_code
+    
     def check_idempotency(self, plan_id: str) -> bool:
         """Check if plan already executed (returns True if duplicate)"""
         key = f"quantum:apply:dedupe:{plan_id}"
         result = self.redis.setnx(key, int(time.time()))
         if result == 1:
-            # New plan, set TTL
-            self.redis.expire(key, self.dedupe_ttl)
+            # New plan, set TTL (use DEDUPE_TTL for dev bypass support)
+            self.redis.expire(key, DEDUPE_TTL)
             return False
         else:
             # Duplicate
@@ -1014,17 +1135,47 @@ class ApplyLayer:
             logger.warning(f"{symbol}: Kill score {proposal['kill_score']:.3f} >= {self.k_block_critical} (critical)")
         
         elif proposal["kill_score"] >= self.k_block_warning:
-            # Allow only CLOSE/tighten, block risk increase
+            # Entry/Exit Separation (apply-layer-entry-exit-sep-v1)
             action = proposal["harvest_action"]
-            if action in ["FULL_CLOSE_PROPOSED", "PARTIAL_75", "PARTIAL_50"]:
-                # Closing actions OK
-                decision = Decision.EXECUTE
-                reason_codes.append("kill_score_warning_close_ok")
-                logger.info(f"{symbol}: Kill score {proposal['kill_score']:.3f} >= {self.k_block_warning} but action {action} is close (OK)")
+            
+            # Detect action type
+            is_close_action = action in ["FULL_CLOSE_PROPOSED", "PARTIAL_75", "PARTIAL_50"]
+            
+            if is_close_action:
+                # CLOSE: use stricter threshold (fail-closed)
+                threshold = self.k_close_threshold
+                if proposal["kill_score"] >= threshold:
+                    decision = Decision.BLOCKED
+                    reason_codes.append("kill_score_close_blocked")
+                    logger.warning(f"{symbol}: CLOSE blocked kill_score={proposal['kill_score']:.3f} >= threshold={threshold:.3f} (regime_flip={proposal.get('k_regime_flip',0):.2f})")
+                else:
+                    decision = Decision.EXECUTE
+                    reason_codes.append("kill_score_close_ok")
+                    logger.info(f"{symbol}: CLOSE allowed kill_score={proposal['kill_score']:.3f} < threshold={threshold:.3f}")
             else:
-                decision = Decision.BLOCKED
-                reason_codes.append("kill_score_warning_risk_increase")
-                logger.warning(f"{symbol}: Kill score {proposal['kill_score']:.3f} >= {self.k_block_warning}, blocking non-close action {action}")
+                # OPEN: use permissive threshold + qty_scale (fail-soft)
+                threshold = self.k_open_threshold
+                
+                if proposal["kill_score"] >= self.k_open_critical:
+                    # Extreme kill_score → hard block
+                    decision = Decision.BLOCKED
+                    reason_codes.append("kill_score_open_critical")
+                    logger.warning(f"{symbol}: OPEN blocked (critical) kill_score={proposal['kill_score']:.3f} >= critical={self.k_open_critical:.3f}")
+                elif proposal["kill_score"] >= threshold:
+                    # High kill_score → allow with qty_scale
+                    excess = proposal["kill_score"] - threshold
+                    qty_scale = math.exp(-self.qty_scale_alpha * excess)
+                    qty_scale = max(self.qty_scale_min, min(1.0, qty_scale))
+                    
+                    proposal["qty_scale"] = qty_scale  # Store for downstream
+                    decision = Decision.EXECUTE
+                    reason_codes.append("kill_score_open_scaled")
+                    logger.info(f"{symbol}: OPEN scaled kill_score={proposal['kill_score']:.3f} threshold={threshold:.3f} qty_scale={qty_scale:.2f} (regime_flip={proposal.get('k_regime_flip',0):.2f})")
+                else:
+                    # Normal kill_score → allow full size
+                    decision = Decision.EXECUTE
+                    reason_codes.append("kill_score_open_ok")
+                    logger.info(f"{symbol}: OPEN allowed kill_score={proposal['kill_score']:.3f} < threshold={threshold:.3f}")
         
         # Safety gate 4: Idempotency
         if decision == Decision.EXECUTE:
@@ -1035,7 +1186,10 @@ class ApplyLayer:
         
         # Build execution steps
         if decision == Decision.EXECUTE:
-            action = proposal["harvest_action"]
+            # Normalize action before building steps (apply-layer-entry-exit-sep-v1)
+            action, norm_reason = self.normalize_action(proposal["harvest_action"], proposal, symbol)
+            if norm_reason:
+                reason_codes.append(norm_reason)
             
             if action == "FULL_CLOSE_PROPOSED":
                 steps.append({
@@ -1933,7 +2087,7 @@ class ApplyLayer:
                 else:
                     # Publish skip/blocked result
                     # Extract reason from reason_codes if available
-                    error_reason = reason_codes[0] if reason_codes else plan.decision
+                    error_reason = plan.reason_codes[0] if plan.reason_codes else plan.decision
                     result = ApplyResult(
                         plan_id=plan.plan_id,
                         symbol=plan.symbol,
