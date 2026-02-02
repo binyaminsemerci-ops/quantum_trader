@@ -570,7 +570,13 @@ class PositionStateBrain:
         }
     
     def update_ledger(self, symbol: str, result: Dict):
-        """Update internal ledger from executed result"""
+        """
+        Update ledger metadata from executed result.
+        
+        NOTE: Executor owns position_amt and last_known_amt (signed, from exchange snapshot).
+        P3.3 only updates metadata fields (last_order_id, last_result_plan_id, timestamps).
+        DO NOT update last_known_amt here - it causes sign corruption!
+        """
         if not result.get('executed'):
             return
         
@@ -586,7 +592,7 @@ class PositionStateBrain:
         executed_qty = float(last_step.get('executed_qty', 0))
         side = last_step.get('side', 'UNKNOWN')
         
-        # Update ledger
+        # Update ledger METADATA only (executor owns position_amt/last_known_amt)
         ledger_data = {
             'last_order_id': order_id,
             'last_result_plan_id': result['plan_id'],
@@ -595,27 +601,20 @@ class PositionStateBrain:
             'updated_at': int(time.time())
         }
         
-        # Read current ledger amt, update based on execution
-        current_data = self.redis.hgetall(ledger_key)
-        current_amt = float(current_data.get('last_known_amt', 0)) if current_data else 0.0
-        
-        # Reduce position (reduceOnly orders)
-        if side == 'SELL' and current_amt > 0:
-            new_amt = max(0, current_amt - executed_qty)
-        elif side == 'BUY' and current_amt < 0:
-            new_amt = min(0, current_amt + executed_qty)
-        else:
-            new_amt = current_amt  # No change if unexpected
-        
-        ledger_data['last_known_amt'] = new_amt
+        # DO NOT update last_known_amt - executor writes this from exchange snapshot (signed)
+        # Old code caused sign corruption: abs() logic overwrote executor's negative SHORT values
         
         self.redis.hset(ledger_key, mapping=ledger_data)
         self.redis.expire(ledger_key, 86400)  # 24 hour TTL
         
-        if PROMETHEUS_AVAILABLE:
-            self.metric_ledger_amt.labels(symbol=symbol).set(new_amt)
+        # Read current amt for metrics only (don't modify it)
+        current_data = self.redis.hgetall(ledger_key)
+        current_amt = float(current_data.get('last_known_amt', 0)) if current_data else 0.0
         
-        logger.info(f"{symbol}: Ledger updated (order={order_id}, new_amt={new_amt:.4f})")
+        if PROMETHEUS_AVAILABLE:
+            self.metric_ledger_amt.labels(symbol=symbol).set(current_amt)
+        
+        logger.info(f"{symbol}: Ledger metadata updated (order={order_id}, current_amt={current_amt:.4f})")
     
     def get_ledger(self, symbol: str) -> Optional[Dict]:
         """Get internal ledger state"""
