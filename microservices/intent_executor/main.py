@@ -582,6 +582,7 @@ class IntentExecutor:
             order_id: Binance order ID (unique)
             filled_qty: Quantity filled on this order
         """
+        logger.info(f"🔍 LEDGER_COMMIT_START symbol={symbol} order_id={order_id} filled_qty={filled_qty}")
         try:
             # Dedup check: Skip if order already processed
             seen_orders_key = "quantum:ledger:seen_orders"
@@ -942,6 +943,7 @@ class IntentExecutor:
                 
                 # Exactly-once ledger commit (idempotent on order_id)
                 if final_status == "FILLED":
+                    logger.info(f"🔍 DEBUG: Calling ledger commit for {symbol} order_id={order_id}")
                     self._commit_ledger_exactly_once(symbol, order_id, final_filled)
                 
                 self._write_result(
