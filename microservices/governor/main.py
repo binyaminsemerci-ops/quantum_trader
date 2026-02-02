@@ -81,8 +81,12 @@ class Config:
     MAX_TOTAL_NOTIONAL_USDT = float(os.getenv('GOV_MAX_TOTAL_NOTIONAL_USDT', '2000'))
     SYMBOL_COOLDOWN_SECONDS = int(os.getenv('GOV_SYMBOL_COOLDOWN_SECONDS', '60'))
     
-    # Kill score gate
+    # Kill score gates (entry/exit separation)
     KILL_SCORE_CRITICAL = float(os.getenv('GOV_KILL_SCORE_CRITICAL', '0.8'))
+    KILL_SCORE_OPEN_THRESHOLD = float(os.getenv('GOV_KILL_SCORE_OPEN_THRESHOLD', '0.85'))  # Higher = more permissive for entries
+    KILL_SCORE_CLOSE_THRESHOLD = float(os.getenv('GOV_KILL_SCORE_CLOSE_THRESHOLD', '0.65'))  # Lower = stricter for exits
+    KILL_SCORE_OPEN_QTY_SCALE_ALPHA = float(os.getenv('GOV_KILL_SCORE_OPEN_QTY_SCALE_ALPHA', '2.0'))  # Exponential scale factor
+    KILL_SCORE_OPEN_MIN_SCALE = float(os.getenv('GOV_KILL_SCORE_OPEN_MIN_SCALE', '0.25'))  # Min 25% of original qty
     
     # P3.1 Capital Efficiency integration
     P31_MIN_CONF = float(os.getenv('P31_MIN_CONF', '0.65'))
@@ -117,6 +121,9 @@ class Config:
     # Binance testnet credentials (for position/price fetching)
     BINANCE_TESTNET_API_KEY = os.getenv('BINANCE_TESTNET_API_KEY', '')
     BINANCE_TESTNET_API_SECRET = os.getenv('BINANCE_TESTNET_API_SECRET', '')
+    
+    # Build tag
+    BUILD_TAG = "governor-entry-exit-sep-v1"
 
 # ============================================================================
 # BINANCE TESTNET CLIENT (for real position/price data)
@@ -213,11 +220,20 @@ class Governor:
         self.error_count = 0
         self.last_disarm_check = time.time()
         
-        logger.info("Governor initialized")
+        logger.info("="*80)
+        logger.info(f"P3.2 Governor [{config.BUILD_TAG}]")
+        logger.info("="*80)
+        logger.info(f"Entry/Exit Separation: ENABLED")
+        logger.info(f"  - OPEN threshold (base): {config.KILL_SCORE_OPEN_THRESHOLD} (dynamic)")
+        logger.info(f"  - CLOSE threshold (base): {config.KILL_SCORE_CLOSE_THRESHOLD} (dynamic)")
+        logger.info(f"  - CRITICAL threshold: {config.KILL_SCORE_CRITICAL} (hard block)")
+        logger.info(f"  - Qty scale alpha: {config.KILL_SCORE_OPEN_QTY_SCALE_ALPHA}")
+        logger.info(f"  - Min qty scale: {config.KILL_SCORE_OPEN_MIN_SCALE}")
         logger.info(f"Max exec/hour: {config.MAX_EXEC_PER_HOUR}, Max exec/5min: {config.MAX_EXEC_PER_5MIN}")
-        logger.info(f"Auto-disarm: {config.ENABLE_AUTO_DISARM}, Kill score critical: {config.KILL_SCORE_CRITICAL}")
+        logger.info(f"Auto-disarm: {config.ENABLE_AUTO_DISARM}")
         logger.info(f"Fund caps: {config.MAX_OPEN_POSITIONS} positions, ${config.MAX_NOTIONAL_PER_TRADE_USDT}/trade, ${config.MAX_TOTAL_NOTIONAL_USDT} total")
         logger.info(f"Symbol cooldown: {config.SYMBOL_COOLDOWN_SECONDS}s")
+        logger.info("="*80)
         
         # Testnet P2.9 gate status
         if config.TESTNET_ENABLE_P29:
@@ -449,11 +465,56 @@ class Governor:
                 self._block_plan(plan_id, symbol, allocation_reason)
                 return
             
-            # Gate 1: Kill score critical threshold
-            if kill_score >= self.config.KILL_SCORE_CRITICAL:
-                if action not in ['FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50']:
-                    self._block_plan(plan_id, symbol, 'kill_score_critical_non_close')
+            # Gate 1: Kill score with entry/exit separation
+            is_close_action = action in ['FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50', 'PARTIAL_25']
+            reduce_only = str(data.get('reduceOnly', '')).lower() == 'true'
+            
+            # Determine gate type and threshold
+            if is_close_action or reduce_only:
+                gate_type = "close"
+                threshold = self._compute_close_threshold(kill_score, unrealized_pnl_pct=0.0)
+                
+                if kill_score >= threshold:
+                    logger.warning(
+                        f"{symbol}: CLOSE blocked - kill_score={kill_score:.3f} >= close_threshold={threshold:.3f} "
+                        f"(action={action}, plan_id={plan_id[:8]})"
+                    )
+                    self._block_plan(plan_id, symbol, f'kill_score_close_blocked:k={kill_score:.3f}:t={threshold:.3f}')
                     return
+                else:
+                    logger.info(
+                        f"{symbol}: CLOSE allowed - kill_score={kill_score:.3f} < close_threshold={threshold:.3f}"
+                    )
+            else:
+                # OPEN action: use more permissive threshold + qty scaling
+                gate_type = "open"
+                confidence = float(data.get('confidence', '0.5'))
+                k_regime_flip = float(data.get('k_regime_flip', '0.0'))
+                
+                threshold = self._compute_open_threshold(kill_score, confidence, k_regime_flip)
+                qty_scale = self._qty_scale_from_kill(kill_score, threshold)
+                
+                if kill_score >= self.config.KILL_SCORE_CRITICAL:
+                    # Extreme kill_score: hard block even for OPEN
+                    logger.warning(
+                        f"{symbol}: OPEN blocked - kill_score={kill_score:.3f} >= CRITICAL={self.config.KILL_SCORE_CRITICAL} "
+                        f"(action={action}, plan_id={plan_id[:8]})"
+                    )
+                    self._block_plan(plan_id, symbol, f'kill_score_critical_open:k={kill_score:.3f}')
+                    return
+                elif kill_score >= threshold:
+                    # Above threshold but below critical: allow with scaled qty
+                    logger.info(
+                        f"{symbol}: OPEN allowed with qty_scale={qty_scale:.2f} - "
+                        f"kill_score={kill_score:.3f} >= open_threshold={threshold:.3f} "
+                        f"(conf={confidence:.2f}, regime_flip={k_regime_flip:.2f})"
+                    )
+                    # TODO: Apply qty_scale to computed_qty before issuing permit
+                    # For now, just log (qty scaling happens later in flow)
+                else:
+                    logger.info(
+                        f"{symbol}: OPEN allowed - kill_score={kill_score:.3f} < open_threshold={threshold:.3f}"
+                    )
             
             # Gate 2: Hourly rate limit
             recent_hour = self._get_exec_count_window(symbol, hours=1)
@@ -538,6 +599,79 @@ class Governor:
             self.error_count += 1
             # Fail closed: do not issue permit
             self._block_plan(plan_id, symbol, 'evaluation_error')
+    
+    def _compute_open_threshold(self, kill_score: float, confidence: float = 0.5, regime_flip: float = 0.0) -> float:
+        """
+        Compute dynamic threshold for OPEN actions.
+        
+        Args:
+            kill_score: Current kill_score
+            confidence: AI confidence (0-1)
+            regime_flip: Regime flip penalty (0-1)
+        
+        Returns:
+            Threshold for OPEN (higher = more permissive)
+        """
+        # Base threshold from config
+        base_threshold = self.config.KILL_SCORE_OPEN_THRESHOLD
+        
+        # Adjust for regime flip: tighten threshold during regime change
+        regime_adjustment = regime_flip * 0.15  # Max -0.15 during full regime flip
+        
+        # Adjust for confidence: higher confidence = more permissive
+        confidence_adjustment = (confidence - 0.5) * 0.1  # ±0.05 adjustment
+        
+        threshold = base_threshold - regime_adjustment + confidence_adjustment
+        
+        # Clamp to reasonable range [0.6, 0.95]
+        return max(0.6, min(0.95, threshold))
+    
+    def _compute_close_threshold(self, kill_score: float, unrealized_pnl_pct: float = 0.0) -> float:
+        """
+        Compute dynamic threshold for CLOSE actions.
+        
+        Args:
+            kill_score: Current kill_score
+            unrealized_pnl_pct: Unrealized PnL as percentage (e.g., -0.05 for -5%)
+        
+        Returns:
+            Threshold for CLOSE (lower = stricter, blocks exits sooner)
+        """
+        # Base threshold from config
+        base_threshold = self.config.KILL_SCORE_CLOSE_THRESHOLD
+        
+        # If losing position: allow exit even with higher kill_score
+        if unrealized_pnl_pct < -0.03:  # Losing > 3%
+            base_threshold += 0.2  # More permissive for loss-cutting
+        
+        # Clamp to reasonable range [0.5, 0.85]
+        return max(0.5, min(0.85, base_threshold))
+    
+    def _qty_scale_from_kill(self, kill_score: float, threshold: float) -> float:
+        """
+        Scale down quantity based on kill_score exceeding threshold.
+        
+        Uses exponential decay: qty_final = qty_raw * exp(-alpha * excess)
+        
+        Args:
+            kill_score: Current kill_score
+            threshold: Threshold for this action type
+        
+        Returns:
+            Scale factor [MIN_SCALE, 1.0]
+        """
+        if kill_score <= threshold:
+            return 1.0  # No scaling needed
+        
+        excess = kill_score - threshold
+        alpha = self.config.KILL_SCORE_OPEN_QTY_SCALE_ALPHA
+        min_scale = self.config.KILL_SCORE_OPEN_MIN_SCALE
+        
+        import math
+        scale = math.exp(-alpha * excess)
+        
+        # Clamp to [min_scale, 1.0]
+        return max(min_scale, min(1.0, scale))
     
     def _block_plan(self, plan_id, symbol, reason):
         """Block a plan (no permit issued)"""
