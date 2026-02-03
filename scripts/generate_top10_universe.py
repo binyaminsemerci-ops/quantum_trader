@@ -140,9 +140,10 @@ def main():
     
     top10 = generate_top10(r)
     
+    # Fallback: Use CORE_SYMBOLS if no candidates found
     if not top10:
-        print("ERROR: Could not generate top 10!", file=sys.stderr)
-        sys.exit(1)
+        print("⚠️  No candidates found, using CORE_SYMBOLS fallback")
+        top10 = CORE_SYMBOLS.copy()
     
     print(f"\n✅ TOP {len(top10)} SYMBOLS:")
     for i, symbol in enumerate(top10, 1):

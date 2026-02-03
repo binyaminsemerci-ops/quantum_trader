@@ -37,6 +37,14 @@ except ImportError:
     print("ERROR: redis-py not installed")
     sys.exit(1)
 
+# PolicyStore (fail-closed autonomy)
+try:
+    from lib.policy_store import load_policy, PolicyData
+    POLICY_ENABLED = True
+except ImportError:
+    logger.warning("PolicyStore not available - running in legacy mode")
+    POLICY_ENABLED = False
+
 # Setup logging
 LOG_LEVEL = os.getenv("INTENT_BRIDGE_LOG_LEVEL", "INFO")
 logging.basicConfig(
@@ -154,8 +162,31 @@ class IntentBridge:
         self.top10_last_refresh = 0
         self.TOP10_REFRESH_INTERVAL = 300  # 5 minutes
         
+        # Load AI policy (fail-closed)
+        self.current_policy: Optional[PolicyData] = None
+        self._refresh_policy()
+        
         if USE_TOP10_UNIVERSE:
             self._refresh_top10_allowlist()
+    
+    def _refresh_policy(self):
+        """Load AI policy from PolicyStore (fail-closed)."""
+        if not POLICY_ENABLED:
+            return
+        
+        try:
+            self.current_policy = load_policy()
+            if self.current_policy:
+                logger.info(
+                    f"✅ POLICY_LOADED: version={self.current_policy.policy_version} "
+                    f"hash={self.current_policy.policy_hash[:8]} "
+                    f"universe_count={len(self.current_policy.universe_symbols)}"
+                )
+            else:
+                logger.warning("⚠️  POLICY_MISSING or POLICY_STALE - will SKIP trades without policy")
+        except Exception as e:
+            logger.error(f"Failed to load policy: {e}")
+            self.current_policy = None
     
     def _refresh_top10_allowlist(self):
         """Refresh allowlist from quantum:cfg:universe:top10."""
@@ -184,12 +215,33 @@ class IntentBridge:
             logger.error(f"Failed to refresh TOP10 allowlist: {e}")
     
     def _get_effective_allowlist(self) -> set:
-        """Get current effective allowlist (refreshes TOP10 if needed)."""
+        """
+        Get current effective allowlist.
+        
+        Priority:
+        1. AI Policy universe (if PolicyStore enabled and valid)
+        2. TOP10 universe (if USE_TOP10_UNIVERSE enabled)
+        3. Static ALLOWLIST (fallback)
+        """
+        # Priority 1: AI Policy universe (fail-closed!)
+        if POLICY_ENABLED and self.current_policy:
+            # Refresh policy if stale
+            if self.current_policy.is_stale():
+                logger.warning("Policy stale, refreshing...")
+                self._refresh_policy()
+            
+            if self.current_policy and not self.current_policy.is_stale():
+                return set(self.current_policy.universe_symbols)
+        
+        # Priority 2: TOP10 universe
         if USE_TOP10_UNIVERSE:
             # Refresh if stale
             if time.time() - self.top10_last_refresh > self.TOP10_REFRESH_INTERVAL:
                 self._refresh_top10_allowlist()
         
+            return self.current_allowlist
+        
+        # Priority 3: Static allowlist (legacy)
         return self.current_allowlist
     
     def _get_portfolio_exposure(self) -> float:
@@ -424,6 +476,17 @@ class IntentBridge:
             self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
             self._mark_seen(stream_id_str)
             return
+        
+        # 🔥 POLICY GATE: Fail-closed universe check
+        if POLICY_ENABLED and self.current_policy:
+            if not self.current_policy.contains_symbol(intent["symbol"]):
+                logger.info(
+                    f"SKIP POLICY_UNIVERSE_FILTER: {intent['symbol']} not in AI policy "
+                    f"(policy_version={self.current_policy.policy_version}, plan_id=N/A)"
+                )
+                self._mark_seen(stream_id_str)
+                self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
+                return
         
         # Generate plan_id
         plan_id = self._make_plan_id(

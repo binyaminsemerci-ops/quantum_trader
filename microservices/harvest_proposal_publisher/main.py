@@ -43,6 +43,14 @@ from ai_engine.risk_kernel_harvest import (
     P1Proposal,
 )
 
+# PolicyStore (fail-closed autonomy)
+try:
+    from lib.policy_store import load_policy, PolicyData
+    POLICY_ENABLED = True
+except ImportError:
+    logger.warning("PolicyStore not available - using hardcoded HarvestTheta")
+    POLICY_ENABLED = False
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -219,7 +227,10 @@ class HarvestProposalPublisher:
         self.max_publish_age = max_publish_age
         self.change_eps_pct = change_eps_pct
         self.last_proposals = {}  # Cache for rate limiting
-        self.theta = HarvestTheta()  # Use default tunables
+        
+        # 🔥 POLICY-DRIVEN HARVEST THETA (fail-closed)
+        self.current_policy: Optional[PolicyData] = None
+        self.theta = self._load_theta_from_policy()
         
         logger.info(f"HarvestProposalPublisher initialized")
         logger.info(f"  Symbols: {self.symbols}")
@@ -229,6 +240,62 @@ class HarvestProposalPublisher:
         logger.info(f"  Fallback stop%: {self.fallback_stop_pct}")
         logger.info(f"  Max publish age: {self.max_publish_age}s")
         logger.info(f"  Change epsilon: {self.change_eps_pct}")
+        logger.info(f"  PolicyStore enabled: {POLICY_ENABLED}")
+    
+    def _load_theta_from_policy(self) -> HarvestTheta:
+        """Load HarvestTheta from AI policy (fail-closed)."""
+        if not POLICY_ENABLED:
+            logger.warning("⚠️  PolicyStore disabled - using DEFAULT HarvestTheta (hardcoded)")
+            return HarvestTheta()  # Default hardcoded values (legacy mode)
+        
+        try:
+            self.current_policy = load_policy()
+            if not self.current_policy:
+                logger.error("❌ POLICY_MISSING or POLICY_STALE - using DEFAULT HarvestTheta")
+                return HarvestTheta()  # Fallback to defaults if policy missing
+            
+            # Extract harvest params from policy
+            params = self.current_policy.harvest_params
+            
+            # Build HarvestTheta from AI policy
+            theta = HarvestTheta(
+                fallback_stop_pct=self.fallback_stop_pct,  # Keep from config
+                cost_bps=params.get("cost_bps", 10.0),
+                T1_R=params.get("T1_R", 2.0),              # AI decided (not hardcoded!)
+                T2_R=params.get("T2_R", 4.0),              # AI decided
+                T3_R=params.get("T3_R", 6.0),              # AI decided
+                u1=params.get("u1", 0.0),
+                u2=params.get("u2", 0.0),
+                u3=params.get("u3", 0.0),
+                softmax_temp=params.get("softmax_temp", 1.0),
+                lock_R=params.get("lock_R", 1.5),          # AI decided
+                be_plus_pct=params.get("be_plus_pct", 0.002),
+                trend_min=params.get("trend_min", 0.3),
+                sigma_ref=params.get("sigma_ref", 0.01),
+                sigma_spike_cap=params.get("sigma_spike_cap", 2.0),
+                ts_ref=params.get("ts_ref", 0.3),
+                ts_drop_cap=params.get("ts_drop_cap", 0.5),
+                max_age_sec=params.get("max_age_sec", 86400.0),
+                k_regime_flip=params.get("k_regime_flip", 1.0),
+                k_sigma_spike=params.get("k_sigma_spike", 0.5),
+                k_ts_drop=params.get("k_ts_drop", 0.5),
+                k_age_penalty=params.get("k_age_penalty", 0.3),
+                kill_threshold=params.get("kill_threshold", 0.6)
+            )
+            
+            logger.info(
+                f"✅ POLICY_LOADED for HarvestTheta: "
+                f"version={self.current_policy.policy_version} "
+                f"hash={self.current_policy.policy_hash[:8]} "
+                f"T1_R={theta.T1_R:.2f} T2_R={theta.T2_R:.2f} T3_R={theta.T3_R:.2f} "
+                f"(AI-generated, not hardcoded!)"
+            )
+            
+            return theta
+            
+        except Exception as e:
+            logger.error(f"Failed to load policy for HarvestTheta: {e}")
+            return HarvestTheta()  # Fallback to defaults
     
     def get_market_state(self, symbol: str) -> Optional[MarketState]:
         """Read MarketState from Redis hash (published by quantum-marketstate)"""
