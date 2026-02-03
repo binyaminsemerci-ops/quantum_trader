@@ -166,7 +166,10 @@ class PolicyStore:
         harvest_params: Dict[str, float],
         kill_params: Dict[str, float],
         valid_for_seconds: int = 3600,
-        policy_version: str = "1.0"
+        policy_version: str = "1.0",
+        generator: str = "unknown",
+        features_window: str = "",
+        universe_hash: str = ""
     ) -> bool:
         """
         Save AI policy to Redis.
@@ -178,6 +181,9 @@ class PolicyStore:
             kill_params: AI-generated kill score parameters
             valid_for_seconds: Policy TTL (default 1 hour)
             policy_version: Version identifier
+            generator: Generator name (e.g. "ai_universe_v1")
+            features_window: Feature windows used (e.g. "15m,1h")
+            universe_hash: Hash of universe for change detection
             
         Returns:
             True if saved successfully
@@ -221,10 +227,17 @@ class PolicyStore:
                     "policy_hash": policy_hash,
                     "valid_until_epoch": str(valid_until_epoch),
                     "created_at_epoch": str(int(time.time())),
-                    "generator": "generate_sample_policy",
+                    "generator": generator if generator else "unknown",
                     "universe_count": str(len(universe_symbols)),
                     "leverage_range": f"{min(leverage_by_symbol.values()):.1f}x-{max(leverage_by_symbol.values()):.1f}x"
                 }
+                
+                # Add optional fields
+                if features_window:
+                    audit_entry["features_window"] = features_window
+                if universe_hash:
+                    audit_entry["universe_hash"] = universe_hash
+                
                 self.redis.xadd("quantum:stream:policy.audit", audit_entry, maxlen=1000)
             except Exception as audit_err:
                 # Fail-open: Don't crash on audit failure
@@ -257,7 +270,10 @@ def save_policy(
     harvest_params: Dict[str, float],
     kill_params: Dict[str, float],
     valid_for_seconds: int = 3600,
-    policy_version: str = "1.0"
+    policy_version: str = "1.0",
+    generator: str = "unknown",
+    features_window: str = "",
+    universe_hash: str = ""
 ) -> bool:
     """Save policy (convenience wrapper)"""
     store = PolicyStore()
@@ -267,5 +283,8 @@ def save_policy(
         harvest_params=harvest_params,
         kill_params=kill_params,
         valid_for_seconds=valid_for_seconds,
-        policy_version=policy_version
+        policy_version=policy_version,
+        generator=generator,
+        features_window=features_window,
+        universe_hash=universe_hash
     )
