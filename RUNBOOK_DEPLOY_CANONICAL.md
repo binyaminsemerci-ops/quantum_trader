@@ -357,25 +357,41 @@ journalctl -u quantum-policy-refresh.service --since "24 hours ago" | grep POLIC
 **What to look for:** No gaps longer than 35 minutes (indicates timer or service issue)
 
 ### 2. Exit Ownership Denials (24h)
+**Check BOTH gates (Intent Executor + Apply Layer):**
+
 ```bash
-journalctl -u quantum-intent-executor --since "24 hours ago" | grep "DENY_NOT_EXIT_OWNER exec_boundary" | tail -50
+# Intent Executor denials
+journalctl -u quantum-intent-executor --since "24 hours ago" | grep -E "DENY_NOT_EXIT_OWNER" | tail -20
+
+# Apply Layer denials
+journalctl -u quantum-apply-layer --since "24 hours ago" | grep -E "DENY_NOT_EXIT_OWNER" | tail -20
 ```
 
 **Expected:** None (unless testing), or legitimate denials from non-exit sources  
-**What to look for:** Unexpected source names, high frequency (indicates bug or attack)
+**What to look for:** 
+- Unexpected source names (indicates unauthorized close attempts)
+- High frequency (>10/hour indicates bug or attack)
+- Mismatch between executor and apply-layer counts (indicates bypass attempt)
 
-### 3. Alert Stream Activity
+**Note:** System has 2 exit ownership gates - both must be checked for complete picture
+
+### 3. Alert Stream Activity (Latest First)
 ```bash
-redis-cli XREAD COUNT 10 STREAMS quantum:stream:alerts 0
+redis-cli XREVRANGE quantum:stream:alerts + - COUNT 10
 ```
 
 **Expected:** Empty or minimal (system should be quiet during stable operation)  
-**What to look for:** Repeated alerts, error patterns, unexpected sources
+**What to look for:** 
+- Repeated alerts (same type appearing multiple times recently)
+- Error patterns (stack traces, connection failures)
+- Unexpected sources (new alert types not seen before)
+
+**Note:** Use XREVRANGE (not XREAD from 0) to get newest alerts first, avoiding confusion with old entries
 
 **Stabilization Success Criteria:**
 - ✅ Policy refresh fires every 30min (±5min jitter acceptable)
-- ✅ Exit ownership denials are zero or explainable
-- ✅ Alert stream quiet (no repeated errors)
+- ✅ Exit ownership denials are zero in BOTH gates (or explainable)
+- ✅ Alert stream quiet (no repeated errors in last 10 entries)
 - ✅ All proofs continue to PASS (run daily)
 
 ---
