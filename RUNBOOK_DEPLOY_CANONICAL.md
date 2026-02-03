@@ -360,33 +360,59 @@ journalctl -u quantum-policy-refresh.service --since "24 hours ago" | grep POLIC
 **Check BOTH gates (Intent Executor + Apply Layer):**
 
 ```bash
-# Intent Executor denials
-journalctl -u quantum-intent-executor --since "24 hours ago" | grep -E "DENY_NOT_EXIT_OWNER" | tail -20
+# Gate 1: Intent Executor denials (24h)
+journalctl -u quantum-intent-executor --since "24 hours ago" | grep -E "DENY_NOT_EXIT_OWNER" | wc -l
 
-# Apply Layer denials
-journalctl -u quantum-apply-layer --since "24 hours ago" | grep -E "DENY_NOT_EXIT_OWNER" | tail -20
+# Gate 2: Apply Layer denials (24h)
+journalctl -u quantum-apply-layer --since "24 hours ago" | grep -E "DENY_NOT_EXIT_OWNER" | wc -l
 ```
 
-**Expected:** None (unless testing), or legitimate denials from non-exit sources  
+**Expected:** `0` (zero) denials from both gates  
 **What to look for:** 
-- Unexpected source names (indicates unauthorized close attempts)
-- High frequency (>10/hour indicates bug or attack)
-- Mismatch between executor and apply-layer counts (indicates bypass attempt)
+- Non-zero count = unauthorized close attempts (investigate source)
+- High frequency (>10/hour) = bug or attack scenario
+- Mismatch between gates = potential bypass attempt
 
 **Note:** System has 2 exit ownership gates - both must be checked for complete picture
 
 ### 3. Alert Stream Activity (Latest First)
 ```bash
-redis-cli XREVRANGE quantum:stream:alerts + - COUNT 10
+redis-cli XREVRANGE quantum:stream:alerts + - COUNT 5 | grep -E "alert_type|timestamp"
 ```
 
-**Expected:** Empty or minimal (system should be quiet during stable operation)  
+**Expected:** No EXIT_OWNER_VIOLATION alerts in recent entries  
 **What to look for:** 
 - Repeated alerts (same type appearing multiple times recently)
 - Error patterns (stack traces, connection failures)
 - Unexpected sources (new alert types not seen before)
 
 **Note:** Use XREVRANGE (not XREAD from 0) to get newest alerts first, avoiding confusion with old entries
+
+### 4. Stabilization Status Classification
+
+**✅ CLEAN:** Complete verification across all gates
+```bash
+# All three commands return:
+# 1. Intent Executor: 0 denials
+# 2. Apply Layer: 0 denials
+# 3. Alert stream: No EXIT_OWNER_VIOLATION in latest entries
+```
+**Status:** System is fully verified with exit ownership enforcement active
+
+**⚠️ PARTIAL:** One or more services inactive
+```bash
+# Example: Apply Layer inactive = no logs available for that gate
+# Result: Can only verify active gate(s)
+```
+**Status:** Cannot claim "whole system clean" until all gates active and verified  
+**Action:** Start inactive service(s) and wait for sufficient log history (1-2 hours minimum)
+
+**🚨 VIOLATION:** Denials detected or recent alerts present
+```bash
+# Any command returns non-zero denials or EXIT_OWNER_VIOLATION alerts
+```
+**Status:** Investigate immediately  
+**Action:** Check intent sources, review proof scripts, validate ownership chain
 
 **Stabilization Success Criteria:**
 - ✅ Policy refresh fires every 30min (±5min jitter acceptable)
