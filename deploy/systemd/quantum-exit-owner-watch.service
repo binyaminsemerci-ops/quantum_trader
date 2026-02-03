@@ -1,0 +1,19 @@
+[Unit]
+Description=Quantum Trader Exit Owner Watch
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/home/qt/quantum_trader
+ExecStart=/usr/bin/bash /home/qt/quantum_trader/scripts/exit_owner_watch.sh
+StandardOutput=journal
+StandardError=journal
+
+# Exit code 1 means alert triggered (not a failure)
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=multi-user.target
