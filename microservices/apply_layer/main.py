@@ -2012,6 +2012,114 @@ class ApplyLayer:
         except Exception as e:
             logger.error(f"Error publishing result: {e}")
     
+    def process_apply_plan_stream(self):
+        """Process entry intents from intent_bridge apply.plan stream"""
+        try:
+            stream_key = "quantum:stream:apply.plan"
+            consumer_group = "apply_layer_entry"
+            consumer_id = f"apply-entry-{os.getpid()}"
+            
+            # Create consumer group (idempotent)
+            try:
+                self.redis.xgroup_create(stream_key, consumer_group, id='0-0', mkstream=True)
+                logger.info(f"[ENTRY] Created consumer group {consumer_group}")
+            except:
+                pass  # Group already exists
+            
+            # Read apply.plan messages (entry intents from intent_bridge)
+            messages = self.redis.xreadgroup(
+                groupname=consumer_group,
+                consumername=consumer_id,
+                streams={stream_key: '>'},
+                count=10,
+                block=100  # Short block
+            )
+            
+            if not messages:
+                return
+            
+            logger.info(f"[ENTRY] Processing {len(messages)} stream(s) with apply.plan messages")
+            for stream_name, stream_messages in messages:
+                for msg_id, fields in stream_messages:
+                    try:
+                        # Convert fields to plain dict
+                        plan_data = {}
+                        for k, v in fields.items():
+                            key = k.decode() if isinstance(k, bytes) else k
+                            val = v.decode() if isinstance(v, bytes) else v
+                            plan_data[key] = val
+                        
+                        symbol = plan_data.get('symbol', '')
+                        side = plan_data.get('side', '').upper()
+                        plan_id = plan_data.get('plan_id', '')
+                        leverage = float(plan_data.get('leverage', '1'))
+                        stop_loss = plan_data.get('stop_loss')
+                        take_profit = plan_data.get('take_profit')
+                        qty = float(plan_data.get('qty', '0'))
+                        
+                        # Only process BUY side (entry signals)
+                        if side != 'BUY':
+                            logger.debug(f"[ENTRY] {symbol}: Skipping {side} (not BUY)")
+                            self.redis.xack(stream_key, consumer_group, msg_id)
+                            continue
+                        
+                        logger.info(f"[ENTRY] {symbol}: Processing BUY intent (leverage={leverage}, qty={qty}, plan_id={plan_id[:8]})")
+                        
+                        # Try to execute the entry order only if credentials are available
+                        api_key = os.getenv("BINANCE_TESTNET_API_KEY")
+                        api_secret = os.getenv("BINANCE_TESTNET_API_SECRET")
+                        
+                        if not api_key or not api_secret:
+                            logger.warning(f"[ENTRY] {symbol}: Missing Binance testnet credentials")
+                            self.redis.xack(stream_key, consumer_group, msg_id)
+                            continue
+                        
+                        # Place market BUY order
+                        try:
+                            client = BinanceTestnetClient(api_key, api_secret)
+                            
+                            # Place market BUY order (NOT reduce-only)
+                            order_result = client.place_market_order(
+                                symbol=symbol,
+                                side='BUY',
+                                quantity=qty,
+                                reduce_only=False
+                            )
+                            
+                            logger.info(f"[ENTRY] {symbol}: BUY order placed: {order_result}")
+                            
+                            # Store position reference
+                            pos_key = f"quantum:position:{symbol}"
+                            self.redis.hset(pos_key, mapping={
+                                "symbol": symbol,
+                                "side": "LONG",
+                                "quantity": str(qty),
+                                "leverage": str(leverage),
+                                "stop_loss": stop_loss or "0",
+                                "take_profit": take_profit or "0",
+                                "plan_id": plan_id,
+                                "created_at": str(int(time.time()))
+                            })
+                            logger.info(f"[ENTRY] {symbol}: Position reference stored")
+                        
+                        except Exception as e:
+                            logger.error(f"[ENTRY] {symbol}: Failed to place order: {e}", exc_info=True)
+                        
+                        # ACK the message
+                        self.redis.xack(stream_key, consumer_group, msg_id)
+                        logger.info(f"[ENTRY] {symbol}: Message ACK'd (msg_id={msg_id})")
+                    
+                    except Exception as e:
+                        logger.error(f"[ENTRY] Error processing message {msg_id}: {e}", exc_info=True)
+                        # ACK to prevent reprocessing
+                        try:
+                            self.redis.xack(stream_key, consumer_group, msg_id)
+                        except:
+                            pass
+        
+        except Exception as e:
+            logger.error(f"[ENTRY] Error processing apply.plan stream: {e}", exc_info=True)
+    
     def process_reconcile_close_stream(self):
         """Process RECONCILE_CLOSE plans from dedicated reconcile.close stream"""
         try:
@@ -2096,7 +2204,15 @@ class ApplyLayer:
         # P2 Universe: Refresh allowlist cache if expired
         self._refresh_allowlist_if_needed()
         
-        # HIGHEST PRIORITY: Process RECONCILE_CLOSE plans (self-healing)
+        # HIGHEST PRIORITY: Process entry intents from intent_bridge
+        try:
+            logger.info("[ENTRY_CYCLE_START] Calling process_apply_plan_stream...")
+            self.process_apply_plan_stream()
+            logger.info("[ENTRY_CYCLE_END] process_apply_plan_stream completed")
+        except Exception as e:
+            logger.error(f"[ENTRY_CYCLE_ERROR] Error processing apply.plan stream: {e}", exc_info=True)
+        
+        # HIGH PRIORITY: Process RECONCILE_CLOSE plans (self-healing)
         try:
             logger.warning("[RECON_CYCLE_START] Calling process_reconcile_close_stream...")
             self.process_reconcile_close_stream()
