@@ -14,7 +14,7 @@ StandardError=journal
 Environment="PYTHONPATH=/home/qt/quantum_trader"
 
 # Fail-open: Don't block if refresh fails
-SuccessExitStatus=0 1
+SuccessExitStatus=0 2
 
 [Install]
 WantedBy=multi-user.target
