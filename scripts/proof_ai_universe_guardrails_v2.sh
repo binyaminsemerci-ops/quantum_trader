@@ -121,6 +121,59 @@ rm -f "$TEMP_OUT"
 
 echo ""
 echo "============================================================"
+echo "  TEST 4: Redis Metadata Validation (Production Check)"
+echo "============================================================"
+echo "[TEST 4] Verify required metadata in Redis"
+
+# Only run if redis-cli is available
+if command -v redis-cli > /dev/null 2>&1; then
+    GENERATOR=$(redis-cli HGET quantum:policy:current generator 2>/dev/null || echo "")
+    MARKET=$(redis-cli HGET quantum:policy:current market 2>/dev/null || echo "")
+    STATS_ENDPOINT=$(redis-cli HGET quantum:policy:current stats_endpoint 2>/dev/null || echo "")
+    METADATA_OK=$(redis-cli HGET quantum:policy:current metadata_ok 2>/dev/null || echo "1")
+    MISSING_FIELDS=$(redis-cli HGET quantum:policy:current missing_fields 2>/dev/null || echo "")
+    
+    REDIS_FAIL=0
+    
+    if [ -z "$GENERATOR" ] || [ "$GENERATOR" = "unknown" ]; then
+        echo "  FAIL: generator is empty or 'unknown' (current: '$GENERATOR')"
+        REDIS_FAIL=1
+    else
+        echo "  PASS: generator='$GENERATOR'"
+    fi
+    
+    if [ -z "$MARKET" ] || ( [ "$MARKET" != "futures" ] && [ "$MARKET" != "spot" ] ); then
+        echo "  FAIL: market must be 'futures' or 'spot' (current: '$MARKET')"
+        REDIS_FAIL=1
+    else
+        echo "  PASS: market='$MARKET'"
+    fi
+    
+    if [ -z "$STATS_ENDPOINT" ]; then
+        echo "  WARN: stats_endpoint is empty (current: '$STATS_ENDPOINT')"
+    else
+        echo "  PASS: stats_endpoint='$STATS_ENDPOINT'"
+    fi
+    
+    if [ "$METADATA_OK" != "1" ]; then
+        echo "  WARN: metadata_ok='$METADATA_OK' missing_fields='$MISSING_FIELDS'"
+    else
+        echo "  PASS: metadata_ok='1'"
+    fi
+    
+    if [ $REDIS_FAIL -eq 0 ]; then
+        echo "  PASS: All required Redis metadata present"
+        PASS=$((PASS + 1))
+    else
+        echo "  FAIL: Redis metadata validation failed"
+        FAIL=$((FAIL + 1))
+    fi
+else
+    echo "  SKIP: redis-cli not available (can't verify production metadata)"
+fi
+
+echo ""
+echo "============================================================"
 echo "  SUMMARY"
 echo "============================================================"
 echo "PASS: $PASS"
@@ -138,7 +191,11 @@ if [ $FAIL -eq 0 ]; then
     echo "  - Structured logging: AI_UNIVERSE_GUARDRAILS with vol_src"
     echo "  - Per-symbol logging: AI_UNIVERSE_PICK with qv24h_usdt"
     echo "  - Spread detail logging: bid/ask/mid/spread_bps"
+    echo "  - Field validation: Required fields present"
+    echo "  - Spread detail lock: WARN if bid/ask/mid missing"
+    echo "  - Metadata validation: Redis policy metadata complete"
     echo "  - Dry-run mode: --dry-run flag"
+    echo ""
     exit 0
 else
     echo "SOME TESTS FAILED"

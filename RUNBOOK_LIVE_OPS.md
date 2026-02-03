@@ -346,11 +346,38 @@ journalctl -u quantum-policy-refresh.service --since "2 hours ago" --no-pager | 
   - Example: `MAX_SPREAD_CHECKS=120` (increase from 80 to 120)
 - Missing `vol_src=quoteVolume` → using wrong volume source
 
-**Manual Trigger** (if policy refresh hasn't run):
+**Manual Trigger + Full Verification** (instant proof that everything works):
+```bash
+# Trigger policy refresh + verify metadata + guardrails (one command)
+systemctl start quantum-policy-refresh.service \
+  && sleep 5 \
+  && redis-cli HMGET quantum:policy:current generator policy_version market stats_endpoint universe_hash features_window \
+  && journalctl -u quantum-policy-refresh.service --since "5 minutes ago" --no-pager | egrep "AI_UNIVERSE_GUARDRAILS|AI_UNIVERSE_PICK|POLICY_"
+```
+
+**Expected Output:**
+```
+# Redis metadata (6 lines):
+generator: ai_universe_v1
+policy_version: 1.0.0-ai-v1
+market: futures
+stats_endpoint: fapi/v1/ticker/24hr
+universe_hash: e03793cd5579a5a2
+features_window: 15m,1h
+
+# Guardrails log (1 line):
+AI_UNIVERSE_GUARDRAILS total=540 vol_ok=111 ... metadata_ok=1 missing_fields=""
+
+# PICK logs (10 lines):
+AI_UNIVERSE_PICK symbol=RIVERUSDT ... spread_detail_missing=0
+
+# Policy saved:
+POLICY_SAVED: version=1.0.0-ai-v1 hash=6e4f9363
+```
+
+**Alternative** (dry-run without saving policy):
 ```bash
 cd /root/quantum_trader
-python3 scripts/ai_universe_generator_v1.py  # Production run
-# OR
 python3 scripts/ai_universe_generator_v1.py --dry-run  # Test only
 ```
 
