@@ -29,17 +29,24 @@ log_ok() {
 CHECK_WINDOW="5 minutes ago"
 APPLY_LAYER_SERVICE="quantum-apply-layer"
 
-# Check if service exists
-if ! systemctl list-units --type=service 2>/dev/null | grep -q "$APPLY_LAYER_SERVICE"; then
-    log_info "Service $APPLY_LAYER_SERVICE not found, skipping check"
-    exit 0
+# Check if service exists (skip in test mode)
+if [ -z "${EXIT_OWNER_WATCH_TEST_INPUT:-}" ]; then
+    if ! systemctl list-units --type=service 2>/dev/null | grep -q "$APPLY_LAYER_SERVICE"; then
+        log_info "Service $APPLY_LAYER_SERVICE not found, skipping check"
+        exit 0
+    fi
 fi
 
 # Check for DENY_NOT_EXIT_OWNER events
-DENY_COUNT=$(journalctl -u "$APPLY_LAYER_SERVICE" --since "$CHECK_WINDOW" --no-pager 2>/dev/null | grep -c "DENY_NOT_EXIT_OWNER" || echo "0")
-
-# Check for ALLOW_EXIT_OWNER events (normal operation)
-ALLOW_COUNT=$(journalctl -u "$APPLY_LAYER_SERVICE" --since "$CHECK_WINDOW" --no-pager 2>/dev/null | grep -c "ALLOW_EXIT_OWNER" || echo "0")
+if [ -n "${EXIT_OWNER_WATCH_TEST_INPUT:-}" ]; then
+    # Test mode: read from file
+    DENY_COUNT=$(grep -c "DENY_NOT_EXIT_OWNER" "$EXIT_OWNER_WATCH_TEST_INPUT" 2>/dev/null || echo "0")
+    ALLOW_COUNT=$(grep -c "ALLOW_EXIT_OWNER" "$EXIT_OWNER_WATCH_TEST_INPUT" 2>/dev/null || echo "0")
+else
+    # Production mode: read from journalctl
+    DENY_COUNT=$(journalctl -u "$APPLY_LAYER_SERVICE" --since "$CHECK_WINDOW" --no-pager 2>/dev/null | grep -c "DENY_NOT_EXIT_OWNER" || echo "0")
+    ALLOW_COUNT=$(journalctl -u "$APPLY_LAYER_SERVICE" --since "$CHECK_WINDOW" --no-pager 2>/dev/null | grep -c "ALLOW_EXIT_OWNER" || echo "0")
+fi
 
 if [ "$DENY_COUNT" -gt 0 ]; then
     log_alert "Detected $DENY_COUNT unauthorized exit attempts in last 5 minutes"
@@ -48,7 +55,11 @@ if [ "$DENY_COUNT" -gt 0 ]; then
     # Extract sample events
     echo ""
     echo "Sample unauthorized attempts:"
-    journalctl -u "$APPLY_LAYER_SERVICE" --since "$CHECK_WINDOW" --no-pager 2>/dev/null | grep "DENY_NOT_EXIT_OWNER" | head -3
+    if [ -n "${EXIT_OWNER_WATCH_TEST_INPUT:-}" ]; then
+        grep "DENY_NOT_EXIT_OWNER" "$EXIT_OWNER_WATCH_TEST_INPUT" 2>/dev/null | head -3
+    else
+        journalctl -u "$APPLY_LAYER_SERVICE" --since "$CHECK_WINDOW" --no-pager 2>/dev/null | grep "DENY_NOT_EXIT_OWNER" | head -3
+    fi
     echo ""
     
     # Write to Redis alert stream (best-effort)

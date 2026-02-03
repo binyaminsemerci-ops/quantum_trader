@@ -38,7 +38,7 @@ TEMP_FILE="/tmp/policy_refresh_$$.json"
 # Validate generator exists
 if [ ! -f "$GENERATOR_SCRIPT" ]; then
     log_fail "Generator script not found: $GENERATOR_SCRIPT"
-    exit 1
+    exit 2
 fi
 
 # Step 1: Generate policy
@@ -47,7 +47,7 @@ if python3 "$GENERATOR_SCRIPT" > /dev/null 2>&1; then
     log_ok "Policy generated successfully"
 else
     log_fail "Policy generation failed (exit code: $?)"
-    exit 1
+    exit 2
 fi
 
 # Step 2: Validate policy exists in Redis
@@ -61,7 +61,7 @@ if [ -z "$POLICY_VERSION" ] || [ -z "$POLICY_HASH" ] || [ -z "$VALID_UNTIL" ]; t
     log_error "  policy_version: ${POLICY_VERSION:-MISSING}"
     log_error "  policy_hash: ${POLICY_HASH:-MISSING}"
     log_error "  valid_until_epoch: ${VALID_UNTIL:-MISSING}"
-    exit 1
+    exit 2
 fi
 
 # Step 3: Validate expiry time (must be in future)
@@ -69,7 +69,7 @@ NOW=$(date +%s)
 VALID_UNTIL_INT=$(echo "$VALID_UNTIL" | cut -d'.' -f1)  # Strip decimals for bash comparison
 if [ "$VALID_UNTIL_INT" -le "$NOW" ]; then
     log_fail "Policy expired: valid_until=$VALID_UNTIL_INT now=$NOW"
-    exit 1
+    exit 2
 fi
 
 REMAINING_SEC=$((VALID_UNTIL_INT - NOW))
@@ -81,7 +81,7 @@ log_ok "Policy validated: version=$POLICY_VERSION hash=${POLICY_HASH:0:8} valid_
 UNIVERSE_COUNT=$(redis-cli HGET quantum:policy:current universe_symbols 2>/dev/null | python3 -c "import sys, json; print(len(json.loads(sys.stdin.read())))" 2>/dev/null || echo "0")
 if [ "$UNIVERSE_COUNT" -eq 0 ]; then
     log_fail "Policy universe empty"
-    exit 1
+    exit 2
 fi
 
 log_ok "Policy universe: $UNIVERSE_COUNT symbols"

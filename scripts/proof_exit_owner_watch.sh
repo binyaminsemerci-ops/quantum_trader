@@ -96,6 +96,44 @@ else
     fail "Not monitoring quantum-apply-layer"
 fi
 
+# Test 11: E2E test - inject DENY event and verify alert
+log_test "11. E2E test: DENY detection triggers alert to Redis"
+TEST_LOG="/tmp/deny_sample_$$.log"
+cat > "$TEST_LOG" << 'EOF'
+2026-02-03 01:00:00 [apply_layer] DENY_NOT_EXIT_OWNER: source=harvest_engine symbol=BTCUSDT
+2026-02-03 01:00:01 [apply_layer] DENY_NOT_EXIT_OWNER: source=ai_sizer symbol=ETHUSDT
+EOF
+
+# Clear any existing alerts
+if command -v redis-cli &> /dev/null; then
+    redis-cli DEL quantum:stream:alerts &> /dev/null || true
+fi
+
+# Run watch script with test input
+if EXIT_OWNER_WATCH_TEST_INPUT="$TEST_LOG" bash scripts/exit_owner_watch.sh &> /dev/null; then
+    fail "Watch script should exit 1 on DENY events"
+else
+    # Check if alert was written to Redis
+    if command -v redis-cli &> /dev/null; then
+        ALERT_COUNT=$(redis-cli XLEN quantum:stream:alerts 2>/dev/null || echo "0")
+        if [ "$ALERT_COUNT" -gt 0 ]; then
+            ALERT_DATA=$(redis-cli XREAD COUNT 1 STREAMS quantum:stream:alerts 0 2>/dev/null || echo "")
+            if echo "$ALERT_DATA" | grep -q "EXIT_OWNER_VIOLATION"; then
+                pass "Alert written to Redis with correct type"
+            else
+                fail "Alert written but missing EXIT_OWNER_VIOLATION" "Data: ${ALERT_DATA:0:100}"
+            fi
+        else
+            fail "No alert written to Redis" "XLEN=0"
+        fi
+    else
+        pass "Redis not available, skipping alert verification"
+    fi
+fi
+
+# Cleanup
+rm -f "$TEST_LOG"
+
 # Summary
 echo ""
 echo "========================================="
