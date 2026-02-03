@@ -154,7 +154,11 @@ TOP10_IMPORTS=$(safe_grep_count "generate_top10_universe" \
     lib/ \
     --exclude-dir=__pycache__)
 
-if [ "$TOP10_IMPORTS" -eq 0 ]; then
+# Ensure it's a valid number
+TOP10_IMPORTS=${TOP10_IMPORTS:-0}
+TOP10_IMPORTS=$(echo "$TOP10_IMPORTS" | tr -d '[:space:]' | head -1)
+
+if [ "$TOP10_IMPORTS" -eq 0 ] 2>/dev/null; then
     pass "No runtime services import generate_top10_universe.py (PolicyStore active)"
 else
     # Check if weights exist in code (legacy script may exist but not be used)
@@ -163,6 +167,12 @@ else
         --exclude-dir=__pycache__)
     
     if [ -n "$WEIGHT_HARDCODE" ]; then
+        fail "generate_top10_universe.py imported by $TOP10_IMPORTS services (hardcoded weights active)"
+        echo "Evidence: $TOP10_IMPORTS services import legacy script"
+    else
+        pass "No hardcoded weights in active code path"
+    fi
+fi
         fail "generate_top10_universe.py imported by $TOP10_IMPORTS services (hardcoded weights active)"
         echo "Evidence: $TOP10_IMPORTS services import legacy script"
     else
