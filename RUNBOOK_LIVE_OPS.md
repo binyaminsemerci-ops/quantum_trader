@@ -311,6 +311,45 @@ wsl bash scripts/go_live_abort.sh
 
 ---
 
+## AI UNIVERSE VERIFICATION
+
+**Purpose**: Verify guardrails pipeline ran successfully on last policy refresh
+
+**Command**:
+```bash
+# Verify guardrails executed in last 2 hours
+journalctl -u quantum-policy-refresh.service --since "2 hours ago" --no-pager | \
+  grep -E "AI_UNIVERSE_GUARDRAILS|AI_UNIVERSE_PICK" | tail -30
+
+# Expected output:
+# - 1 line: AI_UNIVERSE_GUARDRAILS total=540 vol_ok=111 spread_checked=80 ... vol_src=quoteVolume
+# - 10 lines: AI_UNIVERSE_PICK symbol=XXX qv24h_usdt=NNN spread_bps=X.X ...
+```
+
+**What to Check**:
+- `vol_ok` count (should be ~100-120 after $20M filter)
+- `spread_checked` (should be ≤80 for optimization)
+- `spread_skipped` (should be >0, confirms top-N optimization)
+- `excluded_vol` (should be ~400-450, confirms microcap filtering)
+- `vol_src=quoteVolume` (confirms using USDT volume, not base)
+
+**Red Flags**:
+- No AI_UNIVERSE_GUARDRAILS log → generator failed or didn't run
+- `vol_ok=0` → volume filter too aggressive
+- `vol_ok=540` → volume filter not working
+- `spread_checked=111` → optimization not active
+- Missing `vol_src=quoteVolume` → using wrong volume source
+
+**Manual Trigger** (if policy refresh hasn't run):
+```bash
+cd /root/quantum_trader
+python3 scripts/ai_universe_generator_v1.py  # Production run
+# OR
+python3 scripts/ai_universe_generator_v1.py --dry-run  # Test only
+```
+
+---
+
 ## CONTACTS
 
 **VPS**: 46.224.116.254 (Hetzner)  
