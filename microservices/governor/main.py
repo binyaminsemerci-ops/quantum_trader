@@ -24,6 +24,16 @@ from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 from prometheus_client import Counter, Gauge, start_http_server
 
+# Risk Guard integration
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+try:
+    from risk_guard import RiskGuard, RiskGuardConfig
+    RISK_GUARD_AVAILABLE = True
+except ImportError:
+    RISK_GUARD_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("RiskGuard not available - risk gates disabled")
+
 # ============================================================================
 # LOGGING
 # ============================================================================
@@ -233,6 +243,19 @@ class Governor:
         self.error_count = 0
         self.last_disarm_check = time.time()
         
+        # Initialize RiskGuard (fail-closed risk management)
+        self.risk_guard = None
+        if RISK_GUARD_AVAILABLE:
+            try:
+                risk_config = RiskGuardConfig()
+                self.risk_guard = RiskGuard(risk_config)
+                logger.info("✅ RiskGuard initialized (fail-closed risk gates active)")
+            except Exception as e:
+                logger.error(f"Failed to initialize RiskGuard: {e}")
+                self.risk_guard = None
+        else:
+            logger.warning("⚠️  RiskGuard NOT available - risk gates disabled!")
+        
         logger.info("="*80)
         logger.info(f"P3.2 Governor [{config.BUILD_TAG}]")
         logger.info("="*80)
@@ -346,6 +369,38 @@ class Governor:
             if decision != 'EXECUTE':
                 logger.debug(f"{symbol}: Plan {plan_id[:8]} decision={decision}, skipping permit")
                 return
+            
+            # ===================================================================
+            # RISK GUARD CHECK (Global Risk Gates - Fail-Closed)
+            # ===================================================================
+            if self.risk_guard:
+                # Get spread/ATR for guard check
+                spread_bps = 0.0
+                atr_pct = 0.0
+                try:
+                    market_key = f"quantum:market_state:{symbol}"
+                    market_data = self.redis.hgetall(market_key)
+                    if market_data:
+                        spread_bps = float(market_data.get('spread_bps', '0'))
+                        atr_pct = float(market_data.get('atr_pct', '0'))
+                except Exception as e:
+                    logger.warning(f"{symbol}: Could not fetch market data for risk guard: {e}")
+                
+                is_blocked, reason, guard_type = self.risk_guard.check_all_guards(
+                    action=action,
+                    symbol=symbol,
+                    spread_bps=spread_bps,
+                    atr_pct=atr_pct
+                )
+                
+                if is_blocked:
+                    logger.error(f"{symbol}: RISK_GUARD_BLOCKED guard={guard_type} reason={reason}")
+                    self._block_plan(plan_id, symbol, f'risk_guard_{guard_type}:{reason}')
+                    return
+                else:
+                    logger.debug(f"{symbol}: Risk guard passed")
+            else:
+                logger.warning(f"{symbol}: RiskGuard not available - skipping risk checks!")
             
             # Check if permit already exists (idempotency)
             permit_key = f"quantum:permit:{plan_id}"
