@@ -251,6 +251,36 @@ active
 
 ---
 
+### ⚡ Extended Deploy Verification (With Timer Schedule)
+**Use this to also see when timers will fire next:**
+
+```bash
+systemctl is-active quantum-intent-executor quantum-policy-refresh.timer quantum-exit-owner-watch.timer \
+  && systemctl list-timers quantum-policy-refresh.timer quantum-exit-owner-watch.timer --no-pager \
+  && bash /home/qt/quantum_trader/scripts/proof_intent_executor_exit_owner.sh
+```
+
+**Expected Output:**
+```
+active
+active
+active
+
+NEXT                        LEFT     LAST                        PASSED  UNIT                              ACTIVATES
+[timestamp]                 24min    [timestamp]                 5min    quantum-policy-refresh.timer      quantum-policy-refresh.service
+[timestamp]                 2min     [timestamp]                 2min    quantum-exit-owner-watch.timer    quantum-exit-owner-watch.service
+
+[... proof runs ...]
+🎉 ALL TESTS PASS - Exit ownership enforced at execution boundary
+```
+
+**Benefits:**
+- Shows timer schedule (confirms they're not stuck/disabled)
+- Verifies NEXT/LEFT columns populated (timers actively scheduled)
+- Full green light: service + timers + proof
+
+---
+
 ### Full Health Verification
 ```bash
 # All services
