@@ -32,8 +32,18 @@ log_fail() {
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-GENERATOR_SCRIPT="$SCRIPT_DIR/generate_sample_policy.py"
+AI_GENERATOR_SCRIPT="$SCRIPT_DIR/ai_universe_generator_v1.py"
+FALLBACK_GENERATOR="$SCRIPT_DIR/generate_sample_policy.py"
 TEMP_FILE="/tmp/policy_refresh_$$.json"
+
+# Select generator (prefer AI, fallback to sample if AI unavailable)
+if [ -f "$AI_GENERATOR_SCRIPT" ]; then
+    GENERATOR_SCRIPT="$AI_GENERATOR_SCRIPT"
+    log_info "Using AI universe generator: $AI_GENERATOR_SCRIPT"
+else
+    GENERATOR_SCRIPT="$FALLBACK_GENERATOR"
+    log_info "AI generator not found, using fallback: $FALLBACK_GENERATOR"
+fi
 
 # Validate generator exists
 if [ ! -f "$GENERATOR_SCRIPT" ]; then
