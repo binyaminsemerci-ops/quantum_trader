@@ -247,19 +247,20 @@ class IntentBridge:
     
     def _get_effective_allowlist(self) -> set:
         """
-        Get current effective allowlist.
+        Get current effective allowlist with explicit venue intersection.
         
         Priority:
         1. AI Policy universe (if PolicyStore enabled and valid)
         2. TOP10 universe (if USE_TOP10_UNIVERSE enabled)
         3. Static ALLOWLIST (fallback)
         
-        If TESTNET_MODE: intersect with testnet tradables
+        Final step: intersect with venue tradable symbols (fail-open if fetch fails)
         """
         source = "unknown"
         allowlist = set()
         policy_version = "none"
         policy_hash = "none"
+        policy_count = 0
         
         # Priority 1: AI Policy universe (fail-closed!)
         if POLICY_ENABLED and self.current_policy:
@@ -273,6 +274,7 @@ class IntentBridge:
                 source = "policy"
                 policy_version = self.current_policy.policy_version
                 policy_hash = self.current_policy.policy_hash[:8]
+                policy_count = len(allowlist)
         
         # Priority 2: TOP10 universe
         if not allowlist and USE_TOP10_UNIVERSE:
@@ -288,22 +290,46 @@ class IntentBridge:
             allowlist = self.current_allowlist
             source = "static"
         
-        # Testnet intersection (if enabled)
-        original_count = len(allowlist)
-        if TESTNET_MODE and original_count > 0:
-            testnet_symbols = self._get_testnet_tradable_symbols()
-            if testnet_symbols:  # Only filter if we got symbols
-                allowlist = allowlist & testnet_symbols
-                logger.info(
-                    f"🔄 TESTNET_INTERSECTION: AI={original_count} → testnet_tradable={len(allowlist)} "
-                    f"(shadow={original_count - len(allowlist)})"
-                )
+        # Capture allowlist before venue intersection
+        allowlist_count = len(allowlist)
         
-        # Truth logging (CRITICAL: proves which source is actually used)
-        sample = sorted(list(allowlist))[:5] if allowlist else []
+        # Venue intersection (explicit tradable filter)
+        venue = "binance-testnet" if BINANCE_TESTNET else "binance-mainnet"
+        tradable_count = 0
+        tradable_fetch_failed = 0
+        venue_limited = 0
+        
+        if TESTNET_MODE and allowlist_count > 0:
+            tradable_symbols = self._get_testnet_tradable_symbols()
+            if tradable_symbols:
+                tradable_count = len(tradable_symbols)
+                # Explicit intersection
+                final_allowlist = allowlist & tradable_symbols
+                
+                # Fail-open: if intersection is empty but allowlist was not, keep original
+                if not final_allowlist and allowlist:
+                    logger.warning(f"Venue intersection empty! Keeping original allowlist (fail-open)")
+                    final_allowlist = allowlist
+                    venue_limited = 0  # Not limited, failed intersection
+                else:
+                    allowlist = final_allowlist
+                    venue_limited = 1 if len(allowlist) < allowlist_count else 0
+            else:
+                # Tradable fetch failed - fail-open (keep allowlist)
+                tradable_fetch_failed = 1
+                logger.warning(f"Failed to fetch venue tradables - using allowlist as-is (fail-open)")
+        
+        # Final count and sample
+        final_count = len(allowlist)
+        sample = ",".join(sorted(list(allowlist))[:3]) if allowlist else ""
+        
+        # Structured logging (EXACT FORMAT for proof script)
         logger.info(
-            f"🎯 ALLOWLIST_EFFECTIVE source={source} count={len(allowlist)} "
-            f"sample={sample} policy_version={policy_version} hash={policy_hash}"
+            f"ALLOWLIST_EFFECTIVE venue={venue} source={source} "
+            f"policy_count={policy_count} allowlist_count={allowlist_count} "
+            f"tradable_count={tradable_count} final_count={final_count} "
+            f"venue_limited={venue_limited} tradable_fetch_failed={tradable_fetch_failed} "
+            f"sample={sample}"
         )
         
         return allowlist
