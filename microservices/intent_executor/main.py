@@ -952,8 +952,8 @@ class IntentExecutor:
             if reduce_only and EXIT_OWNERSHIP_ENABLED:
                 if source != EXIT_OWNER:
                     logger.warning(
-                        f"🚫 DENY_NOT_EXIT_OWNER: {source} attempted reduceOnly order on {symbol} "
-                        f"(only {EXIT_OWNER} authorized)"
+                        f"🚫 DENY_NOT_EXIT_OWNER exec_boundary plan_id={plan_id[:8]} "
+                        f"source={source} expected={EXIT_OWNER} symbol={symbol}"
                     )
                     self._write_result(
                         plan_id, symbol, executed=False,
