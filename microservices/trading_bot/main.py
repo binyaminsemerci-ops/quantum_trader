@@ -45,10 +45,15 @@ async def lifespan(app: FastAPI):
         event_bus = None
     
     # Create and start bot (polling mode with Redis for publishing)
-    # Fetch top 50 symbols by 24h volume (mainnet/L1/L2 only)
-    logger.info("[TRADING-BOT-SERVICE] 🔍 Fetching top 50 symbols by volume...")
-    symbols_list = await fetch_top_symbols_by_volume(limit=50, min_volume_usd=10_000_000)
-    logger.info(f"[TRADING-BOT-SERVICE] ✅ Monitoring {len(symbols_list)} symbols")
+    # 🔥 FIX: Use TRADING_SYMBOLS env var OR fetch top symbols by volume
+    trading_symbols_env = os.getenv("TRADING_SYMBOLS")
+    if trading_symbols_env:
+        symbols_list = [s.strip() for s in trading_symbols_env.split(",") if s.strip()]
+        logger.info(f"[TRADING-BOT-SERVICE] ✅ Using {len(symbols_list)} symbols from TRADING_SYMBOLS env: {symbols_list}")
+    else:
+        logger.info("[TRADING-BOT-SERVICE] 🔍 Fetching top 50 symbols by volume...")
+        symbols_list = await fetch_top_symbols_by_volume(limit=50, min_volume_usd=10_000_000)
+        logger.info(f"[TRADING-BOT-SERVICE] ✅ Monitoring {len(symbols_list)} symbols")
     
     bot = SimpleTradingBot(
         ai_engine_url=os.getenv("AI_ENGINE_URL", "http://ai-engine:8001"),
