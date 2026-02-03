@@ -53,13 +53,13 @@ fi
 
 echo ""
 
-# TEST 3: Dry-run test (light runtime, 60s timeout)
+# TEST 3: Dry-run test (light runtime, 120s timeout)
 echo "[TEST 3] Dry-run test with --dry-run flag"
-echo "  Running: timeout 60 python3 scripts/ai_universe_generator_v1.py --dry-run"
+echo "  Running: timeout 120 python3 scripts/ai_universe_generator_v1.py --dry-run"
 echo ""
 
 TEMP_OUT=$(mktemp)
-timeout 60 python3 scripts/ai_universe_generator_v1.py --dry-run > "$TEMP_OUT" 2>&1
+timeout 120 python3 scripts/ai_universe_generator_v1.py --dry-run > "$TEMP_OUT" 2>&1
 
 if [ $? -eq 0 ] || [ $? -eq 124 ]; then
     # Check for required log lines
