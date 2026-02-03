@@ -77,6 +77,9 @@ REMAINING_MIN=$((REMAINING_SEC / 60))
 
 log_ok "Policy validated: version=$POLICY_VERSION hash=${POLICY_HASH:0:8} valid_for=${REMAINING_MIN}min"
 
+# Log structured data for auditing
+log_info "POLICY_STATE: version=$POLICY_VERSION hash=$POLICY_HASH valid_until=$VALID_UNTIL_INT remaining_sec=$REMAINING_SEC"
+
 # Step 4: Verify universe count
 UNIVERSE_COUNT=$(redis-cli HGET quantum:policy:current universe_symbols 2>/dev/null | python3 -c "import sys, json; print(len(json.loads(sys.stdin.read())))" 2>/dev/null || echo "0")
 if [ "$UNIVERSE_COUNT" -eq 0 ]; then
@@ -88,5 +91,6 @@ log_ok "Policy universe: $UNIVERSE_COUNT symbols"
 
 # Success
 log_ok "Policy refresh completed successfully"
+log_info "POLICY_AUDIT: version=$POLICY_VERSION hash=$POLICY_HASH universe_count=$UNIVERSE_COUNT valid_until=$VALID_UNTIL_INT"
 log_info "Next refresh: $(date -d "@$((NOW + 1800))" '+%Y-%m-%d %H:%M:%S')"
 exit 0
