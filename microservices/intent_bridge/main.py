@@ -107,6 +107,12 @@ IDEMPOTENCY_TTL = int(os.getenv("INTENT_BRIDGE_IDEMPOTENCY_TTL", "86400"))  # 24
 # Ledger gate config (avoid chicken-and-egg deadlock for new symbols)
 REQUIRE_LEDGER_FOR_OPEN = os.getenv("INTENT_BRIDGE_REQUIRE_LEDGER_FOR_OPEN", "false").lower() == "true"
 
+# Testnet mode (intersect AI universe with testnet tradables)
+TESTNET_MODE = os.getenv("TESTNET_MODE", "true").lower() == "true"
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "")
+BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET", "")
+BINANCE_TESTNET = os.getenv("BINANCE_TESTNET", "true").lower() == "true"
+
 # Build tag for deployment verification
 BUILD_TAG = "intent-bridge-ledger-open-v1"
 
@@ -214,6 +220,31 @@ class IntentBridge:
         except Exception as e:
             logger.error(f"Failed to refresh TOP10 allowlist: {e}")
     
+    def _get_testnet_tradable_symbols(self) -> set:
+        """Fetch tradable symbols from Binance testnet/mainnet exchange info."""
+        try:
+            import requests
+            
+            if BINANCE_TESTNET:
+                url = "https://testnet.binancefuture.com/fapi/v1/exchangeInfo"
+            else:
+                url = "https://fapi.binance.com/fapi/v1/exchangeInfo"
+            
+            response = requests.get(url, timeout=5)
+            data = response.json()
+            
+            symbols = set()
+            for symbol_info in data.get("symbols", []):
+                if symbol_info.get("status") == "TRADING":
+                    symbols.add(symbol_info["symbol"])
+            
+            logger.info(f"✅ Fetched {len(symbols)} tradable symbols from {'testnet' if BINANCE_TESTNET else 'mainnet'}")
+            return symbols
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch testnet symbols: {e}")
+            return set()  # Empty set = no filtering
+    
     def _get_effective_allowlist(self) -> set:
         """
         Get current effective allowlist.
@@ -222,7 +253,14 @@ class IntentBridge:
         1. AI Policy universe (if PolicyStore enabled and valid)
         2. TOP10 universe (if USE_TOP10_UNIVERSE enabled)
         3. Static ALLOWLIST (fallback)
+        
+        If TESTNET_MODE: intersect with testnet tradables
         """
+        source = "unknown"
+        allowlist = set()
+        policy_version = "none"
+        policy_hash = "none"
+        
         # Priority 1: AI Policy universe (fail-closed!)
         if POLICY_ENABLED and self.current_policy:
             # Refresh policy if stale
@@ -231,18 +269,44 @@ class IntentBridge:
                 self._refresh_policy()
             
             if self.current_policy and not self.current_policy.is_stale():
-                return set(self.current_policy.universe_symbols)
+                allowlist = set(self.current_policy.universe_symbols)
+                source = "policy"
+                policy_version = self.current_policy.policy_version
+                policy_hash = self.current_policy.policy_hash[:8]
         
         # Priority 2: TOP10 universe
-        if USE_TOP10_UNIVERSE:
+        if not allowlist and USE_TOP10_UNIVERSE:
             # Refresh if stale
             if time.time() - self.top10_last_refresh > self.TOP10_REFRESH_INTERVAL:
                 self._refresh_top10_allowlist()
         
-            return self.current_allowlist
+            allowlist = self.current_allowlist
+            source = "top10"
         
         # Priority 3: Static allowlist (legacy)
-        return self.current_allowlist
+        if not allowlist:
+            allowlist = self.current_allowlist
+            source = "static"
+        
+        # Testnet intersection (if enabled)
+        original_count = len(allowlist)
+        if TESTNET_MODE and original_count > 0:
+            testnet_symbols = self._get_testnet_tradable_symbols()
+            if testnet_symbols:  # Only filter if we got symbols
+                allowlist = allowlist & testnet_symbols
+                logger.info(
+                    f"🔄 TESTNET_INTERSECTION: AI={original_count} → testnet_tradable={len(allowlist)} "
+                    f"(shadow={original_count - len(allowlist)})"
+                )
+        
+        # Truth logging (CRITICAL: proves which source is actually used)
+        sample = sorted(list(allowlist))[:5] if allowlist else []
+        logger.info(
+            f"🎯 ALLOWLIST_EFFECTIVE source={source} count={len(allowlist)} "
+            f"sample={sample} policy_version={policy_version} hash={policy_hash}"
+        )
+        
+        return allowlist
     
     def _get_portfolio_exposure(self) -> float:
         """
