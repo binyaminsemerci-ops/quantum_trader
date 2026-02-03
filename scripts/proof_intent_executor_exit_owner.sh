@@ -78,7 +78,14 @@ if grep -A10 "Exit ownership gate" microservices/intent_executor/main.py 2>/dev/
                 if grep -A10 "DENY_NOT_EXIT_OWNER" microservices/intent_executor/main.py | \
                    grep -q "NOT_EXIT_OWNER"; then
                     
-                    pass_test 3 "Exit ownership gate complete: reduce_only + source check + DENIED + NOT_EXIT_OWNER"
+                    # NEW: Verify structured log format for grep/ops contract
+                    if grep "DENY_NOT_EXIT_OWNER" microservices/intent_executor/main.py | \
+                       grep -q "exec_boundary plan_id="; then
+                        
+                        pass_test 3 "Exit ownership gate complete + structured logging (exec_boundary plan_id=...)"
+                    else
+                        fail_test 3 "Missing structured log format (exec_boundary plan_id=...)"
+                    fi
                 else
                     fail_test 3 "Missing NOT_EXIT_OWNER in error field"
                 fi
