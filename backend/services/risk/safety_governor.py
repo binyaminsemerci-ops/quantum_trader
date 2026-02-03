@@ -212,12 +212,34 @@ class SafetyGovernor:
         data_dir: Path,
         config: Optional[Dict[str, Any]] = None,
         policy_store: Optional[PolicyStore] = None,  # [NEW] PolicyStore for dynamic limits
+        enable_active_slots: bool = True,  # [NEW] Enable Active Positions Controller
     ):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         
         # [NEW] Store PolicyStore reference
         self.policy_store = policy_store
+        
+        # [NEW] Initialize Active Positions Controller
+        self.active_slots_controller = None
+        if enable_active_slots and policy_store:
+            from backend.services.risk.active_positions_controller import (
+                ActivePositionsController,
+                SlotConfig,
+            )
+            self.active_slots_controller = ActivePositionsController(
+                policy_store=policy_store,
+                config=SlotConfig(),
+            )
+            logger.info(
+                "safety_governor_active_slots_enabled",
+                message="Active Positions Controller initialized",
+            )
+        elif enable_active_slots:
+            logger.warning(
+                "safety_governor_active_slots_disabled",
+                message="Active Slots enabled but PolicyStore not available",
+            )
         
         # Configuration (will be enhanced with PolicyStore reads)
         self.config = config or self._default_config()
@@ -675,6 +697,144 @@ class SafetyGovernor:
             "total_positions": portfolio_state.get("total_positions", 0),
             "total_exposure_pct": portfolio_state.get("gross_exposure", 0.0)
         }
+        
+        return input_data
+    
+    async def collect_active_slots_input_async(
+        self,
+        symbol: str,
+        action: str,
+        candidate_score: float,
+        candidate_returns: Optional[List[float]],
+        market_features: Dict[str, float],
+        portfolio_positions: List[Any],
+        total_margin_usage_pct: float,
+        active_slots_controller: Optional[Any] = None,
+    ) -> SubsystemInput:
+        """
+        Collect input from Active Positions Controller (PRIORITY 2.5 - between Risk Manager and HFOS).
+        
+        Enforces:
+        - Dynamic slot allocation (3-6 based on regime)
+        - Capital rotation (close weakest for better)
+        - Correlation caps (prevents >80% corr)
+        - Margin caps (prevents >65% usage)
+        - Policy-driven (no hardcoded symbols)
+        
+        Args:
+            symbol: Trading symbol
+            action: NEW_TRADE or EXPAND_POSITION
+            candidate_score: Quality score for candidate [0..100]
+            candidate_returns: Log-returns series for correlation check
+            market_features: Features for regime detection
+            portfolio_positions: List of current positions
+            total_margin_usage_pct: Current margin usage %
+            active_slots_controller: Instance of ActivePositionsController
+            
+        Returns:
+            SubsystemInput with Active Slots recommendations
+        """
+        from backend.services.risk.active_positions_controller import (
+            ActivePositionsController,
+            SlotDecision,
+        )
+        
+        input_data = SubsystemInput(
+            subsystem_name="ACTIVE_SLOTS",
+            priority=2.5  # Between RISK_MANAGER (2) and AI_HFOS (3)
+        )
+        
+        # If no controller provided, allow (backward compatible)
+        if active_slots_controller is None:
+            input_data.allow_new_trades = True
+            input_data.recommended_leverage_multiplier = 1.0
+            input_data.recommended_size_multiplier = 1.0
+            input_data.reason = "Active Slots Controller not enabled"
+            input_data.urgency = "NORMAL"
+            return input_data
+        
+        # Evaluate position request
+        decision, record = await active_slots_controller.evaluate_position_request(
+            symbol=symbol,
+            action=action,
+            candidate_score=candidate_score,
+            candidate_returns=candidate_returns,
+            market_features=market_features,
+            portfolio_positions=portfolio_positions,
+            total_margin_usage_pct=total_margin_usage_pct,
+        )
+        
+        # Map decision to subsystem input
+        if decision == SlotDecision.ALLOW:
+            input_data.allow_new_trades = True
+            input_data.recommended_leverage_multiplier = 1.0
+            input_data.recommended_size_multiplier = 1.0
+            input_data.reason = f"Slots available ({record.open_positions_count}/{record.desired_slots})"
+            input_data.urgency = "NORMAL"
+        
+        elif decision == SlotDecision.ROTATION_TRIGGERED:
+            # Rotation: close weakest, allow new
+            input_data.allow_new_trades = True
+            input_data.recommended_leverage_multiplier = 1.0
+            input_data.recommended_size_multiplier = 1.0
+            input_data.reason = f"Rotation: close {record.weakest_symbol} for {symbol}"
+            input_data.urgency = "NORMAL"
+            input_data.metadata["rotation_close_symbol"] = record.weakest_symbol
+            input_data.metadata["rotation_triggered"] = True
+        
+        elif decision == SlotDecision.BLOCKED_SLOTS_FULL:
+            input_data.allow_new_trades = False
+            input_data.recommended_leverage_multiplier = 1.0
+            input_data.recommended_size_multiplier = 1.0
+            input_data.reason = f"Slots full: {record.open_positions_count}/{record.desired_slots} (regime: {record.regime.value})"
+            input_data.urgency = "NORMAL"
+        
+        elif decision == SlotDecision.BLOCKED_NO_POLICY:
+            input_data.allow_new_trades = False
+            input_data.recommended_leverage_multiplier = 0.0
+            input_data.recommended_size_multiplier = 0.0
+            input_data.reason = f"No policy: {record.block_reason}"
+            input_data.urgency = "CRITICAL"
+        
+        elif decision == SlotDecision.BLOCKED_CORRELATION:
+            input_data.allow_new_trades = False
+            input_data.recommended_leverage_multiplier = 1.0
+            input_data.recommended_size_multiplier = 1.0
+            input_data.reason = f"Correlation {record.correlation_with_portfolio:.2f} > 0.80"
+            input_data.urgency = "NORMAL"
+        
+        elif decision == SlotDecision.BLOCKED_MARGIN:
+            input_data.allow_new_trades = False
+            input_data.recommended_leverage_multiplier = 0.5
+            input_data.recommended_size_multiplier = 0.5
+            input_data.reason = f"Margin usage {record.margin_usage_pct:.1f}% > 65%"
+            input_data.urgency = "HIGH"
+        
+        else:
+            # Fallback
+            input_data.allow_new_trades = False
+            input_data.recommended_leverage_multiplier = 0.0
+            input_data.recommended_size_multiplier = 0.0
+            input_data.reason = f"Unknown decision: {decision}"
+            input_data.urgency = "HIGH"
+        
+        input_data.metadata = {
+            "decision": decision.value,
+            "desired_slots": record.desired_slots,
+            "open_positions_count": record.open_positions_count,
+            "regime": record.regime.value,
+            "candidate_score": candidate_score,
+        }
+        
+        logger.info(
+            "safety_governor_active_slots_input",
+            symbol=symbol,
+            decision=decision.value,
+            desired_slots=record.desired_slots,
+            open_count=record.open_positions_count,
+            regime=record.regime.value,
+            allow_new_trades=input_data.allow_new_trades,
+        )
         
         return input_data
     
