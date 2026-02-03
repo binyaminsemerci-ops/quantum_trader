@@ -95,7 +95,62 @@ bash scripts/proof_intent_executor_exit_owner.sh
 # bash scripts/proof_policy_refresh.sh
 ```
 
-**Expected:** All tests PASS
+---
+
+## ✅ Success Criteria: What Should You See?
+
+### After Proof Script (Step 4)
+```
+════════════════════════════════════════════════════════════════
+  PROOF: Intent Executor Exit Ownership Gate
+════════════════════════════════════════════════════════════════
+
+Exit Owner: exitbrain_v3_5
+
+TEST 1: Verify intent_executor service running
+✅ TEST 1 PASS: intent_executor service active
+
+TEST 2: Verify EXIT_OWNER imported from lib.exit_ownership
+✅ TEST 2 PASS: EXIT_OWNER imported from lib.exit_ownership
+
+TEST 3: Verify exit ownership gate in code
+✅ TEST 3 PASS: Exit ownership gate complete + structured logging
+
+════════════════════════════════════════════════════════════════
+  PROOF SUMMARY
+════════════════════════════════════════════════════════════════
+Tests passed: 3/3
+Tests failed: 0/3
+
+🎉 ALL TESTS PASS - Exit ownership enforced at execution boundary
+```
+
+### After systemctl status
+```bash
+● quantum-intent-executor.service - Quantum Intent Executor
+     Loaded: loaded (/etc/systemd/system/quantum-intent-executor.service)
+     Active: active (running) since [timestamp]
+   Main PID: [pid] (python3)
+```
+
+**Key:** Status should be **active (running)**
+
+### After journalctl (recent logs)
+```
+[INFO] [INTENT-EXEC] 🔒 MANUAL_LANE_OFF
+[INFO] [INTENT-EXEC] 📊 Metrics: processed=X executed_true=Y ...
+```
+
+**Key:** No errors, metrics incrementing, no repeated failures
+
+### If Exit Gate Triggers (Normal)
+```
+🚫 DENY_NOT_EXIT_OWNER exec_boundary plan_id=abc12345 source=intent_bridge expected=exitbrain_v3_5 symbol=BTCUSDT
+```
+
+**Key:** `exec_boundary` tag present (confirms structured logging)
+
+---
 
 **If proof fails:**
 1. Check service logs: `journalctl -u <service> -n 100`
@@ -186,12 +241,30 @@ redis-cli PING
 # Check metrics
 redis-cli HGETALL quantum:metrics:intent_executor
 
+# Check timers are alive (policy automation)
+systemctl list-timers policy-refresh exit-owner-watch
+# Expected: Both timers should show "NEXT" column with upcoming activation
+
+# Verify timers are active
+systemctl is-active policy-refresh.timer
+systemctl is-active exit-owner-watch.timer
+# Expected: "active" for both
+
 # Run all relevant proofs
 cd /home/qt/quantum_trader
 bash scripts/proof_intent_executor_exit_owner.sh
 bash scripts/proof_exit_owner_gate.sh
 bash scripts/proof_policy_refresh.sh
 ```
+
+**Expected Timer Output:**
+```
+NEXT                        LEFT     LAST                        PASSED  UNIT                   ACTIVATES
+[timestamp]                 25min    [timestamp]                 4min    policy-refresh.timer   policy-refresh.service
+[timestamp]                 2min     [timestamp]                 2min    exit-owner-watch.timer exit-owner-watch.service
+```
+
+**Key:** "NEXT" and "LEFT" columns populated (timers scheduled)
 
 ---
 
@@ -230,6 +303,9 @@ bash scripts/proof_policy_refresh.sh
 - **Proof:** `scripts/proof_policy_refresh.sh` (10 tests)
 - **Timers:** policy-refresh.timer (30min), exit-owner-watch.timer (5min)
 - **Check timers:** `systemctl list-timers policy-refresh exit-owner-watch`
+- **Check timer health:** `systemctl is-active policy-refresh.timer exit-owner-watch.timer`
+- **Expected:** Both should return "active" (enabled and scheduled)
+- **Manual trigger (test):** `systemctl start policy-refresh.service` or `exit-owner-watch.service`
 
 ---
 
