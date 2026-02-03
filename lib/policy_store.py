@@ -171,7 +171,10 @@ class PolicyStore:
         features_window: str = "",
         universe_hash: str = "",
         market: str = "",
-        stats_endpoint: str = ""
+        stats_endpoint: str = "",
+        venue: str = "",
+        exchange_info_endpoint: str = "",
+        ticker_24h_endpoint: str = ""
     ) -> bool:
         """
         Save AI policy to Redis.
@@ -187,7 +190,10 @@ class PolicyStore:
             features_window: Feature windows used (e.g. "15m,1h")
             universe_hash: Hash of universe for change detection
             market: Market type (e.g. "futures" or "spot")
-            stats_endpoint: Stats API endpoint used (e.g. "fapi/v1/ticker/24hr")
+            stats_endpoint: Stats API endpoint used (deprecated, use ticker_24h_endpoint)
+            venue: Venue identifier (e.g. "binance-futures")
+            exchange_info_endpoint: ExchangeInfo endpoint (e.g. "fapi/v1/exchangeInfo")
+            ticker_24h_endpoint: 24h ticker endpoint (e.g. "fapi/v1/ticker/24hr")
             
         Returns:
             True if saved successfully
@@ -206,7 +212,10 @@ class PolicyStore:
                 "features_window": features_window if features_window else "",
                 "universe_hash": universe_hash if universe_hash else "",
                 "market": market if market else "",
-                "stats_endpoint": stats_endpoint if stats_endpoint else ""
+                "stats_endpoint": stats_endpoint if stats_endpoint else "",
+                "venue": venue if venue else "",
+                "exchange_info_endpoint": exchange_info_endpoint if exchange_info_endpoint else "",
+                "ticker_24h_endpoint": ticker_24h_endpoint if ticker_24h_endpoint else ""
             }
             
             # Save to Redis
@@ -284,7 +293,10 @@ def save_policy(
     features_window: str = "",
     universe_hash: str = "",
     market: str = "",
-    stats_endpoint: str = ""
+    stats_endpoint: str = "",
+    venue: str = "",
+    exchange_info_endpoint: str = "",
+    ticker_24h_endpoint: str = ""
 ) -> bool:
     """Save policy (convenience wrapper)"""
     store = PolicyStore()
@@ -299,5 +311,8 @@ def save_policy(
         features_window=features_window,
         universe_hash=universe_hash,
         market=market,
-        stats_endpoint=stats_endpoint
+        stats_endpoint=stats_endpoint,
+        venue=venue,
+        exchange_info_endpoint=exchange_info_endpoint,
+        ticker_24h_endpoint=ticker_24h_endpoint
     )

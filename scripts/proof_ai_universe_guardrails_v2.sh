@@ -79,6 +79,26 @@ if [ $? -eq 0 ] || [ $? -eq 124 ]; then
             FIRST_PICK=$(grep "AI_UNIVERSE_PICK" "$TEMP_OUT" | head -1)
             echo "  Example: $FIRST_PICK"
             
+            # TEST 3b: Verify required fields in PICK logs (compliance guard)
+            echo ""
+            echo "  [TEST 3b] Verify required fields in AI_UNIVERSE_PICK"
+            FIRST_PICK_LINE=$(grep "AI_UNIVERSE_PICK" "$TEMP_OUT" | head -1)
+            
+            MISSING_FIELDS=""
+            echo "$FIRST_PICK_LINE" | grep -q "qv24h_usdt=" || MISSING_FIELDS="$MISSING_FIELDS qv24h_usdt"
+            echo "$FIRST_PICK_LINE" | grep -q "spread_bps=" || MISSING_FIELDS="$MISSING_FIELDS spread_bps"
+            echo "$FIRST_PICK_LINE" | grep -q "age_days=" || MISSING_FIELDS="$MISSING_FIELDS age_days"
+            echo "$FIRST_PICK_LINE" | grep -q "lf=" || MISSING_FIELDS="$MISSING_FIELDS lf"
+            echo "$FIRST_PICK_LINE" | grep -q "sf=" || MISSING_FIELDS="$MISSING_FIELDS sf"
+            
+            if [ -z "$MISSING_FIELDS" ]; then
+                echo "  PASS: All required fields present (qv24h_usdt, spread_bps, age_days, lf, sf)"
+                PASS=$((PASS + 1))
+            else
+                echo "  FAIL: Missing required fields:$MISSING_FIELDS"
+                FAIL=$((FAIL + 1))
+            fi
+            
             PASS=$((PASS + 1))
         else
             echo "  FAIL: No AI_UNIVERSE_PICK logs found"

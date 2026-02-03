@@ -451,17 +451,29 @@ def generate_ai_universe(dry_run=False):
     print(f"\n[AI-UNIVERSE] TOP-{top_n} SELECTED:")
     
     # Per-symbol logging (grep-friendly) with full spread transparency
+    spread_detail_missing_count = 0
     for i, entry in enumerate(top_symbols, 1):
         age_str = f"{entry['age_days']:.0f}" if entry['age_days'] is not None else "NA"
+        
+        # Compliance guard: verify spread_bps exists
+        if 'spread_bps' not in entry:
+            print(f"[AI-UNIVERSE] WARN: {entry['symbol']} missing spread_bps (should not happen)")
+            spread_detail_missing_count += 1
+        
         # Main PICK log with qv24h_usdt (explicit)
-        print(f"[AI-UNIVERSE] AI_UNIVERSE_PICK symbol={entry['symbol']} score={entry['score']:.2f} qv24h_usdt={entry['quote_volume']:.0f} spread_bps={entry['spread_bps']:.2f} age_days={age_str} lf={entry['liquidity_factor']:.3f} sf={entry['spread_factor']:.3f}")
+        spread_bps_val = entry.get('spread_bps', -1.0)
+        print(f"[AI-UNIVERSE] AI_UNIVERSE_PICK symbol={entry['symbol']} score={entry['score']:.2f} qv24h_usdt={entry['quote_volume']:.0f} spread_bps={spread_bps_val:.2f} age_days={age_str} lf={entry['liquidity_factor']:.3f} sf={entry['spread_factor']:.3f} spread_detail_missing={'1' if spread_detail_missing_count > 0 else '0'}")
+        
         # Detailed spread breakdown for top 10
-        if 'spread_bid' in entry and 'spread_ask' in entry:
+        if 'spread_bid' in entry and 'spread_ask' in entry and 'spread_mid' in entry:
             print(f"[AI-UNIVERSE]   └─ spread_detail: bid={entry['spread_bid']:.6f} ask={entry['spread_ask']:.6f} mid={entry['spread_mid']:.6f} spread_bps={entry['spread_bps']:.2f}")
+        elif 'spread_bps' in entry:
+            # Spread exists but bid/ask/mid missing (should not happen after fix)
+            print(f"[AI-UNIVERSE]   └─ WARN: {entry['symbol']} has spread_bps but missing bid/ask/mid (data loss)")
+            spread_detail_missing_count += 1
         
         # Also show human-readable summary
-        print(f"  {i:2d}. {entry['symbol']:15s} score={entry['score']:8.2f} vol=${entry['quote_volume']/1e6:6.1f}M spread={entry['spread_bps']:4.1f}bps age={age_str:>4s}")
-        age_str = f"{entry['age_days']:.0f}d" if entry['age_days'] is not None else "NA"
+        age_display = f"{entry['age_days']:.0f}d" if entry['age_days'] is not None else "NA"
         print(f"  {i:2d}. {entry['symbol']:15s} score={entry['score']:8.2f} "
               f"liq_factor={entry['liquidity_factor']:.3f} "
               f"vol24h=${entry['quote_volume']/1e6:6.1f}M "
@@ -536,7 +548,10 @@ def generate_ai_universe(dry_run=False):
         features_window="15m,1h",
         universe_hash=universe_hash,
         market="futures",
-        stats_endpoint="fapi/v1/ticker/24hr"
+        stats_endpoint="fapi/v1/ticker/24hr",
+        venue="binance-futures",
+        exchange_info_endpoint="fapi/v1/exchangeInfo",
+        ticker_24h_endpoint="fapi/v1/ticker/24hr"
     )
     
     if success:
