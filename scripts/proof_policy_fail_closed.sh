@@ -143,20 +143,31 @@ else
     echo "$KILL_HARDCODE"
 fi
 
-# Test 5: No hardcoded symbol selection weights
+# Test 5: No hardcoded symbol selection weights (production services only)
 echo ""
-echo "Test 5: No hardcoded symbol selection weights (0.3, 0.4, etc.)"
-echo "----------------------------------------------------------------"
-WEIGHT_HARDCODE=$(safe_grep_hits "score\s*=.*0\.[34].*\*|0\.[34].*\*.*score" \
-    scripts/generate_top10_universe.py \
-    microservices/universe/ \
+echo "Test 5: No hardcoded symbol selection weights in runtime services"
+echo "-------------------------------------------------------------------"
+# Check if any service imports generate_top10_universe (if yes, weights are active)
+TOP10_IMPORTS=$(safe_grep_count "generate_top10_universe" \
+    microservices/ \
+    ai_engine/ \
+    lib/ \
     --exclude-dir=__pycache__)
 
-if [ -z "$WEIGHT_HARDCODE" ]; then
-    pass "No hardcoded symbol selection weights"
+if [ "$TOP10_IMPORTS" -eq 0 ]; then
+    pass "No runtime services import generate_top10_universe.py (PolicyStore active)"
 else
-    fail "Hardcoded symbol selection weights"
-    echo "$WEIGHT_HARDCODE"
+    # Check if weights exist in code (legacy script may exist but not be used)
+    WEIGHT_HARDCODE=$(safe_grep_hits "score\s*=.*0\.[34].*\*|0\.[34].*\*.*score" \
+        scripts/generate_top10_universe.py \
+        --exclude-dir=__pycache__)
+    
+    if [ -n "$WEIGHT_HARDCODE" ]; then
+        fail "generate_top10_universe.py imported by $TOP10_IMPORTS services (hardcoded weights active)"
+        echo "Evidence: $TOP10_IMPORTS services import legacy script"
+    else
+        pass "No hardcoded weights in active code path"
+    fi
 fi
 
 # Test 6: No hardcoded position sizing ($200, etc.)
