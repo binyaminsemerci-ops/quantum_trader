@@ -197,6 +197,10 @@ class PolicyStore:
             # Save to Redis
             self.redis.hset(self.REDIS_KEY, mapping=policy_data)
             
+            # Compute hash and save it
+            policy_hash = self._compute_hash(policy_data)
+            self.redis.hset(self.REDIS_KEY, "policy_hash", policy_hash)
+            
             # Publish update event
             self.redis.xadd(
                 self.REDIS_STREAM,
@@ -208,7 +212,6 @@ class PolicyStore:
                 maxlen=100
             )
             
-            policy_hash = self._compute_hash(policy_data)
             print(f"[PolicyStore] POLICY_SAVED: version={policy_version} hash={policy_hash[:8]}")
             
             # Audit trail (best-effort, fail-open)
