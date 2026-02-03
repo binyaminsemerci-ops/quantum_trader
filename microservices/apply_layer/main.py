@@ -2114,17 +2114,39 @@ class ApplyLayer:
                         take_profit = plan_data.get('take_profit')
                         qty = float(plan_data.get('qty', '0'))
                         
-                        # Only process BUY side (entry signals)
-                        if side != 'BUY':
-                            logger.debug(f"[ENTRY] {symbol}: Skipping {side} (not BUY)")
+                        # Process both BUY and SELL entry signals
+                        if side not in ['BUY', 'SELL']:
+                            logger.debug(f"[ENTRY] {symbol}: Skipping {side} (not BUY or SELL)")
                             self.redis.xack(stream_key, consumer_group, msg_id)
                             continue
                         
-                        logger.info(f"[ENTRY] {symbol}: Processing BUY intent (leverage={leverage}, qty={qty}, plan_id={plan_id[:8]})")
+                        position_side = 'LONG' if side == 'BUY' else 'SHORT'
+                        logger.info(f"[ENTRY] {symbol}: Processing {side} intent (→{position_side}, leverage={leverage}, qty={qty}, plan_id={plan_id[:8]})")
                         
                         # 🔥 HARD GATE: Check symbol is in policy universe (fail-closed)
                         if not self._check_symbol_allowlist(symbol):
                             logger.warning(f"[ENTRY] {symbol}: Order REJECTED - symbol not in policy allowlist")
+                            self.redis.xack(stream_key, consumer_group, msg_id)
+                            continue
+                        
+                        # 🔥 STRICT ANTI-DUPLICATE GATE: Check if position already exists
+                        pos_key = f"quantum:position:{symbol}"
+                        existing_pos = self.redis.hgetall(pos_key)
+                        if existing_pos:
+                            existing_side = existing_pos.get(b'side', existing_pos.get('side', b'')).decode() if isinstance(existing_pos.get(b'side', existing_pos.get('side', b'')), bytes) else existing_pos.get(b'side', existing_pos.get('side', ''))
+                            existing_qty = existing_pos.get(b'quantity', existing_pos.get('quantity', b'0')).decode() if isinstance(existing_pos.get(b'quantity', existing_pos.get('quantity', b'0')), bytes) else existing_pos.get(b'quantity', existing_pos.get('quantity', '0'))
+                            
+                            # Block if trying to open same side (pyramiding)
+                            if existing_side == position_side:
+                                logger.warning(f"[ENTRY] {symbol}: SKIP_OPEN_DUPLICATE - Position already exists (side={position_side}, qty={existing_qty})")
+                                self.redis.xack(stream_key, consumer_group, msg_id)
+                                continue
+                        
+                        # 🔥 COOLDOWN GATE: Prevent rapid re-opening (fail-closed)
+                        cooldown_key = f"quantum:cooldown:open:{symbol}"
+                        if self.redis.exists(cooldown_key):
+                            ttl = self.redis.ttl(cooldown_key)
+                            logger.warning(f"[ENTRY] {symbol}: SKIP_OPEN_COOLDOWN - Recently opened (cooldown={ttl}s remaining)")
                             self.redis.xack(stream_key, consumer_group, msg_id)
                             continue
                         
@@ -2137,25 +2159,25 @@ class ApplyLayer:
                             self.redis.xack(stream_key, consumer_group, msg_id)
                             continue
                         
-                        # Place market BUY order
+                        # Place market order (BUY or SELL)
                         try:
                             client = BinanceTestnetClient(api_key, api_secret)
                             
-                            # Place market BUY order (NOT reduce-only)
+                            # Place market order (NOT reduce-only)
                             order_result = client.place_market_order(
                                 symbol=symbol,
-                                side='BUY',
+                                side=side,  # BUY or SELL
                                 quantity=qty,
                                 reduce_only=False
                             )
                             
-                            logger.info(f"[ENTRY] {symbol}: BUY order placed: {order_result}")
+                            logger.info(f"[ENTRY] {symbol}: {side} order placed: {order_result}")
                             
                             # Store position reference
                             pos_key = f"quantum:position:{symbol}"
                             self.redis.hset(pos_key, mapping={
                                 "symbol": symbol,
-                                "side": "LONG",
+                                "side": position_side,  # LONG or SHORT
                                 "quantity": str(qty),
                                 "leverage": str(leverage),
                                 "stop_loss": stop_loss or "0",
@@ -2164,6 +2186,11 @@ class ApplyLayer:
                                 "created_at": str(int(time.time()))
                             })
                             logger.info(f"[ENTRY] {symbol}: Position reference stored")
+                            
+                            # 🔥 Set cooldown to prevent rapid re-opening (180s = 3 minutes)
+                            cooldown_key = f"quantum:cooldown:open:{symbol}"
+                            self.redis.setex(cooldown_key, 180, "1")
+                            logger.info(f"[ENTRY] {symbol}: Cooldown set (180s)")
                         
                         except Exception as e:
                             logger.error(f"[ENTRY] {symbol}: Failed to place order: {e}", exc_info=True)
