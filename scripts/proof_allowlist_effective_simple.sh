@@ -26,8 +26,9 @@ TEMP_OUT=$(mktemp)
 timeout 15 python3 scripts/test_allowlist_effective.py > "$TEMP_OUT" 2>&1
 
 if grep -q "ALLOWLIST_EFFECTIVE" "$TEMP_OUT"; then
-    SOURCE=$(grep "ALLOWLIST_EFFECTIVE" "$TEMP_OUT" | tail -1 | grep -oP 'source=\K\w+')
-    COUNT=$(grep "ALLOWLIST_EFFECTIVE" "$TEMP_OUT" | tail -1 | grep -oP 'count=\K\d+')
+    ALLOWLIST_LINE=$(grep "ALLOWLIST_EFFECTIVE" "$TEMP_OUT" | tail -1)
+    SOURCE=$(echo "$ALLOWLIST_LINE" | sed -n 's/.*source=\([^ ]*\).*/\1/p')
+    COUNT=$(echo "$ALLOWLIST_LINE" | sed -n 's/.*count=\([^ ]*\).*/\1/p')
     echo "✅ PASS: source=$SOURCE count=$COUNT"
     
     if [ "$SOURCE" = "policy" ]; then
@@ -47,7 +48,7 @@ echo ""
 if grep -q "TESTNET_INTERSECTION" "$TEMP_OUT"; then
     TESTNET_LINE=$(grep "TESTNET_INTERSECTION" "$TEMP_OUT" | tail -1)
     echo "✅ PASS: Testnet intersection active"
-    echo "   $TESTNET_LINE" | grep -oP 'AI=\d+ → testnet_tradable=\d+ \(shadow=\d+\)'
+    echo "   $(echo "$TESTNET_LINE" | sed -n 's/.*\(AI=[0-9]* → testnet_tradable=[0-9]* (shadow=[0-9]*)\).*/\1/p')"
 else
     echo "⚠️  SKIP: No testnet intersection (mainnet mode)"
 fi
