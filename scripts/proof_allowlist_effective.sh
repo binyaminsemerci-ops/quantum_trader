@@ -4,7 +4,9 @@ set -euo pipefail
 # Proof: Effective Allowlist Source
 # Verifies that Intent Bridge uses AI policy universe when available
 
+# Get script directory and repo root
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REDIS_CLI="${REDIS_CLI:-redis-cli}"
 
 # Color codes
@@ -78,9 +80,10 @@ echo ""
 # TEST 2: Check Intent Bridge logs for effective allowlist
 log_info "TEST 2: Check Intent Bridge effective allowlist source"
 
-# Run dry-run test to trigger logging
+# Run dry-run test to trigger logging (from repo root)
 log_info "Running dry-run test to trigger allowlist evaluation..."
-DRY_RUN_OUTPUT=$(python3 "$SCRIPT_DIR/test_allowlist_effective.py" 2>&1)
+cd "$REPO_ROOT"
+DRY_RUN_OUTPUT=$(python3 scripts/test_allowlist_effective.py 2>&1)
 
 # Check if dry-run succeeded
 if echo "$DRY_RUN_OUTPUT" | grep -q "ALLOWLIST_EFFECTIVE"; then
