@@ -1,0 +1,14 @@
+[Unit]
+Description=Quantum Trader Exit Owner Watch Timer
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+Requires=quantum-exit-owner-watch.service
+
+[Timer]
+# Run every 5 minutes
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30sec
+Persistent=true
+
+[Install]
+WantedBy=timers.target

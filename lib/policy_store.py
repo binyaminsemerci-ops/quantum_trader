@@ -211,6 +211,22 @@ class PolicyStore:
             policy_hash = self._compute_hash(policy_data)
             print(f"[PolicyStore] POLICY_SAVED: version={policy_version} hash={policy_hash[:8]}")
             
+            # Audit trail (best-effort, fail-open)
+            try:
+                audit_entry = {
+                    "policy_version": policy_version,
+                    "policy_hash": policy_hash,
+                    "valid_until_epoch": str(valid_until),
+                    "created_at_epoch": str(int(time.time())),
+                    "generator": "generate_sample_policy",
+                    "universe_count": str(len(universe_symbols)),
+                    "leverage_range": f"{min(leverage_by_symbol.values()):.1f}x-{max(leverage_by_symbol.values()):.1f}x"
+                }
+                self.redis.xadd("quantum:stream:policy.audit", audit_entry, maxlen=1000)
+            except Exception as audit_err:
+                # Fail-open: Don't crash on audit failure
+                print(f"[PolicyStore] AUDIT_WARN: {audit_err}")
+            
             return True
             
         except Exception as e:

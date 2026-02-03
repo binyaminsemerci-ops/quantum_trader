@@ -1,0 +1,20 @@
+[Unit]
+Description=Quantum Trader Policy Refresh
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+After=network.target redis.service
+
+[Service]
+Type=oneshot
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+ExecStart=/usr/bin/bash /home/qt/quantum_trader/scripts/policy_refresh.sh
+StandardOutput=journal
+StandardError=journal
+Environment="PYTHONPATH=/home/qt/quantum_trader"
+
+# Fail-open: Don't block if refresh fails
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=multi-user.target
