@@ -46,7 +46,9 @@ pass() {
 
 fail() {
     echo -e "${RED}❌ FAIL${NC}: $1"
-    echo -e "   ${YELLOW}Evidence:${NC} $2"
+    if [ -n "${2:-}" ]; then
+        echo -e "   ${YELLOW}Evidence:${NC} $2"
+    fi
     FAIL_COUNT=$((FAIL_COUNT + 1))
     RESULTS+=("FAIL: $1")
 }
