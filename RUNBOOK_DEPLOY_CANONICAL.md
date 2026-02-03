@@ -230,6 +230,27 @@ journalctl -u quantum-intent-executor --since "10 minutes ago" | grep -i error
 journalctl -u quantum-intent-executor --since "10 minutes ago" | grep "DENY_NOT_EXIT_OWNER exec_boundary"
 ```
 
+### ⚡ Quick Deploy Verification (One-Liner)
+**Use this after any deploy to confirm everything is green:**
+
+```bash
+systemctl is-active quantum-intent-executor quantum-policy-refresh.timer quantum-exit-owner-watch.timer \
+  && bash /home/qt/quantum_trader/scripts/proof_intent_executor_exit_owner.sh
+```
+
+**Expected Output:**
+```
+active
+active
+active
+[... proof runs ...]
+🎉 ALL TESTS PASS - Exit ownership enforced at execution boundary
+```
+
+**If this passes → deploy is good. If it fails → investigate immediately.**
+
+---
+
 ### Full Health Verification
 ```bash
 # All services
@@ -264,6 +285,21 @@ NEXT                        LEFT     LAST                        PASSED  UNIT   
 ```
 
 **Key:** "NEXT" and "LEFT" columns populated (timers scheduled)
+
+---
+
+## ⚠️ Important: Unit Naming
+
+**All systemd units use `quantum-` prefix. Common mistakes:**
+
+| ❌ WRONG | ✅ CORRECT |
+|----------|------------|
+| `policy-refresh.timer` | `quantum-policy-refresh.timer` |
+| `exit-owner-watch.timer` | `quantum-exit-owner-watch.timer` |
+| `intent-executor.service` | `quantum-intent-executor.service` |
+| `apply-layer.service` | `quantum-apply-layer.service` |
+
+**Quick verification:** `systemctl list-units quantum-*` (should show all services/timers)
 
 ---
 
