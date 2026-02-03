@@ -42,8 +42,8 @@ else
 fi
 
 # Test 5: Service has fail-open semantics
-log_test "5. Service has fail-open semantics (SuccessExitStatus=0 1)"
-if grep -q "SuccessExitStatus=0 1" deploy/systemd/quantum-policy-refresh.service; then
+log_test "5. Service has fail-open semantics (SuccessExitStatus=0 2)"
+if grep -q "SuccessExitStatus=0 2" deploy/systemd/quantum-policy-refresh.service; then
     pass "Service configured for fail-open"
 else
     fail "Service missing fail-open config"
