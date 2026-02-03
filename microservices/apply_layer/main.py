@@ -2107,8 +2107,177 @@ class ApplyLayer:
                             plan_data[key] = val
                         
                         symbol = plan_data.get('symbol', '')
-                        side = plan_data.get('side', '').upper()
+                        action = plan_data.get('action', '').upper()
                         plan_id = plan_data.get('plan_id', '')
+                        
+                        # ========== CLOSE HANDLER ==========
+                        # Process FULL_CLOSE_PROPOSED, PARTIAL_* actions (reduceOnly market orders)
+                        if action in ['FULL_CLOSE_PROPOSED', 'PARTIAL_25', 'PARTIAL_50', 'PARTIAL_75']:
+                            logger.info(f"[CLOSE] {symbol}: Processing {action} plan_id={plan_id[:8]}")
+                            
+                            # Idempotency: Check if already executed
+                            dedupe_key = f"quantum:apply:done:{plan_id}"
+                            if self.redis.exists(dedupe_key):
+                                logger.warning(f"[CLOSE] {symbol}: SKIP_DUPLICATE plan_id={plan_id[:8]} (already executed)")
+                                self.redis.xack(stream_key, consumer_group, msg_id)
+                                # Publish skip result
+                                self.redis.xadd('quantum:stream:apply.result', {
+                                    'plan_id': plan_id,
+                                    'symbol': symbol,
+                                    'action': action,
+                                    'executed': 'False',
+                                    'error': 'duplicate_plan',
+                                    'timestamp': str(int(time.time()))
+                                })
+                                continue
+                            
+                            # Get current position
+                            pos_key = f"quantum:position:{symbol}"
+                            existing_pos = self.redis.hgetall(pos_key)
+                            if not existing_pos:
+                                logger.warning(f"[CLOSE] {symbol}: SKIP_NO_POSITION plan_id={plan_id[:8]} (no position exists)")
+                                self.redis.xack(stream_key, consumer_group, msg_id)
+                                # Set dedupe marker
+                                self.redis.setex(dedupe_key, 600, "1")  # 10 min TTL
+                                # Publish skip result
+                                self.redis.xadd('quantum:stream:apply.result', {
+                                    'plan_id': plan_id,
+                                    'symbol': symbol,
+                                    'action': action,
+                                    'executed': 'False',
+                                    'error': 'no_position',
+                                    'timestamp': str(int(time.time()))
+                                })
+                                continue
+                            
+                            # Parse position data
+                            position_side = existing_pos.get(b'side', existing_pos.get('side', b'')).decode() if isinstance(existing_pos.get(b'side', existing_pos.get('side', b'')), bytes) else existing_pos.get(b'side', existing_pos.get('side', ''))
+                            position_qty_str = existing_pos.get(b'quantity', existing_pos.get('quantity', b'0')).decode() if isinstance(existing_pos.get(b'quantity', existing_pos.get('quantity', b'0')), bytes) else existing_pos.get(b'quantity', existing_pos.get('quantity', '0'))
+                            position_qty = float(position_qty_str)
+                            
+                            # Parse steps from plan to get close percentage
+                            steps_str = plan_data.get('steps', '[]')
+                            try:
+                                steps = json.loads(steps_str)
+                            except:
+                                steps = []
+                            
+                            # Find market_reduce_only step
+                            close_pct = 100.0  # Default to full close
+                            for step in steps:
+                                if step.get('type') == 'market_reduce_only':
+                                    close_pct = float(step.get('pct', 100.0))
+                                    break
+                            
+                            # Compute close_qty
+                            close_qty = abs(position_qty) * (close_pct / 100.0)
+                            
+                            if close_qty <= 0.0:
+                                logger.warning(f"[CLOSE] {symbol}: SKIP_CLOSE_QTY_ZERO plan_id={plan_id[:8]} pct={close_pct} pos_qty={position_qty}")
+                                self.redis.xack(stream_key, consumer_group, msg_id)
+                                # Set dedupe marker
+                                self.redis.setex(dedupe_key, 600, "1")
+                                # Publish skip result
+                                self.redis.xadd('quantum:stream:apply.result', {
+                                    'plan_id': plan_id,
+                                    'symbol': symbol,
+                                    'action': action,
+                                    'executed': 'False',
+                                    'error': 'close_qty_zero',
+                                    'close_qty': '0.0',
+                                    'timestamp': str(int(time.time()))
+                                })
+                                continue
+                            
+                            # Determine close side (opposite of position)
+                            if position_side == 'LONG':
+                                close_side = 'SELL'  # Close LONG with SELL
+                            elif position_side == 'SHORT':
+                                close_side = 'BUY'   # Close SHORT with BUY
+                            else:
+                                logger.error(f"[CLOSE] {symbol}: Invalid position_side={position_side}")
+                                self.redis.xack(stream_key, consumer_group, msg_id)
+                                continue
+                            
+                            # Execute reduceOnly market order
+                            api_key = os.getenv("BINANCE_TESTNET_API_KEY")
+                            api_secret = os.getenv("BINANCE_TESTNET_API_SECRET")
+                            
+                            if not api_key or not api_secret:
+                                logger.warning(f"[CLOSE] {symbol}: Missing Binance testnet credentials")
+                                self.redis.xack(stream_key, consumer_group, msg_id)
+                                continue
+                            
+                            try:
+                                client = BinanceTestnetClient(api_key, api_secret)
+                                
+                                logger.info(f"[CLOSE_EXECUTE] plan_id={plan_id[:8]} symbol={symbol} side={close_side} qty={close_qty:.6f} reduceOnly=true pct={close_pct}%")
+                                
+                                # Place reduceOnly market order
+                                order_result = client.place_market_order(
+                                    symbol=symbol,
+                                    side=close_side,
+                                    quantity=close_qty,
+                                    reduce_only=True
+                                )
+                                
+                                filled_qty = float(order_result.get('executedQty', close_qty))
+                                order_id = order_result.get('orderId', '')
+                                status = order_result.get('status', 'UNKNOWN')
+                                
+                                logger.info(f"[CLOSE_DONE] plan_id={plan_id[:8]} symbol={symbol} filled={filled_qty:.6f} order_id={order_id} status={status}")
+                                
+                                # Update Redis position
+                                new_qty = position_qty - filled_qty
+                                if abs(new_qty) < 0.0001 or close_pct >= 100.0:
+                                    # Full close: delete position
+                                    self.redis.delete(pos_key)
+                                    logger.info(f"[CLOSE] {symbol}: Position deleted (full close)")
+                                else:
+                                    # Partial close: update quantity
+                                    self.redis.hset(pos_key, 'quantity', str(new_qty))
+                                    logger.info(f"[CLOSE] {symbol}: Position updated qty={position_qty:.6f} -> {new_qty:.6f}")
+                                
+                                # Set dedupe marker
+                                self.redis.setex(dedupe_key, 600, "1")  # 10 min TTL
+                                
+                                # Publish success result
+                                self.redis.xadd('quantum:stream:apply.result', {
+                                    'plan_id': plan_id,
+                                    'symbol': symbol,
+                                    'action': action,
+                                    'executed': 'True',
+                                    'reduceOnly': 'True',
+                                    'close_qty': str(close_qty),
+                                    'filled_qty': str(filled_qty),
+                                    'order_id': str(order_id),
+                                    'status': status,
+                                    'side': close_side,
+                                    'close_pct': str(close_pct),
+                                    'timestamp': str(int(time.time()))
+                                })
+                                
+                            except Exception as e:
+                                logger.error(f"[CLOSE] {symbol}: Failed to execute close: {e}", exc_info=True)
+                                # Set dedupe marker (prevent retry storm)
+                                self.redis.setex(dedupe_key, 600, "1")
+                                # Publish error result
+                                self.redis.xadd('quantum:stream:apply.result', {
+                                    'plan_id': plan_id,
+                                    'symbol': symbol,
+                                    'action': action,
+                                    'executed': 'False',
+                                    'error': f"execution_failed: {str(e)[:200]}",
+                                    'timestamp': str(int(time.time()))
+                                })
+                            
+                            # ACK the message
+                            self.redis.xack(stream_key, consumer_group, msg_id)
+                            logger.info(f"[CLOSE] {symbol}: Message ACK'd (msg_id={msg_id})")
+                            continue
+                        
+                        # ========== ENTRY HANDLER (existing code) ==========
+                        side = plan_data.get('side', '').upper()
                         leverage = float(plan_data.get('leverage', '1'))
                         stop_loss = plan_data.get('stop_loss')
                         take_profit = plan_data.get('take_profit')
