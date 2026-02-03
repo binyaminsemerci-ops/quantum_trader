@@ -275,6 +275,7 @@ class IntentBridge:
                 policy_version = self.current_policy.policy_version
                 policy_hash = self.current_policy.policy_hash[:8]
                 policy_count = len(allowlist)
+                logger.info(f"[ALLOWLIST] Using POLICY source: {policy_count} symbols = {sorted(allowlist)}")
         
         # Priority 2: TOP10 universe
         if not allowlist and USE_TOP10_UNIVERSE:
@@ -284,6 +285,7 @@ class IntentBridge:
         
             allowlist = self.current_allowlist
             source = "top10"
+            logger.info(f"[ALLOWLIST] Using TOP10 source: {len(allowlist)} symbols = {sorted(allowlist)}")
         
         # Priority 3: Static allowlist (legacy)
         if not allowlist:
@@ -432,9 +434,11 @@ class IntentBridge:
                 return None
             
             # Allowlist check
-            if symbol not in self._get_effective_allowlist():
-                logger.debug(f"Symbol not in allowlist: {symbol}")
+            effective_allowlist = self._get_effective_allowlist()
+            if symbol not in effective_allowlist:
+                logger.info(f"⚠️  Symbol REJECTED (not in allowlist): {symbol} (allowlist has {len(effective_allowlist)} symbols: {sorted(list(effective_allowlist))[:5]}...)")
                 return None
+            logger.info(f"✅ Symbol ACCEPTED: {symbol}")
             
             # Extract quantity or size
             qty = None
