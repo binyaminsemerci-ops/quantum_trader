@@ -121,11 +121,7 @@ logger.info(f"Intent Bridge - trade.intent → apply.plan [{BUILD_TAG}]")
 logger.info("=" * 80)
 logger.info(f"Redis: {REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
 logger.info(f"Consumer: {CONSUMER_GROUP} / {CONSUMER_NAME}")
-logger.info(f"USE_TOP10_UNIVERSE: {USE_TOP10_UNIVERSE}")
-if USE_TOP10_UNIVERSE:
-    logger.info(f"Allowlist: TOP10 (loaded dynamically from quantum:cfg:universe:top10)")
-else:
-    logger.info(f"Allowlist: {sorted(ALLOWLIST)}")
+logger.info(f"🔥 UNIVERSE_MODE: PolicyStore (SINGLE SOURCE OF TRUTH)")
 logger.info(f"Intent stream: {INTENT_STREAM}")
 logger.info(f"Plan stream: {PLAN_STREAM}")
 logger.info(f"Require ledger for OPEN: {REQUIRE_LEDGER_FOR_OPEN}")
@@ -171,9 +167,6 @@ class IntentBridge:
         # Load AI policy (fail-closed)
         self.current_policy: Optional[PolicyData] = None
         self._refresh_policy()
-        
-        if USE_TOP10_UNIVERSE:
-            self._refresh_top10_allowlist()
     
     def _refresh_policy(self):
         """Load AI policy from PolicyStore (fail-closed)."""
