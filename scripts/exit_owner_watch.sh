@@ -33,7 +33,7 @@ APPLY_LAYER_SERVICE="quantum-apply-layer"
 if [ -z "${EXIT_OWNER_WATCH_TEST_INPUT:-}" ]; then
     if ! systemctl list-units --type=service 2>/dev/null | grep -q "$APPLY_LAYER_SERVICE"; then
         log_info "Service $APPLY_LAYER_SERVICE not found, skipping check"
-        exit 0
+        exit 0  # Fail-open: service not running is not an alert condition
     fi
 fi
 
@@ -63,13 +63,14 @@ if [ "$DENY_COUNT" -gt 0 ]; then
     echo ""
     
     # Deduplicate alerts: only send one per 10-min window (prevent spam)
-    WINDOW_START=$(( $(date +%s) / 600 * 600 ))  # Round down to 10-min boundary
+    # CRITICAL: Window boundary (600s) MUST match Redis TTL (EX 600) for consistency
+    WINDOW_START=$(( $(date +%s) / 600 * 600 ))  # Round down to 10-min boundary (600s)
     SAMPLE_LINE=$(if [ -n "${EXIT_OWNER_WATCH_TEST_INPUT:-}" ]; then grep "DENY_NOT_EXIT_OWNER" "$EXIT_OWNER_WATCH_TEST_INPUT" 2>/dev/null | head -1; else journalctl -u "$APPLY_LAYER_SERVICE" --since "$CHECK_WINDOW" --no-pager 2>/dev/null | grep "DENY_NOT_EXIT_OWNER" | head -1; fi)
     ALERT_ID=$(echo "${WINDOW_START}_${DENY_COUNT}_${SAMPLE_LINE}" | sha1sum | cut -d' ' -f1)
     
     # Write to Redis alert stream (best-effort, with deduplication)
     if command -v redis-cli &> /dev/null; then
-        # Try to set dedup key (TTL 10min)
+        # Try to set dedup key (TTL 600s = 10 min, matches window boundary)
         if redis-cli SET "quantum:alert:dedup:$ALERT_ID" "1" EX 600 NX 2>/dev/null | grep -q "OK"; then
             redis-cli XADD "quantum:stream:alerts" "*" \
                 alert_type "EXIT_OWNER_VIOLATION" \
