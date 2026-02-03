@@ -216,7 +216,7 @@ class PolicyStore:
                 audit_entry = {
                     "policy_version": policy_version,
                     "policy_hash": policy_hash,
-                    "valid_until_epoch": str(valid_until),
+                    "valid_until_epoch": str(valid_until_epoch),
                     "created_at_epoch": str(int(time.time())),
                     "generator": "generate_sample_policy",
                     "universe_count": str(len(universe_symbols)),
