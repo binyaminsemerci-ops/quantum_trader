@@ -391,6 +391,7 @@ class ApplyPlan:
     steps: List[Dict[str, Any]]  # execution steps
     close_qty: float  # P3.2: for Governor daily limits
     price: Optional[float]  # P3.2: for Governor notional limits
+    source: str  # Source service (exitbrain_v3_5, manual_close, etc.)
     timestamp: int
 
 
@@ -703,6 +704,7 @@ class ApplyPlan:
     steps: List[Dict[str, Any]]  # execution steps
     close_qty: float  # P3.2: for Governor daily limits
     price: Optional[float]  # P3.2: for Governor notional limits
+    source: str  # Source service (exitbrain_v3_5, manual_close, etc.)
     timestamp: int
 
 
