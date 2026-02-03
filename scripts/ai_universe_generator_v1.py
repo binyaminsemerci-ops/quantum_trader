@@ -124,7 +124,7 @@ def fetch_24h_stats_bulk():
 
 
 def fetch_orderbook_spread(symbol):
-    """Fetch orderbook top for spread calculation"""
+    """Fetch orderbook top for spread calculation - returns dict with bid/ask/mid/spread_bps"""
     try:
         url = f"https://fapi.binance.com/fapi/v1/depth"
         params = {"symbol": symbol, "limit": 5}
@@ -141,11 +141,16 @@ def fetch_orderbook_spread(symbol):
         best_bid = float(bids[0][0])
         best_ask = float(asks[0][0])
         
-        # Calculate spread in bps
+        # Calculate spread in bps: (ask-bid)/mid * 10000
         if best_bid > 0:
             mid = (best_bid + best_ask) / 2
             spread_bps = ((best_ask - best_bid) / mid) * 10000
-            return spread_bps
+            return {
+                "bid": best_bid,
+                "ask": best_ask,
+                "mid": mid,
+                "spread_bps": spread_bps
+            }
         
         return None
     except Exception as e:
@@ -296,13 +301,16 @@ def rank_symbols(symbols, exchange_info=None):
             print(f"[AI-UNIVERSE] Spread check: {i}/{len(candidates_to_check)}...")
         
         symbol = candidate["symbol"]
-        spread_bps = fetch_orderbook_spread(symbol)
+        spread_data = fetch_orderbook_spread(symbol)
         
-        if spread_bps is None or spread_bps > MAX_SPREAD_BPS:
+        if spread_data is None or spread_data["spread_bps"] > MAX_SPREAD_BPS:
             excluded_spread += 1
             continue
         
-        candidate["spread_bps"] = spread_bps
+        candidate["spread_bps"] = spread_data["spread_bps"]
+        candidate["spread_bid"] = spread_data["bid"]
+        candidate["spread_ask"] = spread_data["ask"]
+        candidate["spread_mid"] = spread_data["mid"]
         candidates_spread_ok.append(candidate)
     
     spread_ok = len(candidates_spread_ok)
@@ -334,11 +342,11 @@ def rank_symbols(symbols, exchange_info=None):
     age_ok = len(candidates_age_ok)
     print(f"[AI-UNIVERSE] Age filter: {age_ok}/{spread_ok} pass (excluded {excluded_age}, unknown_age {unknown_age})")
     
-    # Log guardrails summary with optimization metrics
+    # Log guardrails summary with optimization metrics and volume source
     total = len(symbols)
     max_checks = MAX_SPREAD_CHECKS if 'MAX_SPREAD_CHECKS' in locals() else vol_ok
     skipped = skipped_spread_check if 'skipped_spread_check' in locals() else 0
-    print(f"[AI-UNIVERSE] AI_UNIVERSE_GUARDRAILS total={total} vol_ok={vol_ok} spread_checked={max_checks} spread_skipped={skipped} spread_ok={spread_ok} age_ok={age_ok} excluded_vol={excluded_volume} excluded_spread={excluded_spread} excluded_age={excluded_age} unknown_age={unknown_age} min_qv={MIN_QUOTE_VOL_USDT_24H} max_spread_bps={MAX_SPREAD_BPS} min_age_days={MIN_AGE_DAYS}")
+    print(f"[AI-UNIVERSE] AI_UNIVERSE_GUARDRAILS total={total} vol_ok={vol_ok} spread_checked={max_checks} spread_skipped={skipped} spread_ok={spread_ok} age_ok={age_ok} excluded_vol={excluded_volume} excluded_spread={excluded_spread} excluded_age={excluded_age} unknown_age={unknown_age} min_qv_usdt={MIN_QUOTE_VOL_USDT_24H} max_spread_bps={MAX_SPREAD_BPS} min_age_days={MIN_AGE_DAYS} vol_src=quoteVolume")
     
     # Pipeline E: Compute features and rank
     print(f"[AI-UNIVERSE] Computing features for {age_ok} eligible symbols...")
@@ -433,10 +441,14 @@ def generate_ai_universe(dry_run=False):
     
     print(f"\n[AI-UNIVERSE] TOP-{top_n} SELECTED:")
     
-    # Per-symbol logging (grep-friendly)
+    # Per-symbol logging (grep-friendly) with full spread transparency
     for i, entry in enumerate(top_symbols, 1):
         age_str = f"{entry['age_days']:.0f}" if entry['age_days'] is not None else "NA"
-        print(f"[AI-UNIVERSE] AI_UNIVERSE_PICK symbol={entry['symbol']} score={entry['score']:.2f} qv24h={entry['quote_volume']:.0f} spread_bps={entry['spread_bps']:.2f} age_days={age_str} lf={entry['liquidity_factor']:.3f} sf={entry['spread_factor']:.3f}")
+        # Main PICK log with qv24h_usdt (explicit)
+        print(f"[AI-UNIVERSE] AI_UNIVERSE_PICK symbol={entry['symbol']} score={entry['score']:.2f} qv24h_usdt={entry['quote_volume']:.0f} spread_bps={entry['spread_bps']:.2f} age_days={age_str} lf={entry['liquidity_factor']:.3f} sf={entry['spread_factor']:.3f}")
+        # Detailed spread breakdown for top 10
+        if 'spread_bid' in entry and 'spread_ask' in entry:
+            print(f"[AI-UNIVERSE]   └─ spread_detail: bid={entry['spread_bid']:.6f} ask={entry['spread_ask']:.6f} mid={entry['spread_mid']:.6f} spread_bps={entry['spread_bps']:.2f}")
         
         # Also show human-readable summary
         print(f"  {i:2d}. {entry['symbol']:15s} score={entry['score']:8.2f} vol=${entry['quote_volume']/1e6:6.1f}M spread={entry['spread_bps']:4.1f}bps age={age_str:>4s}")
