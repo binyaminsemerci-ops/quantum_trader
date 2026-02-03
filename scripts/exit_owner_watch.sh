@@ -62,13 +62,25 @@ if [ "$DENY_COUNT" -gt 0 ]; then
     fi
     echo ""
     
-    # Write to Redis alert stream (best-effort)
+    # Deduplicate alerts: only send one per 10-min window (prevent spam)
+    WINDOW_START=$(( $(date +%s) / 600 * 600 ))  # Round down to 10-min boundary
+    SAMPLE_LINE=$(if [ -n "${EXIT_OWNER_WATCH_TEST_INPUT:-}" ]; then grep "DENY_NOT_EXIT_OWNER" "$EXIT_OWNER_WATCH_TEST_INPUT" 2>/dev/null | head -1; else journalctl -u "$APPLY_LAYER_SERVICE" --since "$CHECK_WINDOW" --no-pager 2>/dev/null | grep "DENY_NOT_EXIT_OWNER" | head -1; fi)
+    ALERT_ID=$(echo "${WINDOW_START}_${DENY_COUNT}_${SAMPLE_LINE}" | sha1sum | cut -d' ' -f1)
+    
+    # Write to Redis alert stream (best-effort, with deduplication)
     if command -v redis-cli &> /dev/null; then
-        redis-cli XADD "quantum:stream:alerts" "*" \
-            alert_type "EXIT_OWNER_VIOLATION" \
-            deny_count "$DENY_COUNT" \
-            window "5min" \
-            timestamp "$(date +%s)" 2>/dev/null || true
+        # Try to set dedup key (TTL 10min)
+        if redis-cli SET "quantum:alert:dedup:$ALERT_ID" "1" EX 600 NX 2>/dev/null | grep -q "OK"; then
+            redis-cli XADD "quantum:stream:alerts" "*" \
+                alert_type "EXIT_OWNER_VIOLATION" \
+                deny_count "$DENY_COUNT" \
+                window "5min" \
+                timestamp "$(date +%s)" \
+                alert_id "$ALERT_ID" 2>/dev/null || true
+            log_alert "Alert published to Redis (id: ${ALERT_ID:0:8})"
+        else
+            log_info "Alert already sent for this window (deduped: ${ALERT_ID:0:8})"
+        fi
     fi
     
     exit 1
