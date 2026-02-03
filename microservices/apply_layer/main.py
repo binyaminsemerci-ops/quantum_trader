@@ -32,6 +32,15 @@ from enum import Enum
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+# Exit ownership enforcement (single exit controller)
+try:
+    from lib.exit_ownership import EXIT_OWNER, validate_exit_ownership
+    EXIT_OWNERSHIP_ENABLED = True
+except ImportError:
+    EXIT_OWNER = "exitbrain_v3_5"
+    EXIT_OWNERSHIP_ENABLED = False
+    print("WARN: exit_ownership module not found, exit gate disabled")
+
 # P2.8A Apply Heat Observer
 try:
     from microservices.apply_layer import heat_observer
@@ -1103,6 +1112,10 @@ class ApplyLayer:
         """Create apply plan from harvest proposal"""
         plan_id = self.create_plan_id(symbol, proposal)
         
+        # Extract source (for exit ownership enforcement)
+        # Default to exitbrain_v3_5 if not specified (all harvest proposals come from exitbrain)
+        source = proposal.get("source", EXIT_OWNER)
+        
         # Extract k_components
         k_components = {
             "regime_flip": proposal["k_regime_flip"],
@@ -1249,6 +1262,7 @@ class ApplyLayer:
             steps=steps,
             close_qty=0.0,  # P3.2: Will be determined at execution
             price=None,  # P3.2: Will be fetched at execution
+            source=source,
             timestamp=int(time.time())
         )
         
@@ -1578,6 +1592,30 @@ class ApplyLayer:
                         
                         # Determine order side (opposite of position)
                         order_side = 'SELL' if pos_amt > 0 else 'BUY'
+                        
+                        # EXIT OWNERSHIP GATE: Only authorized services can place reduceOnly orders
+                        if EXIT_OWNERSHIP_ENABLED:
+                            if plan.source != EXIT_OWNER:
+                                logger.warning(
+                                    f"DENY_NOT_EXIT_OWNER symbol={plan.symbol} source={plan.source} "
+                                    f"plan_id={plan.plan_id} action={step['step']} expected={EXIT_OWNER}"
+                                )
+                                return ApplyResult(
+                                    plan_id=plan.plan_id,
+                                    symbol=plan.symbol,
+                                    decision="DENIED",
+                                    executed=False,
+                                    would_execute=False,
+                                    steps_results=[{
+                                        "step": step["step"],
+                                        "status": "denied",
+                                        "details": f"DENY_NOT_EXIT_OWNER: source={plan.source} not authorized (expected={EXIT_OWNER})"
+                                    }],
+                                    error="DENY_NOT_EXIT_OWNER",
+                                    timestamp=int(time.time())
+                                )
+                            else:
+                                logger.info(f"ALLOW_EXIT_OWNER symbol={plan.symbol} source={plan.source} (authorized)")
                         
                         logger.info(f"{plan.symbol}: Placing {order_side} order for {close_qty} (reduceOnly)")
                         
