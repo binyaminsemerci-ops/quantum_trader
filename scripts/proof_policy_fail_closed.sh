@@ -173,12 +173,6 @@ else
         pass "No hardcoded weights in active code path"
     fi
 fi
-        fail "generate_top10_universe.py imported by $TOP10_IMPORTS services (hardcoded weights active)"
-        echo "Evidence: $TOP10_IMPORTS services import legacy script"
-    else
-        pass "No hardcoded weights in active code path"
-    fi
-fi
 
 # Test 6: No hardcoded position sizing ($200, etc.)
 echo ""
