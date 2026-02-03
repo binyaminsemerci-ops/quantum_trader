@@ -30,6 +30,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import redis
 
+# Exit ownership
+try:
+    from lib.exit_ownership import EXIT_OWNER
+    EXIT_OWNERSHIP_ENABLED = True
+except ImportError:
+    EXIT_OWNER = "exitbrain_v3_5"
+    EXIT_OWNERSHIP_ENABLED = False
+    
 # Logging
 logging.basicConfig(
     level=logging.INFO,
@@ -700,7 +708,7 @@ class IntentExecutor:
         logger.info(f"📝 Result written: plan={plan_id[:8]} executed={executed}")
     
     def process_plan(self, stream_id: bytes, event_data: Dict, lane: str = "main"):
-        """Process single apply.plan message
+        """Process single apply.plan message - with guaranteed ACK on all paths
         
         Args:
             stream_id: Redis stream entry ID
@@ -708,6 +716,8 @@ class IntentExecutor:
             lane: 'main' or 'manual' for metrics/logging
         """
         stream_id_str = stream_id.decode()
+        plan_id = ""
+        symbol = ""
         
         # Parse event
         try:
@@ -938,6 +948,22 @@ class IntentExecutor:
                 notional = qty_to_use * mark_price
                 logger.info(f"✅ Sizing validated: qty={qty_to_use:.4f}, price={mark_price:.2f}, notional={notional:.2f} USDT")
             
+            # Exit ownership gate: only EXIT_OWNER can place reduceOnly orders
+            if reduce_only and EXIT_OWNERSHIP_ENABLED:
+                if source != EXIT_OWNER:
+                    logger.warning(
+                        f"🚫 DENY_NOT_EXIT_OWNER: {source} attempted reduceOnly order on {symbol} "
+                        f"(only {EXIT_OWNER} authorized)"
+                    )
+                    self._write_result(
+                        plan_id, symbol, executed=False,
+                        decision="DENIED",
+                        error=f"NOT_EXIT_OWNER:source={source}",
+                        side=side, qty=qty_to_use
+                    )
+                    self._mark_done(plan_id)
+                    return True
+            
             # Execute Binance order
             logger.info(f"🚀 Executing Binance order: {symbol} {side} {qty_to_use:.4f} reduceOnly={reduce_only}")
             
@@ -1012,6 +1038,22 @@ class IntentExecutor:
             
         except Exception as e:
             logger.error(f"Failed to process plan: {e}", exc_info=True)
+            # Guaranteed result write on error
+            try:
+                plan_id = event_data.get(b"plan_id", b"").decode()
+                symbol = event_data.get(b"symbol", b"").decode().upper()
+                side = event_data.get(b"side", b"").decode().upper()
+                qty = float(event_data.get(b"qty", b"0").decode() or 0)
+                self._write_result(
+                    plan_id, symbol, executed=False,
+                    decision="ERROR",
+                    error=f"exception:{str(e)[:100]}",
+                    side=side, qty=qty
+                )
+                self._mark_done(plan_id)
+            except Exception as write_err:
+                logger.error(f"Failed to write error result: {write_err}")
+            
             self._inc_redis_counter("processed")
             self._inc_redis_counter("executed_false")
             return True  # ACK to avoid blocking stream
