@@ -80,10 +80,9 @@ echo ""
 # TEST 2: Check Intent Bridge logs for effective allowlist
 log_info "TEST 2: Check Intent Bridge effective allowlist source"
 
-# Run dry-run test to trigger logging (from repo root)
+# Run dry-run test to trigger logging
 log_info "Running dry-run test to trigger allowlist evaluation..."
-cd "$REPO_ROOT"
-DRY_RUN_OUTPUT=$(python3 scripts/test_allowlist_effective.py 2>&1 || true)
+DRY_RUN_OUTPUT=$(cd "$REPO_ROOT" && timeout 15 python3 scripts/test_allowlist_effective.py 2>&1 || echo "DRY_RUN_FAILED")
 
 # Check if dry-run succeeded
 if echo "$DRY_RUN_OUTPUT" | grep -q "ALLOWLIST_EFFECTIVE"; then
