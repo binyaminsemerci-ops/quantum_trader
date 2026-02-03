@@ -394,6 +394,9 @@ def rank_symbols(symbols, exchange_info=None):
             "features": features,
             "quote_volume": candidate["quote_volume"],
             "spread_bps": candidate["spread_bps"],
+            "spread_bid": candidate.get("spread_bid"),
+            "spread_ask": candidate.get("spread_ask"),
+            "spread_mid": candidate.get("spread_mid"),
             "age_days": candidate["age_days"]
         })
     
