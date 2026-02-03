@@ -242,12 +242,11 @@ redis-cli PING
 redis-cli HGETALL quantum:metrics:intent_executor
 
 # Check timers are alive (policy automation)
-systemctl list-timers policy-refresh exit-owner-watch
+systemctl list-timers quantum-policy-refresh quantum-exit-owner-watch
 # Expected: Both timers should show "NEXT" column with upcoming activation
 
 # Verify timers are active
-systemctl is-active policy-refresh.timer
-systemctl is-active exit-owner-watch.timer
+systemctl is-active quantum-policy-refresh.timer quantum-exit-owner-watch.timer
 # Expected: "active" for both
 
 # Run all relevant proofs
@@ -259,9 +258,9 @@ bash scripts/proof_policy_refresh.sh
 
 **Expected Timer Output:**
 ```
-NEXT                        LEFT     LAST                        PASSED  UNIT                   ACTIVATES
-[timestamp]                 25min    [timestamp]                 4min    policy-refresh.timer   policy-refresh.service
-[timestamp]                 2min     [timestamp]                 2min    exit-owner-watch.timer exit-owner-watch.service
+NEXT                        LEFT     LAST                        PASSED  UNIT                              ACTIVATES
+[timestamp]                 25min    [timestamp]                 4min    quantum-policy-refresh.timer      quantum-policy-refresh.service
+[timestamp]                 2min     [timestamp]                 2min    quantum-exit-owner-watch.timer    quantum-exit-owner-watch.service
 ```
 
 **Key:** "NEXT" and "LEFT" columns populated (timers scheduled)
@@ -301,11 +300,11 @@ NEXT                        LEFT     LAST                        PASSED  UNIT   
 
 ### Policy Services
 - **Proof:** `scripts/proof_policy_refresh.sh` (10 tests)
-- **Timers:** policy-refresh.timer (30min), exit-owner-watch.timer (5min)
-- **Check timers:** `systemctl list-timers policy-refresh exit-owner-watch`
-- **Check timer health:** `systemctl is-active policy-refresh.timer exit-owner-watch.timer`
+- **Timers:** quantum-policy-refresh.timer (30min), quantum-exit-owner-watch.timer (5min)
+- **Check timers:** `systemctl list-timers quantum-policy-refresh quantum-exit-owner-watch`
+- **Check timer health:** `systemctl is-active quantum-policy-refresh.timer quantum-exit-owner-watch.timer`
 - **Expected:** Both should return "active" (enabled and scheduled)
-- **Manual trigger (test):** `systemctl start policy-refresh.service` or `exit-owner-watch.service`
+- **Manual trigger (test):** `systemctl start quantum-policy-refresh.service` or `quantum-exit-owner-watch.service`
 
 ---
 
