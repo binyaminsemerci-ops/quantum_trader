@@ -281,6 +281,32 @@ NEXT                        LEFT     LAST                        PASSED  UNIT   
 
 ---
 
+### ⚡ Compact Variant (Quiet Output)
+**Same as Extended, but filters to only relevant timer lines:**
+
+```bash
+systemctl is-active quantum-intent-executor quantum-policy-refresh.timer quantum-exit-owner-watch.timer \
+  && systemctl list-timers --no-pager | egrep "quantum-(policy-refresh|exit-owner-watch)\.timer" \
+  && bash /home/qt/quantum_trader/scripts/proof_intent_executor_exit_owner.sh
+```
+
+**Expected Output:**
+```
+active
+active
+active
+
+[timestamp] 24min [timestamp]  5min quantum-policy-refresh.timer   quantum-policy-refresh.service
+[timestamp]  2min [timestamp]  2min quantum-exit-owner-watch.timer quantum-exit-owner-watch.service
+
+[... proof runs ...]
+🎉 ALL TESTS PASS - Exit ownership enforced at execution boundary
+```
+
+**Use when:** You want clean output without table headers
+
+---
+
 ### Full Health Verification
 ```bash
 # All services
@@ -315,6 +341,42 @@ NEXT                        LEFT     LAST                        PASSED  UNIT   
 ```
 
 **Key:** "NEXT" and "LEFT" columns populated (timers scheduled)
+
+---
+
+## 📊 Stabilization Window (24-48h Observation)
+
+**Use these commands when you want to observe the system without intervention:**
+
+### 1. Policy Refresh Activity (24h)
+```bash
+journalctl -u quantum-policy-refresh.service --since "24 hours ago" | grep POLICY_AUDIT | tail -50
+```
+
+**Expected:** Steady rhythm of POLICY_AUDIT entries (one every 30 minutes)  
+**What to look for:** No gaps longer than 35 minutes (indicates timer or service issue)
+
+### 2. Exit Ownership Denials (24h)
+```bash
+journalctl -u quantum-intent-executor --since "24 hours ago" | grep "DENY_NOT_EXIT_OWNER exec_boundary" | tail -50
+```
+
+**Expected:** None (unless testing), or legitimate denials from non-exit sources  
+**What to look for:** Unexpected source names, high frequency (indicates bug or attack)
+
+### 3. Alert Stream Activity
+```bash
+redis-cli XREAD COUNT 10 STREAMS quantum:stream:alerts 0
+```
+
+**Expected:** Empty or minimal (system should be quiet during stable operation)  
+**What to look for:** Repeated alerts, error patterns, unexpected sources
+
+**Stabilization Success Criteria:**
+- ✅ Policy refresh fires every 30min (±5min jitter acceptable)
+- ✅ Exit ownership denials are zero or explainable
+- ✅ Alert stream quiet (no repeated errors)
+- ✅ All proofs continue to PASS (run daily)
 
 ---
 
