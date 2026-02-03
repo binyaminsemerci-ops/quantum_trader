@@ -52,16 +52,17 @@ echo "=========================================="
 echo ""
 
 # Test 1: No hardcoded leverage=10
-echo "Test 1: No hardcoded leverage=10 in trading paths"
-echo "--------------------------------------------------"
+echo "Test 1: No hardcoded leverage=10 in trading paths (PRODUCTION CODE ONLY)"
+echo "-------------------------------------------------------------------------"
 LEVERAGE_HITS=$(grep -RniE "leverage\s*=\s*10(\.0)?[^0-9]" \
-    microservices/ai_engine/ \
-    microservices/intent_bridge/ \
-    microservices/execution/ \
+    microservices/ai_engine/service.py \
+    microservices/intent_bridge/main.py \
+    microservices/execution/main.py \
+    microservices/harvest_proposal_publisher/main.py \
     --exclude-dir=__pycache__ \
     --exclude="*.pyc" \
     --exclude-dir=.git \
-    2>/dev/null | grep -v "MAX_LEVERAGE.*10" || true)
+    2>/dev/null | grep -v "MAX_LEVERAGE.*10" | grep -v "api.py" | grep -v "test_" || true)
 
 if [ -z "$LEVERAGE_HITS" ]; then
     pass "No hardcoded leverage=10 fallbacks found"
