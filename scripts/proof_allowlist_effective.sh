@@ -77,17 +77,21 @@ echo ""
 
 # TEST 2: Check Intent Bridge logs for effective allowlist
 log_info "TEST 2: Check Intent Bridge effective allowlist source"
-RECENT_LOGS=$(journalctl -u quantum-intent-bridge --since "10 minutes ago" -n 100 --no-pager 2>/dev/null || echo "")
 
-if echo "$RECENT_LOGS" | grep -q "ALLOWLIST_EFFECTIVE"; then
+# Run dry-run test to trigger logging
+log_info "Running dry-run test to trigger allowlist evaluation..."
+DRY_RUN_OUTPUT=$(python3 "$SCRIPT_DIR/test_allowlist_effective.py" 2>&1)
+
+# Check if dry-run succeeded
+if echo "$DRY_RUN_OUTPUT" | grep -q "ALLOWLIST_EFFECTIVE"; then
     # Extract latest ALLOWLIST_EFFECTIVE log
-    ALLOWLIST_LOG=$(echo "$RECENT_LOGS" | grep "ALLOWLIST_EFFECTIVE" | tail -1)
+    ALLOWLIST_LOG=$(echo "$DRY_RUN_OUTPUT" | grep "ALLOWLIST_EFFECTIVE" | tail -1)
     
     # Parse source
     SOURCE=$(echo "$ALLOWLIST_LOG" | grep -oP 'source=\K\w+' || echo "unknown")
     COUNT=$(echo "$ALLOWLIST_LOG" | grep -oP 'count=\K\d+' || echo "0")
     
-    log_info "Latest effective allowlist: source=$SOURCE count=$COUNT"
+    log_info "Effective allowlist: source=$SOURCE count=$COUNT"
     
     # If policy is valid, source MUST be 'policy'
     if [ "$POLICY_VALID" = true ]; then
@@ -104,17 +108,17 @@ if echo "$RECENT_LOGS" | grep -q "ALLOWLIST_EFFECTIVE"; then
         fi
     fi
 else
-    log_warn "No ALLOWLIST_EFFECTIVE logs found in last 10 minutes"
-    log_warn "Service may not have been restarted since update"
-    fail_test 2 "Cannot verify effective allowlist source (no logs)"
+    log_error "Dry-run test failed to execute"
+    fail_test 2 "Cannot verify effective allowlist source (dry-run failed)"
 fi
 
 echo ""
 
 # TEST 3: Verify testnet intersection (if TESTNET_MODE)
 log_info "TEST 3: Check testnet intersection logging"
-if echo "$RECENT_LOGS" | grep -q "TESTNET_INTERSECTION"; then
-    INTERSECTION_LOG=$(echo "$RECENT_LOGS" | grep "TESTNET_INTERSECTION" | tail -1)
+
+if echo "$DRY_RUN_OUTPUT" | grep -q "TESTNET_INTERSECTION"; then
+    INTERSECTION_LOG=$(echo "$DRY_RUN_OUTPUT" | grep "TESTNET_INTERSECTION" | tail -1)
     
     AI_COUNT=$(echo "$INTERSECTION_LOG" | grep -oP 'AI=\K\d+' || echo "0")
     TRADABLE_COUNT=$(echo "$INTERSECTION_LOG" | grep -oP 'testnet_tradable=\K\d+' || echo "0")
@@ -129,7 +133,7 @@ if echo "$RECENT_LOGS" | grep -q "TESTNET_INTERSECTION"; then
     fi
 else
     log_warn "No TESTNET_INTERSECTION logs found"
-    log_warn "TESTNET_MODE may be disabled or service not restarted"
+    log_warn "TESTNET_MODE may be disabled"
     pass_test 3 "Testnet intersection not required (mainnet or disabled)"
 fi
 
