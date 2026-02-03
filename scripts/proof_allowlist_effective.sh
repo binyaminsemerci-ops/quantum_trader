@@ -58,11 +58,14 @@ if [ "$POLICY_EXISTS" -eq 1 ]; then
     VALID_UNTIL=$($REDIS_CLI HGET quantum:policy:current valid_until_epoch)
     NOW=$(date +%s)
     
-    if [ "$VALID_UNTIL" -gt "$NOW" ]; then
+    # Convert float to int for comparison
+    VALID_UNTIL_INT=$(echo "$VALID_UNTIL" | cut -d'.' -f1)
+    
+    if [ "$VALID_UNTIL_INT" -gt "$NOW" ]; then
         pass_test 1 "Policy valid: version=$POLICY_VERSION hash=$POLICY_HASH"
         POLICY_VALID=true
     else
-        fail_test 1 "Policy stale: valid_until=$VALID_UNTIL < now=$NOW"
+        fail_test 1 "Policy stale: valid_until=$VALID_UNTIL_INT < now=$NOW"
         POLICY_VALID=false
     fi
 else
