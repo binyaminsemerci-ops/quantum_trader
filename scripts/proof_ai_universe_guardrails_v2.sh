@@ -112,11 +112,12 @@ if [ $FAIL -eq 0 ]; then
     echo ""
     echo "Guardrails verified:"
     echo "  - Bulk 24h stats fetch (single API call)"
-    echo "  - Volume filter: MIN_QUOTE_VOL_USDT_24H"
-    echo "  - Spread filter: MAX_SPREAD_BPS"
+    echo "  - Volume filter: MIN_QUOTE_VOL_USDT_24H (quoteVolume source)"
+    echo "  - Spread filter: MAX_SPREAD_BPS (bid/ask/mid transparency)"
     echo "  - Age filter: MIN_AGE_DAYS"
-    echo "  - Structured logging: AI_UNIVERSE_GUARDRAILS"
-    echo "  - Per-symbol logging: AI_UNIVERSE_PICK"
+    echo "  - Structured logging: AI_UNIVERSE_GUARDRAILS with vol_src"
+    echo "  - Per-symbol logging: AI_UNIVERSE_PICK with qv24h_usdt"
+    echo "  - Spread detail logging: bid/ask/mid/spread_bps"
     echo "  - Dry-run mode: --dry-run flag"
     exit 0
 else
