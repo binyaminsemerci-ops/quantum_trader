@@ -2073,10 +2073,13 @@ class AIEngineService:
             
             # Step 3: RL Position Sizing + TradingMathematician
             # 🔥 AKTIVERT: Math AI beregner optimal leverage og sizing
-            position_size_usd = 200.0  # Default fallback
-            leverage = 10.0  # Default fallback (hvis RL agent feiler)
-            tp_percent = 0.06  # 6% default
-            sl_percent = 0.025  # 2.5% default
+            
+            # 🔥 POLICY-DRIVEN (fail-closed): NO FALLBACK VALUES!
+            # If RL agent fails to provide leverage/sizing → SKIP trade
+            position_size_usd = None  # MUST come from RL agent
+            leverage = None  # MUST come from RL agent or policy
+            tp_percent = 0.06  # 6% default (TODO: also from policy/RL)
+            sl_percent = 0.025  # 2.5% default (TODO: also from policy/RL)
             
             # 🔥 AI-DETERMINED POSITION SIZE (RL Agent)
             if self.rl_sizing_agent:
@@ -2142,6 +2145,25 @@ class AIEngineService:
                     partial_tp_enabled=sizing_decision.partial_tp_enabled,
                     timestamp=datetime.now(timezone.utc).isoformat()
                 ).dict())
+            else:
+                # 🔥 FAIL-CLOSED: RL agent not available or failed
+                logger.error(f"[AI-ENGINE] RL_AGENT_NOT_AVAILABLE for {symbol} - SKIPPING trade")
+                return  # SKIP trade - no fallback!
+            
+            # 🔥 POLICY VALIDATION: Ensure leverage was set
+            if leverage is None or leverage <= 0:
+                logger.error(
+                    f"[AI-ENGINE] POLICY_MISSING_LEVERAGE for {symbol} "
+                    f"(RL agent failed to provide leverage) - SKIPPING trade"
+                )
+                return  # SKIP trade - no fallback to 10x!
+            
+            if position_size_usd is None or position_size_usd <= 0:
+                logger.error(
+                    f"[AI-ENGINE] POLICY_MISSING_SIZE for {symbol} "
+                    f"(RL agent failed to provide position size) - SKIPPING trade"
+                )
+                return  # SKIP trade - no fallback to $200!
             
             # Step 4: Build final decision
             decision = AIDecisionMadeEvent(
