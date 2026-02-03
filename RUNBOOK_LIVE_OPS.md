@@ -339,6 +339,12 @@ journalctl -u quantum-policy-refresh.service --since "2 hours ago" --no-pager | 
 - `vol_ok=540` → volume filter not working
 - `spread_checked=111` → optimization not active
 - Missing `vol_src=quoteVolume` → using wrong volume source
+- **`age_ok < 10` in >2 consecutive refreshes → DEGRADED UNIVERSE**
+  - Action: Lower thresholds temporarily OR increase MAX_SPREAD_CHECKS
+  - Reason: Trading on too few symbols increases concentration risk
+  - Example: `MIN_QUOTE_VOL_USDT_24H=10000000` (reduce from 20M to 10M)
+  - Example: `MAX_SPREAD_CHECKS=120` (increase from 80 to 120)
+- Missing `vol_src=quoteVolume` → using wrong volume source
 
 **Manual Trigger** (if policy refresh hasn't run):
 ```bash
