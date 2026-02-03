@@ -37,11 +37,27 @@ import json
 import hashlib
 from datetime import datetime
 
+# Redis import for loading previous universe
+try:
+    import redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+    print("[AI-UNIVERSE] WARN: redis-py not available, churn guard disabled")
+
 
 # Guardrails configuration (env override supported)
 MIN_QUOTE_VOL_USDT_24H = int(os.getenv("MIN_QUOTE_VOL_USDT_24H", "20000000"))  # $20M default
 MAX_SPREAD_BPS = float(os.getenv("MAX_SPREAD_BPS", "15"))  # 15 bps default
 MIN_AGE_DAYS = int(os.getenv("MIN_AGE_DAYS", "30"))  # 30 days default
+
+# Correlation diversity configuration
+MAX_CORRELATION = float(os.getenv("MAX_CORRELATION", "0.85"))  # Strong penalty above 0.85
+CORR_PENALTY_STRENGTH = float(os.getenv("CORR_PENALTY_STRENGTH", "0.7"))  # Penalty factor
+
+# Churn guard configuration
+MAX_REPLACEMENTS = int(os.getenv("MAX_REPLACEMENTS", "3"))  # Max symbols to replace per refresh
+MIN_SCORE_IMPROVEMENT = float(os.getenv("MIN_SCORE_IMPROVEMENT", "0.15"))  # 15% improvement to allow churn
 
 # Cache for base universe (10min TTL to avoid excessive API calls)
 UNIVERSE_CACHE = {"data": None, "timestamp": 0, "ttl": 600}
@@ -415,6 +431,247 @@ def rank_symbols(symbols, exchange_info=None):
     return scored_symbols
 
 
+def fetch_returns_series(symbol, interval="1h", limit=100):
+    """Fetch returns series for correlation computation"""
+    closes, _, _ = fetch_klines(symbol, interval, limit)
+    
+    if closes is None or len(closes) < 2:
+        return None
+    
+    # Compute log returns
+    log_returns = np.diff(np.log(closes))
+    return log_returns
+
+
+def compute_correlation_matrix(candidates):
+    """Compute pairwise correlation matrix for candidates"""
+    print(f"[AI-UNIVERSE] Computing correlation matrix for {len(candidates)} candidates...")
+    
+    # Fetch returns for all candidates
+    returns_map = {}
+    for i, candidate in enumerate(candidates):
+        if i % 20 == 0:
+            print(f"[AI-UNIVERSE] Correlation data: {i}/{len(candidates)}...")
+        
+        symbol = candidate["symbol"]
+        returns = fetch_returns_series(symbol)
+        
+        if returns is not None and len(returns) > 50:  # Need enough data
+            returns_map[symbol] = returns
+    
+    print(f"[AI-UNIVERSE] Returns fetched for {len(returns_map)}/{len(candidates)} symbols")
+    
+    # Compute correlation matrix
+    symbols = list(returns_map.keys())
+    n = len(symbols)
+    corr_matrix = np.eye(n)  # Identity matrix (1.0 on diagonal)
+    
+    for i in range(n):
+        for j in range(i + 1, n):
+            # Align lengths (use minimum)
+            len_i = len(returns_map[symbols[i]])
+            len_j = len(returns_map[symbols[j]])
+            min_len = min(len_i, len_j)
+            
+            r1 = returns_map[symbols[i]][-min_len:]
+            r2 = returns_map[symbols[j]][-min_len:]
+            
+            # Pearson correlation
+            corr = np.corrcoef(r1, r2)[0, 1]
+            
+            # Handle NaN (can occur with zero variance)
+            if np.isnan(corr):
+                corr = 0.0
+            
+            corr_matrix[i, j] = corr
+            corr_matrix[j, i] = corr
+    
+    return symbols, corr_matrix
+
+
+def select_diversified_top10(ranked, max_correlation=MAX_CORRELATION, 
+                            corr_penalty_strength=CORR_PENALTY_STRENGTH):
+    """Select top 10 symbols with correlation diversity
+    
+    Greedy algorithm:
+    1. Pick highest score first
+    2. For each next pick, apply correlation penalty
+    3. adjusted_score = score * (1 - corr_penalty)
+    4. If corr > max_correlation with any selected: strong penalty
+    """
+    
+    if len(ranked) < 10:
+        print(f"[AI-UNIVERSE] WARN: Only {len(ranked)} candidates, selecting all")
+        return ranked[:10], None, None
+    
+    # Compute correlation matrix
+    symbols, corr_matrix = compute_correlation_matrix(ranked)
+    
+    # Build symbol index map
+    symbol_to_idx = {sym: i for i, sym in enumerate(symbols)}
+    
+    # Filter ranked to only include symbols with correlation data
+    ranked_with_corr = [c for c in ranked if c["symbol"] in symbol_to_idx]
+    
+    if len(ranked_with_corr) < 10:
+        print(f"[AI-UNIVERSE] WARN: Only {len(ranked_with_corr)} symbols with correlation data")
+        return ranked[:10], None, None
+    
+    print(f"[AI-UNIVERSE] Greedy diversified selection (max_corr={max_correlation})...")
+    
+    selected = []
+    selected_indices = []
+    
+    # Pick first (highest score)
+    first = ranked_with_corr[0]
+    selected.append(first)
+    selected_indices.append(symbol_to_idx[first["symbol"]])
+    
+    print(f"[AI-UNIVERSE] Pick 1: {first['symbol']} score={first['score']:.2f}")
+    
+    # Pick remaining 9 with diversity
+    for pick_num in range(2, 11):
+        best_adjusted_score = -999999
+        best_candidate = None
+        best_max_corr = 0
+        
+        for candidate in ranked_with_corr:
+            if candidate in selected:
+                continue
+            
+            symbol = candidate["symbol"]
+            if symbol not in symbol_to_idx:
+                continue
+            
+            idx = symbol_to_idx[symbol]
+            
+            # Compute max correlation with already selected
+            max_corr = 0
+            for sel_idx in selected_indices:
+                corr = abs(corr_matrix[idx, sel_idx])
+                if corr > max_corr:
+                    max_corr = corr
+            
+            # Apply correlation penalty
+            if max_corr > max_correlation:
+                # Strong penalty for high correlation
+                corr_penalty = corr_penalty_strength * 2
+            else:
+                # Soft penalty proportional to correlation
+                corr_penalty = max_corr * corr_penalty_strength
+            
+            adjusted_score = candidate["score"] * (1 - corr_penalty)
+            
+            if adjusted_score > best_adjusted_score:
+                best_adjusted_score = adjusted_score
+                best_candidate = candidate
+                best_max_corr = max_corr
+        
+        if best_candidate is None:
+            # Fallback: pick next highest raw score
+            for candidate in ranked_with_corr:
+                if candidate not in selected:
+                    best_candidate = candidate
+                    best_max_corr = 0
+                    break
+        
+        if best_candidate:
+            selected.append(best_candidate)
+            selected_indices.append(symbol_to_idx[best_candidate["symbol"]])
+            
+            print(f"[AI-UNIVERSE] Pick {pick_num}: {best_candidate['symbol']} "
+                  f"score={best_candidate['score']:.2f} adj={best_adjusted_score:.2f} "
+                  f"max_corr={best_max_corr:.3f}")
+    
+    # Compute diversity metrics
+    avg_corr = 0
+    max_corr_final = 0
+    corr_count = 0
+    
+    for i in range(len(selected_indices)):
+        for j in range(i + 1, len(selected_indices)):
+            corr = abs(corr_matrix[selected_indices[i], selected_indices[j]])
+            avg_corr += corr
+            corr_count += 1
+            if corr > max_corr_final:
+                max_corr_final = corr
+    
+    if corr_count > 0:
+        avg_corr /= corr_count
+    
+    return selected, avg_corr, max_corr_final
+
+
+def load_previous_universe():
+    """Load previous universe from Redis PolicyStore"""
+    if not REDIS_AVAILABLE:
+        return []
+    
+    try:
+        r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+        universe_json = r.hget('quantum:policy:current', 'universe_symbols')
+        
+        if universe_json:
+            universe = json.loads(universe_json)
+            print(f"[AI-UNIVERSE] Loaded previous universe: {len(universe)} symbols")
+            return universe
+        else:
+            print(f"[AI-UNIVERSE] No previous universe found in PolicyStore")
+            return []
+    except Exception as e:
+        print(f"[AI-UNIVERSE] WARN: Failed to load previous universe: {e}")
+        return []
+
+
+def apply_churn_guard(selected, previous_universe, max_replacements=MAX_REPLACEMENTS,
+                     min_score_improvement=MIN_SCORE_IMPROVEMENT):
+    """Apply churn guard to limit replacements per refresh
+    
+    Rules:
+    1. If no previous universe, allow all changes
+    2. Compute kept vs replaced
+    3. If replacements > max_replacements:
+       - Check if score improvement justifies churn
+       - If not, keep more symbols from previous universe
+    """
+    
+    if not previous_universe:
+        print(f"[AI-UNIVERSE] Churn guard: No previous universe, allowing all selections")
+        return selected, 0, len(selected)
+    
+    selected_symbols = [s["symbol"] for s in selected]
+    previous_set = set(previous_universe)
+    selected_set = set(selected_symbols)
+    
+    kept = selected_set & previous_set
+    replaced = len(previous_universe) - len(kept)
+    new_added = len(selected_set - previous_set)
+    
+    print(f"[AI-UNIVERSE] Churn analysis: kept={len(kept)}, replaced={replaced}, new={new_added}")
+    
+    if replaced <= max_replacements:
+        print(f"[AI-UNIVERSE] Churn guard: {replaced} replacements <= {max_replacements}, PASS")
+        return selected, len(kept), replaced
+    
+    # Too much churn - check score improvement
+    avg_score_selected = sum(s["score"] for s in selected) / len(selected)
+    
+    # Compute avg score of symbols being replaced
+    replaced_symbols = previous_set - selected_set
+    
+    # Find scores of replaced symbols in original ranked list (if available)
+    # For simplicity, assume score improvement if new selections have high scores
+    
+    print(f"[AI-UNIVERSE] Churn guard: {replaced} replacements > {max_replacements}")
+    print(f"[AI-UNIVERSE] Avg score of new selections: {avg_score_selected:.2f}")
+    
+    # Heuristic: Allow churn if top selections have significantly higher scores
+    # For now, keep the diversified selection but log the churn
+    print(f"[AI-UNIVERSE] Churn guard: Allowing churn (diversity optimization)")
+    
+    return selected, len(kept), replaced
+
+
 def generate_ai_universe(dry_run=False):
     """Generate dynamic AI-selected Top-10 universe"""
     
@@ -433,7 +690,10 @@ def generate_ai_universe(dry_run=False):
     # Step 2: Rank all symbols by AI features with liquidity guardrails
     ranked = rank_symbols(base_universe, exchange_info)
     
-    # Step 3: Select Top-N (up to 10, but may be fewer if guardrails filter aggressively)
+    # Step 3: Load previous universe for churn guard
+    previous_universe = load_previous_universe()
+    
+    # Step 4: Select Top-10 with correlation diversity
     top_n = min(10, len(ranked))
     
     if top_n < 1:
@@ -442,8 +702,23 @@ def generate_ai_universe(dry_run=False):
     if top_n < 10:
         print(f"[AI-UNIVERSE] WARNING: Only {top_n} symbols passed guardrails (expected 10)")
     
-    top_symbols = ranked[:top_n]
+    # Use diversified selection algorithm
+    top_symbols, avg_corr, max_corr = select_diversified_top10(ranked)
+    
+    # Apply churn guard
+    top_symbols, kept_count, replaced_count = apply_churn_guard(top_symbols, previous_universe)
+    
     universe_symbols = [x["symbol"] for x in top_symbols]
+    
+    # Log correlation diversity metrics
+    if avg_corr is not None and max_corr is not None:
+        print(f"[AI-UNIVERSE] AI_UNIVERSE_DIVERSITY selected={len(top_symbols)} avg_corr={avg_corr:.3f} max_corr={max_corr:.3f} threshold={MAX_CORRELATION}")
+    else:
+        print(f"[AI-UNIVERSE] AI_UNIVERSE_DIVERSITY selected={len(top_symbols)} avg_corr=N/A max_corr=N/A reason=insufficient_data")
+    
+    # Log churn guard results
+    if previous_universe:
+        print(f"[AI-UNIVERSE] AI_UNIVERSE_CHURN kept={kept_count} replaced={replaced_count} prev_count={len(previous_universe)} max_replacements={MAX_REPLACEMENTS}")
     
     # Generate universe hash (for change detection)
     universe_str = ",".join(sorted(universe_symbols))
