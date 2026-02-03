@@ -398,7 +398,7 @@ class Governor:
                     self._block_plan(plan_id, symbol, f'risk_guard_{guard_type}:{reason}')
                     return
                 else:
-                    logger.debug(f"{symbol}: Risk guard passed")
+                    logger.info(f"{symbol}: ✅ Risk guard PASSED (guard_checks_ok)")
             else:
                 logger.warning(f"{symbol}: RiskGuard not available - skipping risk checks!")
             
