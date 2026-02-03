@@ -6,7 +6,7 @@ set -euo pipefail
 
 # Get script directory and repo root
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 REDIS_CLI="${REDIS_CLI:-redis-cli}"
 
 # Color codes
@@ -111,8 +111,9 @@ if echo "$DRY_RUN_OUTPUT" | grep -q "ALLOWLIST_EFFECTIVE"; then
         fi
     fi
 else
-    log_error "Dry-run test failed to execute"
+    log_error "Dry-run test failed to execute or returned no ALLOWLIST_EFFECTIVE log"
     fail_test 2 "Cannot verify effective allowlist source (dry-run failed)"
+    SOURCE="unknown"  # Set default to avoid unbound variable
 fi
 
 echo ""
@@ -160,7 +161,7 @@ else
     echo -e "${RED}⚠️  SOME TESTS FAILED${NC}"
     echo ""
     echo "Action required:"
-    if [ "$POLICY_VALID" = true ] && [ "$SOURCE" != "policy" ]; then
+    if [ "$POLICY_VALID" = true ] && [ "${SOURCE:-unknown}" != "policy" ]; then
         echo "  1. Restart quantum-intent-bridge service"
         echo "  2. Re-run this proof script"
     fi
