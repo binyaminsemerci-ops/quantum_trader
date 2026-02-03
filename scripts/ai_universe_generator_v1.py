@@ -16,6 +16,13 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+# Windows UTF-8 fix for local testing
+if os.name == "nt":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except AttributeError:
+        pass  # Python < 3.7
+
 # Check dependencies
 try:
     import numpy as np
@@ -271,13 +278,22 @@ def rank_symbols(symbols, exchange_info=None):
     vol_ok = len(candidates_vol_ok)
     print(f"[AI-UNIVERSE] Volume filter: {vol_ok}/{len(symbols)} pass (excluded {excluded_volume})")
     
-    # Pipeline C: Filter by spread (only check spread for vol_ok candidates)
+    # Sort by volume and limit spread checks to top candidates (performance optimization)
+    MAX_SPREAD_CHECKS = int(os.getenv("MAX_SPREAD_CHECKS", "80"))
+    candidates_vol_ok.sort(key=lambda x: x["quote_volume"], reverse=True)
+    candidates_to_check = candidates_vol_ok[:MAX_SPREAD_CHECKS]
+    skipped_spread_check = len(candidates_vol_ok) - len(candidates_to_check)
+    
+    if skipped_spread_check > 0:
+        print(f"[AI-UNIVERSE] Spread optimization: checking top {len(candidates_to_check)}/{vol_ok} by volume (skipping {skipped_spread_check})")
+    
+    # Pipeline C: Filter by spread (only check spread for top volume candidates)
     candidates_spread_ok = []
     excluded_spread = 0
     
-    for i, candidate in enumerate(candidates_vol_ok):
+    for i, candidate in enumerate(candidates_to_check):
         if i % 20 == 0:
-            print(f"[AI-UNIVERSE] Spread check: {i}/{vol_ok}...")
+            print(f"[AI-UNIVERSE] Spread check: {i}/{len(candidates_to_check)}...")
         
         symbol = candidate["symbol"]
         spread_bps = fetch_orderbook_spread(symbol)
@@ -318,9 +334,11 @@ def rank_symbols(symbols, exchange_info=None):
     age_ok = len(candidates_age_ok)
     print(f"[AI-UNIVERSE] Age filter: {age_ok}/{spread_ok} pass (excluded {excluded_age}, unknown_age {unknown_age})")
     
-    # Log guardrails summary
+    # Log guardrails summary with optimization metrics
     total = len(symbols)
-    print(f"[AI-UNIVERSE] AI_UNIVERSE_GUARDRAILS total={total} vol_ok={vol_ok} spread_ok={spread_ok} age_ok={age_ok} excluded_vol={excluded_volume} excluded_spread={excluded_spread} excluded_age={excluded_age} unknown_age={unknown_age} min_qv={MIN_QUOTE_VOL_USDT_24H} max_spread_bps={MAX_SPREAD_BPS} min_age_days={MIN_AGE_DAYS}")
+    max_checks = MAX_SPREAD_CHECKS if 'MAX_SPREAD_CHECKS' in locals() else vol_ok
+    skipped = skipped_spread_check if 'skipped_spread_check' in locals() else 0
+    print(f"[AI-UNIVERSE] AI_UNIVERSE_GUARDRAILS total={total} vol_ok={vol_ok} spread_checked={max_checks} spread_skipped={skipped} spread_ok={spread_ok} age_ok={age_ok} excluded_vol={excluded_volume} excluded_spread={excluded_spread} excluded_age={excluded_age} unknown_age={unknown_age} min_qv={MIN_QUOTE_VOL_USDT_24H} max_spread_bps={MAX_SPREAD_BPS} min_age_days={MIN_AGE_DAYS}")
     
     # Pipeline E: Compute features and rank
     print(f"[AI-UNIVERSE] Computing features for {age_ok} eligible symbols...")
