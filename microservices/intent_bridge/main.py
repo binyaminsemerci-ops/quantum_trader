@@ -247,94 +247,78 @@ class IntentBridge:
     
     def _get_effective_allowlist(self) -> set:
         """
-        Get current effective allowlist with explicit venue intersection.
+        PolicyStore IS the SINGLE SOURCE OF TRUTH.
         
-        Priority:
-        1. AI Policy universe (if PolicyStore enabled and valid)
-        2. TOP10 universe (if USE_TOP10_UNIVERSE enabled)
-        3. Static ALLOWLIST (fallback)
+        Fail-closed logic:
+        1. Load policy from PolicyStore (fail if unavailable)
+        2. Intersect with venue tradable symbols (fail if venue fetch fails)
+        3. Return effective_allowlist = policy_universe ∩ tradable_symbols
         
-        Final step: intersect with venue tradable symbols (fail-open if fetch fails)
+        Any symbol outside this allowlist is REJECTED (not in TOP-10 policy).
         """
-        source = "unknown"
-        allowlist = set()
-        policy_version = "none"
-        policy_hash = "none"
-        policy_count = 0
+        # STEP 1: Validate PolicyStore is loaded and fresh
+        if not POLICY_ENABLED:
+            logger.error("🔥 FATAL: PolicyStore not enabled! Cannot run without policy universe.")
+            return set()  # Fail-closed: no symbols allowed
         
-        # Priority 1: AI Policy universe (fail-closed!)
-        if POLICY_ENABLED and self.current_policy:
-            # Refresh policy if stale
-            if self.current_policy.is_stale():
-                logger.warning("Policy stale, refreshing...")
-                self._refresh_policy()
-            
-            if self.current_policy and not self.current_policy.is_stale():
-                allowlist = set(self.current_policy.universe_symbols)
-                source = "policy"
-                policy_version = self.current_policy.policy_version
-                policy_hash = self.current_policy.policy_hash[:8]
-                policy_count = len(allowlist)
-                logger.info(f"[ALLOWLIST] Using POLICY source: {policy_count} symbols = {sorted(allowlist)}")
+        if not self.current_policy:
+            logger.error("🔥 FATAL: No policy loaded! Refreshing...")
+            self._refresh_policy()
+            if not self.current_policy:
+                logger.error("🔥 FATAL: Policy still unavailable after refresh. Returning empty allowlist (FAIL-CLOSED).")
+                return set()
         
-        # Priority 2: TOP10 universe
-        if not allowlist and USE_TOP10_UNIVERSE:
-            # Refresh if stale
-            if time.time() - self.top10_last_refresh > self.TOP10_REFRESH_INTERVAL:
-                self._refresh_top10_allowlist()
+        # Refresh if stale
+        if self.current_policy.is_stale():
+            logger.warning("⚠️  Policy stale, refreshing...")
+            self._refresh_policy()
+            if not self.current_policy:
+                logger.error("🔥 Failed to refresh stale policy. Using last known policy.")
         
-            allowlist = self.current_allowlist
-            source = "top10"
-            logger.info(f"[ALLOWLIST] Using TOP10 source: {len(allowlist)} symbols = {sorted(allowlist)}")
+        # STEP 2: Extract policy universe (this is THE source of truth)
+        policy_symbols = set(self.current_policy.universe_symbols) if self.current_policy else set()
+        policy_count = len(policy_symbols)
         
-        # Priority 3: Static allowlist (legacy)
-        if not allowlist:
-            allowlist = self.current_allowlist
-            source = "static"
+        if not policy_symbols:
+            logger.error("🔥 FATAL: Policy universe is empty! No symbols allowed.")
+            return set()
         
-        # Capture allowlist before venue intersection
-        allowlist_count = len(allowlist)
-        
-        # Venue intersection (explicit tradable filter)
+        # STEP 3: Venue intersection (fail if fetch fails, keep policy as backup)
         venue = "binance-testnet" if BINANCE_TESTNET else "binance-mainnet"
-        tradable_count = 0
-        tradable_fetch_failed = 0
-        venue_limited = 0
+        tradable_symbols = self._get_testnet_tradable_symbols()
+        tradable_count = len(tradable_symbols) if tradable_symbols else 0
+        tradable_fetch_failed = 0 if tradable_symbols else 1
         
-        if TESTNET_MODE and allowlist_count > 0:
-            tradable_symbols = self._get_testnet_tradable_symbols()
-            if tradable_symbols:
-                tradable_count = len(tradable_symbols)
-                # Explicit intersection
-                final_allowlist = allowlist & tradable_symbols
-                
-                # Fail-open: if intersection is empty but allowlist was not, keep original
-                if not final_allowlist and allowlist:
-                    logger.warning(f"Venue intersection empty! Keeping original allowlist (fail-open)")
-                    final_allowlist = allowlist
-                    venue_limited = 0  # Not limited, failed intersection
-                else:
-                    allowlist = final_allowlist
-                    venue_limited = 1 if len(allowlist) < allowlist_count else 0
-            else:
-                # Tradable fetch failed - fail-open (keep allowlist)
-                tradable_fetch_failed = 1
-                logger.warning(f"Failed to fetch venue tradables - using allowlist as-is (fail-open)")
+        if not tradable_symbols:
+            logger.error(f"🔥 Failed to fetch venue tradables from {venue}. Using policy only (fail-closed).")
+            final_allowlist = policy_symbols
+            venue_limited = 0
+        else:
+            # Explicit intersection: policy ∩ venue
+            final_allowlist = policy_symbols & tradable_symbols
+            venue_limited = 1 if len(final_allowlist) < policy_count else 0
+            
+            if not final_allowlist:
+                logger.error(
+                    f"🔥 CRITICAL: Policy ∩ venue = EMPTY! "
+                    f"Policy has {policy_count} symbols, venue has {tradable_count}. "
+                    f"No intersection. Returning empty allowlist (FAIL-CLOSED)."
+                )
+                return set()
         
-        # Final count and sample
-        final_count = len(allowlist)
-        sample = ",".join(sorted(list(allowlist))[:3]) if allowlist else ""
+        # STEP 4: Log the effective allowlist decision
+        final_count = len(final_allowlist)
+        sample = ",".join(sorted(list(final_allowlist)))
         
-        # Structured logging (EXACT FORMAT for proof script)
+        # Structured logging: ALLOWLIST_EFFECTIVE is the TRUTH SOURCE
         logger.info(
-            f"ALLOWLIST_EFFECTIVE venue={venue} source={source} "
-            f"policy_count={policy_count} allowlist_count={allowlist_count} "
+            f"✅ ALLOWLIST_EFFECTIVE source=policy policy_count={policy_count} "
             f"tradable_count={tradable_count} final_count={final_count} "
             f"venue_limited={venue_limited} tradable_fetch_failed={tradable_fetch_failed} "
-            f"sample={sample}"
+            f"venue={venue} symbols={sample}"
         )
         
-        return allowlist
+        return final_allowlist
     
     def _get_portfolio_exposure(self) -> float:
         """
@@ -433,12 +417,17 @@ class IntentBridge:
                 logger.warning(f"Invalid action: {action}")
                 return None
             
-            # Allowlist check
+            # Allowlist check (FAIL-CLOSED: PolicyStore is THE source of truth)
             effective_allowlist = self._get_effective_allowlist()
             if symbol not in effective_allowlist:
-                logger.info(f"⚠️  Symbol REJECTED (not in allowlist): {symbol} (allowlist has {len(effective_allowlist)} symbols: {sorted(list(effective_allowlist))[:5]}...)")
+                logger.warning(
+                    f"🔥 SKIP_INTENT_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} "
+                    f"reason=symbol_not_in_policy_universe allowlist_count={len(effective_allowlist)} "
+                    f"allowlist_sample={sorted(list(effective_allowlist))}"
+                )
                 return None
-            logger.info(f"✅ Symbol ACCEPTED: {symbol}")
+            
+            logger.debug(f"✅ Symbol {symbol} in allowlist, proceeding with intent processing")
             
             # Extract quantity or size
             qty = None
