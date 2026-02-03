@@ -18,6 +18,7 @@ import redis
 import subprocess
 import urllib.request
 import urllib.parse
+import numpy as np
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
@@ -109,6 +110,18 @@ class Config:
     
     # Apply Layer config path (for disarm action)
     APPLY_CONFIG_PATH = os.getenv('APPLY_CONFIG_PATH', '/etc/quantum/apply-layer.env')
+    
+    # ========================================================================
+    # ACTIVE SLOTS CONTROLLER (dynamic slot management + strict rotation)
+    # ========================================================================
+    ACTIVE_SLOTS_ENABLED = os.getenv('GOV_ACTIVE_SLOTS_ENABLED', 'true').lower() == 'true'
+    ACTIVE_SLOTS_BASE = int(os.getenv('GOV_ACTIVE_SLOTS_BASE', '4'))
+    ACTIVE_SLOTS_TREND_STRONG = int(os.getenv('GOV_ACTIVE_SLOTS_TREND_STRONG', '6'))
+    ACTIVE_SLOTS_CHOP = int(os.getenv('GOV_ACTIVE_SLOTS_CHOP', '3'))
+    ROTATION_THRESHOLD = float(os.getenv('GOV_ROTATION_THRESHOLD', '0.15'))  # New score must be 15% better
+    MAX_CORRELATION = float(os.getenv('GOV_MAX_CORRELATION', '0.80'))  # 80% max correlation
+    ROTATION_LOCK_TTL = int(os.getenv('GOV_ROTATION_LOCK_TTL', '120'))  # 120s timeout for rotation
+    MAX_MARGIN_USAGE_PCT = float(os.getenv('GOV_MAX_MARGIN_USAGE_PCT', '0.65'))  # 65% margin cap
     
     # Metrics
     METRICS_PORT = int(os.getenv('METRICS_PORT', '8044'))
@@ -339,6 +352,168 @@ class Governor:
             if self.redis.exists(permit_key):
                 logger.debug(f"{symbol}: Permit already exists for plan {plan_id[:8]}")
                 return
+            
+            # ===================================================================
+            # ACTIVE SLOTS CONTROLLER (strict rotation with close confirmation)
+            # ===================================================================
+            if self.config.ACTIVE_SLOTS_ENABLED and action not in ['FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50', 'PARTIAL_25']:
+                # Only apply for OPEN actions (skip closes)
+                logger.info(f"{symbol}: Active Slots enabled - checking position limits")
+                
+                # Step 1: Get policy universe
+                policy_data = self.redis.hget('quantum:policy:current', 'universe_symbols')
+                if not policy_data:
+                    logger.warning(f"{symbol}: No policy universe - BLOCKING (fail-closed)")
+                    self._block_plan(plan_id, symbol, 'active_slots_no_policy')
+                    return
+                
+                policy_universe = json.loads(policy_data)
+                if symbol not in policy_universe:
+                    logger.warning(f"{symbol}: NOT in policy universe ({len(policy_universe)} symbols) - BLOCKING")
+                    self._block_plan(plan_id, symbol, 'active_slots_not_in_universe')
+                    return
+                
+                logger.info(f"{symbol}: In policy universe ({len(policy_universe)} symbols)")
+                
+                # Step 2: Get open positions snapshot
+                open_positions = self._get_open_positions_snapshot()
+                open_symbols = [p['symbol'] for p in open_positions]
+                
+                # Step 3: Detect regime and compute desired slots
+                regime, desired_slots = self._detect_market_regime(symbol)
+                logger.info(f"{symbol}: Regime={regime}, desired_slots={desired_slots}, current_open={len(open_positions)}")
+                
+                # Step 4: Check if slots available
+                if len(open_positions) < desired_slots:
+                    logger.info(f"{symbol}: Slots available ({len(open_positions)}/{desired_slots}) - ALLOW")
+                    # Continue to next gates
+                else:
+                    # Slots FULL - check for rotation
+                    logger.info(f"{symbol}: Slots FULL ({len(open_positions)}/{desired_slots}) - checking rotation")
+                    
+                    # Step 5: Check if rotation lock exists
+                    rotation_lock_key = f"quantum:rotation:lock:{plan_id}"
+                    lock_data = self.redis.get(rotation_lock_key)
+                    
+                    if not lock_data:
+                        # NO LOCK: Must initiate rotation (close weakest)
+                        logger.info(f"{symbol}: No rotation lock - initiating rotation")
+                        
+                        # Find weakest position
+                        sorted_positions = sorted(open_positions, key=lambda p: p['weakness_score'], reverse=True)
+                        weakest = sorted_positions[0]
+                        
+                        logger.info(f"{symbol}: Weakest position: {weakest['symbol']} (weakness={weakest['weakness_score']:.4f}, pnl={weakest['pnl_pct']*100:.2f}%)")
+                        
+                        # Check rotation threshold: new must be significantly better
+                        # For now, always rotate (can add score comparison later)
+                        # TODO: Add score comparison from intent stream
+                        
+                        # Create CLOSE plan for weakest (emit to apply.plan stream)
+                        close_plan_id = f"rot_{plan_id[:8]}_{weakest['symbol']}"
+                        close_plan = {
+                            'plan_id': close_plan_id,
+                            'symbol': weakest['symbol'],
+                            'action': 'FULL_CLOSE_PROPOSED',
+                            'side': 'CLOSE',
+                            'qty': '0',  # Apply Layer will compute
+                            'reduceOnly': 'true',
+                            'decision': 'EXECUTE',
+                            'kill_score': '0',
+                            'rotation_trigger': 'true',
+                            'new_symbol': symbol,
+                            'new_plan_id': plan_id,
+                            'timestamp': str(time.time())
+                        }
+                        
+                        self.redis.xadd(self.config.STREAM_PLANS, close_plan)
+                        logger.info(f"{symbol}: ROTATION CLOSE emitted for {weakest['symbol']} (plan_id={close_plan_id[:8]})")
+                        
+                        # Create rotation lock with TTL
+                        lock_payload = json.dumps({
+                            'new_symbol': symbol,
+                            'new_plan_id': plan_id,
+                            'close_symbol': weakest['symbol'],
+                            'close_plan_id': close_plan_id,
+                            'created_at': time.time()
+                        })
+                        self.redis.setex(rotation_lock_key, self.config.ROTATION_LOCK_TTL, lock_payload)
+                        logger.info(f"{symbol}: ROTATION LOCK created (TTL={self.config.ROTATION_LOCK_TTL}s)")
+                        
+                        # BLOCK entry until close confirmed
+                        self._block_plan(plan_id, symbol, 'active_slots_waiting_rotation_close')
+                        
+                        # Publish event
+                        self.redis.xadd(self.config.STREAM_EVENTS, {
+                            'event': 'ROTATION_LOCK_CREATED',
+                            'new_symbol': symbol,
+                            'new_plan_id': plan_id,
+                            'close_symbol': weakest['symbol'],
+                            'close_plan_id': close_plan_id,
+                            'timestamp': str(time.time())
+                        })
+                        return
+                    
+                    else:
+                        # LOCK EXISTS: Check if close confirmed
+                        lock_info = json.loads(lock_data)
+                        close_plan_id = lock_info['close_plan_id']
+                        close_symbol = lock_info['close_symbol']
+                        lock_age = time.time() - lock_info['created_at']
+                        
+                        logger.info(f"{symbol}: Rotation lock found - checking close confirmation (age={lock_age:.1f}s)")
+                        
+                        if self._is_close_confirmed(close_plan_id):
+                            # CLOSE CONFIRMED: Allow entry
+                            logger.info(f"{symbol}: Close CONFIRMED for {close_symbol} - ALLOW entry after rotation")
+                            
+                            # Delete lock
+                            self.redis.delete(rotation_lock_key)
+                            logger.info(f"{symbol}: Rotation lock deleted")
+                            
+                            # Publish event
+                            self.redis.xadd(self.config.STREAM_EVENTS, {
+                                'event': 'ROTATION_COMPLETE',
+                                'new_symbol': symbol,
+                                'new_plan_id': plan_id,
+                                'close_symbol': close_symbol,
+                                'close_plan_id': close_plan_id,
+                                'timestamp': str(time.time())
+                            })
+                            
+                            # Continue to next gates (allow entry)
+                        else:
+                            # CLOSE NOT YET CONFIRMED
+                            if lock_age > self.config.ROTATION_LOCK_TTL:
+                                # TIMEOUT: Lock expired without confirmation
+                                logger.error(f"{symbol}: Rotation TIMEOUT - lock expired without close confirmation ({lock_age:.1f}s)")
+                                
+                                # Delete expired lock
+                                self.redis.delete(rotation_lock_key)
+                                
+                                # BLOCK entry (fail-closed)
+                                self._block_plan(plan_id, symbol, 'active_slots_rotation_timeout')
+                                
+                                # Publish event
+                                self.redis.xadd(self.config.STREAM_EVENTS, {
+                                    'event': 'ROTATION_TIMEOUT',
+                                    'new_symbol': symbol,
+                                    'new_plan_id': plan_id,
+                                    'close_symbol': close_symbol,
+                                    'close_plan_id': close_plan_id,
+                                    'lock_age': str(lock_age),
+                                    'timestamp': str(time.time())
+                                })
+                                return
+                            else:
+                                # STILL WAITING: Block entry
+                                logger.info(f"{symbol}: Rotation in progress - waiting for close confirmation ({lock_age:.1f}s / {self.config.ROTATION_LOCK_TTL}s)")
+                                self._block_plan(plan_id, symbol, 'active_slots_waiting_rotation_close')
+                                return
+            
+            # ===================================================================
+            # END ACTIVE SLOTS CONTROLLER
+            # ===================================================================
             
             # TESTNET MODE: Apply fund caps for protection
             if current_mode == 'testnet':
@@ -1338,6 +1513,163 @@ class Governor:
             count_5min = self._get_exec_count_window(symbol, minutes=5)
             METRIC_EXEC_HOUR.labels(symbol=symbol).set(count_hour)
             METRIC_EXEC_5MIN.labels(symbol=symbol).set(count_5min)
+    
+    # ========================================================================
+    # ACTIVE SLOTS CONTROLLER (strict rotation with close confirmation)
+    # ========================================================================
+    
+    def _get_open_positions_snapshot(self):
+        """
+        Fetch open positions from Binance, compute weakness scores.
+        
+        Weakness = unrealized_pnl_pct + age_penalty (higher = weaker)
+        
+        Returns:
+            List[dict]: [{symbol, qty, pnl_pct, entry_ts, weakness_score}]
+        """
+        try:
+            if not self.binance_client:
+                logger.warning("No Binance client - cannot fetch positions")
+                return []
+            
+            # Fetch positions from Binance
+            account_data = self.binance_client._request('GET', '/fapi/v2/positionRisk', signed=True)
+            if not account_data:
+                logger.warning("No position data from Binance")
+                return []
+            
+            positions = []
+            for pos in account_data:
+                amt = abs(float(pos.get('positionAmt', 0)))
+                if amt < 1e-8:
+                    continue  # Skip empty positions
+                
+                symbol = pos.get('symbol')
+                entry_price = float(pos.get('entryPrice', 0))
+                mark_price = float(pos.get('markPrice', 0))
+                unrealized_pnl = float(pos.get('unRealizedProfit', 0))
+                notional = amt * mark_price
+                
+                # Compute PNL %
+                pnl_pct = unrealized_pnl / notional if notional > 0 else 0
+                
+                # Age penalty: positions > 24h get +0.05 weakness
+                # (encourage rotation of stale positions)
+                update_time = int(pos.get('updateTime', 0))
+                age_hours = (time.time() * 1000 - update_time) / 3600000 if update_time > 0 else 0
+                age_penalty = 0.05 if age_hours > 24 else 0
+                
+                # Weakness score = -(pnl_pct) + age_penalty
+                # Negative PNL → positive weakness (bad)
+                # Positive PNL → negative weakness (good)
+                weakness_score = -pnl_pct + age_penalty
+                
+                positions.append({
+                    'symbol': symbol,
+                    'qty': amt,
+                    'pnl_pct': pnl_pct,
+                    'entry_ts': update_time / 1000 if update_time > 0 else 0,
+                    'weakness_score': weakness_score,
+                    'notional': notional
+                })
+            
+            logger.info(f"Fetched {len(positions)} open positions from Binance")
+            return positions
+            
+        except Exception as e:
+            logger.error(f"Error fetching position snapshot: {e}")
+            return []
+    
+    def _detect_market_regime(self, symbol):
+        """
+        Detect market regime from klines (TREND_STRONG, CHOP, BASE).
+        
+        Returns:
+            (regime: str, desired_slots: int)
+        """
+        try:
+            if not self.binance_client:
+                logger.warning(f"{symbol}: No Binance client for regime detection - defaulting to BASE(4)")
+                return 'BASE', self.config.ACTIVE_SLOTS_BASE
+            
+            # Fetch 100x 1h klines
+            klines = self.binance_client._request('GET', '/fapi/v1/klines', signed=False, params={
+                'symbol': symbol,
+                'interval': '1h',
+                'limit': 100
+            })
+            
+            if not klines or len(klines) < 50:
+                logger.warning(f"{symbol}: Insufficient klines for regime - defaulting to BASE(4)")
+                return 'BASE', self.config.ACTIVE_SLOTS_BASE
+            
+            # Extract closes
+            closes = [float(k[4]) for k in klines]  # Index 4 = close
+            
+            # Compute EMA20 trend strength
+            import numpy as np
+            ema20 = np.mean(closes[-20:])
+            ema50 = np.mean(closes[-50:])
+            trend_strength = abs(ema20 - ema50) / ema50
+            
+            # Compute ATR percentage (volatility)
+            highs = [float(k[2]) for k in klines[-20:]]  # Index 2 = high
+            lows = [float(k[3]) for k in klines[-20:]]   # Index 3 = low
+            atr = np.mean([h - l for h, l in zip(highs, lows)])
+            atr_pct = atr / ema20 if ema20 > 0 else 0
+            
+            # Classify regime
+            if trend_strength > 0.05 and atr_pct < 0.02:
+                # Strong trend, low volatility → TREND_STRONG
+                regime = 'TREND_STRONG'
+                slots = self.config.ACTIVE_SLOTS_TREND_STRONG
+            elif atr_pct > 0.03 or trend_strength < 0.01:
+                # High volatility or no trend → CHOP
+                regime = 'CHOP'
+                slots = self.config.ACTIVE_SLOTS_CHOP
+            else:
+                # Default → BASE
+                regime = 'BASE'
+                slots = self.config.ACTIVE_SLOTS_BASE
+            
+            logger.info(f"{symbol}: Regime={regime} (trend={trend_strength:.4f}, atr_pct={atr_pct:.4f}) → {slots} slots")
+            return regime, slots
+            
+        except Exception as e:
+            logger.error(f"{symbol}: Error detecting regime: {e}")
+            return 'BASE', self.config.ACTIVE_SLOTS_BASE
+    
+    def _is_close_confirmed(self, close_plan_id):
+        """
+        Check if close plan was executed (from apply.result stream).
+        
+        Returns:
+            bool: True if close confirmed with executed=true + reduceOnly=true
+        """
+        try:
+            # Search apply.result stream for close plan confirmation
+            results = self.redis.xrevrange(self.config.STREAM_RESULTS, count=50)
+            
+            for msg_id, data in results:
+                result_plan_id = data.get(b'plan_id', b'').decode()
+                if result_plan_id == close_plan_id:
+                    executed = data.get(b'executed', b'false').decode().lower() == 'true'
+                    reduce_only = data.get(b'reduceOnly', b'false').decode().lower() == 'true'
+                    
+                    if executed and reduce_only:
+                        logger.info(f"Close confirmed: plan_id={close_plan_id[:8]} (executed=true, reduceOnly=true)")
+                        return True
+                    else:
+                        logger.warning(f"Close plan {close_plan_id[:8]} found but NOT confirmed: executed={executed}, reduceOnly={reduce_only}")
+                        return False
+            
+            # Plan not found in results (yet)
+            logger.debug(f"Close plan {close_plan_id[:8]} not found in apply.result stream (yet)")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking close confirmation: {e}")
+            return False
 
 # ============================================================================
 # MAIN
