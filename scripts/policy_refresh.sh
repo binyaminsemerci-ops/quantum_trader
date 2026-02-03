@@ -66,12 +66,13 @@ fi
 
 # Step 3: Validate expiry time (must be in future)
 NOW=$(date +%s)
-if [ "$VALID_UNTIL" -le "$NOW" ]; then
-    log_fail "Policy expired: valid_until=$VALID_UNTIL now=$NOW"
+VALID_UNTIL_INT=$(echo "$VALID_UNTIL" | cut -d'.' -f1)  # Strip decimals for bash comparison
+if [ "$VALID_UNTIL_INT" -le "$NOW" ]; then
+    log_fail "Policy expired: valid_until=$VALID_UNTIL_INT now=$NOW"
     exit 1
 fi
 
-REMAINING_SEC=$((VALID_UNTIL - NOW))
+REMAINING_SEC=$((VALID_UNTIL_INT - NOW))
 REMAINING_MIN=$((REMAINING_SEC / 60))
 
 log_ok "Policy validated: version=$POLICY_VERSION hash=${POLICY_HASH:0:8} valid_for=${REMAINING_MIN}min"
