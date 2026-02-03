@@ -9,7 +9,7 @@ ranks all symbols by score, selects Top-10.
 Writes to PolicyStore with audit trail.
 
 Usage:
-    python scripts/ai_universe_generator_v1.py
+    python scripts/ai_universe_generator_v1.py [--dry-run]
 """
 
 import sys
@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 try:
     import numpy as np
 except ImportError:
-    print("[AI-UNIVERSE] ❌ ERROR: numpy not installed. Run: pip install numpy")
+    print("[AI-UNIVERSE] ERROR: numpy not installed. Run: pip install numpy")
     sys.exit(1)
 
 from lib.policy_store import save_policy
@@ -30,6 +30,11 @@ import json
 import hashlib
 from datetime import datetime
 
+
+# Guardrails configuration (env override supported)
+MIN_QUOTE_VOL_USDT_24H = int(os.getenv("MIN_QUOTE_VOL_USDT_24H", "20000000"))  # $20M default
+MAX_SPREAD_BPS = float(os.getenv("MAX_SPREAD_BPS", "15"))  # 15 bps default
+MIN_AGE_DAYS = int(os.getenv("MIN_AGE_DAYS", "30"))  # 30 days default
 
 # Cache for base universe (10min TTL to avoid excessive API calls)
 UNIVERSE_CACHE = {"data": None, "timestamp": 0, "ttl": 600}
@@ -84,26 +89,35 @@ def fetch_base_universe():
         raise RuntimeError(f"Failed to fetch base universe: {e}")
 
 
-def fetch_24h_stats(symbol):
-    """Fetch 24h ticker stats for liquidity/volume check"""
+def fetch_24h_stats_bulk():
+    """Fetch 24h ticker stats for ALL symbols in one call (bulk endpoint)"""
     try:
-        url = f"https://fapi.binance.com/fapi/v1/ticker/24hr"
-        params = {"symbol": symbol}
-        response = requests.get(url, params=params, timeout=5)
+        url = "https://fapi.binance.com/fapi/v1/ticker/24hr"
+        response = requests.get(url, timeout=10)
         response.raise_for_status()
         
         data = response.json()
-        return {
-            "quoteVolume": float(data.get("quoteVolume", 0)),
-            "priceChangePercent": float(data.get("priceChangePercent", 0)),
-            "lastPrice": float(data.get("lastPrice", 0))
-        }
+        
+        # Map by symbol for O(1) lookup
+        stats_map = {}
+        for ticker in data:
+            symbol = ticker.get("symbol", "")
+            if symbol:
+                stats_map[symbol] = {
+                    "quoteVolume": float(ticker.get("quoteVolume", 0)),
+                    "priceChangePercent": float(ticker.get("priceChangePercent", 0)),
+                    "lastPrice": float(ticker.get("lastPrice", 0))
+                }
+        
+        print(f"[AI-UNIVERSE] Fetched 24h stats for {len(stats_map)} symbols (bulk)")
+        return stats_map
     except Exception as e:
-        return None
+        print(f"[AI-UNIVERSE] ERROR fetching 24h stats: {e}")
+        raise RuntimeError(f"Failed to fetch 24h stats (fail-closed): {e}")
 
 
-def fetch_orderbook_top(symbol):
-    """Fetch top of orderbook for spread calculation"""
+def fetch_orderbook_spread(symbol):
+    """Fetch orderbook top for spread calculation"""
     try:
         url = f"https://fapi.binance.com/fapi/v1/depth"
         params = {"symbol": symbol, "limit": 5}
@@ -115,14 +129,20 @@ def fetch_orderbook_top(symbol):
         asks = data.get("asks", [])
         
         if not bids or not asks:
-            return None, None
+            return None
         
         best_bid = float(bids[0][0])
         best_ask = float(asks[0][0])
         
-        return best_bid, best_ask
+        # Calculate spread in bps
+        if best_bid > 0:
+            mid = (best_bid + best_ask) / 2
+            spread_bps = ((best_ask - best_bid) / mid) * 10000
+            return spread_bps
+        
+        return None
     except Exception as e:
-        return None, None
+        return None
 
 
 def get_symbol_age_days(symbol, exchange_info):
@@ -211,63 +231,79 @@ def compute_features(symbol):
 
 
 def rank_symbols(symbols, exchange_info=None):
-    """Compute features for all symbols and rank by score with liquidity guardrails"""
+    """Compute features for all symbols and rank by score with liquidity guardrails
     
-    # Guardrails configuration
-    MIN_QUOTE_VOLUME_USDT_24H = 20_000_000  # $20M/day
-    MIN_AGE_DAYS = 30
-    MAX_SPREAD_BPS = 15  # 15 basis points
+    Pipeline:
+    A) Fetch 24h stats for ALL symbols (bulk)
+    B) Filter by volume >= MIN_QUOTE_VOL_USDT_24H
+    C) Filter by spread_bps <= MAX_SPREAD_BPS (only check spread for vol_ok)
+    D) Filter by age >= MIN_AGE_DAYS (apply penalty if unknown)
+    E) Rank by score with liquidity/spread factors
+    """
     
-    print(f"[AI-UNIVERSE] Computing features for {len(symbols)} symbols...")
-    print(f"[AI-UNIVERSE] Guardrails: vol≥${MIN_QUOTE_VOLUME_USDT_24H/1e6:.0f}M, age≥{MIN_AGE_DAYS}d, spread≤{MAX_SPREAD_BPS}bps")
+    print(f"[AI-UNIVERSE] Computing features with guardrails for {len(symbols)} symbols...")
+    print(f"[AI-UNIVERSE] Guardrails: vol>=${MIN_QUOTE_VOL_USDT_24H/1e6:.0f}M, age>={MIN_AGE_DAYS}d, spread<={MAX_SPREAD_BPS}bps")
     
-    scored_symbols = []
+    # Pipeline A: Fetch 24h stats in bulk (one API call for all symbols)
+    stats_map = fetch_24h_stats_bulk()
+    
+    # Pipeline B: Filter by volume
+    candidates_vol_ok = []
     excluded_volume = 0
-    excluded_spread = 0
-    excluded_age = 0
-    unknown_age = 0
     
-    # Collect all quote volumes for percentile calculation
-    all_volumes = []
-    
-    for i, symbol in enumerate(symbols):
-        if i % 50 == 0:
-            print(f"[AI-UNIVERSE] Progress: {i}/{len(symbols)} symbols processed...")
-        
-        # Fetch 24h stats
-        stats_24h = fetch_24h_stats(symbol)
-        if stats_24h is None:
-            continue
-        
-        quote_volume = stats_24h["quoteVolume"]
-        all_volumes.append(quote_volume)
-        
-        # Guardrail 1: Volume filter
-        if quote_volume < MIN_QUOTE_VOLUME_USDT_24H:
+    for symbol in symbols:
+        if symbol not in stats_map:
             excluded_volume += 1
             continue
         
-        # Fetch orderbook for spread
-        best_bid, best_ask = fetch_orderbook_top(symbol)
-        if best_bid is None or best_ask is None or best_bid <= 0:
+        quote_volume = stats_map[symbol]["quoteVolume"]
+        
+        if quote_volume < MIN_QUOTE_VOL_USDT_24H:
+            excluded_volume += 1
+            continue
+        
+        candidates_vol_ok.append({
+            "symbol": symbol,
+            "quote_volume": quote_volume,
+            "stats": stats_map[symbol]
+        })
+    
+    vol_ok = len(candidates_vol_ok)
+    print(f"[AI-UNIVERSE] Volume filter: {vol_ok}/{len(symbols)} pass (excluded {excluded_volume})")
+    
+    # Pipeline C: Filter by spread (only check spread for vol_ok candidates)
+    candidates_spread_ok = []
+    excluded_spread = 0
+    
+    for i, candidate in enumerate(candidates_vol_ok):
+        if i % 20 == 0:
+            print(f"[AI-UNIVERSE] Spread check: {i}/{vol_ok}...")
+        
+        symbol = candidate["symbol"]
+        spread_bps = fetch_orderbook_spread(symbol)
+        
+        if spread_bps is None or spread_bps > MAX_SPREAD_BPS:
             excluded_spread += 1
             continue
         
-        # Calculate spread in bps
-        spread_bps = ((best_ask - best_bid) / best_bid) * 10000
+        candidate["spread_bps"] = spread_bps
+        candidates_spread_ok.append(candidate)
+    
+    spread_ok = len(candidates_spread_ok)
+    print(f"[AI-UNIVERSE] Spread filter: {spread_ok}/{vol_ok} pass (excluded {excluded_spread})")
+    
+    # Pipeline D: Filter by age
+    candidates_age_ok = []
+    excluded_age = 0
+    unknown_age = 0
+    
+    for candidate in candidates_spread_ok:
+        symbol = candidate["symbol"]
+        age_days = get_symbol_age_days(symbol, exchange_info) if exchange_info else None
         
-        # Guardrail 2: Spread filter
-        if spread_bps > MAX_SPREAD_BPS:
-            excluded_spread += 1
-            continue
+        candidate["age_days"] = age_days
+        candidate["age_unknown_penalty"] = 1.0
         
-        # Check age
-        age_days = None
-        age_penalty = 1.0
-        if exchange_info:
-            age_days = get_symbol_age_days(symbol, exchange_info)
-        
-        # Guardrail 3: Age filter
         if age_days is not None:
             if age_days < MIN_AGE_DAYS:
                 excluded_age += 1
@@ -275,69 +311,81 @@ def rank_symbols(symbols, exchange_info=None):
         else:
             # Age unknown - apply penalty but don't exclude
             unknown_age += 1
-            age_penalty = 0.85
+            candidate["age_unknown_penalty"] = 0.85
         
-        # Now compute features
+        candidates_age_ok.append(candidate)
+    
+    age_ok = len(candidates_age_ok)
+    print(f"[AI-UNIVERSE] Age filter: {age_ok}/{spread_ok} pass (excluded {excluded_age}, unknown_age {unknown_age})")
+    
+    # Log guardrails summary
+    total = len(symbols)
+    print(f"[AI-UNIVERSE] AI_UNIVERSE_GUARDRAILS total={total} vol_ok={vol_ok} spread_ok={spread_ok} age_ok={age_ok} excluded_vol={excluded_volume} excluded_spread={excluded_spread} excluded_age={excluded_age} unknown_age={unknown_age} min_qv={MIN_QUOTE_VOL_USDT_24H} max_spread_bps={MAX_SPREAD_BPS} min_age_days={MIN_AGE_DAYS}")
+    
+    # Pipeline E: Compute features and rank
+    print(f"[AI-UNIVERSE] Computing features for {age_ok} eligible symbols...")
+    
+    scored_symbols = []
+    all_volumes = [c["quote_volume"] for c in candidates_age_ok]
+    
+    for i, candidate in enumerate(candidates_age_ok):
+        if i % 20 == 0:
+            print(f"[AI-UNIVERSE] Features: {i}/{age_ok}...")
+        
+        symbol = candidate["symbol"]
         features = compute_features(symbol)
         
         if features is None:
             continue  # Skip symbols with data issues
         
-        # Score = trend + momentum + volatility_quality
-        # Higher score = better candidate
+        # Base score (existing logic)
         base_score = (
-            abs(features["trend_1h"]) * 1.0 +        # Trend strength
-            features["momentum_15m"] * 0.8 +         # 15m momentum
-            features["momentum_1h"] * 0.6 +          # 1h momentum
-            features["volatility_15m"] * 0.4         # Volatility (liquidity proxy)
+            abs(features["trend_1h"]) * 1.0 +
+            features["momentum_15m"] * 0.8 +
+            features["momentum_1h"] * 0.6 +
+            features["volatility_15m"] * 0.4
         )
         
-        # Compute liquidity_factor based on volume percentile and spread quality
-        # Volume percentile (clamp 0.5..1.0)
-        volume_percentile = 0.5
-        if all_volumes:
-            volume_rank = sum(1 for v in all_volumes if v < quote_volume) / max(len(all_volumes), 1)
-            volume_percentile = max(0.5, min(1.0, 0.5 + volume_rank * 0.5))
+        # Liquidity factor (volume percentile, clamped 0.5..1.0)
+        volume_rank = sum(1 for v in all_volumes if v < candidate["quote_volume"]) / max(len(all_volumes), 1)
+        liquidity_factor = max(0.5, min(1.0, 0.5 + volume_rank * 0.5))
         
-        # Spread quality (clamp 0.5..1.0)
-        spread_quality = max(0.5, min(1.0, 1.0 - (spread_bps / MAX_SPREAD_BPS) * 0.5))
+        # Spread factor (clamped 0.5..1.0)
+        spread_factor = max(0.5, min(1.0, 1.0 - (candidate["spread_bps"] / MAX_SPREAD_BPS) * 0.5))
         
-        # Combined liquidity factor
-        liquidity_factor = (volume_percentile * 0.7 + spread_quality * 0.3) * age_penalty
+        # Apply penalties
+        age_penalty = candidate["age_unknown_penalty"]
         
         # Final score
-        score = base_score * liquidity_factor
+        score = base_score * liquidity_factor * spread_factor * age_penalty
         
         scored_symbols.append({
             "symbol": symbol,
             "score": score,
             "base_score": base_score,
             "liquidity_factor": liquidity_factor,
+            "spread_factor": spread_factor,
             "features": features,
-            "quote_volume": quote_volume,
-            "spread_bps": spread_bps,
-            "age_days": age_days
+            "quote_volume": candidate["quote_volume"],
+            "spread_bps": candidate["spread_bps"],
+            "age_days": candidate["age_days"]
         })
     
     # Sort by score (descending)
     scored_symbols.sort(key=lambda x: x["score"], reverse=True)
     
-    eligible = len(scored_symbols)
-    total = len(symbols)
-    
-    print(f"[AI-UNIVERSE] ✅ Ranked {eligible} symbols")
-    print(f"[AI-UNIVERSE] AI_UNIVERSE_GUARDRAILS total={total} eligible={eligible} "
-          f"excluded_volume={excluded_volume} excluded_spread={excluded_spread} "
-          f"excluded_age={excluded_age} unknown_age={unknown_age}")
+    print(f"[AI-UNIVERSE] Ranked {len(scored_symbols)} eligible symbols")
     
     return scored_symbols
 
 
-def generate_ai_universe():
+def generate_ai_universe(dry_run=False):
     """Generate dynamic AI-selected Top-10 universe"""
     
     print("\n" + "="*70)
     print("  AI UNIVERSE GENERATOR v1 - Dynamic Top-10 Selection")
+    if dry_run:
+        print("  MODE: DRY-RUN (no policy save)")
     print("="*70)
     
     # Step 1: Fetch base universe (~566 symbols, NOT hardcoded!)
@@ -356,7 +404,7 @@ def generate_ai_universe():
         raise RuntimeError(f"No symbols passed guardrails! Eligible: {len(ranked)}")
     
     if top_n < 10:
-        print(f"[AI-UNIVERSE] ⚠️  WARNING: Only {top_n} symbols passed guardrails (expected 10)")
+        print(f"[AI-UNIVERSE] WARNING: Only {top_n} symbols passed guardrails (expected 10)")
     
     top_symbols = ranked[:top_n]
     universe_symbols = [x["symbol"] for x in top_symbols]
@@ -365,8 +413,15 @@ def generate_ai_universe():
     universe_str = ",".join(sorted(universe_symbols))
     universe_hash = hashlib.sha256(universe_str.encode()).hexdigest()[:16]
     
-    print(f"\n[AI-UNIVERSE] 🎯 TOP-{top_n} SELECTED:")
+    print(f"\n[AI-UNIVERSE] TOP-{top_n} SELECTED:")
+    
+    # Per-symbol logging (grep-friendly)
     for i, entry in enumerate(top_symbols, 1):
+        age_str = f"{entry['age_days']:.0f}" if entry['age_days'] is not None else "NA"
+        print(f"[AI-UNIVERSE] AI_UNIVERSE_PICK symbol={entry['symbol']} score={entry['score']:.2f} qv24h={entry['quote_volume']:.0f} spread_bps={entry['spread_bps']:.2f} age_days={age_str} lf={entry['liquidity_factor']:.3f} sf={entry['spread_factor']:.3f}")
+        
+        # Also show human-readable summary
+        print(f"  {i:2d}. {entry['symbol']:15s} score={entry['score']:8.2f} vol=${entry['quote_volume']/1e6:6.1f}M spread={entry['spread_bps']:4.1f}bps age={age_str:>4s}")
         age_str = f"{entry['age_days']:.0f}d" if entry['age_days'] is not None else "NA"
         print(f"  {i:2d}. {entry['symbol']:15s} score={entry['score']:8.2f} "
               f"liq_factor={entry['liquidity_factor']:.3f} "
@@ -377,17 +432,6 @@ def generate_ai_universe():
     print(f"\n[AI-UNIVERSE] Universe hash: {universe_hash}")
     print(f"[AI-UNIVERSE] Generator: ai_universe_v1")
     print(f"[AI-UNIVERSE] Features window: 15m,1h")
-    
-    # Log detailed Top-N with all metrics
-    top_details = []
-    for entry in top_symbols:
-        age_str = f"{entry['age_days']:.0f}" if entry['age_days'] is not None else "NA"
-        top_details.append(
-            f"{entry['symbol']}(score={entry['score']:.1f},vol={entry['quote_volume']/1e6:.0f}M,"
-            f"spread={entry['spread_bps']:.1f}bps,age={age_str},liq={entry['liquidity_factor']:.2f})"
-        )
-    
-    print(f"\n[AI-UNIVERSE] AI_UNIVERSE_TOP10 {' '.join(top_details[:3])}...")
     
     # Step 4: Generate leverage by symbol (AI-adjusted based on volatility)
     leverage_by_symbol = {}
@@ -434,7 +478,12 @@ def generate_ai_universe():
         "k_close_threshold": 0.62
     }
     
-    # Step 6: Save to PolicyStore
+    # Step 6: Save to PolicyStore (skip if dry-run)
+    if dry_run:
+        print(f"\n[AI-UNIVERSE] DRY-RUN: Skipping policy save")
+        print(f"[AI-UNIVERSE] Would save: {len(universe_symbols)} symbols, hash={universe_hash}")
+        return True
+    
     print(f"\n[AI-UNIVERSE] Writing policy to PolicyStore...")
     
     success = save_policy(
@@ -450,26 +499,26 @@ def generate_ai_universe():
     )
     
     if success:
-        print(f"[AI-UNIVERSE] ✅ AI policy generated successfully!")
+        print(f"[AI-UNIVERSE] AI policy generated successfully!")
         print(f"[AI-UNIVERSE] Universe: {len(universe_symbols)} symbols")
         print(f"[AI-UNIVERSE] Leverage range: {min(leverage_by_symbol.values()):.1f}x - {max(leverage_by_symbol.values()):.1f}x")
         print(f"[AI-UNIVERSE] Valid for: 60 minutes")
         print(f"[AI-UNIVERSE] Next refresh: {datetime.fromtimestamp(time.time() + 3600).strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        # Log structured audit trail
-        print(f"\n[AI-UNIVERSE] AI_UNIVERSE_SELECTED hash={universe_hash} symbols={','.join(universe_symbols[:3])}... top_score={top_10[0]['score']:.2f}")
         return True
     else:
-        print(f"[AI-UNIVERSE] ❌ Failed to save policy to PolicyStore")
+        print(f"[AI-UNIVERSE] Failed to save policy to PolicyStore")
         return False
 
 
 if __name__ == "__main__":
+    # Parse arguments
+    dry_run = "--dry-run" in sys.argv
+    
     try:
-        success = generate_ai_universe()
+        success = generate_ai_universe(dry_run=dry_run)
         sys.exit(0 if success else 1)
     except Exception as e:
-        print(f"\n[AI-UNIVERSE] ❌ FATAL ERROR: {e}")
+        print(f"\n[AI-UNIVERSE] FATAL ERROR: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
