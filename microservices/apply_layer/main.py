@@ -41,6 +41,14 @@ except ImportError:
     EXIT_OWNERSHIP_ENABLED = False
     print("WARN: exit_ownership module not found, exit gate disabled")
 
+# PolicyStore (fail-closed allowlist enforcement)
+try:
+    from lib.policy_store import load_policy, PolicyData
+    POLICY_ENABLED = True
+except ImportError:
+    POLICY_ENABLED = False
+    print("WARN: policy_store module not found, allowlist gate disabled")
+
 # P2.8A Apply Heat Observer
 try:
     from microservices.apply_layer import heat_observer
@@ -901,6 +909,55 @@ class ApplyLayer:
         # Fallback to env var
         allowlist_str = os.getenv("APPLY_ALLOWLIST", "BTCUSDT")
         return [s.strip() for s in allowlist_str.split(",") if s.strip()]
+    
+    def _get_policy_universe(self) -> set:
+        """
+        Get policy universe from PolicyStore (fail-closed gate before placing order).
+        Returns intersection of policy symbols and tradable symbols.
+        """
+        if not POLICY_ENABLED:
+            logger.error("🔥 POLICY GATE: PolicyStore not enabled, cannot get allowlist")
+            return set()
+        
+        try:
+            policy = load_policy()
+            if not policy or policy.is_stale():
+                logger.error("🔥 POLICY GATE: Policy unavailable or stale")
+                return set()
+            
+            policy_symbols = set(policy.universe_symbols)
+            if not policy_symbols:
+                logger.error("🔥 POLICY GATE: Policy universe is empty")
+                return set()
+            
+            logger.debug(f"POLICY_GATE: Loaded {len(policy_symbols)} symbols from policy")
+            return policy_symbols
+            
+        except Exception as e:
+            logger.error(f"🔥 POLICY_GATE: Failed to load policy: {e}")
+            return set()
+    
+    def _check_symbol_allowlist(self, symbol: str) -> bool:
+        """
+        HARD GATE: Check if symbol is in policy universe before order placement.
+        Fail-closed: if symbol not in policy → REJECT order.
+        """
+        policy_universe = self._get_policy_universe()
+        
+        if not policy_universe:
+            logger.error(f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} reason=empty_policy_universe")
+            return False
+        
+        if symbol not in policy_universe:
+            logger.warning(
+                f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} "
+                f"reason=symbol_not_in_policy policy_count={len(policy_universe)} "
+                f"policy_sample={sorted(list(policy_universe))}"
+            )
+            return False
+        
+        logger.debug(f"SYMBOL_ALLOWED: {symbol} in policy universe")
+        return True
     
     def _refresh_allowlist_if_needed(self):
         """Refresh allowlist cache if expired (P2 Universe integration)"""
@@ -2064,6 +2121,12 @@ class ApplyLayer:
                             continue
                         
                         logger.info(f"[ENTRY] {symbol}: Processing BUY intent (leverage={leverage}, qty={qty}, plan_id={plan_id[:8]})")
+                        
+                        # 🔥 HARD GATE: Check symbol is in policy universe (fail-closed)
+                        if not self._check_symbol_allowlist(symbol):
+                            logger.warning(f"[ENTRY] {symbol}: Order REJECTED - symbol not in policy allowlist")
+                            self.redis.xack(stream_key, consumer_group, msg_id)
+                            continue
                         
                         # Try to execute the entry order only if credentials are available
                         api_key = os.getenv("BINANCE_TESTNET_API_KEY")
