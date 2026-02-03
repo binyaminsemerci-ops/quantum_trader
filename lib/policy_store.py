@@ -169,7 +169,9 @@ class PolicyStore:
         policy_version: str = "1.0",
         generator: str = "unknown",
         features_window: str = "",
-        universe_hash: str = ""
+        universe_hash: str = "",
+        market: str = "",
+        stats_endpoint: str = ""
     ) -> bool:
         """
         Save AI policy to Redis.
@@ -184,6 +186,8 @@ class PolicyStore:
             generator: Generator name (e.g. "ai_universe_v1")
             features_window: Feature windows used (e.g. "15m,1h")
             universe_hash: Hash of universe for change detection
+            market: Market type (e.g. "futures" or "spot")
+            stats_endpoint: Stats API endpoint used (e.g. "fapi/v1/ticker/24hr")
             
         Returns:
             True if saved successfully
@@ -197,7 +201,12 @@ class PolicyStore:
                 "harvest_params": json.dumps(harvest_params),
                 "kill_params": json.dumps(kill_params),
                 "valid_until_epoch": str(valid_until_epoch),
-                "policy_version": policy_version
+                "policy_version": policy_version,
+                "generator": generator if generator else "unknown",
+                "features_window": features_window if features_window else "",
+                "universe_hash": universe_hash if universe_hash else "",
+                "market": market if market else "",
+                "stats_endpoint": stats_endpoint if stats_endpoint else ""
             }
             
             # Save to Redis
@@ -273,7 +282,9 @@ def save_policy(
     policy_version: str = "1.0",
     generator: str = "unknown",
     features_window: str = "",
-    universe_hash: str = ""
+    universe_hash: str = "",
+    market: str = "",
+    stats_endpoint: str = ""
 ) -> bool:
     """Save policy (convenience wrapper)"""
     store = PolicyStore()
@@ -286,5 +297,7 @@ def save_policy(
         policy_version=policy_version,
         generator=generator,
         features_window=features_window,
-        universe_hash=universe_hash
+        universe_hash=universe_hash,
+        market=market,
+        stats_endpoint=stats_endpoint
     )

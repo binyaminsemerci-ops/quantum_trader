@@ -286,11 +286,16 @@ def rank_symbols(symbols, exchange_info=None):
     # Sort by volume and limit spread checks to top candidates (performance optimization)
     MAX_SPREAD_CHECKS = int(os.getenv("MAX_SPREAD_CHECKS", "80"))
     candidates_vol_ok.sort(key=lambda x: x["quote_volume"], reverse=True)
-    candidates_to_check = candidates_vol_ok[:MAX_SPREAD_CHECKS]
-    skipped_spread_check = len(candidates_vol_ok) - len(candidates_to_check)
+    
+    # Handle case where vol_ok < spread_cap
+    actual_checks = min(len(candidates_vol_ok), MAX_SPREAD_CHECKS)
+    candidates_to_check = candidates_vol_ok[:actual_checks]
+    skipped_spread_check = len(candidates_vol_ok) - actual_checks
     
     if skipped_spread_check > 0:
-        print(f"[AI-UNIVERSE] Spread optimization: checking top {len(candidates_to_check)}/{vol_ok} by volume (skipping {skipped_spread_check})")
+        print(f"[AI-UNIVERSE] Spread optimization: spread_cap={MAX_SPREAD_CHECKS}, checking top {actual_checks}/{vol_ok} by volume (skipping {skipped_spread_check})")
+    else:
+        print(f"[AI-UNIVERSE] Spread check: spread_cap={MAX_SPREAD_CHECKS}, vol_ok={vol_ok} <= cap, checking all {actual_checks} candidates")
     
     # Pipeline C: Filter by spread (only check spread for top volume candidates)
     candidates_spread_ok = []
@@ -342,11 +347,12 @@ def rank_symbols(symbols, exchange_info=None):
     age_ok = len(candidates_age_ok)
     print(f"[AI-UNIVERSE] Age filter: {age_ok}/{spread_ok} pass (excluded {excluded_age}, unknown_age {unknown_age})")
     
-    # Log guardrails summary with optimization metrics and volume source
+    # Log guardrails summary with optimization metrics, volume source, and venue metadata
     total = len(symbols)
-    max_checks = MAX_SPREAD_CHECKS if 'MAX_SPREAD_CHECKS' in locals() else vol_ok
+    spread_cap = MAX_SPREAD_CHECKS if 'MAX_SPREAD_CHECKS' in locals() else vol_ok
+    actual_checked = actual_checks if 'actual_checks' in locals() else spread_cap
     skipped = skipped_spread_check if 'skipped_spread_check' in locals() else 0
-    print(f"[AI-UNIVERSE] AI_UNIVERSE_GUARDRAILS total={total} vol_ok={vol_ok} spread_checked={max_checks} spread_skipped={skipped} spread_ok={spread_ok} age_ok={age_ok} excluded_vol={excluded_volume} excluded_spread={excluded_spread} excluded_age={excluded_age} unknown_age={unknown_age} min_qv_usdt={MIN_QUOTE_VOL_USDT_24H} max_spread_bps={MAX_SPREAD_BPS} min_age_days={MIN_AGE_DAYS} vol_src=quoteVolume")
+    print(f"[AI-UNIVERSE] AI_UNIVERSE_GUARDRAILS total={total} vol_ok={vol_ok} spread_cap={spread_cap} spread_checked={actual_checked} spread_skipped={skipped} spread_ok={spread_ok} age_ok={age_ok} excluded_vol={excluded_volume} excluded_spread={excluded_spread} excluded_age={excluded_age} unknown_age={unknown_age} min_qv_usdt={MIN_QUOTE_VOL_USDT_24H} max_spread_bps={MAX_SPREAD_BPS} min_age_days={MIN_AGE_DAYS} vol_src=quoteVolume market=futures stats_endpoint=fapi/v1/ticker/24hr")
     
     # Pipeline E: Compute features and rank
     print(f"[AI-UNIVERSE] Computing features for {age_ok} eligible symbols...")
@@ -528,7 +534,9 @@ def generate_ai_universe(dry_run=False):
         policy_version="1.0.0-ai-v1",
         generator="ai_universe_v1",
         features_window="15m,1h",
-        universe_hash=universe_hash
+        universe_hash=universe_hash,
+        market="futures",
+        stats_endpoint="fapi/v1/ticker/24hr"
     )
     
     if success:
