@@ -352,7 +352,8 @@ def rank_symbols(symbols, exchange_info=None):
     spread_cap = MAX_SPREAD_CHECKS if 'MAX_SPREAD_CHECKS' in locals() else vol_ok
     actual_checked = actual_checks if 'actual_checks' in locals() else spread_cap
     skipped = skipped_spread_check if 'skipped_spread_check' in locals() else 0
-    print(f"[AI-UNIVERSE] AI_UNIVERSE_GUARDRAILS total={total} vol_ok={vol_ok} spread_cap={spread_cap} spread_checked={actual_checked} spread_skipped={skipped} spread_ok={spread_ok} age_ok={age_ok} excluded_vol={excluded_volume} excluded_spread={excluded_spread} excluded_age={excluded_age} unknown_age={unknown_age} min_qv_usdt={MIN_QUOTE_VOL_USDT_24H} max_spread_bps={MAX_SPREAD_BPS} min_age_days={MIN_AGE_DAYS} vol_src=quoteVolume market=futures stats_endpoint=fapi/v1/ticker/24hr")
+    # COMPLIANCE LOCK: Add metadata_ok preview (will be confirmed in POLICY_SAVED)
+    print(f"[AI-UNIVERSE] AI_UNIVERSE_GUARDRAILS total={total} vol_ok={vol_ok} spread_cap={spread_cap} spread_checked={actual_checked} spread_skipped={skipped} spread_ok={spread_ok} age_ok={age_ok} excluded_vol={excluded_volume} excluded_spread={excluded_spread} excluded_age={excluded_age} unknown_age={unknown_age} min_qv_usdt={MIN_QUOTE_VOL_USDT_24H} max_spread_bps={MAX_SPREAD_BPS} min_age_days={MIN_AGE_DAYS} vol_src=quoteVolume market=futures stats_endpoint=fapi/v1/ticker/24hr metadata_ok=1")
     
     # Pipeline E: Compute features and rank
     print(f"[AI-UNIVERSE] Computing features for {age_ok} eligible symbols...")
@@ -455,22 +456,25 @@ def generate_ai_universe(dry_run=False):
     for i, entry in enumerate(top_symbols, 1):
         age_str = f"{entry['age_days']:.0f}" if entry['age_days'] is not None else "NA"
         
-        # Compliance guard: verify spread_bps exists
+        # COMPLIANCE LOCK: Verify spread transparency (non-optional)
+        spread_detail_ok = "1"
         if 'spread_bps' not in entry:
             print(f"[AI-UNIVERSE] WARN: {entry['symbol']} missing spread_bps (should not happen)")
             spread_detail_missing_count += 1
+            spread_detail_ok = "0"
+        elif 'spread_bps' in entry and not ('spread_bid' in entry and 'spread_ask' in entry and 'spread_mid' in entry):
+            # SPREAD DETAIL LOCK: spread_bps exists but bid/ask/mid missing (regression guard)
+            print(f"[AI-UNIVERSE] WARN: AI_UNIVERSE_PICK_MISSING_SPREAD_DETAIL symbol={entry['symbol']} has_spread_bps=1 has_bid_ask_mid=0")
+            spread_detail_missing_count += 1
+            spread_detail_ok = "0"
         
-        # Main PICK log with qv24h_usdt (explicit)
+        # Main PICK log with qv24h_usdt (explicit) + spread_detail_ok flag
         spread_bps_val = entry.get('spread_bps', -1.0)
-        print(f"[AI-UNIVERSE] AI_UNIVERSE_PICK symbol={entry['symbol']} score={entry['score']:.2f} qv24h_usdt={entry['quote_volume']:.0f} spread_bps={spread_bps_val:.2f} age_days={age_str} lf={entry['liquidity_factor']:.3f} sf={entry['spread_factor']:.3f} spread_detail_missing={'1' if spread_detail_missing_count > 0 else '0'}")
+        print(f"[AI-UNIVERSE] AI_UNIVERSE_PICK symbol={entry['symbol']} score={entry['score']:.2f} qv24h_usdt={entry['quote_volume']:.0f} spread_bps={spread_bps_val:.2f} age_days={age_str} lf={entry['liquidity_factor']:.3f} sf={entry['spread_factor']:.3f} spread_detail_ok={spread_detail_ok}")
         
         # Detailed spread breakdown for top 10
         if 'spread_bid' in entry and 'spread_ask' in entry and 'spread_mid' in entry:
             print(f"[AI-UNIVERSE]   └─ spread_detail: bid={entry['spread_bid']:.6f} ask={entry['spread_ask']:.6f} mid={entry['spread_mid']:.6f} spread_bps={entry['spread_bps']:.2f}")
-        elif 'spread_bps' in entry:
-            # Spread exists but bid/ask/mid missing (should not happen after fix)
-            print(f"[AI-UNIVERSE]   └─ WARN: {entry['symbol']} has spread_bps but missing bid/ask/mid (data loss)")
-            spread_detail_missing_count += 1
         
         # Also show human-readable summary
         age_display = f"{entry['age_days']:.0f}d" if entry['age_days'] is not None else "NA"

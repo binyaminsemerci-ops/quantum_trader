@@ -201,6 +201,21 @@ class PolicyStore:
         try:
             valid_until_epoch = time.time() + valid_for_seconds
             
+            # COMPLIANCE LOCK: Validate required metadata (fail-open but visible)
+            missing_fields = []
+            if not generator or generator == "unknown":
+                missing_fields.append("generator")
+            if not market or market not in ["futures", "spot"]:
+                missing_fields.append("market")
+            if not stats_endpoint and not ticker_24h_endpoint:
+                missing_fields.append("stats_endpoint")
+            
+            metadata_ok = "1" if len(missing_fields) == 0 else "0"
+            missing_fields_str = ",".join(missing_fields) if missing_fields else ""
+            
+            if metadata_ok == "0":
+                print(f"[PolicyStore] WARN: Incomplete metadata - missing_fields={missing_fields_str}")
+            
             policy_data = {
                 "universe_symbols": json.dumps(universe_symbols),
                 "leverage_by_symbol": json.dumps(leverage_by_symbol),
@@ -215,7 +230,9 @@ class PolicyStore:
                 "stats_endpoint": stats_endpoint if stats_endpoint else "",
                 "venue": venue if venue else "",
                 "exchange_info_endpoint": exchange_info_endpoint if exchange_info_endpoint else "",
-                "ticker_24h_endpoint": ticker_24h_endpoint if ticker_24h_endpoint else ""
+                "ticker_24h_endpoint": ticker_24h_endpoint if ticker_24h_endpoint else "",
+                "metadata_ok": metadata_ok,
+                "missing_fields": missing_fields_str
             }
             
             # Save to Redis
