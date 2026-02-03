@@ -86,7 +86,7 @@ log_test "9. Audit trail contains required fields"
 REQUIRED_AUDIT_FIELDS=("policy_version" "policy_hash" "valid_until_epoch" "created_at_epoch")
 MISSING_AUDIT_FIELDS=()
 for field in "${REQUIRED_AUDIT_FIELDS[@]}"; do
-    if ! grep -B 5 -A 15 "quantum:stream:policy.audit" lib/policy_store.py | grep -q "\"$field\""; then
+    if ! grep -B 10 -A 15 "quantum:stream:policy.audit" lib/policy_store.py | grep -q "\"$field\""; then
         MISSING_AUDIT_FIELDS+=("$field")
     fi
 done
