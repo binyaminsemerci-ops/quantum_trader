@@ -813,6 +813,19 @@ class HarvestBrainService:
         self.publisher = StreamPublisher(self.redis, config)
         self.last_id = '0'  # Stream position
         self.last_scan_time = 0  # Last position scan timestamp
+        
+        # Price cache: symbol -> (price, timestamp)
+        self.price_cache = {}
+        self.price_cache_ttl = 2.0  # seconds
+        
+        # API rate limiting
+        self.api_calls_this_tick = 0
+        self.max_api_calls_per_tick = 10
+        self.tick_start_time = time.time()
+        
+        # Per-symbol skip logging (prevent spam)
+        self.last_skip_log = {}  # symbol -> timestamp
+        self.skip_log_interval = 60  # seconds
     
     async def start(self) -> None:
         """Start the service"""
@@ -952,6 +965,10 @@ class HarvestBrainService:
             if kill_switch == '1':
                 return
             
+            # Reset API rate limit counter for new tick
+            self.api_calls_this_tick = 0
+            self.tick_start_time = time.time()
+            
             # Scan all position keys (use SCAN for safety, not KEYS)
             position_keys = []
             cursor = 0
@@ -977,7 +994,8 @@ class HarvestBrainService:
             scanned_count = 0
             evaluated_count = 0
             emitted_count = 0
-            skipped_count = 0
+            skipped_risk_count = 0
+            skipped_price_count = 0
             
             for pos_key in position_keys[:self.config.harvest_scan_batch]:
                 try:
@@ -1018,18 +1036,30 @@ class HarvestBrainService:
                         if pos_data.get('volatility_factor', '0') == '0':
                             missing_fields.append('volatility_factor')
                         
-                        logger.warning(
-                            f"SKIP_RISK_MISSING symbol={symbol} "
-                            f"missing_fields={','.join(missing_fields)}"
-                        )
-                        skipped_count += 1
+                        # Rate-limited logging
+                        now = time.time()
+                        if symbol not in self.last_skip_log or now - self.last_skip_log[symbol] > self.skip_log_interval:
+                            logger.warning(
+                                f"SKIP_RISK_MISSING symbol={symbol} "
+                                f"missing_fields={','.join(missing_fields)}"
+                            )
+                            self.last_skip_log[symbol] = now
+                        
+                        skipped_risk_count += 1
                         continue
                     
-                    # Get current mark price
-                    mark_price = await self._get_mark_price(symbol)
+                    # Get current mark price (with API fallback)
+                    mark_price, mark_source = await self._get_mark_price(symbol)
                     if mark_price == 0:
-                        logger.debug(f"SKIP_NO_MARK_PRICE symbol={symbol}")
-                        skipped_count += 1
+                        # Rate-limited logging
+                        now = time.time()
+                        if symbol not in self.last_skip_log or now - self.last_skip_log[symbol] > self.skip_log_interval:
+                            logger.info(
+                                f"SKIP_NO_MARK_PRICE symbol={symbol} source={mark_source}"
+                            )
+                            self.last_skip_log[symbol] = now
+                        
+                        skipped_price_count += 1
                         continue
                     
                     # Compute R_net
@@ -1042,7 +1072,7 @@ class HarvestBrainService:
                         f"HARVEST_EVAL symbol={symbol} side={side} "
                         f"mark={mark_price:.6f} entry={entry_price:.6f} "
                         f"pnl={unrealized_pnl:.4f} risk={entry_risk_usdt:.4f} "
-                        f"R_net={R_net:.3f}"
+                        f"R_net={R_net:.3f} mark_source={mark_source}"
                     )
                     
                     evaluated_count += 1
@@ -1093,7 +1123,9 @@ class HarvestBrainService:
                     f"HARVEST_TICK scanned={scanned_count} "
                     f"evaluated={evaluated_count} "
                     f"emitted={emitted_count} "
-                    f"skipped={skipped_count}"
+                    f"skipped_risk={skipped_risk_count} "
+                    f"skipped_price={skipped_price_count} "
+                    f"api_calls={self.api_calls_this_tick}"
                 )
         
         except Exception as e:
@@ -1154,30 +1186,60 @@ class HarvestBrainService:
         except Exception as e:
             logger.warning(f"Failed to enrich position {symbol}: {e}")
     
-    async def _get_mark_price(self, symbol: str) -> float:
-        """Get mark price from Redis cache or return 0"""
+    async def _get_mark_price(self, symbol: str) -> tuple[float, str]:
+        """Get mark price from Redis cache or Binance API. Returns (price, source)"""
         try:
-            # Try to get from cached ticker
+            # Check in-memory cache first
+            if symbol in self.price_cache:
+                price, cached_ts = self.price_cache[symbol]
+                if time.time() - cached_ts < self.price_cache_ttl:
+                    return (price, 'cache')
+            
+            # Try quantum:ticker:{symbol}
             ticker_key = f"quantum:ticker:{symbol}"
             ticker_data = self.redis.hgetall(ticker_key)
             
             if ticker_data:
                 mark_price = float(ticker_data.get('markPrice', 0.0))
                 if mark_price > 0:
-                    return mark_price
+                    self.price_cache[symbol] = (mark_price, time.time())
+                    return (mark_price, 'redis_ticker')
             
-            # Fallback: get from quantum:market:{symbol}
+            # Try quantum:market:{symbol}
             market_key = f"quantum:market:{symbol}"
             market_data = self.redis.hgetall(market_key)
             if market_data:
                 price = float(market_data.get('price', 0.0))
                 if price > 0:
-                    return price
+                    self.price_cache[symbol] = (price, time.time())
+                    return (price, 'redis_market')
             
-            return 0.0
+            # API fallback (rate-limited)
+            if self.api_calls_this_tick >= self.max_api_calls_per_tick:
+                return (0.0, 'rate_limited')
+            
+            # Call Binance testnet API
+            import urllib.request
+            import json as json_lib
+            
+            url = f"https://testnet.binancefuture.com/fapi/v1/ticker/price?symbol={symbol}"
+            req = urllib.request.Request(url)
+            
+            with urllib.request.urlopen(req, timeout=2) as response:
+                data = json_lib.loads(response.read().decode())
+                price = float(data.get('price', 0.0))
+                
+                if price > 0:
+                    self.api_calls_this_tick += 1
+                    self.price_cache[symbol] = (price, time.time())
+                    logger.debug(f"Fetched {symbol} price from API: {price}")
+                    return (price, 'api')
+            
+            return (0.0, 'unavailable')
+        
         except Exception as e:
             logger.debug(f"Failed to get mark price for {symbol}: {e}")
-            return 0.0
+            return (0.0, 'error')
     
     async def _sync_position_to_redis(self, position: Position) -> None:
         """Sync position to quantum:position:{symbol} Redis key"""
