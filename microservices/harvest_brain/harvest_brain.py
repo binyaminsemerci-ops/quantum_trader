@@ -95,6 +95,8 @@ class Config:
             'HARVEST_KILL_SWITCH_KEY',
             'quantum:kill'
         )
+        self.harvest_scan_interval_sec = int(os.getenv('HARVEST_SCAN_INTERVAL_SEC', '5'))
+        self.harvest_scan_batch = int(os.getenv('HARVEST_SCAN_BATCH', '200'))
         
         self.consumer_group = 'harvest_brain:execution'
         self.consumer_name = f'harvest_brain_{os.getenv("HOSTNAME", "local")}'
@@ -111,7 +113,7 @@ class Config:
         return True
     
     def __repr__(self):
-        return f"Config(mode={self.harvest_mode}, min_r={self.min_r}, redis={self.redis_host}:{self.redis_port})"
+        return f"Config(mode={self.harvest_mode}, min_r={self.min_r}, redis={self.redis_host}:{self.redis_port}, scan_interval={self.harvest_scan_interval_sec}s)"
 
 
 # ============================================================================
@@ -810,10 +812,18 @@ class HarvestBrainService:
         self.dedup = DedupManager(self.redis, config)
         self.publisher = StreamPublisher(self.redis, config)
         self.last_id = '0'  # Stream position
+        self.last_scan_time = 0  # Last position scan timestamp
     
     async def start(self) -> None:
         """Start the service"""
-        logger.info(f"🚀 Starting HarvestBrain {self.config}")
+        logger.warning(
+            f"HARVEST_START mode={self.config.harvest_mode} "
+            f"stream={self.config.stream_apply_result} "
+            f"group={self.config.consumer_group} "
+            f"consumer={self.config.consumer_name} "
+            f"scan_interval={self.config.harvest_scan_interval_sec}s "
+            f"min_r={self.config.min_r}"
+        )
         
         try:
             # Create consumer group if needed
@@ -830,10 +840,18 @@ class HarvestBrainService:
                     raise
                 logger.info(f"Consumer group exists: {self.config.consumer_group}")
             
-            # Main loop
+            # Main loop: interleave apply.result processing and periodic scan
             while True:
+                # Process apply.result events (non-blocking)
                 await self.process_batch()
-                await asyncio.sleep(1)
+                
+                # Periodic position scan
+                now = time.time()
+                if now - self.last_scan_time >= self.config.harvest_scan_interval_sec:
+                    await self.scan_and_evaluate_positions()
+                    self.last_scan_time = now
+                
+                await asyncio.sleep(0.5)  # Short sleep to avoid tight loop
         
         except KeyboardInterrupt:
             logger.info("🛑 Service interrupted")
@@ -842,7 +860,7 @@ class HarvestBrainService:
             sys.exit(1)
     
     async def process_batch(self) -> None:
-        """Process batch of execution events"""
+        """Process batch of execution events (non-blocking)"""
         try:
             # Check kill-switch
             kill_switch = self.redis.get(self.config.harvest_kill_switch_key)
@@ -850,13 +868,13 @@ class HarvestBrainService:
                 logger.debug("🔴 Kill-switch active - no harvesting")
                 return
             
-            # Read from apply.result stream (P3 Harvest Restore)
+            # Read from apply.result stream (non-blocking: short block time)
             messages = self.redis.xreadgroup(
                 groupname=self.config.consumer_group,
                 consumername=self.config.consumer_name,
                 streams={self.config.stream_apply_result: '>'},
                 count=10,
-                block=1000
+                block=100  # 100ms block (was 1000ms)
             )
             
             if not messages:
@@ -890,7 +908,8 @@ class HarvestBrainService:
             symbol = event.get('symbol', '').strip()
             status = event.get('status', '').upper()
             
-            logger.debug(f"[HARVEST] Processing apply.result: {symbol}")
+            # Log trigger receipt (including TEST events)
+            logger.debug(f"HARVEST_TRIGGER_RX symbol={symbol} status={status}")
             
             # Enrich position data from Redis (fail-open compute)
             await self._enrich_position_from_redis(symbol)
@@ -924,6 +943,161 @@ class HarvestBrainService:
         
         except Exception as e:
             logger.error(f"Failed to process apply.result {msg_id}: {e}", exc_info=True)
+    
+    async def scan_and_evaluate_positions(self) -> None:
+        """Periodic scan of all open positions for harvest evaluation"""
+        try:
+            # Check kill-switch
+            kill_switch = self.redis.get(self.config.harvest_kill_switch_key)
+            if kill_switch == '1':
+                return
+            
+            # Scan all position keys (use SCAN for safety, not KEYS)
+            position_keys = []
+            cursor = 0
+            while True:
+                cursor, keys = self.redis.scan(
+                    cursor=cursor,
+                    match='quantum:position:*',
+                    count=100
+                )
+                # Filter out ledger/snapshot keys
+                position_keys.extend([
+                    k for k in keys 
+                    if ':ledger:' not in k and ':snapshot:' not in k
+                ])
+                if cursor == 0:
+                    break
+                if len(position_keys) >= self.config.harvest_scan_batch:
+                    break
+            
+            if not position_keys:
+                return
+            
+            scanned_count = 0
+            evaluated_count = 0
+            emitted_count = 0
+            skipped_count = 0
+            
+            for pos_key in position_keys[:self.config.harvest_scan_batch]:
+                try:
+                    # Parse symbol from key
+                    symbol = pos_key.replace('quantum:position:', '')
+                    if not symbol or len(symbol) < 3:
+                        continue
+                    
+                    scanned_count += 1
+                    
+                    # Enrich position data (compute missing fields)
+                    await self._enrich_position_from_redis(symbol)
+                    
+                    # Get position data
+                    pos_data = self.redis.hgetall(pos_key)
+                    if not pos_data:
+                        continue
+                    
+                    # Parse position fields
+                    side = pos_data.get('side', 'LONG')
+                    qty = float(pos_data.get('quantity', 0.0))
+                    entry_price = float(pos_data.get('entry_price', 0.0))
+                    entry_risk_usdt = float(pos_data.get('entry_risk_usdt', 0.0))
+                    unrealized_pnl = float(pos_data.get('unrealized_pnl', 0.0))
+                    risk_missing = int(pos_data.get('risk_missing', 0))
+                    
+                    # Skip if essential data missing
+                    if qty == 0 or entry_price == 0:
+                        continue
+                    
+                    # Skip if risk data missing
+                    if risk_missing == 1 or entry_risk_usdt <= 0:
+                        missing_fields = []
+                        if entry_risk_usdt <= 0:
+                            missing_fields.append('entry_risk_usdt')
+                        if pos_data.get('atr_value', '0') == '0':
+                            missing_fields.append('atr_value')
+                        if pos_data.get('volatility_factor', '0') == '0':
+                            missing_fields.append('volatility_factor')
+                        
+                        logger.warning(
+                            f"SKIP_RISK_MISSING symbol={symbol} "
+                            f"missing_fields={','.join(missing_fields)}"
+                        )
+                        skipped_count += 1
+                        continue
+                    
+                    # Get current mark price
+                    mark_price = await self._get_mark_price(symbol)
+                    if mark_price == 0:
+                        logger.debug(f"SKIP_NO_MARK_PRICE symbol={symbol}")
+                        skipped_count += 1
+                        continue
+                    
+                    # Compute R_net
+                    cost_bps = 10.0  # 10 bps cost estimate
+                    cost_est = unrealized_pnl * (cost_bps / 10000.0)
+                    R_net = (unrealized_pnl - cost_est) / entry_risk_usdt if entry_risk_usdt > 0 else 0.0
+                    
+                    # Log evaluation
+                    logger.info(
+                        f"HARVEST_EVAL symbol={symbol} side={side} "
+                        f"mark={mark_price:.6f} entry={entry_price:.6f} "
+                        f"pnl={unrealized_pnl:.4f} risk={entry_risk_usdt:.4f} "
+                        f"R_net={R_net:.3f}"
+                    )
+                    
+                    evaluated_count += 1
+                    
+                    # Build Position object for policy evaluation
+                    position = Position(
+                        symbol=symbol,
+                        side=side,
+                        qty=qty,
+                        entry_price=entry_price,
+                        current_price=mark_price,
+                        unrealized_pnl=unrealized_pnl,
+                        entry_risk=entry_risk_usdt,
+                        stop_loss=float(pos_data.get('stop_loss', 0.0)),
+                        take_profit=float(pos_data.get('take_profit')) if pos_data.get('take_profit') else None,
+                        leverage=float(pos_data.get('leverage', 1.0)),
+                        last_update_ts=time.time()
+                    )
+                    
+                    # Evaluate policy
+                    intents = self.policy.evaluate(position)
+                    
+                    for intent in intents:
+                        # Check dedup
+                        if self.dedup.is_duplicate(intent):
+                            logger.debug(f"Skipping duplicate: {intent.symbol} {intent.intent_type}")
+                            continue
+                        
+                        # Log emission
+                        logger.warning(
+                            f"HARVEST_EMIT action={intent.intent_type} "
+                            f"symbol={intent.symbol} "
+                            f"close_pct={getattr(intent, 'close_pct', 'N/A')} "
+                            f"reduceOnly={intent.reduce_only} "
+                            f"R_net={R_net:.3f}"
+                        )
+                        
+                        # Publish
+                        self.publisher.publish(intent)
+                        emitted_count += 1
+                
+                except Exception as e:
+                    logger.debug(f"Error evaluating position {pos_key}: {e}")
+            
+            # Log tick summary (rate-limited: once per scan)
+            if scanned_count > 0:
+                logger.info(
+                    f"HARVEST_TICK scanned={scanned_count} "
+                    f"evaluated={evaluated_count} "
+                    f"emitted={emitted_count} "
+                    f"skipped={skipped_count}"
+                )
+        
+        except Exception as e:
+            logger.error(f"Error in scan_and_evaluate_positions: {e}", exc_info=True)
     
     async def _enrich_position_from_redis(self, symbol: str) -> None:
         """Enrich position data with computed fields (fail-open compute)"""
