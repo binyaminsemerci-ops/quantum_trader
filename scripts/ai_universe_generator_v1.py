@@ -489,20 +489,31 @@ def compute_correlation_matrix(candidates):
     return symbols, corr_matrix
 
 
-def select_diversified_top10(ranked, max_correlation=MAX_CORRELATION, 
+def select_diversified_topn(ranked, n=None, max_correlation=MAX_CORRELATION, 
                             corr_penalty_strength=CORR_PENALTY_STRENGTH):
-    """Select top 10 symbols with correlation diversity
+    """Select top N symbols with correlation diversity
     
     Greedy algorithm:
     1. Pick highest score first
     2. For each next pick, apply correlation penalty
     3. adjusted_score = score * (1 - corr_penalty)
     4. If corr > max_correlation with any selected: strong penalty
+    
+    Args:
+        ranked: List of ranked symbols
+        n: Number of symbols to select (default: all if None, otherwise min(n, len(ranked)))
+        max_correlation: Maximum acceptable correlation
+        corr_penalty_strength: Penalty strength for correlation
     """
     
-    if len(ranked) < 10:
+    if n is None:
+        n = len(ranked)
+    else:
+        n = min(n, len(ranked))
+    
+    if len(ranked) < n:
         print(f"[AI-UNIVERSE] WARN: Only {len(ranked)} candidates, selecting all")
-        return ranked[:10], None, None
+        return ranked[:n], None, None
     
     # Compute correlation matrix
     symbols, corr_matrix = compute_correlation_matrix(ranked)
@@ -513,11 +524,11 @@ def select_diversified_top10(ranked, max_correlation=MAX_CORRELATION,
     # Filter ranked to only include symbols with correlation data
     ranked_with_corr = [c for c in ranked if c["symbol"] in symbol_to_idx]
     
-    if len(ranked_with_corr) < 10:
+    if len(ranked_with_corr) < n:
         print(f"[AI-UNIVERSE] WARN: Only {len(ranked_with_corr)} symbols with correlation data")
-        return ranked[:10], None, None
+        return ranked[:n], None, None
     
-    print(f"[AI-UNIVERSE] Greedy diversified selection (max_corr={max_correlation})...")
+    print(f"[AI-UNIVERSE] Greedy diversified selection (target={n}, max_corr={max_correlation})...")
     
     selected = []
     selected_indices = []
@@ -529,8 +540,8 @@ def select_diversified_top10(ranked, max_correlation=MAX_CORRELATION,
     
     print(f"[AI-UNIVERSE] Pick 1: {first['symbol']} score={first['score']:.2f}")
     
-    # Pick remaining 9 with diversity
-    for pick_num in range(2, 11):
+    # Pick remaining N-1 with diversity
+    for pick_num in range(2, n + 1):
         best_adjusted_score = -999999
         best_candidate = None
         best_max_corr = 0
@@ -693,19 +704,23 @@ def generate_ai_universe(dry_run=False):
     # Step 3: Load previous universe for churn guard
     previous_universe = load_previous_universe()
     
-    # Step 4: Select Top-10 with correlation diversity
-    top_n = min(10, len(ranked))
+    # Step 4: Select TOP 10 BEST symbols from quality-filtered candidates
+    # First filter by quality (volume, spread, age) → ~71 symbols
+    # Then rank and select TOP 10 by composite score → final universe
+    max_symbols_env = os.getenv("AI_UNIVERSE_MAX_SYMBOLS", "10")
+    top_n = min(int(max_symbols_env), len(ranked))
+    
+    print(f"[AI-UNIVERSE] Quality filter passed: {len(ranked)} symbols")
+    print(f"[AI-UNIVERSE] Selecting TOP {top_n} BEST by score (AI_UNIVERSE_MAX_SYMBOLS={max_symbols_env})")
     
     if top_n < 1:
         raise RuntimeError(f"No symbols passed guardrails! Eligible: {len(ranked)}")
     
-    if top_n < 10:
-        print(f"[AI-UNIVERSE] WARNING: Only {top_n} symbols passed guardrails (expected 10)")
-    
-    # Use diversified selection algorithm
-    top_symbols, avg_corr, max_corr = select_diversified_top10(ranked)
+    # Use diversified selection algorithm with top_n limit
+    top_symbols, avg_corr, max_corr = select_diversified_topn(ranked, n=top_n)
     
     # Apply churn guard
+    top_symbols, kept_count, replaced_count = apply_churn_guard(top_symbols, previous_universe)
     top_symbols, kept_count, replaced_count = apply_churn_guard(top_symbols, previous_universe)
     
     universe_symbols = [x["symbol"] for x in top_symbols]
@@ -821,7 +836,7 @@ def generate_ai_universe(dry_run=False):
         leverage_by_symbol=leverage_by_symbol,
         harvest_params=harvest_params,
         kill_params=kill_params,
-        valid_for_seconds=3600,
+        valid_for_seconds=300,
         policy_version="1.0.0-ai-v1",
         generator="ai_universe_v1",
         features_window="15m,1h",
@@ -837,8 +852,8 @@ def generate_ai_universe(dry_run=False):
         print(f"[AI-UNIVERSE] AI policy generated successfully!")
         print(f"[AI-UNIVERSE] Universe: {len(universe_symbols)} symbols")
         print(f"[AI-UNIVERSE] Leverage range: {min(leverage_by_symbol.values()):.1f}x - {max(leverage_by_symbol.values()):.1f}x")
-        print(f"[AI-UNIVERSE] Valid for: 60 minutes")
-        print(f"[AI-UNIVERSE] Next refresh: {datetime.fromtimestamp(time.time() + 3600).strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"[AI-UNIVERSE] Valid for: 5 minutes (continuous re-evaluation)")
+        print(f"[AI-UNIVERSE] Next refresh: {datetime.fromtimestamp(time.time() + 300).strftime('%Y-%m-%d %H:%M:%S')}")
         return True
     else:
         print(f"[AI-UNIVERSE] Failed to save policy to PolicyStore")
