@@ -1,0 +1,35 @@
+[Unit]
+Description=Quantum Performance Tracker
+After=network.target redis.service
+Requires=redis.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/qt/quantum_trader/microservices/performance_tracker
+Environment="PYTHONUNBUFFERED=1"
+Environment="REDIS_HOST=127.0.0.1"
+Environment="REDIS_PORT=6379"
+Environment="PERF_TRACKER_INTERVAL=300"
+Environment="MIN_TRADES_FOR_STATS=5"
+Environment="PERF_LOOKBACK_DAYS=30"
+Environment="PERF_TRACKER_LOG_LEVEL=INFO"
+
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/microservices/performance_tracker/performance_tracker.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Resource limits
+Nice=10
+MemoryMax=512M
+CPUQuota=50%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-performance-tracker
+
+[Install]
+WantedBy=multi-user.target
