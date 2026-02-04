@@ -826,6 +826,11 @@ class HarvestBrainService:
         # Per-symbol skip logging (prevent spam)
         self.last_skip_log = {}  # symbol -> timestamp
         self.skip_log_interval = 60  # seconds
+        
+        # Exchange position cache (for entry_price backfill)
+        self.exchange_positions_cache = {}  # symbol -> {entryPrice, positionAmt, ...}
+        self.exchange_positions_last_fetch = 0
+        self.exchange_positions_ttl = 30  # seconds
     
     async def start(self) -> None:
         """Start the service"""
@@ -968,6 +973,9 @@ class HarvestBrainService:
             # Reset API rate limit counter for new tick
             self.api_calls_this_tick = 0
             self.tick_start_time = time.time()
+            
+            # Fetch exchange positions (30s cache)
+            await self._fetch_exchange_positions()
             
             # Scan all position keys (use SCAN for safety, not KEYS)
             position_keys = []
@@ -1131,6 +1139,60 @@ class HarvestBrainService:
         except Exception as e:
             logger.error(f"Error in scan_and_evaluate_positions: {e}", exc_info=True)
     
+    async def _fetch_exchange_positions(self) -> None:
+        """Fetch all positions from Binance API and cache (30s TTL)"""
+        try:
+            now = time.time()
+            if now - self.exchange_positions_last_fetch < self.exchange_positions_ttl:
+                return  # Use cached data
+            
+            # Call Binance API /fapi/v2/positionRisk
+            import urllib.request
+            import json as json_lib
+            import hmac
+            import hashlib
+            
+            api_key = os.getenv("BINANCE_TESTNET_API_KEY", "")
+            api_secret = os.getenv("BINANCE_TESTNET_API_SECRET", "")
+            
+            if not api_key or not api_secret:
+                logger.warning("Missing BINANCE_TESTNET_API_KEY or SECRET, cannot fetch entry prices")
+                return
+            
+            # Sign request
+            timestamp = int(time.time() * 1000)
+            query_string = f"timestamp={timestamp}"
+            signature = hmac.new(
+                api_secret.encode('utf-8'),
+                query_string.encode('utf-8'),
+                hashlib.sha256
+            ).hexdigest()
+            
+            url = f"https://testnet.binancefuture.com/fapi/v2/positionRisk?{query_string}&signature={signature}"
+            req = urllib.request.Request(url)
+            req.add_header('X-MBX-APIKEY', api_key)
+            
+            with urllib.request.urlopen(req, timeout=5) as response:
+                positions = json_lib.loads(response.read().decode())
+                
+                # Build cache
+                self.exchange_positions_cache = {}
+                for pos in positions:
+                    symbol = pos.get('symbol')
+                    position_amt = float(pos.get('positionAmt', 0))
+                    if position_amt != 0:  # Only cache open positions
+                        self.exchange_positions_cache[symbol] = {
+                            'entryPrice': float(pos.get('entryPrice', 0)),
+                            'positionAmt': position_amt,
+                            'unrealizedProfit': float(pos.get('unRealizedProfit', 0))
+                        }
+                
+                self.exchange_positions_last_fetch = now
+                logger.info(f"Fetched {len(self.exchange_positions_cache)} exchange positions from Binance API")
+        
+        except Exception as e:
+            logger.warning(f"Failed to fetch exchange positions: {e}")
+    
     async def _enrich_position_from_redis(self, symbol: str) -> None:
         """Enrich position data with computed fields (fail-open compute)"""
         try:
@@ -1144,6 +1206,15 @@ class HarvestBrainService:
             side = pos_data.get('side', 'LONG')
             qty = float(pos_data.get('quantity', 0.0))
             entry_price = float(pos_data.get('entry_price', 0.0))
+            
+            # Backfill entry_price from exchange if missing
+            if qty != 0 and entry_price == 0:
+                if symbol in self.exchange_positions_cache:
+                    exchange_entry = self.exchange_positions_cache[symbol]['entryPrice']
+                    if exchange_entry > 0:
+                        entry_price = exchange_entry
+                        self.redis.hset(pos_key, 'entry_price', str(entry_price))
+                        logger.info(f"[BACKFILL] {symbol}: entry_price={entry_price:.6f} from exchange API")
             
             if qty == 0 or entry_price == 0:
                 return
