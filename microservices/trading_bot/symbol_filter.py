@@ -164,23 +164,42 @@ async def refresh_symbols_periodically(
     refresh_interval_hours: int = 6
 ):
     """
-    Oppdater symbol liste periodisk basert på volum.
+    Oppdater symbol liste periodisk - PRIORITET: AI policy, deretter volum.
     
     Args:
         bot: SimpleTradingBot instance
         refresh_interval_hours: Hvor ofte listen skal oppdateres
     """
     import asyncio
+    import json
     
     while bot.running:
         try:
             # Vent refresh interval
             await asyncio.sleep(refresh_interval_hours * 3600)
             
-            logger.info("[SYMBOL-FILTER] 🔄 Refreshing symbol list based on 24h volume...")
+            logger.info("[SYMBOL-FILTER] 🔄 Refreshing symbol list...")
             
-            # Hent nye top 50 symbols
-            new_symbols = await fetch_top_symbols_by_volume(limit=50)
+            # PRIORITY 1: Read from AI policy
+            new_symbols = []
+            if bot.event_bus and "redis" in bot.event_bus:
+                try:
+                    policy_data = await bot.event_bus["redis"].hget("quantum:policy:current", "universe_symbols")
+                    if policy_data:
+                        # Decode bytes to string if needed
+                        if isinstance(policy_data, bytes):
+                            policy_data = policy_data.decode('utf-8')
+                        policy_symbols = json.loads(policy_data)
+                        if isinstance(policy_symbols, list) and len(policy_symbols) > 0:
+                            new_symbols = policy_symbols
+                            logger.info(f"[SYMBOL-FILTER] ✅ Using {len(new_symbols)} symbols from AI policy")
+                except Exception as e:
+                    logger.warning(f"[SYMBOL-FILTER] ⚠️  Could not read AI policy: {e}")
+            
+            # FALLBACK: Hent basert på volum
+            if not new_symbols:
+                logger.info("[SYMBOL-FILTER] Falling back to volume-based selection...")
+                new_symbols = await fetch_top_symbols_by_volume(limit=50)
             
             if new_symbols and new_symbols != bot.symbols:
                 old_count = len(bot.symbols)
@@ -189,20 +208,10 @@ async def refresh_symbols_periodically(
                     f"[SYMBOL-FILTER] ✅ Updated symbol list: "
                     f"{old_count} → {len(new_symbols)} symbols"
                 )
-                
-                # Log endringer
-                # old_set = set(bot.symbols)
-                # new_set = set(new_symbols)
-                # added = new_set - old_set
-                # removed = old_set - new_set
-                
-                # if added:
-                #     logger.info(f"[SYMBOL-FILTER]   Added: {', '.join(sorted(added))}")
-                # if removed:
-                #     logger.info(f"[SYMBOL-FILTER]   Removed: {', '.join(sorted(removed))}")
             else:
                 logger.info("[SYMBOL-FILTER] Symbol list unchanged")
                 
         except Exception as e:
             logger.error(f"[SYMBOL-FILTER] Error refreshing symbols: {e}", exc_info=True)
             await asyncio.sleep(3600)  # Retry etter 1 time ved feil
+

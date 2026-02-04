@@ -1,0 +1,22 @@
+[Unit]
+Description=Quantum Balance Tracker - Binance Account Monitor
+After=network.target redis.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/qt/quantum_trader
+Environment=PYTHONPATH=/home/qt/quantum_trader
+Environment=REDIS_URL=redis://localhost:6379
+Environment=BINANCE_BASE_URL=https://testnet.binancefuture.com
+Environment=BINANCE_API_KEY=w2W60kzuCfPJKGIqSvmp0pqISUO8XKICjc5sD8QyJuJpp9LKQgvXKhtd09Ii3rwg
+Environment=BINANCE_API_SECRET=QI18cg4zcbApc9uaDL8ZUmoAJQthQczZ9cKzORlSJfnK2zBEdLvSLb5ZEgZ6R1Kg
+Environment=BALANCE_POLL_INTERVAL=30
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/microservices/balance_tracker/balance_tracker.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

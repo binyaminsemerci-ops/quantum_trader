@@ -45,12 +45,43 @@ async def lifespan(app: FastAPI):
         event_bus = None
     
     # Create and start bot (polling mode with Redis for publishing)
-    # 🔥 FIX: Use TRADING_SYMBOLS env var OR fetch top symbols by volume
-    trading_symbols_env = os.getenv("TRADING_SYMBOLS")
-    if trading_symbols_env:
-        symbols_list = [s.strip() for s in trading_symbols_env.split(",") if s.strip()]
-        logger.info(f"[TRADING-BOT-SERVICE] ✅ Using {len(symbols_list)} symbols from TRADING_SYMBOLS env: {symbols_list}")
-    else:
+    # 🔥 PRIORITY 1: Read from AI policy (quantum:policy:current)
+    # 🔥 PRIORITY 2: Use TRADING_SYMBOLS env var
+    # 🔥 FALLBACK: Fetch top symbols by volume
+    symbols_list = []
+    
+    # Try reading AI policy first
+    if event_bus and "redis" in event_bus:
+        try:
+            logger.info("[TRADING-BOT-SERVICE] 🔍 Attempting to read AI policy from quantum:policy:current...")
+            policy_data = await event_bus["redis"].hget("quantum:policy:current", "universe_symbols")
+            logger.info(f"[TRADING-BOT-SERVICE] Policy data received: type={type(policy_data)}, len={len(policy_data) if policy_data else 0}")
+            if policy_data:
+                import json
+                # Decode bytes to string if needed
+                if isinstance(policy_data, bytes):
+                    policy_data = policy_data.decode('utf-8')
+                    logger.info(f"[TRADING-BOT-SERVICE] Decoded policy data: {policy_data[:200]}...")
+                policy_symbols = json.loads(policy_data)
+                if isinstance(policy_symbols, list) and len(policy_symbols) > 0:
+                    symbols_list = policy_symbols
+                    logger.info(f"[TRADING-BOT-SERVICE] ✅ Using {len(symbols_list)} symbols from AI policy: {symbols_list}")
+                else:
+                    logger.warning(f"[TRADING-BOT-SERVICE] ⚠️  Policy symbols invalid: type={type(policy_symbols)}, value={policy_symbols}")
+            else:
+                logger.warning("[TRADING-BOT-SERVICE] ⚠️  No policy data found in quantum:policy:current")
+        except Exception as e:
+            logger.error(f"[TRADING-BOT-SERVICE] ❌ Could not read AI policy: {e}", exc_info=True)
+    
+    # Fallback to TRADING_SYMBOLS env var
+    if not symbols_list:
+        trading_symbols_env = os.getenv("TRADING_SYMBOLS")
+        if trading_symbols_env:
+            symbols_list = [s.strip() for s in trading_symbols_env.split(",") if s.strip()]
+            logger.info(f"[TRADING-BOT-SERVICE] ✅ Using {len(symbols_list)} symbols from TRADING_SYMBOLS env: {symbols_list}")
+    
+    # Final fallback: Fetch by volume
+    if not symbols_list:
         logger.info("[TRADING-BOT-SERVICE] 🔍 Fetching top 50 symbols by volume...")
         symbols_list = await fetch_top_symbols_by_volume(limit=50, min_volume_usd=10_000_000)
         logger.info(f"[TRADING-BOT-SERVICE] ✅ Monitoring {len(symbols_list)} symbols")
