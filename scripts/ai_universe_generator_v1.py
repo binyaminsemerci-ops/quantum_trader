@@ -257,6 +257,61 @@ def compute_features(symbol):
     
     return features
 
+def get_symbol_performance(symbol):
+    """
+    Fetch historical performance for symbol from Redis.
+    Returns profitability_multiplier (0.5 - 1.5 range, default 1.0)
+    
+    30% weight in hybrid scoring: 70% technical + 30% historical
+    
+    Redis key: quantum:symbol:performance:{symbol}
+    Fields: win_rate, avg_pnl_pct, total_trades, sharpe_ratio
+    """
+    if not REDIS_AVAILABLE:
+        return 1.0
+        
+    try:
+        r = redis.Redis(host="127.0.0.1", port=6379, db=0, decode_responses=False)
+        key = f"quantum:symbol:performance:{symbol}"
+        data = r.hgetall(key)
+        
+        if not data or len(data) == 0:
+            return 1.0  # No history = neutral multiplier
+        
+        # Parse performance metrics
+        win_rate = float(data.get(b"win_rate", b"0.5").decode())
+        avg_pnl_pct = float(data.get(b"avg_pnl_pct", b"0.0").decode())
+        total_trades = int(data.get(b"total_trades", b"0").decode())
+        sharpe_ratio = float(data.get(b"sharpe_ratio", b"0.0").decode())
+        
+        # Require minimum trades for reliability
+        if total_trades < 5:
+            return 1.0  # Not enough data
+        
+        # Calculate profitability multiplier (0.5 - 1.5 range)
+        # win_rate: 0.3-0.7 range → contribution
+        # avg_pnl_pct: -2% to +2% range → contribution
+        # sharpe_ratio: -1 to +2 range → contribution
+        
+        win_contribution = 0.5 + (win_rate * 0.9)
+        pnl_contribution = 1.0 + (avg_pnl_pct / 10.0)
+        sharpe_contribution = 1.0 + (sharpe_ratio / 5.0)
+        
+        # Weighted average
+        profitability_multiplier = (
+            win_contribution * 0.5 +
+            pnl_contribution * 0.3 +
+            sharpe_contribution * 0.2
+        )
+        
+        # Clamp to 0.5 - 1.5 range (max 50% boost or penalty)
+        profitability_multiplier = max(0.5, min(1.5, profitability_multiplier))
+        
+        return profitability_multiplier
+        
+    except Exception as e:
+        # Silent fail on Redis errors, use neutral multiplier
+        return 1.0
 
 def rank_symbols(symbols, exchange_info=None):
     """Compute features for all symbols and rank by score with liquidity guardrails
@@ -387,14 +442,17 @@ def rank_symbols(symbols, exchange_info=None):
         if features is None:
             continue  # Skip symbols with data issues
         
-        # Base score (existing logic)
-        base_score = (
-            abs(features["trend_1h"]) * 1.0 +
-            features["momentum_15m"] * 0.8 +
-            features["momentum_1h"] * 0.6 +
-            features["volatility_15m"] * 0.4
-        )
+        # HYBRID PROFITABILITY SCORING
+        # 70% Technical (profit potential) + 30% Historical (actual performance)
         
+        # Technical score - favor volatility and trend (profit opportunities)
+        technical_score = (
+            features["volatility_15m"] * 3.0 +    # High volatility = more profit opportunities
+            abs(features["trend_1h"]) * 2.0 +     # Strong trend = better entries
+            features["momentum_15m"] * 1.5 +      # Short-term momentum
+            features["momentum_1h"] * 1.0         # Medium-term momentum
+        )
+
         # Liquidity factor (volume percentile, clamped 0.5..1.0)
         volume_rank = sum(1 for v in all_volumes if v < candidate["quote_volume"]) / max(len(all_volumes), 1)
         liquidity_factor = max(0.5, min(1.0, 0.5 + volume_rank * 0.5))
@@ -406,12 +464,18 @@ def rank_symbols(symbols, exchange_info=None):
         age_penalty = candidate["age_unknown_penalty"]
         
         # Final score
-        score = base_score * liquidity_factor * spread_factor * age_penalty
+        # Historical profitability multiplier (0.5-1.5 range, default 1.0)
+        profitability_multiplier = get_symbol_performance(symbol)
+        
+        # Hybrid final score: 70% technical + 30% historical
+        # profitability_multiplier contributes 30% via its 0.5-1.5 range
+        score = technical_score * liquidity_factor * spread_factor * age_penalty * profitability_multiplier
         
         scored_symbols.append({
             "symbol": symbol,
             "score": score,
-            "base_score": base_score,
+            "technical_score": technical_score,
+            "profitability_multiplier": profitability_multiplier,
             "liquidity_factor": liquidity_factor,
             "spread_factor": spread_factor,
             "features": features,
@@ -872,3 +936,5 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         sys.exit(1)
+
+
