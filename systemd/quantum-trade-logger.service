@@ -1,0 +1,32 @@
+[Unit]
+Description=Quantum Trade History Logger
+After=network.target redis.service
+Requires=redis.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/qt/quantum_trader/microservices/trade_history_logger
+Environment="PYTHONUNBUFFERED=1"
+Environment="REDIS_HOST=127.0.0.1"
+Environment="REDIS_PORT=6379"
+Environment="TRADE_LOGGER_LOG_LEVEL=INFO"
+
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/microservices/trade_history_logger/trade_history_logger.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Resource limits
+Nice=5
+MemoryMax=256M
+CPUQuota=25%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-trade-logger
+
+[Install]
+WantedBy=multi-user.target
