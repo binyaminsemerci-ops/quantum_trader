@@ -1152,7 +1152,7 @@ class HarvestBrainService:
             unrealized_pnl = pos_data.get('unrealized_pnl')
             if not unrealized_pnl or unrealized_pnl == '' or float(unrealized_pnl) == 0:
                 # Fetch mark price (or use cached ticker)
-                mark_price = await self._get_mark_price(symbol)
+                mark_price, _ = await self._get_mark_price(symbol)  # Unpack tuple
                 if mark_price > 0:
                     if side == 'LONG':
                         unrealized_pnl = (mark_price - entry_price) * qty
