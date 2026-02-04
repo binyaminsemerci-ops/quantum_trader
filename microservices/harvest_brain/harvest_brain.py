@@ -890,7 +890,10 @@ class HarvestBrainService:
             symbol = event.get('symbol', '').strip()
             status = event.get('status', '').upper()
             
-            logger.debug(f"[HARVEST] Processing apply.result: {symbol} {status}")
+            logger.debug(f"[HARVEST] Processing apply.result: {symbol}")
+            
+            # Enrich position data from Redis (fail-open compute)
+            await self._enrich_position_from_redis(symbol)
             
             # Update position tracking from fills
             if status in ['FILLED', 'PARTIAL_FILL']:
@@ -921,6 +924,86 @@ class HarvestBrainService:
         
         except Exception as e:
             logger.error(f"Failed to process apply.result {msg_id}: {e}", exc_info=True)
+    
+    async def _enrich_position_from_redis(self, symbol: str) -> None:
+        """Enrich position data with computed fields (fail-open compute)"""
+        try:
+            pos_key = f"quantum:position:{symbol}"
+            pos_data = self.redis.hgetall(pos_key)
+            
+            if not pos_data:
+                return
+            
+            # Parse position data
+            side = pos_data.get('side', 'LONG')
+            qty = float(pos_data.get('quantity', 0.0))
+            entry_price = float(pos_data.get('entry_price', 0.0))
+            
+            if qty == 0 or entry_price == 0:
+                return
+            
+            # Compute unrealized_pnl if missing
+            unrealized_pnl = pos_data.get('unrealized_pnl')
+            if not unrealized_pnl or unrealized_pnl == '' or float(unrealized_pnl) == 0:
+                # Fetch mark price (or use cached ticker)
+                mark_price = await self._get_mark_price(symbol)
+                if mark_price > 0:
+                    if side == 'LONG':
+                        unrealized_pnl = (mark_price - entry_price) * qty
+                    else:  # SHORT
+                        unrealized_pnl = (entry_price - mark_price) * abs(qty)
+                    
+                    # Store computed unrealized_pnl
+                    self.redis.hset(pos_key, 'unrealized_pnl', str(unrealized_pnl))
+                    logger.debug(f"[HARVEST] {symbol}: Computed unrealized_pnl={unrealized_pnl:.4f}")
+            
+            # Compute entry_risk if missing
+            entry_risk = pos_data.get('entry_risk_usdt')
+            if not entry_risk or entry_risk == '' or float(entry_risk) <= 0:
+                # Try to compute from atr_value/volatility_factor
+                atr_value = float(pos_data.get('atr_value', 0.0))
+                volatility_factor = float(pos_data.get('volatility_factor', 0.0))
+                
+                if atr_value > 0 and volatility_factor > 0:
+                    risk_price = atr_value * volatility_factor
+                    entry_risk_usdt = abs(qty) * risk_price
+                    
+                    # Store computed entry_risk
+                    self.redis.hset(pos_key, 'entry_risk_usdt', str(entry_risk_usdt))
+                    self.redis.hset(pos_key, 'risk_price', str(risk_price))
+                    self.redis.hset(pos_key, 'risk_missing', '0')
+                    logger.info(f"[HARVEST] {symbol}: Computed entry_risk_usdt={entry_risk_usdt:.4f} (atr={atr_value}, vol={volatility_factor})")
+                else:
+                    logger.warning(f"[HARVEST] {symbol}: SKIP_RISK_MISSING (atr={atr_value}, vol={volatility_factor})")
+                    self.redis.hset(pos_key, 'risk_missing', '1')
+        
+        except Exception as e:
+            logger.warning(f"Failed to enrich position {symbol}: {e}")
+    
+    async def _get_mark_price(self, symbol: str) -> float:
+        """Get mark price from Redis cache or return 0"""
+        try:
+            # Try to get from cached ticker
+            ticker_key = f"quantum:ticker:{symbol}"
+            ticker_data = self.redis.hgetall(ticker_key)
+            
+            if ticker_data:
+                mark_price = float(ticker_data.get('markPrice', 0.0))
+                if mark_price > 0:
+                    return mark_price
+            
+            # Fallback: get from quantum:market:{symbol}
+            market_key = f"quantum:market:{symbol}"
+            market_data = self.redis.hgetall(market_key)
+            if market_data:
+                price = float(market_data.get('price', 0.0))
+                if price > 0:
+                    return price
+            
+            return 0.0
+        except Exception as e:
+            logger.debug(f"Failed to get mark price for {symbol}: {e}")
+            return 0.0
     
     async def _sync_position_to_redis(self, position: Position) -> None:
         """Sync position to quantum:position:{symbol} Redis key"""
