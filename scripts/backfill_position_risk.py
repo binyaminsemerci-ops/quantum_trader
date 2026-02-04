@@ -29,31 +29,39 @@ def compute_risk_fields(atr_value: float, volatility_factor: float, entry_price:
     }
 
 def find_last_entry_intent(r: redis.Redis, symbol: str) -> Optional[Dict[str, Any]]:
-    """Find the most recent ENTRY intent for a symbol from trade.intent stream."""
+    """Find the most recent signal for a symbol from trade.intent stream."""
     try:
         # Use XREVRANGE to scan backwards from latest
-        entries = r.xrevrange(TRADE_INTENT_STREAM, count=500)
+        entries = r.xrevrange(TRADE_INTENT_STREAM, count=5000)  # Increase count
         
         for entry_id, fields in entries:
-            # Check if this is ENTRY for our symbol
-            action = fields.get('action', '')
-            entry_symbol = fields.get('symbol', '')
+            # Check event_type and payload (stream structure: event_type, payload, timestamp, source)
+            event_type = fields.get('event_type', '')
+            payload_str = fields.get('payload', '')
             
-            if action == 'ENTRY' and entry_symbol == symbol:
-                # Extract fields
-                atr_value = float(fields.get('atr_value', 0.0))
-                volatility_factor = float(fields.get('volatility_factor', 0.0))
-                entry_price = float(fields.get('entry_price', 0.0))
-                quantity = float(fields.get('quantity', 0.0))
-                
-                if atr_value > 0 and volatility_factor > 0 and entry_price > 0:
-                    return {
-                        'atr_value': atr_value,
-                        'volatility_factor': volatility_factor,
-                        'entry_price': entry_price,
-                        'quantity': quantity,
-                        'stream_id': entry_id
-                    }
+            if event_type == 'trade.intent' and payload_str:
+                # Parse JSON payload
+                import json
+                try:
+                    payload = json.loads(payload_str)
+                    entry_symbol = payload.get('symbol', '')
+                    
+                    if entry_symbol == symbol:
+                        # Extract fields
+                        atr_value = float(payload.get('atr_value', 0.0))
+                        volatility_factor = float(payload.get('volatility_factor', 0.0))
+                        entry_price = float(payload.get('entry_price', 0.0))
+                        # Note: signal doesn't have quantity, use what's in position
+                        
+                        if atr_value > 0 and volatility_factor > 0 and entry_price > 0:
+                            return {
+                                'atr_value': atr_value,
+                                'volatility_factor': volatility_factor,
+                                'entry_price': entry_price,
+                                'stream_id': entry_id
+                            }
+                except json.JSONDecodeError:
+                    continue
         
         return None
     
@@ -98,7 +106,7 @@ def backfill_position(r: redis.Redis, symbol: str) -> bool:
             intent_data['atr_value'],
             intent_data['volatility_factor'],
             intent_data.get('entry_price', entry_price),  # Fallback to position entry_price
-            qty
+            qty  # Use position quantity (not from signal)
         )
         
         # Update position
