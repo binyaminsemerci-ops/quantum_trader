@@ -24,6 +24,16 @@ from typing import Dict, Optional, List, Tuple
 
 import redis
 
+# Import P2 risk_kernel_harvest
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from ai_engine.risk_kernel_harvest import (
+    compute_harvest_proposal,
+    HarvestTheta,
+    PositionSnapshot,
+    MarketState,
+    P1Proposal
+)
+
 # ============================================================================
 # LOGGING SETUP
 # ============================================================================
@@ -47,9 +57,9 @@ class Config:
         self.harvest_mode = os.getenv('HARVEST_MODE', 'shadow').lower()
         self.redis_host = os.getenv('REDIS_HOST', '127.0.0.1')
         self.redis_port = int(os.getenv('REDIS_PORT', '6379'))
-        self.stream_exec_result = os.getenv(
-            'STREAM_EXECUTION_RESULT', 
-            'quantum:stream:execution.result'
+        self.stream_apply_result = os.getenv(
+            'STREAM_APPLY_RESULT', 
+            'quantum:stream:apply.result'
         )
         self.stream_position = os.getenv(
             'STREAM_POSITION_SNAPSHOT',
@@ -148,6 +158,9 @@ class Position:
     take_profit: Optional[float] = None
     leverage: float = 1.0
     last_update_ts: float = 0.0
+    age_sec: float = 0.0  # Position age for P2 kill_score
+    peak_price: float = 0.0  # Highest price reached (LONG) or lowest (SHORT)
+    trough_price: float = 0.0  # Lowest price reached (LONG) or highest (SHORT)
     
     def r_level(self) -> float:
         """Calculate current R (return on risk)"""
@@ -352,6 +365,45 @@ class HarvestPolicy:
             logger.error(f"Failed to parse harvest ladder: {e}")
             self.ladder = [(0.5, 0.25), (1.0, 0.25), (1.5, 0.25)]
     
+    def _get_market_state(self, symbol: str) -> MarketState:
+        """Fetch market state from Redis or return defaults"""
+        try:
+            key = f"quantum:market:{symbol}"
+            data = self.redis.hgetall(key)
+            
+            if data:
+                return MarketState(
+                    sigma=float(data.get('sigma', 0.01)),
+                    ts=float(data.get('ts', 0.35)),
+                    p_trend=float(data.get('p_trend', 0.5)),
+                    p_mr=float(data.get('p_mr', 0.3)),
+                    p_chop=float(data.get('p_chop', 0.2))
+                )
+        except Exception as e:
+            logger.debug(f"Failed to fetch market state for {symbol}: {e}")
+        
+        # Default market state (neutral)
+        return MarketState(
+            sigma=0.01,
+            ts=0.35,
+            p_trend=0.5,
+            p_mr=0.3,
+            p_chop=0.2
+        )
+    
+    def _get_harvest_theta(self) -> HarvestTheta:
+        """Get harvest theta from config or defaults"""
+        return HarvestTheta(
+            fallback_stop_pct=0.02,
+            cost_bps=10.0,
+            T1_R=2.0,
+            T2_R=4.0,
+            T3_R=6.0,
+            lock_R=1.5,
+            be_plus_pct=0.002,
+            kill_threshold=0.6
+        )
+    
     def _load_symbol_config(self, symbol: str) -> SymbolConfig:
         """Load or cache symbol-specific configuration from Redis"""
         if symbol in self.symbol_configs:
@@ -426,96 +478,136 @@ class HarvestPolicy:
         return dynamic_ladder
     
     def evaluate(self, position: Position) -> List[HarvestIntent]:
-        """Evaluate position for harvesting opportunities"""
+        """Evaluate position for harvesting opportunities using P2 risk_kernel"""
         intents = []
         
         if not position:
             return intents
         
-        # Load symbol-specific config or use defaults
-        sym_cfg = self._load_symbol_config(position.symbol)
-        min_r = sym_cfg.get_min_r(self.config.min_r)
-        be_trigger = sym_cfg.get_set_be_at_r(self.config.harvest_set_be_at_r)
-        trail_mult = sym_cfg.get_trail_atr_mult(self.config.harvest_trail_atr_mult)
+        # Build P2 PositionSnapshot
+        pos_snapshot = PositionSnapshot(
+            symbol=position.symbol,
+            side=position.side,
+            entry_price=position.entry_price,
+            current_price=position.current_price,
+            peak_price=position.peak_price if position.peak_price > 0 else position.current_price,
+            trough_price=position.trough_price if position.trough_price > 0 else position.current_price,
+            age_sec=position.age_sec,
+            unrealized_pnl=position.unrealized_pnl,
+            current_sl=position.stop_loss,
+            current_tp=position.take_profit
+        )
         
-        r = position.r_level()
+        # Fetch market state from Redis (or use defaults)
+        market_state = self._get_market_state(position.symbol)
         
-        # Skip if below min_r
-        if r < min_r:
-            logger.debug(f"{position.symbol}: R={r:.2f} < min_r={min_r}")
+        # Build P1 proposal (stop distance)
+        p1_proposal = P1Proposal(
+            stop_dist_pct=abs(position.entry_price - position.stop_loss) / position.entry_price if position.stop_loss else 0.02
+        )
+        
+        # Get harvest theta from config
+        theta = self._get_harvest_theta()
+        
+        # **RUN P2 HARVEST KERNEL**
+        p2_result = compute_harvest_proposal(
+            position=pos_snapshot,
+            market_state=market_state,
+            p1_proposal=p1_proposal,
+            theta=theta
+        )
+        
+        harvest_action = p2_result['harvest_action']
+        r_net = p2_result['R_net']
+        kill_score = p2_result['kill_score']
+        reason_codes = p2_result['reason_codes']
+        
+        logger.info(
+            f"[HARVEST] {position.symbol} | "
+            f"R={r_net:.2f}R | KILL_SCORE={kill_score:.3f} | "
+            f"Action={harvest_action} | Reasons={reason_codes}"
+        )
+        
+        # Skip if below min_r threshold
+        if r_net < self.config.min_r:
+            logger.debug(f"{position.symbol}: R={r_net:.2f} < min_r={self.config.min_r}")
             return intents
         
-        logger.info(f"{position.symbol}: Evaluating R={r:.2f}")
+        # Translate P2 harvest_action to trade.intent
+        exit_side = 'SELL' if position.side == 'LONG' else 'BUY'
         
-        # Check for trailing stop opportunity after profit accumulates
-        # Trail SL by (entry_risk * trail_atr_mult) below current price
-        trail_distance = position.entry_risk * trail_mult
-        trailing_sl = position.current_price - trail_distance
-        
-        # Only move SL up (reduce loss risk), never down
-        if trailing_sl > position.stop_loss and r >= min_r:
-            trail_intent = HarvestIntent(
-                intent_type='MOVE_SL_TRAIL',
+        if harvest_action == 'PARTIAL_25':
+            qty = position.qty * 0.25
+            intent = HarvestIntent(
+                intent_type='HARVEST_PARTIAL_25',
                 symbol=position.symbol,
-                side='MOVE_SL',
-                qty=position.qty,
-                reason=f'Trail SL by {trail_distance:.2f} @ R={r:.2f}',
-                r_level=r,
+                side=exit_side,
+                qty=qty,
+                reason=f'[P2] R={r_net:.2f}R >= T1=2R (25% harvest)',
+                r_level=r_net,
                 unrealized_pnl=position.unrealized_pnl,
-                correlation_id=f"trail:{position.symbol}:{int(position.last_update_ts)}",
-                trace_id=f"trail:{position.symbol}:{int(position.last_update_ts)}",
+                correlation_id=f"p2:harvest25:{position.symbol}:{int(position.last_update_ts)}",
+                trace_id=f"p2:{position.symbol}:harvest25",
                 dry_run=(self.config.harvest_mode == 'shadow')
             )
-            intents.append(trail_intent)
-            logger.info(
-                f"🔄 Trailing SL: {position.symbol} {position.stop_loss:.2f} → {trailing_sl:.2f} @ R={r:.2f}"
-            )
+            intents.append(intent)
+            logger.info(f"[HARVEST] {position.symbol} PARTIAL_25 @ R={r_net:.2f} (25% of {position.qty})")
         
-        # Check if we should move SL to break-even (symbol-specific trigger)
-        if r >= be_trigger and position.stop_loss < position.entry_price:
-            # Move SL to break-even (entry price)
-            be_intent = HarvestIntent(
-                intent_type='MOVE_SL_BREAKEVEN',
+        elif harvest_action == 'PARTIAL_50':
+            qty = position.qty * 0.50
+            intent = HarvestIntent(
+                intent_type='HARVEST_PARTIAL_50',
                 symbol=position.symbol,
-                side='MOVE_SL',  # Special side for SL moves
-                qty=position.qty,
-                reason=f'R={r:.2f} >= {be_trigger} (BE)',
-                r_level=r,
+                side=exit_side,
+                qty=qty,
+                reason=f'[P2] R={r_net:.2f}R >= T2=4R (50% harvest)',
+                r_level=r_net,
                 unrealized_pnl=position.unrealized_pnl,
-                correlation_id=f"be:{position.symbol}:{int(position.last_update_ts)}",
-                trace_id=f"be:{position.symbol}:{int(position.last_update_ts)}",
+                correlation_id=f"p2:harvest50:{position.symbol}:{int(position.last_update_ts)}",
+                trace_id=f"p2:{position.symbol}:harvest50",
                 dry_run=(self.config.harvest_mode == 'shadow')
             )
-            intents.append(be_intent)
-            logger.info(
-                f"📍 Break-Even: {position.symbol} SL → {position.entry_price} @ R={r:.2f}"
+            intents.append(intent)
+            logger.info(f"[HARVEST] {position.symbol} PARTIAL_50 @ R={r_net:.2f} (50% of {position.qty})")
+        
+        elif harvest_action == 'PARTIAL_75':
+            qty = position.qty * 0.75
+            intent = HarvestIntent(
+                intent_type='HARVEST_PARTIAL_75',
+                symbol=position.symbol,
+                side=exit_side,
+                qty=qty,
+                reason=f'[P2] R={r_net:.2f}R >= T3=6R (75% harvest)',
+                r_level=r_net,
+                unrealized_pnl=position.unrealized_pnl,
+                correlation_id=f"p2:harvest75:{position.symbol}:{int(position.last_update_ts)}",
+                trace_id=f"p2:{position.symbol}:harvest75",
+                dry_run=(self.config.harvest_mode == 'shadow')
             )
+            intents.append(intent)
+            logger.info(f"[HARVEST] {position.symbol} PARTIAL_75 @ R={r_net:.2f} (75% of {position.qty})")
         
-        # Get volatility-adjusted harvest ladder for this symbol
-        dynamic_ladder = self._get_dynamic_ladder(position)
+        elif harvest_action == 'FULL_CLOSE_PROPOSED':
+            qty = position.qty
+            intent = HarvestIntent(
+                intent_type='FULL_CLOSE_PROPOSED',
+                symbol=position.symbol,
+                side=exit_side,
+                qty=qty,
+                reason=f'[P2] KILL_SCORE={kill_score:.2f} >= 0.6 (regime flip)',
+                r_level=r_net,
+                unrealized_pnl=position.unrealized_pnl,
+                correlation_id=f"p2:fullclose:{position.symbol}:{int(position.last_update_ts)}",
+                trace_id=f"p2:{position.symbol}:fullclose",
+                dry_run=(self.config.harvest_mode == 'shadow')
+            )
+            intents.append(intent)
+            logger.warning(f"[HARVEST] {position.symbol} FULL_CLOSE_PROPOSED @ KILL={kill_score:.2f}")
         
-        # Check each ladder level
-        for r_trigger, fraction_to_close in dynamic_ladder:
-            if r >= r_trigger:
-                qty = position.qty * fraction_to_close
-                
-                # Determine exit side
-                exit_side = 'SELL' if position.side == 'LONG' else 'BUY'
-                
-                # Create harvest intent
-                intent = HarvestIntent(
-                    intent_type='HARVEST_PARTIAL',
-                    symbol=position.symbol,
-                    side=exit_side,
-                    qty=qty,
-                    reason=f'R={r:.2f} >= {r_trigger} (vol-adjusted)',
-                    r_level=r,
-                    unrealized_pnl=position.unrealized_pnl,
-                    correlation_id=f"harvest:{position.symbol}:{r_trigger}:{int(position.last_update_ts)}",
-                    trace_id=f"harvest:{position.symbol}:partial:{int(position.last_update_ts)}",
-                    dry_run=(self.config.harvest_mode == 'shadow')
-                )
-                intents.append(intent)
+        else:
+            logger.debug(f"{position.symbol}: harvest_action={harvest_action} (HOLD)")
+        
+        return intents
         
         return intents
 
@@ -727,10 +819,10 @@ class HarvestBrainService:
             # Create consumer group if needed
             try:
                 self.redis.xgroup_create(
-                    self.config.stream_exec_result,
+                    self.config.stream_apply_result,
                     self.config.consumer_group,
                     id='0',
-                    mkstream=False
+                    mkstream=True
                 )
                 logger.info(f"✅ Consumer group created: {self.config.consumer_group}")
             except redis.ResponseError as e:
@@ -758,11 +850,11 @@ class HarvestBrainService:
                 logger.debug("🔴 Kill-switch active - no harvesting")
                 return
             
-            # Read from execution.result stream
+            # Read from apply.result stream (P3 Harvest Restore)
             messages = self.redis.xreadgroup(
                 groupname=self.config.consumer_group,
                 consumername=self.config.consumer_name,
-                streams={self.config.stream_exec_result: '>'},
+                streams={self.config.stream_apply_result: '>'},
                 count=10,
                 block=1000
             )
@@ -772,10 +864,10 @@ class HarvestBrainService:
             
             for stream_name, stream_messages in messages:
                 for msg_id, msg_data in stream_messages:
-                    await self.process_execution(msg_id, msg_data)
+                    await self.process_apply_result(msg_id, msg_data)
                     # Acknowledge
                     self.redis.xack(
-                        self.config.stream_exec_result,
+                        self.config.stream_apply_result,
                         self.config.consumer_group,
                         msg_id
                     )
@@ -783,27 +875,38 @@ class HarvestBrainService:
         except Exception as e:
             logger.error(f"Batch processing error: {e}")
     
-    async def process_execution(self, msg_id: str, msg_data: dict) -> None:
-        """Process single execution event"""
+    async def process_apply_result(self, msg_id: str, msg_data: dict) -> None:
+        """Process single apply.result event (P3 Harvest Restore)"""
         try:
-            # Handle both flat dict and JSON payload formats
+            # Parse apply.result payload
             if 'payload' in msg_data:
                 payload_str = msg_data.get('payload', '{}')
-                exec_event = json.loads(payload_str)
+                event = json.loads(payload_str)
             else:
-                # Flat dict format (direct from stream)
-                exec_event = {k.decode() if isinstance(k, bytes) else k: 
-                             v.decode() if isinstance(v, bytes) else v 
-                             for k, v in msg_data.items()}
+                event = {k.decode() if isinstance(k, bytes) else k: 
+                        v.decode() if isinstance(v, bytes) else v 
+                        for k, v in msg_data.items()}
             
-            logger.debug(f"Processing execution: {exec_event.get('symbol')} {exec_event.get('status')}")
+            symbol = event.get('symbol', '').strip()
+            status = event.get('status', '').upper()
             
-            # Ingest to update internal state
-            self.tracker.ingest_execution(exec_event)
+            logger.debug(f"[HARVEST] Processing apply.result: {symbol} {status}")
+            
+            # Update position tracking from fills
+            if status in ['FILLED', 'PARTIAL_FILL']:
+                self.tracker.ingest_execution(event)
+                
+                # Sync to quantum:position:{symbol} Redis key
+                if symbol in self.tracker.positions:
+                    pos = self.tracker.positions[symbol]
+                    await self._sync_position_to_redis(pos)
             
             # Evaluate positions for harvesting
-            for symbol, position in self.tracker.positions.items():
-                # Evaluate policy
+            for symbol_key, position in list(self.tracker.positions.items()):
+                # Update position age
+                position.age_sec = time.time() - position.last_update_ts
+                
+                # Evaluate policy (runs P2 risk_kernel_harvest)
                 intents = self.policy.evaluate(position)
                 
                 for intent in intents:
@@ -812,12 +915,40 @@ class HarvestBrainService:
                         logger.debug(f"Skipping duplicate: {intent.symbol}")
                         continue
                     
-                    # Publish
+                    # Publish to trade.intent
                     self.publisher.publish(intent)
                     self.tracker.record_action()
         
         except Exception as e:
-            logger.error(f"Failed to process execution {msg_id}: {e}")
+            logger.error(f"Failed to process apply.result {msg_id}: {e}", exc_info=True)
+    
+    async def _sync_position_to_redis(self, position: Position) -> None:
+        """Sync position to quantum:position:{symbol} Redis key"""
+        try:
+            key = f"quantum:position:{position.symbol}"
+            
+            position_data = {
+                'symbol': position.symbol,
+                'side': position.side,
+                'qty': str(position.qty),
+                'entry_price': str(position.entry_price),
+                'current_price': str(position.current_price),
+                'entry_risk': str(position.entry_risk),
+                'stop_loss': str(position.stop_loss),
+                'take_profit': str(position.take_profit) if position.take_profit else '',
+                'unrealized_pnl': str(position.unrealized_pnl),
+                'leverage': str(position.leverage),
+                'age_sec': str(position.age_sec),
+                'last_update_ts': str(position.last_update_ts),
+                'source': 'harvest_brain'
+            }
+            
+            self.redis.hset(key, mapping=position_data)
+            self.redis.expire(key, 86400)  # 24h TTL
+            
+            logger.debug(f"[HARVEST] Synced quantum:position:{position.symbol}")
+        except Exception as e:
+            logger.warning(f"Failed to sync position to Redis: {e}")
 
 
 # ============================================================================

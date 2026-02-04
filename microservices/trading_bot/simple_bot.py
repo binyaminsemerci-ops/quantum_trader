@@ -295,16 +295,17 @@ class SimpleTradingBot:
                 action = "HOLD"
                 confidence = 0.30  # Low confidence for hold
             
-            # Calculate simple TP/SL (2% for SL, 4% for TP = 2:1 R:R)
-            if action == "BUY":
-                stop_loss = price * 0.98  # 2% below entry
-                take_profit = price * 1.04  # 4% above entry
-            elif action == "SELL":
-                stop_loss = price * 1.02  # 2% above entry (short)
-                take_profit = price * 0.96  # 4% below entry (short)
-            else:
-                stop_loss = price * 0.98
-                take_profit = price * 1.02
+            # Send dynamic parameters to exitbrain/harvest-brain instead of hardcoded TP/SL
+            # Calculate ATR proxy (use 2% of price as simple estimate)
+            atr_value = price * 0.02
+            
+            # Calculate volatility factor from price change magnitude
+            volatility_factor = max(abs(price_change_pct) / 10.0, 1.0)  # Scale: 1.0 = low, 5.0 = high
+            
+            # Get regime and funding (placeholder for now)
+            regime = market_data.get("regime", "RANGE")
+            funding_rate = market_data.get("funding_rate", 0.0)
+            exchange_divergence = market_data.get("exchange_divergence", 0.0)
             
             signal = {
                 "symbol": symbol,
@@ -312,8 +313,12 @@ class SimpleTradingBot:
                 "action": action,  # For compatibility
                 "confidence": confidence,
                 "entry_price": price,
-                "stop_loss": stop_loss,
-                "take_profit": take_profit,
+                # Remove hardcoded TP/SL, send dynamic features instead
+                "atr_value": atr_value,
+                "volatility_factor": volatility_factor,
+                "exchange_divergence": exchange_divergence,
+                "funding_rate": funding_rate,
+                "regime": regime,
                 "position_size_usd": 150,  # Increased to $150 to meet Binance min notional
                 "leverage": 10.0,  # 🔥 RL-like leverage (consistent with RL Agent)
                 "model": "fallback-trend-following",
@@ -322,7 +327,7 @@ class SimpleTradingBot:
             
             logger.info(
                 f"[TRADING-BOT] 🔄 Fallback signal: {symbol} {action} @ ${price:.2f} "
-                f"(24h: {price_change_pct:+.2f}%, confidence={confidence:.0%})"
+                f"(24h: {price_change_pct:+.2f}%, confidence={confidence:.0%}, atr={atr_value:.4f}, vol={volatility_factor:.1f}x)"
             )
             
             return signal
