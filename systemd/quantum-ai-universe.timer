@@ -1,0 +1,12 @@
+[Unit]
+Description=Quantum AI Universe Generator Timer
+Requires=quantum-ai-universe.service
+
+[Timer]
+# Run every 5 minutes (continuous re-evaluation)
+OnBootSec=1min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

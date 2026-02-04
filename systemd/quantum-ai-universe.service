@@ -1,0 +1,23 @@
+[Unit]
+Description=Quantum AI Universe Generator
+After=network.target redis.service
+Wants=quantum-ai-universe.timer
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/qt/quantum_trader
+Environment="PYTHONUNBUFFERED=1"
+Environment="AI_UNIVERSE_REFRESH_INTERVAL=300"
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/scripts/ai_universe_generator_v1.py
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-ai-universe
+
+# Resource limits
+Nice=5
+IOSchedulingClass=best-effort
+IOSchedulingPriority=4
+
+[Install]
+WantedBy=multi-user.target
