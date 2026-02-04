@@ -712,7 +712,7 @@ class StreamPublisher:
                 'intent_type': 'REDUCE_ONLY',
                 'reason': intent.reason,
                 'r_level': intent.r_level,
-                'reduce_only': intent.reduce_only,
+                'reduceOnly': intent.reduce_only,  # FIX: Use camelCase for intent_bridge compatibility
                 'source': intent.source,
                 'correlation_id': intent.correlation_id,
                 'trace_id': intent.trace_id,
