@@ -2283,6 +2283,11 @@ class ApplyLayer:
                         take_profit = plan_data.get('take_profit')
                         qty = float(plan_data.get('qty', '0'))
                         
+                        # Extract ATR/volatility data for risk computation
+                        atr_value = float(plan_data.get('atr_value', 0.0))
+                        volatility_factor = float(plan_data.get('volatility_factor', 0.0))
+                        entry_price = float(plan_data.get('entry_price', 0.0))
+                        
                         # Process both BUY and SELL entry signals
                         if side not in ['BUY', 'SELL']:
                             logger.debug(f"[ENTRY] {symbol}: Skipping {side} (not BUY or SELL)")
@@ -2344,17 +2349,33 @@ class ApplyLayer:
                             
                             # Store position reference
                             pos_key = f"quantum:position:{symbol}"
-                            self.redis.hset(pos_key, mapping={
+                            
+                            # Compute entry_risk using ATR (dynamic, no hardcoded %)
+                            # risk_price = atr_value * volatility_factor
+                            # entry_risk_usdt = abs(qty) * risk_price
+                            risk_price = atr_value * volatility_factor if (atr_value > 0 and volatility_factor > 0) else 0.0
+                            entry_risk_usdt = abs(qty) * risk_price if risk_price > 0 else 0.0
+                            risk_missing = 1 if entry_risk_usdt == 0 else 0
+                            
+                            position_mapping = {
                                 "symbol": symbol,
                                 "side": position_side,  # LONG or SHORT
                                 "quantity": str(qty),
+                                "entry_price": str(entry_price),
                                 "leverage": str(leverage),
                                 "stop_loss": stop_loss or "0",
                                 "take_profit": take_profit or "0",
                                 "plan_id": plan_id,
-                                "created_at": str(int(time.time()))
-                            })
-                            logger.info(f"[ENTRY] {symbol}: Position reference stored")
+                                "created_at": str(int(time.time())),
+                                "atr_value": str(atr_value),
+                                "volatility_factor": str(volatility_factor),
+                                "entry_risk_usdt": str(entry_risk_usdt),
+                                "risk_price": str(risk_price),
+                                "risk_missing": str(risk_missing)
+                            }
+                            
+                            self.redis.hset(pos_key, mapping=position_mapping)
+                            logger.info(f"[ENTRY] {symbol}: Position reference stored (entry_risk_usdt={entry_risk_usdt:.4f}, atr={atr_value}, vol_factor={volatility_factor})")
                             
                             # 🔥 Set cooldown to prevent rapid re-opening (180s = 3 minutes)
                             cooldown_key = f"quantum:cooldown:open:{symbol}"
