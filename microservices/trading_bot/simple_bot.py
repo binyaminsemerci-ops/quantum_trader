@@ -130,6 +130,54 @@ class SimpleTradingBot:
             logger.warning(f"[TRADING-BOT] Failed to get regime: {e}")
             return "UNKNOWN"
     
+    async def _get_account_balance(self) -> dict:
+        """
+        Get current account balance from Redis (updated by balance_tracker)
+        
+        Returns:
+            dict with balance, available_balance, margin_used
+        """
+        if not self.event_bus or "redis" not in self.event_bus:
+            # Fallback defaults
+            return {
+                "balance": 10000.0,
+                "available_balance": 9000.0,
+                "margin_used": 1000.0
+            }
+        
+        try:
+            redis_client = self.event_bus["redis"]
+            
+            # Read balance data from balance_tracker
+            balance_data = await redis_client.hgetall(b"quantum:account:balance")
+            
+            if not balance_data:
+                logger.warning("[TRADING-BOT] No balance data in Redis, using defaults")
+                return {
+                    "balance": 10000.0,
+                    "available_balance": 9000.0,
+                    "margin_used": 1000.0
+                }
+            
+            # Decode and convert to float
+            result = {
+                "balance": float(balance_data.get(b"balance", b"10000").decode()),
+                "available_balance": float(balance_data.get(b"available_balance", b"9000").decode()),
+                "margin_used": float(balance_data.get(b"margin_used", b"1000").decode())
+            }
+            
+            logger.debug(f"[TRADING-BOT] Account balance: ${result['balance']:.2f}")
+            return result
+            
+        except Exception as e:
+            logger.warning(f"[TRADING-BOT] Error reading balance from Redis: {e}")
+            # Fallback defaults
+            return {
+                "balance": 10000.0,
+                "available_balance": 9000.0,
+                "margin_used": 1000.0
+            }
+    
     async def start(self):
         """Start trading bot loop."""
         if self.running:
@@ -475,6 +523,9 @@ class SimpleTradingBot:
             
             if self.rl_sizing_agent:
                 try:
+                    # Get current account balance
+                    account_data = await self._get_account_balance()
+                    
                     # Calculate ATR from market data (simplified)
                     price_change_24h = abs(market_data.get("price_change_24h", 0.0)) / 100.0
                     atr_value = max(0.02, min(0.10, price_change_24h))  # Clamp to [2%, 10%]
@@ -487,14 +538,14 @@ class SimpleTradingBot:
                         volatility_factor = ((high - low) / low) * 10.0  # Scale to ~1.0-3.0 range
                         volatility_factor = max(0.5, min(5.0, volatility_factor))
                     
-                    # Call RL Agent for position sizing
+                    # Call RL Agent for position sizing with REAL BALANCE
                     sizing_decision = await asyncio.to_thread(
                         self.rl_sizing_agent.decide_sizing,
                         symbol=symbol,
                         confidence=confidence,
                         atr_pct=atr_value,
-                        current_exposure_pct=0.0,  # TODO: Get from portfolio tracker
-                        equity_usd=10000.0,  # TODO: Get from execution service
+                        current_exposure_pct=0.0,  # TODO: Calculate from positions
+                        equity_usd=account_data["balance"],  # ✅ USE REAL BALANCE
                         adx=None,
                         trend_strength=None
                     )
@@ -503,7 +554,7 @@ class SimpleTradingBot:
                     position_size_usd = sizing_decision.position_size_usd
                     leverage = sizing_decision.leverage  # ✅ Use Math AI's calculated leverage
                     
-                    logger.info(f"🔍 [DEBUG] Received from RL Agent: leverage={leverage}, position_size={position_size_usd}")
+                    logger.info(f"🔍 [DEBUG] RL Agent: balance=${account_data['balance']:.0f}, leverage={leverage}, position_size=${position_size_usd}")
                     logger.info(
                         f"[TRADING-BOT] [RL-SIZING] {symbol}: ${position_size_usd:.0f} @ {leverage}x "
                         f"(ATR={atr_value:.2%}, volatility={volatility_factor:.2f})"

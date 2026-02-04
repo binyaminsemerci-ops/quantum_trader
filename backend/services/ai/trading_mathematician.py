@@ -72,7 +72,7 @@ class TradingMathematician:
     
     def __init__(
         self,
-        risk_per_trade_pct: float = 0.80,  # 80% of balance per trade (AGGRESSIVE!)
+        risk_per_trade_pct: float = 0.20,  # 20% of balance as MARGIN per trade
         target_profit_pct: float = 0.20,    # 20% daily profit target
         min_risk_reward: float = 2.0,       # Minimum 2:1 R:R
         safety_cap: float = 75.0,           # Safety cap (bug protection, not optimization)
@@ -95,7 +95,7 @@ class TradingMathematician:
         }
         
         logger.info(f"🧮 Trading Mathematician initialized:")
-        logger.info(f"   Risk per trade: {risk_per_trade_pct*100}%")
+        logger.info(f"   Margin per trade: {risk_per_trade_pct*100}% of balance")
         logger.info(f"   Target profit: {target_profit_pct*100}%")
         logger.info(f"   Min R:R: {min_risk_reward}:1")
         logger.info(f"   Kelly safety cap: {safety_cap}x")
