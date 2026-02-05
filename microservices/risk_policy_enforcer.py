@@ -137,7 +137,7 @@ class RiskPolicyEnforcer:
 
     def _set_kill_switch(self, enabled: bool, reason: Optional[str] = None):
         current = self.redis.get(self.kill_switch_key)
-        is_set = current is not None and current.decode() == "1"
+        is_set = current is not None and (current.decode() if isinstance(current, bytes) else current) == "1"
 
         if enabled:
             if not is_set:
