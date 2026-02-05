@@ -81,11 +81,10 @@ class RiskLimits:
     symbol_whitelist: List[str] = None
     
     def __post_init__(self):
+        # E2: symbol_whitelist disabled - rely on APPLY_ALLOWLIST in apply-layer.env
+        # This allows AI Engine to trade any symbol it produces signals for
         if self.symbol_whitelist is None:
-            self.symbol_whitelist = [
-                "BTCUSDT",  # E1: testnet enable
-                "ETHUSDT"
-            ]
+            self.symbol_whitelist = []  # Empty list = no whitelist constraint
 
 
 # Startup grace window (seconds)
