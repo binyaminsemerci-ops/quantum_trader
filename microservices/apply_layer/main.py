@@ -1561,6 +1561,10 @@ class ApplyLayer:
                 # Handle failure by type
                 if system_state == SystemState.BOOTING:
                     logger.info("System booting – trading disabled")
+                    try:
+                        self.redis.incr("quantum:metrics:trades_blocked")
+                    except Exception:
+                        pass
                     return ApplyResult(
                         plan_id=plan.plan_id,
                         symbol=plan.symbol,
@@ -1573,6 +1577,10 @@ class ApplyLayer:
                     )
 
                 if system_state == SystemState.NO_GO:
+                    try:
+                        self.redis.incr("quantum:metrics:trades_blocked")
+                    except Exception:
+                        pass
                     return ApplyResult(
                         plan_id=plan.plan_id,
                         symbol=plan.symbol,
@@ -1587,6 +1595,11 @@ class ApplyLayer:
                 elif system_state == SystemState.PAUSED:
                     # LAYER 1/2 failure - trading paused
                     logger.warning(f"PAUSED: {risk_reason}")
+                    try:
+                        self.redis.incr("quantum:metrics:paused_events")
+                        self.redis.incr("quantum:metrics:trades_blocked")
+                    except Exception:
+                        pass
                     return ApplyResult(
                         plan_id=plan.plan_id,
                         symbol=plan.symbol,
@@ -1602,6 +1615,10 @@ class ApplyLayer:
             ok, reason = self._learning_plane_ok()
             if not ok:
                 logger.critical(f"[LEARNING_PLANE] Execution halted - {reason}")
+                try:
+                    self.redis.incr("quantum:metrics:trades_blocked")
+                except Exception:
+                    pass
                 return ApplyResult(
                     plan_id=plan.plan_id,
                     symbol=plan.symbol,
@@ -1618,6 +1635,11 @@ class ApplyLayer:
             kill_switch = self.redis.get(SAFETY_KILL_KEY)
             if kill_switch and kill_switch.lower() in (b"true", b"1", b"yes"):
                 logger.critical(f"[KILL_SWITCH] Execution halted - kill switch is ACTIVE")
+                try:
+                    self.redis.incr("quantum:metrics:kill_switch_events")
+                    self.redis.incr("quantum:metrics:trades_blocked")
+                except Exception:
+                    pass
                 if PROMETHEUS_AVAILABLE:
                     apply_executed.labels(status='kill_switch').inc()
                 return ApplyResult(
@@ -1632,6 +1654,11 @@ class ApplyLayer:
                 )
         except Exception as e:
             logger.warning(f"[KILL_SWITCH] Error checking kill switch: {e}")
+
+        try:
+            self.redis.incr("quantum:metrics:trades_allowed")
+        except Exception:
+            pass
         
         # Check Binance credentials
         api_key = os.getenv("BINANCE_TESTNET_API_KEY")
