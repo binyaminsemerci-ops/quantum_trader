@@ -36,7 +36,7 @@ def main():
     symbol = os.getenv("RISK_STATUS_SYMBOL", "BTCUSDT")
 
     client = redis.from_url(redis_url)
-    enforcer = create_enforcer(redis_url)
+    enforcer = create_enforcer(redis_url, persist_boot_ts=False)
     metrics = enforcer.compute_system_state(symbol=symbol)
 
     kill_switch = client.get("quantum:global:kill_switch")
