@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     SERVICE_NAME: str = "rl-training"
     SERVICE_VERSION: str = "1.0.0"
     PORT: int = 8005
+        PORT: int = 8006
     
     # Redis (EventBus)
     REDIS_HOST: str = "localhost"
