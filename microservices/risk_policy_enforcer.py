@@ -122,13 +122,19 @@ class RiskPolicyEnforcer:
         return (time.time() - self.boot_ts) < STARTUP_GRACE_SECONDS
 
     def _set_kill_switch(self, enabled: bool, reason: Optional[str] = None):
+        current = self.redis.get(self.kill_switch_key)
+        is_set = current is not None and current.decode() == "1"
+
         if enabled:
-            self.redis.set(self.kill_switch_key, "1")
+            if not is_set:
+                self.redis.set(self.kill_switch_key, "1")
+                self.redis.incr("quantum:metrics:kill_switch_events")
             if reason:
                 self.redis.set("quantum:global:kill_switch:reason", reason)
         else:
-            self.redis.delete(self.kill_switch_key)
-            self.redis.delete("quantum:global:kill_switch:reason")
+            if is_set:
+                self.redis.delete(self.kill_switch_key)
+                self.redis.delete("quantum:global:kill_switch:reason")
 
     def _check_learning_plane(self) -> Tuple[bool, Optional[str]]:
         state, reason = self._check_layer0_infrastructure()
