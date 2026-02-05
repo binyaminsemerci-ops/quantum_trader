@@ -27,6 +27,7 @@ import json
 import time
 import logging
 import signal
+import threading
 from datetime import datetime, timezone
 from typing import Dict, Optional, Any
 from pathlib import Path
@@ -47,6 +48,11 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("RL_FEEDBACK_V2")
+
+# Heartbeat configuration (independent of event flow)
+HEARTBEAT_KEY = "quantum:svc:rl_feedback_v2:heartbeat"
+HEARTBEAT_TTL_SECONDS = 10
+HEARTBEAT_INTERVAL_SECONDS = 3
 
 try:
     import redis
@@ -86,8 +92,6 @@ class RLFeedbackV2Daemon:
         # Stream configuration
         self.pnl_stream_key = "quantum:stream:exitbrain.pnl"
         self.reward_stream_key = "quantum:stream:rl_rewards"
-        self.heartbeat_key = "quantum:svc:rl_feedback_v2:heartbeat"
-        self.heartbeat_ttl = int(os.getenv("RL_FEEDBACK_HEARTBEAT_TTL", "30"))
         self.adjustment_key = "quantum:ai_policy_adjustment"
         
         # Reward computation parameters
@@ -205,6 +209,25 @@ class RLFeedbackV2Daemon:
         except Exception as e:
             logger.error(f"Error computing reward: {e}")
             return None
+
+    def _heartbeat_loop(self):
+        """
+        Emits liveness heartbeat independent of event flow.
+        This MUST run even if no PnL events arrive.
+        """
+        while True:
+            try:
+                ts = time.time()
+                self.redis.setex(
+                    HEARTBEAT_KEY,
+                    HEARTBEAT_TTL_SECONDS,
+                    ts,
+                )
+            except Exception as e:
+                # Do NOT crash daemon on heartbeat failure
+                logger.error(f"[HEARTBEAT] Failed to emit: {e}")
+
+            time.sleep(HEARTBEAT_INTERVAL_SECONDS)
     
     def _process_message(self, message_id: str, data: Dict[str, str]):
         """
@@ -304,25 +327,24 @@ class RLFeedbackV2Daemon:
         signal.signal(signal.SIGTERM, signal_handler)
         
         logger.info("🚀 Starting daemon loop...")
+
+        # Start heartbeat thread (independent of event flow)
+        hb_thread = threading.Thread(
+            target=self._heartbeat_loop,
+            daemon=True,
+        )
+        hb_thread.start()
+        logger.info("Heartbeat thread started")
         
-        iteration = 0
         while self.running:
-            iteration += 1
             try:
                 if self.redis:
-                    # Heartbeat (learning plane health signal)
-                    try:
-                        ts = int(time.time())
-                        self.redis.set(self.heartbeat_key, str(ts), ex=self.heartbeat_ttl)
-                    except Exception as e:
-                        logger.error(f"✗ Heartbeat failed: {e}")
-
                     # Read from PnL stream
                     try:
                         messages = self.redis.xread(
                             {self.pnl_stream_key: self.last_stream_id},
                             count=10,
-                            block=1000  # 1s timeout to keep heartbeat alive
+                            block=5000  # 5 second timeout
                         )
                         
                         if messages:
