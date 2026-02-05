@@ -1573,13 +1573,6 @@ class ApplyLayer:
                     )
 
                 if system_state == SystemState.NO_GO:
-                    # LAYER 0 failure - activate kill-switch
-                    try:
-                        self.redis.set(SAFETY_KILL_KEY, "true")
-                        logger.critical("HARD STOP: Kill-switch activated (LAYER 0 failure)")
-                    except Exception:
-                        pass
-                    
                     return ApplyResult(
                         plan_id=plan.plan_id,
                         symbol=plan.symbol,
@@ -1609,10 +1602,6 @@ class ApplyLayer:
             ok, reason = self._learning_plane_ok()
             if not ok:
                 logger.critical(f"[LEARNING_PLANE] Execution halted - {reason}")
-                try:
-                    self.redis.set(SAFETY_KILL_KEY, "true")
-                except Exception:
-                    pass
                 return ApplyResult(
                     plan_id=plan.plan_id,
                     symbol=plan.symbol,

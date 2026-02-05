@@ -38,24 +38,26 @@ class FailureType(Enum):
 class RiskMetrics:
     """Runtime metrics collected for policy enforcement"""
     # LAYER 0
-    redis_available: bool
-    rl_feedback_heartbeat_age: Optional[float]  # seconds
-    rl_trainer_heartbeat_age: Optional[float]
+    redis_available: bool = False
+    rl_feedback_heartbeat_age: Optional[float] = None  # seconds
+    rl_trainer_heartbeat_age: Optional[float] = None
     
     # LAYER 1
-    daily_pnl: float
-    rolling_drawdown_pct: float
-    consecutive_losses: int
-    effective_leverage: float
+    daily_pnl: float = 0.0
+    rolling_drawdown_pct: float = 0.0
+    consecutive_losses: int = 0
+    effective_leverage: float = 0.0
     
     # LAYER 2
-    symbol_in_whitelist: bool
-    realized_volatility: Optional[float]
-    spread_bps: Optional[float]
+    symbol_in_whitelist: bool = False
+    realized_volatility: Optional[float] = None
+    spread_bps: Optional[float] = None
     
     # Meta
-    system_state: SystemState
+    system_state: SystemState = SystemState.NO_GO
     failure_reason: Optional[str] = None
+    uptime_seconds: Optional[float] = None
+    startup_grace_remaining: Optional[float] = None
 
 
 @dataclass
@@ -118,6 +120,42 @@ class RiskPolicyEnforcer:
 
     def in_startup_grace(self) -> bool:
         return (time.time() - self.boot_ts) < STARTUP_GRACE_SECONDS
+
+    def _set_kill_switch(self, enabled: bool, reason: Optional[str] = None):
+        if enabled:
+            self.redis.set(self.kill_switch_key, "1")
+            if reason:
+                self.redis.set("quantum:global:kill_switch:reason", reason)
+        else:
+            self.redis.delete(self.kill_switch_key)
+            self.redis.delete("quantum:global:kill_switch:reason")
+
+    def _check_learning_plane(self) -> Tuple[bool, Optional[str]]:
+        state, reason = self._check_layer0_infrastructure()
+        if state == SystemState.GO:
+            return True, None
+        return False, reason
+
+    def _check_capital_and_market(
+        self,
+        symbol: Optional[str],
+        volatility: Optional[float] = None,
+        spread_bps: Optional[float] = None
+    ) -> Tuple[SystemState, Optional[str]]:
+        layer1_pass, layer1_reason = self._check_layer1_capital_protection()
+        if not layer1_pass:
+            return SystemState.PAUSED, f"LAYER 1 FAIL: {layer1_reason}"
+
+        if symbol:
+            layer2_pass, layer2_reason = self._check_layer2_market_gating(
+                symbol=symbol,
+                volatility=volatility,
+                spread_bps=spread_bps
+            )
+            if not layer2_pass:
+                return SystemState.PAUSED, f"LAYER 2 FAIL: {layer2_reason}"
+
+        return SystemState.GO, None
     
     # ============================================================
     # LAYER 0 — SYSTEMIC SAFETY (§ 4)
@@ -136,23 +174,14 @@ class RiskPolicyEnforcer:
         except Exception as e:
             return SystemState.NO_GO, f"Redis unavailable: {e}"
         
-        # Kill-switch check
-        kill_switch = self.redis.get(self.kill_switch_key)
-        if kill_switch and kill_switch.decode() == "1":
-            return SystemState.NO_GO, "Kill-switch activated"
-        
         # RL Feedback V2 heartbeat
         try:
             feedback_hb = self.redis.get(self.rl_feedback_heartbeat_key)
             if feedback_hb is None:
-                if self.in_startup_grace():
-                    return SystemState.BOOTING, "heartbeat_missing_startup"
                 return SystemState.NO_GO, "heartbeat_missing"
 
             feedback_ttl = self.redis.ttl(self.rl_feedback_heartbeat_key)
             if feedback_ttl <= 0:
-                if self.in_startup_grace():
-                    return SystemState.BOOTING, "heartbeat_expired_startup"
                 return SystemState.NO_GO, "heartbeat_expired"
         except Exception as e:
             return SystemState.NO_GO, f"RL Feedback V2 heartbeat error: {e}"
@@ -161,14 +190,10 @@ class RiskPolicyEnforcer:
         try:
             trainer_hb = self.redis.get(self.rl_trainer_heartbeat_key)
             if trainer_hb is None:
-                if self.in_startup_grace():
-                    return SystemState.BOOTING, "heartbeat_missing_startup"
                 return SystemState.NO_GO, "heartbeat_missing"
 
             trainer_ttl = self.redis.ttl(self.rl_trainer_heartbeat_key)
             if trainer_ttl <= 0:
-                if self.in_startup_grace():
-                    return SystemState.BOOTING, "heartbeat_expired_startup"
                 return SystemState.NO_GO, "heartbeat_expired"
         except Exception as e:
             return SystemState.NO_GO, f"RL Trainer heartbeat error: {e}"
@@ -340,74 +365,87 @@ class RiskPolicyEnforcer:
         This is the single source of truth for execution decisions.
         """
         self.last_state_check = datetime.utcnow()
-        
-        # Initialize metrics
+
+        now = time.time()
+        uptime = now - self.boot_ts
+        grace_remaining = max(0.0, STARTUP_GRACE_SECONDS - uptime)
+
         metrics = RiskMetrics(
-            redis_available=False,
-            rl_feedback_heartbeat_age=None,
-            rl_trainer_heartbeat_age=None,
             daily_pnl=self._get_daily_pnl(),
             rolling_drawdown_pct=self._get_rolling_drawdown(),
             consecutive_losses=self._count_consecutive_losses(),
-            effective_leverage=0.0,
             symbol_in_whitelist=(symbol in self.limits.symbol_whitelist) if symbol else False,
             realized_volatility=volatility,
             spread_bps=spread_bps,
-            system_state=SystemState.NO_GO
+            uptime_seconds=uptime,
+            startup_grace_remaining=grace_remaining
         )
-        
-        # LAYER 0: Infrastructure (§ 4)
-        layer0_state, layer0_reason = self._check_layer0_infrastructure()
-        if layer0_state != SystemState.GO:
-            metrics.system_state = layer0_state
-            metrics.failure_reason = f"LAYER 0 FAIL: {layer0_reason}"
-            uptime = int(time.time() - self.boot_ts)
-            logger.warning(
-                f"SYSTEM_STATE={metrics.system_state.value} reason={layer0_reason} uptime={uptime}s"
+
+        # -------------------------------------------------
+        # PHASE 1 — BOOTING (ABSOLUTE PRIORITY)
+        # -------------------------------------------------
+        if self.in_startup_grace():
+            self._set_kill_switch(False)
+            metrics.system_state = SystemState.BOOTING
+            metrics.failure_reason = "startup_grace"
+            logger.info(
+                f"SYSTEM_STATE=BOOTING reason=startup_grace uptime={int(uptime)}s"
             )
             return metrics
-        
+
+        # -------------------------------------------------
+        # PHASE 2 — LAYER 0 (INFRA / LEARNING PLANE)
+        # -------------------------------------------------
+        infra_ok, infra_reason = self._check_learning_plane()
+        if not infra_ok:
+            self._set_kill_switch(True, infra_reason)
+            metrics.system_state = SystemState.NO_GO
+            metrics.failure_reason = infra_reason
+            logger.warning(
+                f"SYSTEM_STATE=NO_GO reason={infra_reason} uptime={int(uptime)}s"
+            )
+            return metrics
+
+        # Infra is OK → kill-switch MUST reset
+        self._set_kill_switch(False)
         metrics.redis_available = True
-        
+
         # Get heartbeat ages
         try:
             fb_hb = self.redis.get(self.rl_feedback_heartbeat_key)
             if fb_hb:
                 metrics.rl_feedback_heartbeat_age = time.time() - float(fb_hb.decode())
-            
+
             tr_hb = self.redis.get(self.rl_trainer_heartbeat_key)
             if tr_hb:
                 metrics.rl_trainer_heartbeat_age = time.time() - float(tr_hb.decode())
         except Exception:
             pass
-        
-        # LAYER 1: Capital Protection (§ 5)
-        layer1_pass, layer1_reason = self._check_layer1_capital_protection()
-        if not layer1_pass:
-            metrics.system_state = SystemState.PAUSED
-            metrics.failure_reason = f"LAYER 1 FAIL: {layer1_reason}"
-            logger.warning(metrics.failure_reason)
-            return metrics
-        
-        # LAYER 2: Market Gating (§ 6)
-        if symbol:
-            layer2_pass, layer2_reason = self._check_layer2_market_gating(
-                symbol=symbol,
-                volatility=volatility,
-                spread_bps=spread_bps
+
+        # -------------------------------------------------
+        # PHASE 3 — LAYER 1 / 2 (NON-FATAL)
+        # -------------------------------------------------
+        layer_state, layer_reason = self._check_capital_and_market(
+            symbol=symbol,
+            volatility=volatility,
+            spread_bps=spread_bps
+        )
+
+        if layer_state != SystemState.GO:
+            metrics.system_state = layer_state
+            metrics.failure_reason = layer_reason
+            logger.warning(
+                f"SYSTEM_STATE={layer_state.value} reason={layer_reason} uptime={int(uptime)}s"
             )
-            if not layer2_pass:
-                metrics.system_state = SystemState.PAUSED
-                metrics.failure_reason = f"LAYER 2 FAIL: {layer2_reason}"
-                logger.warning(metrics.failure_reason)
-                return metrics
-        
-        # All layers pass
+            return metrics
+
+        # -------------------------------------------------
+        # PHASE 4 — FULL GO
+        # -------------------------------------------------
         metrics.system_state = SystemState.GO
         metrics.failure_reason = None
-        uptime = int(time.time() - self.boot_ts)
-        logger.info(f"SYSTEM_STATE=GO reason=ok uptime={uptime}s")
-        
+        logger.info(f"SYSTEM_STATE=GO reason=ok uptime={int(uptime)}s")
+
         return metrics
     
     def _count_consecutive_losses(self) -> int:
@@ -477,7 +515,7 @@ class RiskPolicyEnforcer:
         
         if failure_type == FailureType.INFRASTRUCTURE:
             # Hard stop: activate kill-switch
-            self.redis.set(self.kill_switch_key, "1")
+            self._set_kill_switch(True, details)
             logger.critical("HARD STOP: Kill-switch activated due to infrastructure failure")
         
         elif failure_type == FailureType.LEARNING_PLANE:
