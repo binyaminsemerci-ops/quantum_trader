@@ -86,6 +86,8 @@ class RLFeedbackV2Daemon:
         # Stream configuration
         self.pnl_stream_key = "quantum:stream:exitbrain.pnl"
         self.reward_stream_key = "quantum:stream:rl_rewards"
+        self.heartbeat_key = "quantum:svc:rl_feedback_v2:heartbeat"
+        self.heartbeat_ttl = int(os.getenv("RL_FEEDBACK_HEARTBEAT_TTL", "30"))
         self.adjustment_key = "quantum:ai_policy_adjustment"
         
         # Reward computation parameters
@@ -306,6 +308,12 @@ class RLFeedbackV2Daemon:
         while self.running:
             try:
                 if self.redis:
+                    # Heartbeat (learning plane health signal)
+                    try:
+                        self.redis.set(self.heartbeat_key, str(int(time.time())), ex=self.heartbeat_ttl)
+                    except Exception as e:
+                        logger.warning(f"Failed to set heartbeat: {e}")
+
                     # Read from PnL stream
                     try:
                         messages = self.redis.xread(
