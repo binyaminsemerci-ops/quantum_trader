@@ -312,9 +312,9 @@ class RLFeedbackV2Daemon:
                     try:
                         ts = int(time.time())
                         self.redis.set(self.heartbeat_key, str(ts), ex=self.heartbeat_ttl)
-                        logger.debug(f"Heartbeat emitted: {ts}")
+                        logger.info(f"✓ Heartbeat: {ts}")
                     except Exception as e:
-                        logger.error(f"Failed to set heartbeat: {e}")
+                        logger.error(f"✗ Heartbeat failed: {e}")
 
                     # Read from PnL stream
                     try:
