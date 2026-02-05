@@ -56,6 +56,20 @@ except ImportError:
     heat_observer = None
     print("WARN: heat_observer module not found, P2.8A observability disabled")
 
+# Risk Policy Enforcer (LAYER 0-2 gates)
+try:
+    from microservices.risk_policy_enforcer import (
+        RiskPolicyEnforcer, 
+        RiskLimits, 
+        SystemState, 
+        FailureType,
+        log_risk_metrics
+    )
+    RISK_ENFORCER_AVAILABLE = True
+except ImportError:
+    RISK_ENFORCER_AVAILABLE = False
+    print("WARN: risk_policy_enforcer not found, risk gates disabled")
+
 try:
     import redis
 except ImportError:
@@ -744,7 +758,28 @@ class ApplyLayer:
             decode_responses=True
         )
 
-        # Learning plane heartbeat
+        # Risk Policy Enforcer (LAYER 0-2 gates)
+        if RISK_ENFORCER_AVAILABLE:
+            risk_limits = RiskLimits(
+                heartbeat_max_age_sec=int(os.getenv("RISK_HEARTBEAT_TTL", "30")),
+                max_leverage=float(os.getenv("RISK_MAX_LEVERAGE", "10.0")),
+                daily_loss_limit=float(os.getenv("RISK_DAILY_LOSS_LIMIT", "-1000.0")),
+                rolling_drawdown_max_pct=float(os.getenv("RISK_DRAWDOWN_MAX_PCT", "15.0")),
+                rolling_drawdown_window_days=int(os.getenv("RISK_DRAWDOWN_WINDOW_DAYS", "30")),
+                max_consecutive_losses=int(os.getenv("RISK_MAX_CONSECUTIVE_LOSSES", "5")),
+                loss_streak_cooldown_minutes=int(os.getenv("RISK_LOSS_COOLDOWN_MIN", "60")),
+                vol_min=float(os.getenv("RISK_VOL_MIN", "0.005")),
+                vol_max=float(os.getenv("RISK_VOL_MAX", "0.10")),
+                max_spread_bps=float(os.getenv("RISK_MAX_SPREAD_BPS", "10.0")),
+                symbol_whitelist=os.getenv("RISK_SYMBOL_WHITELIST", "BTCUSDT,ETHUSDT").split(",")
+            )
+            self.risk_enforcer = RiskPolicyEnforcer(self.redis, risk_limits)
+            logger.info("Risk Policy Enforcer initialized (LAYER 0-2 active)")
+        else:
+            self.risk_enforcer = None
+            logger.warning("Risk Policy Enforcer DISABLED - no risk gates active")
+
+        # Learning plane heartbeat (legacy, now handled by risk enforcer)
         self.rl_feedback_heartbeat_key = RL_FEEDBACK_HEARTBEAT_KEY
         self.rl_trainer_heartbeat_key = RL_TRAINER_HEARTBEAT_KEY
         self.learning_plane_ttl = LEARNING_PLANE_HEARTBEAT_TTL
@@ -1473,7 +1508,15 @@ class ApplyLayer:
         )
 
     def _learning_plane_ok(self) -> Tuple[bool, str]:
-        """Fail-closed: require Redis + RL feedback + RL trainer heartbeats."""
+        """Legacy method - now redirects to risk enforcer if available."""
+        if self.risk_enforcer:
+            # Use risk enforcer for comprehensive LAYER 0 check
+            metrics = self.risk_enforcer.compute_system_state()
+            if metrics.system_state == SystemState.NO_GO:
+                return False, metrics.failure_reason or "layer0_fail"
+            return True, "ok"
+        
+        # Fallback: original heartbeat check if enforcer not available
         try:
             self.redis.ping()
         except Exception:
@@ -1499,24 +1542,74 @@ class ApplyLayer:
     
     def execute_testnet(self, plan: ApplyPlan) -> ApplyResult:
         """Testnet execution - REAL orders to Binance Futures testnet"""
-        # ---- LEARNING PLANE ENFORCEMENT (fail-closed) ----
-        ok, reason = self._learning_plane_ok()
-        if not ok:
-            logger.critical(f"[LEARNING_PLANE] Execution halted - {reason}")
-            try:
-                self.redis.set(SAFETY_KILL_KEY, "true")
-            except Exception:
-                pass
-            return ApplyResult(
-                plan_id=plan.plan_id,
+        # ---- RISK POLICY ENFORCEMENT (LAYER 0-2) ----
+        if self.risk_enforcer:
+            # Get requested leverage from plan metadata
+            requested_leverage = plan.metadata.get("target_leverage", 1.0) if plan.metadata else 1.0
+            
+            # Comprehensive risk gate
+            allowed, system_state, risk_reason = self.risk_enforcer.allow_trade(
                 symbol=plan.symbol,
-                decision=plan.decision,
-                executed=False,
-                would_execute=False,
-                steps_results=[],
-                error=f"learning_plane_down:{reason}",
-                timestamp=int(time.time())
+                requested_leverage=requested_leverage,
+                volatility=plan.metadata.get("volatility") if plan.metadata else None,
+                spread_bps=plan.metadata.get("spread_bps") if plan.metadata else None
             )
+            
+            if not allowed:
+                logger.critical(f"[RISK_POLICY] Execution blocked - {system_state.value}: {risk_reason}")
+                
+                # Handle failure by type
+                if system_state == SystemState.NO_GO:
+                    # LAYER 0 failure - activate kill-switch
+                    try:
+                        self.redis.set(SAFETY_KILL_KEY, "true")
+                        logger.critical("HARD STOP: Kill-switch activated (LAYER 0 failure)")
+                    except Exception:
+                        pass
+                    
+                    return ApplyResult(
+                        plan_id=plan.plan_id,
+                        symbol=plan.symbol,
+                        decision=plan.decision,
+                        executed=False,
+                        would_execute=False,
+                        steps_results=[],
+                        error=f"risk_layer0_fail:{risk_reason}",
+                        timestamp=int(time.time())
+                    )
+                
+                elif system_state == SystemState.PAUSED:
+                    # LAYER 1/2 failure - trading paused
+                    logger.warning(f"PAUSED: {risk_reason}")
+                    return ApplyResult(
+                        plan_id=plan.plan_id,
+                        symbol=plan.symbol,
+                        decision=plan.decision,
+                        executed=False,
+                        would_execute=False,
+                        steps_results=[],
+                        error=f"risk_paused:{risk_reason}",
+                        timestamp=int(time.time())
+                    )
+        else:
+            # Fallback: legacy learning plane check if enforcer not available
+            ok, reason = self._learning_plane_ok()
+            if not ok:
+                logger.critical(f"[LEARNING_PLANE] Execution halted - {reason}")
+                try:
+                    self.redis.set(SAFETY_KILL_KEY, "true")
+                except Exception:
+                    pass
+                return ApplyResult(
+                    plan_id=plan.plan_id,
+                    symbol=plan.symbol,
+                    decision=plan.decision,
+                    executed=False,
+                    would_execute=False,
+                    steps_results=[],
+                    error=f"learning_plane_down:{reason}",
+                    timestamp=int(time.time())
+                )
 
         # ---- PRODUCTION HYGIENE: Safety Kill Switch Check ----
         try:

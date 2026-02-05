@@ -1,18 +1,12 @@
 [Unit]
 Description=Quantum Trader - RL Feedback V2 (AI Client)
-After=network.target quantum-redis.service quantum-rl-sizer.service
-Requires=quantum-redis.service
-PartOf=quantum-trader.target
+After=network.target quantum-rl-sizer.service
 
 [Service]
 Type=simple
-User=quantum-rl-feedback-v2
-Group=quantum-rl-feedback-v2
-WorkingDirectory=/opt/quantum
+WorkingDirectory=/mnt/c/quantum_trader
 
-EnvironmentFile=/etc/quantum/rl-feedback-v2.env
-
-ExecStart=/opt/quantum/venvs/rl-feedback-v2/bin/python rl_feedback_v2_daemon.py
+ExecStart=/usr/bin/python3 rl_feedback_v2_daemon.py
 
 MemoryHigh=230M
 MemoryMax=256M
@@ -27,12 +21,7 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=quantum-rl-feedback-v2
 
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/data/quantum /var/log/quantum
-ReadOnlyPaths=/opt/quantum
+# Security constraints removed for local dev environment
 
 [Install]
 WantedBy=quantum-trader.target
