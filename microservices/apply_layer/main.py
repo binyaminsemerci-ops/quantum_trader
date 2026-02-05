@@ -1559,6 +1559,19 @@ class ApplyLayer:
                 logger.critical(f"[RISK_POLICY] Execution blocked - {system_state.value}: {risk_reason}")
                 
                 # Handle failure by type
+                if system_state == SystemState.BOOTING:
+                    logger.info("System booting – trading disabled")
+                    return ApplyResult(
+                        plan_id=plan.plan_id,
+                        symbol=plan.symbol,
+                        decision=plan.decision,
+                        executed=False,
+                        would_execute=False,
+                        steps_results=[],
+                        error=f"risk_booting:{risk_reason}",
+                        timestamp=int(time.time())
+                    )
+
                 if system_state == SystemState.NO_GO:
                     # LAYER 0 failure - activate kill-switch
                     try:
