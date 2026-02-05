@@ -310,9 +310,11 @@ class RLFeedbackV2Daemon:
                 if self.redis:
                     # Heartbeat (learning plane health signal)
                     try:
-                        self.redis.set(self.heartbeat_key, str(int(time.time())), ex=self.heartbeat_ttl)
+                        ts = int(time.time())
+                        self.redis.set(self.heartbeat_key, str(ts), ex=self.heartbeat_ttl)
+                        logger.debug(f"Heartbeat emitted: {ts}")
                     except Exception as e:
-                        logger.warning(f"Failed to set heartbeat: {e}")
+                        logger.error(f"Failed to set heartbeat: {e}")
 
                     # Read from PnL stream
                     try:
