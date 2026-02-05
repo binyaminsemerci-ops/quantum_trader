@@ -314,8 +314,6 @@ class RLFeedbackV2Daemon:
                     try:
                         ts = int(time.time())
                         self.redis.set(self.heartbeat_key, str(ts), ex=self.heartbeat_ttl)
-                        if iteration % 10 == 0:  # Log every 10th iteration
-                            logger.info(f"✓ Heartbeat active (iter={iteration})")
                     except Exception as e:
                         logger.error(f"✗ Heartbeat failed: {e}")
 
@@ -324,7 +322,7 @@ class RLFeedbackV2Daemon:
                         messages = self.redis.xread(
                             {self.pnl_stream_key: self.last_stream_id},
                             count=10,
-                            block=0  # Non-blocking (return immediately)
+                            block=1000  # 1s timeout to keep heartbeat alive
                         )
                         
                         if messages:
@@ -346,8 +344,8 @@ class RLFeedbackV2Daemon:
                     self._process_message("sim-0", test_event)
                     time.sleep(2)  # Simulate 2-second processing
                 
-                # Sleep to prevent tight loop (especially with non-blocking xread)
-                time.sleep(1)  # 1 second between iterations
+                # Sleep to prevent tight loop
+                time.sleep(1)
             
             except KeyboardInterrupt:
                 logger.info("Keyboard interrupt, shutting down...")
