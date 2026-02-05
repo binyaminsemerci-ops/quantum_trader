@@ -306,23 +306,21 @@ class RLFeedbackV2Daemon:
         logger.info("🚀 Starting daemon loop...")
         
         while self.running:
-            logger.info(f"Loop iteration: redis={self.redis is not None}, running={self.running}")
             try:
                 if self.redis:
-                    # Heartbeat (learning plane health signal)
+                    # Heartbeat (learning plane health signal) - MUST be before blocking operations
                     try:
                         ts = int(time.time())
                         self.redis.set(self.heartbeat_key, str(ts), ex=self.heartbeat_ttl)
-                        logger.info(f"✓ Heartbeat: {ts}")
                     except Exception as e:
                         logger.error(f"✗ Heartbeat failed: {e}")
 
-                    # Read from PnL stream
+                    # Read from PnL stream (non-blocking to ensure heartbeat continues)
                     try:
                         messages = self.redis.xread(
                             {self.pnl_stream_key: self.last_stream_id},
                             count=10,
-                            block=5000  # 5 second timeout
+                            block=1000  # 1 second timeout (shorter to emit heartbeat frequently)
                         )
                         
                         if messages:
