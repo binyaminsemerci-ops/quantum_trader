@@ -305,22 +305,26 @@ class RLFeedbackV2Daemon:
         
         logger.info("🚀 Starting daemon loop...")
         
+        iteration = 0
         while self.running:
+            iteration += 1
             try:
                 if self.redis:
-                    # Heartbeat (learning plane health signal) - MUST be before blocking operations
+                    # Heartbeat (learning plane health signal)
                     try:
                         ts = int(time.time())
                         self.redis.set(self.heartbeat_key, str(ts), ex=self.heartbeat_ttl)
+                        if iteration % 10 == 0:  # Log every 10th iteration
+                            logger.info(f"✓ Heartbeat active (iter={iteration})")
                     except Exception as e:
                         logger.error(f"✗ Heartbeat failed: {e}")
 
-                    # Read from PnL stream (non-blocking to ensure heartbeat continues)
+                    # Read from PnL stream
                     try:
                         messages = self.redis.xread(
                             {self.pnl_stream_key: self.last_stream_id},
                             count=10,
-                            block=1000  # 1 second timeout (shorter to emit heartbeat frequently)
+                            block=0  # Non-blocking (return immediately)
                         )
                         
                         if messages:
@@ -342,8 +346,8 @@ class RLFeedbackV2Daemon:
                     self._process_message("sim-0", test_event)
                     time.sleep(2)  # Simulate 2-second processing
                 
-                # Small sleep to prevent tight loop
-                time.sleep(0.01)
+                # Sleep to prevent tight loop (especially with non-blocking xread)
+                time.sleep(1)  # 1 second between iterations
             
             except KeyboardInterrupt:
                 logger.info("Keyboard interrupt, shutting down...")
