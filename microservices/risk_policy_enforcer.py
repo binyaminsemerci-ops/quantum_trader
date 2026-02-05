@@ -99,7 +99,8 @@ class RiskPolicyEnforcer:
     def __init__(
         self,
         redis_client: redis.Redis,
-        limits: Optional[RiskLimits] = None
+        limits: Optional[RiskLimits] = None,
+        persist_boot_ts: bool = True
     ):
         self.redis = redis_client
         self.limits = limits or RiskLimits()
@@ -116,6 +117,16 @@ class RiskPolicyEnforcer:
         self.last_state_check: Optional[datetime] = None
         self.cooldown_until: Optional[datetime] = None
         
+        try:
+            existing = self.redis.get("quantum:risk:boot_ts")
+            if not persist_boot_ts and existing:
+                self.boot_ts = float(existing)
+            elif persist_boot_ts:
+                self.boot_ts = time.time()
+                self.redis.set("quantum:risk:boot_ts", str(self.boot_ts))
+        except Exception:
+            pass
+
         logger.info(f"RiskPolicyEnforcer initialized with limits: {self.limits}")
 
     def in_startup_grace(self) -> bool:
@@ -543,10 +554,13 @@ class RiskPolicyEnforcer:
 # CONVENIENCE FUNCTIONS
 # ============================================================
 
-def create_enforcer(redis_url: str = "redis://localhost:6379") -> RiskPolicyEnforcer:
+def create_enforcer(
+    redis_url: str = "redis://localhost:6379",
+    persist_boot_ts: bool = True
+) -> RiskPolicyEnforcer:
     """Factory function for risk enforcer"""
     redis_client = redis.from_url(redis_url)
-    return RiskPolicyEnforcer(redis_client)
+    return RiskPolicyEnforcer(redis_client, persist_boot_ts=persist_boot_ts)
 
 
 def log_risk_metrics(metrics: RiskMetrics):
