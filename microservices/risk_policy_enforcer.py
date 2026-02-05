@@ -82,7 +82,10 @@ class RiskLimits:
     
     def __post_init__(self):
         if self.symbol_whitelist is None:
-            self.symbol_whitelist = ["BTCUSDT", "ETHUSDT"]
+            self.symbol_whitelist = [
+                "BTCUSDT",  # E1: testnet enable
+                "ETHUSDT"
+            ]
 
 
 # Startup grace window (seconds)
