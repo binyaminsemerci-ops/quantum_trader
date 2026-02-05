@@ -10,14 +10,20 @@ Responsibilities:
 - Drift detection and monitoring
 """
 import asyncio
+import json
 import logging
+import os
 import signal
+import threading
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI
 import uvicorn
+import redis
 
 from microservices.rl_training.config import settings
 from microservices.rl_training.api import router
@@ -56,6 +62,24 @@ class RLTrainingService:
     def __init__(self, config):
         self.config = config
         self.logger = logger
+
+        # Redis (reward stream + heartbeat)
+        self.redis = redis.Redis(
+            host=self.config.REDIS_HOST,
+            port=self.config.REDIS_PORT,
+            db=self.config.REDIS_DB,
+            decode_responses=True
+        )
+        self.reward_stream_key = "quantum:stream:rl_rewards"
+        self.heartbeat_key = "quantum:svc:rl_trainer:heartbeat"
+        self.heartbeat_ttl = int(os.getenv("RL_TRAINER_HEARTBEAT_TTL", "30"))
+        self._consumer_thread: Optional[threading.Thread] = None
+        self._consumer_running = False
+        self._last_reward_id = "0-0"
+        self._model_update_dir = Path(
+            os.getenv("RL_TRAINER_MODEL_UPDATE_DIR", self.config.MODEL_SAVE_DIR)
+        )
+        self._model_update_dir.mkdir(parents=True, exist_ok=True)
         
         # Dependencies (using fakes for now)
         (
@@ -136,6 +160,9 @@ class RLTrainingService:
         
         # Start scheduler
         await self.scheduler.start()
+
+        # Start reward consumer
+        self._start_reward_consumer()
         
         self.logger.info("[RLTrainingService] Service started successfully")
     
@@ -145,6 +172,9 @@ class RLTrainingService:
             return
         
         self._running = False
+
+        # Stop reward consumer
+        self._stop_reward_consumer()
         
         self.logger.info("[RLTrainingService] Stopping service")
         
@@ -152,6 +182,69 @@ class RLTrainingService:
         await self.scheduler.stop()
         
         self.logger.info("[RLTrainingService] Service stopped")
+
+    def _start_reward_consumer(self):
+        if self._consumer_running:
+            return
+
+        self._consumer_running = True
+        self._consumer_thread = threading.Thread(
+            target=self._reward_consumer_loop,
+            name="rl_reward_consumer",
+            daemon=True
+        )
+        self._consumer_thread.start()
+        self.logger.info("[RewardConsumer] Started")
+
+    def _stop_reward_consumer(self):
+        self._consumer_running = False
+        if self._consumer_thread and self._consumer_thread.is_alive():
+            self._consumer_thread.join(timeout=5)
+        self.logger.info("[RewardConsumer] Stopped")
+
+    def _reward_consumer_loop(self):
+        """Consume rewards from Redis stream and write policy update artifacts."""
+        while self._consumer_running:
+            try:
+                # Heartbeat
+                try:
+                    self.redis.set(self.heartbeat_key, str(int(time.time())), ex=self.heartbeat_ttl)
+                except Exception as e:
+                    self.logger.warning(f"[RewardConsumer] Failed to set heartbeat: {e}")
+
+                messages = self.redis.xread(
+                    {self.reward_stream_key: self._last_reward_id},
+                    count=10,
+                    block=5000
+                )
+
+                if messages:
+                    for stream_key, message_list in messages:
+                        for message_id, data in message_list:
+                            self._last_reward_id = message_id
+
+                            update_payload = {
+                                "reward_id": message_id,
+                                "reward": data,
+                                "updated_at": datetime.now(timezone.utc).isoformat()
+                            }
+                            update_path = self._model_update_dir / f"rl_policy_update_{message_id.replace(':', '_')}.json"
+                            try:
+                                update_path.write_text(json.dumps(update_payload, indent=2))
+                                self.redis.set(
+                                    "quantum:rl:policy:last_update",
+                                    update_payload["updated_at"],
+                                    ex=86400
+                                )
+                                self.logger.info(
+                                    f"[RewardConsumer] Consumed reward {message_id} -> {update_path}"
+                                )
+                            except Exception as e:
+                                self.logger.error(f"[RewardConsumer] Failed to write update: {e}")
+
+            except Exception as e:
+                self.logger.error(f"[RewardConsumer] Error: {e}")
+                time.sleep(1)
 
 
 @asynccontextmanager

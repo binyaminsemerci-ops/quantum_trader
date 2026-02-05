@@ -25,7 +25,7 @@ import json
 import hashlib
 import logging
 import math
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from enum import Enum
@@ -112,6 +112,11 @@ else:
 # ---- PRODUCTION HYGIENE: Safety Kill Switch ----
 # Set quantum:global:kill_switch = true to halt all execution
 SAFETY_KILL_KEY = "quantum:global:kill_switch"
+
+# ---- LEARNING PLANE HEARTBEAT (fail-closed) ----
+RL_FEEDBACK_HEARTBEAT_KEY = "quantum:svc:rl_feedback_v2:heartbeat"
+RL_TRAINER_HEARTBEAT_KEY = "quantum:svc:rl_trainer:heartbeat"
+LEARNING_PLANE_HEARTBEAT_TTL = int(os.getenv("LEARNING_PLANE_HEARTBEAT_TTL_SEC", "30"))
 
 # ---- PRODUCTION HYGIENE: Prometheus Metrics ----
 if PROMETHEUS_AVAILABLE:
@@ -738,6 +743,11 @@ class ApplyLayer:
             port=int(os.getenv("REDIS_PORT", 6379)),
             decode_responses=True
         )
+
+        # Learning plane heartbeat
+        self.rl_feedback_heartbeat_key = RL_FEEDBACK_HEARTBEAT_KEY
+        self.rl_trainer_heartbeat_key = RL_TRAINER_HEARTBEAT_KEY
+        self.learning_plane_ttl = LEARNING_PLANE_HEARTBEAT_TTL
         
         self.mode = ApplyMode(os.getenv("APPLY_MODE", "dry_run"))
         self.symbols = os.getenv("SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT").split(",")
@@ -1461,9 +1471,53 @@ class ApplyLayer:
             error=None,
             timestamp=int(time.time())
         )
+
+    def _learning_plane_ok(self) -> Tuple[bool, str]:
+        """Fail-closed: require Redis + RL feedback + RL trainer heartbeats."""
+        try:
+            self.redis.ping()
+        except Exception:
+            return False, "redis_inactive"
+
+        now = int(time.time())
+
+        for key, label in (
+            (self.rl_feedback_heartbeat_key, "rl_feedback"),
+            (self.rl_trainer_heartbeat_key, "rl_trainer"),
+        ):
+            val = self.redis.get(key)
+            if not val:
+                return False, f"{label}_heartbeat_missing"
+            try:
+                ts = int(float(val))
+            except Exception:
+                return False, f"{label}_heartbeat_invalid"
+            if now - ts > self.learning_plane_ttl:
+                return False, f"{label}_heartbeat_stale"
+
+        return True, "ok"
     
     def execute_testnet(self, plan: ApplyPlan) -> ApplyResult:
         """Testnet execution - REAL orders to Binance Futures testnet"""
+        # ---- LEARNING PLANE ENFORCEMENT (fail-closed) ----
+        ok, reason = self._learning_plane_ok()
+        if not ok:
+            logger.critical(f"[LEARNING_PLANE] Execution halted - {reason}")
+            try:
+                self.redis.set(SAFETY_KILL_KEY, "true")
+            except Exception:
+                pass
+            return ApplyResult(
+                plan_id=plan.plan_id,
+                symbol=plan.symbol,
+                decision=plan.decision,
+                executed=False,
+                would_execute=False,
+                steps_results=[],
+                error=f"learning_plane_down:{reason}",
+                timestamp=int(time.time())
+            )
+
         # ---- PRODUCTION HYGIENE: Safety Kill Switch Check ----
         try:
             kill_switch = self.redis.get(SAFETY_KILL_KEY)
