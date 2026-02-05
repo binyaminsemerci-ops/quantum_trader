@@ -23,6 +23,7 @@ class SystemState(Enum):
     GO = "GO"  # All gates pass, trading allowed
     PAUSED = "PAUSED"  # Temporary block, auto-recovery possible
     NO_GO = "NO_GO"  # Critical failure, manual intervention required
+    BOOTING = "BOOTING"  # Startup grace window; no trading
 
 
 class FailureType(Enum):
@@ -82,6 +83,10 @@ class RiskLimits:
             self.symbol_whitelist = ["BTCUSDT", "ETHUSDT"]
 
 
+# Startup grace window (seconds)
+STARTUP_GRACE_SECONDS = 60
+
+
 class RiskPolicyEnforcer:
     """
     Central risk enforcement engine.
@@ -96,6 +101,7 @@ class RiskPolicyEnforcer:
     ):
         self.redis = redis_client
         self.limits = limits or RiskLimits()
+        self.boot_ts = time.time()
         
         # Redis keys
         self.rl_feedback_heartbeat_key = "quantum:svc:rl_feedback_v2:heartbeat"
@@ -109,12 +115,15 @@ class RiskPolicyEnforcer:
         self.cooldown_until: Optional[datetime] = None
         
         logger.info(f"RiskPolicyEnforcer initialized with limits: {self.limits}")
+
+    def in_startup_grace(self) -> bool:
+        return (time.time() - self.boot_ts) < STARTUP_GRACE_SECONDS
     
     # ============================================================
     # LAYER 0 — SYSTEMIC SAFETY (§ 4)
     # ============================================================
     
-    def _check_layer0_infrastructure(self) -> Tuple[bool, Optional[str]]:
+    def _check_layer0_infrastructure(self) -> Tuple[SystemState, Optional[str]]:
         """
         § 4.1 Infrastruktur Kill-Switch
         § 4.2 Execution Integrity
@@ -125,38 +134,46 @@ class RiskPolicyEnforcer:
         try:
             self.redis.ping()
         except Exception as e:
-            return False, f"Redis unavailable: {e}"
+            return SystemState.NO_GO, f"Redis unavailable: {e}"
         
         # Kill-switch check
         kill_switch = self.redis.get(self.kill_switch_key)
         if kill_switch and kill_switch.decode() == "1":
-            return False, "Kill-switch activated"
+            return SystemState.NO_GO, "Kill-switch activated"
         
         # RL Feedback V2 heartbeat
         try:
             feedback_hb = self.redis.get(self.rl_feedback_heartbeat_key)
-            if not feedback_hb:
-                return False, "RL Feedback V2 heartbeat missing"
-            
-            feedback_age = time.time() - float(feedback_hb.decode())
-            if feedback_age > self.limits.heartbeat_max_age_sec:
-                return False, f"RL Feedback V2 heartbeat stale ({feedback_age:.1f}s)"
+            if feedback_hb is None:
+                if self.in_startup_grace():
+                    return SystemState.BOOTING, "heartbeat_missing_startup"
+                return SystemState.NO_GO, "heartbeat_missing"
+
+            feedback_ttl = self.redis.ttl(self.rl_feedback_heartbeat_key)
+            if feedback_ttl <= 0:
+                if self.in_startup_grace():
+                    return SystemState.BOOTING, "heartbeat_expired_startup"
+                return SystemState.NO_GO, "heartbeat_expired"
         except Exception as e:
-            return False, f"RL Feedback V2 heartbeat error: {e}"
+            return SystemState.NO_GO, f"RL Feedback V2 heartbeat error: {e}"
         
         # RL Trainer heartbeat
         try:
             trainer_hb = self.redis.get(self.rl_trainer_heartbeat_key)
-            if not trainer_hb:
-                return False, "RL Trainer heartbeat missing"
-            
-            trainer_age = time.time() - float(trainer_hb.decode())
-            if trainer_age > self.limits.heartbeat_max_age_sec:
-                return False, f"RL Trainer heartbeat stale ({trainer_age:.1f}s)"
+            if trainer_hb is None:
+                if self.in_startup_grace():
+                    return SystemState.BOOTING, "heartbeat_missing_startup"
+                return SystemState.NO_GO, "heartbeat_missing"
+
+            trainer_ttl = self.redis.ttl(self.rl_trainer_heartbeat_key)
+            if trainer_ttl <= 0:
+                if self.in_startup_grace():
+                    return SystemState.BOOTING, "heartbeat_expired_startup"
+                return SystemState.NO_GO, "heartbeat_expired"
         except Exception as e:
-            return False, f"RL Trainer heartbeat error: {e}"
+            return SystemState.NO_GO, f"RL Trainer heartbeat error: {e}"
         
-        return True, None
+        return SystemState.GO, None
     
     # ============================================================
     # LAYER 1 — CAPITAL PROTECTION (§ 5)
@@ -340,11 +357,14 @@ class RiskPolicyEnforcer:
         )
         
         # LAYER 0: Infrastructure (§ 4)
-        layer0_pass, layer0_reason = self._check_layer0_infrastructure()
-        if not layer0_pass:
-            metrics.system_state = SystemState.NO_GO
+        layer0_state, layer0_reason = self._check_layer0_infrastructure()
+        if layer0_state != SystemState.GO:
+            metrics.system_state = layer0_state
             metrics.failure_reason = f"LAYER 0 FAIL: {layer0_reason}"
-            logger.error(metrics.failure_reason)
+            uptime = int(time.time() - self.boot_ts)
+            logger.warning(
+                f"SYSTEM_STATE={metrics.system_state.value} reason={layer0_reason} uptime={uptime}s"
+            )
             return metrics
         
         metrics.redis_available = True
@@ -385,7 +405,8 @@ class RiskPolicyEnforcer:
         # All layers pass
         metrics.system_state = SystemState.GO
         metrics.failure_reason = None
-        logger.debug("All risk layers passed. SYSTEM_STATE = GO")
+        uptime = int(time.time() - self.boot_ts)
+        logger.info(f"SYSTEM_STATE=GO reason=ok uptime={uptime}s")
         
         return metrics
     
