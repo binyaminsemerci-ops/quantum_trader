@@ -1546,9 +1546,21 @@ class ApplyLayer:
     
     def execute_testnet(self, plan: ApplyPlan) -> ApplyResult:
         """Testnet execution - REAL orders to Binance Futures testnet"""
+        logger.error(
+            "[APPLY_TRACE][ENTER] plan_id=%s symbol=%s side=%s qty=%s has_metadata=%s",
+            getattr(plan, "id", None),
+            getattr(plan, "symbol", None),
+            getattr(plan, "side", None),
+            getattr(plan, "qty", None),
+            hasattr(plan, "metadata"),
+        )
         # ---- RISK POLICY ENFORCEMENT (LAYER 0-2) ----
         if self.risk_enforcer:
             # Get requested leverage from plan metadata
+            logger.error(
+                "[APPLY_TRACE][PRE-METADATA] about to access plan.metadata, dir(plan)=%s",
+                dir(plan),
+            )
             requested_leverage = plan.metadata.get("target_leverage", 1.0) if plan.metadata else 1.0
             
             # Comprehensive risk gate
@@ -1858,6 +1870,12 @@ class ApplyLayer:
                         
                         logger.info(f"{plan.symbol}: Placing {order_side} order for {close_qty} (reduceOnly)")
                         
+                        logger.error(
+                            "[APPLY_TRACE][PRE-EXCHANGE] sending order symbol=%s side=%s qty=%s",
+                            plan.symbol,
+                            order_side,
+                            close_qty,
+                        )
                         # Place market order with reduceOnly
                         order_result = client.place_market_order(
                             symbol=plan.symbol,
@@ -1865,6 +1883,7 @@ class ApplyLayer:
                             quantity=close_qty,
                             reduce_only=True
                         )
+                        logger.error("[APPLY_TRACE][POST-EXCHANGE] order submitted OK")
                         
                         steps_results.append({
                             "step": step["step"],
@@ -1937,17 +1956,12 @@ class ApplyLayer:
             )
             
         except Exception as e:
-            logger.error(f"{plan.symbol}: Execution error: {e}", exc_info=True)
-            return ApplyResult(
-                plan_id=plan.plan_id,
-                symbol=plan.symbol,
-                decision="ERROR",
-                executed=False,
-                would_execute=False,
-                steps_results=steps_results,
-                error=str(e),
-                timestamp=int(time.time())
+            logger.exception(
+                "[APPLY_TRACE][EXCEPTION] type=%s msg=%s",
+                type(e).__name__,
+                str(e),
             )
+            raise
     
     def validate_reconcile_close_guardrails(self, plan_data: Dict) -> tuple[bool, str]:
         """
