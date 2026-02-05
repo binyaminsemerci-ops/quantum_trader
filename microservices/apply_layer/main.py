@@ -1561,14 +1561,22 @@ class ApplyLayer:
                 "[APPLY_TRACE][PRE-METADATA] about to access plan.metadata, dir(plan)=%s",
                 dir(plan),
             )
-            requested_leverage = plan.metadata.get("target_leverage", 1.0) if plan.metadata else 1.0
+            # --- D1 FAIL-SAFE METADATA ---
+            metadata = getattr(plan, "metadata", None)
+            if metadata is None:
+                metadata = {}
+                logger.warning(
+                    "[APPLY_TRACE][D1] plan.metadata missing → using defaults "
+                    f"(plan_id={plan.plan_id}, symbol={plan.symbol})"
+                )
+            requested_leverage = metadata.get("target_leverage", 1.0)
             
             # Comprehensive risk gate
             allowed, system_state, risk_reason = self.risk_enforcer.allow_trade(
                 symbol=plan.symbol,
                 requested_leverage=requested_leverage,
-                volatility=plan.metadata.get("volatility") if plan.metadata else None,
-                spread_bps=plan.metadata.get("spread_bps") if plan.metadata else None
+                volatility=metadata.get("volatility"),
+                spread_bps=metadata.get("spread_bps")
             )
             
             if not allowed:
