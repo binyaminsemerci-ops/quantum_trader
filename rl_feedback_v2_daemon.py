@@ -306,6 +306,7 @@ class RLFeedbackV2Daemon:
         logger.info("🚀 Starting daemon loop...")
         
         while self.running:
+            logger.info(f"Loop iteration: redis={self.redis is not None}, running={self.running}")
             try:
                 if self.redis:
                     # Heartbeat (learning plane health signal)
