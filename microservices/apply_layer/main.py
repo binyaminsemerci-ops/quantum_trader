@@ -775,6 +775,10 @@ class ApplyLayer:
             )
             self.risk_enforcer = RiskPolicyEnforcer(self.redis, risk_limits)
             logger.info("Risk Policy Enforcer initialized (LAYER 0-2 active)")
+            try:
+                self.redis.set("quantum:risk:boot_ts", str(self.risk_enforcer.boot_ts))
+            except Exception:
+                pass
         else:
             self.risk_enforcer = None
             logger.warning("Risk Policy Enforcer DISABLED - no risk gates active")
