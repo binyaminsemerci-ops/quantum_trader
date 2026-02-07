@@ -97,60 +97,64 @@ def get_position_snapshots(r: redis.Redis) -> Dict[str, Dict]:
 
 
 def get_equity(r: redis.Redis, positions: Dict) -> Optional[float]:
-    """Get equity from available sources with LKG fallback"""
+    """Get equity from balance_tracker (authoritative source)"""
     global lkg_equity, lkg_equity_timestamp
     
     now = int(time.time())
     
-    # Try to get from existing quantum:state:portfolio (if exists)
+    # PRIMARY SOURCE: balance_tracker (quantum:account:balance)
     try:
-        existing_state = r.hgetall(PSP_PORTFOLIO_KEY)
-        if existing_state and b"equity_usd" in existing_state:
-            equity = float(existing_state[b"equity_usd"])
-            ts = int(existing_state.get(b"ts_utc", 0) or 0)
+        balance_data = r.hgetall(b"quantum:account:balance")
+        if balance_data and b"balance" in balance_data:
+            equity = float(balance_data[b"balance"])
+            balance_ts = int(balance_data.get(b"timestamp", 0) or 0)
             
-            # If recent enough, use it
-            if now - ts < 60:
+            # Verify freshness (balance_tracker updates every 30s)
+            age = now - balance_ts
+            if age < 120:  # Accept if < 2 minutes old
                 lkg_equity = equity
                 lkg_equity_timestamp = now
+                logger.debug(f"Using balance_tracker equity: ${equity:.2f} (age={age}s)")
                 return equity
+            else:
+                logger.warning(f"balance_tracker data stale (age={age}s), using LKG")
     except Exception as e:
-        logger.debug(f"Could not read existing equity: {e}")
+        logger.error(f"Failed to read quantum:account:balance: {e}")
     
-    # Calculate from positions + estimate balance
-    # This is a rough estimate: sum unrealized PnL
-    if positions:
-        try:
-            total_unrealized_pnl = sum(p["unrealized_pnl"] for p in positions.values())
-            
-            # Use LKG equity as base if available
-            if lkg_equity is not None and lkg_equity_timestamp is not None:
-                age = now - lkg_equity_timestamp
-                if age < MAX_LKG_AGE_SEC:
-                    # Update equity with current PnL
-                    estimated_equity = lkg_equity + total_unrealized_pnl
-                    logger.info(f"Using LKG equity + PnL: {estimated_equity:.2f} (age={age}s)")
-                    return estimated_equity
-            
-            # Fallback: use conservative equity estimate
-            logger.warning(f"No recent equity, using fallback: {EQUITY_FALLBACK}")
-            lkg_equity = EQUITY_FALLBACK
-            lkg_equity_timestamp = now
-            return EQUITY_FALLBACK
-            
-        except Exception as e:
-            logger.error(f"Failed to calculate equity from positions: {e}")
-    
-    # Last resort: use LKG if not too old
+    # FALLBACK: Last-known-good if recent
     if lkg_equity is not None and lkg_equity_timestamp is not None:
         age = now - lkg_equity_timestamp
         if age < MAX_LKG_AGE_SEC:
-            logger.warning(f"Using stale LKG equity (age={age}s): {lkg_equity}")
+            logger.warning(f"Using LKG equity (age={age}s): ${lkg_equity:.2f}")
             return lkg_equity
     
-    # Absolute fallback
-    logger.error("No equity source available, using conservative fallback")
-    return EQUITY_FALLBACK
+    # FAIL-SAFE: No valid equity source - return None to skip cycle
+    logger.error("No valid equity source available (balance_tracker + LKG both unavailable)")
+    return None
+
+
+def update_risk_guard_equity(r: redis.Redis, equity: float) -> None:
+    """Update RiskGuard equity key with peak tracking (canonical source)"""
+    try:
+        equity_key = "quantum:equity:current"
+        
+        # Get current peak
+        existing_data = r.hgetall(equity_key)
+        current_peak = float(existing_data.get(b"peak", equity) or equity) if existing_data else equity
+        new_peak = max(current_peak, equity)
+        
+        # Update canonical RiskGuard key
+        r.hset(equity_key, mapping={
+            "equity": str(equity),
+            "peak": str(new_peak),
+            "last_update_ts": str(time.time())
+        })
+        
+        drawdown_pct = ((new_peak - equity) / new_peak * 100) if new_peak > 0 else 0.0
+        logger.info(f"✅ RiskGuard equity updated: ${equity:.2f} (peak=${new_peak:.2f}, dd={drawdown_pct:.1f}%)")
+        
+    except Exception as e:
+        logger.error(f"Failed to update RiskGuard equity: {e}")
 
 
 def publish_portfolio_state(r: redis.Redis):
@@ -168,17 +172,20 @@ def publish_portfolio_state(r: redis.Redis):
         positions_notional_usd = sum(p["notional_usd"] for p in positions.values())
         total_unrealized_pnl = sum(p["unrealized_pnl"] for p in positions.values())
         
-        # Get equity
+        # Get equity from balance_tracker
         equity_usd = get_equity(r, positions)
         
         if equity_usd is None:
             logger.error("Could not determine equity, skipping this cycle")
             return
         
+        # CRITICAL: Update RiskGuard canonical equity key
+        update_risk_guard_equity(r, equity_usd)
+        
         # Calculate balance (equity - unrealized PnL)
         balance_usd = equity_usd - total_unrealized_pnl
         
-        # Prepare state
+        # Prepare state for secondary consumers (P2.8, dashboards)
         state = {
             "ts_utc": str(now),
             "timestamp": str(now),  # P2.8 compatibility
@@ -191,7 +198,7 @@ def publish_portfolio_state(r: redis.Redis):
             "drawdown": "0.0"  # TODO: Calculate from high-water mark
         }
         
-        # Write to Redis hash
+        # Write to secondary state key (for dashboards, P2.8)
         r.hset(PSP_PORTFOLIO_KEY, mapping=state)
         r.expire(PSP_PORTFOLIO_KEY, PSP_STATE_TTL_SEC)
         
