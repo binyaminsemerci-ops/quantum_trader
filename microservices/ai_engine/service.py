@@ -215,6 +215,9 @@ class AIEngineService:
             logger.warning("[AI-ENGINE] Service already running")
             return
         
+        # 🔥 FIX: Set running flag FIRST (before creating background tasks)
+        self._running = True
+        
         # P1-B: Setup JSON logging with correlation_id
         setup_json_logging('ai_engine')
         logger.info("[AI-ENGINE] JSON logging initialized")
@@ -308,9 +311,6 @@ class AIEngineService:
             if self.simple_clm:
                 await self.simple_clm.start()
                 logger.info("[sCLM] ✅ Background monitoring started")
-            
-            # 🔥 FIX: Set running flag to True
-            self._running = True
             
             logger.info("[AI-ENGINE] ✅ Service started successfully (running=True)")
             
