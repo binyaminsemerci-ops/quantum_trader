@@ -34,18 +34,46 @@ except ImportError:
 # Import unified agent system
 from ai_engine.agents.unified_agents import XGBoostAgent, LightGBMAgent, NHiTSAgent, PatchTSTAgent
 
-# Import meta agent
-try:
-    from ai_engine.agents.meta_agent import MetaPredictorAgent
-    META_AVAILABLE = True
-except ImportError:
-    META_AVAILABLE = False
-    MetaPredictorAgent = None
+# Import meta agent (V2 preferred, V1 fallback)
+META_AVAILABLE = False
+MetaAgent = None
+META_VERSION = None
 
-# Meta-agent environment controls (P0 patch)
+try:
+    from ai_engine.agents.meta_agent_v2 import MetaAgentV2
+    MetaAgent = MetaAgentV2
+    META_AVAILABLE = True
+    META_VERSION = "v2"
+except ImportError:
+    try:
+        from ai_engine.agents.meta_agent import MetaPredictorAgent
+        MetaAgent = MetaPredictorAgent
+        META_AVAILABLE = True
+        META_VERSION = "v1"
+    except ImportError:
+        META_AVAILABLE = False
+        MetaAgent = None
+
+# Meta-agent environment controls
 META_AGENT_ENABLED = os.getenv("META_AGENT_ENABLED", "false").lower() == "true"
-META_OVERRIDE_THRESHOLD = float(os.getenv("META_OVERRIDE_THRESHOLD", "0.99"))
+# V2 uses lower threshold by default (0.65), V1 used 0.99
+META_OVERRIDE_THRESHOLD = float(os.getenv("META_OVERRIDE_THRESHOLD", "0.65" if META_VERSION == "v2" else "0.99"))
 META_FAIL_OPEN = os.getenv("META_FAIL_OPEN", "true").lower() == "true"
+
+# Import Arbiter Agent #5 (market understanding, called after Meta-V2 escalation)
+ARBITER_AVAILABLE = False
+ArbiterAgent = None
+
+try:
+    from ai_engine.agents.arbiter_agent import ArbiterAgent
+    ARBITER_AVAILABLE = True
+except ImportError:
+    ARBITER_AVAILABLE = False
+    ArbiterAgent = None
+
+# Arbiter environment controls
+ARBITER_ENABLED = os.getenv("ARBITER_ENABLED", "false").lower() == "true"
+ARBITER_THRESHOLD = float(os.getenv("ARBITER_THRESHOLD", "0.70"))
 
 # Import governer agent (risk management)
 try:
@@ -157,7 +185,11 @@ class EnsembleManager:
         else:
             self.default_weights = weights
         
-        # Load initial weights from ModelSupervisor if available
+        # Load CalibrationLoader (Calibration-Only Learning integration)
+        from ai_engine.calibration_loader import get_calibration_loader
+        self.calibration_loader = get_calibration_loader()
+        
+        # Load initial weights: Priority = Calibration > ModelSupervisor > Default
         self.weights = self._load_dynamic_weights()
         
         self.min_consensus = min_consensus
@@ -219,18 +251,40 @@ class EnsembleManager:
         
         # Meta Agent (5th agent - meta-learning layer)
         self.meta_agent = None
-        if META_AVAILABLE:
+        if META_AVAILABLE and MetaAgent is not None:
             try:
-                self.meta_agent = MetaPredictorAgent()
+                self.meta_agent = MetaAgent(
+                    meta_threshold=META_OVERRIDE_THRESHOLD,
+                    enable_regime_features=True
+                )
                 if self.meta_agent.is_ready():
-                    logger.info(f"[OK] Meta-learning agent loaded (5th layer)")
+                    logger.info(f"[✅ META-{META_VERSION.upper()}] Meta-learning agent loaded (5th layer)")
+                    logger.info(f"   └─ Override threshold: {META_OVERRIDE_THRESHOLD:.2f}")
+                    logger.info(f"   └─ Version: {META_VERSION}")
                 else:
-                    logger.info("[INFO] Meta agent initialized but no model found (will train later)")
+                    logger.info(f"[INFO] Meta-{META_VERSION} agent initialized but no model found (will train later)")
             except Exception as e:
                 logger.warning(f"[WARNING] Meta agent initialization failed: {e}")
                 self.meta_agent = None
         else:
             logger.info("[SKIP] Meta agent not available (install required)")
+        
+        # Arbiter Agent #5 (Market Understanding - ONLY called when Meta-V2 escalates)
+        self.arbiter_agent = None
+        if ARBITER_AVAILABLE and ArbiterAgent is not None:
+            try:
+                self.arbiter_agent = ArbiterAgent(
+                    confidence_threshold=ARBITER_THRESHOLD,
+                    enable_conservative_mode=True
+                )
+                logger.info(f"[✅ ARBITER] Market understanding agent loaded (Agent #5)")
+                logger.info(f"   └─ Confidence threshold: {ARBITER_THRESHOLD:.2f}")
+                logger.info(f"   └─ Role: Final decision when Meta-V2 escalates")
+            except Exception as e:
+                logger.warning(f"[WARNING] Arbiter agent initialization failed: {e}")
+                self.arbiter_agent = None
+        else:
+            logger.info("[SKIP] Arbiter agent not available")
         
         # Governer Agent (Risk Management & Capital Allocation)
         self.governer_agent = None
@@ -450,7 +504,22 @@ class EnsembleManager:
         logger.info("=" * 60)
     
     def _load_dynamic_weights(self) -> Dict[str, float]:
-        """[FIX #2] Load ensemble weights from ModelSupervisor or use defaults."""
+        """
+        Load ensemble weights with priority: Calibration > ModelSupervisor > Default
+        
+        Order of precedence:
+        1. Calibration-Only Learning (if deployed)
+        2. ModelSupervisor dynamic weights
+        3. Default hardcoded weights
+        """
+        # Priority 1: Check Calibration-Only Learning
+        if hasattr(self, 'calibration_loader') and self.calibration_loader.calibration_loaded:
+            calibrated_weights = self.calibration_loader.get_ensemble_weights()
+            if calibrated_weights:
+                logger.info(f"[Calibration] ✅ Using calibrated weights: {calibrated_weights}")
+                return calibrated_weights
+        
+        # Priority 2: Try ModelSupervisor
         try:
             if self.supervisor_weights_file.exists():
                 import json
@@ -459,12 +528,13 @@ class EnsembleManager:
                     weights = data.get('overall_weights', {})
                     
                     if weights and sum(weights.values()) > 0.99:
-                        logger.info(f"[FIX #2] ✅ Loaded dynamic weights from ModelSupervisor: {weights}")
+                        logger.info(f"[ModelSupervisor] ✅ Loaded dynamic weights: {weights}")
                         return weights
         except Exception as e:
-            logger.warning(f"[FIX #2] Failed to load dynamic weights: {e}")
+            logger.warning(f"[ModelSupervisor] Failed to load weights: {e}")
         
-        logger.info(f"[FIX #2] Using default weights: {self.default_weights}")
+        # Priority 3: Fallback to defaults
+        logger.info(f"[Default] Using baseline weights: {self.default_weights}")
         return self.default_weights.copy()
     
     def _refresh_weights_if_needed(self) -> None:
@@ -576,90 +646,188 @@ class EnsembleManager:
         # Aggregate with smart voting (only active models)
         action, confidence, info = self._aggregate_predictions(active_predictions, features)
         
-        # META-LEARNING LAYER: Let meta agent make final decision if available
-        if self.meta_agent and self.meta_agent.is_ready() and len(active_predictions) >= 2:
+        # =====================================================================
+        # DECISION HIERARCHY: Base Ensemble → Meta-V2 Policy → Arbiter
+        # =====================================================================
+        # This is the 3-layer decision system:
+        # 1. Base Ensemble: 4 models → weighted vote
+        # 2. Meta-V2 (Policy Layer): Decides IF we should use base or escalate
+        # 3. Arbiter (Market Understanding): Called ONLY when Meta-V2 escalates
+        # =====================================================================
+        
+        # Meta-Agent V2 uses rule-based policy and works WITHOUT trained model
+        if self.meta_agent and len(active_predictions) >= 2:
             try:
-                # Prepare ensemble vector for meta agent
-                ensemble_vector = {}
-                for model_key in ['xgb', 'lgbm', 'patch', 'nhits']:
-                    # Map patchtst -> patch for meta agent
-                    pred_key = 'patchtst' if model_key == 'patch' else model_key
-                    
-                    if pred_key in active_predictions:
-                        pred = active_predictions[pred_key]
+                # Prepare base predictions for Meta-V2
+                base_predictions = {}
+                for model_key in ['xgb', 'lgbm', 'nhits', 'patchtst']:
+                    if model_key in active_predictions:
+                        pred = active_predictions[model_key]
                         if isinstance(pred, dict):
-                            ensemble_vector[model_key] = {
+                            base_predictions[model_key] = {
                                 'action': pred.get('action', 'HOLD'),
                                 'confidence': pred.get('confidence', 0.5)
                             }
                         else:
-                            ensemble_vector[model_key] = {
+                            base_predictions[model_key] = {
                                 'action': pred[0],
                                 'confidence': pred[1]
                             }
                     else:
                         # Fill missing models with neutral HOLD
-                        ensemble_vector[model_key] = {
+                        base_predictions[model_key] = {
                             'action': 'HOLD',
                             'confidence': 0.5
                         }
                 
-                # P0 PATCH: Check if meta-agent is enabled
+                # Extract regime info from features (if available)
+                regime_info = None
+                if features is not None and 'regime' in features:
+                    regime_info = features['regime']
+                
+                # Check if Meta-Agent is enabled
                 if not META_AGENT_ENABLED:
-                    logger.debug(f"[META_OVERRIDE] {symbol}: DISABLED (env) - using base ensemble: {action} @ {confidence:.3f}")
-                    info['meta_override'] = False
+                    logger.debug(f"[META] {symbol}: DISABLED (env) - using base ensemble: {action} @ {confidence:.3f}")
                     info['meta_enabled'] = False
+                    info['meta_override'] = False
                 else:
                     info['meta_enabled'] = True
                     
-                    # Get meta prediction
-                    meta_result = self.meta_agent.predict(ensemble_vector, symbol)
-                    meta_action = meta_result.get('action', 'INVALID')
-                    meta_conf = meta_result.get('confidence', -1.0)
+                    # ============================================================
+                    # STEP 2: Meta-V2 Policy Check (DEFER or ESCALATE)
+                    # ============================================================
+                    meta_result = self.meta_agent.predict(
+                        base_predictions=base_predictions,
+                        regime_info=regime_info,
+                        symbol=symbol
+                    )
                     
-                    # Validate meta output (fail-open safety)
-                    valid_actions = {'BUY', 'SELL', 'HOLD'}
-                    is_valid = (meta_action in valid_actions) and (0 <= meta_conf <= 1)
+                    use_meta = meta_result.get('use_meta', False)
+                    meta_reason = meta_result.get('reason', 'unknown')
                     
-                    if not is_valid:
-                        if META_FAIL_OPEN:
-                            logger.warning(
-                                f"[META_OVERRIDE] {symbol}: INVALID meta output (action={meta_action}, conf={meta_conf}) "
-                                f"- fail-open: using base ensemble {action} @ {confidence:.3f}"
-                            )
-                            info['meta_override'] = False
-                            info['meta_error'] = 'invalid_output'
-                        else:
-                            logger.error(
-                                f"[META_OVERRIDE] {symbol}: INVALID meta output - fail-closed: forcing HOLD"
-                            )
-                            action = 'HOLD'
-                            confidence = 0.0
-                            info['meta_override'] = True
-                            info['meta_error'] = 'invalid_output_fail_closed'
-                    elif meta_conf >= META_OVERRIDE_THRESHOLD:
-                        # Meta override active
-                        logger.info(
-                            f"[META_OVERRIDE] {symbol}: ACTIVE - base={action}@{confidence:.3f} → "
-                            f"meta={meta_action}@{meta_conf:.3f} (threshold={META_OVERRIDE_THRESHOLD})"
-                        )
-                        action = meta_action
-                        confidence = meta_conf
-                        info['meta_override'] = True
-                        info['meta_confidence'] = meta_conf
-                        info['base_action'] = active_predictions
-                    else:
-                        # Meta below threshold
-                        logger.info(
-                            f"[META_OVERRIDE] {symbol}: BELOW_THRESHOLD - meta={meta_action}@{meta_conf:.3f} "
-                            f"(threshold={META_OVERRIDE_THRESHOLD}) - keeping base {action}@{confidence:.3f}"
+                    # Store meta decision info
+                    info['meta_result'] = meta_result
+                    info['base_ensemble_action'] = action
+                    info['base_ensemble_confidence'] = confidence
+                    
+                    if not use_meta:
+                        # ========================================================
+                        # Meta-V2 says: DEFER to base ensemble
+                        # ========================================================
+                        logger.debug(
+                            f"[Meta-V2-Policy]{symbol} DEFER: using base ensemble "
+                            f"{action}@{confidence:.3f} | Reason: {meta_reason}"
                         )
                         info['meta_override'] = False
-                        info['meta_confidence'] = meta_conf
-                        info['meta_action'] = meta_action
+                        info['meta_reason'] = meta_reason
+                        info['arbiter_invoked'] = False
+                        
+                    else:
+                        # ========================================================
+                        # Meta-V2 says: ESCALATE to Arbiter
+                        # ========================================================
+                        logger.info(
+                            f"[Meta-V2-Policy]{symbol} ⬆️ ESCALATE: {meta_reason} "
+                            f"→ Calling Arbiter for market understanding"
+                        )
+                        
+                        info['meta_override'] = False  # Meta doesn't override directly
+                        info['meta_reason'] = f"escalate_{meta_reason}"
+                        info['arbiter_invoked'] = True
+                        
+                        # ====================================================
+                        # STEP 3: Call Arbiter Agent #5 (Market Understanding)
+                        # ====================================================
+                        if self.arbiter_agent and ARBITER_ENABLED:
+                            try:
+                                # Prepare market data for Arbiter
+                                market_data = {
+                                    'indicators': features if features else {},
+                                    'regime': regime_info
+                                }
+                                
+                                # Get Arbiter decision
+                                arbiter_result = self.arbiter_agent.predict(
+                                    market_data=market_data,
+                                    base_signals=base_predictions,
+                                    symbol=symbol
+                                )
+                                
+                                arbiter_action = arbiter_result.get('action', 'HOLD')
+                                arbiter_conf = arbiter_result.get('confidence', 0.5)
+                                arbiter_reason = arbiter_result.get('reason', 'unknown')
+                                
+                                info['arbiter_result'] = arbiter_result
+                                
+                                # ================================================
+                                # STEP 4: Arbiter Gating (Hard Rules)
+                                # ================================================
+                                # Arbiter must meet TWO conditions to override:
+                                # 1. confidence >= ARBITER_THRESHOLD (0.70)
+                                # 2. action != HOLD (must propose active trade)
+                                
+                                should_override = self.arbiter_agent.should_override_ensemble(
+                                    arbiter_action,
+                                    arbiter_conf
+                                )
+                                
+                                if should_override:
+                                    # Arbiter OVERRIDES base ensemble
+                                    logger.info(
+                                        f"[Arbiter]{symbol} ✅ OVERRIDE: "
+                                        f"{action}@{confidence:.3f} → "
+                                        f"{arbiter_action}@{arbiter_conf:.3f} | "
+                                        f"Reason: {arbiter_reason}"
+                                    )
+                                    action = arbiter_action
+                                    confidence = arbiter_conf
+                                    info['arbiter_override'] = True
+                                    info['arbiter_reason'] = arbiter_reason
+                                    info['arbiter_action'] = arbiter_action
+                                    info['arbiter_confidence'] = arbiter_conf
+                                else:
+                                    # Arbiter DEFERS to base ensemble
+                                    if arbiter_conf < ARBITER_THRESHOLD:
+                                        reason_detail = f"low_confidence ({arbiter_conf:.3f} < {ARBITER_THRESHOLD:.2f})"
+                                    else:
+                                        reason_detail = f"action_is_HOLD"
+                                    
+                                    logger.info(
+                                        f"[Arbiter]{symbol} ⏸️  DEFER: keeping base ensemble "
+                                        f"{action}@{confidence:.3f} | "
+                                        f"Arbiter: {arbiter_action}@{arbiter_conf:.3f} | "
+                                        f"Reason: {reason_detail}"
+                                    )
+                                    info['arbiter_override'] = False
+                                    info['arbiter_reason'] = f"defer_{reason_detail}"
+                                    info['arbiter_action'] = arbiter_action
+                                    info['arbiter_confidence'] = arbiter_conf
+                                
+                            except Exception as e:
+                                logger.error(f"[Arbiter] Prediction error: {e} - using base ensemble")
+                                info['arbiter_override'] = False
+                                info['arbiter_error'] = str(e)
+                        
+                        else:
+                            # Arbiter not available → fallback to base ensemble
+                            logger.warning(
+                                f"[Arbiter]{symbol} NOT AVAILABLE (disabled or not loaded) "
+                                f"- using base ensemble {action}@{confidence:.3f}"
+                            )
+                            info['arbiter_invoked'] = False
+                            info['arbiter_available'] = False
                     
             except Exception as e:
-                logger.error(f"[META] Prediction error: {e} - using base ensemble")
+                logger.error(f"[Decision-Hierarchy] Error in Meta/Arbiter flow: {e} - using base ensemble")
+                info['meta_override'] = False
+                info['arbiter_override'] = False
+                info['hierarchy_error'] = str(e)
+        
+        else:
+            # Meta-V2 not available → use base ensemble only
+            info['meta_enabled'] = False
+            info['meta_override'] = False
+            info['arbiter_invoked'] = False
         
         # GOVERNER LAYER: Risk management and position sizing
         if self.governer_agent and (action == 'BUY' or action == 'SELL'):
@@ -888,7 +1056,13 @@ class EnsembleManager:
         calibrator = get_calibrator()
         confidence_multiplier, consensus_str = calibrator.get_multiplier(consensus_count, total_models=len(model_actions))
         
-        final_confidence = min(0.95, base_confidence * confidence_multiplier)
+        raw_confidence = min(0.95, base_confidence * confidence_multiplier)
+        
+        # ✅ CALIBRATION-ONLY LEARNING: Apply confidence calibration if deployed
+        if hasattr(self, 'calibration_loader'):
+            final_confidence = self.calibration_loader.apply_confidence_calibration(raw_confidence)
+        else:
+            final_confidence = raw_confidence
         
         # REMOVED: Don't force HOLD anymore - let the models decide!
         # Old logic forced HOLD when consensus_count == 2 and confidence < 0.65

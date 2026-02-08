@@ -470,13 +470,26 @@ class EventBus:
             logger.info(f"🔍 Raw message_data keys: {list(message_data.keys())}")
             logger.info(f"🔍 Raw message_data: {message_data}")
             
-            # Decode message data - handle both bytes and string keys
+            # 🔥 FIX: Handle both EventBus format AND direct Redis stream format
+            # EventBus format: data in JSON "payload" field
+            # Direct format: fields directly in message_data as bytes (e.g., from intent_executor)
+            
             payload_json = message_data.get("payload") or message_data.get(b"payload", b"{}")
             if isinstance(payload_json, bytes):
                 payload_json = payload_json.decode("utf-8")
             payload = json.loads(payload_json) if payload_json else {}
             
-            logger.info(f"✅ Decoded payload: {payload}")
+            # If payload is empty, check if this is direct format (has entry_price, symbol, etc.)
+            if not payload and (message_data.get(b"symbol") or message_data.get("symbol")):
+                # Direct Redis stream format - decode all fields
+                payload = {}
+                for key, value in message_data.items():
+                    str_key = key.decode('utf-8') if isinstance(key, bytes) else key
+                    str_value = value.decode('utf-8') if isinstance(value, bytes) else value
+                    payload[str_key] = str_value
+                logger.info(f"✅ Decoded direct format: {len(payload)} fields")
+            else:
+                logger.info(f"✅ Decoded payload: {payload}")
             
             trace_id = message_data.get("trace_id") or message_data.get(b"trace_id", b"")
             if isinstance(trace_id, bytes):

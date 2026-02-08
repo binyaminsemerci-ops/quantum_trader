@@ -325,6 +325,10 @@ class SimpleTradingBot:
         - HOLD otherwise
         
         Confidence based on momentum strength.
+        
+        🔥 IMPORTANT: SL/TP direction is CRITICAL:
+        - LONG (BUY): SL below entry, TP above entry
+        - SHORT (SELL): SL ABOVE entry, TP below entry
         """
         try:
             price_change_pct = market_data.get("price_change_24h", 0)
@@ -344,7 +348,7 @@ class SimpleTradingBot:
                 confidence = 0.30  # Low confidence for hold
             
             # Send dynamic parameters to exitbrain/harvest-brain instead of hardcoded TP/SL
-            # Calculate ATR proxy (use 2% of price as simple estimate)
+            # Calculate ATR proxy (use 2%  of price as simple estimate)
             atr_value = price * 0.02
             
             # Calculate volatility factor from price change magnitude
@@ -355,13 +359,33 @@ class SimpleTradingBot:
             funding_rate = market_data.get("funding_rate", 0.0)
             exchange_divergence = market_data.get("exchange_divergence", 0.0)
             
+            # 🔥 FIX: Calculate correct SL/TP defaults based on position side
+            # These are fallback values if ExitBrain doesn't calculate them
+            sl_percent = 0.02  # 2% risk
+            tp_percent = 0.02  # 2% profit target
+            
+            if action == "BUY":
+                # LONG: SL below entry, TP above entry
+                default_sl = price * (1 - sl_percent)
+                default_tp = price * (1 + tp_percent)
+            elif action == "SELL":
+                # SHORT: SL ABOVE entry (protects from upside), TP below entry (profit from downside)
+                default_sl = price * (1 + sl_percent)
+                default_tp = price * (1 - tp_percent)
+            else:
+                default_sl = None
+                default_tp = None
+            
             signal = {
                 "symbol": symbol,
                 "side": action,
                 "action": action,  # For compatibility
                 "confidence": confidence,
                 "entry_price": price,
-                # Remove hardcoded TP/SL, send dynamic features instead
+                # 🔥 CORRECTED: Direction-aware SL/TP defaults
+                "stop_loss": default_sl,
+                "take_profit": default_tp,
+                # Metadata for ExitBrain dynamic calculation
                 "atr_value": atr_value,
                 "volatility_factor": volatility_factor,
                 "exchange_divergence": exchange_divergence,
@@ -375,7 +399,8 @@ class SimpleTradingBot:
             
             logger.info(
                 f"[TRADING-BOT] 🔄 Fallback signal: {symbol} {action} @ ${price:.2f} "
-                f"(24h: {price_change_pct:+.2f}%, confidence={confidence:.0%}, atr={atr_value:.4f}, vol={volatility_factor:.1f}x)"
+                f"(24h: {price_change_pct:+.2f}%, confidence={confidence:.0%}, "
+                f"SL={default_sl:.6f if default_sl else 'N/A'}, TP={default_tp:.6f if default_tp else 'N/A'})"
             )
             
             return signal
@@ -567,13 +592,32 @@ class SimpleTradingBot:
             regime = await self._get_latest_regime(symbol)
             
             # Build trade intent event with ILF metadata
+            side = prediction.get("action", prediction.get("side", "HOLD")).upper()
+            entry_price = market_data["price"]
+            
+            # 🔥 FIX: Calculate direction-aware SL/TP defaults
+            sl_percent = 0.02  # 2% default
+            tp_percent = 0.02  # 2% default
+            
+            if side == "BUY":
+                # LONG: SL below, TP above
+                default_sl = entry_price * (1 - sl_percent)
+                default_tp = entry_price * (1 + tp_percent)
+            elif side == "SELL":
+                # SHORT: SL ABOVE (protect upside), TP below (profit downside)
+                default_sl = entry_price * (1 + sl_percent)
+                default_tp = entry_price * (1 - tp_percent)
+            else:
+                default_sl = None
+                default_tp = None
+            
             signal = {
                 "symbol": symbol,
-                "side": prediction.get("action", prediction.get("side", "HOLD")).upper(),  # BUY/SELL/HOLD
+                "side": side,
                 "confidence": confidence,
-                "entry_price": market_data["price"],
-                "stop_loss": prediction.get("stop_loss", market_data["price"] * 0.98),
-                "take_profit": prediction.get("take_profit", market_data["price"] * 1.02),
+                "entry_price": entry_price,
+                "stop_loss": prediction.get("stop_loss", default_sl),
+                "take_profit": prediction.get("take_profit", default_tp),
                 "position_size_usd": position_size_usd,
                 "leverage": leverage,
                 "timestamp": datetime.utcnow().isoformat(),

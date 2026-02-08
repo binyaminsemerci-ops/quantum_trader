@@ -33,7 +33,7 @@ import redis
 # Exit ownership
 try:
     from lib.exit_ownership import EXIT_OWNER
-    EXIT_OWNERSHIP_ENABLED = True
+    EXIT_OWNERSHIP_ENABLED = False  # 🔥 DISABLED: Allow all services to harvest profits
 except ImportError:
     EXIT_OWNER = "exitbrain_v3_5"
     EXIT_OWNERSHIP_ENABLED = False
@@ -66,6 +66,10 @@ SOURCE_ALLOWLIST = set([s.strip() for s in SOURCE_ALLOWLIST_STR.split(",") if s.
 MANUAL_STREAM = os.getenv("INTENT_EXECUTOR_MANUAL_STREAM", "quantum:stream:apply.plan.manual")
 MANUAL_GROUP = os.getenv("INTENT_EXECUTOR_MANUAL_GROUP", "intent_executor_manual")
 MANUAL_LANE_REDIS_KEY = "quantum:manual_lane:enabled"
+
+# Harvest intent configuration (autonomous exits)
+HARVEST_STREAM = os.getenv("INTENT_EXECUTOR_HARVEST_STREAM", "quantum:stream:harvest.intent")
+HARVEST_GROUP = os.getenv("INTENT_EXECUTOR_HARVEST_GROUP", "intent_executor_harvest")
 METRICS_REDIS_HASH = "quantum:metrics:intent_executor"
 HEARTBEAT_INTERVAL_SEC = 60
 
@@ -129,6 +133,8 @@ class IntentExecutor:
         logger.info(f"Manual stream: {MANUAL_STREAM}")
         logger.info(f"Manual group: {MANUAL_GROUP}")
         logger.info(f"Manual lane TTL guard: {MANUAL_LANE_REDIS_KEY}")
+        logger.info(f"Harvest stream: {HARVEST_STREAM}")
+        logger.info(f"Harvest group: {HARVEST_GROUP}")
         logger.info(f"Allow upsize: {ALLOW_UPSIZE}")
         logger.info(f"Min notional override: {MIN_NOTIONAL_OVERRIDE}")
         
@@ -153,6 +159,9 @@ class IntentExecutor:
         
         # Create manual consumer group
         self._ensure_manual_consumer_group()
+        
+        # Create harvest consumer group
+        self._ensure_harvest_consumer_group()
     
     def _load_universe_symbols(self) -> list:
         """Load symbols from Universe Service Redis key (P2 Universe integration)"""
@@ -347,6 +356,22 @@ class IntentExecutor:
             else:
                 raise
     
+    def _ensure_harvest_consumer_group(self):
+        """Create harvest consumer group for autonomous exits"""
+        try:
+            self.redis.xgroup_create(
+                HARVEST_STREAM,
+                HARVEST_GROUP,
+                id="$",
+                mkstream=True
+            )
+            logger.info(f"✅ Harvest consumer group created: {HARVEST_GROUP} on {HARVEST_STREAM}")
+        except redis.exceptions.ResponseError as e:
+            if "BUSYGROUP" in str(e):
+                logger.info(f"✅ Harvest consumer group exists: {HARVEST_GROUP}")
+            else:
+                raise
+    
     def _is_done(self, plan_id: str) -> bool:
         """Check if plan already executed (idempotency)"""
         key = f"quantum:intent_executor:done:{plan_id}"
@@ -419,6 +444,17 @@ class IntentExecutor:
             else:
                 # FAIL-CLOSED: block order
                 return 0, f"notional {notional:.2f} < minNotional {min_notional:.2f} (ALLOW_UPSIZE=false)"
+        
+        # 🔥 TESTNET MAX NOTIONAL: Enforce $500 position cap (defense layer 3)
+        if os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true":
+            MAX_POSITION_NOTIONAL = 500.0
+            if notional > MAX_POSITION_NOTIONAL:
+                logger.error(
+                    f"[TESTNET_CAP] Position size rejected: "
+                    f"${notional:.2f} exceeds ${MAX_POSITION_NOTIONAL} cap "
+                    f"(symbol={symbol}, qty={qty:.4f}, price={mark_price:.2f})"
+                )
+                return 0, f"position_too_large:${notional:.0f}>$500_cap"
         
         return qty, "ok"
     
@@ -806,8 +842,16 @@ class IntentExecutor:
             # Extract plan details (FLAT format)
             side = event_data.get(b"side", b"").decode().upper()
             qty_str = event_data.get(b"qty", b"0").decode()
-            reduce_only_str = event_data.get(b"reduceOnly", b"false").decode().lower()
+            
+            # CRITICAL FIX (Feb 8, 2026): Default to TRUE (safer) if field missing
+            # Previous default "false" caused churning disaster (~1600 USDT loss)
+            # Missing field = assume CLOSE (reduce_only=true) not OPEN
+            reduce_only_str = event_data.get(b"reduceOnly", b"true").decode().lower()
             reduce_only = reduce_only_str in ("true", "1", "yes")
+            
+            # Log warning if field was missing (indicates old/malformed plan)
+            if b"reduceOnly" not in event_data:
+                logger.warning(f"⚠️  P3.3 plan {plan_id[:8]} missing reduceOnly field, defaulting to TRUE (safe mode)")
             
             # Validate required fields (FLAT format must have all these)
             if not plan_id or not symbol or not side or not qty_str:
@@ -1058,15 +1102,174 @@ class IntentExecutor:
             self._inc_redis_counter("executed_false")
             return True  # ACK to avoid blocking stream
     
+    def _get_position_info(self, symbol: str) -> dict:
+        """Get current position information from Binance for harvest processing"""
+        try:
+            timestamp = int(time.time() * 1000)
+            query_params = {
+                "symbol": symbol,
+                "timestamp": timestamp
+            }
+            query_string = urllib.parse.urlencode(query_params)
+            
+            # Sign the request
+            signature = hmac.new(
+                BINANCE_API_SECRET.encode(),
+                query_string.encode(),
+                hashlib.sha256
+            ).hexdigest()
+            query_params["signature"] = signature
+            
+            url = f"{BINANCE_BASE_URL}/fapi/v2/positionRisk?{urllib.parse.urlencode(query_params)}"
+            req = urllib.request.Request(url, method="GET")
+            req.add_header("X-MBX-APIKEY", BINANCE_API_KEY)
+            
+            with urllib.request.urlopen(req, timeout=10) as response:
+                positions = json.loads(response.read().decode())
+                pos = next((p for p in positions if p["symbol"] == symbol), None)
+                
+                if pos:
+                    return {
+                        "position_amt": float(pos.get("positionAmt", 0)),
+                        "entry_price": float(pos.get("entryPrice", 0)),
+                        "mark_price": float(pos.get("markPrice", 0)),
+                        "unrealized_pnl": float(pos.get("unRealizedProfit", 0))
+                    }
+                else:
+                    return {"position_amt": 0}
+                    
+        except Exception as e:
+            logger.error(f"Failed to get position info for {symbol}: {e}")
+            return {"position_amt": 0}
+    
+    def process_harvest_intent(self, stream_id: bytes, event_data: Dict):
+        """Process autonomous harvest/exit intent from Autonomous Trader
+        
+        Harvest intents are simpler than apply plans:
+        - No P3.3 permit required (already evaluated by ExitManager)
+        - Direct position close (reduceOnly=True)
+        - Symbol allowlist still applies for safety
+        """
+        stream_id_str = stream_id.decode()
+        
+        try:
+            # Parse harvest intent
+            symbol = event_data.get(b"symbol", b"").decode().upper()
+            action = event_data.get(b"action", b"").decode().upper()
+            percentage = float(event_data.get(b"percentage", b"1.0").decode() or 1.0)
+            reason = event_data.get(b"reason", b"").decode()
+            R_net = float(event_data.get(b"R_net", b"0").decode() or 0)
+            pnl_usd = float(event_data.get(b"pnl_usd", b"0").decode() or 0)
+            entry_price_intent = float(event_data.get(b"entry_price", b"0").decode() or 0)
+            exit_price_intent = float(event_data.get(b"exit_price", b"0").decode() or 0)
+            
+            logger.info(f"🌾 HARVEST INTENT: {symbol} {action} ({percentage:.0%}) R={R_net:.2f} PnL=${pnl_usd:.2f} reason={reason}")
+            
+            # Validate symbol allowlist
+            if symbol not in self.allowlist:
+                logger.warning(f"❌ HARVEST BLOCKED: {symbol} not in allowlist")
+                return True  # ACK but skip
+            
+            # Accept CLOSE and PARTIAL_CLOSE actions
+            if action not in ["CLOSE", "PARTIAL_CLOSE"]:
+                logger.warning(f"❌ HARVEST BLOCKED: unsupported action {action}")
+                return True  # ACK but skip
+            
+            # For partial closes, treat as full close for now (simplicity)
+            # TODO: Implement true partial close logic in future
+            if action == "PARTIAL_CLOSE":
+                logger.info(f"🔄 Converting PARTIAL_CLOSE to CLOSE (full exit)")
+                percentage = 1.0  # Force 100% close for now
+            
+            # Get current position to calculate close quantity
+            position_info = self._get_position_info(symbol)
+            if not position_info or position_info["position_amt"] == 0:
+                logger.info(f"ℹ️  HARVEST SKIP: {symbol} no position found")
+                return True  # ACK - position already closed
+            
+            position_amt = float(position_info["position_amt"])
+            
+            # Use prices from intent (more reliable than position_info which may be stale after close)
+            entry_price = entry_price_intent if entry_price_intent > 0 else float(position_info.get("entry_price", 0))
+            exit_price = exit_price_intent if exit_price_intent > 0 else float(position_info.get("mark_price", 0))
+            
+            close_qty = abs(position_amt * percentage)
+            side = "SELL" if position_amt > 0 else "BUY"
+            
+            # Calculate pnl_percent for CLM
+            if entry_price > 0 and exit_price > 0:
+                if position_amt > 0:  # LONG
+                    pnl_percent = ((exit_price - entry_price) / entry_price) * 100
+                else:  # SHORT
+                    pnl_percent = ((entry_price - exit_price) / entry_price) * 100
+            else:
+                pnl_percent = 0.0
+            
+            logger.info(f"🚀 HARVEST CLOSE: {symbol} {side} qty={close_qty:.4f} (pos={position_amt:.4f}) entry={entry_price} exit={exit_price}")
+            
+            # Execute close order
+            order_result = self._execute_binance_order(
+                symbol=symbol,
+                side=side,
+                qty=close_qty,
+                reduce_only=True
+            )
+            
+            if order_result.get("success"):
+                order_id = order_result.get("order_id")
+                final_filled = order_result.get("filled_qty", close_qty)
+                logger.info(f"✅ HARVEST SUCCESS: {symbol} closed {final_filled:.4f} orderId={order_id}")
+                self._inc_redis_counter("harvest_executed")
+                
+                # 📤 Publish trade.closed event for SimpleCLM/calibration pipeline
+                try:
+                    close_event = {
+                        "event_type": "trade.closed",
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "symbol": symbol,
+                        "side": "LONG" if side == "SELL" else "SHORT",  # Position side, not order side
+                        "entry_price": str(entry_price),
+                        "exit_price": str(exit_price),
+                        "pnl_percent": str(round(pnl_percent, 2)),
+                        "confidence": "0.7",  # Default (harvest exits don't have explicit confidence)
+                        "model_id": "autonomous_exit",
+                        "R_net": str(round(R_net, 2)),
+                        "pnl_usd": str(round(pnl_usd, 2)),
+                        "reason": reason,
+                        "order_id": str(order_id),
+                        "source": "autonomous_trader"
+                    }
+                    self.redis.xadd(
+                        "quantum:stream:trade.closed",
+                        close_event,
+                        maxlen=1000  # Keep last 1000
+                    )
+                    logger.info(f"📤 Published trade.closed: {symbol} PnL={pnl_percent:.1f}% R={R_net:.2f}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to publish trade.closed: {e}")
+                
+            else:
+                error = order_result.get("error", "unknown")
+                logger.error(f"❌ HARVEST FAILED: {symbol} - {error}")
+                self._inc_redis_counter("harvest_failed")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error processing harvest intent: {e}", exc_info=True)
+            return True  # ACK to avoid blocking
+    
     def run(self):
         """Main processing loop - consumes main and manual lanes"""
         logger.info("✅ Redis connected")
         logger.info("🚀 Intent Executor started")
         logger.info(f"📨 Consuming MAIN: {APPLY_PLAN_STREAM}")
         logger.info(f"📨 Consuming MANUAL: {MANUAL_STREAM}")
+        logger.info(f"📨 Consuming HARVEST: {HARVEST_STREAM}")
         
         last_id_main = ">"  # Only new messages
         last_id_manual = ">"
+        last_id_harvest = ">"
         
         while True:
             try:
@@ -1116,6 +1319,28 @@ class IntentExecutor:
                                     self.redis.xack(MANUAL_STREAM, MANUAL_GROUP, message_id)
                 except Exception as e:
                     logger.error(f"Error reading manual lane: {e}")
+                
+                # Read from HARVEST lane (autonomous exits)
+                try:
+                    harvest_messages = self.redis.xreadgroup(
+                        HARVEST_GROUP,
+                        f"{CONSUMER_NAME}-harvest",
+                        {HARVEST_STREAM: last_id_harvest},
+                        count=5,
+                        block=200  # 0.2 sec timeout
+                    )
+                    
+                    if harvest_messages:
+                        for stream_name, stream_messages in harvest_messages:
+                            for message_id, event_data in stream_messages:
+                                # Process harvest intent (autonomous exit)
+                                ack = self.process_harvest_intent(message_id, event_data)
+                                
+                                # ACK message
+                                if ack:
+                                    self.redis.xack(HARVEST_STREAM, HARVEST_GROUP, message_id)
+                except Exception as e:
+                    logger.error(f"Error reading harvest lane: {e}")
                 
             except KeyboardInterrupt:
                 logger.info("Shutting down...")

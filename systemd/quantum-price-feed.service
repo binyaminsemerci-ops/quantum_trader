@@ -1,0 +1,48 @@
+[Unit]
+Description=Quantum Trader - Price Feed (WebSocket → Redis)
+Documentation=file:///home/qt/quantum_trader/microservices/price_feed/README.md
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/opt/quantum/microservices/price_feed
+EnvironmentFile=-/etc/quantum/price-feed.env
+
+# Python environment
+Environment="PATH=/opt/quantum/venvs/ai-client-base/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONPATH=/home/qt/quantum_trader"
+Environment="PYTHONUNBUFFERED=1"
+
+# Redis connection
+Environment="REDIS_HOST=localhost"
+Environment="REDIS_PORT=6379"
+
+# Service execution
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python -u price_feed.py
+
+# Restart policy
+Restart=always
+RestartSec=2
+StartLimitInterval=60
+StartLimitBurst=5
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=65536
+
+# Logging
+StandardOutput=append:/var/log/quantum/price_feed.log
+StandardError=append:/var/log/quantum/price_feed.log
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/home/qt /var/log/quantum /tmp
+
+[Install]
+WantedBy=multi-user.target

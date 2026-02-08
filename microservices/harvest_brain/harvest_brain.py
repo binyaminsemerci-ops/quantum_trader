@@ -461,6 +461,80 @@ class HarvestPolicy:
         
         return volatility_scale
     
+    def _calculate_dynamic_fraction(self, position: Position, base_fraction: float, harvest_action: str) -> float:
+        """
+        Calculate dynamic harvest fraction based on multiple factors.
+        
+        Factors considered:
+        1. Volatility (entry_risk) - base scaling
+        2. Position age - older positions get more aggressive
+        3. R-momentum - strong momentum = hold more
+        4. Profit level - extreme profits = take more
+        
+        Args:
+            position: Position data
+            base_fraction: Base fraction from action (0.25, 0.50, 0.75)
+            harvest_action: Action type (PARTIAL_25, PARTIAL_50, PARTIAL_75)
+        
+        Returns:
+            Adjusted fraction (0.10 - 0.85)
+        """
+        # FACTOR 1: Volatility scaling (existing formula)
+        vol_scale = self._calculate_volatility(position)
+        
+        # FACTOR 2: Age scaling (older positions → more aggressive)
+        age_hours = position.age_sec / 3600
+        if age_hours < 1:
+            age_scale = 0.8  # Fresh position, hold more
+        elif age_hours < 4:
+            age_scale = 1.0  # Normal
+        elif age_hours < 12:
+            age_scale = 1.15  # Aging, take more profit
+        else:
+            age_scale = 1.3  # Old position, rotate capital
+        
+        # FACTOR 3: R-momentum (how fast R is growing)
+        # If R is accelerating strongly, hold more
+        # If R is stagnant, take profit
+        r_scale = 1.0  # Default
+        if hasattr(position, 'peak_price') and position.peak_price > 0:
+            # Calculate distance from peak
+            if position.side == 'LONG':
+                peak_distance = (position.peak_price - position.current_price) / position.peak_price
+            else:
+                peak_distance = (position.current_price - position.peak_price) / position.peak_price
+            
+            if peak_distance < 0.02:  # Within 2% of peak, momentum strong
+                r_scale = 0.85  # Hold more
+            elif peak_distance > 0.10:  # >10% from peak, momentum dead
+                r_scale = 1.2  # Take more profit
+        
+        # FACTOR 4: Extreme profit scaling
+        # At very high R-levels (>6R), be more aggressive
+        extreme_scale = 1.0
+        if position.R_net > 6:
+            extreme_scale = 1.15  # Take more at extreme profits
+        elif position.R_net > 8:
+            extreme_scale = 1.25  # Very aggressive at 8R+
+        
+        # COMBINE ALL FACTORS
+        combined_scale = vol_scale * age_scale * r_scale * extreme_scale
+        adjusted_fraction = base_fraction * combined_scale
+        
+        # Cap at reasonable limits (10% - 85%)
+        adjusted_fraction = min(max(adjusted_fraction, 0.10), 0.85)
+        
+        # Log if significant adjustment
+        if abs(adjusted_fraction - base_fraction) > 0.05:
+            logger.info(
+                f"[DYNAMIC_FRACTION] {position.symbol}: "
+                f"{base_fraction:.0%} → {adjusted_fraction:.0%} | "
+                f"vol={vol_scale:.2f}, age={age_scale:.2f}, "
+                f"r_momentum={r_scale:.2f}, extreme={extreme_scale:.2f}"
+            )
+        
+        return adjusted_fraction
+    
     def _get_dynamic_ladder(self, position: Position) -> List[Tuple[float, float]]:
         """
         Get harvest ladder adjusted for volatility.
@@ -490,6 +564,45 @@ class HarvestPolicy:
         
         if not position:
             return intents
+        
+        # 🔥 HARD STOP LOSS CHECK (EMERGENCY EXIT)
+        # If price has reached SL, force immediate close regardless of other signals
+        sl_triggered = False
+        if position.stop_loss and position.stop_loss > 0 and position.current_price > 0:
+            if position.side == 'LONG' and position.current_price <= position.stop_loss:
+                sl_triggered = True
+                logger.error(
+                    f"🔴 SL_TRIGGERED {position.symbol} LONG: "
+                    f"current={position.current_price:.6f} <= SL={position.stop_loss:.6f}"
+                )
+            elif position.side == 'SHORT' and position.current_price >= position.stop_loss:
+                sl_triggered = True
+                logger.error(
+                    f"🔴 SL_TRIGGERED {position.symbol} SHORT: "
+                    f"current={position.current_price:.6f} >= SL={position.stop_loss:.6f}"
+                )
+        
+        if sl_triggered:
+            # Force immediate full close
+            exit_side = 'SELL' if position.side == 'LONG' else 'BUY'
+            intent = HarvestIntent(
+                intent_type='EMERGENCY_SL_CLOSE',
+                symbol=position.symbol,
+                side=exit_side,
+                qty=position.qty,
+                reason=f'[EMERGENCY] Stop Loss triggered at {position.current_price:.6f} (SL={position.stop_loss:.6f})',
+                r_level=0.0,
+                unrealized_pnl=position.unrealized_pnl,
+                correlation_id=f"emergency:sl:{position.symbol}:{int(time.time())}",
+                trace_id=f"emergency:{position.symbol}:sl",
+                dry_run=(self.config.harvest_mode == 'shadow')
+            )
+            intents.append(intent)
+            logger.error(
+                f"🚨 EMERGENCY_SL_CLOSE {position.symbol}: "
+                f"PNL={position.unrealized_pnl:.2f} USDT, qty={position.qty}"
+            )
+            return intents  # Return immediately, skip policy evaluation
         
         # Build P2 PositionSnapshot
         pos_snapshot = PositionSnapshot(
@@ -544,55 +657,76 @@ class HarvestPolicy:
         exit_side = 'SELL' if position.side == 'LONG' else 'BUY'
         
         if harvest_action == 'PARTIAL_25':
-            qty = position.qty * 0.25
+            # 🔥 DYNAMIC: Calculate adjusted fraction based on volatility, age, momentum
+            base_fraction = 0.25
+            dynamic_fraction = self._calculate_dynamic_fraction(position, base_fraction, harvest_action)
+            qty = position.qty * dynamic_fraction
+            
             intent = HarvestIntent(
-                intent_type='HARVEST_PARTIAL_25',
+                intent_type=f'HARVEST_DYNAMIC_{int(dynamic_fraction*100)}PCT',
                 symbol=position.symbol,
                 side=exit_side,
                 qty=qty,
-                reason=f'[P2] R={r_net:.2f}R >= T1=2R (25% harvest)',
+                reason=f'[DYNAMIC] R={r_net:.2f}R → {dynamic_fraction:.0%} (base 25%)',
                 r_level=r_net,
                 unrealized_pnl=position.unrealized_pnl,
-                correlation_id=f"p2:harvest25:{position.symbol}:{int(position.last_update_ts)}",
-                trace_id=f"p2:{position.symbol}:harvest25",
+                correlation_id=f"p2:harvest:{position.symbol}:{int(position.last_update_ts)}",
+                trace_id=f"p2:{position.symbol}:harvest",
                 dry_run=(self.config.harvest_mode == 'shadow')
             )
             intents.append(intent)
-            logger.info(f"[HARVEST] {position.symbol} PARTIAL_25 @ R={r_net:.2f} (25% of {position.qty})")
+            logger.info(
+                f"[HARVEST] {position.symbol} DYNAMIC {dynamic_fraction:.0%} @ R={r_net:.2f} "
+                f"(qty={qty:.4f}, base was 25%)"
+            )
         
         elif harvest_action == 'PARTIAL_50':
-            qty = position.qty * 0.50
+            # 🔥 DYNAMIC: Calculate adjusted fraction based on volatility, age, momentum
+            base_fraction = 0.50
+            dynamic_fraction = self._calculate_dynamic_fraction(position, base_fraction, harvest_action)
+            qty = position.qty * dynamic_fraction
+            
             intent = HarvestIntent(
-                intent_type='HARVEST_PARTIAL_50',
+                intent_type=f'HARVEST_DYNAMIC_{int(dynamic_fraction*100)}PCT',
                 symbol=position.symbol,
                 side=exit_side,
                 qty=qty,
-                reason=f'[P2] R={r_net:.2f}R >= T2=4R (50% harvest)',
+                reason=f'[DYNAMIC] R={r_net:.2f}R → {dynamic_fraction:.0%} (base 50%)',
                 r_level=r_net,
                 unrealized_pnl=position.unrealized_pnl,
-                correlation_id=f"p2:harvest50:{position.symbol}:{int(position.last_update_ts)}",
-                trace_id=f"p2:{position.symbol}:harvest50",
+                correlation_id=f"p2:harvest:{position.symbol}:{int(position.last_update_ts)}",
+                trace_id=f"p2:{position.symbol}:harvest",
                 dry_run=(self.config.harvest_mode == 'shadow')
             )
             intents.append(intent)
-            logger.info(f"[HARVEST] {position.symbol} PARTIAL_50 @ R={r_net:.2f} (50% of {position.qty})")
+            logger.info(
+                f"[HARVEST] {position.symbol} DYNAMIC {dynamic_fraction:.0%} @ R={r_net:.2f} "
+                f"(qty={qty:.4f}, base was 50%)"
+            )
         
         elif harvest_action == 'PARTIAL_75':
-            qty = position.qty * 0.75
+            # 🔥 DYNAMIC: Calculate adjusted fraction based on volatility, age, momentum
+            base_fraction = 0.75
+            dynamic_fraction = self._calculate_dynamic_fraction(position, base_fraction, harvest_action)
+            qty = position.qty * dynamic_fraction
+            
             intent = HarvestIntent(
-                intent_type='HARVEST_PARTIAL_75',
+                intent_type=f'HARVEST_DYNAMIC_{int(dynamic_fraction*100)}PCT',
                 symbol=position.symbol,
                 side=exit_side,
                 qty=qty,
-                reason=f'[P2] R={r_net:.2f}R >= T3=6R (75% harvest)',
+                reason=f'[DYNAMIC] R={r_net:.2f}R → {dynamic_fraction:.0%} (base 75%)',
                 r_level=r_net,
                 unrealized_pnl=position.unrealized_pnl,
-                correlation_id=f"p2:harvest75:{position.symbol}:{int(position.last_update_ts)}",
-                trace_id=f"p2:{position.symbol}:harvest75",
+                correlation_id=f"p2:harvest:{position.symbol}:{int(position.last_update_ts)}",
+                trace_id=f"p2:{position.symbol}:harvest",
                 dry_run=(self.config.harvest_mode == 'shadow')
             )
             intents.append(intent)
-            logger.info(f"[HARVEST] {position.symbol} PARTIAL_75 @ R={r_net:.2f} (75% of {position.qty})")
+            logger.info(
+                f"[HARVEST] {position.symbol} DYNAMIC {dynamic_fraction:.0%} @ R={r_net:.2f} "
+                f"(qty={qty:.4f}, base was 75%)"
+            )
         
         elif harvest_action == 'FULL_CLOSE_PROPOSED':
             qty = position.qty
@@ -844,7 +978,7 @@ class HarvestBrainService:
         
         # API rate limiting
         self.api_calls_this_tick = 0
-        self.max_api_calls_per_tick = 10
+        self.max_api_calls_per_tick = 20  # Increased from 10 to handle 19 positions
         self.tick_start_time = time.time()
         
         # Per-symbol skip logging (prevent spam)

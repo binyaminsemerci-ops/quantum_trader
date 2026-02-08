@@ -76,8 +76,14 @@ class Settings(BaseSettings):
     
     # Cross-Exchange Normalizer (volatility_factor, divergence, lead/lag)
     CROSS_EXCHANGE_ENABLED: bool = True
-    CROSS_EXCHANGE_SYMBOLS: List[str] = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    CROSS_EXCHANGE_SYMBOLS: List[str] = None  # Set below from env
     CROSS_EXCHANGE_EXCHANGES: List[str] = ["binance", "bybit", "coinbase"]
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Parse CROSS_EXCHANGE_SYMBOLS from env (comma-separated)
+        symbols_env = os.getenv("CROSS_EXCHANGE_SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT")
+        self.CROSS_EXCHANGE_SYMBOLS = [s.strip() for s in symbols_env.split(",")]
     
     # Funding Rate Filter (funding_delta, crowded_side_score, squeeze_probability)
     FUNDING_RATE_ENABLED: bool = True

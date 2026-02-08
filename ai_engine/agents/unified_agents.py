@@ -9,20 +9,80 @@ import os, json, joblib, numpy as np, pandas as pd
 from datetime import datetime
 from pathlib import Path
 
-# ---------- DUMMY MODELS (for pickle compatibility) ----------
-class DummyNHiTS:
-    """Dummy N-HiTS model that returns constant predictions."""
-    def __init__(self, mean_pred=11.08):
-        self.mean_pred = mean_pred
-    def predict(self, X):
-        return np.array([self.mean_pred] * len(X))
+# Import PyTorch for N-HiTS and PatchTST
+try:
+    import torch
+    import torch.nn as nn
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
-class DummyPatchTST:
-    """Dummy PatchTST model that returns constant predictions."""
-    def __init__(self, mean_pred=11.08):
-        self.mean_pred = mean_pred
-    def predict(self, X):
-        return np.array([self.mean_pred] * len(X))
+# ---------- PYTORCH MODEL ARCHITECTURES ----------
+if TORCH_AVAILABLE:
+    class NHiTSModel(nn.Module):
+        """N-HiTS architecture matching train_nhits_v5.py"""
+        def __init__(self, input_size=18, hidden_size=128, num_stacks=4, num_classes=3):
+            super().__init__()
+            self.input_size = input_size
+            self.hidden_size = hidden_size
+            
+            # Stack of blocks
+            self.stacks = nn.ModuleList([
+                nn.Sequential(
+                    nn.Linear(input_size if i == 0 else hidden_size, hidden_size),
+                    nn.ReLU(),
+                    nn.Dropout(0.1),
+                    nn.Linear(hidden_size, hidden_size),
+                    nn.ReLU(),
+                    nn.Dropout(0.1)
+                ) for i in range(num_stacks)
+            ])
+            
+            # Classification head
+            self.fc = nn.Sequential(
+                nn.Linear(hidden_size, hidden_size // 2),
+                nn.ReLU(),
+                nn.Dropout(0.1),
+                nn.Linear(hidden_size // 2, num_classes)
+            )
+            
+        def forward(self, x):
+            # x: [batch, features]
+            for stack in self.stacks:
+                x = stack(x) + (x if x.shape[-1] == self.hidden_size else 0)
+            return self.fc(x)
+    
+    class PatchTSTModel(nn.Module):
+        """PatchTST architecture matching train_patchtst_v5.py"""
+        def __init__(self, input_dim=18, d_model=128, n_heads=8, n_layers=4, dropout=0.1, num_classes=3):
+            super().__init__()
+            
+            # Embedding
+            self.embedding = nn.Linear(input_dim, d_model)
+            
+            # Transformer
+            encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=n_heads, dropout=dropout, batch_first=True)
+            self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
+            
+            # Classification head
+            self.fc = nn.Sequential(
+                nn.Linear(d_model, d_model // 2),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(d_model // 2, num_classes)
+            )
+            
+        def forward(self, x):
+            # x: [batch, features]
+            x = x.unsqueeze(1)  # [batch, 1, features]
+            x = self.embedding(x)  # [batch, 1, d_model]
+            x = self.transformer(x)  # [batch, 1, d_model]
+            x = x.mean(dim=1)  # [batch, d_model]
+            return self.fc(x)  # [batch, num_classes]
+else:
+    # Fallback if torch not available
+    NHiTSModel = None
+    PatchTSTModel = None
 
 # ---------- LOGGER ----------
 class Logger:
@@ -112,12 +172,24 @@ class BaseAgent:
                 try:
                     import torch
                     loaded = torch.load(model_path, map_location='cpu', weights_only=False)
-                    # Check if it's a checkpoint dict or direct model
-                    if isinstance(loaded, dict) and 'model_state_dict' in loaded:
-                        # Need to reconstruct model architecture - NOT SUPPORTED HERE
-                        self.logger.e(f"PyTorch checkpoint requires model architecture reconstruction")
-                        self.model = None
+                    
+                    # Check if this agent supports PyTorch model reconstruction
+                    if hasattr(self, '_load_pytorch_model') and isinstance(loaded, dict):
+                        # This is a state_dict (OrderedDict), reconstruct the model
+                        self.logger.i("Detected state_dict, attempting model reconstruction")
+                        self.pytorch_model = self._load_pytorch_model(loaded, meta_path)
+                        if self.pytorch_model:
+                            self.model = loaded  # Keep state_dict for reference
+                            self.logger.i("✅ PyTorch model reconstructed successfully")
+                        else:
+                            self.logger.e("Failed to reconstruct PyTorch model")
+                            self.model = loaded  # Fallback to state_dict (will use dummy predictions)
+                    elif isinstance(loaded, dict) and 'model_state_dict' in loaded:
+                        # Checkpoint format with explicit key
+                        self.logger.w(f"PyTorch checkpoint format not fully supported yet")
+                        self.model = loaded
                     else:
+                        # Direct model object or other format
                         self.model = loaded
                 except Exception as e:
                     self.logger.w(f"PyTorch load failed: {e}, trying joblib")
@@ -164,15 +236,16 @@ class XGBoostAgent(BaseAgent):
     def __init__(self): super().__init__("XGB-Agent","xgboost_v"); self._load()
     def predict(self,sym,feat):
         df=self._align(feat); X=self.scaler.transform(df)
-        pnl_pred = self.model.predict(X)[0]  # Regression: Predict PnL%
-        # Convert PnL% to action: >2% = BUY, <-2% = SELL, else HOLD
-        if pnl_pred > 2.0:
-            act, c = "BUY", min(abs(pnl_pred) / 10.0, 1.0)  # Normalize to [0,1]
-        elif pnl_pred < -2.0:
-            act, c = "SELL", min(abs(pnl_pred) / 10.0, 1.0)
-        else:
-            act, c = "HOLD", 0.5
-        self.logger.i(f"{sym} → {act} (PnL={pnl_pred:.2f}%, conf={c:.3f})")
+        # Multi-class classification: classes = [0:SELL, 1:HOLD, 2:BUY]
+        class_pred = self.model.predict(X)[0]  # Returns class index (0, 1, or 2)
+        proba = self.model.predict_proba(X)[0]  # Returns [p_SELL, p_HOLD, p_BUY]
+        
+        # Map class to action
+        actions = ["SELL", "HOLD", "BUY"]
+        act = actions[int(class_pred)]
+        c = float(proba[int(class_pred)])  # Confidence = probability of predicted class
+        
+        self.logger.i(f"{sym} → {act} (class={class_pred}, conf={c:.3f})")
         return {"symbol":sym,"action":act,"confidence":c,"confidence_std":0.1,"version":self.version}
 
 # ---------- LIGHTGBM ----------
@@ -180,68 +253,227 @@ class LightGBMAgent(BaseAgent):
     def __init__(self): super().__init__("LGBM-Agent","lightgbm_v"); self._load()
     def predict(self,sym,feat):
         df=self._align(feat); X=self.scaler.transform(df)
-        pnl_pred = self.model.predict(X)[0]  # Regression: Predict PnL%
-        # Convert PnL% to action
-        if pnl_pred > 2.0:
-            act, c = "BUY", min(abs(pnl_pred) / 10.0, 1.0)
-        elif pnl_pred < -2.0:
-            act, c = "SELL", min(abs(pnl_pred) / 10.0, 1.0)
-        else:
-            act, c = "HOLD", 0.5
-        self.logger.i(f"{sym} → {act} (PnL={pnl_pred:.2f}%, conf={c:.3f})")
+        # Multi-class classification: LightGBM Booster.predict() returns probabilities
+        proba = self.model.predict(X)[0]  # Returns [p_SELL, p_HOLD, p_BUY]
+        class_pred = int(np.argmax(proba))  # Get class with highest probability
+        
+        # Map class to action
+        actions = ["SELL", "HOLD", "BUY"]
+        act = actions[class_pred]
+        c = float(proba[class_pred])  # Confidence = probability of predicted class
+        
+        self.logger.i(f"{sym} → {act} (class={class_pred}, conf={c:.3f})")
         return {"symbol":sym,"action":act,"confidence":c,"confidence_std":0.1,"version":self.version}
 
 # ---------- PATCHTST ----------
 class PatchTSTAgent(BaseAgent):
-    def __init__(self): super().__init__("PatchTST-Agent","patchtst_v"); self._load()
+    def __init__(self): 
+        super().__init__("PatchTST-Agent","patchtst_v")
+        self.pytorch_model = None  # Will hold reconstructed nn.Module
+        self._load()
+    
+    def _load_pytorch_model(self, state_dict, meta_path):
+        """Reconstruct PyTorch model from state_dict using metadata"""
+        if not TORCH_AVAILABLE or PatchTSTModel is None:
+            self.logger.e("PyTorch not available, cannot reconstruct model")
+            return None
+        
+        # Load architecture params from metadata
+        try:
+            with open(meta_path) as f:
+                meta = json.load(f)
+            arch = meta.get('architecture', {})
+            d_model = arch.get('d_model', 128)
+            n_heads = arch.get('n_heads', 8)
+            n_layers = arch.get('n_layers', 4)
+            dropout = arch.get('dropout', 0.1)
+            num_features = meta.get('num_features', 18)
+            
+            self.logger.i(f"Reconstructing PatchTST: d_model={d_model}, n_heads={n_heads}, n_layers={n_layers}")
+        except Exception as e:
+            self.logger.w(f"Could not read metadata, using defaults: {e}")
+            d_model, n_heads, n_layers, dropout, num_features = 128, 8, 4, 0.1, 18
+        
+        # Instantiate model
+        model = PatchTSTModel(
+            input_dim=num_features,
+            d_model=d_model,
+            n_heads=n_heads,
+            n_layers=n_layers,
+            dropout=dropout,
+            num_classes=3
+        )
+        
+        # Load state dict
+        try:
+            model.load_state_dict(state_dict)
+            model.eval()  # Set to evaluation mode
+            
+            # Validate model has parameters
+            param_count = sum(p.numel() for p in model.parameters())
+            if param_count == 0:
+                self.logger.e("Model has zero parameters")
+                return None
+            self.logger.i(f"✅ State dict loaded ({param_count:,} parameters)")
+            
+            # Validate model produces non-constant output
+            with torch.no_grad():
+                x1 = torch.randn(1, num_features)
+                x2 = torch.randn(1, num_features)
+                logits1 = model(x1)
+                logits2 = model(x2)
+                
+                # Check if outputs are identical (would indicate broken model)
+                if torch.allclose(logits1, logits2, atol=1e-6):
+                    self.logger.e("Model output is constant - reconstruction failed")
+                    return None
+            
+            self.logger.i("✅ Model validation passed (non-constant output)")
+            return model
+        except Exception as e:
+            self.logger.e(f"Failed to load/validate model: {e}")
+            return None
+    
     def predict(self,sym,feat):
         df=self._align(feat)
+        
+        # Scale features
         if self.scaler:
             X=self.scaler.transform(df)
         else:
             X=df.values
         
-        # Try regression (dummy model with .predict())
-        try:
-            pnl_pred = self.model.predict(X)[0]
-        except:
-            pnl_pred = 0.0
+        # Check if we have a reconstructed PyTorch model
+        if self.pytorch_model is not None and TORCH_AVAILABLE:
+            try:
+                # Convert to tensor
+                X_tensor = torch.FloatTensor(X)
+                
+                # Forward pass (no gradient needed)
+                with torch.no_grad():
+                    logits = self.pytorch_model(X_tensor)  # [batch, 3]
+                    probs = torch.softmax(logits, dim=1)  # [batch, 3]
+                    class_pred = torch.argmax(probs, dim=1).item()  # 0, 1, or 2
+                    confidence = probs[0, class_pred].item()  # Probability of predicted class
+                
+                # Map class to action
+                actions = ["SELL", "HOLD", "BUY"]
+                act = actions[class_pred]
+                c = float(confidence)
+                
+                self.logger.i(f"{sym} → {act} (class={class_pred}, conf={c:.3f})")
+                return {"symbol":sym,"action":act,"confidence":c,"confidence_std":0.1,"version":self.version}
+                
+            except Exception as e:
+                self.logger.e(f"PyTorch prediction failed: {e}")
+                # Fall through to dummy
         
-        # Convert PnL% to action
-        if pnl_pred > 2.0:
-            act, c = "BUY", min(abs(pnl_pred) / 10.0, 1.0)
-        elif pnl_pred < -2.0:
-            act, c = "SELL", min(abs(pnl_pred) / 10.0, 1.0)
-        else:
-            act, c = "HOLD", 0.5
-        self.logger.i(f"{sym} → {act} (PnL={pnl_pred:.2f}%, conf={c:.3f})")
-        return {"symbol":sym,"action":act,"confidence":c,"confidence_std":0.1,"version":self.version}
+        # Fallback: dummy prediction
+        self.logger.w(f"{sym} → HOLD (dummy fallback, no model)")
+        return {"symbol":sym,"action":"HOLD","confidence":0.5,"confidence_std":0.1,"version":self.version}
 
 # ---------- N-HiTS ----------
 class NHiTSAgent(BaseAgent):
-    def __init__(self): super().__init__("NHiTS-Agent","nhits_v"); self._load()
+    def __init__(self): 
+        super().__init__("NHiTS-Agent","nhits_v")
+        self.pytorch_model = None  # Will hold reconstructed nn.Module
+        self._load()
+    
+    def _load_pytorch_model(self, state_dict, meta_path):
+        """Reconstruct PyTorch model from state_dict using metadata"""
+        if not TORCH_AVAILABLE or NHiTSModel is None:
+            self.logger.e("PyTorch not available, cannot reconstruct model")
+            return None
+        
+        # Load architecture params from metadata
+        try:
+            with open(meta_path) as f:
+                meta = json.load(f)
+            arch = meta.get('architecture', {})
+            hidden_size = arch.get('hidden_size', 128)
+            num_stacks = arch.get('num_stacks', 4)
+            num_features = meta.get('num_features', 18)
+            
+            self.logger.i(f"Reconstructing N-HiTS: hidden_size={hidden_size}, num_stacks={num_stacks}")
+        except Exception as e:
+            self.logger.w(f"Could not read metadata, using defaults: {e}")
+            hidden_size, num_stacks, num_features = 128, 4, 18
+        
+        # Instantiate model
+        model = NHiTSModel(
+            input_size=num_features,
+            hidden_size=hidden_size,
+            num_stacks=num_stacks,
+            num_classes=3
+        )
+        
+        # Load state dict
+        try:
+            model.load_state_dict(state_dict)
+            model.eval()  # Set to evaluation mode
+            
+            # Validate model has parameters
+            param_count = sum(p.numel() for p in model.parameters())
+            if param_count == 0:
+                self.logger.e("Model has zero parameters")
+                return None
+            self.logger.i(f"✅ State dict loaded ({param_count:,} parameters)")
+            
+            # Validate model produces non-constant output
+            with torch.no_grad():
+                x1 = torch.randn(1, num_features)
+                x2 = torch.randn(1, num_features)
+                logits1 = model(x1)
+                logits2 = model(x2)
+                
+                # Check if outputs are identical (would indicate broken model)
+                if torch.allclose(logits1, logits2, atol=1e-6):
+                    self.logger.e("Model output is constant - reconstruction failed")
+                    return None
+            
+            self.logger.i("✅ Model validation passed (non-constant output)")
+            return model
+        except Exception as e:
+            self.logger.e(f"Failed to load/validate model: {e}")
+            return None
+    
     def predict(self,sym,feat):
         df=self._align(feat)
+        
+        # Scale features
         if self.scaler:
             X=self.scaler.transform(df)
         else:
             X=df.values
         
-        # Try regression (dummy model with .predict())
-        try:
-            pnl_pred = self.model.predict(X)[0]
-        except:
-            pnl_pred = 0.0
+        # Check if we have a reconstructed PyTorch model
+        if self.pytorch_model is not None and TORCH_AVAILABLE:
+            try:
+                # Convert to tensor
+                X_tensor = torch.FloatTensor(X)
+                
+                # Forward pass (no gradient needed)
+                with torch.no_grad():
+                    logits = self.pytorch_model(X_tensor)  # [batch, 3]
+                    probs = torch.softmax(logits, dim=1)  # [batch, 3]
+                    class_pred = torch.argmax(probs, dim=1).item()  # 0, 1, or 2
+                    confidence = probs[0, class_pred].item()  # Probability of predicted class
+                
+                # Map class to action
+                actions = ["SELL", "HOLD", "BUY"]
+                act = actions[class_pred]
+                c = float(confidence)
+                
+                self.logger.i(f"{sym} → {act} (class={class_pred}, conf={c:.3f})")
+                return {"symbol":sym,"action":act,"confidence":c,"confidence_std":0.1,"version":self.version}
+                
+            except Exception as e:
+                self.logger.e(f"PyTorch prediction failed: {e}")
+                # Fall through to dummy
         
-        # Convert PnL% to action
-        if pnl_pred > 2.0:
-            act, c = "BUY", min(abs(pnl_pred) / 10.0, 1.0)
-        elif pnl_pred < -2.0:
-            act, c = "SELL", min(abs(pnl_pred) / 10.0, 1.0)
-        else:
-            act, c = "HOLD", 0.5
-        self.logger.i(f"{sym} → {act} (PnL={pnl_pred:.2f}%, conf={c:.3f})")
-        return {"symbol":sym,"action":act,"confidence":c,"confidence_std":0.1,"version":self.version}
+        # Fallback: dummy prediction
+        self.logger.w(f"{sym} → HOLD (dummy fallback, no model)")
+        return {"symbol":sym,"action":"HOLD","confidence":0.5,"confidence_std":0.1,"version":self.version}
         act={0:"SELL",1:"HOLD",2:"BUY"}[i]
         c,s=float(np.max(p)),float(np.std(p)) if len(p.shape)>1 else (0.7, 0.1)
         self.logger.i(f"{sym} → {act} (conf={c:.3f},std={s:.3f})")

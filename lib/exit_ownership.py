@@ -27,6 +27,7 @@ EXIT_OWNER = os.getenv("QUANTUM_EXIT_OWNER", "exitbrain_v3_5")
 # Services explicitly allowed to close positions (for emergency/manual interventions)
 EXIT_ALLOWED_SERVICES = set([
     EXIT_OWNER,
+    "harvest_brain",          # Profit harvesting service (LIVE)
     "manual_close",           # Manual emergency closes
     "emergency_stop",         # System-wide emergency stop
     "reconcile_engine"        # Position reconciliation (ledger sync)

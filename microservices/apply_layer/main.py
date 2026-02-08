@@ -1571,6 +1571,39 @@ class ApplyLayer:
                 )
             requested_leverage = metadata.get("target_leverage", 1.0)
             
+            # 🔥 TESTNET POSITION SIZE CAP: Enforce $500 maximum (defense layer 2)
+            if os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true":
+                # Check if opening a new position (not reduceOnly)
+                is_reduce_only = plan.action in ['harvest', 'partial_close', 'close_position']
+                if not is_reduce_only and plan.qty > 0:
+                    # Use metadata position_size_usd if available, otherwise calculate from qty
+                    position_size_usd = metadata.get("position_size_usd", 0)
+                    if position_size_usd == 0:
+                        # Fallback: estimate from qty (will be validated more precisely later)
+                        position_size_usd = plan.qty * plan.price if hasattr(plan, 'price') and plan.price else 0
+                    
+                    MAX_POSITION_NOTIONAL = 500.0
+                    if position_size_usd > MAX_POSITION_NOTIONAL:
+                        logger.error(
+                            f"[TESTNET_CAP] Position size rejected: "
+                            f"${position_size_usd:.2f} exceeds ${MAX_POSITION_NOTIONAL} cap "
+                            f"(symbol={plan.symbol}, plan_id={plan.plan_id})"
+                        )
+                        try:
+                            self.redis.incr("quantum:metrics:position_size_rejected")
+                        except Exception:
+                            pass
+                        return ApplyResult(
+                            plan_id=plan.plan_id,
+                            symbol=plan.symbol,
+                            decision="REJECTED",
+                            executed=False,
+                            would_execute=False,
+                            steps_results=[],
+                            error=f"position_too_large:${position_size_usd:.0f}>$500_cap",
+                            timestamp=int(time.time())
+                        )
+            
             # Comprehensive risk gate
             allowed, system_state, risk_reason = self.risk_enforcer.allow_trade(
                 symbol=plan.symbol,
@@ -2488,6 +2521,30 @@ class ApplyLayer:
                         # Extract ATR/volatility data for risk computation
                         atr_value = float(plan_data.get('atr_value', 0.0))
                         volatility_factor = float(plan_data.get('volatility_factor', 0.0))
+                        
+                        # 🔥 FALLBACK: If ATR missing, try to fetch from trade.intent stream
+                        if atr_value == 0.0 or volatility_factor == 0.0:
+                            try:
+                                # Search recent trade.intent messages for this symbol
+                                intent_messages = self.redis.xrevrange('quantum:stream:trade.intent', '+', '-', count=50)
+                                for msg_id_intent, fields_intent in intent_messages:
+                                    intent_data = {}
+                                    for k, v in fields_intent.items():
+                                        key = k.decode() if isinstance(k, bytes) else k
+                                        val = v.decode() if isinstance(v, bytes) else v
+                                        intent_data[key] = val
+                                    
+                                    if intent_data.get('symbol') == symbol:
+                                        fallback_atr = float(intent_data.get('atr_value', 0.0))
+                                        fallback_vol = float(intent_data.get('volatility_factor', 0.0))
+                                        if fallback_atr > 0 and fallback_vol > 0:
+                                            atr_value = fallback_atr
+                                            volatility_factor = fallback_vol
+                                            logger.info(f"[ENTRY] {symbol}: ATR fallback loaded from trade.intent (atr={atr_value:.4f}, vol={volatility_factor:.4f})")
+                                            break
+                            except Exception as e:
+                                logger.warning(f"[ENTRY] {symbol}: ATR fallback failed: {e}")
+                        
                         entry_price = float(plan_data.get('entry_price', 0.0))
                         
                         # Process both BUY and SELL entry signals
@@ -2498,6 +2555,22 @@ class ApplyLayer:
                         
                         position_side = 'LONG' if side == 'BUY' else 'SHORT'
                         logger.info(f"[ENTRY] {symbol}: Processing {side} intent (→{position_side}, leverage={leverage}, qty={qty}, plan_id={plan_id[:8]})")
+                        
+                        # 🔥 HARD GATE: Check total position limit (MAX 10 SYMBOLS)
+                        all_positions = self.redis.keys("quantum:position:*")
+                        if len(all_positions) >= 10:
+                            logger.warning(f"[ENTRY] {symbol}: Order REJECTED - position limit reached ({len(all_positions)}/10 symbols)")
+                            self.redis.xack(stream_key, consumer_group, msg_id)
+                            # Publish rejection to apply.result
+                            self.redis.xadd('quantum:stream:apply.result', {
+                                'plan_id': plan_id,
+                                'symbol': symbol,
+                                'action': 'ENTRY',
+                                'executed': 'False',
+                                'error': f'position_limit_reached_{len(all_positions)}/10',
+                                'timestamp': str(int(time.time()))
+                            })
+                            continue
                         
                         # 🔥 HARD GATE: Check symbol is in policy universe (fail-closed)
                         if not self._check_symbol_allowlist(symbol):
@@ -2559,13 +2632,34 @@ class ApplyLayer:
                             entry_risk_usdt = abs(qty) * risk_price if risk_price > 0 else 0.0
                             risk_missing = 1 if entry_risk_usdt == 0 else 0
                             
+                            # 🔥 VALIDATION: Verify SL direction is correct for position side
+                            sl_validated = stop_loss
+                            if stop_loss and float(stop_loss) > 0 and entry_price > 0:
+                                sl_float = float(stop_loss)
+                                entry_float = float(entry_price)
+                                
+                                if position_side == "SHORT" and sl_float < entry_float:
+                                    # SHORT must have SL ABOVE entry
+                                    logger.error(
+                                        f"[ENTRY] {symbol}: ❌ INVALID SL for SHORT - SL={sl_float:.6f} < entry={entry_float:.6f}! "
+                                        f"Correcting to {entry_float * 1.02:.6f}"
+                                    )
+                                    sl_validated = str(entry_float * 1.02)  # Force 2% above entry
+                                elif position_side == "LONG" and sl_float > entry_float:
+                                    # LONG must have SL BELOW entry
+                                    logger.error(
+                                        f"[ENTRY] {symbol}: ❌ INVALID SL for LONG - SL={sl_float:.6f} > entry={entry_float:.6f}! "
+                                        f"Correcting to {entry_float * 0.98:.6f}"
+                                    )
+                                    sl_validated = str(entry_float * 0.98)  # Force 2% below entry
+                            
                             position_mapping = {
                                 "symbol": symbol,
                                 "side": position_side,  # LONG or SHORT
                                 "quantity": str(qty),
                                 "entry_price": str(entry_price),
                                 "leverage": str(leverage),
-                                "stop_loss": stop_loss or "0",
+                                "stop_loss": sl_validated or "0",
                                 "take_profit": take_profit or "0",
                                 "plan_id": plan_id,
                                 "created_at": str(int(time.time())),
