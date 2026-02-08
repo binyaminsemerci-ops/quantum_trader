@@ -347,6 +347,7 @@ class AutonomousTrader:
                 "confidence": str(opportunity.confidence),
                 "regime": opportunity.regime,
                 "reason": opportunity.reason,
+                "reduceOnly": "false",  # 🔥 FIX: Entry intents open NEW positions (not close)
                 "timestamp": str(int(time.time()))
             }
             
