@@ -2,7 +2,6 @@
 AI Engine Service - Configuration
 """
 from pydantic_settings import BaseSettings
-from pydantic import field_validator
 from typing import List
 import os
 
@@ -77,16 +76,13 @@ class Settings(BaseSettings):
     
     # Cross-Exchange Normalizer (volatility_factor, divergence, lead/lag)
     CROSS_EXCHANGE_ENABLED: bool = True
-    CROSS_EXCHANGE_SYMBOLS: List[str] = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]  # Default, overridden by env
+    CROSS_EXCHANGE_SYMBOLS: str = "BTCUSDT,ETHUSDT,SOLUSDT"  # Comma-separated string
     CROSS_EXCHANGE_EXCHANGES: List[str] = ["binance", "bybit", "coinbase"]
     
-    @field_validator("CROSS_EXCHANGE_SYMBOLS", mode="before")
-    @classmethod
-    def parse_symbols(cls, v):
-        """Parse comma-separated symbols string into list."""
-        if isinstance(v, str):
-            return [s.strip() for s in v.split(",") if s.strip()]
-        return v
+    @property
+    def cross_exchange_symbols_list(self) -> List[str]:
+        """Parse CROSS_EXCHANGE_SYMBOLS into a list."""
+        return [s.strip() for s in self.CROSS_EXCHANGE_SYMBOLS.split(",") if s.strip()]
     
     # Funding Rate Filter (funding_delta, crowded_side_score, squeeze_probability)
     FUNDING_RATE_ENABLED: bool = True
