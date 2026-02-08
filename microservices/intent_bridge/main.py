@@ -377,17 +377,59 @@ class IntentBridge:
         key = f"quantum:intent_bridge:seen:{stream_id}"
         self.redis.setex(key, IDEMPOTENCY_TTL, "1")
     
+    def _get_current_price(self, symbol: str) -> Optional[float]:
+        """
+        Fetch current market price from Binance API.
+        
+        Returns:
+            Current mark price or None if fetch fails
+        """
+        try:
+            import requests
+            
+            if BINANCE_TESTNET:
+                url = f"https://testnet.binancefuture.com/fapi/v1/ticker/price?symbol={symbol}"
+            else:
+                url = f"https://fapi.binance.com/fapi/v1/ticker/price?symbol={symbol}"
+            
+            response = requests.get(url, timeout=3)
+            if response.status_code == 200:
+                data = response.json()
+                price = float(data.get("price", 0))
+                if price > 0:
+                    logger.debug(f"[PRICE] Fetched {symbol}: ${price}")
+                    return price
+            
+            logger.warning(f"[PRICE] Failed to fetch {symbol}: HTTP {response.status_code}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"[PRICE] Error fetching {symbol}: {e}")
+            return None
+    
     def _parse_intent(self, event_data: Dict) -> Optional[Dict]:
         """
         Parse trade.intent event
         
-        Expected fields (from trading_bot or ai_engine):
-        - symbol: str
-        - action: str (BUY/SELL)
-        - size: float (USD notional) OR quantity: float
-        - price: float (for quantity calculation if needed)
-        - type: str (default MARKET)
-        - reduceOnly: bool (default false)
+        Supported formats:
+        FORMAT 1 (Legacy): Direct qty + price
+            - qty: float (BTC amount)
+            - price: float (USD price)
+        
+        FORMAT 2 (Autonomous Trader): position_usd + leverage
+            - position_usd: float (USD position size, e.g. 300)
+            - leverage: float (leverage multiplier, e.g. 2)
+            → qty = (position_usd * leverage) / current_price
+        
+        FORMAT 3: size + price
+            - size: float (USD notional)
+            - price: float (USD price)
+            → qty = size / price
+        
+        FORMAT 4: position_size_usd + entry_price
+            - position_size_usd: float
+            - entry_price: float
+            → qty = position_size_usd / entry_price
         """
         try:
             # Try payload field first (JSON)
@@ -422,27 +464,63 @@ class IntentBridge:
             
             logger.debug(f"✅ Symbol {symbol} in allowlist, proceeding with intent processing")
             
-            # Extract quantity or size
+            # Extract quantity or size - SUPPORTS MULTIPLE FORMATS
             qty = None
+            leverage = None
+            price_used = None
+            format_used = None
+            
+            # FORMAT 1: Direct qty (legacy)
             if "quantity" in payload:
                 qty = float(payload["quantity"])
+                format_used = "FORMAT1_QUANTITY"
+                logger.info(f"[PARSE] {format_used}: qty={qty}")
+            
             elif "qty" in payload:
                 qty = float(payload["qty"])
+                format_used = "FORMAT1_QTY"
+                logger.info(f"[PARSE] {format_used}: qty={qty}")
+            
+            # FORMAT 2: position_usd + leverage (from Autonomous Trader) 🔥 BUG #11 FIX
+            elif "position_usd" in payload and "leverage" in payload:
+                position_usd = float(payload["position_usd"])
+                leverage = float(payload["leverage"])
+                
+                # Fetch current market price
+                price_used = self._get_current_price(symbol)
+                if not price_used or price_used <= 0:
+                    logger.error(f"[PARSE] Cannot fetch price for {symbol}, skipping intent")
+                    return None
+                
+                # Calculate qty: (position_usd * leverage) / price
+                # Example: ($300 * 2x) / $71,000 = 0.00845 BTC → $600 notional
+                qty = (position_usd * leverage) / price_used
+                format_used = "FORMAT2_POSITION_USD_LEVERAGE"
+                logger.info(
+                    f"[PARSE] {format_used}: position_usd=${position_usd}, "
+                    f"leverage={leverage}x, price=${price_used}, calculated_qty={qty:.8f}"
+                )
+            
+            # FORMAT 3: size + price
             elif "size" in payload and "price" in payload:
-                # Calculate qty from USD size
                 size_usd = float(payload["size"])
-                price = float(payload["price"])
-                if price > 0:
-                    qty = size_usd / price
+                price_used = float(payload["price"])
+                if price_used > 0:
+                    qty = size_usd / price_used
+                    format_used = "FORMAT3_SIZE_PRICE"
+                    logger.info(f"[PARSE] {format_used}: size={size_usd}, price={price_used}, qty={qty}")
+            
+            # FORMAT 4: position_size_usd + entry_price
             elif "position_size_usd" in payload and "entry_price" in payload:
-                # Calculate qty from position_size_usd
                 size_usd = float(payload["position_size_usd"])
-                price = float(payload["entry_price"])
-                if price > 0:
-                    qty = size_usd / price
+                price_used = float(payload["entry_price"])
+                if price_used > 0:
+                    qty = size_usd / price_used
+                    format_used = "FORMAT4_POSITION_SIZE_ENTRY_PRICE"
+                    logger.info(f"[PARSE] {format_used}: size={size_usd}, price={price_used}, qty={qty}")
             
             if not qty or qty <= 0:
-                logger.warning(f"Invalid quantity: {payload}")
+                logger.warning(f"Invalid quantity: format={format_used}, payload={payload}")
                 return None
             
             # Optional fields
@@ -450,11 +528,43 @@ class IntentBridge:
             reduce_only = str(payload.get("reduceOnly", "false")).lower() in ("true", "1", "yes")
             
             # 🔥 RL SIZING METADATA: Extract leverage, TP/SL from RL Position Sizing Agent
-            leverage = payload.get("leverage", 1)
+            # Leverage: use from payload if available, otherwise from FORMAT2 calculation
+            if not leverage:
+                leverage = payload.get("leverage", 1)
+            
+            # TP/SL: Support both absolute prices and percentages
             stop_loss = payload.get("stop_loss")
             take_profit = payload.get("take_profit")
             
-            logger.info(f"✓ Parsed {symbol} {action}: qty={qty:.4f}, leverage={leverage}, sl={stop_loss}, tp={take_profit}")
+            # If tp_pct/sl_pct provided (from Autonomous Trader), calculate absolute prices
+            if "tp_pct" in payload or "sl_pct" in payload:
+                # Need current price for percentage calculation
+                if not price_used:
+                    price_used = self._get_current_price(symbol)
+                
+                if price_used and price_used > 0:
+                    # Calculate TP/SL from percentages
+                    if "tp_pct" in payload and not take_profit:
+                        tp_pct = float(payload["tp_pct"])
+                        if action == "BUY":
+                            # LONG: TP above entry
+                            take_profit = price_used * (1 + tp_pct / 100)
+                        else:
+                            # SHORT: TP below entry
+                            take_profit = price_used * (1 - tp_pct / 100)
+                        logger.debug(f"[PARSE] Calculated TP: {action} @ ${price_used} + {tp_pct}% = ${take_profit}")
+                    
+                    if "sl_pct" in payload and not stop_loss:
+                        sl_pct = float(payload["sl_pct"])
+                        if action == "BUY":
+                            # LONG: SL below entry
+                            stop_loss = price_used * (1 - sl_pct / 100)
+                        else:
+                            # SHORT: SL above entry
+                            stop_loss = price_used * (1 + sl_pct / 100)
+                        logger.debug(f"[PARSE] Calculated SL: {action} @ ${price_used} - {sl_pct}% = ${stop_loss}")
+            
+            logger.info(f"✓ Parsed {symbol} {action}: qty={qty:.8f}, leverage={leverage}, sl={stop_loss}, tp={take_profit}, format={format_used}")
             
             return {
                 "symbol": symbol,
