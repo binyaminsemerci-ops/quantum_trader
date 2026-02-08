@@ -535,7 +535,7 @@ class AIEngineService:
                     self._normalized_stream_last_id = "$"
                     self._models_loaded += 1
                     logger.info(
-                        f"[PHASE 1] Cross-Exchange stream ready: {len(settings.CROSS_EXCHANGE_SYMBOLS)} symbols, "
+                        f"[PHASE 1] Cross-Exchange stream ready: {len(settings.cross_exchange_symbols_list)} symbols, "
                         f"{len(settings.CROSS_EXCHANGE_EXCHANGES)} exchanges"
                     )
                 except Exception as e:
