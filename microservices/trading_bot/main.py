@@ -6,18 +6,41 @@ import os
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.responses import JSONResponse
+from prometheus_client import REGISTRY, generate_latest, CONTENT_TYPE_LATEST
 
 from microservices.trading_bot.simple_bot import SimpleTradingBot
 from microservices.trading_bot.symbol_filter import fetch_top_symbols_by_volume, refresh_symbols_periodically
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# [EPIC-OBS-001] Initialize observability (tracing, metrics, structured logging)
+try:
+    from backend.infra.observability import (
+        init_observability,
+        get_logger,
+        instrument_fastapi,
+        add_metrics_middleware,
+    )
+    OBSERVABILITY_AVAILABLE = True
+except ImportError:
+    OBSERVABILITY_AVAILABLE = False
+    # Fallback to basic logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+# Initialize observability at module level (before service starts)
+if OBSERVABILITY_AVAILABLE:
+    init_observability(
+        service_name="trading-bot",
+        log_level=os.getenv("LOG_LEVEL", "INFO"),
+        enable_tracing=True,
+        enable_metrics=True,
+    )
+    logger = get_logger(__name__)
+else:
+    logger = logging.getLogger(__name__)
 
 # Global bot instance
 bot: SimpleTradingBot = None
@@ -129,6 +152,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# [EPIC-OBS-001] Instrument FastAPI with tracing & metrics
+if OBSERVABILITY_AVAILABLE:
+    instrument_fastapi(app)
+    add_metrics_middleware(app)
+
 
 @app.get("/health")
 async def health():
@@ -177,3 +205,28 @@ async def get_status():
     if bot:
         return bot.get_status()
     return JSONResponse(status_code=503, content={"error": "Bot not initialized"})
+
+
+@app.get("/health/live")
+async def liveness_probe():
+    """Kubernetes liveness probe."""
+    return {"status": "ok"}
+
+
+@app.get("/health/ready")
+async def readiness_probe():
+    """Kubernetes readiness probe."""
+    if bot is None:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "ready": False}
+        )
+    
+    status = bot.get_status()
+    return {"status": "ready" if status["running"] else "not_ready", "ready": status["running"]}
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint."""
+    return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)

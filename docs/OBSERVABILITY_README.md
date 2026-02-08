@@ -6,6 +6,22 @@
 
 The observability layer provides **structured logging**, **Prometheus metrics**, and **distributed tracing** for Quantum Trader v2.0 microservices. All services must implement standardized health probes and metrics endpoints for Kubernetes deployment and Grafana monitoring. This ensures consistent operational visibility across the distributed trading system.
 
+**✅ ALL MICROSERVICES NOW HAVE TRACING ENABLED** (as of 2026-01-11)
+
+### Services with Tracing
+
+All 9 microservices now have distributed tracing enabled:
+
+1. ✅ **ai-engine** (port 8001) - AI model inference & signal generation
+2. ✅ **execution** (port 8002) - Order execution & position monitoring
+3. ✅ **risk-safety** (port 8003) - Emergency Stop System & risk limits
+4. ✅ **portfolio-intelligence** (port 8004) - Portfolio state & PnL tracking
+5. ✅ **rl-training** (port 8005) - RL training & continuous learning
+6. ✅ **trading-bot** (port 8006) - Autonomous trading signal generation
+7. ✅ **clm** (standalone) - Continuous Learning Manager
+8. ✅ **eventbus-bridge** (standalone) - Event bus to Redis bridge
+9. ✅ **position-monitor** (standalone) - Position monitoring daemon
+
 ---
 
 ## Required Contract for Every Microservice
