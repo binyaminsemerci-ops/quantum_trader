@@ -25,8 +25,9 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 REDIS_STREAM_RAW = "quantum:stream:exchange.raw"
 REDIS_STREAM_NORMALIZED = "quantum:stream:exchange.normalized"
 
-# Symbols to process
-SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+# Symbols to process - read from env or use default
+SYMBOLS = os.getenv("CROSS_EXCHANGE_SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT").split(",")
+SYMBOLS = [s.strip() for s in SYMBOLS]  # Remove whitespace
 
 
 class CrossExchangeAggregator:

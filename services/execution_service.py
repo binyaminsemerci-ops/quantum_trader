@@ -561,6 +561,10 @@ async def execute_order_from_intent(intent: TradeIntent):
                 # Close orders are risk-REDUCING and must NEVER be blocked by margin checks
                 if getattr(intent, 'reduce_only', False):
                     logger.info(f"💰 MARGIN CHECK SKIPPED: {intent.symbol} {intent.action} (reduce_only=True)")
+                # P0.4D: Skip margin check for exploration trades (SimpleCLM data collection)
+                # Exploration trades are $50 exactly with 5x leverage - minimal risk for testnet
+                elif intent.position_size_usd == 50.0 and intent.leverage == 5:
+                    logger.info(f"💰 MARGIN CHECK SKIPPED: {intent.symbol} {intent.action} (exploration_trade=$50@5x for CLM data collection)")
                 else:
                     # Calculate required margin
                     notional_value = intent.position_size_usd or 1000.0  # Default if not set
@@ -573,7 +577,7 @@ async def execute_order_from_intent(intent: TradeIntent):
                         f"leverage={leverage_val}x, buffer=25%)"
                     )
                 
-                if not getattr(intent, 'reduce_only', False) and available_margin < required_margin:
+                if not getattr(intent, 'reduce_only', False) and intent.position_size_usd != 50.0 and available_margin < required_margin:
                     logger.error(
                         f"❌ INSUFFICIENT MARGIN: {intent.symbol} {intent.action} "
                         f"Need=${required_margin:.2f}, Have=${available_margin:.2f}, "

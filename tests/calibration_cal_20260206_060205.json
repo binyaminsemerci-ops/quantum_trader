@@ -1,0 +1,106 @@
+{
+  "version": "cal_20260206_060205",
+  "created_at": "2026-02-06T06:02:05.960135",
+  "based_on_trades": 52,
+  "approved_by": null,
+  "approved_at": null,
+  "confidence_calibration": {
+    "enabled": true,
+    "method": "isotonic",
+    "mapping": {
+      "0.5": 0.0,
+      "0.55": 0.0,
+      "0.6000000000000001": 0.0,
+      "0.6500000000000001": 0.5,
+      "0.7000000000000002": 0.5,
+      "0.7500000000000002": 0.5161290322580645,
+      "0.8000000000000003": 0.5161290322580645,
+      "0.8500000000000003": 0.5698924731182975,
+      "0.9000000000000004": 1.0,
+      "0.9500000000000004": 1.0,
+      "1.0000000000000004": 1.0
+    },
+    "mse_before": 0.2768423653846154,
+    "mse_after": 0.18734491315136473,
+    "improvement_pct": 32.327946667018395,
+    "sample_size": 52
+  },
+  "ensemble_weights": {
+    "enabled": false,
+    "weights": {
+      "xgb": 0.3,
+      "lgbm": 0.3,
+      "nhits": 0.2,
+      "patchtst": 0.2
+    },
+    "changes": [
+      {
+        "model": "xgb",
+        "before": 0.3,
+        "after": 0.3,
+        "delta": 0.0,
+        "delta_pct": 0.0,
+        "reason": "No adjustment (insufficient data or insignificant change)"
+      },
+      {
+        "model": "lgbm",
+        "before": 0.3,
+        "after": 0.3,
+        "delta": 0.0,
+        "delta_pct": 0.0,
+        "reason": "No adjustment (insufficient data or insignificant change)"
+      },
+      {
+        "model": "nhits",
+        "before": 0.2,
+        "after": 0.2,
+        "delta": 0.0,
+        "delta_pct": 0.0,
+        "reason": "No adjustment (insufficient data or insignificant change)"
+      },
+      {
+        "model": "patchtst",
+        "before": 0.2,
+        "after": 0.2,
+        "delta": 0.0,
+        "delta_pct": 0.0,
+        "reason": "No adjustment (insufficient data or insignificant change)"
+      }
+    ],
+    "total_delta": 0.0,
+    "sample_size": 0
+  },
+  "hold_bias": {
+    "enabled": false,
+    "adjustment_factor": 1.0,
+    "hold_accuracy": 0.0,
+    "missed_opportunities": 0,
+    "sample_size": 52
+  },
+  "metadata": {
+    "win_rate_improvement": null,
+    "confidence_mse_before": 0.2768423653846154,
+    "confidence_mse_after": 0.18734491315136473,
+    "weight_stability": 0.0,
+    "validation_status": "passed",
+    "risk_score": 0.0
+  },
+  "validation_checks": [
+    {
+      "name": "confidence_improvement",
+      "passed": true,
+      "severity": "info",
+      "description": "Confidence calibration must improve MSE",
+      "result": "+32.3%",
+      "details": "MSE: 0.2768 → 0.1873"
+    },
+    {
+      "name": "outcome_diversity",
+      "passed": true,
+      "severity": "info",
+      "description": "Trade outcomes should be diverse",
+      "result": "WIN=55.8%, LOSS=44.2%",
+      "details": "Need at least 15% of each"
+    }
+  ]
+}

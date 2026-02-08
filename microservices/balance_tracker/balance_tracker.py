@@ -32,21 +32,30 @@ class BalanceTracker:
     """Tracks Binance Futures account balance and publishes to Redis"""
     
     def __init__(self):
-        # Try environment variables first, then fallback to known working testnet keys
-        self.api_key = os.getenv("BINANCE_API_KEY", "w2W60kzuCfPJKGIqSvmp0pqISUO8XKICjc5sD8QyJuJpp9LKQgvXKhtd09Ii3rwg")
-        self.api_secret = os.getenv("BINANCE_API_SECRET", "QI18cg4zcbApc9uaDL8ZUmoAJQthQczZ9cKzORlSJfnK2zBEdLvSLb5ZEgZ6R1Kg")
+        # Respect environment configuration - no hardcoded overrides
+        use_testnet = os.getenv("BINANCE_USE_TESTNET", "true").lower() == "true"
         
-        # Check if we have production keys configured
-        has_prod_keys = os.getenv("BINANCE_API_KEY") and "e9ZqWhGhAEhDPfNBfQMiJv8zULKJZBIwaaJdfbbUQ8ZNj1WUMumrjenHoRzpzUPD" in os.getenv("BINANCE_API_KEY", "")
-        
-        if has_prod_keys:
-            self.base_url = "https://fapi.binance.com"
-            self.testnet_mode = False
-            logger.info("[BALANCE-TRACKER] 🔐 Using PRODUCTION API keys for real balance tracking")
-        else:
-            self.base_url = "https://testnet.binancefuture.com" 
+        if use_testnet:
+            # Testnet configuration
+            self.api_key = os.getenv("BINANCE_TESTNET_API_KEY", 
+                                    os.getenv("BINANCE_API_KEY", 
+                                            "w2W60kzuCfPJKGIqSvmp0pqISUO8XKICjc5sD8QyJuJpp9LKQgvXKhtd09Ii3rwg"))
+            self.api_secret = os.getenv("BINANCE_TESTNET_API_SECRET",
+                                       os.getenv("BINANCE_API_SECRET",
+                                               "QI18cg4zcbApc9uaDL8ZUmoAJQthQczZ9cKzORlSJfnK2zBEdLvSLb5ZEgZ6R1Kg"))
+            self.base_url = os.getenv("BINANCE_BASE_URL", "https://testnet.binancefuture.com")
             self.testnet_mode = True
-            logger.warning("[BALANCE-TRACKER] 🧪 Using TESTNET API keys - production keys not configured or not working")
+            logger.info("[BALANCE-TRACKER] 🧪 Using TESTNET for balance tracking")
+        else:
+            # Production configuration
+            self.api_key = os.getenv("BINANCE_API_KEY")
+            self.api_secret = os.getenv("BINANCE_API_SECRET")
+            self.base_url = os.getenv("BINANCE_BASE_URL", "https://fapi.binance.com")
+            self.testnet_mode = False
+            logger.info("[BALANCE-TRACKER] 🔐 Using PRODUCTION for balance tracking")
+        
+        if not self.api_key or not self.api_secret:
+            raise ValueError("Binance API credentials not configured")
         
         self.balance_endpoint = "/fapi/v2/balance"
         self.account_endpoint = "/fapi/v2/account"
@@ -156,6 +165,9 @@ class BalanceTracker:
                 maxlen=100  # Keep last 100 balance updates
             )
             
+            # Publish active positions to position.snapshot stream
+            await self._publish_positions(account_info.get("positions", []))
+            
             logger.info(
                 f"[BALANCE-TRACKER] ✅ Balance updated: "
                 f"${balance_data['balance']:.2f} total, "
@@ -166,6 +178,62 @@ class BalanceTracker:
             
         except Exception as e:
             logger.error(f"[BALANCE-TRACKER] Error fetching balance: {e}", exc_info=True)
+    
+    async def _publish_positions(self, positions):
+        """Publish active positions to position.snapshot stream"""
+        try:
+            active_positions = [p for p in positions if float(p.get("positionAmt", 0)) != 0]
+            
+            if not active_positions:
+                return
+            
+            # Log first position to see API structure
+            if active_positions:
+                logger.info(f"[BALANCE-TRACKER] Sample position fields: {list(active_positions[0].keys())}")
+            
+            # Publish each position
+            for position in active_positions:
+                # Calculate current price from entry + PnL
+                entry_price = float(position.get("entryPrice", 0))
+                position_amt = float(position.get("positionAmt", 0))  # Signed: +LONG, -SHORT
+                unrealized = float(position.get("unrealizedProfit", 0))
+                
+                # Calculate mark price from PnL
+                # For linear contracts: PnL = (mark - entry) * qty for LONG
+                #                       PnL = (entry - mark) * abs(qty) for SHORT
+                # Rearranged: mark = entry + (PnL / signed_qty)
+                if position_amt != 0 and entry_price > 0:
+                    mark_price = entry_price + (unrealized / position_amt)  # Uses signed qty!
+                else:
+                    mark_price = entry_price
+                
+                position_data = {
+                    "event_type": "position.snapshot",
+                    "symbol": position.get("symbol", ""),
+                    "side": "LONG" if position_amt > 0 else "SHORT",
+                    "position_qty": str(abs(position_amt)),  # PositionTracker expects position_qty
+                    "entry_price": str(entry_price),
+                    "mark_price": str(mark_price),
+                    "unrealized_pnl": str(unrealized),
+                    "leverage": str(position.get("leverage", 1)),
+                    "isolated": str(position.get("isolated", False)),
+                    "liquidation_price": str(position.get("liquidationPrice", 0)),
+                    "margin_type": "isolated" if position.get("isolated", False) else "cross",
+                    "entry_timestamp": str(int(time.time())),  # Add entry_timestamp
+                    "timestamp": str(int(time.time())),
+                    "source": "balance-tracker"
+                }
+                
+                await self.redis.xadd(
+                    "quantum:stream:position.snapshot",
+                    position_data,
+                    maxlen=1000  # Keep last 1000 position snapshots
+                )
+            
+            logger.debug(f"[BALANCE-TRACKER] Published {len(active_positions)} position snapshots")
+            
+        except Exception as e:
+            logger.error(f"[BALANCE-TRACKER] Error publishing positions: {e}", exc_info=True)
     
     async def _fetch_account(self):
         """Fetch account info from Binance Futures API"""

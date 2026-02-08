@@ -1,0 +1,28 @@
+[Unit]
+Description=Quantum Trader - Autonomous Trader (Full RL Autonomy)
+After=network.target redis-server.service quantum-ai-engine.service
+Requires=redis-server.service
+PartOf=quantum-ai.target
+
+[Service]
+EnvironmentFile=/etc/quantum/autonomous-trader.env
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+Environment="PYTHONPATH=/home/qt/quantum_trader"
+
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python -u microservices/autonomous_trader/autonomous_trader.py
+
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGTERM
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-autonomous-trader
+
+[Install]
+WantedBy=quantum-ai.target

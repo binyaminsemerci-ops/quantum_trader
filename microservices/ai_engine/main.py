@@ -531,6 +531,88 @@ async def predictive_alerts():
     }
 
 
+# ========================================================================
+# Phase 3D: AI-Driven Exit Evaluation
+# ========================================================================
+
+@app.post("/api/v1/evaluate-exit", tags=["exit", "phase_3d", "ai"])
+async def evaluate_exit(position_data: dict):
+    """
+    🧠 Phase 3D: AI-driven exit evaluation for dynamic profit-taking
+    
+    Replaces hardcoded R-level thresholds with intelligent decisions based on:
+    - Regime detection (exit if regime flipped)
+    - Volatility dynamics (hold if expanding, exit if contracting)
+    - Ensemble confidence (exit if degraded significantly)
+    - R-momentum (hold if accelerating, exit if stalling)
+    - Peak distance (hold if near peak, exit if far from peak)
+    - Position age (exit old positions to rotate capital)
+    
+    Request body:
+        {
+            "symbol": "BTCUSDT",
+            "side": "LONG",
+            "entry_price": 50000.0,
+            "current_price": 52500.0,
+            "position_qty": 0.1,
+            "entry_timestamp": 1234567890,
+            "age_sec": 3600,
+            "R_net": 2.5,
+            "R_history": [1.5, 2.0, 2.5],  # optional
+            "entry_regime": "TRENDING",  # optional
+            "entry_confidence": 0.75,  # optional
+            "peak_price": 53000.0  # optional
+        }
+    
+    Returns:
+        {
+            "action": "HOLD" | "PARTIAL_CLOSE" | "CLOSE",
+            "percentage": 0.0 - 1.0,
+            "reason": "human-readable reason",
+            "factors": {
+                "regime_changed": bool,
+                "vol_expanding": bool,
+                "confidence_degraded": bool,
+                "momentum_strong": bool,
+                "near_peak": bool,
+                "position_old": bool,
+                "hold_score": int,
+                "exit_score": int,
+                ...
+            },
+            "current_regime": "TRENDING" | "RANGING" | "VOLATILE",
+            "hold_score": int,
+            "exit_score": int,
+            "timestamp": int
+        }
+    """
+    if not service:
+        return {"error": "AI Engine service not initialized"}
+    
+    if not service.exit_evaluator:
+        return {
+            "error": "Exit evaluator not available",
+            "action": "HOLD",
+            "percentage": 0.0,
+            "reason": "evaluator_not_initialized"
+        }
+    
+    # Validate required fields
+    required_fields = ["symbol", "side", "entry_price", "current_price", "age_sec", "R_net"]
+    missing_fields = [f for f in required_fields if f not in position_data]
+    if missing_fields:
+        return {
+            "error": f"Missing required fields: {', '.join(missing_fields)}",
+            "action": "HOLD",
+            "percentage": 0.0
+        }
+    
+    # Call AI Engine service
+    result = await service.evaluate_exit(position_data)
+    
+    return result
+
+
 if __name__ == "__main__":
     import uvicorn
     

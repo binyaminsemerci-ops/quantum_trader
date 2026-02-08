@@ -67,6 +67,15 @@ from backend.services.binance_market_data import BinanceMarketDataFetcher
 # 🔥 PHASE 2.2: CEO Brain Orchestration
 from backend.services.orchestration.orchestrator import get_orchestrator
 
+# [SimpleCLM] Trade outcome recorder - optional dependency
+try:
+    from .simple_clm import SimpleCLM
+    SIMPLE_CLM_AVAILABLE = True
+except ImportError as e:
+    SIMPLE_CLM_AVAILABLE = False
+    SimpleCLM = None
+    print(f"[WARN] SimpleCLM import failed: {e}", flush=True)
+
 logger = logging.getLogger(__name__)
 
 
@@ -115,6 +124,9 @@ class AIEngineService:
         self.continuous_learning_manager = None  # Auto-retrain models based on real trade data
         self._clm_trade_buffer: List[Dict] = []   # Buffer for CLM trade outcomes
         
+        # [SimpleCLM] Trade outcome recorder (passive collection)
+        self.simple_clm = None
+        
         # 🔥 PHASE 2D: Volatility Structure Engine
         self.volatility_structure_engine = None  # ATR-trend, cross-TF volatility analysis
         
@@ -137,6 +149,9 @@ class AIEngineService:
         # 🔥 PHASE 3C ADAPTERS: Exit Brain Integration & Confidence Calibration
         self.exit_brain_performance_adapter = None  # Performance-adaptive TP/SL
         self.confidence_calibrator = None  # Confidence score calibration
+        
+        # 🔥 PHASE 3D: AI-Driven Exit Evaluator
+        self.exit_evaluator = None  # Intelligent profit-taking decisions
         
         # 🔥 PHASE 2.2: CEO Brain Orchestrator
         self.orchestrator = None  # CEO Brain + Strategy Brain + Risk Brain coordination
@@ -289,6 +304,11 @@ class AIEngineService:
             if settings.REGIME_DETECTION_ENABLED:
                 self._regime_update_task = asyncio.create_task(self._regime_update_loop())
             
+            # [SimpleCLM] Start trade outcome recorder background tasks
+            if self.simple_clm:
+                await self.simple_clm.start()
+                logger.info("[sCLM] ✅ Background monitoring started")
+            
             # 🔥 FIX: Set running flag to True
             self._running = True
             
@@ -319,6 +339,11 @@ class AIEngineService:
         if self.event_bus:
             await self.event_bus.stop()
             logger.info("[AI-ENGINE] EventBus consumer stopped")
+        
+        # [SimpleCLM] Stop background monitoring
+        if self.simple_clm:
+            await self.simple_clm.stop()
+            logger.info("[sCLM] Background monitoring stopped")
         
         # Cancel background tasks
         for task in [self._event_loop_task, self._regime_update_task, self._normalized_stream_task]:
@@ -603,6 +628,26 @@ class AIEngineService:
                 logger.warning(f"[AI-ENGINE] ⚠️ CLM failed to initialize: {e}")
                 self.continuous_learning_manager = None
             
+            # [SimpleCLM] Initialize trade outcome recorder (passive collection)
+            if SIMPLE_CLM_AVAILABLE and os.getenv("SIMPLE_CLM_ENABLED", "true").lower() == "true":
+                logger.info("[AI-ENGINE] 📝 Initializing SimpleCLM (trade outcome recorder)...")
+                try:
+                    storage_path = os.getenv("SIMPLE_CLM_STORAGE", "/home/qt/quantum_trader/data/clm_trades.jsonl")
+                    self.simple_clm = SimpleCLM(
+                        storage_path=storage_path,
+                        win_threshold=float(os.getenv("SIMPLE_CLM_WIN_THRESHOLD", "0.5")),
+                        loss_threshold=float(os.getenv("SIMPLE_CLM_LOSS_THRESHOLD", "-0.5")),
+                        starvation_hours=float(os.getenv("SIMPLE_CLM_STARVATION_HOURS", "1.0")),
+                        stats_log_interval_seconds=int(os.getenv("SIMPLE_CLM_STATS_INTERVAL", "300"))
+                    )
+                    self._models_loaded += 1
+                    logger.info("[sCLM] ✅ Initialized: storage={storage_path}")
+                except Exception as e:
+                    logger.error(f"[sCLM] ❌ Initialization failed: {e}", exc_info=True)
+                    self.simple_clm = None
+            else:
+                logger.info("[sCLM] Disabled or not available")
+            
             # 15. Volatility Structure Engine (Phase 2D) - ATR-trend & cross-TF volatility
             logger.info("[AI-ENGINE] 📊 Initializing Volatility Structure Engine (Phase 2D)...")
             try:
@@ -815,6 +860,23 @@ class AIEngineService:
                 print(f"🔥 DEBUG [LINE 741]: Confidence Calibrator exception: {e}", flush=True)
                 logger.warning(f"[AI-ENGINE] ⚠️ Confidence Calibrator failed: {e}")
                 self.confidence_calibrator = None
+            
+            # 🔥 PHASE 3D: AI-Driven Exit Evaluator
+            logger.info("[AI-ENGINE] 🎯 Initializing Exit Evaluator (Phase 3D)...")
+            try:
+                from microservices.ai_engine.exit_evaluator import ExitEvaluator
+                
+                self.exit_evaluator = ExitEvaluator(
+                    regime_detector=self.regime_detector,
+                    vse=self.volatility_structure_engine,
+                    ensemble=self.ensemble_manager
+                )
+                
+                logger.info("[PHASE 3D] ✅ Exit Evaluator initialized")
+                logger.info("[PHASE 3D] 🧠 Features: Intelligent profit-taking, Multi-factor scoring, Dynamic percentages")
+            except Exception as e:
+                logger.warning(f"[AI-ENGINE] ⚠️ Exit Evaluator failed: {e}")
+                self.exit_evaluator = None
             
             print("🔥 DEBUG [LINE 745]: BEFORE ORCHESTRATOR INIT - THIS IS THE CRITICAL LINE!", flush=True)
             
@@ -1289,11 +1351,38 @@ class AIEngineService:
         - Feed to Continuous Learning Manager
         - Track PnL for Model Supervisor & Governance (Phase 4D+4E)
         """
+        import json  # For payload parsing
+        
         try:
+            # 🔥 FIX: Handle both EventBus payload format AND direct Redis stream format
+            # EventBus format: payload is in JSON "payload" field
+            # Direct format: fields are directly in event_data as bytes
+            
+            # Check if this is EventBus format (has "payload" key)
+            has_payload = "payload" in event_data or b"payload" in event_data
+            
+            if has_payload:
+                # EventBus format - extract from payload
+                payload_json = event_data.get("payload") or event_data.get(b"payload", b"{}")
+                if isinstance(payload_json, bytes):
+                    payload_json = payload_json.decode('utf-8')
+                decoded_data = json.loads(payload_json) if payload_json else {}
+            else:
+                # Direct Redis stream format - decode bytes to strings
+                decoded_data = {}
+                for key, value in event_data.items():
+                    # Decode key if bytes
+                    str_key = key.decode('utf-8') if isinstance(key, bytes) else key
+                    # Decode value if bytes
+                    str_value = value.decode('utf-8') if isinstance(value, bytes) else value
+                    decoded_data[str_key] = str_value
+            
+            event_data = decoded_data  # Use decoded version
+            
             trade_id = event_data.get("trade_id")
             symbol = event_data.get("symbol", "unknown")
-            pnl_percent = event_data.get("pnl_percent", 0.0)
-            model = event_data.get("model", "unknown")
+            pnl_percent = float(event_data.get("pnl_percent", 0.0))
+            model = event_data.get("model_id", event_data.get("model", "unknown"))  # Try model_id first, fallback to model
             strategy = event_data.get("strategy")
             
             logger.info(f"[AI-ENGINE] Trade closed: {trade_id} (PnL={pnl_percent:.2f}%, model={model})")
@@ -1390,6 +1479,64 @@ class AIEngineService:
                 
                 except Exception as clm_error:
                     logger.error(f"[AI-ENGINE] CLM processing failed: {clm_error}", exc_info=True)
+            
+            # [SimpleCLM] Record trade outcome (passive collection, validation, labeling, persistence)
+            if self.simple_clm:
+                try:
+                    # Build complete trade record with all required fields
+                    trade_record = {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "symbol": symbol,
+                        "side": event_data.get("action", "BUY").upper(),  # BUY/SELL
+                        "entry_price": float(event_data.get("entry_price", 0.0)),
+                        "exit_price": float(event_data.get("exit_price", 0.0)),
+                        "pnl_percent": float(pnl_percent),
+                        "confidence": float(event_data.get("confidence", 0.5)),
+                        "model_id": f"{model}_{strategy}",
+                        "strategy_id": strategy,
+                        "position_size": float(event_data.get("position_size", 0.0)),
+                        "exit_reason": event_data.get("exit_reason", "unknown")
+                    }
+                    
+                    # Record trade (validates, labels, persists)
+                    success, error = self.simple_clm.record_trade(trade_record)
+                    
+                    if success:
+                        logger.debug(f"[sCLM] ✅ Recorded: {symbol} PnL={pnl_percent:+.2f}%")
+                    else:
+                        logger.warning(f"[sCLM] ❌ Rejected trade: {error}")
+                
+                except Exception as sclm_error:
+                    logger.error(f"[sCLM] ❌ Recording failed: {sclm_error}", exc_info=True)
+            
+            # [SimpleCLM] Record trade outcome (passive collection)
+            if self.simple_clm:
+                try:
+                    # Build complete trade record with all required fields
+                    trade_record = {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "symbol": symbol,
+                        "side": event_data.get("action", "BUY").upper(),  # BUY/SELL
+                        "entry_price": float(event_data.get("entry_price", 0.0)),
+                        "exit_price": float(event_data.get("exit_price", 0.0)),
+                        "pnl_percent": float(pnl_percent),
+                        "confidence": float(event_data.get("confidence", 0.5)),
+                        "model_id": f"{model}_{strategy}",
+                        "strategy_id": strategy,
+                        "position_size": float(event_data.get("position_size", 0.0)),
+                        "exit_reason": event_data.get("exit_reason", "unknown")
+                    }
+                    
+                    # Record trade (validates, labels, persists)
+                    success, error = self.simple_clm.record_trade(trade_record)
+                    
+                    if success:
+                        logger.debug(f"[sCLM] ✅ Recorded: {symbol} PnL={pnl_percent:+.2f}%")
+                    else:
+                        logger.warning(f"[sCLM] ❌ Rejected trade: {error}")
+                
+                except Exception as sclm_error:
+                    logger.error(f"[sCLM] ❌ Recording failed: {sclm_error}", exc_info=True)
             
         except Exception as e:
             logger.error(f"[AI-ENGINE] Error handling trade.closed: {e}", exc_info=True)
@@ -1817,9 +1964,11 @@ class AIEngineService:
                     except Exception as e:
                         logger.warning(f"[PHASE 3B] Strategy selection failed for {symbol}: {e}")
             
-            # FALLBACK: If ML models return HOLD with low confidence, use rule-based signals for testing
+            # FALLBACK: If ML models return HOLD (regardless of confidence), use rule-based signals for exploration
+            # EXPANDED THRESHOLD: Changed from 0.65 to 0.98 to enable trades during high-confidence HOLD periods
+            # This allows CLM data collection even when ensemble is conservative
             fallback_triggered = False
-            if action == "HOLD" and 0.50 <= ensemble_confidence <= 0.65:
+            if action == "HOLD" and 0.50 <= ensemble_confidence <= 0.98:
                 rsi = features.get('rsi_14', 50)
                 macd = features.get('macd', 0)
                 
@@ -1845,13 +1994,15 @@ class AIEngineService:
                         logger.info(f"[AI-ENGINE] 🔥 FALLBACK SELL signal (testing mode): {symbol}")
                     # else: HOLD (~33%)
                 else:
-                    # Normal RSI-based fallback when enough history
-                    if rsi < 35 and macd > -0.001:  # Slightly oversold + neutral/bullish momentum
+                    # EXPLORATION MODE: Relaxed RSI thresholds to enable data collection
+                    # RSI < 45 (was 35) + MACD > -0.002 (was -0.001) = BUY
+                    # RSI > 55 (was 65) + MACD < 0.002 (was 0.001) = SELL
+                    if rsi < 45 and macd > -0.002:  # Moderately oversold + neutral/bullish momentum
                         action = "BUY"
                         ensemble_confidence = 0.72
                         fallback_triggered = True
                         logger.info(f"[AI-ENGINE] 🔥 FALLBACK BUY signal: {symbol} RSI={rsi:.1f}, MACD={macd:.4f}")
-                    elif rsi > 65 and macd < 0.001:  # Slightly overbought + neutral/bearish momentum
+                    elif rsi > 55 and macd < 0.002:  # Moderately overbought + neutral/bearish momentum
                         action = "SELL"
                         ensemble_confidence = 0.72
                         fallback_triggered = True
@@ -1904,14 +2055,18 @@ class AIEngineService:
                 except Exception as e:
                     logger.warning(f"[PHASE 1] Funding filter check failed: {e}")
             
-            # 🔥 PHASE 1: Check Drift Detection (block if model drifted)
+            # 🔥 PHASE 1: Check Drift Detection (block if model drifted) - WITH TIMEOUT
             if self.drift_detector:
                 try:
-                    drift_status = await asyncio.to_thread(
-                        self.drift_detector.check_drift,
-                        symbol=symbol,
-                        features=features,
-                        prediction=ensemble_confidence
+                    # 🔥 TIMEOUT: Max 5 seconds for drift check to prevent hangs
+                    drift_status = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self.drift_detector.check_drift,
+                            symbol=symbol,
+                            features=features,
+                            prediction=ensemble_confidence
+                        ),
+                        timeout=5.0
                     )
                     if drift_status.get("severity") in ["SEVERE", "CRITICAL"]:
                         # 🔥 PHASE 1 FIX: Allow signals on testnet for data collection
@@ -1933,6 +2088,9 @@ class AIEngineService:
                             if self.adaptive_retrainer:
                                 logger.info(f"[PHASE 1] Triggering retrain due to drift...")
                             return None  # Only block on mainnet
+                except asyncio.TimeoutError:
+                    logger.error(f"[PHASE 1] ⏰ Drift detection TIMEOUT (5s) for {symbol} - allowing signal")
+                    # Continue processing signal if drift check times out (fail-open for liveness)
                 except Exception as e:
                     logger.warning(f"[PHASE 1] Drift detection check failed: {e}")
             
@@ -2115,10 +2273,10 @@ class AIEngineService:
                 # 🔥 PHASE 3A: Apply risk multiplier
                 original_size = position_size_usd
                 position_size_usd = position_size_usd * risk_multiplier
-            # 🔥 TESTNET SIZING: Reasonable cap for testing
+            # 🔥 TESTNET SIZING: Reasonable cap for testing ($500 for diversification)
             if os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true":
                 original_size = position_size_usd
-                position_size_usd = min(position_size_usd, 1000.0)  # Max $1000 on testnet (allows testing real sizing)
+                position_size_usd = min(position_size_usd, 500.0)  # Max $500 on testnet (better diversification)
                 if position_size_usd != original_size:
                     logger.info(f"[TESTNET] Capped position: ${original_size:.0f} → ${position_size_usd:.0f}")
             
@@ -2147,8 +2305,17 @@ class AIEngineService:
                 ).dict())
             else:
                 # 🔥 FAIL-CLOSED: RL agent not available or failed
-                logger.error(f"[AI-ENGINE] RL_AGENT_NOT_AVAILABLE for {symbol} - SKIPPING trade")
-                return  # SKIP trade - no fallback!
+                if fallback_triggered:
+                    # EXPLORATION FALLBACK: Use minimal sizing for CLM data collection
+                    logger.warning(f"[AI-ENGINE] RL_AGENT_NOT_AVAILABLE for {symbol} - Using exploration fallback sizing")
+                    position_size_usd = 50.0  # Minimal size for data collection ($50 = 0.5% of $10K account)
+                    leverage = 5  # Conservative leverage
+                    tp_percent = 0.02  # 2% take profit
+                    sl_percent = 0.01  # 1% stop loss
+                    logger.info(f"[AI-ENGINE] 🧪 EXPLORATION SIZING: {symbol} ${position_size_usd:.0f} @ {leverage}x (TP={tp_percent*100:.1f}%, SL={sl_percent*100:.1f}%)")
+                else:
+                    logger.error(f"[AI-ENGINE] RL_AGENT_NOT_AVAILABLE for {symbol} - SKIPPING trade")
+                    return  # SKIP trade - no fallback for production signals!
             
             # 🔥 POLICY VALIDATION: Ensure leverage was set
             if leverage is None or leverage <= 0:
@@ -2166,6 +2333,19 @@ class AIEngineService:
                 return  # SKIP trade - no fallback to $200!
             
             # Step 4: Build final decision
+            
+            # 🐛 DEBUG: Log SL/TP calculation
+            calculated_sl = current_price * (1 - sl_percent) if action.upper() == "BUY" else current_price * (1 + sl_percent)
+            calculated_tp = current_price * (1 + tp_percent) if action.upper() == "BUY" else current_price * (1 - tp_percent)
+            sl_formula = f"(1-{sl_percent:.4f})" if action.upper() == "BUY" else f"(1+{sl_percent:.4f})"
+            tp_formula = f"(1+{tp_percent:.4f})" if action.upper() == "BUY" else f"(1-{tp_percent:.4f})"
+            logger.warning(
+                f"[SL_DEBUG] {symbol} {action.upper()}: "
+                f"price={current_price:.6f}, sl_pct={sl_percent:.4f}, tp_pct={tp_percent:.4f} | "
+                f"SL_CALC={sl_formula}={calculated_sl:.6f}, "
+                f"TP_CALC={tp_formula}={calculated_tp:.6f}"
+            )
+            
             decision = AIDecisionMadeEvent(
                 symbol=symbol,
                 side=SignalAction(action.lower()),
@@ -2173,8 +2353,8 @@ class AIEngineService:
                 entry_price=current_price,
                 quantity=position_size_usd,
                 leverage=leverage,
-                stop_loss=current_price * (1 - sl_percent) if action.upper() == "BUY" else current_price * (1 + sl_percent),
-                take_profit=current_price * (1 + tp_percent) if action.upper() == "BUY" else current_price * (1 - tp_percent),
+                stop_loss=calculated_sl,
+                take_profit=calculated_tp,
                 trail_percent=None,  # No trailing for now
                 model="ensemble",
                 ensemble_confidence=ensemble_confidence,
@@ -2265,7 +2445,7 @@ class AIEngineService:
             
                         # TESTNET SIZING: Cap position size (second cap after orchestration)
             if os.getenv("BINANCE_USE_TESTNET", "false").lower() == "true":
-                position_size_usd = min(position_size_usd, 1000.0)  # Max $1000 on testnet
+                position_size_usd = min(position_size_usd, 500.0)  # Max $500 on testnet
             
             trade_intent_payload = {
                 "symbol": symbol,
@@ -2425,6 +2605,140 @@ class AIEngineService:
                 self.adaptive_threshold_manager.record_metric('ensemble', 'error_rate', 1.0)
             
             return None
+    
+    # ========================================================================
+    # AI-DRIVEN EXIT EVALUATION (PHASE 3D)
+    # ========================================================================
+    
+    async def evaluate_exit(self, position_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        🧠 AI-driven exit evaluation for dynamic profit-taking.
+        
+        Replaces hardcoded R-level thresholds with intelligent decisions based on:
+        - Regime detection (exit if regime flipped)
+        - Volatility dynamics (hold if expanding, exit if contracting)
+        - Ensemble confidence (exit if degraded significantly)
+        - R-momentum (hold if accelerating, exit if stalling)
+        - Peak distance (hold if near peak, exit if far from peak)
+        - Position age (exit old positions to rotate capital)
+        
+        Args:
+            position_data: Dict with keys:
+                - symbol: str
+                - side: "LONG"/"SHORT"
+                - entry_price: float
+                - current_price: float
+                - position_qty: float
+                - entry_timestamp: int
+                - age_sec: int
+                - R_net: float
+                - R_history: List[float] (optional)
+                - entry_regime: str (optional)
+                - entry_confidence: float (optional)
+                - peak_price: float (optional)
+        
+        Returns:
+            Dict with keys:
+                - action: "HOLD", "PARTIAL_CLOSE", or "CLOSE"
+                - percentage: float (0.0-1.0)
+                - reason: str (human-readable decision reason)
+                - factors: Dict (all evaluated factors)
+                - current_regime: str
+                - hold_score: int
+                - exit_score: int
+                - timestamp: int
+        """
+        start_time = datetime.utcnow()
+        
+        try:
+            # Fallback if exit_evaluator not initialized
+            if not self.exit_evaluator:
+                logger.warning("[AI-ENGINE] ⚠️ Exit evaluator not available, using fallback")
+                return {
+                    "action": "HOLD",
+                    "percentage": 0.0,
+                    "reason": "evaluator_unavailable",
+                    "factors": {},
+                    "current_regime": "UNKNOWN",
+                    "hold_score": 0,
+                    "exit_score": 0,
+                    "timestamp": int(time.time())
+                }
+            
+            # Call exit evaluator
+            evaluation = await self.exit_evaluator.evaluate_exit(position_data)
+            
+            # Convert ExitEvaluation dataclass to dict
+            result = {
+                "action": evaluation.action,
+                "percentage": evaluation.percentage,
+                "reason": evaluation.reason,
+                "factors": evaluation.factors,
+                "current_regime": evaluation.current_regime,
+                "hold_score": evaluation.hold_score,
+                "exit_score": evaluation.exit_score,
+                "timestamp": evaluation.timestamp
+            }
+            
+            # Log decision
+            symbol = position_data.get("symbol", "UNKNOWN")
+            R_net = position_data.get("R_net", 0)
+            logger.info(
+                f"[AI-EXIT] {symbol} R={R_net:.2f}: {evaluation.action} {int(evaluation.percentage*100)}% "
+                f"(hold={evaluation.hold_score} vs exit={evaluation.exit_score}) - {evaluation.reason}"
+            )
+            
+            # Publish to Redis event stream for monitoring
+            try:
+                await self.redis_client.xadd(
+                    "quantum:stream:ai.exit.decision",
+                    {
+                        "symbol": symbol,
+                        "action": evaluation.action,
+                        "percentage": str(evaluation.percentage),
+                        "reason": evaluation.reason,
+                        "hold_score": str(evaluation.hold_score),
+                        "exit_score": str(evaluation.exit_score),
+                        "regime": evaluation.current_regime,
+                        "R_net": str(R_net),
+                        "timestamp": str(evaluation.timestamp)
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"[AI-EXIT] Failed to publish to Redis stream: {e}")
+            
+            # Record performance metrics
+            latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+            
+            if self.performance_benchmarker:
+                self.performance_benchmarker.record_latency('exit_evaluator', latency_ms)
+            
+            if self.health_monitor:
+                self.health_monitor.record_signal_attempt(success=True, latency_ms=latency_ms)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"[AI-ENGINE] Error evaluating exit for {position_data.get('symbol', 'UNKNOWN')}: {e}", exc_info=True)
+            
+            # Record error
+            if self.performance_benchmarker:
+                self.performance_benchmarker.record_error('exit_evaluator')
+            
+            if self.health_monitor:
+                self.health_monitor.record_error()
+            
+            # Return safe fallback
+            return {
+                "action": "HOLD",
+                "percentage": 0.0,
+                "reason": f"error:{str(e)[:50]}",
+                "factors": {},
+                "current_regime": "UNKNOWN",
+                "hold_score": 0,
+                "exit_score": 0,
+                "timestamp": int(time.time())
+            }
     
     # ========================================================================
     # RL CONFIDENCE CALIBRATION
@@ -2628,20 +2942,31 @@ class AIEngineService:
                 #             await self.event_bus.publish(event_type, event_data)
                 #             logger.debug(f"[AI-ENGINE] Replayed buffered event: {event_type}")
                 
-                # Phase 4F: Run adaptive retraining cycle
+                # Phase 4F: Run adaptive retraining cycle (with timeout to prevent hangs)
                 if self.adaptive_retrainer:
                     try:
-                        result = self.adaptive_retrainer.run_cycle()
+                        # 🔥 TIMEOUT: Max 5 minutes for retrain cycle to prevent hangs
+                        result = await asyncio.wait_for(
+                            asyncio.to_thread(self.adaptive_retrainer.run_cycle),
+                            timeout=300.0
+                        )
                         if result.get("status") == "success":
                             logger.info(f"[Retrainer] Cycle completed - Models: {result.get('models_retrained', [])}")
                             
-                            # Phase 4G: Validate retrained models
+                            # Phase 4G: Validate retrained models (with timeout)
                             if self.model_validator:
                                 try:
-                                    validation_result = self.model_validator.run_validation_cycle()
+                                    validation_result = await asyncio.wait_for(
+                                        asyncio.to_thread(self.model_validator.run_validation_cycle),
+                                        timeout=120.0
+                                    )
                                     logger.info(f"[Validator] Validation complete: {validation_result}")
+                                except asyncio.TimeoutError:
+                                    logger.error("[Validator] Validation timeout (120s) - skipping")
                                 except Exception as val_e:
                                     logger.error(f"[Validator] Validation error: {val_e}")
+                    except asyncio.TimeoutError:
+                        logger.error("[Retrainer] Cycle timeout (300s) - skipping this cycle")
                     except Exception as e:
                         logger.error(f"[Retrainer] Cycle error: {e}")
                 
