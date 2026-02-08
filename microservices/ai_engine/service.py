@@ -3088,7 +3088,7 @@ class AIEngineService:
                     metrics["cross_exchange_stream"] = {
                         "active": stream_len > 0,
                         "entries": stream_len,
-                        "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+                        "symbols": settings.cross_exchange_symbols_list,
                         "status": "OK" if stream_len > 0 else "NO_DATA"
                     }
                 else:
