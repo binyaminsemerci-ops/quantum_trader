@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     
     # Cross-Exchange Normalizer (volatility_factor, divergence, lead/lag)
     CROSS_EXCHANGE_ENABLED: bool = True
-    CROSS_EXCHANGE_SYMBOLS: List[str] = None  # Set below from env
+    CROSS_EXCHANGE_SYMBOLS: List[str] = []  # Will be set from env in __init__
     CROSS_EXCHANGE_EXCHANGES: List[str] = ["binance", "bybit", "coinbase"]
     
     def __init__(self, **kwargs):
