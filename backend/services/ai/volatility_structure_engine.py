@@ -248,6 +248,24 @@ class VolatilityStructureEngine:
         
         return float(np.std(returns))
     
+    async def get_structure(self, symbol: str) -> Optional[Dict[str, float]]:
+        """
+        Get volatility structure for symbol (async wrapper for exit evaluator).
+        
+        Note: This is a fail-safe stub. For full volatility analysis, use 
+        calculate_atr_trend() or calculate_cross_timeframe_volatility() after
+        updating price data. Returns None to allow exit evaluator to skip
+        volatility checks gracefully.
+        
+        Args:
+            symbol: Trading symbol
+            
+        Returns:
+            None (fail-safe - volatility check will be skipped)
+        """
+        logger.debug(f"[VSE] get_structure called for {symbol} (stub - returning None)")
+        return None
+    
     def get_complete_volatility_analysis(self, symbol: str) -> Dict:
         """
         Get complete volatility structure analysis for symbol.
