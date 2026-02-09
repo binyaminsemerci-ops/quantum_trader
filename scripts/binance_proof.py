@@ -10,9 +10,9 @@ sys.path.insert(0, "/home/qt/quantum_trader")
 from binance.client import Client
 from datetime import datetime
 
-# Get Binance client
-api_key = os.getenv("BINANCE_API_KEY")
-api_secret = os.getenv("BINANCE_API_SECRET")
+# Get Binance client (Intent Executor uses TESTNET_ prefix)
+api_key = os.getenv("BINANCE_TESTNET_API_KEY") or os.getenv("BINANCE_API_KEY")
+api_secret = os.getenv("BINANCE_TESTNET_API_SECRET") or os.getenv("BINANCE_API_SECRET")
 testnet = os.getenv("BINANCE_TESTNET", "true").lower() == "true"
 
 client = Client(api_key, api_secret, testnet=testnet)
