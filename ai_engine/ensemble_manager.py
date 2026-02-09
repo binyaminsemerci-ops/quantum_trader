@@ -558,6 +558,26 @@ class EnsembleManager:
             
             self.last_weight_update = now
     
+    async def get_signal(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Get current signal for a symbol (async wrapper for exit evaluator).
+        
+        Args:
+            symbol: Trading pair
+        
+        Returns:
+            Dict with action, confidence, and metadata or None
+        """
+        try:
+            # Fetch minimal features for confidence check
+            # In real implementation, this should fetch from market data service
+            # For now, return None to fail gracefully
+            logger.debug(f"[Ensemble] get_signal called for {symbol} (not fully implemented)")
+            return None
+        except Exception as e:
+            logger.error(f"[Ensemble] get_signal failed for {symbol}: {e}")
+            return None
+    
     def predict(
         self,
         symbol: str,
