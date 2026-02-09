@@ -45,7 +45,7 @@ else:
         entry = float(pos['entryPrice'])
         mark = float(pos['markPrice'])
         pnl = float(pos['unRealizedProfit'])
-        leverage = int(pos['leverage'])
+        leverage = int(pos.get('leverage', 1))
         
         print(f"  Symbol: {pos['symbol']}")
         print(f"  Amount: {amt:.8f} ({'LONG' if amt > 0 else 'SHORT'})")
