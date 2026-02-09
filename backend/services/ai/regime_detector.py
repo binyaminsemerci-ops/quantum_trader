@@ -385,6 +385,23 @@ class RegimeDetector:
         """
         result = self.detect_regime(context)
         return f"{context.symbol} [{context.timeframe}]: {result.regime.value.upper()} (confidence={result.confidence:.2%}) - {result.reasoning}"
+    
+    def get_regime(self, symbol: str) -> Optional[MarketRegime]:
+        """
+        Get current regime for symbol (simplified interface for exit evaluator).
+        
+        Note: This is a fail-safe stub. For full regime detection, use detect_regime()
+        with a proper MarketContext. Returns None to allow exit evaluator to skip
+        regime checks gracefully.
+        
+        Args:
+            symbol: Trading symbol
+            
+        Returns:
+            None (fail-safe - regime check will be skipped)
+        """
+        logger.debug(f"[RegimeDetector] get_regime called for {symbol} (stub - returning None)")
+        return None
 
 
 # ============================================================================
