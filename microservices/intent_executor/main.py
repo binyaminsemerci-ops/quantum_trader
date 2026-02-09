@@ -21,6 +21,7 @@ import hashlib
 import urllib.parse
 import urllib.request
 import logging
+import math
 from typing import Dict, Any, Optional
 from datetime import datetime
 
@@ -436,9 +437,9 @@ class IntentExecutor:
         
         if notional < min_notional:
             if ALLOW_UPSIZE:
-                # Upsize to meet minNotional
+                # Upsize to meet minNotional - ceil() to ensure we meet threshold
                 required_qty = min_notional / mark_price
-                qty_upsized = round(required_qty / step_size) * step_size
+                qty_upsized = math.ceil(required_qty / step_size) * step_size
                 logger.info(f"📈 Upsizing: {qty:.4f} → {qty_upsized:.4f} to meet minNotional {min_notional}")
                 return qty_upsized, "upsized_to_meet_min_notional"
             else:
