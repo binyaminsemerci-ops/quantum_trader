@@ -1422,6 +1422,7 @@ class ApplyLayer:
                 "steps": json.dumps(plan.steps),
                 "close_qty": str(plan.close_qty),
                 "price": str(plan.price) if plan.price else "",
+                "reduceOnly": "true",  # Harvest plans are always reduce-only
                 "timestamp": str(plan.timestamp)
             }
             self.redis.xadd(stream_key, fields, maxlen=10000)
