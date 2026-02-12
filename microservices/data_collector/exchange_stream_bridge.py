@@ -49,24 +49,86 @@ logger = logging.getLogger(__name__)
 WS_BINANCE_BASE = "wss://stream.binance.com:9443/ws"
 WS_BYBIT = "wss://stream.bybit.com/v5/public/linear"
 
-# Symbols to stream
-SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+# Symbols to stream - DYNAMIC from Universe or config
+SYMBOLS_CONFIG = os.getenv("EXCHANGE_BRIDGE_SYMBOLS", "USE_UNIVERSE_SERVICE")
+MAX_SYMBOLS = int(os.getenv("EXCHANGE_BRIDGE_MAX_SYMBOLS", "20"))  # WebSocket limits
 
 # Redis configuration - use localhost if not in Docker
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 REDIS_STREAM_RAW = "quantum:stream:exchange.raw"
 
 
+def load_universe_symbols(redis_host: str = "127.0.0.1", redis_port: int = 6379, max_count: int = 20) -> List[str]:
+    """
+    Load top N symbols from Universe Service (sorted by volume/liquidity).
+    
+    Returns:
+        List[str]: Top N symbols from universe (max_count limit)
+    
+    Raises:
+        RuntimeError: If Universe Service unavailable or config error
+    """
+    import redis
+    
+    if SYMBOLS_CONFIG != "USE_UNIVERSE_SERVICE":
+        # Parse comma-separated list
+        symbols = [s.strip() for s in SYMBOLS_CONFIG.split(",") if s.strip()]
+        logger.info(f"✅ Loaded {len(symbols)} symbols from config")
+        return symbols[:max_count]  # Respect limit
+    
+    try:
+        r = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
+        
+        # Universe Service publishes to quantum:cfg:universe:active
+        universe_key = "quantum:cfg:universe:active"
+        universe_json = r.get(universe_key)
+        
+        if not universe_json:
+            raise RuntimeError(
+                f"❌ Universe Service NOT AVAILABLE! Key '{universe_key}' empty. "
+                f"Start quantum-universe-service first or set EXCHANGE_BRIDGE_SYMBOLS!"
+            )
+        
+        universe_data = json.loads(universe_json)
+        symbols = universe_data.get("symbols", [])
+        
+        if not symbols:
+            raise RuntimeError(f"❌ Universe data empty! Check quantum-universe-service logs.")
+        
+        # Take top N symbols (Universe already sorted by volume/liquidity)
+        selected = symbols[:max_count]
+        
+        logger.info(f"🌍 Universe loaded: {len(symbols)} total, using top {len(selected)} for WebSocket streams")
+        logger.info(f"📊 Symbols: {', '.join(selected[:10])}{'...' if len(selected) > 10 else ''}")
+        
+        return selected
+        
+    except redis.ConnectionError as e:
+        raise RuntimeError(f"❌ Cannot connect to Redis at {redis_host}:{redis_port}: {e}")
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"❌ Invalid JSON in universe data: {e}")
+
+
 class ExchangeStreamBridge:
     """WebSocket bridge for multi-exchange live data"""
     
-    def __init__(self, redis_url: str = REDIS_URL):
+    def __init__(self, redis_url: str = REDIS_URL, symbols: List[str] = None):
         self.redis_url = redis_url
         self.redis_manager = RedisConnectionManager(url=redis_url)
         self.redis_client: Optional[aioredis.Redis] = None
         self.binance_ws: Optional[websockets.WebSocketClientProtocol] = None
         self.bybit_ws: Optional[websockets.WebSocketClientProtocol] = None
         self.running = False
+        
+        # Load symbols dynamically (NO hardcoding!)
+        if symbols:
+            self.symbols = symbols
+        else:
+            # Extract redis host/port from URL for universe loading
+            redis_host = os.getenv("REDIS_HOST", "127.0.0.1")
+            redis_port = int(os.getenv("REDIS_PORT", "6379"))
+            self.symbols = load_universe_symbols(redis_host, redis_port, MAX_SYMBOLS)
+            logger.info(f"✅ Loaded {len(self.symbols)} symbols for WebSocket streams")
         
     async def connect_redis(self):
         """Connect to Redis"""
@@ -177,7 +239,7 @@ class ExchangeStreamBridge:
                     # Subscribe to kline streams
                     subscribe_msg = {
                         "op": "subscribe",
-                        "args": [f"kline.1.{symbol}" for symbol in SYMBOLS]
+                        "args": [f"kline.1.{symbol}" for symbol in self.symbols]
                     }
                     await websocket.send(json.dumps(subscribe_msg))
                     
@@ -242,7 +304,7 @@ class ExchangeStreamBridge:
         tasks = []
         
         # Binance streams (one per symbol)
-        for symbol in SYMBOLS:
+        for symbol in self.symbols:
             tasks.append(asyncio.create_task(self.handle_binance_stream(symbol)))
         
         # Bybit stream (all symbols in one connection)

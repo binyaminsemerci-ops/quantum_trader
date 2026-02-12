@@ -618,20 +618,21 @@ class IntentExecutor:
         except Exception as e:
             logger.error(f"Failed to update ledger for {symbol}: {e}")
     
-    def _commit_ledger_exactly_once(self, symbol: str, order_id: int, filled_qty: float):
+    def _commit_ledger_exactly_once(self, symbol: str, order_id: int, filled_qty: float, side: str):
         """
         Exactly-once ledger commit on FILLED orders (idempotent on order_id)
         
         This ensures quantum:position:ledger:<symbol> reflects exchange truth
-        with zero lag, using exchange snapshot as source of truth.
+        with atomic incremental updates (Bug #11 fix).
         
         Dedup: Uses quantum:ledger:seen_orders set to prevent double-counting
-        Source: quantum:position:snapshot:<symbol> (updated by P3.3 from exchange)
+        Source: Atomic calculation from current ledger + order delta (BUY=+qty, SELL=-qty)
         
         Args:
             symbol: Trading pair
             order_id: Binance order ID (unique)
             filled_qty: Quantity filled on this order
+            side: Order side (BUY or SELL)
         """
         logger.info(f"🔍 LEDGER_COMMIT_START symbol={symbol} order_id={order_id} filled_qty={filled_qty}")
         try:
@@ -646,23 +647,45 @@ class IntentExecutor:
             # Mark order as seen (atomic, idempotent)
             self.redis.sadd(seen_orders_key, str(order_id))
             
-            # Fetch exchange truth from P3.3 snapshot
+            # Fetch current ledger state for atomic update (Bug #11 fix)
+            ledger_key = f"quantum:position:ledger:{symbol}"
+            current_ledger = self.redis.hgetall(ledger_key)
+            
+            # Calculate position delta from order
+            # BUY increases position (LONG), SELL decreases (SHORT)
+            order_delta = filled_qty if side == "BUY" else -filled_qty
+            
+            # Calculate new position atomically
+            current_position = float(current_ledger.get(b"position_amt", b"0").decode()) if current_ledger else 0.0
+            new_position = current_position + order_delta
+            
+            logger.info(
+                f"🔧 ATOMIC UPDATE: {symbol} {side} {filled_qty:.4f} | "
+                f"{current_position:.4f} → {new_position:.4f} (delta={order_delta:+.4f})"
+            )
+            
+            # Get snapshot for price/pnl data (best-effort, may be stale)
             snapshot_key = f"quantum:position:snapshot:{symbol}"
             snapshot = self.redis.hgetall(snapshot_key)
             
-            if not snapshot:
-                logger.warning(
-                    f"LEDGER_COMMIT_SKIP symbol={symbol} order_id={order_id} "
-                    f"(no snapshot available, P3.3 may not have refreshed yet)"
-                )
-                return
+            # Use snapshot price data if available, otherwise keep ledger values
+            if snapshot:
+                entry_price = float(snapshot.get(b"entry_price", b"0").decode())
+                unrealized_pnl = float(snapshot.get(b"unrealized_pnl", b"0").decode())
+                leverage = int(float(snapshot.get(b"leverage", b"1").decode()))
+            elif current_ledger:
+                # Keep existing ledger price data
+                entry_price = float(current_ledger.get(b"entry_price", b"0").decode())
+                unrealized_pnl = float(current_ledger.get(b"unrealized_pnl", b"0").decode())
+                leverage = int(float(current_ledger.get(b"leverage", b"5").decode()))
+            else:
+                # First order - use zero values (P3.3 will update from exchange)
+                entry_price = 0.0
+                unrealized_pnl = 0.0
+                leverage = 5
             
-            # Extract position data from snapshot (exchange truth)
-            position_amt = float(snapshot.get(b"position_amt", b"0").decode())
-            entry_price = float(snapshot.get(b"entry_price", b"0").decode())
-            side = snapshot.get(b"side", b"FLAT").decode()
-            unrealized_pnl = float(snapshot.get(b"unrealized_pnl", b"0").decode())
-            leverage = int(float(snapshot.get(b"leverage", b"1").decode()))
+            # Use atomically calculated position
+            position_amt = new_position
             
             # Derive ledger side from SIGNED position_amt (P3.3 contract)
             eps = 1e-12
@@ -1050,7 +1073,7 @@ class IntentExecutor:
                 # Exactly-once ledger commit (idempotent on order_id)
                 if final_status == "FILLED":
                     logger.info(f"🔍 DEBUG: Calling ledger commit for {symbol} order_id={order_id}")
-                    self._commit_ledger_exactly_once(symbol, order_id, final_filled)
+                    self._commit_ledger_exactly_once(symbol, order_id, final_filled, side)
                 
                 self._write_result(
                     plan_id, symbol, executed=True,

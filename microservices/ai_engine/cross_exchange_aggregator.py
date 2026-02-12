@@ -25,9 +25,8 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 REDIS_STREAM_RAW = "quantum:stream:exchange.raw"
 REDIS_STREAM_NORMALIZED = "quantum:stream:exchange.normalized"
 
-# Symbols to process - read from env or use default
-SYMBOLS = os.getenv("CROSS_EXCHANGE_SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT").split(",")
-SYMBOLS = [s.strip() for s in SYMBOLS]  # Remove whitespace
+# Symbols to process - read from env
+SYMBOLS_CONFIG = os.getenv("CROSS_EXCHANGE_SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT")
 
 
 class CrossExchangeAggregator:
@@ -45,8 +44,17 @@ class CrossExchangeAggregator:
         self.redis_client: Optional[aioredis.Redis] = None
         self.running = False
         
-        # Use provided symbols or default
-        self.symbols = symbols or SYMBOLS
+        # Load symbols dynamically (NO hardcoding!)
+        if symbols:
+            self.symbols = symbols
+        elif SYMBOLS_CONFIG == "USE_UNIVERSE_SERVICE":
+            # CRITICAL: Fetch from Universe Service - NO fallback allowed!
+            self.symbols = self._load_universe_symbols(redis_host, redis_port)
+            logger.info(f"✅ Loaded {len(self.symbols)} symbols from Universe Service")
+        else:
+            # Parse comma-separated list from config
+            self.symbols = [s.strip() for s in SYMBOLS_CONFIG.split(",")]
+            logger.info(f"✅ Loaded {len(self.symbols)} symbols from config")
         
         # Buffer for merging data by timestamp
         self.data_buffer: Dict[str, Dict[int, Dict[str, float]]] = {
@@ -55,6 +63,46 @@ class CrossExchangeAggregator:
         
         # Last processed ID
         self.last_id = "0-0"
+    
+    def _load_universe_symbols(self, redis_host: str, redis_port: int) -> List[str]:
+        """
+        Load symbols from Universe Service (NO fallback - fail fast!)
+        
+        Raises:
+            RuntimeError: If Universe Service data not available
+        """
+        import redis
+        
+        try:
+            r = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
+            
+            # Universe Service publishes to quantum:cfg:universe:active (JSON string)
+            universe_key = "quantum:cfg:universe:active"
+            universe_json = r.get(universe_key)
+            
+            if not universe_json:
+                raise RuntimeError(
+                    f"❌ Universe Service NOT AVAILABLE! Key '{universe_key}' is empty. "
+                    f"Start quantum-universe-service first!"
+                )
+            
+            universe_data = json.loads(universe_json)
+            symbols = universe_data.get("symbols", [])
+            
+            if not symbols:
+                raise RuntimeError(
+                    f"❌ Universe data is empty! Check quantum-universe-service logs."
+                )
+            
+            logger.info(f"🌍 Universe loaded: {len(symbols)} symbols from {universe_data.get('source', 'unknown')}")
+            return symbols
+            
+        except redis.ConnectionError as e:
+            raise RuntimeError(f"❌ Cannot connect to Redis at {redis_host}:{redis_port}: {e}")
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"❌ Invalid JSON in universe data: {e}")
+        except Exception as e:
+            raise RuntimeError(f"❌ Failed to load universe: {e}")
         
     async def connect_redis(self):
         """Connect to Redis"""
