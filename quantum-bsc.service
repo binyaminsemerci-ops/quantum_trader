@@ -1,0 +1,35 @@
+[Unit]
+Description=Quantum Trader - Baseline Safety Controller (BSC)
+Documentation=file:///root/quantum_trader/BASELINE_SAFETY_CONTROLLER_PROMPT_CANONICAL.md
+After=network.target redis.service
+Requires=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader/bsc
+
+# Environment
+Environment="AUTHORITY_FREEZE_REQUIRED=1"
+EnvironmentFile=/home/qt/.env
+
+# Execution
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/bsc/bsc_main.py
+
+# Logging
+StandardOutput=append:/var/log/quantum/bsc.log
+StandardError=append:/var/log/quantum/bsc.log
+SyslogIdentifier=quantum-bsc
+
+# Restart Policy (FAIL OPEN - unlimited restarts)
+Restart=always
+RestartSec=10
+StartLimitBurst=0
+
+# Security (minimal - BSC needs Binance API access)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

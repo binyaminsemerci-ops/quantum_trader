@@ -467,29 +467,34 @@ class EventBus:
         """
         try:
             # Debug: log raw message data
-            logger.info(f"🔍 Raw message_data keys: {list(message_data.keys())}")
-            logger.info(f"🔍 Raw message_data: {message_data}")
+            logger.debug(f"🔍 Raw message_data keys: {list(message_data.keys())}")
             
-            # 🔥 FIX: Handle both EventBus format AND direct Redis stream format
-            # EventBus format: data in JSON "payload" field
-            # Direct format: fields directly in message_data as bytes (e.g., from intent_executor)
+            # 🔥 CRITICAL FIX: Redis XADD stores all keys/values as bytes.
+            # When XREADGROUP reads, message_data is {b'key': b'value', ...}
+            # Previous fallback logic failed because:
+            #   1. payload_json check returned b"{}" (default)
+            #   2. json.loads("{}") returned {} (empty but truthy path taken)
+            #   3. Fallback condition never triggered
+            # Solution: Check for bytes keys FIRST, decode immediately.
             
-            payload_json = message_data.get("payload") or message_data.get(b"payload", b"{}")
-            if isinstance(payload_json, bytes):
-                payload_json = payload_json.decode("utf-8")
-            payload = json.loads(payload_json) if payload_json else {}
+            # Step 1: Check if this is raw Redis format (bytes keys)
+            has_bytes_keys = any(isinstance(k, bytes) for k in message_data.keys())
             
-            # If payload is empty, check if this is direct format (has entry_price, symbol, etc.)
-            if not payload and (message_data.get(b"symbol") or message_data.get("symbol")):
-                # Direct Redis stream format - decode all fields
+            if has_bytes_keys:
+                # Direct Redis stream format - decode all bytes to strings
                 payload = {}
                 for key, value in message_data.items():
                     str_key = key.decode('utf-8') if isinstance(key, bytes) else key
                     str_value = value.decode('utf-8') if isinstance(value, bytes) else value
                     payload[str_key] = str_value
-                logger.info(f"✅ Decoded direct format: {len(payload)} fields")
+                logger.debug(f"✅ Decoded direct Redis format: {len(payload)} fields")
             else:
-                logger.info(f"✅ Decoded payload: {payload}")
+                # EventBus wrapper format: payload in JSON "payload" field
+                payload_json = message_data.get("payload", "{}")
+                if isinstance(payload_json, bytes):
+                    payload_json = payload_json.decode("utf-8")
+                payload = json.loads(payload_json) if payload_json and payload_json != "{}" else {}
+                logger.debug(f"✅ Decoded EventBus wrapper: {len(payload)} fields")
             
             trace_id = message_data.get("trace_id") or message_data.get(b"trace_id", b"")
             if isinstance(trace_id, bytes):

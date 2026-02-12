@@ -1341,6 +1341,28 @@ class AIEngineService:
         except Exception as e:
             logger.error(f"[AI-ENGINE] Error handling market.klines: {e}", exc_info=True)
     
+    def _decode_redis_payload(self, raw: dict) -> dict:
+        """
+        Robust decoder for Redis Stream payloads (bytes keys/values → str).
+        
+        Handles trade.closed events that arrive with bytes keys/values from Redis.
+        Must be called BEFORE any field access to ensure data integrity for CLM.
+        
+        Args:
+            raw: Redis message_data with bytes keys/values or already-decoded dict
+        
+        Returns:
+            Decoded dict with string keys and string values
+        """
+        decoded = {}
+        for k, v in raw.items():
+            # Decode key if bytes
+            key = k.decode('utf-8') if isinstance(k, bytes) else k
+            # Decode value if bytes
+            val = v.decode('utf-8') if isinstance(v, bytes) else v
+            decoded[key] = val
+        return decoded
+    
     async def _handle_trade_closed(self, event_data: Dict[str, Any]):
         """
         Handle trade.closed event from execution-service.
@@ -1354,38 +1376,46 @@ class AIEngineService:
         import json  # For payload parsing
         
         try:
-            # 🔥 FIX: Handle both EventBus payload format AND direct Redis stream format
-            # EventBus format: payload is in JSON "payload" field
-            # Direct format: fields are directly in event_data as bytes
+            # 🔥 CRITICAL FIX: Robust bytes→str decoding for trade.closed events
+            # Problem: Redis XADD stores all keys/values as bytes. When EventBus reads
+            # with XREADGROUP, message_data contains {b'entry_price': b'0.06226', ...}.
+            # Previous logic failed to decode properly, resulting in empty dict {},
+            # which caused CLM to reject all trades (entry_price=0.0).
             
-            # Check if this is EventBus format (has "payload" key)
-            has_payload = "payload" in event_data or b"payload" in event_data
+            # Step 1: Immediate bytes decoding if raw Redis format detected
+            if event_data and any(isinstance(k, bytes) for k in event_data.keys()):
+                # Raw bytes keys found - decode everything immediately
+                event_data = self._decode_redis_payload(event_data)
+                logger.debug(f"[REDIS-DECODE] ✅ Decoded {len(event_data)} fields from bytes")
             
-            if has_payload:
-                # EventBus format - extract from payload
-                payload_json = event_data.get("payload") or event_data.get(b"payload", b"{}")
+            # Step 2: Early exit if empty (failed upstream)
+            if not event_data or len(event_data) == 0:
+                logger.warning("[AI-ENGINE] ⚠️ Empty trade.closed event - skipping")
+                return
+            
+            # Step 3: Handle EventBus wrapper format (payload field with JSON string)
+            if "payload" in event_data:
+                payload_json = event_data.get("payload", "{}")
                 if isinstance(payload_json, bytes):
                     payload_json = payload_json.decode('utf-8')
-                decoded_data = json.loads(payload_json) if payload_json else {}
-            else:
-                # Direct Redis stream format - decode bytes to strings
-                decoded_data = {}
-                for key, value in event_data.items():
-                    # Decode key if bytes
-                    str_key = key.decode('utf-8') if isinstance(key, bytes) else key
-                    # Decode value if bytes
-                    str_value = value.decode('utf-8') if isinstance(value, bytes) else value
-                    decoded_data[str_key] = str_value
+                event_data = json.loads(payload_json) if payload_json and payload_json != "{}" else {}
+                if event_data:
+                    logger.debug("[REDIS-DECODE] ✅ Extracted from EventBus payload wrapper")
             
-            event_data = decoded_data  # Use decoded version
+            # Step 4: Final validation - must have symbol field for valid trade
+            if not event_data or "symbol" not in event_data:
+                logger.warning("[AI-ENGINE] ⚠️ trade.closed missing 'symbol' - skipping")
+                return
             
             trade_id = event_data.get("trade_id")
             symbol = event_data.get("symbol", "unknown")
             pnl_percent = float(event_data.get("pnl_percent", 0.0))
             model = event_data.get("model_id", event_data.get("model", "unknown"))  # Try model_id first, fallback to model
             strategy = event_data.get("strategy")
+            entry_price = float(event_data.get("entry_price", 0.0))
+            exit_price = float(event_data.get("exit_price", 0.0))
             
-            logger.info(f"[AI-ENGINE] Trade closed: {trade_id} (PnL={pnl_percent:.2f}%, model={model})")
+            logger.info(f"[AI-ENGINE] Trade closed: {trade_id} | {symbol} | Entry={entry_price} Exit={exit_price} | PnL={pnl_percent:.2f}% | model={model}")
             
             # Phase 4D+4E: Track PnL for governance
             if self.supervisor_governance and symbol:
@@ -1498,34 +1528,8 @@ class AIEngineService:
                         "exit_reason": event_data.get("exit_reason", "unknown")
                     }
                     
-                    # Record trade (validates, labels, persists)
-                    success, error = self.simple_clm.record_trade(trade_record)
-                    
-                    if success:
-                        logger.debug(f"[sCLM] ✅ Recorded: {symbol} PnL={pnl_percent:+.2f}%")
-                    else:
-                        logger.warning(f"[sCLM] ❌ Rejected trade: {error}")
-                
-                except Exception as sclm_error:
-                    logger.error(f"[sCLM] ❌ Recording failed: {sclm_error}", exc_info=True)
-            
-            # [SimpleCLM] Record trade outcome (passive collection)
-            if self.simple_clm:
-                try:
-                    # Build complete trade record with all required fields
-                    trade_record = {
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "symbol": symbol,
-                        "side": event_data.get("action", "BUY").upper(),  # BUY/SELL
-                        "entry_price": float(event_data.get("entry_price", 0.0)),
-                        "exit_price": float(event_data.get("exit_price", 0.0)),
-                        "pnl_percent": float(pnl_percent),
-                        "confidence": float(event_data.get("confidence", 0.5)),
-                        "model_id": f"{model}_{strategy}",
-                        "strategy_id": strategy,
-                        "position_size": float(event_data.get("position_size", 0.0)),
-                        "exit_reason": event_data.get("exit_reason", "unknown")
-                    }
+                    # Debug: Verify decoded data integrity before CLM validation
+                    logger.debug(f"[sCLM] Submitting trade: entry_price={trade_record['entry_price']}, exit_price={trade_record['exit_price']}, pnl={trade_record['pnl_percent']}")
                     
                     # Record trade (validates, labels, persists)
                     success, error = self.simple_clm.record_trade(trade_record)

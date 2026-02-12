@@ -131,6 +131,7 @@ class TradeIntent:
     """Trade intent from strategy layer (for execution)
     
     v1.1 BRIDGE-PATCH: Supports AI-injected sizing/leverage/policy fields.
+    v1.2 PATH 1B: Added reduce_only, reason for apply.result CLOSE execution
     """
     symbol: str
     action: str  # BUY, SELL, CLOSE
@@ -152,6 +153,9 @@ class TradeIntent:
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
     quantity: Optional[float] = None
+    # PATH 1B: Exit flow fields (v1.2)
+    reduce_only: Optional[bool] = None
+    reason: Optional[str] = None
     
     def __post_init__(self):
         """Convert ai_harvest_policy dict to HarvestPolicy if needed"""
@@ -504,6 +508,22 @@ class EventBusClient:
                                     logger.error(f"[DIAG] Raw data: {raw_data}")
                                 # Continue without ACK - message stays in pending list
                                 continue
+                        else:
+                            # FLAT SCHEMA support (e.g., apply.result): no "payload" wrapper
+                            # Treat all fields directly as payload
+                            payload = {
+                                k.decode() if isinstance(k, bytes) else k: 
+                                v.decode() if isinstance(v, bytes) else v
+                                for k, v in fields.items()
+                            }
+                            payload["_message_id"] = message_id
+                            payload["_stream_name"] = stream_name
+                            payload["_group_name"] = group_name
+                            
+                            yield payload
+                            
+                            # ACK message immediately after processing
+                            await self.redis.xack(stream_name, group_name, message_id)
             
             except asyncio.CancelledError:
                 logger.info(f"🛑 Subscription cancelled: {topic}")

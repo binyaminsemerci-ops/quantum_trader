@@ -1,0 +1,37 @@
+[Unit]
+Description=Quantum Feature Publisher Service (PATH 2.3D Bridge)
+After=network.target redis-server.service
+Wants=redis-server.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+Environment="PATH=/home/qt/quantum_trader/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/home/qt/quantum_trader"
+Environment="REDIS_URL=redis://localhost:6379"
+
+ExecStart=/home/qt/quantum_trader/venv/bin/python -u /home/qt/quantum_trader/ai_engine/services/feature_publisher_service.py
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-feature-publisher
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

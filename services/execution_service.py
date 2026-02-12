@@ -696,25 +696,36 @@ async def execute_order_from_intent(intent: TradeIntent):
             else:
                 redis_client.incr(global_rate_key)
             
+            # Safe formatting for optional fields
+            size_str = f"${intent.position_size_usd:.2f}" if intent.position_size_usd else "$0"
+            price_str = f"@ ${intent.entry_price:.4f}" if intent.entry_price else "@ market"
+            
             logger.info(
                 f"📥 TradeIntent APPROVED: {intent.symbol} {intent.side} "
-                f"${intent.position_size_usd:.2f} @ ${intent.entry_price:.4f} "
+                f"{size_str} {price_str} "
                 f"| Confidence={intent.confidence:.2%} | Leverage={intent.leverage}x | trace_id={trace_id}"
             )
             
-            # 1. Set leverage for symbol
-            try:
-                binance_client.futures_change_leverage(
-                    symbol=intent.symbol,
-                    leverage=int(intent.leverage)
-                )
-                logger.info(f"✅ Leverage set to {intent.leverage}x for {intent.symbol}")
-            except BinanceAPIException as e:
-                logger.warning(f"⚠️ Could not set leverage (may already be set): {e}")
+            # 1. Set leverage for symbol (skip for reduce_only exits)
+            if not intent.reduce_only and intent.leverage:
+                try:
+                    binance_client.futures_change_leverage(
+                        symbol=intent.symbol,
+                        leverage=int(intent.leverage)
+                    )
+                    logger.info(f"✅ Leverage set to {intent.leverage}x for {intent.symbol}")
+                except BinanceAPIException as e:
+                    logger.warning(f"⚠️ Could not set leverage (may already be set): {e}")
+            elif intent.reduce_only:
+                logger.info(f"⏩ LEVERAGE SKIP: {intent.symbol} (reduce_only=True)")
             
-            # 2. Calculate quantity
-            # quantity = position_size_usd / entry_price
-            quantity = intent.position_size_usd / intent.entry_price
+            # 2. Calculate quantity (skip for reduce_only - uses provided quantity directly)
+            if intent.reduce_only and intent.quantity:
+                quantity = intent.quantity
+                logger.info(f"⏩ QUANTITY FROM INTENT: {intent.symbol} qty={quantity} (reduce_only=True)")
+            else:
+                # Calculate from position_size_usd and entry_price
+                quantity = intent.position_size_usd / intent.entry_price
             
             # Round to Binance LOT_SIZE stepSize precision
             quantity = round_quantity(intent.symbol, quantity)
@@ -752,14 +763,21 @@ async def execute_order_from_intent(intent: TradeIntent):
             # 3. Place MARKET order
             side_binance = "BUY" if intent.side.upper() == "BUY" else "SELL"
             
-            logger.info(f"🚀 Placing MARKET order: {side_binance} {quantity} {intent.symbol}")
+            logger.info(f"🚀 Placing MARKET order: {side_binance} {quantity} {intent.symbol} reduceOnly={intent.reduce_only or False}")
             
-            market_order = binance_client.futures_create_order(
-                symbol=intent.symbol,
-                side=side_binance,
-                type="MARKET",
-                quantity=quantity
-            )
+            # Build order parameters
+            order_params = {
+                "symbol": intent.symbol,
+                "side": side_binance,
+                "type": "MARKET",
+                "quantity": quantity
+            }
+            
+            # Add reduceOnly for exits
+            if intent.reduce_only:
+                order_params["reduceOnly"] = True
+            
+            market_order = binance_client.futures_create_order(**order_params)
             
             # Debug: Log full response
             logger.info(f"🔍 Binance response: orderId={market_order.get('orderId')}, "
@@ -904,7 +922,7 @@ async def order_consumer():
     
     try:
         async for signal_data in eventbus.subscribe_with_group(
-            "quantum:stream:trade.intent",
+            "quantum:stream:apply.result",
             group_name=group_name,
             consumer_name=consumer_name,
             start_id=">",  # Only new messages
@@ -914,11 +932,19 @@ async def order_consumer():
             msg_id = signal_data.get('_message_id', 'unknown')
             symbol = signal_data.get('symbol', 'N/A')
             
-            # Optional diagnostic logging (controlled by PIPELINE_DIAG env var)
-            if os.getenv('PIPELINE_DIAG') == 'true':
-                logger.info(f"[DIAG] Processing message {msg_id} symbol={symbol}")
+            # PATH 1B: Save metadata for ACK immediately (BEFORE any processing)
+            stream_name = signal_data.get('_stream_name')
+            group_name = signal_data.get('_group_name')
             
-            # P0.D.5: TTL check - drop stale intents
+            # PATH 1B: Log every apply.result receive (Endring A)
+            logger.info(
+                f"[PATH1B] RX apply.result msg_id={msg_id} "
+                f"decision={signal_data.get('decision')} "
+                f"executed={signal_data.get('executed')} "
+                f"would_execute={signal_data.get('would_execute')} "
+                f"symbol={symbol}"
+            )
+
             intent_timestamp = signal_data.get('timestamp')
             if intent_timestamp:
                 try:
@@ -951,10 +977,101 @@ async def order_consumer():
             # Remove EventBus metadata
             signal_data = {k: v for k, v in signal_data.items() if not k.startswith('_')}
             
-            # Schema normalization: convert 'side' to 'action' if needed
-            if 'side' in signal_data and 'action' not in signal_data:
-                signal_data['action'] = signal_data['side']
-                del signal_data['side']
+            # PATH 1B: Detect and parse apply.result events (approved CLOSE execution)
+            if signal_data.get("decision") == "EXECUTE":
+                # This is an apply.result event (not trade.intent)
+                executed = signal_data.get("executed")
+                would_execute = signal_data.get("would_execute")
+                error = signal_data.get("error")
+                
+                # Check if executable (approved and not blocked)
+                exec_true = executed == True or str(executed).lower() == "true"
+                would_exec_false = would_execute == False or str(would_execute).lower() == "false"
+                
+                if exec_true:
+                    # Already executed - skip (idempotency)
+                    logger.info(f"[PATH1B] SKIP {symbol}: executed=True")  # Endring B
+                    # Endring C: ACK skip path
+                    if stream_name and group_name:
+                        try:
+                            await eventbus.redis.xack(stream_name, group_name, msg_id)
+                        except Exception as ack_err:
+                            logger.error(f"❌ Failed to ACK {msg_id}: {ack_err}")
+                    continue
+                    
+                if would_exec_false:
+                    # Blocked by risk system
+                    logger.info(f"[PATH1B] SKIP {symbol}: blocked by risk ({error})")  # Endring B
+                    # Endring C: ACK skip path
+                    if stream_name and group_name:
+                        try:
+                            await eventbus.redis.xack(stream_name, group_name, msg_id)
+                        except Exception as ack_err:
+                            logger.error(f"❌ Failed to ACK {msg_id}: {ack_err}")
+                    continue
+                    
+                if error and error not in ["None", "null", ""]:
+                    # Has error - not executable
+                    logger.info(f"[PATH1B] SKIP {symbol}: error={error}")  # Endring B
+                    # Endring C: ACK skip path
+                    if stream_name and group_name:
+                        try:
+                            await eventbus.redis.xack(stream_name, group_name, msg_id)
+                        except Exception as ack_err:
+                            logger.error(f"❌ Failed to ACK {msg_id}: {ack_err}")
+                    continue
+                
+                # Extract execution parameters from steps_results
+                steps_results = signal_data.get("steps_results", "[]")
+                if isinstance(steps_results, str):
+                    import json
+                    try:
+                        steps_results = json.loads(steps_results)
+                    except:
+                        steps_results = []
+                
+                # Find side and quantity
+                side = None
+                quantity = None
+                if isinstance(steps_results, list) and len(steps_results) > 0:
+                    for step in steps_results:
+                        if isinstance(step, dict):
+                            side = step.get("side") or side
+                            quantity = step.get("quantity") or step.get("executed_qty") or quantity
+                
+                # Fallback to root level
+                if not side:
+                    side = signal_data.get("side")
+                if not quantity:
+                    quantity = signal_data.get("quantity") or signal_data.get("qty")
+                
+                # Convert quantity to float
+                if quantity:
+                    try:
+                        quantity = float(quantity)
+                    except:
+                        quantity = None
+                
+                # Validate
+                if not symbol or not side or not quantity:
+                    logger.warning(f"⚠️ Cannot parse apply.result {msg_id}: missing fields symbol={symbol} side={side} qty={quantity}")
+                    continue
+                
+                # Build TradeIntent for execution (CLOSE only, reduceOnly=True)
+                logger.info(f"[PATH1B] EXEC CLOSE: {symbol} {side} qty={quantity} reduceOnly=True")  # Endring D
+                signal_data = {
+                    "symbol": symbol,
+                    "action": side,
+                    "confidence": 1.0,  # PATH 1B: approved exit, full confidence
+                    "quantity": quantity,
+                    "reduce_only": True,
+                    "source": "apply_layer",
+                    "reason": signal_data.get("reason", "apply.result_approved_close"),
+                    "timestamp": signal_data.get("timestamp", ""),
+                }
+                # Fall through to TradeIntent parsing
+
+                signal_data.pop('side', None)  # Remove 'side' if present (already mapped to 'action')
             
             # Filter signal_data to only include TradeIntent fields
             # BRIDGE-PATCH: Added ai_size_usd, ai_leverage, ai_harvest_policy for AI-driven sizing
@@ -995,6 +1112,14 @@ async def order_consumer():
                     await execute_order_from_intent(intent)
             else:
                 await execute_order_from_intent(intent)
+            
+            # Endring E: ACK after successful execution
+            if stream_name and group_name:
+                try:
+                    await eventbus.redis.xack(stream_name, group_name, msg_id)
+                    logger.debug(f"[PATH1B] ACK {msg_id} after execution")
+                except Exception as ack_err:
+                    logger.error(f"❌ Failed to ACK {msg_id} after execution: {ack_err}")
     except asyncio.CancelledError:
         logger.info("🛑 Order consumer cancelled")
     except Exception as e:
