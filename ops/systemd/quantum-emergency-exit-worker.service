@@ -1,0 +1,41 @@
+[Unit]
+Description=Quantum Trader Emergency Exit Worker
+Documentation=https://github.com/quantum-trader/services/emergency_exit_worker
+After=network.target redis.service
+Requires=redis.service
+# CRITICAL: This service must always be running when trading is active
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/home/qt/quantum_trader
+EnvironmentFile=/home/qt/quantum_trader/.env
+
+# Main execution
+ExecStart=/home/qt/quantum_trader/venv/bin/python \
+    /home/qt/quantum_trader/services/emergency_exit_worker/emergency_exit_worker.py
+
+# NO automatic restart - failures require manual inspection
+Restart=no
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-emergency-exit-worker
+
+# Resource limits
+MemoryLimit=256M
+CPUQuota=25%
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/home/qt/quantum_trader/logs
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

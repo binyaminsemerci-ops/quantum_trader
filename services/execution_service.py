@@ -52,6 +52,29 @@ from ai_engine.services.eventbus_bridge import (
     ExecutionResult
 )
 
+# GRUNNLOV: Constitutional validation (15 Fundamental Laws)
+try:
+    from backend.domains.governance import (
+        GrunnlovPreTradeValidator,
+        ConstitutionalViolationError,
+    )
+    GRUNNLOV_ENABLED = True
+    _grunnlov_validator = None
+except ImportError:
+    GRUNNLOV_ENABLED = False
+    _grunnlov_validator = None
+
+def get_grunnlov_validator():
+    """Lazy-load Grunnlov validator."""
+    global _grunnlov_validator
+    if GRUNNLOV_ENABLED and _grunnlov_validator is None:
+        try:
+            _grunnlov_validator = GrunnlovPreTradeValidator()
+            logger.info("🏛️ GRUNNLOV: Constitutional validator initialized")
+        except Exception as e:
+            logger.warning(f"⚠️ GRUNNLOV: Could not initialize validator: {e}")
+    return _grunnlov_validator
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -548,6 +571,58 @@ async def execute_order_from_intent(intent: TradeIntent):
                 # Set cooldown
                 redis_client.setex("quantum:safety:cooldown_global", 300, "1")
                 return
+            
+            # =============================================================
+            # GRUNNLOV: CONSTITUTIONAL VALIDATION (15 FUNDAMENTAL LAWS)
+            # =============================================================
+            # This check enforces the 15 Grunnlover before any execution.
+            # Higher laws cannot be overridden by lower components.
+            
+            if GRUNNLOV_ENABLED and not getattr(intent, 'reduce_only', False):
+                validator = get_grunnlov_validator()
+                if validator:
+                    try:
+                        # Calculate entry price for risk calculations
+                        entry_px = intent.entry_price or 0
+                        sl_px = intent.stop_loss or 0
+                        tp_px = intent.take_profit or 0
+                        
+                        # Skip validation if missing critical data
+                        if entry_px <= 0 or sl_px <= 0:
+                            logger.info(f"🏛️ GRUNNLOV: Skipping validation (missing entry/SL data)")
+                        else:
+                            allowed, reason, details = validator.validate_entry(
+                                symbol=intent.symbol,
+                                side=intent.side.upper(),
+                                entry_price=entry_px,
+                                stop_loss=sl_px,
+                                take_profit=tp_px or entry_px * (1.03 if intent.side.upper() == "BUY" else 0.97),
+                                position_size=intent.position_size_usd or 100.0,
+                                leverage=intent.leverage or 10.0,
+                                confidence=intent.confidence or 0.7,
+                                strategy=getattr(intent, 'strategy', 'MOMENTUM'),
+                            )
+                            
+                            if not allowed:
+                                logger.warning(
+                                    f"🏛️ GRUNNLOV BLOCK: {intent.symbol} {intent.side} | {reason}"
+                                )
+                                logger.info(
+                                    f"🚫 TERMINAL STATE: REJECTED_GRUNNLOV | {intent.symbol} {intent.side} | "
+                                    f"Law={details.get('law', 'UNKNOWN')} | Reason={reason}"
+                                )
+                                stats["orders_rejected"] += 1
+                                return
+                            
+                            logger.info(
+                                f"🏛️ GRUNNLOV PASS: {intent.symbol} {intent.side} | "
+                                f"Risk={details.get('risk_pct', 0):.2f}% R/R={details.get('rr_ratio', 0):.2f}"
+                            )
+                    
+                    except Exception as grunnlov_err:
+                        # FAIL-OPEN for Grunnlov (allow trade if validator fails)
+                        # This is intentional - we don't want validator bugs to block trading
+                        logger.warning(f"⚠️ GRUNNLOV: Validator error (fail-open): {grunnlov_err}")
             
             # =============================================================
             # P0.1: MARGIN GUARD (CRITICAL - FAIL-CLOSED)

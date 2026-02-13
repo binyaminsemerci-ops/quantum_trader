@@ -1,0 +1,105 @@
+# CODEOWNERS - Quantum Trader
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default - all files require engineering review
+*                                   @quantum-trader/engineering
+
+# ============================================================
+# CONSTITUTION - FOUNDERS ONLY
+# ============================================================
+# Policy documents require explicit founder approval
+# These define the immutable rules of the fund
+
+/constitution/                      @quantum-trader/founders
+/constitution/FUND_POLICY.md        @quantum-trader/founders
+/constitution/RISK_POLICY.md        @quantum-trader/founders
+/constitution/CAPITAL_POLICY.md     @quantum-trader/founders
+/constitution/GOVERNANCE.md         @quantum-trader/founders
+/constitution/EXIT_POLICY.md        @quantum-trader/founders
+/constitution/KILL_SWITCH_POLICY.md @quantum-trader/founders
+/constitution/NO_TRADE_RULES.md     @quantum-trader/founders
+
+# ============================================================
+# RISK-CRITICAL SERVICES
+# ============================================================
+# These services directly affect trading safety
+# Require risk team AND founder review
+
+/services/risk_kernel/              @quantum-trader/risk-team @quantum-trader/founders
+/services/exit_brain/               @quantum-trader/risk-team @quantum-trader/founders
+/services/execution_engine/         @quantum-trader/risk-team
+/services/position_sizer/           @quantum-trader/risk-team
+
+# Kill-switch is especially sensitive
+/services/kill_switch/              @quantum-trader/founders
+
+# ============================================================
+# STANDARD SERVICES
+# ============================================================
+# Important but less critical services
+
+/services/signal_advisory/          @quantum-trader/engineering
+/services/regime_detector/          @quantum-trader/engineering
+/services/data_collector/           @quantum-trader/engineering
+/services/logger/                   @quantum-trader/engineering
+/services/alerting/                 @quantum-trader/engineering
+/services/dashboard/                @quantum-trader/engineering
+
+# ============================================================
+# OPERATIONS
+# ============================================================
+# Operational procedures and runbooks
+
+/ops/                               @quantum-trader/devops @quantum-trader/engineering
+/ops/pre_flight/                    @quantum-trader/risk-team
+/ops/black_swan_playbook/           @quantum-trader/founders
+/ops/restart_protocol/              @quantum-trader/devops
+
+# ============================================================
+# TESTS
+# ============================================================
+# Test files - engineering can update, but risk tests need risk team
+
+/tests/                             @quantum-trader/engineering
+/tests/failure_scenarios/           @quantum-trader/risk-team
+/tests/stress_tests/                @quantum-trader/risk-team
+/tests/kill_switch_tests/           @quantum-trader/founders
+
+# Service-specific tests
+/services/risk_kernel/tests/        @quantum-trader/risk-team
+/services/exit_brain/tests/         @quantum-trader/risk-team
+/services/execution_engine/tests/   @quantum-trader/risk-team
+
+# ============================================================
+# DOCUMENTATION
+# ============================================================
+
+/docs/                              @quantum-trader/engineering
+/docs/FOUNDERS_OPERATING_MANUAL.md  @quantum-trader/founders
+/docs/RISK_DISCLOSURE.md            @quantum-trader/founders
+
+# ============================================================
+# GITHUB CONFIGURATION
+# ============================================================
+# Changes to CI/CD and GitHub settings
+
+/.github/                           @quantum-trader/devops @quantum-trader/engineering
+/.github/CODEOWNERS                 @quantum-trader/founders
+/.github/workflows/                 @quantum-trader/devops
+/.github/BRANCH_STRATEGY.md         @quantum-trader/founders
+
+# ============================================================
+# INFRASTRUCTURE
+# ============================================================
+
+/docker-compose*.yml                @quantum-trader/devops
+/Dockerfile*                        @quantum-trader/devops
+/kubernetes/                        @quantum-trader/devops
+/terraform/                         @quantum-trader/devops
+
+# ============================================================
+# EVENTS AND STATE
+# ============================================================
+
+/events/                            @quantum-trader/engineering
+/state/                             @quantum-trader/engineering @quantum-trader/risk-team

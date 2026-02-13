@@ -1,0 +1,47 @@
+[Unit]
+Description=Quantum Trader Exit Brain Watchdog
+Documentation=https://github.com/quantum-trader/services/exit_brain
+After=network.target redis.service quantum-exit-brain.service
+Requires=redis.service
+# CRITICAL: Watchdog must run when Exit Brain is running
+BindsTo=quantum-exit-brain.service
+PartOf=quantum-exit-brain.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/home/qt/quantum_trader
+EnvironmentFile=/home/qt/quantum_trader/.env
+
+# Main execution
+ExecStart=/home/qt/quantum_trader/venv/bin/python \
+    /home/qt/quantum_trader/services/exit_brain/exit_brain_watchdog.py
+
+# Restart policy - watchdog should restart, but alert if it fails multiple times
+Restart=always
+RestartSec=1
+# If watchdog keeps failing, something is seriously wrong
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-exit-brain-watchdog
+
+# Resource limits (watchdog is lightweight)
+MemoryLimit=128M
+CPUQuota=10%
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/home/qt/quantum_trader/logs
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
