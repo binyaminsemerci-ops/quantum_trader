@@ -24,6 +24,7 @@ from microservices.autonomous_trader.entry_scanner import EntryScanner, EntryOpp
 from microservices.autonomous_trader.exit_manager import ExitManager, ExitDecision
 from microservices.autonomous_trader.funding_rate_filter import get_filtered_symbols
 from microservices.rl_sizing_agent.rl_agent import RLPositionSizingAgent
+import json
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,10 +57,14 @@ class AutonomousTrader:
         self.scan_interval_sec = int(os.getenv("SCAN_INTERVAL_SEC", "30"))
         self.min_confidence = float(os.getenv("MIN_CONFIDENCE", "0.65"))
         
+        # Universe OS configuration
+        self.use_universe_os = os.getenv("USE_UNIVERSE_OS", "false").lower() == "true"
+        self.universe_max_symbols = int(os.getenv("UNIVERSE_MAX_SYMBOLS", "50"))
+        
         # Components
         self.position_tracker = PositionTracker(self.redis)
         
-        # Parse symbols from env
+        # Parse symbols from env (fallback if Universe OS disabled)
         symbols_str = os.getenv("SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT")
         candidate_symbols = [s.strip() for s in symbols_str.split(",")]
         
@@ -89,7 +94,41 @@ class AutonomousTrader:
         logger.info(f"  Max exposure: ${self.max_exposure_usd}")
         logger.info(f"  Max position size: ${self.max_position_usd}")
         logger.info(f"  Scan interval: {self.scan_interval_sec}s")
-        logger.info(f"  Candidate symbols: {len(self.candidate_symbols)} (will be filtered by funding rates on startup)")
+        logger.info(f"  USE_UNIVERSE_OS: {self.use_universe_os}")
+        if self.use_universe_os:
+            logger.info(f"  Universe max symbols: {self.universe_max_symbols}")
+        else:
+            logger.info(f"  Candidate symbols: {len(self.candidate_symbols)} (hardcoded from ENV)")
+    
+    async def _get_universe_symbols(self) -> List[str]:
+        """
+        Fetch symbols from Universe Service (Redis)
+        
+        Returns dynamic symbol list from quantum:cfg:universe:active
+        Falls back to ENV symbols if Universe Service unavailable
+        """
+        try:
+            universe_data = await self.redis.get("quantum:cfg:universe:active")
+            if not universe_data:
+                logger.warning("[Universe] No universe data in Redis, using ENV fallback")
+                return self.candidate_symbols
+            
+            data = json.loads(universe_data)
+            all_symbols = data.get("symbols", [])
+            
+            if not all_symbols:
+                logger.warning("[Universe] Empty symbol list, using ENV fallback")
+                return self.candidate_symbols
+            
+            # Limit to configured max
+            symbols = all_symbols[:self.universe_max_symbols]
+            
+            logger.info(f"[Universe] Loaded {len(symbols)} symbols from Universe Service (total available: {len(all_symbols)})")
+            return symbols
+            
+        except Exception as e:
+            logger.error(f"[Universe] Failed to fetch universe: {e}, using ENV fallback")
+            return self.candidate_symbols
     
     async def start(self):
         """Start autonomous trading"""
@@ -99,12 +138,20 @@ class AutonomousTrader:
         
         self._running = True
         
-        # Filter symbols by funding rate BEFORE starting
-        logger.info(f"[AutonomousTrader] Filtering {len(self.candidate_symbols)} symbols by funding rate...")
-        safe_symbols = await get_filtered_symbols(self.candidate_symbols)
+        # Get symbols - from Universe Service OR ENV
+        if self.use_universe_os:
+            logger.info("[AutonomousTrader] 🌐 UNIVERSE OS ENABLED - Fetching dynamic symbols...")
+            candidate_symbols = await self._get_universe_symbols()
+        else:
+            logger.info("[AutonomousTrader] 📋 Using hardcoded ENV symbols")
+            candidate_symbols = self.candidate_symbols
         
-        if len(safe_symbols) < len(self.candidate_symbols):
-            removed = len(self.candidate_symbols) - len(safe_symbols)
+        # Filter symbols by funding rate BEFORE starting
+        logger.info(f"[AutonomousTrader] Filtering {len(candidate_symbols)} symbols by funding rate...")
+        safe_symbols = await get_filtered_symbols(candidate_symbols)
+        
+        if len(safe_symbols) < len(candidate_symbols):
+            removed = len(candidate_symbols) - len(safe_symbols)
             logger.warning(f"[AutonomousTrader] 🛡️ Removed {removed} high-funding symbols")
         
         logger.info(f"[AutonomousTrader] Trading with {len(safe_symbols)} safe symbols")

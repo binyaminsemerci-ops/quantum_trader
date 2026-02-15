@@ -1,0 +1,57 @@
+[Unit]
+Description=Quantum Exit Brain v3.5 with Systemd Watchdog
+Documentation=https://github.com/quantum-trader/services/exit_brain
+After=network.target redis.service
+Wants=redis.service
+# Exit Brain REQUIRES Redis
+Requires=redis.service
+# If Exit Brain too many times - alert and STOP
+StartLimitBurst=3
+StartLimitIntervalSec=60
+
+[Service]
+# CRITICAL: Type=notify for sd_notify integration
+Type=notify
+# Systemd will kill process if no WATCHDOG=1 within WatchdogSec
+WatchdogSec=3
+NotifyAccess=all
+
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/home/qt/quantum_trader:/home/qt/quantum_trader/microservices
+EnvironmentFile=/etc/quantum/testnet.env
+
+# Exit Brain environment
+Environment=EXIT_BRAIN_V35_ENABLED=true
+Environment=EXIT_MODE=EXIT_BRAIN_V3
+Environment=EXIT_EXECUTOR_MODE=LIVE
+Environment=EXIT_BRAIN_V3_LIVE_ROLLOUT=ENABLED
+
+# Main execution - uses sd_notify wrapper
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python3 \
+    /home/qt/quantum_trader/services/exit_brain/main_with_watchdog.py
+
+# Restart on failure - but only if we haven't hit StartLimitBurst
+Restart=on-failure
+RestartSec=2
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-exit-brain
+
+# Resource limits
+MemoryLimit=2G
+CPUQuota=100%
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/home/qt/quantum_trader/logs
+ReadWritePaths=/var/log/quantum
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

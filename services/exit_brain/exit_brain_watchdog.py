@@ -48,16 +48,16 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 # Heartbeat stream
-HEARTBEAT_STREAM = "quantum:stream:exit_brain.heartbeat"
+HEARTBEAT_STREAM = "exit_brain:heartbeat"
 
 # Panic close stream
-PANIC_CLOSE_STREAM = "quantum:stream:system.panic_close"
+PANIC_CLOSE_STREAM = "system:panic_close"
 
 # Thresholds (DO NOT RELAX THESE)
 HEARTBEAT_MISSING_THRESHOLD = 5.0    # seconds
-DEGRADED_THRESHOLD = 10.0            # seconds
+DEGRADED_THRESHOLD = 5.0             # seconds (spec says >5s)
 DECISION_STAGNANT_THRESHOLD = 30.0   # seconds
-UNGUARDED_THRESHOLD = 3.0            # seconds (positions + no heartbeat)
+UNGUARDED_THRESHOLD = 3.0            # seconds (CRITICAL: positions + no heartbeat)
 
 # Check interval
 CHECK_INTERVAL = 1.0  # seconds
@@ -182,10 +182,12 @@ class ExitBrainWatchdog:
             
             msg_id, data = messages[0]
             
-            # Update state
-            self.state.last_heartbeat_ts = float(data.get("timestamp", 0))
+            # Update state from schema fields
+            # ts is int64 (epoch ms) - convert to seconds
+            ts_ms = int(data.get("ts", 0))
+            self.state.last_heartbeat_ts = ts_ms / 1000.0 if ts_ms > 0 else 0.0
             self.state.last_heartbeat_status = data.get("status", "UNKNOWN")
-            self.state.active_positions = int(data.get("active_positions_count", 0))
+            self.state.active_positions = int(data.get("active_positions", 0))
             self.state.last_decision_ts = float(data.get("last_decision_ts", 0))
             self.state.loop_cycle_ms = int(data.get("loop_cycle_ms", 0))
             
@@ -236,7 +238,7 @@ class ExitBrainWatchdog:
         return None  # Healthy
     
     async def _trigger_panic_close(self, reason: str):
-        """Trigger system.panic_close"""
+        """Trigger system:panic_close per schema"""
         if self._panic_triggered:
             logger.warning("Panic close already triggered, skipping")
             return
@@ -248,20 +250,23 @@ class ExitBrainWatchdog:
         logger.error(f"Reason: {reason}")
         logger.error("=" * 60)
         
+        import uuid
+        event_id = str(uuid.uuid4())
+        ts = int(time.time() * 1000)  # Epoch ms
+        
         try:
             await self.redis.xadd(
                 PANIC_CLOSE_STREAM,
                 {
-                    "source": "exit_brain_watchdog",
-                    "reason": f"Watchdog: {reason}",
-                    "timestamp": str(time.time()),
+                    "event_id": event_id,
+                    "reason": f"EXIT_BRAIN_{reason.replace(' ', '_').upper()}",
                     "severity": "CRITICAL",
-                    "active_positions": str(self.state.active_positions),
-                    "last_heartbeat_age": str(self.state.heartbeat_age()),
-                    "last_heartbeat_status": self.state.last_heartbeat_status
+                    "issued_by": "watchdog",
+                    "ts": str(ts)
                 }
             )
             logger.error(f"✅ Panic close published to {PANIC_CLOSE_STREAM}")
+            logger.error(f"Event ID: {event_id}")
             
         except Exception as e:
             logger.error(f"❌ FAILED to publish panic close: {e}")

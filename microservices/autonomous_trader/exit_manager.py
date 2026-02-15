@@ -50,7 +50,8 @@ class ExitManager:
         self.redis = redis_client
         self.ai_engine_url = ai_engine_url
         self.use_ai_exits = use_ai_exits
-        self.http_client = httpx.AsyncClient(timeout=5.0)
+        # Increased timeout: AI Engine can take 10-30s when busy with predictions
+        self.http_client = httpx.AsyncClient(timeout=30.0)
         
         # Statistics
         self.evaluations_count = 0
@@ -267,11 +268,82 @@ class ExitManager:
             )
         
         except httpx.TimeoutException:
-            logger.warning("[ExitManager] AI Engine timeout")
-            return None
+            logger.warning("[ExitManager] AI Engine timeout - using R-threshold fallback")
+            return self._get_fallback_exit_decision(position)
         except Exception as e:
-            logger.error(f"[ExitManager] AI Engine call failed: {e}")
-            return None
+            logger.error(f"[ExitManager] AI Engine call failed: {e} - using R-threshold fallback")
+            return self._get_fallback_exit_decision(position)
+    
+    def _get_fallback_exit_decision(self, position: Position) -> ExitDecision:
+        """
+        Fallback exit decision when AI Engine is unavailable.
+        Uses R-threshold logic with fee protection (simulates AI Engine logic).
+        NOTE: entry_timestamp from Redis snapshots is unreliable, so age-based
+        conditions are de-prioritized.
+        """
+        R = position.R_net
+        age_hours = position.age_sec / 3600
+        
+        # Emergency exits for big winners
+        if R >= 5:
+            return ExitDecision(
+                symbol=position.symbol,
+                action="CLOSE",
+                percentage=1.0,
+                reason=f"fallback_extreme_profit (R={R:.2f})",
+                hold_score=0,
+                exit_score=10,
+                factors={"fallback": True, "R_net": R}
+            )
+        
+        # Take profit on good winners  
+        if R >= 3:
+            return ExitDecision(
+                symbol=position.symbol,
+                action="CLOSE",
+                percentage=1.0,
+                reason=f"fallback_high_profit (R={R:.2f})",
+                hold_score=2,
+                exit_score=8,
+                factors={"fallback": True, "R_net": R}
+            )
+        
+        # Partial close on decent winners
+        if R >= 2:
+            return ExitDecision(
+                symbol=position.symbol,
+                action="PARTIAL_CLOSE",
+                percentage=0.5,
+                reason=f"fallback_decent_profit (R={R:.2f})",
+                hold_score=4,
+                exit_score=6,
+                factors={"fallback": True, "R_net": R}
+            )
+        
+        # === FEE PROTECTION (matches AI Engine) ===
+        # Close positions with R >= 0.5 to secure profit before fees erode
+        # AI Engine triggers FEE_PROTECTION at this level
+        if R >= 0.5:
+            return ExitDecision(
+                symbol=position.symbol,
+                action="CLOSE",
+                percentage=1.0,
+                reason=f"fallback_fee_protection (R={R:.2f})",
+                hold_score=3,
+                exit_score=8,
+                factors={"fallback": True, "R_net": R}
+            )
+        
+        # Default: hold
+        return ExitDecision(
+            symbol=position.symbol,
+            action="HOLD",
+            percentage=0.0,
+            reason="fallback_hold",
+            hold_score=5,
+            exit_score=0,
+            factors={"fallback": True, "R_net": R}
+        )
     
     async def close(self):
         """Close HTTP client"""

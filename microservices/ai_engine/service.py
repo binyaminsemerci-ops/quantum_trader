@@ -1844,12 +1844,15 @@ class AIEngineService:
                 features.setdefault("xchg_spread_abs", 0.0)
                 features.setdefault("xchg_spread_bps", 0.0)
                 
-                # 🔥 PHASE 1: Add Funding Rate Features
+                # 🔥 PHASE 1: Add Funding Rate Features (5s timeout)
                 if self.funding_rate_filter:
                     try:
-                        funding_data = await asyncio.to_thread(
-                            self.funding_rate_filter.get_funding_features,
-                            symbol
+                        funding_data = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                self.funding_rate_filter.get_funding_features,
+                                symbol
+                            ),
+                            timeout=5.0
                         )
                         if funding_data:
                             features["funding_rate"] = funding_data.get("current_funding", 0.0)
@@ -1857,15 +1860,20 @@ class AIEngineService:
                             features["crowded_side_score"] = funding_data.get("crowd_bias", 0.0)
                             logger.info(f"[PHASE 1] Funding: rate={features['funding_rate']:.5f}, "
                                       f"crowd_bias={features['crowded_side_score']:.2f}")
+                    except asyncio.TimeoutError:
+                        logger.warning(f"[PHASE 1] Funding rate timeout (5s) for {symbol}")
                     except Exception as e:
                         logger.warning(f"[PHASE 1] Funding rate feature extraction failed: {e}")
                 
-                # 🔥 PHASE 2D: Add Volatility Structure Features (ATR-trend, cross-TF)
+                # 🔥 PHASE 2D: Add Volatility Structure Features (5s timeout)
                 if self.volatility_structure_engine:
                     try:
-                        vol_analysis = await asyncio.to_thread(
-                            self.volatility_structure_engine.get_complete_volatility_analysis,
-                            symbol
+                        vol_analysis = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                self.volatility_structure_engine.get_complete_volatility_analysis,
+                                symbol
+                            ),
+                            timeout=5.0
                         )
                         
                         # Add all 11 volatility metrics to features
@@ -1881,15 +1889,20 @@ class AIEngineService:
                         logger.info(f"[PHASE 2D] Volatility: ATR={vol_analysis['atr']:.4f}, "
                                   f"trend={vol_analysis['atr_trend']:.2f} ({vol_analysis['atr_regime']}), "
                                   f"score={vol_analysis['volatility_score']:.3f}, regime={vol_analysis['overall_regime']}")
+                    except asyncio.TimeoutError:
+                        logger.warning(f"[PHASE 2D] Volatility timeout (5s) for {symbol}")
                     except Exception as vol_error:
                         logger.warning(f"[PHASE 2D] Volatility feature extraction failed: {vol_error}")
                 
-                # 🔥 PHASE 2B: Add Orderbook Imbalance Features
+                # 🔥 PHASE 2B: Add Orderbook Imbalance Features (5s timeout)
                 if self.orderbook_imbalance:
                     try:
-                        orderbook_metrics = await asyncio.to_thread(
-                            self.orderbook_imbalance.get_metrics,
-                            symbol
+                        orderbook_metrics = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                self.orderbook_imbalance.get_metrics,
+                                symbol
+                            ),
+                            timeout=5.0
                         )
                         
                         if orderbook_metrics:
@@ -1904,6 +1917,8 @@ class AIEngineService:
                                       f"delta={orderbook_metrics.delta_volume:.2f}, "
                                       f"depth_ratio={orderbook_metrics.order_book_depth_ratio:.3f}, "
                                       f"large_orders={orderbook_metrics.large_order_presence:.2f}")
+                    except asyncio.TimeoutError:
+                        logger.warning(f"[PHASE 2B] Orderbook timeout (5s) for {symbol}")
                     except Exception as ob_error:
                         logger.warning(f"[PHASE 2B] Orderbook feature extraction failed: {ob_error}")
                 
@@ -1911,16 +1926,19 @@ class AIEngineService:
                             f"MACD={features['macd']:.4f}, VolumeRatio={features['volume_ratio']:.2f}, "
                             f"Momentum={features['momentum_10']:.2f}%")
                 
-                # 🔥 PHASE 3A: Predict risk mode
+                # 🔥 PHASE 3A: Predict risk mode (5s timeout)
                 risk_signal = None
                 risk_multiplier = 1.0
                 if self.risk_mode_predictor:
                     try:
-                        risk_signal = await asyncio.to_thread(
-                            self.risk_mode_predictor.predict_risk_mode,
-                            symbol=symbol,
-                            current_price=current_price,
-                            market_conditions={}  # TODO: Add BTC dominance, funding rates, fear/greed
+                        risk_signal = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                self.risk_mode_predictor.predict_risk_mode,
+                                symbol=symbol,
+                                current_price=current_price,
+                                market_conditions={}  # TODO: Add BTC dominance, funding rates, fear/greed
+                            ),
+                            timeout=5.0
                         )
                         risk_multiplier = self.risk_mode_predictor.get_risk_multiplier(risk_signal.mode)
                         
@@ -1932,6 +1950,9 @@ class AIEngineService:
                                   f"flow={risk_signal.orderflow_score:.2f}, "
                                   f"market={risk_signal.market_condition_score:.2f}")
                         logger.info(f"[PHASE 3A] {symbol} Reason: {risk_signal.reason}")
+                    except asyncio.TimeoutError:
+                        logger.warning(f"[PHASE 3A] Risk prediction timeout (5s) for {symbol}")
+                        risk_multiplier = 1.0
                     except Exception as e:
                         logger.warning(f"[PHASE 3A] Risk prediction failed for {symbol}: {e}")
                         risk_multiplier = 1.0
@@ -2028,26 +2049,34 @@ class AIEngineService:
                 model_votes = votes_info.get("votes", {})
                 consensus = votes_info.get("consensus_count", 0)  # FIX: int not str
             
-            # 🔥 PHASE 1: Apply RL Signal Manager Confidence Calibration
+            # 🔥 PHASE 1: Apply RL Signal Manager Confidence Calibration (5s timeout)
             if self.rl_signal_manager and not fallback_triggered:
                 try:
-                    calibrated_confidence = await asyncio.to_thread(
-                        self.rl_signal_manager.calibrate_confidence,
-                        symbol=symbol,
-                        raw_confidence=ensemble_confidence,
-                        action=action
+                    calibrated_confidence = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self.rl_signal_manager.calibrate_confidence,
+                            symbol=symbol,
+                            raw_confidence=ensemble_confidence,
+                            action=action
+                        ),
+                        timeout=5.0
                     )
                     logger.info(f"[PHASE 1] RL Calibration: {ensemble_confidence:.3f} → {calibrated_confidence:.3f}")
                     ensemble_confidence = calibrated_confidence
+                except asyncio.TimeoutError:
+                    logger.warning(f"[PHASE 1] RL Calibration timeout (5s) for {symbol}")
                 except Exception as e:
                     logger.warning(f"[PHASE 1] Confidence calibration failed: {e}")
             
-            # 🔥 PHASE 1: Check Funding Rate Filter (block high-cost trades)
+            # 🔥 PHASE 1: Check Funding Rate Filter (5s timeout)
             if self.funding_rate_filter:
                 try:
-                    funding_check = await asyncio.to_thread(
-                        self.funding_rate_filter.should_block_trade_simple,
-                        symbol
+                    funding_check = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self.funding_rate_filter.should_block_trade_simple,
+                            symbol
+                        ),
+                        timeout=5.0
                     )
                     if funding_check.get("blocked", False):
                         logger.warning(
@@ -2056,6 +2085,8 @@ class AIEngineService:
                             f"reason={funding_check.get('reason', 'unknown')})"
                         )
                         return None
+                except asyncio.TimeoutError:
+                    logger.warning(f"[PHASE 1] Funding check timeout (5s) for {symbol} - continuing anyway")
                 except Exception as e:
                     logger.warning(f"[PHASE 1] Funding filter check failed: {e}")
             

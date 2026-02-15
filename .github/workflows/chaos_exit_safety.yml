@@ -1,0 +1,128 @@
+# ============================================================================
+# CHAOS TEST: EXIT SAFETY SYSTEM
+# ============================================================================
+# This workflow validates the fail-closed behavior of the Emergency Exit System.
+#
+# WHAT IT TESTS:
+# 1. Exit Brain dies → Watchdog detects within 5s
+# 2. Watchdog publishes system:panic_close
+# 3. Emergency Exit Worker executes panic close
+# 4. System ends FLAT (no open positions)
+#
+# POLICY: No merge to main if this fails. Zero exceptions.
+# ============================================================================
+
+name: Chaos Test – Exit Safety
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, shadow/**]
+  workflow_dispatch:  # Manual trigger for testing
+
+env:
+  REDIS_URL: redis://localhost:6379
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  chaos-exit-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install redis pytest
+
+      - name: Create Redis consumer groups
+        run: |
+          redis-cli XGROUP CREATE system:panic_close emergency_exit_worker \$ MKSTREAM 2>/dev/null || true
+          redis-cli XGROUP CREATE exit_brain:heartbeat watchdog \$ MKSTREAM 2>/dev/null || true
+          echo "✅ Redis streams initialized"
+
+      - name: Start Exit Brain (mock)
+        run: |
+          python tests/mocks/exit_brain_mock.py &
+          echo $! > /tmp/exit_brain.pid
+          sleep 2
+          echo "✅ Exit Brain mock started (PID: $(cat /tmp/exit_brain.pid))"
+
+      - name: Start Watchdog
+        run: |
+          python tests/mocks/exit_brain_watchdog_mock.py &
+          echo $! > /tmp/watchdog.pid
+          sleep 2
+          echo "✅ Watchdog mock started (PID: $(cat /tmp/watchdog.pid))"
+
+      - name: Start Emergency Exit Worker
+        run: |
+          python tests/mocks/emergency_exit_worker_mock.py &
+          echo $! > /tmp/eew.pid
+          sleep 2
+          echo "✅ EEW mock started (PID: $(cat /tmp/eew.pid))"
+
+      - name: Verify heartbeats flowing
+        run: |
+          python tests/assertions/assert_heartbeat_flowing.py
+
+      - name: "🔥 CHAOS: Kill Exit Brain"
+        run: |
+          echo "=============================================="
+          echo "🔥 KILLING EXIT BRAIN - CHAOS EVENT 🔥"
+          echo "=============================================="
+          kill -9 $(cat /tmp/exit_brain.pid) 2>/dev/null || true
+          echo "Exit Brain killed at $(date +%s)"
+          echo "Waiting for watchdog detection..."
+          sleep 8  # Allow time for detection + execution
+
+      - name: Assert panic_close published
+        run: |
+          python tests/assertions/assert_panic_close.py
+
+      - name: Assert panic_close:completed published
+        run: |
+          python tests/assertions/assert_panic_close_completed.py
+
+      - name: Assert system is FLAT
+        run: |
+          python tests/assertions/assert_no_open_positions.py
+
+      - name: Cleanup
+        if: always()
+        run: |
+          kill $(cat /tmp/watchdog.pid) 2>/dev/null || true
+          kill $(cat /tmp/eew.pid) 2>/dev/null || true
+          echo "✅ Cleanup complete"
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "=============================================="
+          echo "✅ CHAOS TEST PASSED"
+          echo "=============================================="
+          echo "• Watchdog detected Exit Brain death"
+          echo "• panic_close was published"
+          echo "• EEW executed panic close"
+          echo "• System is FLAT"
+          echo "=============================================="
+          echo "Safe to merge."

@@ -258,4 +258,35 @@ Every exit logs:
 
 ---
 
+## 9. Policy Exceptions
+
+### Exception E1: Local R-Based Fallback
+
+**Effective Date:** 2026-02-14  
+**Status:** ACTIVE  
+**Review Date:** 2026-02-28  
+
+When AI Engine/ExitBrain is unavailable (HTTP timeout, service down), the autonomous trader MAY apply local R-based exit logic as fail-safe:
+
+| Condition | Action | Percentage | Rationale |
+|-----------|--------|------------|-----------|
+| R > 2.0 | CLOSE | 100% | Secure large profit |
+| R > 1.0 | PARTIAL_CLOSE | 50% | Lock in 1R profit |
+| R < -1.0 AND age > 4h | CLOSE | 100% | Cut extended loser |
+| else | HOLD | 0% | Wait for AI |
+
+**Justification:**
+- Fail-closed principle (§5.3) requires positions to be protected even when AI unavailable
+- R-multiple thresholds align with Formula 2 (Take-Profit) guidelines
+- Time-based loss cutting aligns with Formula 3 (Max Hold)
+
+**Constraints:**
+- Local fallback ONLY activates after AI timeout (30 seconds)
+- Kill-switch overrides all local fallback decisions
+- Circuit-breaker takes precedence over local fallback
+
+**Implementation:** `microservices/autonomous_trader/exit_manager.py`
+
+---
+
 **END OF EXIT POLICY DOCUMENT**

@@ -23,6 +23,7 @@ import os
 import sys
 import time
 import json
+import uuid
 import asyncio
 import logging
 from datetime import datetime, timezone
@@ -52,13 +53,17 @@ logger = logging.getLogger(__name__)
 # CONSTANTS - DO NOT MODIFY WITHOUT AUTHORIZATION
 # =============================================================================
 
-# Redis streams
-PANIC_CLOSE_STREAM = "quantum:stream:system.panic_close"
-PANIC_COMPLETE_STREAM = "quantum:stream:panic_close.completed"
-TRADING_HALT_KEY = "quantum:state:trading_halted"
+# Redis streams (matches REDIS_STREAMS_SCHEMA.md)
+PANIC_CLOSE_STREAM = "system:panic_close"
+PANIC_COMPLETE_STREAM = "system:panic_close:completed"
+TRADING_HALT_KEY = "system:state:trading"
+
+# Processed events (idempotency)
+PROCESSED_EVENTS_KEY = "system:panic_close:processed"
 
 # Authorized trigger sources (ONLY these can trigger panic_close)
-AUTHORIZED_SOURCES = frozenset(["risk_kernel", "exit_brain", "ops"])
+# Matches issued_by enum in schema
+AUTHORIZED_SOURCES = frozenset(["risk_kernel", "exit_brain", "ops", "watchdog"])
 
 # Timing
 MAX_TRIGGER_AGE_SECONDS = 60  # Reject triggers older than this (prevent replay)
@@ -81,30 +86,28 @@ class Position:
 
 @dataclass
 class PanicCloseResult:
-    """Result of panic close execution"""
-    trigger_source: str
-    trigger_reason: str
-    timestamp_start: float
-    timestamp_end: float = 0.0
-    positions_found: int = 0
+    """Result of panic close execution - matches system:panic_close:completed schema"""
+    event_id: str = ""  # Original event_id from panic_close
+    trigger_source: str = ""
+    trigger_reason: str = ""
+    ts_started: int = 0  # Epoch ms
+    ts_completed: int = 0  # Epoch ms
+    positions_total: int = 0  # Positions found open
     positions_closed: int = 0
     positions_failed: int = 0
     failed_symbols: List[str] = field(default_factory=list)
     total_notional_usd: float = 0.0
-    execution_time_ms: float = 0.0
+    execution_time_ms: int = 0
     
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "event": "panic_close_execution",
-            "trigger_source": self.trigger_source,
-            "trigger_reason": self.trigger_reason,
-            "timestamp_start": self.timestamp_start,
-            "timestamp_end": self.timestamp_end,
-            "positions_found": self.positions_found,
+            "event_id": self.event_id,
+            "positions_total": self.positions_total,
             "positions_closed": self.positions_closed,
             "positions_failed": self.positions_failed,
             "failed_symbols": self.failed_symbols,
-            "total_notional_usd": self.total_notional_usd,
+            "ts_started": self.ts_started,
+            "ts_completed": self.ts_completed,
             "execution_time_ms": self.execution_time_ms
         }
 
@@ -221,20 +224,24 @@ class EmergencyExitWorker:
         logger.warning("🚨 PANIC CLOSE EVENT RECEIVED 🚨")
         logger.warning("=" * 60)
         
-        # Parse event data
+        # Parse event data per schema
         try:
-            source = event.get("source", "unknown")
+            event_id = event.get("event_id", str(uuid.uuid4()))  # Fallback to new UUID
+            source = event.get("issued_by", event.get("source", "unknown"))  # Support both
             reason = event.get("reason", "No reason provided")
-            timestamp = float(event.get("timestamp", time.time()))
+            ts = int(event.get("ts", int(time.time() * 1000)))  # Epoch ms
+            timestamp = ts / 1000.0  # Convert to seconds for validation
         except Exception as e:
             logger.error(f"Failed to parse event: {e}")
+            event_id = str(uuid.uuid4())
             source = "unknown"
             reason = f"Parse error: {e}"
             timestamp = time.time()
         
+        logger.info(f"Event ID: {event_id}")
         logger.info(f"Source: {source}")
         logger.info(f"Reason: {reason}")
-        logger.info(f"Event ID: {msg_id}")
+        logger.info(f"Redis Msg ID: {msg_id}")
         
         # Validate trigger
         if not self._validate_trigger(source, timestamp):
@@ -242,7 +249,7 @@ class EmergencyExitWorker:
             return
         
         # Execute panic close
-        result = await self._execute_panic_close(source, reason)
+        result = await self._execute_panic_close(event_id, source, reason)
         
         # Publish completion
         await self._publish_completion(result)
@@ -279,27 +286,30 @@ class EmergencyExitWorker:
         logger.info(f"✅ Trigger validated (source={source}, age={age:.1f}s)")
         return True
     
-    async def _execute_panic_close(self, source: str, reason: str) -> PanicCloseResult:
+    async def _execute_panic_close(self, event_id: str, source: str, reason: str) -> PanicCloseResult:
         """
         Execute panic close - close ALL positions
         
         NO retries. NO optimization. Fire and forget.
         """
+        ts_start = int(time.time() * 1000)  # Epoch ms
+        
         result = PanicCloseResult(
+            event_id=event_id,
             trigger_source=source,
             trigger_reason=reason,
-            timestamp_start=time.time()
+            ts_started=ts_start
         )
         
         # Fetch all open positions
         positions = self._fetch_open_positions()
-        result.positions_found = len(positions)
+        result.positions_total = len(positions)
         result.total_notional_usd = sum(p.notional for p in positions)
         
         if not positions:
             logger.info("No open positions found - nothing to close")
-            result.timestamp_end = time.time()
-            result.execution_time_ms = (result.timestamp_end - result.timestamp_start) * 1000
+            result.ts_completed = int(time.time() * 1000)
+            result.execution_time_ms = result.ts_completed - result.ts_started
             return result
         
         logger.info(f"Found {len(positions)} open positions")
@@ -314,13 +324,13 @@ class EmergencyExitWorker:
                 result.positions_failed += 1
                 result.failed_symbols.append(pos.symbol)
         
-        result.timestamp_end = time.time()
-        result.execution_time_ms = (result.timestamp_end - result.timestamp_start) * 1000
+        result.ts_completed = int(time.time() * 1000)  # Epoch ms
+        result.execution_time_ms = result.ts_completed - result.ts_started
         
-        logger.info(f"Closed: {result.positions_closed}/{result.positions_found}")
+        logger.info(f"Closed: {result.positions_closed}/{result.positions_total}")
         if result.failed_symbols:
             logger.error(f"Failed symbols: {result.failed_symbols}")
-        logger.info(f"Execution time: {result.execution_time_ms:.0f}ms")
+        logger.info(f"Execution time: {result.execution_time_ms}ms")
         
         return result
     
@@ -384,20 +394,19 @@ class EmergencyExitWorker:
             return False
     
     async def _publish_completion(self, result: PanicCloseResult):
-        """Publish panic_close.completed event"""
+        """Publish to system:panic_close:completed per schema"""
         try:
             await self.redis.xadd(
                 PANIC_COMPLETE_STREAM,
                 {
-                    "status": "completed",
-                    "positions_found": str(result.positions_found),
+                    "event_id": result.event_id,
+                    "positions_total": str(result.positions_total),
                     "positions_closed": str(result.positions_closed),
                     "positions_failed": str(result.positions_failed),
                     "failed_symbols": json.dumps(result.failed_symbols),
-                    "execution_time_ms": str(result.execution_time_ms),
-                    "timestamp": str(time.time()),
-                    "trigger_source": result.trigger_source,
-                    "trigger_reason": result.trigger_reason
+                    "ts_started": str(result.ts_started),
+                    "ts_completed": str(result.ts_completed),
+                    "execution_time_ms": str(result.execution_time_ms)
                 }
             )
             logger.info(f"Published to {PANIC_COMPLETE_STREAM}")
@@ -411,7 +420,8 @@ class EmergencyExitWorker:
                 "halted": "true",
                 "reason": result.trigger_reason,
                 "source": result.trigger_source,
-                "timestamp": str(time.time()),
+                "event_id": result.event_id,
+                "ts": str(int(time.time() * 1000)),  # Epoch ms
                 "positions_closed": str(result.positions_closed),
                 "requires_manual_reset": "true"
             }
