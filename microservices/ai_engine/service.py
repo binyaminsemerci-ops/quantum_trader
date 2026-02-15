@@ -1114,12 +1114,18 @@ class AIEngineService:
         logger.info(
             f"[AI-ENGINE] 📡 Starting cross-exchange consumer at {stream_key} (group={group}, consumer={consumer}, last_seen={last_seen_id})"
         )
+        
+        import sys
+        print(f"[PRINT DEBUG] After Starting log, _running={self._running}", flush=True, file=sys.stderr)
 
         logger.info(f"[AI-ENGINE] DEBUG: _running={self._running}, about to enter while loop...")
+        print(f"[PRINT DEBUG] After DEBUG log", flush=True, file=sys.stderr)
+        
         loop_count = 0
         while self._running:
             try:
                 loop_count += 1
+                print(f"[PRINT DEBUG] Loop #{loop_count} starting XREADGROUP", flush=True, file=sys.stderr)
                 logger.info(f"[AI-ENGINE] 🔄 Cross-exchange loop #{loop_count} - calling XREADGROUP...")
                 messages = await self.redis_client.xreadgroup(
                     groupname=group,
