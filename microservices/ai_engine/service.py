@@ -1137,6 +1137,27 @@ class AIEngineService:
             f"[AI-ENGINE] 📡 Starting cross-exchange consumer at {stream_key} (group={group}, consumer={consumer}, last_seen={last_seen_id})"
         )
         
+        # Create a dedicated Redis connection for this consumer
+        # This avoids connection pool contention with other consumers
+        import redis.asyncio as redis
+        from .config import settings
+        dedicated_redis = redis.Redis(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            db=settings.REDIS_DB,
+            decode_responses=False,
+            socket_timeout=30.0,
+            socket_connect_timeout=15.0,
+            single_connection_client=True,  # Use single dedicated connection
+        )
+        
+        try:
+            await dedicated_redis.ping()
+            logger.warning("[AI-ENGINE] ✅ Dedicated Redis connection established for cross-exchange consumer")
+        except Exception as e:
+            logger.error(f"[AI-ENGINE] Failed to establish dedicated Redis connection: {e}")
+            return
+        
         logger.warning(f"[AI-ENGINE] TRACE-1: _running={self._running}, entering loop...")
         
         loop_count = 0
@@ -1144,28 +1165,19 @@ class AIEngineService:
             loop_count += 1
             logger.warning(f"[AI-ENGINE] TRACE-LOOP: Loop #{loop_count}")
             try:
-                # Use non-blocking XREADGROUP to avoid connection pool starvation
-                # Retry with short sleep instead of blocking in Redis
-                messages = await asyncio.wait_for(
-                    self.redis_client.xreadgroup(
-                        groupname=group,
-                        consumername=consumer,
-                        streams={stream_key: ">"},
-                        count=50,
-                        block=0,  # Non-blocking - return immediately
-                    ),
-                    timeout=10.0  # 10 second Python timeout as safety net
+                # Use dedicated Redis connection with blocking read
+                messages = await dedicated_redis.xreadgroup(
+                    groupname=group,
+                    consumername=consumer,
+                    streams={stream_key: ">"},
+                    count=50,
+                    block=2000,  # 2 second block - dedicated connection won't starve
                 )
                 
                 if not messages:
-                    # No new messages, sleep briefly and retry
-                    await asyncio.sleep(0.1)  # 100ms sleep
                     continue
                     
-                logger.warning(f"[AI-ENGINE] 📨 XREADGROUP returned: {len(messages) if messages else 0} streams")
-
-                if not messages:
-                    continue
+                logger.warning(f"[AI-ENGINE] 📨 XREADGROUP returned: {len(messages)} streams")
 
                 ack_ids: List[Any] = []
                 consumed = 0
@@ -1203,7 +1215,7 @@ class AIEngineService:
 
                 if ack_ids:
                     try:
-                        await self.redis_client.xack(stream_key, group, *ack_ids)
+                        await dedicated_redis.xack(stream_key, group, *ack_ids)
                     except Exception as ack_error:
                         logger.warning(f"[AI-ENGINE] XACK failed for {len(ack_ids)} ids: {ack_error}")
                 if last_seen_id:
@@ -1224,12 +1236,18 @@ class AIEngineService:
                 logger.info("[AI-ENGINE] Cross-exchange consumer cancelled")
                 break
             except asyncio.TimeoutError:
-                logger.warning("[AI-ENGINE] XREADGROUP timed out (5s limit) - retrying...")
+                logger.warning("[AI-ENGINE] XREADGROUP timed out - retrying...")
                 continue
             except Exception as e:
                 logger.error(f"[AI-ENGINE] Cross-exchange consumer failure: {e}", exc_info=True)
                 await asyncio.sleep(2)
 
+        # Cleanup dedicated connection
+        try:
+            await dedicated_redis.close()
+            logger.info("[AI-ENGINE] Dedicated Redis connection closed")
+        except Exception:
+            pass
         logger.info("[AI-ENGINE] Cross-exchange consumer stopped")
 
     def _parse_cross_exchange_entry(self, raw_data: Dict[Any, Any]) -> Optional[Dict[str, Any]]:
