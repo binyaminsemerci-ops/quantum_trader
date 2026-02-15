@@ -1752,6 +1752,22 @@ class AIEngineService:
             "volume_ratio": volume_ratio
         }
     
+    async def _refresh_emergency_stop_cache(self):
+        """Background task to refresh emergency stop cache without blocking signal generation."""
+        try:
+            logger.info("[AI-ENGINE] 🔄 Background: Refreshing emergency stop cache...")
+            # This may block, but it's in a separate task so it won't block signal generation
+            emergency_stop = await self.redis_client.get("trading:emergency_stop")
+            self._emergency_stop_cache = {
+                'value': emergency_stop,
+                'last_check': time.time(),
+                'updating': False
+            }
+            logger.info(f"[AI-ENGINE] ✅ Emergency stop cache refreshed: {emergency_stop}")
+        except Exception as e:
+            logger.warning(f"[AI-ENGINE] ⚠️ Emergency stop cache refresh failed: {e}")
+            self._emergency_stop_cache['updating'] = False
+    
     # ========================================================================
     # SIGNAL GENERATION (MAIN PIPELINE)
     # ========================================================================
@@ -1796,32 +1812,20 @@ class AIEngineService:
             
             logger.info(f"[AI-ENGINE] ✅ Price confirmed: {symbol} @ ${current_price:.2f}")
             
-            # Step 0: ESS Kill Switch - Check emergency stop (cached, refresh every 30s)
+            # Step 0: ESS Kill Switch - Check emergency stop (cached, non-blocking)
             # NOTE: Direct Redis get() blocks indefinitely on aioredis even with socket_timeout
-            # So we cache the value and only refresh periodically
+            # So we cache the value and refresh asynchronously - NEVER block signal generation
             now = time.time()
             if not hasattr(self, '_emergency_stop_cache'):
-                self._emergency_stop_cache = {'value': None, 'last_check': 0}
+                self._emergency_stop_cache = {'value': None, 'last_check': 0, 'updating': False}
             
-            emergency_stop = None
-            if now - self._emergency_stop_cache['last_check'] > 30:  # Refresh every 30s
-                logger.info(f"[AI-ENGINE] 🔍 Refreshing emergency stop cache...")
-                try:
-                    # Use asyncio.wait_for with a short timeout
-                    emergency_stop = await asyncio.wait_for(
-                        self.redis_client.get("trading:emergency_stop"),
-                        timeout=1.0
-                    )
-                    self._emergency_stop_cache = {'value': emergency_stop, 'last_check': now}
-                    logger.info(f"[AI-ENGINE] ✅ Emergency stop cache updated: {emergency_stop}")
-                except asyncio.TimeoutError:
-                    logger.warning(f"[AI-ENGINE] ⚠️ Emergency stop check TIMEOUT - using cached value")
-                    emergency_stop = self._emergency_stop_cache['value']
-                except Exception as e:
-                    logger.warning(f"[AI-ENGINE] ⚠️ Emergency stop check failed: {e} - using cached value")
-                    emergency_stop = self._emergency_stop_cache['value']
-            else:
-                emergency_stop = self._emergency_stop_cache['value']
+            # Start background refresh if needed (non-blocking)
+            if now - self._emergency_stop_cache['last_check'] > 30 and not self._emergency_stop_cache['updating']:
+                self._emergency_stop_cache['updating'] = True
+                asyncio.create_task(self._refresh_emergency_stop_cache())
+            
+            # Always use cached value (never block)
+            emergency_stop = self._emergency_stop_cache['value']
             
             if emergency_stop == b"1":
                 logger.critical(
