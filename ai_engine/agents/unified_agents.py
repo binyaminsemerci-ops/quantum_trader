@@ -277,7 +277,8 @@ class BaseAgent:
 
 # ---------- XGBOOST ----------
 class XGBoostAgent(BaseAgent):
-    def __init__(self): super().__init__("XGB-Agent","xgboost_v"); self._load()
+    # Use xgboost_model prefix to find xgboost_model.pkl (22 features, matches scaler)
+    def __init__(self): super().__init__("XGB-Agent","xgboost_model"); self._load()
     def predict(self,sym,feat):
         df=self._align(feat); X=self.scaler.transform(df)
         # Multi-class classification: classes = [0:SELL, 1:HOLD, 2:BUY]
@@ -294,12 +295,19 @@ class XGBoostAgent(BaseAgent):
 
 # ---------- LIGHTGBM ----------
 class LightGBMAgent(BaseAgent):
-    def __init__(self): super().__init__("LGBM-Agent","lightgbm_v"); self._load()
+    # Use lightgbm_model prefix (currently pointing to XGBClassifier with 22 features)
+    def __init__(self): super().__init__("LGBM-Agent","lightgbm_model"); self._load()
     def predict(self,sym,feat):
         df=self._align(feat); X=self.scaler.transform(df)
-        # Multi-class classification: LightGBM Booster.predict() returns probabilities
-        proba = self.model.predict(X)[0]  # Returns [p_SELL, p_HOLD, p_BUY]
-        class_pred = int(np.argmax(proba))  # Get class with highest probability
+        # Handle both XGBClassifier (predict_proba) and LGBMRegressor (predict) APIs
+        if hasattr(self.model, 'predict_proba'):
+            # XGBClassifier API
+            proba = self.model.predict_proba(X)[0]
+            class_pred = int(np.argmax(proba))
+        else:
+            # LGBMRegressor/Booster API
+            proba = self.model.predict(X)[0]
+            class_pred = int(np.argmax(proba))
         
         # Map class to action
         actions = ["SELL", "HOLD", "BUY"]
