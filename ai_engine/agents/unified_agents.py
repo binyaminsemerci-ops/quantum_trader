@@ -165,10 +165,13 @@ class BaseAgent:
 
     def _find_latest(self):
         # Support both .pkl and .pth formats
+        # Filter out small files (<10KB) which are metadata, not models
+        MIN_MODEL_SIZE = 10 * 1024  # 10KB minimum for real models
         f=[]
         for ext in [".pkl", ".pth"]:
             files = [os.path.join(self.model_dir,x) for x in os.listdir(self.model_dir)
-                    if x.startswith(self.prefix) and x.endswith(ext) and "_scaler" not in x and "_meta" not in x]
+                    if x.startswith(self.prefix) and x.endswith(ext) and "_scaler" not in x and "_meta" not in x
+                    and os.path.getsize(os.path.join(self.model_dir,x)) > MIN_MODEL_SIZE]
             f.extend(files)
         return max(f,key=os.path.getmtime) if f else None
 
