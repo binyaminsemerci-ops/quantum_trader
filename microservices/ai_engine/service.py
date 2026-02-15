@@ -1107,31 +1107,35 @@ class AIEngineService:
 
     async def _consume_cross_exchange_stream(self):
         """Continuously consume normalized cross-exchange data from Redis."""
-        stream_key = self._xchg_stream
-        group = self._xchg_group
-        consumer = self._xchg_consumer
-        last_seen_id = self._normalized_stream_last_id or "$"
-        logger.warning(
-            f"[AI-ENGINE] 📡 Starting cross-exchange consumer at {stream_key} (group={group}, consumer={consumer}, last_seen={last_seen_id})"
-        )
-        
-        logger.warning(f"[AI-ENGINE] TRACE-1: After Starting log, _running={self._running}")
-
-        logger.warning(f"[AI-ENGINE] TRACE-2: About to enter while loop...")
-        
-        loop_count = 0
-        while self._running:
-            try:
+        try:
+            stream_key = self._xchg_stream
+            group = self._xchg_group
+            consumer = self._xchg_consumer
+            last_seen_id = self._normalized_stream_last_id or "$"
+            logger.warning(
+                f"[AI-ENGINE] 📡 Starting cross-exchange consumer at {stream_key} (group={group}, consumer={consumer}, last_seen={last_seen_id})"
+            )
+            
+            logger.warning(f"[AI-ENGINE] TRACE-1: _running={self._running}, entering loop...")
+            
+            loop_count = 0
+            while self._running:
                 loop_count += 1
-                logger.warning(f"[AI-ENGINE] TRACE-3: Loop #{loop_count} starting XREADGROUP")
-                messages = await self.redis_client.xreadgroup(
-                    groupname=group,
-                    consumername=consumer,
-                    streams={stream_key: ">"},
-                    count=50,
-                    block=2000,
-                )
-                logger.info(f"[AI-ENGINE] 📨 XREADGROUP returned: {len(messages) if messages else 0} streams")
+                logger.warning(f"[AI-ENGINE] TRACE-LOOP: Loop #{loop_count}")
+                try:
+                    # Use wait_for with timeout to prevent XREADGROUP from blocking forever
+                    # block=2000 (2s) + 3s buffer = 5s timeout
+                    messages = await asyncio.wait_for(
+                        self.redis_client.xreadgroup(
+                            groupname=group,
+                            consumername=consumer,
+                            streams={stream_key: ">"},
+                            count=50,
+                            block=2000,  # 2 seconds block in Redis
+                        ),
+                        timeout=5.0  # 5 second Python timeout
+                    )
+                    logger.warning(f"[AI-ENGINE] 📨 XREADGROUP returned: {len(messages) if messages else 0} streams")
 
                 if not messages:
                     continue
@@ -1192,6 +1196,9 @@ class AIEngineService:
             except asyncio.CancelledError:
                 logger.info("[AI-ENGINE] Cross-exchange consumer cancelled")
                 break
+            except asyncio.TimeoutError:
+                logger.warning("[AI-ENGINE] XREADGROUP timed out (5s limit) - retrying...")
+                continue
             except Exception as e:
                 logger.error(f"[AI-ENGINE] Cross-exchange consumer failure: {e}", exc_info=True)
                 await asyncio.sleep(2)
