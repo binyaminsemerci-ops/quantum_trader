@@ -1,0 +1,18 @@
+Feb 14 12:24:31 quantumtrader-prod-1 systemd[1]: Started quantum-autonomous-trader.service - Quantum Trader - Autonomous Trader (Full RL Autonomy).
+Feb 14 12:24:32 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:32,311] [microservices.autonomous_trader.position_tracker] [INFO] [PositionTracker] Initialized
+Feb 14 12:24:32 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:32,326] [microservices.autonomous_trader.exit_manager] [INFO] [ExitManager] Initialized (AI exits: True)
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,009] [microservices.rl_sizing_agent.rl_agent] [INFO] [RL-Agent] Initialized new policy network
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,009] [microservices.rl_sizing_agent.rl_agent] [INFO] [RL-Agent] Initialized | State dim: 6 | Retrain: every 100 trades
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,009] [__main__] [INFO] [AutonomousTrader] Initialized
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,009] [__main__] [INFO]   USE_UNIVERSE_OS: True
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,009] [__main__] [INFO]   Universe max symbols: 50
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,009] [__main__] [INFO] [AutonomousTrader] ≡ƒîÉ UNIVERSE OS ENABLED - Fetching dynamic symbols...
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,012] [__main__] [INFO] [Universe] Loaded 50 symbols from Universe Service (total available: 568)
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,012] [__main__] [INFO] [AutonomousTrader] Filtering 50 symbols by funding rate...
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,012] [microservices.autonomous_trader.funding_rate_filter] [INFO] [FundingFilter] Checking funding rates for 50 symbols...
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,372] [microservices.autonomous_trader.funding_rate_filter] [WARNING] [FundingFilter] Blacklisted symbols: 1000000BOBUSDT, 42USDT
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,372] [microservices.autonomous_trader.funding_rate_filter] [INFO] [FundingFilter] ≡ƒ¢í∩╕Å Protected from 2 high-fee symbols
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,372] [__main__] [WARNING] [AutonomousTrader] ≡ƒ¢í∩╕Å Removed 2 high-funding symbols
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,372] [__main__] [INFO] [AutonomousTrader] Trading with 48 safe symbols
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,372] [microservices.autonomous_trader.entry_scanner] [INFO] [EntryScanner] Initialized: 48 symbols (0GUSDT, 1000000MOGUSDT, 1000BONKUSDC, 1000BONKUSDT, 1000CATUSDT), min_conf=0.65
+Feb 14 12:24:33 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:24:33,372] [microservices.autonomous_trader.position_tracker] [INFO] [PositionTracker] Started

@@ -1,0 +1,50 @@
+Feb 14 12:58:53 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:58:53,734] [__main__] [INFO] [Scanner] Scanning for entries (slots: 8)...
+Feb 14 12:58:53 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:58:53,863] [__main__] [INFO] [Scanner] No entry opportunities found
+Feb 14 12:58:53 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:58:53,863] [__main__] [INFO] Γ£à Cycle completed in 60.66s
+Feb 14 12:58:53 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:58:53,863] [__main__] [INFO] ≡ƒôè Stats: 0 entries, 0 exits
+Feb 14 12:59:23 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:59:23,864] [__main__] [INFO]
+Feb 14 12:59:23 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: ============================================================
+Feb 14 12:59:23 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:59:23,864] [__main__] [INFO] ≡ƒöä CYCLE #24
+Feb 14 12:59:23 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:59:23,864] [__main__] [INFO] ============================================================
+Feb 14 12:59:23 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:59:23,864] [__main__] [INFO] [Monitor] Checking 2 positions...
+Feb 14 12:59:54 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:59:54,126] [microservices.autonomous_trader.exit_manager] [WARNING] [ExitManager] AI Engine timeout
+Feb 14 12:59:54 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 12:59:54,126] [__main__] [INFO]   ETHUSDT: HOLD (0%) R=0.70 PnL=$8.28 hold=5 exit=0
+Feb 14 13:00:24 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:00:24,386] [microservices.autonomous_trader.exit_manager] [WARNING] [ExitManager] AI Engine timeout
+Feb 14 13:00:24 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:00:24,386] [__main__] [INFO]   SOLUSDT: HOLD (0%) R=-0.13 PnL=$-0.66 hold=5 exit=0
+Feb 14 13:00:24 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:00:24,386] [__main__] [INFO] [Scanner] Scanning for entries (slots: 8)...
+Feb 14 13:00:24 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:00:24,517] [__main__] [INFO] [Scanner] No entry opportunities found
+Feb 14 13:00:24 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:00:24,517] [__main__] [INFO] Γ£à Cycle completed in 60.65s
+Feb 14 13:00:24 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:00:24,517] [__main__] [INFO] ≡ƒôè Stats: 0 entries, 0 exits
+Feb 14 13:00:54 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:00:54,519] [__main__] [INFO]
+Feb 14 13:00:54 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: ============================================================
+Feb 14 13:00:54 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:00:54,519] [__main__] [INFO] ≡ƒöä CYCLE #25
+Feb 14 13:00:54 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:00:54,519] [__main__] [INFO] ============================================================
+Feb 14 13:00:54 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:00:54,519] [__main__] [INFO] [Monitor] Checking 2 positions...
+Feb 14 13:01:24 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:01:24,785] [microservices.autonomous_trader.exit_manager] [WARNING] [ExitManager] AI Engine timeout
+Feb 14 13:01:24 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:01:24,785] [__main__] [INFO]   ETHUSDT: HOLD (0%) R=0.66 PnL=$7.80 hold=5 exit=0
+Feb 14 13:01:55 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:01:55,557] [microservices.autonomous_trader.exit_manager] [WARNING] [ExitManager] AI Engine timeout
+Feb 14 13:01:55 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:01:55,557] [__main__] [INFO]   SOLUSDT: HOLD (0%) R=-0.02 PnL=$-0.09 hold=5 exit=0
+Feb 14 13:01:55 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:01:55,557] [__main__] [INFO] [Scanner] Scanning for entries (slots: 8)...
+Feb 14 13:01:55 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:01:55,694] [__main__] [INFO] [Scanner] No entry opportunities found
+Feb 14 13:01:55 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:01:55,694] [__main__] [INFO] Γ£à Cycle completed in 61.18s
+Feb 14 13:01:55 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:01:55,694] [__main__] [INFO] ≡ƒôè Stats: 0 entries, 0 exits
+Feb 14 13:02:25 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:02:25,695] [__main__] [INFO]
+Feb 14 13:02:25 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: ============================================================
+Feb 14 13:02:25 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:02:25,695] [__main__] [INFO] ≡ƒöä CYCLE #26
+Feb 14 13:02:25 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:02:25,695] [__main__] [INFO] ============================================================
+Feb 14 13:02:25 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:02:25,695] [__main__] [INFO] [Monitor] Checking 2 positions...
+Feb 14 13:02:55 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:02:55,972] [microservices.autonomous_trader.exit_manager] [WARNING] [ExitManager] AI Engine timeout
+Feb 14 13:02:55 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:02:55,972] [__main__] [INFO]   ETHUSDT: HOLD (0%) R=0.67 PnL=$7.99 hold=5 exit=0
+Feb 14 13:03:26 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:03:26,229] [microservices.autonomous_trader.exit_manager] [WARNING] [ExitManager] AI Engine timeout
+Feb 14 13:03:26 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:03:26,229] [__main__] [INFO]   SOLUSDT: HOLD (0%) R=-0.13 PnL=$-0.68 hold=5 exit=0
+Feb 14 13:03:26 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:03:26,229] [__main__] [INFO] [Scanner] Scanning for entries (slots: 8)...
+Feb 14 13:03:26 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:03:26,377] [__main__] [INFO] [Scanner] No entry opportunities found
+Feb 14 13:03:26 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:03:26,377] [__main__] [INFO] Γ£à Cycle completed in 60.68s
+Feb 14 13:03:26 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:03:26,377] [__main__] [INFO] ≡ƒôè Stats: 0 entries, 0 exits
+Feb 14 13:03:56 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:03:56,378] [__main__] [INFO]
+Feb 14 13:03:56 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: ============================================================
+Feb 14 13:03:56 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:03:56,378] [__main__] [INFO] ≡ƒöä CYCLE #27
+Feb 14 13:03:56 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:03:56,378] [__main__] [INFO] ============================================================
+Feb 14 13:03:56 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:03:56,378] [__main__] [INFO] [Monitor] Checking 2 positions...
+Feb 14 13:04:26 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:04:26,644] [microservices.autonomous_trader.exit_manager] [WARNING] [ExitManager] AI Engine timeout
+Feb 14 13:04:26 quantumtrader-prod-1 quantum-autonomous-trader[2044106]: [2026-02-14 13:04:26,644] [__main__] [INFO]   ETHUSDT: HOLD (0%) R=0.78 PnL=$9.23 hold=5 exit=0
