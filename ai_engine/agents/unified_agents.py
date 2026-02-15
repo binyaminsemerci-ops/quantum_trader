@@ -242,12 +242,18 @@ class BaseAgent:
             self.logger.e(f"Model load error: {e}")
             raise
         
-        # Load scaler (MUST exist for sklearn models)
+        # Load scaler (try versioned, then fallback to generic)
         if os.path.exists(scaler_path):
             self.scaler = joblib.load(scaler_path)
         else:
-            self.logger.w(f"Scaler not found at {scaler_path}")
-            self.scaler = None
+            # Try generic scaler as fallback (e.g., xgboost_scaler.pkl)
+            generic_scaler = os.path.join(self.model_dir, f"{self.prefix.rstrip('_v')}_scaler.pkl")
+            if os.path.exists(generic_scaler):
+                self.logger.w(f"Using generic scaler: {generic_scaler}")
+                self.scaler = joblib.load(generic_scaler)
+            else:
+                self.logger.w(f"Scaler not found at {scaler_path} or {generic_scaler}")
+                self.scaler = None
         
         # Load metadata
         if os.path.exists(meta_path):
