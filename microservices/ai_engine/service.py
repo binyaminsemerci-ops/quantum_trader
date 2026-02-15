@@ -1115,6 +1115,7 @@ class AIEngineService:
             f"[AI-ENGINE] 📡 Starting cross-exchange consumer at {stream_key} (group={group}, consumer={consumer}, last_seen={last_seen_id})"
         )
 
+        logger.info(f"[AI-ENGINE] DEBUG: _running={self._running}, about to enter while loop...")
         loop_count = 0
         while self._running:
             try:
