@@ -1107,101 +1107,100 @@ class AIEngineService:
 
     async def _consume_cross_exchange_stream(self):
         """Continuously consume normalized cross-exchange data from Redis."""
-        try:
-            stream_key = self._xchg_stream
-            group = self._xchg_group
-            consumer = self._xchg_consumer
-            last_seen_id = self._normalized_stream_last_id or "$"
-            logger.warning(
-                f"[AI-ENGINE] 📡 Starting cross-exchange consumer at {stream_key} (group={group}, consumer={consumer}, last_seen={last_seen_id})"
-            )
-            
-            logger.warning(f"[AI-ENGINE] TRACE-1: _running={self._running}, entering loop...")
-            
-            loop_count = 0
-            while self._running:
-                loop_count += 1
-                logger.warning(f"[AI-ENGINE] TRACE-LOOP: Loop #{loop_count}")
-                try:
-                    # Use wait_for with timeout to prevent XREADGROUP from blocking forever
-                    # block=2000 (2s) + 3s buffer = 5s timeout
-                    messages = await asyncio.wait_for(
-                        self.redis_client.xreadgroup(
-                            groupname=group,
-                            consumername=consumer,
-                            streams={stream_key: ">"},
-                            count=50,
-                            block=2000,  # 2 seconds block in Redis
-                        ),
-                        timeout=5.0  # 5 second Python timeout
-                    )
-                    logger.warning(f"[AI-ENGINE] 📨 XREADGROUP returned: {len(messages) if messages else 0} streams")
+        stream_key = self._xchg_stream
+        group = self._xchg_group
+        consumer = self._xchg_consumer
+        last_seen_id = self._normalized_stream_last_id or "$"
+        logger.warning(
+            f"[AI-ENGINE] 📡 Starting cross-exchange consumer at {stream_key} (group={group}, consumer={consumer}, last_seen={last_seen_id})"
+        )
+        
+        logger.warning(f"[AI-ENGINE] TRACE-1: _running={self._running}, entering loop...")
+        
+        loop_count = 0
+        while self._running:
+            loop_count += 1
+            logger.warning(f"[AI-ENGINE] TRACE-LOOP: Loop #{loop_count}")
+            try:
+                # Use wait_for with timeout to prevent XREADGROUP from blocking forever
+                # block=2000 (2s) + 3s buffer = 5s timeout
+                messages = await asyncio.wait_for(
+                    self.redis_client.xreadgroup(
+                        groupname=group,
+                        consumername=consumer,
+                        streams={stream_key: ">"},
+                        count=50,
+                        block=2000,  # 2 seconds block in Redis
+                    ),
+                    timeout=5.0  # 5 second Python timeout
+                )
+                logger.warning(f"[AI-ENGINE] 📨 XREADGROUP returned: {len(messages) if messages else 0} streams")
 
-                    if not messages:
-                        continue
-
-                    ack_ids: List[Any] = []
-                    consumed = 0
-                    last_symbol: Optional[str] = None
-
-                    for _, entries in messages:
-                        for message_id, raw_data in entries:
-                            last_seen_id = message_id.decode("utf-8") if isinstance(message_id, bytes) else message_id
-
-                            parsed = self._parse_cross_exchange_entry(raw_data)
-                            if not parsed:
-                                continue
-
-                            parsed["last_id"] = last_seen_id
-                            parsed["received_at"] = datetime.utcnow()
-                            symbol = parsed["symbol"]
-                            last_symbol = symbol
-                            self._cross_exchange_features[symbol] = parsed
-                            ack_ids.append(message_id)
-                            consumed += 1
-
-                            tick_event = {
-                                "symbol": symbol,
-                                "price": parsed["avg_price"],
-                                "volume": 0.0,
-                                "source": "exchange.normalized",
-                                "num_exchanges": parsed["num_exchanges"],
-                                "cross_exchange_timestamp": parsed["source_timestamp"],
-                            }
-
-                            try:
-                                await self._handle_market_tick(tick_event)
-                            except Exception as tick_error:
-                                logger.error(f"[AI-ENGINE] Error handling normalized tick: {tick_error}", exc_info=True)
-
-                    if ack_ids:
-                        try:
-                            await self.redis_client.xack(stream_key, group, *ack_ids)
-                        except Exception as ack_error:
-                            logger.warning(f"[AI-ENGINE] XACK failed for {len(ack_ids)} ids: {ack_error}")
-                    if last_seen_id:
-                        self._normalized_stream_last_id = last_seen_id
-
-                    now_ts = time.time()
-                    latest = self._cross_exchange_features.get(last_symbol) if (consumed and last_symbol) else None
-                    if consumed and latest and (now_ts - self._xchg_log_last) >= 5:
-                        self._xchg_log_last = now_ts
-                        cache_size = len(self._cross_exchange_features)
-                        logger.info(
-                            f"[AI-ENGINE] xchg-consumed {consumed} msgs, last_id={last_seen_id}, "
-                            f"cache_size={cache_size}, divergence={latest.get('price_divergence', 0.0):.5f}, "
-                            f"spread_bps={latest.get('xchg_spread_bps', 0.0):.2f}"
-                        )
-
-                except asyncio.CancelledError:
-                    logger.info("[AI-ENGINE] Cross-exchange consumer cancelled")
-                    break
-                except asyncio.TimeoutError:
-                    logger.warning("[AI-ENGINE] XREADGROUP timed out (5s limit) - retrying...")
+                if not messages:
                     continue
-                except Exception as e:
-                    logger.error(f"[AI-ENGINE] Cross-exchange consumer failure: {e}", exc_info=True)
-                    await asyncio.sleep(2)
+
+                ack_ids: List[Any] = []
+                consumed = 0
+                last_symbol: Optional[str] = None
+
+                for _, entries in messages:
+                    for message_id, raw_data in entries:
+                        last_seen_id = message_id.decode("utf-8") if isinstance(message_id, bytes) else message_id
+
+                        parsed = self._parse_cross_exchange_entry(raw_data)
+                        if not parsed:
+                            continue
+
+                        parsed["last_id"] = last_seen_id
+                        parsed["received_at"] = datetime.utcnow()
+                        symbol = parsed["symbol"]
+                        last_symbol = symbol
+                        self._cross_exchange_features[symbol] = parsed
+                        ack_ids.append(message_id)
+                        consumed += 1
+
+                        tick_event = {
+                            "symbol": symbol,
+                            "price": parsed["avg_price"],
+                            "volume": 0.0,
+                            "source": "exchange.normalized",
+                            "num_exchanges": parsed["num_exchanges"],
+                            "cross_exchange_timestamp": parsed["source_timestamp"],
+                        }
+
+                        try:
+                            await self._handle_market_tick(tick_event)
+                        except Exception as tick_error:
+                            logger.error(f"[AI-ENGINE] Error handling normalized tick: {tick_error}", exc_info=True)
+
+                if ack_ids:
+                    try:
+                        await self.redis_client.xack(stream_key, group, *ack_ids)
+                    except Exception as ack_error:
+                        logger.warning(f"[AI-ENGINE] XACK failed for {len(ack_ids)} ids: {ack_error}")
+                if last_seen_id:
+                    self._normalized_stream_last_id = last_seen_id
+
+                now_ts = time.time()
+                latest = self._cross_exchange_features.get(last_symbol) if (consumed and last_symbol) else None
+                if consumed and latest and (now_ts - self._xchg_log_last) >= 5:
+                    self._xchg_log_last = now_ts
+                    cache_size = len(self._cross_exchange_features)
+                    logger.info(
+                        f"[AI-ENGINE] xchg-consumed {consumed} msgs, last_id={last_seen_id}, "
+                        f"cache_size={cache_size}, divergence={latest.get('price_divergence', 0.0):.5f}, "
+                        f"spread_bps={latest.get('xchg_spread_bps', 0.0):.2f}"
+                    )
+
+            except asyncio.CancelledError:
+                logger.info("[AI-ENGINE] Cross-exchange consumer cancelled")
+                break
+            except asyncio.TimeoutError:
+                logger.warning("[AI-ENGINE] XREADGROUP timed out (5s limit) - retrying...")
+                continue
+            except Exception as e:
+                logger.error(f"[AI-ENGINE] Cross-exchange consumer failure: {e}", exc_info=True)
+                await asyncio.sleep(2)
 
         logger.info("[AI-ENGINE] Cross-exchange consumer stopped")
 
