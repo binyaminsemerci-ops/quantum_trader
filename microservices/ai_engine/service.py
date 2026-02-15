@@ -1794,9 +1794,16 @@ class AIEngineService:
             
             logger.info(f"[AI-ENGINE] ✅ Price confirmed: {symbol} @ ${current_price:.2f}")
             
-            # Step 0: ESS Kill Switch - Check emergency stop
+            # Step 0: ESS Kill Switch - Check emergency stop (2s timeout to prevent blocking)
             logger.info(f"[AI-ENGINE] 🔍 Checking emergency stop...")
-            emergency_stop = await self.redis_client.get("trading:emergency_stop")
+            try:
+                emergency_stop = await asyncio.wait_for(
+                    self.redis_client.get("trading:emergency_stop"),
+                    timeout=2.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"[AI-ENGINE] ⚠️ Emergency stop check TIMEOUT (2s) - assuming not active")
+                emergency_stop = None
             logger.info(f"[AI-ENGINE] ✅ Emergency stop check: {emergency_stop}")
             if emergency_stop == b"1":
                 logger.critical(
