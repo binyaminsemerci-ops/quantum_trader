@@ -230,7 +230,9 @@ class AIEngineService:
                 host=settings.REDIS_HOST,
                 port=settings.REDIS_PORT,
                 db=settings.REDIS_DB,
-                decode_responses=False
+                decode_responses=False,
+                socket_timeout=5.0,  # Prevent blocking on slow Redis operations
+                socket_connect_timeout=5.0,  # Prevent blocking on connection
             )
             await self.redis_client.ping()
             logger.info("[AI-ENGINE] ✅ Redis connected")
