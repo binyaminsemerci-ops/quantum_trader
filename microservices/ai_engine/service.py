@@ -1796,17 +1796,33 @@ class AIEngineService:
             
             logger.info(f"[AI-ENGINE] ✅ Price confirmed: {symbol} @ ${current_price:.2f}")
             
-            # Step 0: ESS Kill Switch - Check emergency stop (2s timeout to prevent blocking)
-            logger.info(f"[AI-ENGINE] 🔍 Checking emergency stop...")
-            try:
-                emergency_stop = await asyncio.wait_for(
-                    self.redis_client.get("trading:emergency_stop"),
-                    timeout=2.0
-                )
-            except asyncio.TimeoutError:
-                logger.warning(f"[AI-ENGINE] ⚠️ Emergency stop check TIMEOUT (2s) - assuming not active")
-                emergency_stop = None
-            logger.info(f"[AI-ENGINE] ✅ Emergency stop check: {emergency_stop}")
+            # Step 0: ESS Kill Switch - Check emergency stop (cached, refresh every 30s)
+            # NOTE: Direct Redis get() blocks indefinitely on aioredis even with socket_timeout
+            # So we cache the value and only refresh periodically
+            now = time.time()
+            if not hasattr(self, '_emergency_stop_cache'):
+                self._emergency_stop_cache = {'value': None, 'last_check': 0}
+            
+            emergency_stop = None
+            if now - self._emergency_stop_cache['last_check'] > 30:  # Refresh every 30s
+                logger.info(f"[AI-ENGINE] 🔍 Refreshing emergency stop cache...")
+                try:
+                    # Use asyncio.wait_for with a short timeout
+                    emergency_stop = await asyncio.wait_for(
+                        self.redis_client.get("trading:emergency_stop"),
+                        timeout=1.0
+                    )
+                    self._emergency_stop_cache = {'value': emergency_stop, 'last_check': now}
+                    logger.info(f"[AI-ENGINE] ✅ Emergency stop cache updated: {emergency_stop}")
+                except asyncio.TimeoutError:
+                    logger.warning(f"[AI-ENGINE] ⚠️ Emergency stop check TIMEOUT - using cached value")
+                    emergency_stop = self._emergency_stop_cache['value']
+                except Exception as e:
+                    logger.warning(f"[AI-ENGINE] ⚠️ Emergency stop check failed: {e} - using cached value")
+                    emergency_stop = self._emergency_stop_cache['value']
+            else:
+                emergency_stop = self._emergency_stop_cache['value']
+            
             if emergency_stop == b"1":
                 logger.critical(
                     f"[AI-ENGINE] 🚨 EMERGENCY STOP ACTIVE - Signal generation blocked for {symbol}"
