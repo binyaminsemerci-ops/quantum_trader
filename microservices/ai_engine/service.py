@@ -1141,22 +1141,35 @@ class AIEngineService:
         # This avoids connection pool contention with other consumers
         import redis.asyncio as redis
         from .config import settings
-        dedicated_redis = redis.Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
-            db=settings.REDIS_DB,
-            decode_responses=False,
-            socket_timeout=30.0,
-            socket_connect_timeout=15.0,
-            single_connection_client=True,  # Use single dedicated connection
-        )
         
-        try:
-            await dedicated_redis.ping()
-            logger.warning("[AI-ENGINE] ✅ Dedicated Redis connection established for cross-exchange consumer")
-        except Exception as e:
-            logger.error(f"[AI-ENGINE] Failed to establish dedicated Redis connection: {e}")
-            return
+        # Retry connection establishment
+        dedicated_redis = None
+        for attempt in range(5):
+            try:
+                logger.warning(f"[AI-ENGINE] Creating dedicated Redis connection (attempt {attempt+1}/5)...")
+                dedicated_redis = redis.Redis(
+                    host=settings.REDIS_HOST,
+                    port=settings.REDIS_PORT,
+                    db=settings.REDIS_DB,
+                    decode_responses=False,
+                    socket_timeout=60.0,  # Very generous timeout
+                    socket_connect_timeout=30.0,
+                )
+                await dedicated_redis.ping()
+                logger.warning("[AI-ENGINE] ✅ Dedicated Redis connection established")
+                break
+            except Exception as e:
+                logger.warning(f"[AI-ENGINE] Dedicated Redis connection attempt {attempt+1} failed: {e}")
+                if dedicated_redis:
+                    try:
+                        await dedicated_redis.close()
+                    except Exception:
+                        pass
+                if attempt < 4:
+                    await asyncio.sleep(3)  # Wait before retry
+                else:
+                    logger.error("[AI-ENGINE] Failed to establish dedicated Redis after 5 attempts, giving up")
+                    return
         
         logger.warning(f"[AI-ENGINE] TRACE-1: _running={self._running}, entering loop...")
         
