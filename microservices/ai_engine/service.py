@@ -1144,18 +1144,24 @@ class AIEngineService:
             loop_count += 1
             logger.warning(f"[AI-ENGINE] TRACE-LOOP: Loop #{loop_count}")
             try:
-                # Use wait_for with timeout to prevent XREADGROUP from blocking forever
-                # block=2000 (2s) + 3s buffer = 5s timeout
+                # Use non-blocking XREADGROUP to avoid connection pool starvation
+                # Retry with short sleep instead of blocking in Redis
                 messages = await asyncio.wait_for(
                     self.redis_client.xreadgroup(
                         groupname=group,
                         consumername=consumer,
                         streams={stream_key: ">"},
                         count=50,
-                        block=2000,  # 2 seconds block in Redis
+                        block=0,  # Non-blocking - return immediately
                     ),
-                    timeout=5.0  # 5 second Python timeout
+                    timeout=10.0  # 10 second Python timeout as safety net
                 )
+                
+                if not messages:
+                    # No new messages, sleep briefly and retry
+                    await asyncio.sleep(0.1)  # 100ms sleep
+                    continue
+                    
                 logger.warning(f"[AI-ENGINE] 📨 XREADGROUP returned: {len(messages) if messages else 0} streams")
 
                 if not messages:
