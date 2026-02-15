@@ -534,8 +534,9 @@ class AIEngineService:
                     self._cross_exchange_features.clear()
                     self._normalized_stream_last_id = "$"
                     self._models_loaded += 1
+                    # Use _active_symbols from Universe Service (loaded later in PHASE 2B)
                     logger.info(
-                        f"[PHASE 1] Cross-Exchange stream ready: {len(settings.cross_exchange_symbols_list)} symbols, "
+                        f"[PHASE 1] Cross-Exchange stream ready (symbols will load from Universe Service), "
                         f"{len(settings.CROSS_EXCHANGE_EXCHANGES)} exchanges"
                     )
                 except Exception as e:
@@ -3123,7 +3124,7 @@ class AIEngineService:
                     metrics["cross_exchange_stream"] = {
                         "active": stream_len > 0,
                         "entries": stream_len,
-                        "symbols": settings.cross_exchange_symbols_list,
+                        "symbols": getattr(self, '_active_symbols', []),
                         "status": "OK" if stream_len > 0 else "NO_DATA"
                     }
                 else:
