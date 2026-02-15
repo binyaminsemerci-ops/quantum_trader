@@ -235,8 +235,8 @@ class AIEngineService:
                 port=settings.REDIS_PORT,
                 db=settings.REDIS_DB,
                 max_connections=50,  # Limit concurrent connections
-                socket_timeout=10.0,  # Increased timeout
-                socket_connect_timeout=10.0,  # Increased connection timeout
+                socket_timeout=30.0,  # Generous timeout for slow operations
+                socket_connect_timeout=15.0,  # Connection timeout
                 health_check_interval=30,  # Check connection health every 30s
                 decode_responses=False,
             )
@@ -245,8 +245,19 @@ class AIEngineService:
                 connection_pool=pool,
                 retry_on_timeout=True,  # Auto-retry on timeout
             )
-            await self.redis_client.ping()
-            logger.info("[AI-ENGINE] ✅ Redis connected (pool: max=50, health_check=30s)")
+            
+            # Retry Redis ping on startup
+            for attempt in range(3):
+                try:
+                    await self.redis_client.ping()
+                    logger.info("[AI-ENGINE] ✅ Redis connected (pool: max=50)")
+                    break
+                except Exception as e:
+                    if attempt == 2:
+                        raise
+                    logger.warning(f"[AI-ENGINE] Redis ping failed (attempt {attempt+1}/3): {e}, retrying...")
+                    await asyncio.sleep(2)
+            
             self.rl_influence = RLInfluenceV2(self.redis_client, logger)
             
             # Initialize EventBus
