@@ -223,19 +223,30 @@ class AIEngineService:
         logger.info("[AI-ENGINE] JSON logging initialized")
         
         try:
-            # Initialize Redis client
+            # Initialize Redis client with connection pool
             import redis.asyncio as redis
+            from redis.asyncio.connection import ConnectionPool
+            
             logger.info(f"[AI-ENGINE] Connecting to Redis at {settings.REDIS_HOST}:{settings.REDIS_PORT}...")
-            self.redis_client = redis.Redis(
+            
+            # Create connection pool with proper limits
+            pool = ConnectionPool(
                 host=settings.REDIS_HOST,
                 port=settings.REDIS_PORT,
                 db=settings.REDIS_DB,
+                max_connections=50,  # Limit concurrent connections
+                socket_timeout=10.0,  # Increased timeout
+                socket_connect_timeout=10.0,  # Increased connection timeout
+                health_check_interval=30,  # Check connection health every 30s
                 decode_responses=False,
-                socket_timeout=5.0,  # Prevent blocking on slow Redis operations
-                socket_connect_timeout=5.0,  # Prevent blocking on connection
+            )
+            
+            self.redis_client = redis.Redis(
+                connection_pool=pool,
+                retry_on_timeout=True,  # Auto-retry on timeout
             )
             await self.redis_client.ping()
-            logger.info("[AI-ENGINE] ✅ Redis connected")
+            logger.info("[AI-ENGINE] ✅ Redis connected (pool: max=50, health_check=30s)")
             self.rl_influence = RLInfluenceV2(self.redis_client, logger)
             
             # Initialize EventBus
