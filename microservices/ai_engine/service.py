@@ -1115,8 +1115,11 @@ class AIEngineService:
             f"[AI-ENGINE] 📡 Starting cross-exchange consumer at {stream_key} (group={group}, consumer={consumer}, last_seen={last_seen_id})"
         )
 
+        loop_count = 0
         while self._running:
             try:
+                loop_count += 1
+                logger.info(f"[AI-ENGINE] 🔄 Cross-exchange loop #{loop_count} - calling XREADGROUP...")
                 messages = await self.redis_client.xreadgroup(
                     groupname=group,
                     consumername=consumer,
@@ -1124,6 +1127,7 @@ class AIEngineService:
                     count=50,
                     block=2000,
                 )
+                logger.info(f"[AI-ENGINE] 📨 XREADGROUP returned: {len(messages) if messages else 0} streams")
 
                 if not messages:
                     continue
