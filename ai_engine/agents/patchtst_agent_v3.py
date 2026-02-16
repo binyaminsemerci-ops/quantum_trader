@@ -168,6 +168,11 @@ class PatchTSTAgent:
                     self.scaler = None
             else:
                 logger.warning("[PatchTST] No scaler found")
+                self.scaler = None
+
+        except Exception as e:
+            logger.error(f"[PatchTST] Model loading failed: {e}")
+            raise RuntimeError(f"[PatchTST] Failed to load model: {e}")
             
     def predict(self, symbol: str, features: Dict[str, float]) -> Dict[str, Any]:
         """
