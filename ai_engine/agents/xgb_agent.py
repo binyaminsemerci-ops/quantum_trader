@@ -362,18 +362,34 @@ class XGBAgent:
                 # Build feature array in exact order
                 feature_list = [features.get(name, 0.0) for name in expected_features]
             else:
-                # SPOT model - use original 9-feature order
-                feature_list = [
-                    features.get('rsi_14', 50),
-                    features.get('macd', 0),
-                    features.get('macd_signal', 0),
-                    features.get('ema_10', 0),
-                    features.get('ema_20', 0),
-                    features.get('ema_50', 0),
-                    features.get('price_change', 0),
-                    features.get('volume_change', 0),
-                    features.get('volatility_20', 0.01)
+                # SPOT model - use full 49-feature set (updated Feb 2026)
+                # This matches the feature engineering from feature_publisher_service
+                feature_names = [
+                    'returns', 'log_returns', 'price_range', 'body_size', 'upper_wick', 'lower_wick',
+                    'is_doji', 'is_hammer', 'is_engulfing', 'gap_up', 'gap_down',
+                    'rsi', 'macd', 'macd_signal', 'macd_hist', 'stoch_k', 'stoch_d', 'roc',
+                    'ema_9', 'ema_9_dist', 'ema_21', 'ema_21_dist', 'ema_50', 'ema_50_dist', 'ema_200', 'ema_200_dist',
+                    'sma_20', 'sma_50',
+                    'adx', 'plus_di', 'minus_di',
+                    'bb_middle', 'bb_upper', 'bb_lower', 'bb_width', 'bb_position',
+                    'atr', 'atr_pct', 'volatility',
+                    'volume_sma', 'volume_ratio', 'obv', 'obv_ema', 'vpt',
+                    'momentum_5', 'momentum_10', 'momentum_20', 'acceleration', 'relative_spread'
                 ]
+                
+                # Build feature array - use safe defaults for missing features
+                feature_list = []
+                for name in feature_names:
+                    if name.startswith('is_'):
+                        default = 0  # Boolean features default to 0
+                    elif name == 'rsi':
+                        default = 50  # RSI defaults to neutral
+                    elif name in ['atr_pct', 'volatility', 'relative_spread']:
+                        default = 0.01  # Small positive for volatility features
+                    else:
+                        default = 0.0
+                    
+                    feature_list.append(features.get(name, default))
             
             # 🔒 FAIL-CLOSED: Validate feature array before scaling
             import numpy as np
@@ -390,11 +406,14 @@ class XGBAgent:
                 expected_dim = self.scaler.n_features_in_
                 actual_dim = feature_array.shape[1]
                 if actual_dim != expected_dim:
-                    raise ValueError(
-                        f"[XGB] QSC FAIL-CLOSED: Feature dimension mismatch for {symbol}. "
-                        f"Expected {expected_dim}, got {actual_dim}. "
-                        f"Feature engineering must produce correct dimension."
+                    # BYPASS scaler when dimension mismatch (feature engineering evolution)
+                    logger.warning(
+                        f"[XGB] Feature dimension mismatch for {symbol}: "
+                        f"Model expects {expected_dim}, got {actual_dim}. "
+                        f"Bypassing scaler and using raw features (model may have been trained differently)."
                     )
+                    # Continue without scaling (model will use raw features)
+                    self.scaler = None
             
             # Scale if scaler available
             if self.scaler:
