@@ -174,40 +174,6 @@ class PatchTSTAgent:
             logger.error(f"[PatchTST] Model loading failed: {e}")
             raise RuntimeError(f"[PatchTST] Failed to load model: {e}")
             
-    def predict(self, symbol: str, features: Dict[str, float]) -> Dict[str, Any]:
-        """
-        Make prediction for a symbol using 49-feature schema (with safe defaults)
-        """
-        if self.model is None:
-            return {"symbol": symbol, "action": "HOLD", "confidence": 0.5, "confidence_std": 0.1, "version": self.version}
-
-        if features is None or not isinstance(features, dict):
-            logger.warning(f"[PatchTST] Invalid features for {symbol}")
-            return {"symbol": symbol, "action": "HOLD", "confidence": 0.5, "confidence_std": 0.1, "version": self.version}
-
-        # Extract feature vector (with safe defaults)
-            if self.features:
-                feature_keys = self.features
-            else:
-                # Fallback: use sorted keys from features dict (not recommended)
-                logger.warning("[PatchTST] No feature schema loaded, using sorted dict keys (may be unstable).")
-                feature_keys = sorted(features.keys())
-            
-            # Build feature vector with safe defaults
-            vector = []
-            for k in feature_keys:
-                if k.startswith('is_'):
-                    default = 0  # Boolean features
-                elif k == 'rsi':
-                    default = 50  # RSI neutral
-                elif k in ['atr_pct', 'volatility', 'relative_spread']:
-                    default = 0.01  # Small positive for volatility
-                else:
-                    default = 0.0
-                
-                vector.append(features.get(k, default))
-            
-            vector = np.array([vector
     def predict(self, symbol: str, features: Dict) -> Tuple[str, float, str]:
         """
         Generate trading prediction.
