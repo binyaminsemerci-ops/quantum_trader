@@ -89,6 +89,17 @@ async def check_readiness_simple():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/cadence/ready")
+async def cadence_ready():
+    """
+    Alias for /readiness/simple - for backward compatibility.
+    
+    Returns:
+        {"ready": true/false, "reason": "...", "actions": [...]}
+    """
+    return await check_readiness_simple()
+
+
 @app.get("/stats")
 async def get_stats():
     """Get current data statistics without full evaluation"""
