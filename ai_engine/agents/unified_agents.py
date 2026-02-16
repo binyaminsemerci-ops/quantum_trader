@@ -114,10 +114,123 @@ if TORCH_AVAILABLE:
             transformed = self.transformer(embedded)
             pooled = transformed.mean(dim=1)
             return self.output_proj(pooled)
+
+    class GatedResidualNetwork(nn.Module):
+        """Gated Residual Network for TFT"""
+        def __init__(self, input_size, hidden_size, output_size=None, dropout=0.1):
+            super().__init__()
+            if output_size is None:
+                output_size = input_size
+            self.fc1 = nn.Linear(input_size, hidden_size)
+            self.fc2 = nn.Linear(hidden_size, output_size)
+            self.gate = nn.Linear(input_size + hidden_size, output_size)
+            self.skip = nn.Linear(input_size, output_size) if input_size != output_size else nn.Identity()
+            self.dropout = nn.Dropout(dropout)
+            self.layer_norm = nn.LayerNorm(output_size)
+
+        def forward(self, x):
+            residual = self.skip(x)
+            h = torch.relu(self.fc1(x))
+            h = self.dropout(h)
+            h = self.fc2(h)
+            gate_input = torch.cat([x, torch.relu(self.fc1(x))], dim=-1)
+            gate = torch.sigmoid(self.gate(gate_input))
+            return self.layer_norm(gate * h + residual)
+
+    class VariableSelectionNetwork(nn.Module):
+        """Variable Selection Network for TFT"""
+        def __init__(self, input_size, hidden_size):
+            super().__init__()
+            self.feature_transform = nn.Linear(input_size, hidden_size)
+            self.gating = nn.Sequential(
+                nn.Linear(input_size, hidden_size),
+                nn.ReLU(),
+                nn.Linear(hidden_size, input_size),
+                nn.Softmax(dim=-1)
+            )
+            self.grn = GatedResidualNetwork(hidden_size, hidden_size)
+
+        def forward(self, x):
+            weights = self.gating(x)
+            weighted = x * weights
+            transformed = self.feature_transform(weighted)
+            return self.grn(transformed)
+
+    class TemporalFusionBlock(nn.Module):
+        """Temporal Fusion Block for TFT"""
+        def __init__(self, hidden_size, num_layers=2, dropout=0.1):
+            super().__init__()
+            self.static_encoder = nn.Sequential(
+                nn.Linear(hidden_size, hidden_size),
+                nn.ReLU()
+            )
+            self.decoder_lstm = nn.LSTM(hidden_size, hidden_size, num_layers=num_layers, 
+                                        batch_first=True, dropout=dropout if num_layers > 1 else 0)
+            self.enrichment_gate = nn.Sequential(
+                nn.Linear(hidden_size * 2, hidden_size),
+                nn.Sigmoid()
+            )
+
+        def forward(self, x, hidden=None):
+            if x.dim() == 3:
+                static = self.static_encoder(x[:, -1, :])
+                out, hidden = self.decoder_lstm(x, hidden)
+                gate_input = torch.cat([out[:, -1, :], static], dim=-1)
+                gate = self.enrichment_gate(gate_input)
+                return out[:, -1, :] * gate
+            else:
+                return self.static_encoder(x)
+
+    class TFTModel(nn.Module):
+        """Temporal Fusion Transformer model with 49-feature support (Feb 2026)"""
+        def __init__(self, input_size=49, hidden_size=128, num_heads=8, num_layers=3, 
+                     num_classes=3, dropout=0.1):
+            super().__init__()
+            self.input_size = input_size
+            self.hidden_size = hidden_size
+            
+            self.vsn = VariableSelectionNetwork(input_size, hidden_size)
+            self.encoder_lstm = nn.LSTM(hidden_size, hidden_size, num_layers=num_layers,
+                                        batch_first=True, bidirectional=True, dropout=dropout)
+            self.encoder_projection = nn.Linear(hidden_size * 2, hidden_size)
+            self.attention = nn.MultiheadAttention(hidden_size, num_heads, dropout=dropout, batch_first=True)
+            self.grn1 = GatedResidualNetwork(hidden_size, hidden_size * 2, hidden_size, dropout)
+            self.grn2 = GatedResidualNetwork(hidden_size, hidden_size * 2, hidden_size, dropout)
+            self.fusion = TemporalFusionBlock(hidden_size, num_layers=2, dropout=dropout)
+            self.classifier = nn.Sequential(
+                nn.Linear(hidden_size, hidden_size // 2),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_size // 2, num_classes)
+            )
+            self.layer_norm = nn.LayerNorm(hidden_size)
+
+        def forward(self, x):
+            if x.dim() == 2:
+                x = x.unsqueeze(1)  # [batch, 1, features]
+            
+            batch_size, seq_len, _ = x.shape
+            vsn_out = []
+            for t in range(seq_len):
+                vsn_out.append(self.vsn(x[:, t, :]))
+            x = torch.stack(vsn_out, dim=1)
+            
+            enc_out, _ = self.encoder_lstm(x)
+            enc_out = self.encoder_projection(enc_out)
+            attn_out, _ = self.attention(enc_out, enc_out, enc_out)
+            attn_out = self.grn1(attn_out[:, -1, :])
+            processed = self.grn2(attn_out)
+            fused = self.fusion(enc_out)
+            combined = self.layer_norm(processed + fused)
+            logits = self.classifier(combined)
+            
+            return logits
+
 else:
     # Fallback if torch not available
     NHiTSModel = None
     PatchTSTModel = None
+    TFTModel = None
 
 # ---------- LOGGER ----------
 class Logger:
@@ -165,13 +278,10 @@ class BaseAgent:
 
     def _find_latest(self):
         # Support both .pkl and .pth formats
-        # Filter out small files (<10KB) which are metadata, not models
-        MIN_MODEL_SIZE = 10 * 1024  # 10KB minimum for real models
         f=[]
         for ext in [".pkl", ".pth"]:
             files = [os.path.join(self.model_dir,x) for x in os.listdir(self.model_dir)
-                    if x.startswith(self.prefix) and x.endswith(ext) and "_scaler" not in x and "_meta" not in x
-                    and os.path.getsize(os.path.join(self.model_dir,x)) > MIN_MODEL_SIZE]
+                    if x.startswith(self.prefix) and x.endswith(ext) and "_scaler" not in x and "_meta" not in x]
             f.extend(files)
         return max(f,key=os.path.getmtime) if f else None
 
@@ -242,18 +352,12 @@ class BaseAgent:
             self.logger.e(f"Model load error: {e}")
             raise
         
-        # Load scaler (try versioned, then fallback to generic)
+        # Load scaler (MUST exist for sklearn models)
         if os.path.exists(scaler_path):
             self.scaler = joblib.load(scaler_path)
         else:
-            # Try generic scaler as fallback (e.g., xgboost_scaler.pkl)
-            generic_scaler = os.path.join(self.model_dir, f"{self.prefix.rstrip('_v')}_scaler.pkl")
-            if os.path.exists(generic_scaler):
-                self.logger.w(f"Using generic scaler: {generic_scaler}")
-                self.scaler = joblib.load(generic_scaler)
-            else:
-                self.logger.w(f"Scaler not found at {scaler_path} or {generic_scaler}")
-                self.scaler = None
+            self.logger.w(f"Scaler not found at {scaler_path}")
+            self.scaler = None
         
         # Load metadata
         if os.path.exists(meta_path):
@@ -277,8 +381,7 @@ class BaseAgent:
 
 # ---------- XGBOOST ----------
 class XGBoostAgent(BaseAgent):
-    # Use xgboost_model prefix to find xgboost_model.pkl (22 features, matches scaler)
-    def __init__(self): super().__init__("XGB-Agent","xgboost_model"); self._load()
+    def __init__(self): super().__init__("XGB-Agent","xgboost_v"); self._load()
     def predict(self,sym,feat):
         df=self._align(feat); X=self.scaler.transform(df)
         # Multi-class classification: classes = [0:SELL, 1:HOLD, 2:BUY]
@@ -295,19 +398,12 @@ class XGBoostAgent(BaseAgent):
 
 # ---------- LIGHTGBM ----------
 class LightGBMAgent(BaseAgent):
-    # Use lightgbm_model prefix (currently pointing to XGBClassifier with 22 features)
-    def __init__(self): super().__init__("LGBM-Agent","lightgbm_model"); self._load()
+    def __init__(self): super().__init__("LGBM-Agent","lightgbm_v"); self._load()
     def predict(self,sym,feat):
         df=self._align(feat); X=self.scaler.transform(df)
-        # Handle both XGBClassifier (predict_proba) and LGBMRegressor (predict) APIs
-        if hasattr(self.model, 'predict_proba'):
-            # XGBClassifier API
-            proba = self.model.predict_proba(X)[0]
-            class_pred = int(np.argmax(proba))
-        else:
-            # LGBMRegressor/Booster API
-            proba = self.model.predict(X)[0]
-            class_pred = int(np.argmax(proba))
+        # Multi-class classification: LightGBM Booster.predict() returns probabilities
+        proba = self.model.predict(X)[0]  # Returns [p_SELL, p_HOLD, p_BUY]
+        class_pred = int(np.argmax(proba))  # Get class with highest probability
         
         # Map class to action
         actions = ["SELL", "HOLD", "BUY"]
@@ -615,6 +711,174 @@ class NHiTSAgent(BaseAgent):
         c,s=float(np.max(p)),float(np.std(p)) if len(p.shape)>1 else (0.7, 0.1)
         self.logger.i(f"{sym} → {act} (conf={c:.3f},std={s:.3f})")
         return {"symbol":sym,"action":act,"confidence":c,"confidence_std":s,"version":self.version}
+
+
+class TFTAgent(BaseAgent):
+    """Temporal Fusion Transformer agent with 49-feature support (Feb 2026)"""
+    def __init__(self):
+        super().__init__("TFT-Agent", "tft_v")
+        self.pytorch_model = None
+        self._load()
+    
+    def _load_pytorch_model(self, state_dict, meta_path):
+        """Reconstruct TFT model from checkpoint"""
+        if not TORCH_AVAILABLE or TFTModel is None:
+            self.logger.e("PyTorch not available, cannot reconstruct TFT model")
+            return None
+        
+        try:
+            # Handle checkpoint format
+            if isinstance(state_dict, dict) and 'model_state_dict' in state_dict:
+                self.logger.i("Detected checkpoint format, extracting model_state_dict")
+                checkpoint = state_dict
+                actual_state_dict = checkpoint['model_state_dict']
+                # Extract architecture params
+                input_size = checkpoint.get('input_size', checkpoint.get('num_features', 49))
+                hidden_size = checkpoint.get('hidden_size', 128)
+                num_heads = checkpoint.get('num_heads', 8)
+                num_layers = checkpoint.get('num_layers', 3)
+                num_classes = checkpoint.get('num_classes', 3)
+                dropout = checkpoint.get('dropout', 0.1)
+                self.logger.i(f"Checkpoint params: input_size={input_size}, hidden_size={hidden_size}")
+            else:
+                actual_state_dict = state_dict
+                # Load from metadata
+                try:
+                    with open(meta_path) as f:
+                        meta = json.load(f)
+                    arch = meta.get('architecture', {})
+                    input_size = meta.get('input_size', meta.get('num_features', 49))
+                    hidden_size = arch.get('hidden_size', 128)
+                    num_heads = arch.get('num_heads', 8)
+                    num_layers = arch.get('num_layers', 3)
+                    num_classes = arch.get('num_classes', 3)
+                    dropout = arch.get('dropout', 0.1)
+                except:
+                    # Defaults
+                    input_size, hidden_size, num_heads, num_layers, num_classes, dropout = 49, 128, 8, 3, 3, 0.1
+            
+            # Reconstruct model
+            model = TFTModel(
+                input_size=input_size,
+                hidden_size=hidden_size,
+                num_heads=num_heads,
+                num_layers=num_layers,
+                num_classes=num_classes,
+                dropout=dropout
+            )
+            
+            # Load state dict
+            model.load_state_dict(actual_state_dict, strict=False)
+            model.eval()
+            
+            # Count parameters
+            param_count = sum(p.numel() for p in model.parameters())
+            if param_count == 0:
+                self.logger.e("Model has zero parameters")
+                return None
+            self.logger.i(f"✅ TFT state dict loaded ({param_count:,} parameters)")
+            
+            # Validate output
+            with torch.no_grad():
+                x1 = torch.randn(1, input_size)
+                x2 = torch.randn(1, input_size)
+                logits1 = model(x1)
+                logits2 = model(x2)
+                if torch.allclose(logits1, logits2, atol=1e-6):
+                    self.logger.e("Model output is constant - reconstruction failed")
+                    return None
+            
+            self.logger.i("✅ TFT model validation passed")
+            return model
+        except Exception as e:
+            self.logger.e(f"Failed to load/validate TFT model: {e}")
+            return None
+    
+    def predict(self, sym, feat):
+        """Predict using 49-feature schema"""
+        # Import 49-feature schema
+        try:
+            from ai_engine.common_features import FEATURES_V6, get_feature_default
+            features = FEATURES_V6
+        except ImportError:
+            # Fallback to hardcoded 49-feature list
+            features = [
+                'returns', 'log_returns', 'price_range', 'body_size', 'upper_wick', 'lower_wick',
+                'is_doji', 'is_hammer', 'is_engulfing', 'gap_up', 'gap_down',
+                'rsi', 'macd', 'macd_signal', 'macd_hist', 'stoch_k', 'stoch_d', 'roc',
+                'ema_9', 'ema_9_dist', 'ema_21', 'ema_21_dist', 'ema_50', 'ema_50_dist', 
+                'ema_200', 'ema_200_dist',
+                'sma_20', 'sma_50',
+                'adx', 'plus_di', 'minus_di',
+                'bb_middle', 'bb_upper', 'bb_lower', 'bb_width', 'bb_position',
+                'atr', 'atr_pct', 'volatility',
+                'volume_sma', 'volume_ratio', 'obv', 'obv_ema', 'vpt',
+                'momentum_5', 'momentum_10', 'momentum_20', 'acceleration', 'relative_spread'
+            ]
+            def get_feature_default(name):
+                if name.startswith('is_'):
+                    return 0
+                elif name == 'rsi':
+                    return 50
+                elif name in ['volatility', 'atr_pct']:
+                    return 0.01
+                return 0.0
+        
+        # Build feature vector
+        feature_values = []
+        for f in features:
+            val = feat.get(f, get_feature_default(f))
+            feature_values.append(float(val))
+        
+        # Check for PyTorch model
+        if self.pytorch_model is not None and TORCH_AVAILABLE:
+            try:
+                # Convert to tensor
+                X_tensor = torch.FloatTensor([feature_values])  # [1, 49]
+                
+                # Scale if scaler available
+                expected_dim = self.scaler.n_features_in_ if self.scaler else len(features)
+                if self.scaler and expected_dim != len(features):
+                    self.logger.w(f"Scaler expects {expected_dim} features but got {len(features)}. Bypassing scaler.")
+                    self.scaler = None
+                
+                if self.scaler:
+                    X_scaled = self.scaler.transform([feature_values])
+                    X_tensor = torch.FloatTensor(X_scaled)
+                
+                # Forward pass
+                with torch.no_grad():
+                    logits = self.pytorch_model(X_tensor)  # [1, 3]
+                    probs = torch.softmax(logits, dim=1)
+                    class_pred = torch.argmax(probs, dim=1).item()
+                    confidence = probs[0, class_pred].item()
+                
+                # Map class to action
+                actions = ["SELL", "HOLD", "BUY"]
+                act = actions[class_pred]
+                
+                self.logger.i(f"{sym} → {act} (TFT, conf={confidence:.3f})")
+                return {
+                    "symbol": sym,
+                    "action": act,
+                    "confidence": float(confidence),
+                    "confidence_std": 0.1,
+                    "version": self.version
+                }
+                
+            except Exception as e:
+                self.logger.e(f"TFT prediction failed: {e}")
+        
+        # Fallback
+        self.logger.w(f"{sym} → HOLD (dummy fallback, no TFT model)")
+        return {
+            "symbol": sym,
+            "action": "HOLD",
+            "confidence": 0.5,
+            "confidence_std": 0.1,
+            "version": self.version
+        }
+
 
 # Backward compatibility
 XGBAgent = XGBoostAgent
