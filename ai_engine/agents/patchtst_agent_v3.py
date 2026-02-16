@@ -160,7 +160,27 @@ class PatchTSTAgent:
             scaler_path = model_path.with_name(model_path.stem + "_scaler.pkl")
             if scaler_path.exists():
                 self.scaler = joblib.load(scaler_path)
-                logger.info(f"[PatchTST] ✅ Scal (with safe defaults)
+                logger.info(f"[PatchTST] ✅ Scaler loaded: {scaler_path.name}")
+                # Bypass scaler if dimension mismatch
+                expected_dim = self.scaler.n_features_in_
+                if expected_dim != num_features:
+                    logger.warning(f"[PatchTST] Scaler expects {expected_dim} features but got {num_features}. Bypassing scaler.")
+                    self.scaler = None
+            else:
+                logger.warning("[PatchTST] No scaler found")
+            
+    def predict(self, symbol: str, features: Dict[str, float]) -> Dict[str, Any]:
+        """
+        Make prediction for a symbol using 49-feature schema (with safe defaults)
+        """
+        if self.model is None:
+            return {"symbol": symbol, "action": "HOLD", "confidence": 0.5, "confidence_std": 0.1, "version": self.version}
+
+        if features is None or not isinstance(features, dict):
+            logger.warning(f"[PatchTST] Invalid features for {symbol}")
+            return {"symbol": symbol, "action": "HOLD", "confidence": 0.5, "confidence_std": 0.1, "version": self.version}
+
+        # Extract feature vector (with safe defaults)
             if self.features:
                 feature_keys = self.features
             else:
