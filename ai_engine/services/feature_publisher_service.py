@@ -220,18 +220,22 @@ class MarketFeatureExtractor:
         features['sma_50'] = float(np.mean(prices_arr[-50:])) if len(prices_arr) >= 50 else price
         
         # ===== 8. ADX (Average Directional Index) =====
-        if len(prices_arr) >= 14:
+        if len(prices_arr) >= 15 and len(highs_arr) >= 15 and len(lows_arr) >= 15:
             # Simplified ADX calculation
-            high_diffs = np.diff(highs_arr[-15:])
-            low_diffs = -np.diff(lows_arr[-15:])
+            high_diffs = np.diff(highs_arr[-15:])  # 14 elements
+            low_diffs = -np.diff(lows_arr[-15:])  # 14 elements
             
             plus_dm = np.where((high_diffs > low_diffs) & (high_diffs > 0), high_diffs, 0)
             minus_dm = np.where((low_diffs > high_diffs) & (low_diffs > 0), low_diffs, 0)
             
-            # True Range
-            tr = np.maximum(highs_arr[-14:] - lows_arr[-14:], 
-                           np.maximum(abs(highs_arr[-14:] - prices_arr[-15:-1]),
-                                     abs(lows_arr[-14:] - prices_arr[-15:-1])))
+            # True Range (need previous close for calculation)
+            prev_closes = prices_arr[-15:-1]  # 14 elements (exclude last)
+            curr_highs = highs_arr[-14:]      # 14 elements
+            curr_lows = lows_arr[-14:]        # 14 elements
+            
+            tr = np.maximum(curr_highs - curr_lows, 
+                           np.maximum(abs(curr_highs - prev_closes),
+                                     abs(curr_lows - prev_closes)))
             
             atr_14 = np.mean(tr) if len(tr) > 0 else 0.001
             
@@ -267,11 +271,15 @@ class MarketFeatureExtractor:
             features['bb_position'] = 0.0
         
         # ===== 10. ATR (Average True Range) =====
-        if len(prices_arr) >= 14:
-            # True Range already calculated for ADX
-            tr = np.maximum(highs_arr[-14:] - lows_arr[-14:], 
-                           np.maximum(abs(highs_arr[-14:] - prices_arr[-15:-1]),
-                                     abs(lows_arr[-14:] - prices_arr[-15:-1])))
+        if len(prices_arr) >= 15 and len(highs_arr) >= 14 and len(lows_arr) >= 14:
+            # Calculate True Range
+            prev_closes = prices_arr[-15:-1]  # 14 elements
+            curr_highs = highs_arr[-14:]      # 14 elements
+            curr_lows = lows_arr[-14:]        # 14 elements
+            
+            tr = np.maximum(curr_highs - curr_lows, 
+                           np.maximum(abs(curr_highs - prev_closes),
+                                     abs(curr_lows - prev_closes)))
             atr = np.mean(tr)
             features['atr'] = float(atr)
             features['atr_pct'] = float(atr / price * 100 if price > 0 else 0.0)
@@ -280,8 +288,11 @@ class MarketFeatureExtractor:
             features['atr_pct'] = 0.0
         
         # ===== 11. VOLATILITY =====
-        if len(prices_arr) >= 20:
-            volatility = np.std(np.diff(prices_arr[-20:]) / prices_arr[-21:-1])
+        if len(prices_arr) >= 21:
+            price_changes = np.diff(prices_arr[-21:])  # 20 elements
+            prev_prices = prices_arr[-21:-1]           # 20 elements
+            returns = price_changes / prev_prices
+            volatility = np.std(returns)
             features['volatility'] = float(volatility)
         else:
             features['volatility'] = 0.0
