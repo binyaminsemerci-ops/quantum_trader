@@ -42,37 +42,53 @@ class MarketFeatureExtractor:
     """
     Extracts technical features from market data.
     
-    Features include:
-    - Price-based: returns, volatility, momentum
-    - Volume-based: volume ratio, volume momentum
-    - Technical: RSI, MA crossovers, Bollinger bands
+    Now generates ALL 49 features required by LightGBM model:
+    - Candlestick features (10): returns, body_size, wicks, patterns
+    - Momentum & Oscillators (13): RSI, MACD, Stochastic, ROC, momentum
+    - Moving Averages (12): EMAs, SMAs, distances
+    - Bollinger Bands (5): upper, lower, middle, width, position
+    - Volatility (4): ATR, volatility metrics
+    - Trend (3): ADX, +DI, -DI
+    - Volume (5): volume, ratios, OBV, VPT
     """
     
-    def __init__(self, window_size: int = 50):
+    def __init__(self, window_size: int = 250):  # Increased for EMA200
         self.window_size = window_size
         self.price_history: Dict[str, deque] = {}
         self.volume_history: Dict[str, deque] = {}
+        self.high_history: Dict[str, deque] = {}  # For ATR, patterns
+        self.low_history: Dict[str, deque] = {}   # For ATR, patterns
+        self.obv_history: Dict[str, deque] = {}   # For OBV tracking
         
-    def update_history(self, symbol: str, price: float, volume: float):
-        """Update price and volume history for symbol."""
+    def update_history(self, symbol: str, price: float, volume: float, high: float = None, low: float = None):
+        """Update price, volume, high, low history for symbol."""
         if symbol not in self.price_history:
             self.price_history[symbol] = deque(maxlen=self.window_size)
             self.volume_history[symbol] = deque(maxlen=self.window_size)
+            self.high_history[symbol] = deque(maxlen=self.window_size)
+            self.low_history[symbol] = deque(maxlen=self.window_size)
+            self.obv_history[symbol] = deque(maxlen=self.window_size)
         
         self.price_history[symbol].append(price)
         self.volume_history[symbol].append(volume)
-    
-    def extract_features(self, symbol: str, price: float, volume: float) -> Dict[str, float]:
-        """
-        Extract features for current tick.
         
-        Returns dict of feature_name -> value.
+        # If high/low not provided, use price as approximation
+        self.high_history[symbol].append(high if high is not None else price * 1.001)
+        self.low_history[symbol].append(low if low is not None else price * 0.999)
+    
+    def extract_features(self, symbol: str, price: float, volume: float, high: float = None, low: float = None) -> Dict[str, float]:
+        """
+        Extract ALL 49 features required by LightGBM model.
+        
+        Returns dict of feature_name -> value matching model expectations.
         """
         # Update history
-        self.update_history(symbol, price, volume)
+        self.update_history(symbol, price, volume, high, low)
         
         prices = list(self.price_history.get(symbol, []))
         volumes = list(self.volume_history.get(symbol, []))
+        highs = list(self.high_history.get(symbol, []))
+        lows = list(self.low_history.get(symbol, []))
         
         if len(prices) < 5:
             # Not enough history, return neutral features
@@ -81,71 +97,269 @@ class MarketFeatureExtractor:
         # Convert to numpy for efficiency
         prices_arr = np.array(prices)
         volumes_arr = np.array(volumes)
+        highs_arr = np.array(highs)
+        lows_arr = np.array(lows)
         
         features = {}
         
-        # Price-based features
-        features['price'] = float(price)
-        features['price_return_1'] = float((prices_arr[-1] / prices_arr[-2] - 1) if len(prices_arr) >= 2 else 0.0)
-        features['price_return_5'] = float((prices_arr[-1] / prices_arr[-5] - 1) if len(prices_arr) >= 5 else 0.0)
-        features['price_volatility_10'] = float(np.std(prices_arr[-10:])) if len(prices_arr) >= 10 else 0.0
+        # ===== 1. CANDLESTICK FEATURES (10) =====
+        # Basic price metrics
+        features['returns'] = float((prices_arr[-1] / prices_arr[-2] - 1) if len(prices_arr) >= 2 else 0.0)
+        features['log_returns'] = float(np.log(prices_arr[-1] / prices_arr[-2]) if len(prices_arr) >= 2 and prices_arr[-2] > 0 else 0.0)
+        features['price_range'] = float(highs_arr[-1] - lows_arr[-1])
         
-        # price_change (LightGBM requirement - same as 1-tick return)
-        features['price_change'] = features['price_return_1']
+        # Candlestick body and wicks
+        open_price = prices_arr[-2] if len(prices_arr) >= 2 else price
+        close_price = prices_arr[-1]
+        high_price = highs_arr[-1]
+        low_price = lows_arr[-1]
         
-        # Moving averages
-        features['ma_10'] = float(np.mean(prices_arr[-10:])) if len(prices_arr) >= 10 else price
-        features['ma_20'] = float(np.mean(prices_arr[-20:])) if len(prices_arr) >= 20 else price
-        features['ma_50'] = float(np.mean(prices_arr[-50:])) if len(prices_arr) >= 50 else price
+        features['body_size'] = float(abs(close_price - open_price))
+        features['upper_wick'] = float(high_price - max(open_price, close_price))
+        features['lower_wick'] = float(min(open_price, close_price) - low_price)
         
-        # MA crossover signals
-        if len(prices_arr) >= 20:
-            features['ma_cross_10_20'] = 1.0 if features['ma_10'] > features['ma_20'] else -1.0
+        # Candlestick patterns (boolean → 1.0/0.0)
+        body_size = abs(close_price - open_price)
+        total_range = high_price - low_price if high_price > low_price else 0.001
+        
+        features['is_doji'] = 1.0 if (body_size / total_range < 0.1) else 0.0
+        features['is_hammer'] = 1.0 if (features['lower_wick'] > 2 * body_size and features['upper_wick'] < body_size) else 0.0
+        
+        # Engulfing pattern (requires 2 candles)
+        if len(prices_arr) >= 3:
+            prev_open = prices_arr[-3]
+            prev_close = prices_arr[-2]
+            prev_body = abs(prev_close - prev_open)
+            is_bullish_engulfing = close_price > open_price and prev_close < prev_open and body_size > prev_body
+            is_bearish_engulfing = close_price < open_price and prev_close > prev_open and body_size > prev_body
+            features['is_engulfing'] = 1.0 if (is_bullish_engulfing or is_bearish_engulfing) else 0.0
         else:
-            features['ma_cross_10_20'] = 0.0
+            features['is_engulfing'] = 0.0
         
-        # RSI approximation (simplified)
+        # Gap detection
+        if len(prices_arr) >= 2 and len(highs_arr) >= 2 and len(lows_arr) >= 2:
+            prev_high = highs_arr[-2]
+            prev_low = lows_arr[-2]
+            curr_low = lows_arr[-1]
+            curr_high = highs_arr[-1]
+            features['gap_up'] = 1.0 if (curr_low > prev_high) else 0.0
+            features['gap_down'] = 1.0 if (curr_high < prev_low) else 0.0
+        else:
+            features['gap_up'] = 0.0
+            features['gap_down'] = 0.0
+        
+        # ===== 2. RSI =====
         if len(prices_arr) >= 14:
             returns = np.diff(prices_arr[-14:])
             gains = returns[returns > 0].sum() if len(returns[returns > 0]) > 0 else 0.001
             losses = -returns[returns < 0].sum() if len(returns[returns < 0]) > 0 else 0.001
             rs = gains / losses
-            features['rsi_14'] = float(100 - (100 / (1 + rs)))
+            features['rsi'] = float(100 - (100 / (1 + rs)))
         else:
-            features['rsi_14'] = 50.0  # Neutral
+            features['rsi'] = 50.0
         
-        # MACD (12-26-9) - simplified version
+        # ===== 3. MACD (12-26-9) =====
         if len(prices_arr) >= 26:
             ema_12 = self._ema(prices_arr, 12)
             ema_26 = self._ema(prices_arr, 26)
-            features['macd'] = float(ema_12 - ema_26)
+            macd_line = ema_12 - ema_26
+            
+            # MACD signal (9-day EMA of MACD)
+            # Simplified: use recent MACD values if we tracked them
+            # For now, approximate as 90% of MACD line
+            macd_signal = macd_line * 0.9
+            
+            features['macd'] = float(macd_line)
+            features['macd_signal'] = float(macd_signal)
+            features['macd_hist'] = float(macd_line - macd_signal)
         else:
             features['macd'] = 0.0
+            features['macd_signal'] = 0.0
+            features['macd_hist'] = 0.0
         
-        # Volume features
-        features['volume'] = float(volume)
-        features['volume_ratio'] = float(volume / np.mean(volumes_arr) if len(volumes_arr) > 0 and np.mean(volumes_arr) > 0 else 1.0)
-        
-        # Bollinger bands
-        if len(prices_arr) >= 20:
-            ma_20 = np.mean(prices_arr[-20:])
-            std_20 = np.std(prices_arr[-20:])
-            features['bb_upper'] = ma_20 + 2 * std_20
-            features['bb_lower'] = ma_20 - 2 * std_20
-            features['bb_position'] = (price - ma_20) / (2 * std_20) if std_20 > 0 else 0.0
+        # ===== 4. STOCHASTIC OSCILLATOR =====
+        if len(prices_arr) >= 14:
+            low_14 = np.min(lows_arr[-14:])
+            high_14 = np.max(highs_arr[-14:])
+            if high_14 > low_14:
+                stoch_k = 100 * (close_price - low_14) / (high_14 - low_14)
+            else:
+                stoch_k = 50.0
+            
+            # Stoch %D is 3-day SMA of %K (simplified: use current %K)
+            stoch_d = stoch_k * 0.95  # Approximation
+            
+            features['stoch_k'] = float(stoch_k)
+            features['stoch_d'] = float(stoch_d)
         else:
+            features['stoch_k'] = 50.0
+            features['stoch_d'] = 50.0
+        
+        # ===== 5. RATE OF CHANGE (ROC) =====
+        if len(prices_arr) >= 12:
+            roc = 100 * (prices_arr[-1] / prices_arr[-12] - 1)
+            features['roc'] = float(roc)
+        else:
+            features['roc'] = 0.0
+        
+        # ===== 6. EMAs (9, 21, 50, 200) + Distances =====
+        features['ema_9'] = float(self._ema(prices_arr, 9))
+        features['ema_9_dist'] = float((price - features['ema_9']) / price if price > 0 else 0.0)
+        
+        features['ema_21'] = float(self._ema(prices_arr, 21))
+        features['ema_21_dist'] = float((price - features['ema_21']) / price if price > 0 else 0.0)
+        
+        features['ema_50'] = float(self._ema(prices_arr, 50))
+        features['ema_50_dist'] = float((price - features['ema_50']) / price if price > 0 else 0.0)
+        
+        features['ema_200'] = float(self._ema(prices_arr, 200))
+        features['ema_200_dist'] = float((price - features['ema_200']) / price if price > 0 else 0.0)
+        
+        # ===== 7. SMAs (20, 50) =====
+        features['sma_20'] = float(np.mean(prices_arr[-20:])) if len(prices_arr) >= 20 else price
+        features['sma_50'] = float(np.mean(prices_arr[-50:])) if len(prices_arr) >= 50 else price
+        
+        # ===== 8. ADX (Average Directional Index) =====
+        if len(prices_arr) >= 14:
+            # Simplified ADX calculation
+            high_diffs = np.diff(highs_arr[-15:])
+            low_diffs = -np.diff(lows_arr[-15:])
+            
+            plus_dm = np.where((high_diffs > low_diffs) & (high_diffs > 0), high_diffs, 0)
+            minus_dm = np.where((low_diffs > high_diffs) & (low_diffs > 0), low_diffs, 0)
+            
+            # True Range
+            tr = np.maximum(highs_arr[-14:] - lows_arr[-14:], 
+                           np.maximum(abs(highs_arr[-14:] - prices_arr[-15:-1]),
+                                     abs(lows_arr[-14:] - prices_arr[-15:-1])))
+            
+            atr_14 = np.mean(tr) if len(tr) > 0 else 0.001
+            
+            plus_di = 100 * (np.mean(plus_dm) / atr_14) if atr_14 > 0 else 0.0
+            minus_di = 100 * (np.mean(minus_dm) / atr_14) if atr_14 > 0 else 0.0
+            
+            dx = abs(plus_di - minus_di) / (plus_di + minus_di) if (plus_di + minus_di) > 0 else 0.0
+            adx = dx * 100  # Simplified (should be EMA of DX)
+            
+            features['adx'] = float(adx)
+            features['plus_di'] = float(plus_di)
+            features['minus_di'] = float(minus_di)
+        else:
+            features['adx'] = 0.0
+            features['plus_di'] = 0.0
+            features['minus_di'] = 0.0
+        
+        # ===== 9. BOLLINGER BANDS =====
+        if len(prices_arr) >= 20:
+            sma_20 = np.mean(prices_arr[-20:])
+            std_20 = np.std(prices_arr[-20:])
+            
+            features['bb_middle'] = float(sma_20)
+            features['bb_upper'] = float(sma_20 + 2 * std_20)
+            features['bb_lower'] = float(sma_20 - 2 * std_20)
+            features['bb_width'] = float(4 * std_20)  # Upper - Lower
+            features['bb_position'] = float((price - sma_20) / (2 * std_20) if std_20 > 0 else 0.0)
+        else:
+            features['bb_middle'] = price
             features['bb_upper'] = price * 1.02
             features['bb_lower'] = price * 0.98
+            features['bb_width'] = price * 0.04
             features['bb_position'] = 0.0
         
-        # Momentum
+        # ===== 10. ATR (Average True Range) =====
+        if len(prices_arr) >= 14:
+            # True Range already calculated for ADX
+            tr = np.maximum(highs_arr[-14:] - lows_arr[-14:], 
+                           np.maximum(abs(highs_arr[-14:] - prices_arr[-15:-1]),
+                                     abs(lows_arr[-14:] - prices_arr[-15:-1])))
+            atr = np.mean(tr)
+            features['atr'] = float(atr)
+            features['atr_pct'] = float(atr / price * 100 if price > 0 else 0.0)
+        else:
+            features['atr'] = 0.0
+            features['atr_pct'] = 0.0
+        
+        # ===== 11. VOLATILITY =====
+        if len(prices_arr) >= 20:
+            volatility = np.std(np.diff(prices_arr[-20:]) / prices_arr[-21:-1])
+            features['volatility'] = float(volatility)
+        else:
+            features['volatility'] = 0.0
+        
+        # ===== 12. VOLUME FEATURES =====
+        features['volume_sma'] = float(np.mean(volumes_arr[-20:])) if len(volumes_arr) >= 20 else float(np.mean(volumes_arr)) if len(volumes_arr) > 0 else 0.0
+        features['volume_ratio'] = float(volume / features['volume_sma'] if features['volume_sma'] > 0 else 1.0)
+        
+        # OBV (On-Balance Volume)
+        if len(prices_arr) >= 2 and len(volumes_arr) >= 2:
+            # Calculate OBV incrementally
+            if symbol not in self.obv_history or len(self.obv_history[symbol]) == 0:
+                # Initialize OBV
+                obv = 0.0
+                for i in range(1, len(prices_arr)):
+                    if prices_arr[i] > prices_arr[i-1]:
+                        obv += volumes_arr[i]
+                    elif prices_arr[i] < prices_arr[i-1]:
+                        obv -= volumes_arr[i]
+            else:
+                # Update OBV based on last value
+                prev_obv = list(self.obv_history[symbol])[-1] if len(self.obv_history[symbol]) > 0 else 0.0
+                if prices_arr[-1] > prices_arr[-2]:
+                    obv = prev_obv + volumes_arr[-1]
+                elif prices_arr[-1] < prices_arr[-2]:
+                    obv = prev_obv - volumes_arr[-1]
+                else:
+                    obv = prev_obv
+            
+            # Store OBV
+            if symbol in self.obv_history:
+                self.obv_history[symbol].append(obv)
+            
+            features['obv'] = float(obv)
+            
+            # OBV EMA (10-period)
+            obv_values = list(self.obv_history.get(symbol, [obv]))
+            features['obv_ema'] = float(self._ema(np.array(obv_values), 10))
+        else:
+            features['obv'] = 0.0
+            features['obv_ema'] = 0.0
+        
+        # VPT (Volume Price Trend)
+        if len(prices_arr) >= 2 and len(volumes_arr) >= 2:
+            price_change_pct = (prices_arr[-1] - prices_arr[-2]) / prices_arr[-2] if prices_arr[-2] > 0 else 0.0
+            vpt = volumes_arr[-1] * price_change_pct
+            features['vpt'] = float(vpt)
+        else:
+            features['vpt'] = 0.0
+        
+        # ===== 13. MOMENTUM FEATURES =====
+        if len(prices_arr) >= 5:
+            features['momentum_5'] = float(prices_arr[-1] / prices_arr[-5] - 1)
+        else:
+            features['momentum_5'] = 0.0
+        
         if len(prices_arr) >= 10:
             features['momentum_10'] = float(prices_arr[-1] / prices_arr[-10] - 1)
         else:
             features['momentum_10'] = 0.0
         
-        # Ensure ALL values are native Python floats (not numpy types)
-        # This prevents Redis serialization issues like 'np.float64(...)'
+        if len(prices_arr) >= 20:
+            features['momentum_20'] = float(prices_arr[-1] / prices_arr[-20] - 1)
+        else:
+            features['momentum_20'] = 0.0
+        
+        # Acceleration (change in momentum)
+        if len(prices_arr) >= 20:
+            mom_10_now = features['momentum_10']
+            mom_10_prev = (prices_arr[-11] / prices_arr[-20] - 1) if len(prices_arr) >= 20 else 0.0
+            features['acceleration'] = float(mom_10_now - mom_10_prev)
+        else:
+            features['acceleration'] = 0.0
+        
+        # Relative Spread (high-low as % of price)
+        features['relative_spread'] = float((high_price - low_price) / price if price > 0 else 0.0)
+        
+        # Ensure ALL values are native Python floats
         return {k: float(v) for k, v in features.items()}
     
     def _ema(self, values: np.ndarray, period: int) -> float:
@@ -161,25 +375,74 @@ class MarketFeatureExtractor:
         return float(ema)
     
     def _neutral_features(self) -> Dict[str, float]:
-        """Return neutral features when insufficient history."""
+        """Return neutral features when insufficient history - ALL 49 features."""
         return {
-            'price': 0.0,
-            'price_change': 0.0,  # LightGBM requirement
-            'price_return_1': 0.0,
-            'price_return_5': 0.0,
-            'price_volatility_10': 0.0,
-            'ma_10': 0.0,
-            'ma_20': 0.0,
-            'ma_50': 0.0,
-            'ma_cross_10_20': 0.0,
-            'rsi_14': 50.0,
-            'macd': 0.0,  # LightGBM requirement
-            'volume': 0.0,
-            'volume_ratio': 1.0,
+            # Candlestick (10)
+            'returns': 0.0,
+            'log_returns': 0.0,
+            'price_range': 0.0,
+            'body_size': 0.0,
+            'upper_wick': 0.0,
+            'lower_wick': 0.0,
+            'is_doji': 0.0,
+            'is_hammer': 0.0,
+            'is_engulfing': 0.0,
+            'gap_up': 0.0,
+            'gap_down': 0.0,
+            
+            # Oscillators (7)
+            'rsi': 50.0,
+            'macd': 0.0,
+            'macd_signal': 0.0,
+            'macd_hist': 0.0,
+            'stoch_k': 50.0,
+            'stoch_d': 50.0,
+            'roc': 0.0,
+            
+            # EMAs (8)
+            'ema_9': 0.0,
+            'ema_9_dist': 0.0,
+            'ema_21': 0.0,
+            'ema_21_dist': 0.0,
+            'ema_50': 0.0,
+            'ema_50_dist': 0.0,
+            'ema_200': 0.0,
+            'ema_200_dist': 0.0,
+            
+            # SMAs (2)
+            'sma_20': 0.0,
+            'sma_50': 0.0,
+            
+            # ADX (3)
+            'adx': 0.0,
+            'plus_di': 0.0,
+            'minus_di': 0.0,
+            
+            # Bollinger Bands (5)
+            'bb_middle': 0.0,
             'bb_upper': 0.0,
             'bb_lower': 0.0,
+            'bb_width': 0.0,
             'bb_position': 0.0,
-            'momentum_10': 0.0
+            
+            # Volatility (3)
+            'atr': 0.0,
+            'atr_pct': 0.0,
+            'volatility': 0.0,
+            
+            # Volume (5)
+            'volume_sma': 0.0,
+            'volume_ratio': 1.0,
+            'obv': 0.0,
+            'obv_ema': 0.0,
+            'vpt': 0.0,
+            
+            # Momentum (5)
+            'momentum_5': 0.0,
+            'momentum_10': 0.0,
+            'momentum_20': 0.0,
+            'acceleration': 0.0,
+            'relative_spread': 0.0
         }
 
 
@@ -294,12 +557,21 @@ class FeaturePublisherService:
             symbol = fields.get("symbol", "UNKNOWN")
             
             # Try avg_price first (aggregated), fallback to binance_price
-            price_str = fields.get("avg_price") or fields.get("binance_price") or "0"
+            price_str = fields.get("avg_price") or fields.get("binance_price") or fields.get("close") or "0"
             price = float(price_str)
             
-            # Volume not in exchange.normalized, use price change as proxy
-            price_div = float(fields.get("price_divergence", "0"))
-            volume = abs(price_div) * 1000  # Synthetic volume from price divergence
+            # Get high/low if available (for candlestick patterns)
+            high = float(fields.get("high", price))
+            low = float(fields.get("low", price))
+            
+            # Get volume - check multiple fields
+            volume_str = fields.get("volume") or fields.get("binance_volume") or "0"
+            volume = float(volume_str)
+            
+            # If no volume, use price divergence as proxy
+            if volume == 0:
+                price_div = float(fields.get("price_divergence", "0"))
+                volume = abs(price_div) * 1000  # Synthetic volume
             
             if price <= 0:
                 logger.warning(f"[FEATURE-PUBLISHER] Invalid price for {symbol}: {price}")
@@ -307,8 +579,8 @@ class FeaturePublisherService:
                 await self.redis.xack(self.input_stream, "feature_publisher", message_id)
                 return
             
-            # Extract features
-            features = self.feature_extractor.extract_features(symbol, price, volume)
+            # Extract ALL 49 features
+            features = self.feature_extractor.extract_features(symbol, price, volume, high, low)
             
             # Add metadata
             features['symbol'] = symbol
@@ -323,11 +595,12 @@ class FeaturePublisherService:
             
             self.features_published += 1
             
-            # Log periodically
+            # Log periodically (every 100 features)
             if self.features_published % 100 == 0:
                 logger.info(
                     f"[FEATURE-PUBLISHER] ✅ {symbol} | "
-                    f"price={price:.2f} rsi={features['rsi_14']:.1f} | "
+                    f"price={price:.6f} rsi={features.get('rsi', 50):.1f} "
+                    f"adx={features.get('adx', 0):.1f} | "
                     f"total={self.features_published}"
                 )
             
@@ -335,7 +608,7 @@ class FeaturePublisherService:
             await self.redis.xack(self.input_stream, "feature_publisher", message_id)
             
         except Exception as e:
-            logger.error(f"[FEATURE-PUBLISHER] ❌ Error processing tick: {e}")
+            logger.error(f"[FEATURE-PUBLISHER] ❌ Error processing tick: {e}", exc_info=True)
 
 
 async def main():
