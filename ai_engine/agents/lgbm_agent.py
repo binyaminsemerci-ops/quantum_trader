@@ -143,27 +143,42 @@ class LightGBMAgent:
                     "Fix feature engineering or exclude from ensemble."
                 )
             
-            # Scale features
+            # Scale features (or skip if scaler incompatible)
             feature_values = feature_values.reshape(1, -1)
+            num_features = feature_values.shape[1]
+            
+            # Check if scaler is compatible with our feature count
             try:
                 import pandas as pd
                 import numpy as np
-                if hasattr(self.scaler, "feature_names_in_"):
-                    cols = list(self.scaler.feature_names_in_)
-                    target_len = len(cols)
-                    vec = feature_values
-                    if vec.shape[1] != target_len:
-                        if vec.shape[1] > target_len:
-                            vec = vec[:, :target_len]
-                        else:
-                            pad = np.zeros((vec.shape[0], target_len - vec.shape[1]))
-                            vec = np.concatenate([vec, pad], axis=1)
-                    df_vec = pd.DataFrame(vec, columns=cols)
-                    X_scaled = self.scaler.transform(df_vec)
+                
+                # Get expected feature count from scaler
+                if hasattr(self.scaler, "n_features_in_"):
+                    expected_features = self.scaler.n_features_in_
+                elif hasattr(self.scaler, "feature_names_in_"):
+                    expected_features = len(self.scaler.feature_names_in_)
                 else:
-                    X_scaled = self.scaler.transform(feature_values)
-            except Exception:
-                X_scaled = self.scaler.transform(feature_values)
+                    expected_features = num_features  # Assume OK if can't determine
+                
+                # If mismatch, skip scaling (use raw features)
+                if num_features != expected_features:
+                    logger.warning(
+                        f"[LGBM] Scaler expects {expected_features} features but got {num_features}. "
+                        f"Bypassing scaler, using raw features."
+                    )
+                    X_scaled = feature_values  # Use raw features (no scaling)
+                else:
+                    # Scale features normally
+                    if hasattr(self.scaler, "feature_names_in_"):
+                        cols = list(self.scaler.feature_names_in_)
+                        df_vec = pd.DataFrame(feature_values, columns=cols)
+                        X_scaled = self.scaler.transform(df_vec)
+                    else:
+                        X_scaled = self.scaler.transform(feature_values)
+                        
+            except Exception as e:
+                logger.warning(f"[LGBM] Scaler transform failed: {e}. Using raw features.")
+                X_scaled = feature_values  # Fallback to raw features
             
             # Predict probabilities
             # LightGBM outputs: [prob_class_0, prob_class_1, prob_class_2]
