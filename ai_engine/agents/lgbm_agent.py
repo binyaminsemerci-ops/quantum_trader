@@ -198,6 +198,11 @@ class LightGBMAgent:
                 action_map = {0: 'SELL', 1: 'HOLD', 2: 'BUY'}
                 action = action_map[pred_class]
                 
+                logger.debug(
+                    f"LightGBM Classifier {symbol}: {action} (conf={confidence:.2f}, "
+                    f"probs=[{probs[0]:.2f}, {probs[1]:.2f}, {probs[2]:.2f}])"
+                )
+                
             else:
                 # Regressor model - convert continuous output to classes
                 prediction = self.model.predict(X_scaled)[0]  # Single value
@@ -214,13 +219,7 @@ class LightGBMAgent:
                     action = 'HOLD'
                     confidence = 0.50 + (0.3 - abs(prediction)) * 0.10  # Higher confidence near 0
                 
-                logger.debug(f"LightGBM Regressor output: {prediction:.3f} → {action}")
-
-            
-            logger.debug(
-                f"LightGBM {symbol}: {action} (conf={confidence:.2f}, "
-                f"probs=[{probs[0]:.2f}, {probs[1]:.2f}, {probs[2]:.2f}])"
-            )
+                logger.debug(f"LightGBM Regressor {symbol}: {prediction:.3f} → {action} (conf={confidence:.2f})")
             
             return action, confidence, "lgbm_model"
             
