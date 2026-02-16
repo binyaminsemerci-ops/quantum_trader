@@ -180,19 +180,40 @@ class LightGBMAgent:
                 logger.warning(f"[LGBM] Scaler transform failed: {e}. Using raw features.")
                 X_scaled = feature_values  # Fallback to raw features
             
-            # Predict probabilities
-            # LightGBM outputs: [prob_class_0, prob_class_1, prob_class_2]
-            # Classes: 0=SELL, 1=HOLD, 2=BUY (after +1 conversion from -1,0,1)
-            probs = self.model.predict_proba(X_scaled)[0]
-            
-            # Get predicted class
-            pred_class = np.argmax(probs)
-            confidence = float(probs[pred_class])
-            
-            # Map class to action
-            # 0 -> SELL, 1 -> HOLD, 2 -> BUY
-            action_map = {0: 'SELL', 1: 'HOLD', 2: 'BUY'}
-            action = action_map[pred_class]
+            # Make prediction (handle both Classifier and Regressor)
+            if hasattr(self.model, 'predict_proba'):
+                # Classifier model - get probabilities
+                # LightGBM outputs: [prob_class_0, prob_class_1, prob_class_2]
+                # Classes: 0=SELL, 1=HOLD, 2=BUY (after +1 conversion from -1,0,1)
+                probs = self.model.predict_proba(X_scaled)[0]
+                
+                # Get predicted class
+                pred_class = np.argmax(probs)
+                confidence = float(probs[pred_class])
+                
+                # Map class to action
+                # 0 -> SELL, 1 -> HOLD, 2 -> BUY
+                action_map = {0: 'SELL', 1: 'HOLD', 2: 'BUY'}
+                action = action_map[pred_class]
+                
+            else:
+                # Regressor model - convert continuous output to classes
+                prediction = self.model.predict(X_scaled)[0]  # Single value
+                
+                # Convert regression output to action
+                # Assume output range: negative=SELL, ~0=HOLD, positive=BUY
+                if prediction > 0.3:
+                    action = 'BUY'
+                    confidence = min(0.50 + abs(prediction) * 0.30, 1.0)
+                elif prediction < -0.3:
+                    action = 'SELL'
+                    confidence = min(0.50 + abs(prediction) * 0.30, 1.0)
+                else:
+                    action = 'HOLD'
+                    confidence = 0.50 + (0.3 - abs(prediction)) * 0.10  # Higher confidence near 0
+                
+                logger.debug(f"LightGBM Regressor output: {prediction:.3f} → {action}")
+
             
             logger.debug(
                 f"LightGBM {symbol}: {action} (conf={confidence:.2f}, "
