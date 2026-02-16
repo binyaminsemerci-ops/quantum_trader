@@ -227,15 +227,17 @@ class EnsemblePredictorService:
             from ai_engine.agents.patchtst_agent_v3 import PatchTSTAgent
             from ai_engine.agents.nhits_agent import NHiTSAgent
             from ai_engine.agents.xgb_agent import XGBAgent
+            from ai_engine.agents.unified_agents import TFTAgent
             
             # Initialize agents (no execution capability)
             self.lgbm = LightGBMAgent()
             self.patchtst = PatchTSTAgent()
             self.nhits = NHiTSAgent()
             self.xgb = XGBAgent()
+            self.tft = TFTAgent()
             
             self.models_loaded = True
-            logger.info(f"[ENSEMBLE-PREDICTOR] ✅ Models loaded (4 agents)")
+            logger.info(f"[ENSEMBLE-PREDICTOR] ✅ Models loaded (5 agents: LGBM, XGB, N-HiTS, PatchTST, TFT)")
             
         except Exception as e:
             logger.error(f"[ENSEMBLE-PREDICTOR] ❌ Model loading failed: {e}")
@@ -269,33 +271,66 @@ class EnsemblePredictorService:
                 # Fail-mode: Degraded confidence
                 return self._fail_mode_signal(symbol, "models_unavailable")
             
-            # Simple aggregation using LightGBM (primary model)
-            # Full ensemble voting to be implemented in PATH 2.5
-            try:
-                action, confidence, model_name = self.lgbm.predict(symbol, features)
-                
-                # Map action to exit-focused recommendation
-                # BUY/SELL → CLOSE (active exit signal)
-                # HOLD → HOLD (maintain position if exists, or don't enter)
-                if action in ["BUY", "SELL"]:
-                    suggested_action = "CLOSE"
-                    # Use confidence directly (model's certainty about exit)
-                    raw_confidence = confidence
-                else:
-                    suggested_action = "HOLD"
-                    # HOLD confidence (how certain we are NOT to exit)
-                    raw_confidence = confidence * 0.7  # Conservative reduction
-                
-                logger.debug(
-                    f"[ENSEMBLE-PREDICTOR] {symbol} {model_name}: "
-                    f"{action} → {suggested_action} (conf={raw_confidence:.3f})"
-                )
-                
-            except Exception as e:
-                logger.error(f"[ENSEMBLE-PREDICTOR] Model prediction failed: {e}")
-                # Fallback to neutral prediction
+            # Full ensemble voting with all 5 agents (PATH 2.5 implementation)
+            predictions = []
+            agents = [
+                ("LGBM", self.lgbm),
+                ("XGB", self.xgb),
+                ("N-HiTS", self.nhits),
+                ("PatchTST", self.patchtst),
+                ("TFT", self.tft)
+            ]
+            
+            for agent_name, agent in agents:
+                try:
+                    pred = agent.predict(symbol, features)
+                    action = pred.get("action", "HOLD")
+                    conf = pred.get("confidence", 0.5)
+                    predictions.append((agent_name, action, conf))
+                    logger.debug(f"[ENSEMBLE-PREDICTOR] {symbol} {agent_name}: {action} (conf={conf:.3f})")
+                except Exception as e:
+                    logger.warning(f"[ENSEMBLE-PREDICTOR] {agent_name} failed: {e}")
+                    # Fallback: neutral vote
+                    predictions.append((agent_name, "HOLD", 0.5))
+            
+            # Weighted voting: Action by majority, confidence by weighted average
+            if not predictions:
+                # Fail-mode
                 raw_confidence = 0.50
                 suggested_action = "HOLD"
+                models_used = "none"
+            else:
+                # Count votes for each action
+                votes = {"BUY": 0, "SELL": 0, "HOLD": 0}
+                weights = {"BUY": 0.0, "SELL": 0.0, "HOLD": 0.0}
+                
+                for agent_name, action, conf in predictions:
+                    votes[action] += 1
+                    weights[action] += conf  # Sum confidence for each action
+                
+                # Majority vote
+                majority_action = max(votes, key=votes.get)
+                
+                # Average confidence for winning action
+                if votes[majority_action] > 0:
+                    avg_conf = weights[majority_action] / votes[majority_action]
+                else:
+                    avg_conf = 0.5
+                
+                # Map to exit-focused recommendation
+                if majority_action in ["BUY", "SELL"]:
+                    suggested_action = "CLOSE"
+                    raw_confidence = avg_conf
+                else:
+                    suggested_action = "HOLD"
+                    raw_confidence = avg_conf * 0.7  # Conservative HOLD reduction
+                
+                models_used = ",".join([name for name, _, _ in predictions])
+                
+                logger.debug(
+                    f"[ENSEMBLE-PREDICTOR] {symbol} Ensemble: {majority_action} → {suggested_action} "
+                    f"(votes={votes}, conf={raw_confidence:.3f})"
+                )
             
             # Apply calibration if available
             final_confidence = raw_confidence
@@ -320,7 +355,7 @@ class EnsemblePredictorService:
                 expected_edge=0.0,
                 risk_context="initialization",
                 ensemble_version=self.VERSION,
-                models_used="lgbm,patchtst,nhits,xgb",
+                models_used=models_used,  # Dynamic: reflects actual agents used
                 timestamp=datetime.utcnow().isoformat() + "Z"
             )
             
