@@ -234,10 +234,19 @@ class EnsemblePredictorService:
             self.patchtst = PatchTSTAgent()
             self.nhits = NHiTSAgent()
             self.xgb = XGBAgent()
-            self.tft = TFTAgent()
+            
+            # TFT is optional (may not have trained model yet)
+            try:
+                self.tft = TFTAgent()
+                agent_count = 5
+                logger.info("[ENSEMBLE-PREDICTOR] ✅ TFT agent loaded")
+            except FileNotFoundError as e:
+                self.tft = None
+                agent_count = 4
+                logger.warning(f"[ENSEMBLE-PREDICTOR] ⚠️ TFT model not found (optional): {e}")
             
             self.models_loaded = True
-            logger.info(f"[ENSEMBLE-PREDICTOR] ✅ Models loaded (5 agents: LGBM, XGB, N-HiTS, PatchTST, TFT)")
+            logger.info(f"[ENSEMBLE-PREDICTOR] ✅ Models loaded ({agent_count} agents: LGBM, XGB, N-HiTS, PatchTST" + (", TFT" if self.tft else "") + ")")
             
         except Exception as e:
             logger.error(f"[ENSEMBLE-PREDICTOR] ❌ Model loading failed: {e}")
@@ -271,15 +280,18 @@ class EnsemblePredictorService:
                 # Fail-mode: Degraded confidence
                 return self._fail_mode_signal(symbol, "models_unavailable")
             
-            # Full ensemble voting with all 5 agents (PATH 2.5 implementation)
+            # Full ensemble voting with up to 5 agents (TFT optional)
             predictions = []
             agents = [
                 ("LGBM", self.lgbm),
                 ("XGB", self.xgb),
                 ("N-HiTS", self.nhits),
                 ("PatchTST", self.patchtst),
-                ("TFT", self.tft)
             ]
+            
+            # Add TFT only if loaded
+            if self.tft is not None:
+                agents.append(("TFT", self.tft))
             
             for agent_name, agent in agents:
                 try:
