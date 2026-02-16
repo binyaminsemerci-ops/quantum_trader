@@ -1,7 +1,8 @@
 """
-PatchTST AGENT v3 - 23-Feature Support
-Supports both v3 (23-feature SimplePatchTST) and v2 (8-feature PatchTSTModel) architectures.
+PatchTST AGENT v3 - 49-Feature Support (Feb 2026)
+Supports both v3 (49-feature SimplePatchTST) and legacy (23/8-feature) architectures.
 Prioritizes v3 models with automatic scaler loading and metadata-driven feature extraction.
+Updated to match LightGBM/XGBoost/N-HiTS feature engineering uniformity.
 """
 import os
 import json
@@ -18,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 class SimplePatchTST(nn.Module):
     """
-    SimplePatchTST for v3 models (23 features).
+    SimplePatchTST for v3 models (49 features - Feb 2026 update).
     Matches training architecture from retrain_patchtst_v3.py
     """
-    def __init__(self, num_features=23, d_model=128, num_heads=4, num_layers=2, num_classes=3):
+    def __init__(self, num_features=49, d_model=128, num_heads=4, num_layers=2, num_classes=3):
         super().__init__()
         self.input_proj = nn.Linear(num_features, d_model)
         encoder_layer = nn.TransformerEncoderLayer(
@@ -110,12 +111,24 @@ class PatchTSTAgent:
                 with open(meta_path, 'r') as f:
                     meta = json.load(f)
                 self.features = meta.get("features", [])
-                num_features = len(self.features) or 23
+                num_features = len(self.features) or 49
                 logger.info(f"[PatchTST] Loaded feature schema ({num_features} features).")
             else:
-                logger.warning("[PatchTST] No metadata found, assuming 23 features.")
-                num_features = 23
-                self.features = []
+                logger.warning("[PatchTST] No metadata found, using 49-feature default (Feb 2026 schema).")
+                num_features = 49
+                # Complete 49-feature schema (matches LightGBM/XGBoost/N-HiTS)
+                self.features = [
+                    'returns', 'log_returns', 'price_range', 'body_size', 'upper_wick', 'lower_wick',
+                    'is_doji', 'is_hammer', 'is_engulfing', 'gap_up', 'gap_down',
+                    'rsi', 'macd', 'macd_signal', 'macd_hist', 'stoch_k', 'stoch_d', 'roc',
+                    'ema_9', 'ema_9_dist', 'ema_21', 'ema_21_dist', 'ema_50', 'ema_50_dist', 'ema_200', 'ema_200_dist',
+                    'sma_20', 'sma_50',
+                    'adx', 'plus_di', 'minus_di',
+                    'bb_middle', 'bb_upper', 'bb_lower', 'bb_width', 'bb_position',
+                    'atr', 'atr_pct', 'volatility',
+                    'volume_sma', 'volume_ratio', 'obv', 'obv_ema', 'vpt',
+                    'momentum_5', 'momentum_10', 'momentum_20', 'acceleration', 'relative_spread'
+                ]
             
             # Initialize SimplePatchTST with correct num_features
             logger.info(f"[PatchTST] Initializing model with {num_features} features.")
@@ -125,6 +138,17 @@ class PatchTSTAgent:
             checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
             if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
                 state_dict = checkpoint['model_state_dict']
+                
+                # Check scaler/model dimension match (bypass if mismatch)
+                if hasattr(self.scaler, 'n_features_in_'):
+                    expected_dim = self.scaler.n_features_in_
+                    if expected_dim != num_features:
+                        logger.warning(
+                            f"[PatchTST] Scaler dimension mismatch: "
+                            f"scaler expects {expected_dim}, model has {num_features}. "
+                            f"Bypassing scaler (graceful degradation)."
+                        )
+                        self.scaler = None
             else:
                 state_dict = checkpoint
             
@@ -136,15 +160,29 @@ class PatchTSTAgent:
             scaler_path = model_path.with_name(model_path.stem + "_scaler.pkl")
             if scaler_path.exists():
                 self.scaler = joblib.load(scaler_path)
-                logger.info(f"[PatchTST] ✅ Scaler loaded: {scaler_path.name}")
+                logger.info(f"[PatchTST] ✅ Scal (with safe defaults)
+            if self.features:
+                feature_keys = self.features
             else:
-                logger.warning("[PatchTST] No scaler found.")
-                self.scaler = None
-        
-        except Exception as e:
-            logger.error(f"[PatchTST] Model loading failed: {e}")
-            raise RuntimeError(f"[PatchTST] Failed to load model: {e}")
-    
+                # Fallback: use sorted keys from features dict (not recommended)
+                logger.warning("[PatchTST] No feature schema loaded, using sorted dict keys (may be unstable).")
+                feature_keys = sorted(features.keys())
+            
+            # Build feature vector with safe defaults
+            vector = []
+            for k in feature_keys:
+                if k.startswith('is_'):
+                    default = 0  # Boolean features
+                elif k == 'rsi':
+                    default = 50  # RSI neutral
+                elif k in ['atr_pct', 'volatility', 'relative_spread']:
+                    default = 0.01  # Small positive for volatility
+                else:
+                    default = 0.0
+                
+                vector.append(features.get(k, default))
+            
+            vector = np.array([vector
     def predict(self, symbol: str, features: Dict) -> Tuple[str, float, str]:
         """
         Generate trading prediction.
