@@ -191,23 +191,61 @@ class LightGBMAgent:
             return self._fallback_prediction(features)
     
     def _extract_features(self, features: Dict[str, float]) -> Optional[np.ndarray]:
-        """Extract feature values in correct order."""
+        """Extract feature values in correct order (all 49 features for LightGBM model)."""
         try:
             if not self.feature_names:
-                # Production feature order (6f retraining Jan 11, 2026)
-                # Matches service.py base features
+                # ALL 49 FEATURES matching trained LightGBM model (Dec 2025)
+                # Matches feature_publisher_service.py output
                 self.feature_names = [
-                    'price_change', 'rsi_14', 'macd', 'volume_ratio', 'momentum_10'
+                    # Candlestick patterns (10)
+                    'returns', 'log_returns', 'price_range', 'body_size', 'upper_wick', 'lower_wick',
+                    'is_doji', 'is_hammer', 'is_engulfing', 'gap_up', 'gap_down',
+                    
+                    # Oscillators (7)
+                    'rsi', 'macd', 'macd_signal', 'macd_hist',
+                    'stoch_k', 'stoch_d', 'roc',
+                    
+                    # EMAs + distances (8)
+                    'ema_9', 'ema_9_dist', 'ema_21', 'ema_21_dist',
+                    'ema_50', 'ema_50_dist', 'ema_200', 'ema_200_dist',
+                    
+                    # SMAs (2)
+                    'sma_20', 'sma_50',
+                    
+                    # ADX trend (3)
+                    'adx', 'plus_di', 'minus_di',
+                    
+                    # Bollinger Bands (5)
+                    'bb_middle', 'bb_upper', 'bb_lower', 'bb_width', 'bb_position',
+                    
+                    # Volatility (3)
+                    'atr', 'atr_pct', 'volatility',
+                    
+                    # Volume (5)
+                    'volume_sma', 'volume_ratio', 'obv', 'obv_ema', 'vpt',
+                    
+                    # Momentum (5)
+                    'momentum_5', 'momentum_10', 'momentum_20', 'acceleration', 'relative_spread'
                 ]
             
-            # Extract values (use default 0.0 if feature missing, like XGBoost does)
+            # Extract values (use default 0.0 if feature missing)
             values = []
+            missing_count = 0
             for name in self.feature_names:
                 if name in features:
                     values.append(features[name])
                 else:
-                    logger.warning(f"Missing feature '{name}' - using default 0.0")
-                    values.append(0.0)  # Default value instead of returning None
+                    # Default values based on feature type
+                    if name == 'rsi':
+                        values.append(50.0)  # Neutral RSI
+                    elif name == 'volume_ratio':
+                        values.append(1.0)  # Normal volume
+                    else:
+                        values.append(0.0)  # Neutral/zero
+                    missing_count += 1
+            
+            if missing_count > 0:
+                logger.warning(f"Missing {missing_count}/49 features - using defaults")
             
             return np.array(values, dtype=np.float32)
             
