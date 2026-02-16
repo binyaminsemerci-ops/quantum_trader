@@ -29,15 +29,17 @@ class LightGBMAgent:
         model_path: str = None,
         scaler_path: str = None
     ):
-        # 🔥 USE LATEST TIMESTAMPED MODEL (not old hardcoded names)
-        # QSC FIX: Check models/ directory (correct location on VPS)
+        # Use 49-feature LightGBM model (Dec 13, 2025)
+        # This model expects all 49 engineered features from feature_publisher_service.py
         retraining_dir = Path("/app/models") if Path("/app/models").exists() else (
             Path("models") if Path("models").exists() else Path("ai_engine/models")
         )
         latest_model = self._find_latest_model(retraining_dir, "lightgbm_v*_v2.pkl")
         latest_scaler = self._find_latest_model(retraining_dir, "lightgbm_scaler_v*_v2.pkl")
         
-        self.model_path = model_path or str(latest_model) if latest_model else "models/lightgbm_v20251228_154858.pkl"
+        # Default to 49-feature model (292KB file, trained Dec 13)
+        # NOTE: lightgbm_v20251228_154858.pkl is just metadata (166 bytes), not a real model
+        self.model_path = model_path or str(latest_model) if latest_model else "models/lightgbm_v20251213_231048.pkl"
         self.scaler_path = scaler_path or str(latest_scaler) if latest_scaler else "models/lightgbm_scaler_v20251230_223627.pkl"
         self.model = None
         self.scaler = None
