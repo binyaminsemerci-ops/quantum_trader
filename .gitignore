@@ -58,3 +58,7 @@ run-*-log.txt
 .pytest_tmp/
 data/binance_futures_training_data.csv
 blobs/
+ai_engine/models/*.pkl
+ai_engine/models/*.pth
+ai_engine/models/*_metadata.json
+ai_engine/models/*_meta.json
