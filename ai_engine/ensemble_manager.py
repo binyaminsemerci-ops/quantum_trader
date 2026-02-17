@@ -1,10 +1,10 @@
 """
-ENSEMBLE MANAGER - Smart 4-Model Voting System
-Combines: XGBoost + LightGBM + N-HiTS + PatchTST
+ENSEMBLE MANAGER - Smart 5-Model Voting System
+Combines: XGBoost + LightGBM + N-HiTS + PatchTST + TFT
 
 Key features:
-- Weighted voting (30% N-HiTS, 25% XGB, 25% LGBM, 20% PatchTST)
-- Consensus checking (requires 3/4 agreement for strong signals)
+- Weighted voting (Equal 20% weights across 5 models)
+- Consensus checking (requires 3/5 agreement for strong signals)
 - Confidence aggregation
 - Market regime adaptation
 - EventBus publishing (Tier 1 Core Loop integration)
@@ -32,7 +32,7 @@ except ImportError:
     EVENTBUS_AVAILABLE = False
 
 # Import unified agent system
-from ai_engine.agents.unified_agents import XGBoostAgent, LightGBMAgent, NHiTSAgent, PatchTSTAgent
+from ai_engine.agents.unified_agents import XGBoostAgent, LightGBMAgent, NHiTSAgent, PatchTSTAgent, TFTAgent
 
 # Import meta agent (V2 preferred, V1 fallback)
 META_AVAILABLE = False
@@ -174,13 +174,14 @@ class EnsembleManager:
         self.weight_refresh_interval = 300  # Refresh every 5 minutes
         
         # Default weights (used if ModelSupervisor not available)
-        # 2026-01-16: Equal 25% weights for 4-model ensemble (N-HiTS + PatchTST ACTIVATED)
+        # 2026-02-15: Equal 20% weights for 5-model ensemble (TFT ADDED)
         if weights is None:
             self.default_weights = {
-                'xgb': 0.25,
-                'lgbm': 0.25,
-                'nhits': 0.25,      # ✅ ACTIVATED: Hierarchical time-series model
-                'patchtst': 0.25    # ✅ ACTIVATED: Transformer-based forecasting
+                'xgb': 0.20,
+                'lgbm': 0.20,
+                'nhits': 0.20,      # ✅ ACTIVATED: Hierarchical time-series model
+                'patchtst': 0.20,   # ✅ ACTIVATED: Transformer-based forecasting
+                'tft': 0.20         # ✅ ACTIVATED: Temporal Fusion Transformer
             }
         else:
             self.default_weights = weights
@@ -196,11 +197,11 @@ class EnsembleManager:
         
         # Set default enabled_models if None (all models)
         if enabled_models is None:
-            enabled_models = ['xgb', 'lgbm', 'nhits', 'patchtst']
+            enabled_models = ['xgb', 'lgbm', 'nhits', 'patchtst', 'tft']
         
         # Initialize agents with unified system
         logger.info("=" * 60)
-        logger.info("[TARGET] INITIALIZING 4-MODEL ENSEMBLE (Unified Agent System v2.0)")
+        logger.info("[TARGET] INITIALIZING 5-MODEL ENSEMBLE (Unified Agent System v2.0)")
         logger.info(f"[ENABLED] Models to load: {enabled_models}")
         logger.info("=" * 60)
         
@@ -248,6 +249,20 @@ class EnsembleManager:
                 self.patchtst_agent = None
         else:
             logger.info("[⏭️  SKIP] PatchTST agent disabled (not in enabled_models)")
+        
+        # TFT (Temporal Fusion Transformer)
+        self.tft_agent = None
+        if 'tft' in enabled_models:
+            try:
+                self.tft_agent = TFTAgent()
+                tft_weight = self.weights.get('tft', self.default_weights.get('tft', 0.20))
+                logger.info(f"[✅ ACTIVATED] TFT agent loaded (weight: {tft_weight*100:.0f}%)")
+            except Exception as e:
+                logger.warning(f"[⚠️  FALLBACK] TFT loading failed: {e}")
+                logger.info("   └─ Will use consensus from other 4 models")
+                self.tft_agent = None
+        else:
+            logger.info("[⏭️  SKIP] TFT agent disabled (not in enabled_models)")
         
         # Meta Agent (5th agent - meta-learning layer)
         self.meta_agent = None
@@ -680,7 +695,7 @@ class EnsembleManager:
             try:
                 # Prepare base predictions for Meta-V2
                 base_predictions = {}
-                for model_key in ['xgb', 'lgbm', 'nhits', 'patchtst']:
+                for model_key in ['xgb', 'lgbm', 'nhits', 'patchtst', 'tft']:
                     if model_key in active_predictions:
                         pred = active_predictions[model_key]
                         if isinstance(pred, dict):
@@ -911,7 +926,7 @@ class EnsembleManager:
         # DEBUG: Log predictions with any signal (QSC: only log active predictions)
         if action != 'HOLD' or confidence > 0.50:
             pred_str = ""
-            for model_key in ['xgb', 'lgbm', 'nhits', 'patchtst']:
+            for model_key in ['xgb', 'lgbm', 'nhits', 'patchtst', 'tft']:
                 if model_key in active_predictions:
                     pred = active_predictions[model_key]
                     if isinstance(pred, dict):
@@ -919,7 +934,7 @@ class EnsembleManager:
                     else:
                         act, conf = pred[0], pred[1]
                     
-                    model_abbrev = {'xgb': 'XGB', 'lgbm': 'LGBM', 'nhits': 'NH', 'patchtst': 'PT'}[model_key]
+                    model_abbrev = {'xgb': 'XGB', 'lgbm': 'LGBM', 'nhits': 'NH', 'patchtst': 'PT', 'tft': 'TFT'}[model_key]
                     pred_str += f"{model_abbrev}:{act}/{conf:.2f} "
             
             logger.info(f"[CHART] ENSEMBLE {symbol}: {action} {confidence:.2%} | {pred_str.strip()}")
@@ -1120,7 +1135,8 @@ class EnsembleManager:
             'xgb': self.xgb_agent.model is not None if self.xgb_agent else False,
             'lgbm': self.lgbm_agent.model is not None if self.lgbm_agent else False,
             'nhits': self.nhits_agent.model is not None if self.nhits_agent else False,
-            'patchtst': self.patchtst_agent.model is not None if self.patchtst_agent else False
+            'patchtst': self.patchtst_agent.model is not None if self.patchtst_agent else False,
+            'tft': self.tft_agent.model is not None if self.tft_agent else False
         }
     
     def _calculate_ema(self, prices, period):
@@ -1331,7 +1347,8 @@ class EnsembleManager:
             'xgb': self.xgb_agent.predict(symbol, features),
             'lgbm': self.lgbm_agent.predict(symbol, features),
             'nhits': self.nhits_agent.predict(symbol, features),
-            'patchtst': self.patchtst_agent.predict(symbol, features)
+            'patchtst': self.patchtst_agent.predict(symbol, features),
+            'tft': self.tft_agent.predict(symbol, features)
         }
     
     async def scan_top_by_volume_from_api(

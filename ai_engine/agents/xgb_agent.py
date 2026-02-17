@@ -512,7 +512,7 @@ class XGBAgent:
                             f"Model is not producing varied predictions - likely OOD input or collapsed weights."
                         )
             
-            return (action, confidence, 'xgboost')
+            return {"action": action, "confidence": confidence, "model": "xgboost"}
             
         except Exception as e:
             logger.error(f"XGBoost predict failed: {e} - FAIL-CLOSED (no fallback)")
@@ -800,11 +800,11 @@ class XGBAgent:
             action = result.get('action', 'HOLD')
             confidence = result.get('confidence', 0.5)
             
-            return action, confidence
+            return {"action": action, "confidence": confidence, "model": "xgb_predict_direction"}
             
         except Exception as e:
             logger.error(f"XGBAgent predict_direction failed: {e}")
-            return "HOLD", 0.5
+            return {"action": "HOLD", "confidence": 0.5, "model": "xgb_error"}
 
     def scan_symbols(
         self, symbol_ohlcv: Mapping[str, Any], top_n: int = 10

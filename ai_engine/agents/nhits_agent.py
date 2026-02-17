@@ -277,7 +277,7 @@ class NHiTSAgent:
                 f"probs=[{probs[0]:.2f}, {probs[1]:.2f}, {probs[2]:.2f}])"
             )
             
-            return action, confidence, "nhits_model"
+            return {"action": action, "confidence": confidence, "model": "nhits_model"}
             
         except Exception as e:
             logger.error(f"❌ N-HiTS prediction failed for {symbol}: {e}")
@@ -425,7 +425,7 @@ class NHiTSAgent:
                 f"rsi={rsi:.1f}, price_chg={price_change:.2f}%, trend={price_vs_ema:.2%})"
             )
             
-            return action, confidence, "nhits_fallback_rules"
+            return {"action": action, "confidence": confidence, "model": "nhits_fallback_rules"}
             
         except Exception as e:
             logger.error(f"Fallback prediction error: {e}")
