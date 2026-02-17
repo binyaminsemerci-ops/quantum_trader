@@ -258,7 +258,7 @@ print(f"[MODEL] Device: {DEVICE}")
 # Loss and optimizer
 criterion = nn.CrossEntropyLoss(weight=class_weights)
 optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
 
 # Training loop
 print(f"\n[TRAIN] Starting training...")

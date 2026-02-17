@@ -82,8 +82,9 @@ class PatchTSTAgent:
             if not all_files:
                 return None
             
-            v3_models = [f for f in all_files if f.stem.endswith("_v3")]
-            v2_models = [f for f in all_files if f.stem.endswith("_v2")]
+            # Match both old naming (patchtst_*_v3.pth) and new naming (patchtst_v3_*.pth)
+            v3_models = [f for f in all_files if f.stem.endswith("_v3") or f.stem.startswith("patchtst_v3_")]
+            v2_models = [f for f in all_files if f.stem.endswith("_v2") or f.stem.startswith("patchtst_v2_")]
             
             candidates = v3_models or v2_models
             if candidates:
