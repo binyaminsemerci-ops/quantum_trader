@@ -112,6 +112,8 @@ class PatchTSTAgent:
             
             # Load metadata to get feature list
             meta_path = model_path.with_name(model_path.stem + "_meta.json")
+            if not meta_path.exists():
+                meta_path = model_path.with_name(model_path.stem + "_metadata.json")
             if meta_path.exists():
                 with open(meta_path, 'r') as f:
                     meta = json.load(f)
