@@ -91,7 +91,9 @@ class XGBAgent:
         """Find the latest timestamped model file matching pattern."""
         try:
             import glob
-            model_files = glob.glob(os.path.join(base_dir, pattern))
+            all_files = glob.glob(os.path.join(base_dir, pattern))
+            # Filter out scaler, features, and metadata files
+            model_files = [f for f in all_files if not any(x in os.path.basename(f) for x in ["_scaler", "_features", "_metadata"])]
             if model_files:
                 # Sort by filename (timestamp is in filename)
                 latest = sorted(model_files)[-1]
