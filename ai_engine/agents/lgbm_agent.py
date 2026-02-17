@@ -221,7 +221,7 @@ class LightGBMAgent:
                 
                 logger.debug(f"LightGBM Regressor {symbol}: {prediction:.3f} → {action} (conf={confidence:.2f})")
             
-            return action, confidence, "lgbm_model"
+            return {"action": action, "confidence": confidence, "model": "lgbm_model"}
             
         except Exception as e:
             logger.error(f"❌ LightGBM prediction failed for {symbol}: {e}")
@@ -332,11 +332,11 @@ class LightGBMAgent:
                 f"rsi={rsi:.1f}, ema_cross={ema_10_20_cross:.2f}%)"
             )
             
-            return action, confidence, "lgbm_fallback_rules"
+            return {"action": action, "confidence": confidence, "model": "lgbm_fallback_rules"}
             
         except Exception as e:
             logger.error(f"Fallback prediction error: {e}")
-            return 'HOLD', 0.50, "lgbm_error"
+            return {"action": "HOLD", "confidence": 0.50, "model": "lgbm_error"}
     
     def get_feature_importance(self) -> Optional[pd.DataFrame]:
         """Get feature importance from trained model."""

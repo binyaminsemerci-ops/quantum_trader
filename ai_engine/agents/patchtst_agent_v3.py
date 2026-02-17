@@ -216,7 +216,7 @@ class PatchTSTAgent:
             action = action_map[action_idx]
             confidence = float(probs[action_idx])
             
-            return action, confidence, "patchtst_model_v3"
+            return {"action": action, "confidence": confidence, "model": "patchtst_model_v3"}
         
         except Exception as e:
             logger.error(f"[PatchTST] Prediction error: {e}", exc_info=True)
