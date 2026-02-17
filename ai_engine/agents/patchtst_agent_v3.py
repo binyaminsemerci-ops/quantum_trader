@@ -22,18 +22,21 @@ class SimplePatchTST(nn.Module):
     SimplePatchTST for v3 models (49 features - Feb 2026 update).
     Matches training architecture from retrain_patchtst_v3.py
     """
-    def __init__(self, num_features=49, d_model=128, num_heads=4, num_layers=2, num_classes=3):
+    def __init__(self, num_features=49, d_model=128, num_heads=4, num_layers=2, num_classes=3, dropout=0.1):
         super().__init__()
         self.input_proj = nn.Linear(num_features, d_model)
+        self.dropout = nn.Dropout(dropout)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=d_model,
             nhead=num_heads,
             dim_feedforward=d_model * 2,
+            dropout=dropout,
             batch_first=True
         )
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         self.head = nn.Sequential(
             nn.LayerNorm(d_model),
+            nn.Dropout(dropout),
             nn.Linear(d_model, num_classes)
         )
     
@@ -45,6 +48,7 @@ class SimplePatchTST(nn.Module):
             (batch, num_classes)
         """
         x = self.input_proj(x).unsqueeze(1)  # (batch, 1, d_model)
+        x = self.dropout(x)
         x = self.encoder(x)  # (batch, 1, d_model)
         x = x.squeeze(1)  # (batch, d_model)
         x = self.head(x)  # (batch, num_classes)
