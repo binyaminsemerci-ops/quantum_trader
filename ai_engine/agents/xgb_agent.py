@@ -441,9 +441,20 @@ class XGBAgent:
                 import numpy as np
                 feature_array = np.array(feature_list).reshape(1, -1)
             
-            # Predict
-            prediction = self.model.predict(feature_array)[0]
-            proba = self.model.predict_proba(feature_array)[0]
+            # Predict (support both sklearn API and raw Booster)
+            if hasattr(self.model, "predict_proba"):
+                prediction = self.model.predict(feature_array)[0]
+                proba = self.model.predict_proba(feature_array)[0]
+            else:
+                try:
+                    import xgboost as xgb
+                    dmat = xgb.DMatrix(feature_array)
+                    proba = self.model.predict(dmat)
+                    if hasattr(proba, "ndim") and proba.ndim == 2:
+                        proba = proba[0]
+                    prediction = int(np.argmax(proba))
+                except Exception as e:
+                    raise RuntimeError(f"[XGB] QSC FAIL-CLOSED: Prediction failed: {e}")
             
             # Get top 2 probabilities for forensics and calibration
             sorted_proba = sorted(proba, reverse=True)
