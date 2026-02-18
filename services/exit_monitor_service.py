@@ -242,20 +242,31 @@ async def position_listener():
     try:
         # FIX: Subscribe to correct stream (apply.result, not trade.execution.res)
         async for result_data in eventbus.subscribe("quantum:stream:apply.result"):
+            logger.debug(f"🔍 Received event from apply.result: {result_data}")
+            
             # Remove EventBus metadata
             result_data = {k: v for k, v in result_data.items() if not k.startswith('_')}
             
             # Check if this is a successful execution
             executed = result_data.get('executed')
+            logger.debug(f"🔍 executed field: {executed} (type: {type(executed).__name__})")
+            
             if executed != 'true' and executed != True:
+                logger.debug(f"⏭️  Skipping: executed={executed} (not true)")
                 continue
             
+            logger.info(f"✅ Found executed=true event for {result_data.get('symbol')}")
+            
             # Parse details JSON if present
-            details_str = result_data.get('details',' {}')
+            details_str = result_data.get('details', '{}')
+            logger.debug(f"🔍 details field (raw): {details_str[:200] if isinstance(details_str, str) else details_str}")
+            
             try:
                 import json
                 details = json.loads(details_str) if isinstance(details_str, str) else details_str
-            except:
+                logger.debug(f"🔍 details parsed: {details}")
+            except Exception as e:
+                logger.warning(f"⚠️  Failed to parse details JSON: {e}")
                 details = {}
             
             # Extract position data
@@ -265,17 +276,30 @@ async def position_listener():
             order_id = details.get('order_id', 'unknown')
             order_status = details.get('order_status')
             
+            logger.debug(f"🔍 Extracted: symbol={symbol}, side={side}, qty={filled_qty}, status={order_status}")
+            
             # Only track FILLED orders that open positions (not closes)
             if not symbol or not side or not filled_qty:
+                logger.debug(f"⏭️  Skipping: missing required fields (symbol={symbol}, side={side}, qty={filled_qty})")
                 continue
             
             if order_status != 'FILLED':
+                logger.debug(f"⏭️  Skipping: order_status={order_status} (not FILLED)")
                 continue
             
-            # Skip if this is a close order (reduceOnly=true)
+            # Check if this is a position close by looking at permit data
+            permit = details.get('permit', {})
+            if isinstance(permit, str):
+                try:
+                    import json
+                    permit = json.loads(permit)
+                except:
+                    permit = {}
+            
+            # Skip if this is a close order (check permit for close actions)
             reduce_only = details.get('reduceOnly') or details.get('reduce_only')
-            if reduce_only or result_data.get('action') in ['FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50']:
-                logger.debug(f"Skipping close order for {symbol}")
+            if reduce_only:
+                logger.debug(f"⏭️  Skipping: reduceOnly={reduce_only} (close order)")
                 continue
             
             # Get entry price from Binance (more reliable than order price)
