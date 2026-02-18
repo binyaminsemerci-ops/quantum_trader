@@ -105,6 +105,13 @@ class Settings(BaseSettings):
     MIN_SIGNAL_CONFIDENCE: float = 0.55   # Block signals <55% (lowered for testing)
     HIGH_CONFIDENCE_THRESHOLD: float = 0.85  # Flag high-confidence signals
     
+    # Portfolio Top-N Confidence Gate
+    # Filters predictions portfolio-wide to select only the top N highest-confidence signals
+    # This prevents overtrading and focuses resources on highest-quality opportunities
+    TOP_N_LIMIT: int = int(os.getenv("TOP_N_LIMIT", "10"))  # Max predictions to publish per cycle
+    TOP_N_BUFFER_INTERVAL_SEC: float = float(os.getenv("TOP_N_BUFFER_INTERVAL_SEC", "2.0"))  # Buffer processing interval
+    MAX_SYMBOL_CORRELATION: float = float(os.getenv("MAX_SYMBOL_CORRELATION", "0.80"))  # Max correlation threshold for portfolio diversification
+    
     # Event processing
     MAX_CONCURRENT_SIGNALS: int = 10      # Max 10 symbols processed concurrently
     SIGNAL_TIMEOUT_SEC: int = 30          # Timeout for signal generation

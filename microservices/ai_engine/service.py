@@ -13,6 +13,8 @@ import asyncio
 import logging
 import httpx
 import numpy as np
+import json
+import ast
 from typing import Dict, Any, Optional, List, Tuple
 from microservices.ai_engine.rl_influence import RLInfluenceV2
 from datetime import datetime, timezone
@@ -61,6 +63,7 @@ from backend.services.ai.risk_mode_predictor import RiskModePredictor
 from backend.services.ai.strategy_selector import StrategySelector, TradingStrategy
 from backend.services.ai.system_health_monitor import SystemHealthMonitor
 from backend.services.ai.performance_benchmarker import PerformanceBenchmarker
+from microservices.ai_engine.portfolio_selector import PortfolioSelector
 from backend.services.ai.adaptive_threshold_manager import AdaptiveThresholdManager
 from backend.services.binance_market_data import BinanceMarketDataFetcher
 
@@ -126,6 +129,9 @@ class AIEngineService:
         
         # [SimpleCLM] Trade outcome recorder (passive collection)
         self.simple_clm = None
+        
+        # 🔥 Portfolio Selection Layer (Top-N + Correlation Filter)
+        self.portfolio_selector = None
         
         # 🔥 PHASE 2D: Volatility Structure Engine
         self.volatility_structure_engine = None  # ATR-trend, cross-TF volatility analysis
@@ -207,6 +213,13 @@ class AIEngineService:
         self._rl_proof_last_log: Dict[str, float] = {}  # {symbol: timestamp}
         self._rl_proof_throttle_sec = 30
         
+        # 🔥 PORTFOLIO TOP-N CONFIDENCE GATE
+        self._prediction_buffer: List[Dict[str, Any]] = []  # Buffer for predictions
+        self._prediction_buffer_lock = asyncio.Lock()  # Thread-safe buffer access
+        self._top_n_limit = int(os.getenv("TOP_N_LIMIT", "10"))  # Max predictions to publish
+        self._buffer_process_interval = float(os.getenv("TOP_N_BUFFER_INTERVAL_SEC", "2.0"))  # Process every 2s
+        self._buffer_task: Optional[asyncio.Task] = None
+        
         logger.info("[AI-ENGINE] Service initialized")
     
     async def start(self):
@@ -287,9 +300,20 @@ class AIEngineService:
             # Load AI modules
             await self._load_ai_modules()
             
+            # Initialize Portfolio Selector (needs Redis client)
+            self.portfolio_selector = PortfolioSelector(
+                settings=settings,
+                redis_client=self.redis_client
+            )
+            logger.info("[Portfolio-Selector] ✅ Initialized")
+            
             # Start EventBus consumer (CRITICAL - starts reading from Redis Streams)
             await self.event_bus.start()
             logger.info("[AI-ENGINE] ✅ EventBus consumer started")
+            
+            # 🔥 Start portfolio Top-N filtering task
+            self._buffer_task = asyncio.create_task(self._process_prediction_buffer())
+            logger.info(f"[TOP-N-GATE] ✅ Portfolio filtering task started (interval={self._buffer_process_interval}s, limit={self._top_n_limit})")
 
             if settings.CROSS_EXCHANGE_ENABLED:
                 await self._ensure_cross_exchange_group()
@@ -370,7 +394,7 @@ class AIEngineService:
             logger.info("[sCLM] Background monitoring stopped")
         
         # Cancel background tasks
-        for task in [self._event_loop_task, self._regime_update_task, self._normalized_stream_task]:
+        for task in [self._event_loop_task, self._regime_update_task, self._normalized_stream_task, self._buffer_task]:
             if task:
                 task.cancel()
                 try:
@@ -378,6 +402,7 @@ class AIEngineService:
                 except asyncio.CancelledError:
                     pass
         self._normalized_stream_task = None
+        self._buffer_task = None
         
         # Flush event buffer
         # NOTE: EventBuffer.flush() not implemented yet
@@ -389,6 +414,57 @@ class AIEngineService:
             await self.http_client.aclose()
         
         logger.info("[AI-ENGINE] ✅ Service stopped")
+    
+    # ========================================================================
+    # PORTFOLIO TOP-N CONFIDENCE GATE
+    # ========================================================================
+    
+    async def _process_prediction_buffer(self):
+        """
+        Periodic task to process the prediction buffer using PortfolioSelector.
+        
+        This implements portfolio-level filtering:
+        1. Collects predictions from all symbols
+        2. Applies confidence filter (HOLD + threshold)
+        3. Ranks by confidence
+        4. Selects top N
+        5. Applies correlation filter vs open positions
+        6. Publishes only selected predictions
+        
+        Uses PortfolioSelector for all filtering logic.
+        """
+        logger.info(f"[Portfolio-Selector] 🎯 Buffer processing started (interval={self._buffer_process_interval}s)")
+        
+        while self._running:
+            try:
+                await asyncio.sleep(self._buffer_process_interval)
+                
+                # Lock and extract buffer
+                async with self._prediction_buffer_lock:
+                    if not self._prediction_buffer:
+                        continue  # No predictions to process
+                    
+                    # Extract all buffered predictions
+                    buffered_predictions = self._prediction_buffer.copy()
+                    self._prediction_buffer.clear()
+                
+                # Use PortfolioSelector to filter predictions
+                # It handles: confidence filter, ranking, top-N, correlation filter
+                selected_predictions = await self.portfolio_selector.select(
+                    predictions=buffered_predictions,
+                    open_positions=None  # Will auto-fetch from Redis
+                )
+                
+                # Publish selected predictions
+                for pred in selected_predictions:
+                    await self.event_bus.publish("ai.signal_generated", pred["raw_event"].dict())
+                
+            except asyncio.CancelledError:
+                logger.info("[Portfolio-Selector] Buffer processing task cancelled")
+                break
+            except Exception as e:
+                logger.error(f"[Portfolio-Selector] ❌ Error processing buffer: {e}", exc_info=True)
+                await asyncio.sleep(self._buffer_process_interval)  # Continue on error
     
     # ========================================================================
     # AI MODULE LOADING
@@ -1051,9 +1127,52 @@ class AIEngineService:
         """
         try:
             logger.info(f"[AI-ENGINE] 🎯 Received market.tick event: {event_data}")
-            symbol = event_data.get("symbol")
-            price = event_data.get("price", 0.0)
-            volume = event_data.get("volume", 0.0)
+            payload = None
+            if isinstance(event_data, dict):
+                payload = event_data.get("payload")
+                if payload is None:
+                    payload = event_data.get("data")
+
+            if isinstance(payload, (bytes, bytearray)):
+                try:
+                    payload = payload.decode("utf-8")
+                except Exception:
+                    payload = None
+
+            if isinstance(payload, str):
+                parsed = None
+                try:
+                    parsed = json.loads(payload)
+                except Exception:
+                    try:
+                        parsed = ast.literal_eval(payload)
+                    except Exception:
+                        parsed = None
+
+                if isinstance(parsed, str):
+                    try:
+                        parsed = json.loads(parsed)
+                    except Exception:
+                        pass
+
+                payload = parsed
+
+            if isinstance(payload, dict):
+                symbol = payload.get("symbol") or payload.get(b"symbol")
+                price = payload.get("price", payload.get(b"price", 0.0))
+                volume = payload.get(
+                    "volume",
+                    payload.get("qty", payload.get(b"qty", 0.0))
+                )
+            else:
+                symbol = event_data.get("symbol")
+                price = event_data.get("price", 0.0)
+                volume = event_data.get("volume", 0.0)
+
+            try:
+                price = float(price)
+            except Exception:
+                price = 0.0
             
             if not symbol or price <= 0:
                 logger.warning(f"[AI-ENGINE] Invalid market tick: symbol={symbol}, price={price}")
@@ -2310,16 +2429,31 @@ class AIEngineService:
                 except Exception as e:
                     logger.warning(f"[PHASE 3C] ⚠️ Confidence calibration failed for {symbol}: {e}")
             
-            # Publish intermediate event
-            await self.event_bus.publish("ai.signal_generated", AISignalGeneratedEvent(
-                symbol=symbol,
-                action=SignalAction(action.lower()),
-                confidence=calibrated_confidence,  # Use calibrated confidence
-                ensemble_confidence=ensemble_confidence,  # Keep original for comparison
-                model_votes=model_votes,
-                consensus=consensus,
-                timestamp=datetime.now(timezone.utc).isoformat()
-            ).dict())
+            # 🔥 PORTFOLIO TOP-N GATE: Buffer prediction instead of immediate publish
+            # This enables portfolio-level filtering to select only the top N highest-confidence signals
+            async with self._prediction_buffer_lock:
+                self._prediction_buffer.append({
+                    "symbol": symbol,
+                    "action": action,
+                    "confidence": calibrated_confidence,  # Use final calibrated confidence
+                    "ensemble_confidence": ensemble_confidence,
+                    "model_votes": model_votes,
+                    "consensus": consensus,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "raw_event": AISignalGeneratedEvent(
+                        symbol=symbol,
+                        action=SignalAction(action.lower()),
+                        confidence=calibrated_confidence,
+                        ensemble_confidence=ensemble_confidence,
+                        model_votes=model_votes,
+                        consensus=consensus,
+                        timestamp=datetime.now(timezone.utc).isoformat()
+                    )
+                })
+                logger.debug(
+                    f"[TOP-N-GATE] 📥 Buffered prediction: {symbol} {action} "
+                    f"(confidence={calibrated_confidence:.2%}, buffer_size={len(self._prediction_buffer)})"
+                )
             
             # Step 2: Meta-Strategy selection
             strategy_id = StrategyID.DEFAULT
