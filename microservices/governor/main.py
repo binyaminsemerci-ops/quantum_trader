@@ -19,6 +19,7 @@ import subprocess
 import urllib.request
 import urllib.parse
 import numpy as np
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
@@ -256,6 +257,15 @@ class Governor:
         else:
             logger.warning("⚠️  RiskGuard NOT available - risk gates disabled!")
         
+        # Initialize atomic position slot semaphore (FIX #1: Atomic counting)
+        self._init_slot_semaphore()
+        
+        # Track reserved resources per plan (for atomic rollback)
+        self.reservations = {}  # {plan_id: {'slot': bool, 'capital': float, 'exit_lock': str}}
+        
+        # Start background thread to monitor apply.result stream (release slots on close)
+        self._start_result_monitor()
+        
         logger.info("="*80)
         logger.info(f"P3.2 Governor [{config.BUILD_TAG}]")
         logger.info("="*80)
@@ -402,6 +412,59 @@ class Governor:
             else:
                 logger.warning(f"{symbol}: RiskGuard not available - skipping risk checks!")
             
+            # FIX #4: Intent-time state validation (detect stale state)
+            # Check if intent includes timestamp, validate age
+            intent_created_at = float(data.get('intent_created_at', '0'))
+            if intent_created_at > 0:
+                intent_age = time.time() - intent_created_at
+                if intent_age > 30:  # 30s threshold for stale intents
+                    logger.warning(f"{symbol}: Intent age {intent_age:.1f}s > 30s - may be stale (state drift risk)")
+                    # Don't block yet - just warn (can tighten later)
+                else:
+                    logger.info(f"{symbol}: Intent age {intent_age:.1f}s OK")
+            
+            # Check if intent includes snapshot values (future enhancement)
+            snapshot_position_count = int(data.get('snapshot_position_count', '0'))
+            if snapshot_position_count > 0:
+                # Verify current count hasn't changed significantly
+                current_positions = self._get_open_positions_snapshot()
+                current_count = len(current_positions)
+                
+                if abs(current_count - snapshot_position_count) > 2:
+                    logger.warning(
+                        f"{symbol}: Position count drift detected! "
+                        f"Intent snapshot: {snapshot_position_count}, Current: {current_count} "
+                        f"(diff: {current_count - snapshot_position_count}) - BLOCKING (fail-closed)"
+                    )
+                    self._block_plan(plan_id, symbol, f'state_drift_position_count:{snapshot_position_count}→{current_count}')
+                    return
+                else:
+                    logger.info(f"{symbol}: ✅ Position count snapshot validated ({current_count} == {snapshot_position_count})")
+            
+            # Check portfolio exposure drift
+            snapshot_exposure_pct = float(data.get('snapshot_exposure_pct', '0'))
+            if snapshot_exposure_pct > 0:
+                try:
+                    current_exposure = float(self.redis.get('quantum:portfolio:exposure_pct') or 0)
+                    exposure_drift = abs(current_exposure - snapshot_exposure_pct)
+                    
+                    if exposure_drift > 0.15:  # 15% drift threshold
+                        logger.warning(
+                            f"{symbol}: Exposure drift detected! "
+                            f"Intent: {snapshot_exposure_pct*100:.1f}%, Current: {current_exposure*100:.1f}% "
+                            f"(drift: {exposure_drift*100:.1f}%) - BLOCKING (fail-closed)"
+                        )
+                        self._block_plan(plan_id, symbol, f'state_drift_exposure:{snapshot_exposure_pct:.2f}→{current_exposure:.2f}')
+                        return
+                    else:
+                        logger.info(f"{symbol}: ✅ Exposure snapshot validated ({current_exposure*100:.1f}% ~= {snapshot_exposure_pct*100:.1f}%)")
+                except Exception as e:
+                    logger.warning(f"{symbol}: Could not validate exposure drift: {e}")
+            
+            # ===================================================================
+            # END INTENT-TIME STATE VALIDATION
+            # ===================================================================
+            
             # Check if permit already exists (idempotency)
             permit_key = f"quantum:permit:{plan_id}"
             if self.redis.exists(permit_key):
@@ -409,11 +472,11 @@ class Governor:
                 return
             
             # ===================================================================
-            # ACTIVE SLOTS CONTROLLER (strict rotation with close confirmation)
+            # ACTIVE SLOTS CONTROLLER (ATOMIC RESERVATION - FIX #1)
             # ===================================================================
             if self.config.ACTIVE_SLOTS_ENABLED and action not in ['FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50', 'PARTIAL_25']:
                 # Only apply for OPEN actions (skip closes)
-                logger.info(f"{symbol}: Active Slots enabled - checking position limits")
+                logger.info(f"{symbol}: Active Slots enabled - checking position limits (ATOMIC)")
                 
                 # Step 1: Get policy universe
                 policy_data = self.redis.hget('quantum:policy:current', 'universe_symbols')
@@ -430,23 +493,18 @@ class Governor:
                 
                 logger.info(f"{symbol}: In policy universe ({len(policy_universe)} symbols)")
                 
-                # Step 2: Get open positions snapshot
-                open_positions = self._get_open_positions_snapshot()
-                open_symbols = [p['symbol'] for p in open_positions]
+                # Step 2: ATOMIC SLOT RESERVATION (FIX #1)
+                slot_reserved = self._reserve_slot_atomic(plan_id)
                 
-                # Step 3: Detect regime and compute desired slots
-                regime, desired_slots = self._detect_market_regime(symbol)
-                logger.info(f"{symbol}: Regime={regime}, desired_slots={desired_slots}, current_open={len(open_positions)}")
-                
-                # Step 4: Check if slots available
-                if len(open_positions) < desired_slots:
-                    logger.info(f"{symbol}: Slots available ({len(open_positions)}/{desired_slots}) - ALLOW")
-                    # Continue to next gates
-                else:
-                    # Slots FULL - check for rotation
-                    logger.info(f"{symbol}: Slots FULL ({len(open_positions)}/{desired_slots}) - checking rotation")
+                if not slot_reserved:
+                    # No slots available - initiate rotation
+                    logger.info(f"{symbol}: No atomic slots available - checking rotation")
                     
-                    # Step 5: Check if rotation lock exists
+                if not slot_reserved:
+                    # No slots available - initiate rotation
+                    logger.info(f"{symbol}: No atomic slots available - checking rotation")
+                    
+                    # Check if rotation lock exists
                     rotation_lock_key = f"quantum:rotation:lock:{plan_id}"
                     lock_data = self.redis.get(rotation_lock_key)
                     
@@ -454,15 +512,19 @@ class Governor:
                         # NO LOCK: Must initiate rotation (close weakest)
                         logger.info(f"{symbol}: No rotation lock - initiating rotation")
                         
+                        # Get open positions to find weakest
+                        open_positions = self._get_open_positions_snapshot()
+                        
+                        if not open_positions:
+                            logger.error(f"{symbol}: Semaphore says full but no positions found - BLOCKING (inconsistent state)")
+                            self._block_plan(plan_id, symbol, 'active_slots_inconsistent_state')
+                            return
+                        
                         # Find weakest position
                         sorted_positions = sorted(open_positions, key=lambda p: p['weakness_score'], reverse=True)
                         weakest = sorted_positions[0]
                         
                         logger.info(f"{symbol}: Weakest position: {weakest['symbol']} (weakness={weakest['weakness_score']:.4f}, pnl={weakest['pnl_pct']*100:.2f}%)")
-                        
-                        # Check rotation threshold: new must be significantly better
-                        # For now, always rotate (can add score comparison later)
-                        # TODO: Add score comparison from intent stream
                         
                         # Create CLOSE plan for weakest (emit to apply.plan stream)
                         close_plan_id = f"rot_{plan_id[:8]}_{weakest['symbol']}"
@@ -519,12 +581,19 @@ class Governor:
                         logger.info(f"{symbol}: Rotation lock found - checking close confirmation (age={lock_age:.1f}s)")
                         
                         if self._is_close_confirmed(close_plan_id):
-                            # CLOSE CONFIRMED: Allow entry
-                            logger.info(f"{symbol}: Close CONFIRMED for {close_symbol} - ALLOW entry after rotation")
+                            # CLOSE CONFIRMED: Slot was already released by close - try reserve again
+                            logger.info(f"{symbol}: Close CONFIRMED for {close_symbol} - slot should be available")
                             
                             # Delete lock
                             self.redis.delete(rotation_lock_key)
                             logger.info(f"{symbol}: Rotation lock deleted")
+                            
+                            # Try reserve again (close should have released slot)
+                            slot_reserved = self._reserve_slot_atomic(plan_id)
+                            if not slot_reserved:
+                                logger.error(f"{symbol}: Close confirmed but still no slot - BLOCKING (inconsistent)")
+                                self._block_plan(plan_id, symbol, 'active_slots_rotation_inconsistent')
+                                return
                             
                             # Publish event
                             self.redis.xadd(self.config.STREAM_EVENTS, {
@@ -536,7 +605,7 @@ class Governor:
                                 'timestamp': str(time.time())
                             })
                             
-                            # Continue to next gates (allow entry)
+                            # Continue to next gates with reserved slot
                         else:
                             # CLOSE NOT YET CONFIRMED
                             if lock_age > self.config.ROTATION_LOCK_TTL:
@@ -565,10 +634,14 @@ class Governor:
                                 logger.info(f"{symbol}: Rotation in progress - waiting for close confirmation ({lock_age:.1f}s / {self.config.ROTATION_LOCK_TTL}s)")
                                 self._block_plan(plan_id, symbol, 'active_slots_waiting_rotation_close')
                                 return
+                else:
+                    # Slot reserved successfully - track reservation for rollback
+                    logger.info(f"{symbol}: ✅ Atomic slot reserved for plan {plan_id[:8]}")
+                    self.reservations[plan_id] = {'slot': True}
             
             # ===================================================================
             # END ACTIVE SLOTS CONTROLLER
-            # ===================================================================
+            # ====================================================================
             
             # TESTNET MODE: Apply fund caps for protection
             if current_mode == 'testnet':
@@ -810,6 +883,30 @@ class Governor:
                 computed_qty = 0.01  # Conservative fallback
                 computed_notional = 0.0
             
+            # FIX #3: Exit coordination lock (prevent double close)
+            if is_close_action:
+                if not self._acquire_exit_lock(symbol, plan_id):
+                    self._block_plan(plan_id, symbol, 'exit_lock_busy_double_close_prevention')
+                    return
+                
+                # Track exit lock for rollback
+                if plan_id not in self.reservations:
+                    self.reservations[plan_id] = {}
+                self.reservations[plan_id]['exit_lock'] = symbol
+                logger.info(f"{symbol}: ✅ Exit lock acquired (double close prevention)")
+            
+            # FIX #2: Capital pre-reservation for OPEN actions
+            if not is_close_action and computed_notional > 0:
+                if not self._reserve_capital_atomic(plan_id, symbol, computed_notional):
+                    self._block_plan(plan_id, symbol, 'capital_allocation_exceeded')
+                    return
+                
+                # Track capital reservation for rollback
+                if plan_id not in self.reservations:
+                    self.reservations[plan_id] = {}
+                self.reservations[plan_id]['capital'] = computed_notional
+                logger.info(f"{symbol}: ✅ Capital reserved ${computed_notional:.2f}")
+            
             # Gate 4: Daily notional/qty limit
             if not self._check_daily_limit(symbol, computed_qty, computed_notional if computed_notional > 0 else None):
                 self._block_plan(plan_id, symbol, 'daily_limit_exceeded')
@@ -904,9 +1001,29 @@ class Governor:
         return max(min_scale, min(1.0, scale))
     
     def _block_plan(self, plan_id, symbol, reason):
-        """Block a plan (no permit issued)"""
+        """Block a plan (no permit issued) - WITH ATOMIC ROLLBACK (FIX #1, #2, #3)"""
         logger.warning(f"{symbol}: BLOCKED plan {plan_id[:8]} - {reason}")
         METRIC_BLOCK.labels(symbol=symbol, reason=reason).inc()
+        
+        # Rollback any reservations made for this plan
+        if plan_id in self.reservations:
+            reservations = self.reservations[plan_id]
+            
+            # Rollback slot reservation
+            if reservations.get('slot'):
+                self._release_slot_atomic(plan_id, reason="plan_blocked")
+            
+            # Rollback capital reservation
+            if 'capital' in reservations:
+                self._release_capital_atomic(plan_id, symbol, reservations['capital'], reason="plan_blocked")
+            
+            # Rollback exit lock
+            if 'exit_lock' in reservations:
+                self._release_exit_lock(symbol, plan_id, reason="plan_blocked")
+            
+            # Clear reservation tracking
+            del self.reservations[plan_id]
+            logger.info(f"{symbol}: ♻️ Rolled back all reservations for plan {plan_id[:8]}")
         
         # Store block record
         block_key = f"quantum:governor:block:{plan_id}"
@@ -1725,6 +1842,242 @@ class Governor:
         except Exception as e:
             logger.error(f"Error checking close confirmation: {e}")
             return False
+    
+    def _init_slot_semaphore(self):
+        """
+        Initialize atomic slot semaphore (FIX #1: Atomic position counting).
+        
+        Uses real Binance position count to set initial available slots.
+        Key: quantum:slots:available (atomic counter)
+        """
+        try:
+            # Get current open positions from Binance
+            open_positions = self._get_open_positions_snapshot()
+            current_open = len(open_positions)
+            
+            # Detect regime for first symbol (or use BASE as default)
+            regime = 'BASE'
+            desired_slots = self.config.ACTIVE_SLOTS_BASE
+            
+            if open_positions:
+                # Use first position's symbol for regime detection
+                regime, desired_slots = self._detect_market_regime(open_positions[0]['symbol'])
+            
+            # Initialize semaphore: available = desired - current
+            available_slots = max(0, desired_slots - current_open)
+            
+            self.redis.set('quantum:slots:available', available_slots)
+            self.redis.set('quantum:slots:desired', desired_slots)
+            self.redis.set('quantum:slots:regime', regime)
+            
+            logger.info(f"🔒 Slot semaphore initialized: {available_slots} available ({current_open}/{desired_slots} used, regime={regime})")
+            
+        except Exception as e:
+            # Fail-closed: set 0 available slots if initialization fails
+            logger.error(f"Error initializing slot semaphore: {e} - setting 0 available (fail-closed)")
+            self.redis.set('quantum:slots:available', 0)
+            self.redis.set('quantum:slots:desired', self.config.ACTIVE_SLOTS_BASE)
+            self.redis.set('quantum:slots:regime', 'BASE')
+    
+    def _reserve_slot_atomic(self, plan_id: str) -> bool:
+        """
+        Atomically reserve a position slot (FIX #1: Atomic DECR).
+        
+        Returns:
+            True if slot reserved, False if no slots available
+        """
+        try:
+            # DECR atomically decrements and returns NEW value
+            new_available = self.redis.decr('quantum:slots:available')
+            
+            if new_available >= 0:
+                # Slot reserved successfully
+                logger.info(f"✅ Slot reserved for plan {plan_id[:8]} ({new_available} remaining)")
+                return True
+            else:
+                # No slots available - rollback
+                self.redis.incr('quantum:slots:available')  # Restore
+                logger.warning(f"❌ No slots available for plan {plan_id[:8]} (rollback)")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error reserving slot: {e} - rollback")
+            # Try to rollback if decr succeeded
+            try:
+                self.redis.incr('quantum:slots:available')
+            except:
+                pass
+            return False
+    
+    def _release_slot_atomic(self, plan_id: str, reason: str = "rollback"):
+        """
+        Atomically release a reserved position slot (FIX #1: Atomic INCR).
+        """
+        try:
+            new_available = self.redis.incr('quantum:slots:available')
+            logger.info(f"🔓 Slot released for plan {plan_id[:8]} ({new_available} available) - reason: {reason}")
+        except Exception as e:
+            logger.error(f"Error releasing slot: {e}")
+    
+    def _start_result_monitor(self):
+        """
+        Start background thread to monitor apply.result stream.
+        Releases slots when CLOSE actions execute successfully.
+        """
+        def monitor_results():
+            logger.info("🔍 Result monitor thread started")
+            consumer_group = "governor_result_monitor"
+            consumer_id = f"gov_result_{os.getpid()}"
+            
+            # Create consumer group (idempotent)
+            try:
+                self.redis.xgroup_create(self.config.STREAM_RESULTS, consumer_group, id='$', mkstream=True)
+            except Exception as e:
+                if "BUSYGROUP" not in str(e):
+                    logger.warning(f"Result monitor group error: {e}")
+            
+            while True:
+                try:
+                    messages = self.redis.xreadgroup(
+                        groupname=consumer_group,
+                        consumername=consumer_id,
+                        streams={self.config.STREAM_RESULTS: '>'},
+                        count=10,
+                        block=2000  # 2s timeout
+                    )
+                    
+                    if not messages:
+                        continue
+                    
+                    for stream_name, stream_messages in messages:
+                        for message_id, data in stream_messages:
+                            # Check if this is a successful CLOSE execution
+                            executed = data.get('executed', '').lower() == 'true'
+                            reduce_only =data.get('reduceOnly', '').lower() == 'true'
+                            symbol = data.get('symbol', 'UNKNOWN')
+                            plan_id = data.get('plan_id', '')
+                            
+                            if executed and reduce_only:
+                                # Position closed - release slot
+                                logger.info(f"📉 {symbol}: Position CLOSED (plan {plan_id[:8]}) - releasing slot")
+                                self._release_slot_atomic(plan_id, reason="position_closed")
+                                
+                                # Release exit lock
+                                if plan_id in self.reservations and 'exit_lock' in self.reservations[plan_id]:
+                                    self._release_exit_lock(symbol, plan_id, reason="position_closed")
+                                    del self.reservations[plan_id]
+                            
+                            # ACK message
+                            self.redis.xack(self.config.STREAM_RESULTS, consumer_group, message_id)
+                
+                except Exception as e:
+                    logger.error(f"Error in result monitor: {e}")
+                    time.sleep(5)
+        
+        # Start daemon thread
+        monitor_thread = threading.Thread(target=monitor_results, daemon=True)
+        monitor_thread.start()
+        logger.info("✅ Result monitor thread started (daemon)")
+    
+    def _reserve_capital_atomic(self, plan_id: str, symbol: str, notional: float) -> bool:
+        """
+        Atomically reserve capital allocation (FIX #2: Pre-reservation).
+        
+        Returns:
+            True if capital reserved, False if exceeds allocation
+        """
+        try:
+            # Get current allocation target from P2.9
+            alloc_key = f"quantum:capital:allocation:{symbol}"
+            alloc_data = self.redis.get(alloc_key)
+            
+            if not alloc_data:
+                logger.warning(f"{symbol}: No P2.9 allocation target - using fallback limits")
+                # Fallback: check against max notional per trade
+                if notional > self.config.MAX_NOTIONAL_PER_TRADE_USDT:
+                    logger.warning(f"{symbol}: Notional ${notional:.2f} exceeds max ${self.config.MAX_NOTIONAL_PER_TRADE_USDT}")
+                    return False
+                return True
+            
+            alloc_info = json.loads(alloc_data)
+            target_pct = float(alloc_info.get('allocation_pct', 0))
+            
+            # Get portfolio total capital
+            portfolio_capital = float(self.redis.get('quantum:portfolio:capital') or 1000)  # Fallback $1000
+            max_notional = portfolio_capital * target_pct
+            
+            # Check if notional fits within allocation
+            if notional > max_notional:
+                logger.warning(f"{symbol}: Notional ${notional:.2f} exceeds allocation ${max_notional:.2f} ({target_pct*100:.1f}%)")
+                return False
+            
+            # Reserve: track in Redis
+            reserve_key = f"quantum:capital:reserved:{symbol}"
+            self.redis.incrby(reserve_key, int(notional))
+            self.redis.expire(reserve_key, 600)  # 10min TTL
+            
+            logger.info(f"✅ Capital reserved: ${notional:.2f} for {symbol} (plan {plan_id[:8]})")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error reserving capital: {e} - BLOCK (fail-closed)")
+            return False
+    
+    def _release_capital_atomic(self, plan_id: str, symbol: str, notional: float, reason: str = "rollback"):
+        """
+        Atomically release reserved capital (FIX #2: Rollback).
+        """
+        try:
+            reserve_key = f"quantum:capital:reserved:{symbol}"
+            self.redis.decrby(reserve_key, int(notional))
+            logger.info(f"🔓 Capital released: ${notional:.2f} for {symbol} ({reason})")
+        except Exception as e:
+            logger.error(f"Error releasing capital: {e}")
+    
+    def _acquire_exit_lock(self, symbol: str, plan_id: str) -> bool:
+        """
+        Acquire exit coordination lock (FIX #3: Prevent double close).
+        
+        Returns:
+            True if lock acquired, False if another exit in progress
+        """
+        try:
+            lock_key = f"quantum:exit:lock:{symbol}"
+            # SETNX: set if not exists (atomic)
+            acquired = self.redis.setnx(lock_key, plan_id)
+            
+            if acquired:
+                # Set TTL (120s timeout)
+                self.redis.expire(lock_key, 120)
+                logger.info(f"✅ Exit lock acquired for {symbol} (plan {plan_id[:8]})")
+                return True
+            else:
+                # Lock held by another plan
+                holder = self.redis.get(lock_key)
+                logger.warning(f"❌ Exit lock busy for {symbol} (held by {holder[:8]})")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error acquiring exit lock: {e} - BLOCK (fail-closed)")
+            return False
+    
+    def _release_exit_lock(self, symbol: str, plan_id: str, reason: str = "rollback"):
+        """
+        Release exit coordination lock (FIX #3: Cleanup).
+        """
+        try:
+            lock_key = f"quantum:exit:lock:{symbol}"
+            holder = self.redis.get(lock_key)
+            
+            # Only delete if we hold the lock
+            if holder == plan_id:
+                self.redis.delete(lock_key)
+                logger.info(f"🔓 Exit lock released for {symbol} ({reason})")
+            else:
+                logger.warning(f"Cannot release exit lock for {symbol} - held by {holder}")
+                
+        except Exception as e:
+            logger.error(f"Error releasing exit lock: {e}")
 
 # ============================================================================
 # MAIN
