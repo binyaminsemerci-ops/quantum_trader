@@ -3,7 +3,7 @@
 Exit Monitor Service - Monitors positions and closes at TP/SL
 ==============================================================
 Port: 8007
-Subscribes: trade.execution.result (new positions)
+Subscribes: quantum:stream:apply.result (FIXED: was trade.execution.result)
 Publishes: quantum:stream:trade.intent (close orders)
 
 Monitors open positions and sends close orders when:
@@ -15,6 +15,7 @@ Works with ExitBrain v3.5 for adaptive TP/SL calculation.
 
 Author: Quantum Trader Team
 Date: 2026-01-16
+Updated: 2026-02-18 (FIX: Subscribe to apply.result instead of trade.execution.res)
 """
 import os
 import sys
@@ -236,18 +237,54 @@ async def send_close_order(position: TrackedPosition, reason: str):
 
 async def position_listener():
     """Listen for new positions from execution results"""
-    logger.info("📥 Starting position listener...")
+    logger.info("📥 Starting position listener (monitoring quantum:stream:apply.result)...")
     
     try:
-        async for result_data in eventbus.subscribe("trade.execution.res"):
+        # FIX: Subscribe to correct stream (apply.result, not trade.execution.res)
+        async for result_data in eventbus.subscribe("quantum:stream:apply.result"):
             # Remove EventBus metadata
             result_data = {k: v for k, v in result_data.items() if not k.startswith('_')}
             
-            # Parse ExecutionResult
-            result = ExecutionResult(**result_data)
-            
-            if result.status != "filled":
+            # Check if this is a successful execution
+            executed = result_data.get('executed')
+            if executed != 'true' and executed != True:
                 continue
+            
+            # Parse details JSON if present
+            details_str = result_data.get('details',' {}')
+            try:
+                import json
+                details = json.loads(details_str) if isinstance(details_str, str) else details_str
+            except:
+                details = {}
+            
+            # Extract position data
+            symbol = result_data.get('symbol') or details.get('symbol')
+            side = details.get('side')  # "BUY" or "SELL"
+            filled_qty = details.get('filled_qty') or details.get('qty')
+            order_id = details.get('order_id', 'unknown')
+            order_status = details.get('order_status')
+            
+            # Only track FILLED orders that open positions (not closes)
+            if not symbol or not side or not filled_qty:
+                continue
+            
+            if order_status != 'FILLED':
+                continue
+            
+            # Skip if this is a close order (reduceOnly=true)
+            reduce_only = details.get('reduceOnly') or details.get('reduce_only')
+            if reduce_only or result_data.get('action') in ['FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50']:
+                logger.debug(f"Skipping close order for {symbol}")
+                continue
+            
+            # Get entry price from Binance (more reliable than order price)
+            current_price = get_current_price(symbol)
+            if not current_price:
+                logger.warning(f"Cannot track {symbol} - price unavailable")
+                continue
+            
+            entry_price = current_price  # Use current market price as entry
             
             # Get TP/SL from original intent (should be included in result or fetched)
             # For now, use basic calculation
@@ -255,40 +292,41 @@ async def position_listener():
             sl = None
             
             # TODO: Fetch actual TP/SL from AI Engine signal or ExitBrain
-            # For testnet demo, use simple fixed percentages
-            if result.action == "BUY":
-                tp = result.entry_price * 1.025  # +2.5%
-                sl = result.entry_price * 0.985  # -1.5%
-            else:
-                tp = result.entry_price * 0.975  # -2.5%
-                sl = result.entry_price * 1.015  # +1.5%
+            # For testnet protection, use simple fixed percentages
+            if side == "BUY":
+                tp = entry_price * 1.025  # +2.5%
+                sl = entry_price * 0.985  # -1.5%
+            else:  # SELL (SHORT)
+                tp = entry_price * 0.975  # -2.5%
+                sl = entry_price * 1.015  # +1.5%
             
-            # Calculate quantity
-            quantity = result.position_size_usd / result.entry_price if result.entry_price > 0 else 0
+            # Calculate quantity (use filled_qty from order)
+            quantity = float(filled_qty) if filled_qty else 0
             
             # Track position
             position = TrackedPosition(
-                symbol=result.symbol,
-                side=result.action,
-                entry_price=result.entry_price,
+                symbol=symbol,
+                side=side,
+                entry_price=entry_price,
                 quantity=quantity,
-                leverage=result.leverage,
+                leverage=float(details.get('leverage', 1.0)),
                 take_profit=tp,
                 stop_loss=sl,
-                order_id=result.order_id,
-                opened_at=result.timestamp,
-                highest_price=result.entry_price,
-                lowest_price=result.entry_price
+                order_id=str(order_id),
+                opened_at=result_data.get('timestamp', ''),
+                highest_price=entry_price,
+                lowest_price=entry_price
             )
             
-            tracked_positions[result.symbol] = position
+            tracked_positions[symbol] = position
             stats["positions_tracked"] += 1
             
             logger.info(
-                f"📊 TRACKING: {position.symbol} {position.side} | "
-                f"Entry=${position.entry_price:.4f} | "
+                f"📌 TRACKING NEW POSITION: {symbol} {side} | "
+                f"Entry=${entry_price:.4f} | "
                 f"TP=${tp:.4f} | SL=${sl:.4f} | "
-                f"Qty={quantity:.4f}"
+                f"Qty={quantity:.4f} | "
+                f"Order={order_id}"
             )
             
     except Exception as e:
