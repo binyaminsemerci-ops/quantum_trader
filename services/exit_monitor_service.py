@@ -236,128 +236,161 @@ async def send_close_order(position: TrackedPosition, reason: str):
 # ============================================================================
 
 async def position_listener():
-    """Listen for new positions from execution results"""
+    """Listen for new positions from execution results (using direct Redis XREAD)"""
     logger.info("📥 Starting position listener (monitoring quantum:stream:apply.result)...")
     
+    # Get Redis client from EventBus
+    redis_client = eventbus.redis
+    if not redis_client:
+        logger.error("❌ Redis client not available from EventBus")
+        return
+    
+    stream_name = "quantum:stream:apply.result"
+    last_id = "$"  # Start from new messages only
+    
+    logger.info(f"✅ Position listener using direct Redis XREAD on {stream_name}")
+    
     try:
-        # FIX: Subscribe to correct stream (apply.result, not trade.execution.res)
-        async for result_data in eventbus.subscribe("quantum:stream:apply.result"):
-            # Log every 100th event to avoid spam, but always log executed=true
-            event_count = len(tracked_positions)  # Use as counter proxy
-            
-            # Remove EventBus metadata
-            result_data = {k: v for k, v in result_data.items() if not k.startswith('_')}
-            
-            # Check if this is a successful execution
-            executed = result_data.get('executed')
-            
-            if executed != 'true' and executed != True:
-                # Log every 100th skip to prove listener is working
-                if event_count % 100 == 0:
-                    logger.info(f"📊 Listener active (processed ~{event_count} skips, executed={executed})")
-                continue
-            
-            # ALWAYS log when we find executed=true
-            logger.info(f"✅ EXECUTED=TRUE event for {result_data.get('symbol')} | event_data_keys={list(result_data.keys())}")
-            
-            # Parse details JSON if present
-            details_str = result_data.get('details', '{}')
-            logger.info(f"🔍 details field type: {type(details_str).__name__}, length: {len(str(details_str))}")
-            
+        while True:
             try:
-                import json
-                details = json.loads(details_str) if isinstance(details_str, str) else details_str
-                logger.info(f"🔍 details parsed successfully: keys={list(details.keys())}")
+                # Direct XREAD (bypassing EventBus to handle flat field format)
+                messages = await redis_client.xread(
+                    {stream_name: last_id},
+                    count=10,
+                    block=1000  # 1 second timeout
+                )
+                
+                if not messages:
+                    # No new messages, continue
+                    continue
+                
+                # Process messages: messages = [(stream_name, [(message_id, fields_dict), ...])]
+                for stream, stream_messages in messages:
+                    for message_id, fields in stream_messages:
+                        # Decode bytes to strings
+                        result_data = {}
+                        for k, v in fields.items():
+                            key = k.decode() if isinstance(k, bytes) else k
+                            value = v.decode() if isinstance(v, bytes) else v
+                            result_data[key] = value
+                        
+                        # Update last_id for next iteration
+                        last_id = message_id
+                        
+                        # Check if this is a successful execution
+                        executed = result_data.get('executed')
+                        
+                        if executed != 'true' and executed != True:
+                            # Skip non-executed events (most events)
+                            continue
+                        
+                        # ALWAYS log when we find executed=true
+                        logger.info(f"✅ EXECUTED=TRUE event for {result_data.get('symbol')} | fields={list(result_data.keys())}")
+                        
+                        # Parse details JSON if present
+                        details_str = result_data.get('details', '{}')
+                        
+                        try:
+                            import json
+                            details = json.loads(details_str) if isinstance(details_str, str) else details_str
+                            logger.info(f"🔍 details parsed: keys={list(details.keys())}")
+                        except Exception as e:
+                            logger.warning(f"⚠️  Failed to parse details JSON: {e} | raw={details_str[:200]}")
+                            details = {}
+                        
+                        # Extract position data
+                        symbol = result_data.get('symbol') or details.get('symbol')
+                        side = details.get('side')  # "BUY" or "SELL"
+                        filled_qty = details.get('filled_qty') or details.get('qty')
+                        order_id = details.get('order_id', 'unknown')
+                        order_status = details.get('order_status')
+                        
+                        logger.info(f"🔍 Extracted: symbol={symbol}, side={side}, qty={filled_qty}, status={order_status}")
+                        
+                        # Only track FILLED orders that open positions (not closes)
+                        if not symbol or not side or not filled_qty:
+                            logger.info(f"⏭️  SKIP: missing required fields (symbol={symbol}, side={side}, qty={filled_qty})")
+                            continue
+                        
+                        if order_status != 'FILLED':
+                            logger.info(f"⏭️  SKIP: order_status={order_status} (not FILLED, expected FILLED)")
+                            continue
+                        
+                        # Check if this is a position close by looking at permit data
+                        permit = details.get('permit', {})
+                        if isinstance(permit, str):
+                            try:
+                                import json
+                                permit = json.loads(permit)
+                            except:
+                                permit = {}
+                        
+                        # Skip if this is a close order (check permit for close actions)
+                        reduce_only = details.get('reduceOnly') or details.get('reduce_only')
+                        if reduce_only:
+                            logger.info(f"⏭️  SKIP: reduceOnly={reduce_only} (close order, not position open)")
+                            continue
+                        
+                        # Get entry price from Binance (more reliable than order price)
+                        current_price = get_current_price(symbol)
+                        if not current_price:
+                            logger.warning(f"Cannot track {symbol} - price unavailable")
+                            continue
+                        
+                        entry_price = current_price  # Use current market price as entry
+                        
+                        # Get TP/SL from original intent (should be included in result or fetched)
+                        # For now, use basic calculation
+                        tp = None
+                        sl = None
+                        
+                        # TODO: Fetch actual TP/SL from AI Engine signal or ExitBrain
+                        # For testnet protection, use simple fixed percentages
+                        if side == "BUY":
+                            tp = entry_price * 1.025  # +2.5%
+                            sl = entry_price * 0.985  # -1.5%
+                        else:  # SELL (SHORT)
+                            tp = entry_price * 0.975  # -2.5%
+                            sl = entry_price * 1.015  # +1.5%
+                        
+                        # Calculate quantity (use filled_qty from order)
+                        quantity = float(filled_qty) if filled_qty else 0
+                        
+                        # Track position
+                        position = TrackedPosition(
+                            symbol=symbol,
+                            side=side,
+                            entry_price=entry_price,
+                            quantity=quantity,
+                            leverage=float(details.get('leverage', 1.0)),
+                            take_profit=tp,
+                            stop_loss=sl,
+                            order_id=str(order_id),
+                            opened_at=result_data.get('timestamp', ''),
+                            highest_price=entry_price,
+                            lowest_price=entry_price
+                        )
+                        
+                        tracked_positions[symbol] = position
+                        stats["positions_tracked"] += 1
+                        
+                        logger.info(
+                            f"📌 TRACKING NEW POSITION: {symbol} {side} | "
+                            f"Entry=${entry_price:.4f} | "
+                            f"TP=${tp:.4f} | SL=${sl:.4f} | "
+                            f"Qty={quantity:.4f} | "
+                            f"Order={order_id}"
+                        )
+            
+            except asyncio.CancelledError:
+                logger.info("🛑 Position listener cancelled")
+                break
             except Exception as e:
-                logger.warning(f"⚠️  Failed to parse details JSON: {e} | raw={details_str[:200]}")
-                details = {}
-            
-            # Extract position data
-            symbol = result_data.get('symbol') or details.get('symbol')
-            side = details.get('side')  # "BUY" or "SELL"
-            filled_qty = details.get('filled_qty') or details.get('qty')
-            order_id = details.get('order_id', 'unknown')
-            order_status = details.get('order_status')
-            
-            logger.info(f"🔍 Extracted: symbol={symbol}, side={side}, qty={filled_qty}, status={order_status}")
-            
-            # Only track FILLED orders that open positions (not closes)
-            if not symbol or not side or not filled_qty:
-                logger.info(f"⏭️  SKIP: missing required fields (symbol={symbol}, side={side}, qty={filled_qty})")
-                continue
-            
-            if order_status != 'FILLED':
-                logger.info(f"⏭️  SKIP: order_status={order_status} (not FILLED, expected FILLED)")
-                continue
-            
-            # Check if this is a position close by looking at permit data
-            permit = details.get('permit', {})
-            if isinstance(permit, str):
-                try:
-                    import json
-                    permit = json.loads(permit)
-                except:
-                    permit = {}
-            
-            # Skip if this is a close order (check permit for close actions)
-            reduce_only = details.get('reduceOnly') or details.get('reduce_only')
-            if reduce_only:
-                logger.info(f"⏭️  SKIP: reduceOnly={reduce_only} (close order, not position open)")
-                continue
-            
-            # Get entry price from Binance (more reliable than order price)
-            current_price = get_current_price(symbol)
-            if not current_price:
-                logger.warning(f"Cannot track {symbol} - price unavailable")
-                continue
-            
-            entry_price = current_price  # Use current market price as entry
-            
-            # Get TP/SL from original intent (should be included in result or fetched)
-            # For now, use basic calculation
-            tp = None
-            sl = None
-            
-            # TODO: Fetch actual TP/SL from AI Engine signal or ExitBrain
-            # For testnet protection, use simple fixed percentages
-            if side == "BUY":
-                tp = entry_price * 1.025  # +2.5%
-                sl = entry_price * 0.985  # -1.5%
-            else:  # SELL (SHORT)
-                tp = entry_price * 0.975  # -2.5%
-                sl = entry_price * 1.015  # +1.5%
-            
-            # Calculate quantity (use filled_qty from order)
-            quantity = float(filled_qty) if filled_qty else 0
-            
-            # Track position
-            position = TrackedPosition(
-                symbol=symbol,
-                side=side,
-                entry_price=entry_price,
-                quantity=quantity,
-                leverage=float(details.get('leverage', 1.0)),
-                take_profit=tp,
-                stop_loss=sl,
-                order_id=str(order_id),
-                opened_at=result_data.get('timestamp', ''),
-                highest_price=entry_price,
-                lowest_price=entry_price
-            )
-            
-            tracked_positions[symbol] = position
-            stats["positions_tracked"] += 1
-            
-            logger.info(
-                f"📌 TRACKING NEW POSITION: {symbol} {side} | "
-                f"Entry=${entry_price:.4f} | "
-                f"TP=${tp:.4f} | SL=${sl:.4f} | "
-                f"Qty={quantity:.4f} | "
-                f"Order={order_id}"
-            )
-            
+                logger.error(f"❌ XREAD error: {e}", exc_info=True)
+                await asyncio.sleep(5)  # Retry delay
+    
     except Exception as e:
-        logger.error(f"❌ Position listener error: {e}", exc_info=True)
+        logger.error(f"❌ Position listener fatal error: {e}", exc_info=True)
 
 
 async def exit_monitor_loop():
