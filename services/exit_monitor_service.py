@@ -289,6 +289,10 @@ async def position_listener():
                         # Check if this is a successful execution
                         executed = result_data.get('executed')
                         
+                        # Log first few messages to verify parsing
+                        if loop_count <= 30:
+                            logger.info(f"🔍 Message: executed={executed}, symbol={result_data.get('symbol')}, keys={list(result_data.keys())[:5]}")
+                        
                         if executed != 'true' and executed != True:
                             # Skip non-executed events (most events)
                             continue
