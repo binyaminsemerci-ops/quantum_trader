@@ -242,31 +242,34 @@ async def position_listener():
     try:
         # FIX: Subscribe to correct stream (apply.result, not trade.execution.res)
         async for result_data in eventbus.subscribe("quantum:stream:apply.result"):
-            logger.debug(f"🔍 Received event from apply.result: {result_data}")
+            # Log every 100th event to avoid spam, but always log executed=true
+            event_count = len(tracked_positions)  # Use as counter proxy
             
             # Remove EventBus metadata
             result_data = {k: v for k, v in result_data.items() if not k.startswith('_')}
             
             # Check if this is a successful execution
             executed = result_data.get('executed')
-            logger.debug(f"🔍 executed field: {executed} (type: {type(executed).__name__})")
             
             if executed != 'true' and executed != True:
-                logger.debug(f"⏭️  Skipping: executed={executed} (not true)")
+                # Log every 100th skip to prove listener is working
+                if event_count % 100 == 0:
+                    logger.info(f"📊 Listener active (processed ~{event_count} skips, executed={executed})")
                 continue
             
-            logger.info(f"✅ Found executed=true event for {result_data.get('symbol')}")
+            # ALWAYS log when we find executed=true
+            logger.info(f"✅ EXECUTED=TRUE event for {result_data.get('symbol')} | event_data_keys={list(result_data.keys())}")
             
             # Parse details JSON if present
             details_str = result_data.get('details', '{}')
-            logger.debug(f"🔍 details field (raw): {details_str[:200] if isinstance(details_str, str) else details_str}")
+            logger.info(f"🔍 details field type: {type(details_str).__name__}, length: {len(str(details_str))}")
             
             try:
                 import json
                 details = json.loads(details_str) if isinstance(details_str, str) else details_str
-                logger.debug(f"🔍 details parsed: {details}")
+                logger.info(f"🔍 details parsed successfully: keys={list(details.keys())}")
             except Exception as e:
-                logger.warning(f"⚠️  Failed to parse details JSON: {e}")
+                logger.warning(f"⚠️  Failed to parse details JSON: {e} | raw={details_str[:200]}")
                 details = {}
             
             # Extract position data
@@ -276,15 +279,15 @@ async def position_listener():
             order_id = details.get('order_id', 'unknown')
             order_status = details.get('order_status')
             
-            logger.debug(f"🔍 Extracted: symbol={symbol}, side={side}, qty={filled_qty}, status={order_status}")
+            logger.info(f"🔍 Extracted: symbol={symbol}, side={side}, qty={filled_qty}, status={order_status}")
             
             # Only track FILLED orders that open positions (not closes)
             if not symbol or not side or not filled_qty:
-                logger.debug(f"⏭️  Skipping: missing required fields (symbol={symbol}, side={side}, qty={filled_qty})")
+                logger.info(f"⏭️  SKIP: missing required fields (symbol={symbol}, side={side}, qty={filled_qty})")
                 continue
             
             if order_status != 'FILLED':
-                logger.debug(f"⏭️  Skipping: order_status={order_status} (not FILLED)")
+                logger.info(f"⏭️  SKIP: order_status={order_status} (not FILLED, expected FILLED)")
                 continue
             
             # Check if this is a position close by looking at permit data
@@ -299,7 +302,7 @@ async def position_listener():
             # Skip if this is a close order (check permit for close actions)
             reduce_only = details.get('reduceOnly') or details.get('reduce_only')
             if reduce_only:
-                logger.debug(f"⏭️  Skipping: reduceOnly={reduce_only} (close order)")
+                logger.info(f"⏭️  SKIP: reduceOnly={reduce_only} (close order, not position open)")
                 continue
             
             # Get entry price from Binance (more reliable than order price)
