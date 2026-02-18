@@ -250,8 +250,13 @@ async def position_listener():
     
     logger.info(f"✅ Position listener using direct Redis XREAD on {stream_name}")
     
+    loop_count = 0
     try:
         while True:
+            loop_count += 1
+            if loop_count % 10 == 0:  # Log every 10 iterations (10 seconds)
+                logger.info(f"📊 Position listener loop active (iteration {loop_count})")
+            
             try:
                 # Direct XREAD (bypassing EventBus to handle flat field format)
                 messages = await redis_client.xread(
