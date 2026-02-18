@@ -265,6 +265,10 @@ async def position_listener():
                     block=1000  # 1 second timeout
                 )
                 
+                if loop_count % 20 == 0:  # Log every 20 iterations
+                    msg_count = sum(len(stream_msgs) for _, stream_msgs in messages) if messages else 0
+                    logger.info(f"📨 XREAD returned {msg_count} messages (last_id={last_id})")
+                
                 if not messages:
                     # No new messages, continue
                     continue
