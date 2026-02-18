@@ -118,6 +118,10 @@ DEDUPE_TTL = 5 if DEDUPE_BYPASS else 300  # 5 sec vs 5 min
 # ---- Position Guard: Epsilon for floating point comparison ----
 POSITION_EPSILON = 1e-12  # abs(position_amt) > epsilon means "has position"
 
+# ---- Position Cap: configurable top-k open positions ----
+# Default stays 10 unless overridden in apply-layer.env.
+MAX_OPEN_POSITIONS = int(os.getenv("APPLY_MAX_OPEN_POSITIONS", "10"))
+
 if TESTNET_MODE:
     logger.warning("ΓÜá∩╕Å  TESTNET MODE ENABLED - Governor bypass active (NO PRODUCTION USAGE)")
 else:
@@ -875,6 +879,24 @@ class ApplyLayer:
             'quantum_apply_dedupe_hits_total',
             'Total duplicate plan detections'
         )
+
+    def _count_active_positions(self) -> int:
+        """Count active positions based on nonzero size to avoid snapshot-only keys."""
+        count = 0
+        for key in self.redis.scan_iter("quantum:position:*"):
+            try:
+                pos = self.redis.hgetall(key)
+                if not pos:
+                    continue
+                amt_raw = pos.get("position_amt") or pos.get("quantity") or pos.get("positionAmt")
+                if amt_raw is None:
+                    continue
+                amt = float(amt_raw)
+                if abs(amt) > POSITION_EPSILON:
+                    count += 1
+            except Exception:
+                continue
+        return count
         self.metric_last_success = Gauge(
             'quantum_apply_last_success_epoch',
             'Timestamp of last successful execution',
@@ -1002,6 +1024,17 @@ class ApplyLayer:
                 f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} "
                 f"reason=symbol_not_in_policy policy_count={len(policy_universe)} "
                 f"policy_sample={sorted(list(policy_universe))}"
+            )
+            return False
+
+        if not self.allowlist:
+            logger.error(f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} reason=empty_allowlist")
+            return False
+
+        if symbol not in self.allowlist:
+            logger.warning(
+                f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} "
+                f"reason=symbol_not_in_allowlist allowlist_count={len(self.allowlist)}"
             )
             return False
         
@@ -2557,10 +2590,13 @@ class ApplyLayer:
                         position_side = 'LONG' if side == 'BUY' else 'SHORT'
                         logger.info(f"[ENTRY] {symbol}: Processing {side} intent (→{position_side}, leverage={leverage}, qty={qty}, plan_id={plan_id[:8]})")
                         
-                        # 🔥 HARD GATE: Check total position limit (MAX 10 SYMBOLS)
-                        all_positions = self.redis.keys("quantum:position:*")
-                        if len(all_positions) >= 10:
-                            logger.warning(f"[ENTRY] {symbol}: Order REJECTED - position limit reached ({len(all_positions)}/10 symbols)")
+                        # 🔥 HARD GATE: Check total position limit (configurable)
+                        active_positions = self._count_active_positions()
+                        if active_positions >= MAX_OPEN_POSITIONS:
+                            logger.warning(
+                                f"[ENTRY] {symbol}: Order REJECTED - position limit reached "
+                                f"({active_positions}/{MAX_OPEN_POSITIONS} symbols)"
+                            )
                             self.redis.xack(stream_key, consumer_group, msg_id)
                             # Publish rejection to apply.result
                             self.redis.xadd('quantum:stream:apply.result', {
@@ -2568,7 +2604,7 @@ class ApplyLayer:
                                 'symbol': symbol,
                                 'action': 'ENTRY',
                                 'executed': 'False',
-                                'error': f'position_limit_reached_{len(all_positions)}/10',
+                                'error': f'position_limit_reached_{active_positions}/{MAX_OPEN_POSITIONS}',
                                 'timestamp': str(int(time.time()))
                             })
                             continue

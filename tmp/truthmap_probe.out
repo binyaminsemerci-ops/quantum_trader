@@ -1,0 +1,6707 @@
+
+=== TIMESTAMP ===
+2026-02-17T21:46:04Z
+
+=== OS ===
+Linux quantumtrader-prod-1 6.8.0-90-generic #91-Ubuntu SMP PREEMPT_DYNAMIC Tue Nov 18 14:14:30 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+PRETTY_NAME="Ubuntu 24.04.3 LTS"
+NAME="Ubuntu"
+VERSION_ID="24.04"
+VERSION="24.04.3 LTS (Noble Numbat)"
+VERSION_CODENAME=noble
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+UBUNTU_CODENAME=noble
+LOGO=ubuntu-logo
+ 21:46:04 up 28 days, 23:00,  6 users,  load average: 1.14, 0.96, 0.85
+
+=== SYSTEMD_QUANTUM_UNITS ===
+  UNIT                                       LOAD      ACTIVE     SUB          DESCRIPTION
+  quantum-ai-engine.service                  loaded    active     running      Quantum Trader - AI Engine (native uvicorn)
+  quantum-ai-strategy-router.service         loaded    active     running      Quantum Trader - AI Strategy Router
+  quantum-apply-layer.service                loaded    active     running      Quantum Trader - Apply Layer (P3)
+  quantum-autonomous-trader.service          loaded    active     running      Quantum Trader - Autonomous Trader (Full RL Autonomy)
+  quantum-balance-tracker.service            loaded    active     running      Quantum Balance Tracker - Binance Account Monitor
+  quantum-bsc.service                        loaded    active     running      Quantum Trader - Baseline Safety Controller (BSC)
+  quantum-capital-allocation.service         loaded    active     running      Quantum Capital Allocation Brain (P2.9)
+  quantum-ceo-brain.service                  loaded    active     running      Quantum Trader - CEO Brain (AI Client)
+  quantum-clm-minimal.service                loaded    active     running      Quantum CLM Minimal - Continuous Learning Manager
+  quantum-clm.service                        loaded    active     running      Continuous learning module
+  quantum-core-health.service                loaded    inactive   dead         Quantum Core Health Check
+  quantum-cross-exchange-aggregator.service  loaded    activating auto-restart Quantum - Cross Exchange Aggregator (Normalize & merge)
+  quantum-dashboard-api.service              loaded    active     running      Quantum Trader Dashboard API
+  quantum-diagnostic.service                 loaded    inactive   dead         Quantum System Diagnostic
+  quantum-ensemble-predictor.service         loaded    active     running      Quantum Ensemble Predictor Service (PATH 2.2 - SHADOW MODE)
+● quantum-ensemble.service                   not-found inactive   dead         quantum-ensemble.service
+  quantum-ess-watch.service                  loaded    inactive   dead         Quantum Trader ESS Watch Service (checks flag every 5s)
+  quantum-exchange-stream-bridge.service     loaded    active     running      Quantum - Exchange Stream Bridge (Multi-source input)
+  quantum-execution-result-bridge.service    loaded    active     running      Quantum Execution Result Stream Bridge
+  quantum-execution.service                  loaded    active     running      Quantum Trader - Execution Service (REAL Binance)
+  quantum-exit-intelligence.service          loaded    active     running      Quantum Exit Intelligence Service
+  quantum-exit-monitor.service               loaded    active     running      Quantum Trader - Exit Monitor Service
+  quantum-exit-owner-watch.service           loaded    inactive   dead         Quantum Trader Exit Owner Watch
+  quantum-exposure_balancer.service          loaded    active     running      Exposure balancer service
+  quantum-feature-publisher.service          loaded    active     running      Quantum Feature Publisher Service (PATH 2.3D Bridge)
+  quantum-governor.service                   loaded    active     running      Quantum Trading P3.2 Governor Service
+● quantum-harvest-brain.service              loaded    failed     failed       Quantum Trader - HarvestBrain (Profit Harvesting Service)
+  quantum-harvest-metrics-exporter.service   loaded    active     running      Quantum Trader - Harvest Metrics Exporter (P2.7)
+  quantum-harvest-optimizer.service          loaded    active     running      Quantum Harvest Optimizer Service
+  quantum-harvest-proposal.service           loaded    active     running      Quantum Trader - Harvest Proposal Publisher (P2.5)
+  quantum-health-gate.service                loaded    inactive   dead         Quantum Trader Health Gate Monitor
+  quantum-heat-gate.service                  loaded    active     running      Quantum Trader - P2.6 Portfolio Heat Gate
+  quantum-intent-bridge.service              loaded    active     running      Quantum Intent Bridge (trade.intent → apply.plan)
+  quantum-intent-executor.service            loaded    active     running      Quantum Intent Executor (intent_bridge → P3.3 → Binance)
+  quantum-learning-api.service               loaded    active     running      Quantum Trader Learning Cadence API
+  quantum-learning-monitor.service           loaded    active     running      Quantum Trader Learning Cadence Monitor
+  quantum-ledger-sync.service                loaded    inactive   dead         Quantum Ledger Sync Service
+  quantum-market-publisher.service           loaded    active     running      Quantum Trader - Market Data Publisher (INFRA)
+  quantum-marketstate.service                loaded    active     running      Quantum Trader - MarketState Metrics Publisher (P0.5)
+  quantum-meta-regime.service                loaded    active     running      Quantum Meta Regime Detector
+  quantum-metricpack-builder.service         loaded    active     running      Quantum MetricPack Builder v1
+  quantum-p28a3-latency-proof.service        loaded    inactive   dead         P2.8A.3 Late Observer Latency Proof (Read-Only)
+  quantum-p35-decision-intelligence.service  loaded    active     running      Quantum Trader - P3.5 Decision Intelligence Service
+  quantum-performance-attribution.service    loaded    active     running      Quantum Trading P3.0 Performance Attribution Brain
+  quantum-performance-tracker.service        loaded    active     running      Quantum Performance Tracker
+  quantum-policy-refresh.service             loaded    inactive   dead         Quantum Trader Policy Refresh
+  quantum-policy-sync.service                loaded    inactive   dead         Quantum RL ↔ Ensemble Policy Sync
+  quantum-portfolio-clusters.service         loaded    active     running      Quantum Trader P2.7 Portfolio Clusters
+  quantum-portfolio-gate.service             loaded    active     running      Quantum Trader P2.6 Portfolio Gate
+  quantum-portfolio-governance.service       loaded    active     running      Quantum Portfolio Governance
+  quantum-portfolio-heat-gate.service        loaded    active     running      Quantum P2.6 Portfolio Heat Gate (Hedge Fund OS)
+  quantum-portfolio-intelligence.service     loaded    active     running      Quantum Trader - Portfolio Intelligence (AI Client)
+  quantum-portfolio-risk-governor.service    loaded    active     running      P2.8 Portfolio Risk Governor
+  quantum-portfolio-state-publisher.service  loaded    active     running      Quantum Trader Portfolio State Publisher
+  quantum-position-state-brain.service       loaded    active     running      Quantum Trading P3.3 Position State Brain
+  quantum-price-feed.service                 loaded    active     running      Quantum Trader - Price Feed (WebSocket → Redis)
+  quantum-reconcile-engine.service           loaded    active     running      Quantum Trader - P3.4 Position Reconciliation Engine
+● quantum-redis.service                      not-found inactive   dead         quantum-redis.service
+  quantum-retrain-worker.service             loaded    active     running      Quantum - Retrain Worker (Persistent Listener)
+  quantum-risk-brain.service                 loaded    active     running      Quantum Trader - Risk Brain (AI Client)
+● quantum-risk-proposal.service              loaded    failed     failed       Quantum Risk Proposal Publisher (P1.5)
+  quantum-risk-safety.service                loaded    active     running      Quantum Trader - Risk Safety Service
+● quantum-rl-agent.service                   loaded    failed     failed       Quantum RL Agent (shadow)
+  quantum-rl-feedback-v2.service             loaded    active     running      Quantum RL Feedback V2 Producer
+  quantum-rl-monitor.service                 loaded    active     running      Quantum RL Monitor
+  quantum-rl-policy-publisher.service        loaded    active     running      Quantum RL Policy Publisher v0
+  quantum-rl-shadow-metrics-exporter.service loaded    active     running      RL Shadow Metrics Exporter for Prometheus
+  quantum-rl-shadow-scorecard.service        loaded    inactive   dead         Quantum Trader - RL Shadow Scorecard Report
+  quantum-rl-sizer.service                   loaded    active     running      Quantum Trader - RL Position Sizing Agent (Model Server)
+  quantum-rl-trainer.service                 loaded    activating auto-restart Quantum RL Trainer Consumer
+  quantum-safety-telemetry.service           loaded    active     running      Quantum Trader - Safety Telemetry Exporter (P1)
+  quantum-strategic-memory.service           loaded    active     running      Quantum Strategic Memory System
+  quantum-strategy-brain.service             loaded    active     running      Quantum Trader - Strategy Brain (AI Client)
+  quantum-stream-recover.service             loaded    inactive   dead         Quantum Stream Zombie Recovery
+  quantum-trade-logger.service               loaded    active     running      Quantum Trade History Logger
+  quantum-training-worker.service            loaded    inactive   dead         Quantum Trading - Training Worker (Oneshot)
+  quantum-universe-service.service           loaded    active     running      Quantum Trading Universe Service
+  quantum-universe.service                   loaded    active     running      Quantum Trading Universe Service - Dynamic Symbol Manager
+  quantum-utf-publisher.service              loaded    active     running      Quantum UTF Publisher - Unified Training Feed
+● quantum-verify-ensemble.service            loaded    failed     failed       Quantum Ensemble Health Verify Task
+  quantum-verify-rl.service                  loaded    inactive   dead         Quantum RL Verify Task
+  quantum-ai.target                          loaded    inactive   dead         Quantum AI Layer (native)
+  quantum-core.target                        loaded    active     active       Quantum Core System Target
+  quantum-exec.target                        loaded    inactive   dead         Quantum Execution Layer (native with governor)
+  quantum-rl.target                          loaded    active     active       Quantum RL Stack
+  quantum-state.target                       loaded    inactive   dead         State tracking (positions, portfolio)
+  quantum-trader.target                      loaded    inactive   dead         Quantum Trader - Full System (native)
+  quantum-core-health.timer                  loaded    inactive   dead         Quantum Core Health Timer
+  quantum-diagnostic.timer                   loaded    inactive   dead         Run Quantum Diagnostics every 15 minutes
+  quantum-ess-watch.timer                    loaded    inactive   dead         Quantum Trader ESS Watch Timer (polls flag every 5s)
+  quantum-exit-owner-watch.timer             loaded    active     waiting      Quantum Trader Exit Owner Watch Timer
+  quantum-health-gate.timer                  loaded    inactive   dead         Quantum Trader Health Gate Monitor (Every 5 Minutes)
+  quantum-ledger-sync.timer                  loaded    inactive   dead         Quantum Ledger Sync Timer (every 15 seconds)
+  quantum-p28a3-latency-proof.timer          loaded    inactive   dead         P2.8A.3 Latency Proof Automation
+  quantum-policy-refresh.timer               loaded    active     waiting      Quantum Trader Policy Refresh Timer
+  quantum-policy-sync.timer                  loaded    active     waiting      Run Quantum Policy Sync every 5 minutes
+  quantum-rl-shadow-scorecard.timer          loaded    inactive   dead         Quantum Trader - RL Shadow Scorecard Timer (every 15min)
+  quantum-stream-recover.timer               loaded    active     waiting      Quantum Stream Zombie Recovery Timer (AUTO-RESTART)
+  quantum-training-worker.timer              loaded    inactive   dead         Quantum Trading - Training Worker Timer
+  quantum-verify-ensemble.timer              loaded    active     waiting      Run Quantum Ensemble Verify every 10 minutes
+  quantum-verify-rl.timer                    loaded    active     waiting      Run Quantum RL Verify every 5 minutes
+
+Legend: LOAD   → Reflects whether the unit definition was properly loaded.
+        ACTIVE → The high-level unit activation state, i.e. generalization of SUB.
+        SUB    → The low-level unit activation state, values depend on unit type.
+
+101 loaded units listed.
+To show all installed unit files use 'systemctl list-unit-files'.
+
+=== SYSTEMD_QUANTUM_UNIT_FILES ===
+UNIT FILE                                  STATE    PRESET
+quantum-ess.path                           disabled enabled
+quantum-.service                           masked   enabled
+quantum-ai-engine-proof.service            disabled enabled
+quantum-ai-engine.service                  enabled  enabled
+quantum-ai-strategy-router.service         enabled  enabled
+quantum-ai-universe.service                disabled enabled
+quantum-ai_engine.service                  disabled enabled
+quantum-allocation-target.service          disabled enabled
+quantum-apply-layer.service                enabled  enabled
+quantum-autonomous-trader.service          enabled  enabled
+quantum-balance-tracker.service            enabled  enabled
+quantum-binance-pnl-tracker.service        disabled enabled
+quantum-bsc.service                        enabled  enabled
+quantum-capital-allocation.service         enabled  enabled
+quantum-capital-efficiency.service         disabled enabled
+quantum-ceo-brain.service                  enabled  enabled
+quantum-clm-minimal.service                enabled  enabled
+quantum-clm.service                        enabled  enabled
+quantum-contract-check.service             disabled enabled
+quantum-core-health.service                disabled enabled
+quantum-cross-exchange-aggregator.service  enabled  enabled
+quantum-dashboard-api.service              enabled  enabled
+quantum-data-collector.service             disabled enabled
+quantum-diagnostic.service                 static   -
+quantum-ensemble-predictor.service         enabled  enabled
+quantum-ess-trigger.service                static   -
+quantum-ess-watch.service                  disabled enabled
+quantum-ess.service                        disabled enabled
+quantum-eventbus_bridge.service            disabled enabled
+quantum-exchange-aggregator.service        disabled enabled
+quantum-exchange-stream-bridge.service     enabled  enabled
+quantum-execution-result-bridge.service    enabled  enabled
+quantum-execution.service                  enabled  enabled
+quantum-exit-intelligence.service          enabled  enabled
+quantum-exit-monitor.service               enabled  enabled
+quantum-exit-owner-watch.service           disabled enabled
+quantum-exitbrain-v35.service              disabled enabled
+quantum-exposure_balancer.service          enabled  enabled
+quantum-feature-publisher.service          enabled  enabled
+quantum-frontend.service                   disabled enabled
+quantum-governor.service                   enabled  enabled
+quantum-harvest-brain.service              disabled enabled
+quantum-harvest-metrics-exporter.service   enabled  enabled
+quantum-harvest-optimizer.service          enabled  enabled
+quantum-harvest-proposal.service           disabled enabled
+quantum-health-gate.service                disabled enabled
+quantum-heat-bridge.service                disabled enabled
+quantum-heat-gate.service                  enabled  enabled
+quantum-intent-bridge.service              enabled  enabled
+quantum-intent-executor.service            enabled  enabled
+quantum-learning-api.service               enabled  enabled
+quantum-learning-monitor.service           enabled  enabled
+quantum-ledger-sync.service                disabled enabled
+quantum-market-proof.service               disabled enabled
+quantum-market-publisher.service           enabled  enabled
+quantum-marketstate.service                enabled  enabled
+quantum-meta-regime.service                enabled  enabled
+quantum-metricpack-builder.service         enabled  enabled
+quantum-model-federation.service           disabled enabled
+quantum-nginx-proxy.service                disabled enabled
+quantum-p28a3-latency-proof.service        disabled enabled
+quantum-p35-decision-intelligence.service  enabled  enabled
+quantum-performance-attribution.service    enabled  enabled
+quantum-performance-tracker.service        enabled  enabled
+quantum-policy-refresh.service             disabled enabled
+quantum-policy-sync.service                disabled enabled
+quantum-portfolio-clusters.service         enabled  enabled
+quantum-portfolio-gate.service             enabled  enabled
+quantum-portfolio-governance.service       enabled  enabled
+quantum-portfolio-heat-gate.service        enabled  enabled
+quantum-portfolio-intelligence.service     disabled enabled
+quantum-portfolio-risk-governor.service    enabled  enabled
+quantum-portfolio-state-publisher.service  enabled  enabled
+quantum-portfolio_intelligence.service     disabled enabled
+quantum-position-monitor.service           disabled enabled
+quantum-position-state-brain.service       enabled  enabled
+quantum-position_monitor.service           disabled enabled
+quantum-price-feed.service                 enabled  enabled
+quantum-proof.service                      disabled enabled
+quantum-quantumfond-frontend.service       disabled enabled
+quantum-reconcile-engine.service           enabled  enabled
+quantum-retrain-worker.service             enabled  enabled
+quantum-risk-brain.service                 disabled enabled
+quantum-risk-proposal.service              enabled  enabled
+quantum-risk-safety.service                enabled  enabled
+quantum-risk_safety.service                disabled enabled
+quantum-rl-agent.service                   disabled enabled
+quantum-rl-dashboard.service               disabled enabled
+quantum-rl-feedback-v2.service             enabled  enabled
+quantum-rl-monitor.service                 enabled  enabled
+quantum-rl-policy-publisher.service        enabled  enabled
+quantum-rl-reward-publisher.service        disabled enabled
+quantum-rl-shadow-metrics-exporter.service enabled  enabled
+quantum-rl-shadow-scorecard.service        disabled enabled
+quantum-rl-sizer.service                   enabled  enabled
+quantum-rl-trainer.service                 enabled  enabled
+quantum-rl.service                         disabled enabled
+quantum-rl_training.service                disabled enabled
+quantum-safety-telemetry.service           enabled  enabled
+quantum-strategic-evolution.service        disabled enabled
+quantum-strategic-memory.service           enabled  enabled
+quantum-strategy-brain.service             enabled  enabled
+quantum-strategy-ops.service               disabled enabled
+quantum-stream-recover.service             static   -
+quantum-trade-logger.service               enabled  enabled
+quantum-trading_bot.service                disabled enabled
+quantum-training-worker.service            disabled enabled
+quantum-universe-service.service           enabled  enabled
+quantum-universe.service                   enabled  enabled
+quantum-utf-publisher.service              enabled  enabled
+quantum-verify-ensemble.service            disabled enabled
+quantum-verify-rl.service                  static   -
+quantum-ai.target                          enabled  enabled
+quantum-brains.target                      disabled enabled
+quantum-core.target                        enabled  enabled
+quantum-exec.target                        enabled  enabled
+quantum-obs.target                         disabled enabled
+quantum-rl.target                          enabled  enabled
+quantum-state.target                       disabled enabled
+quantum-trader.target                      enabled  enabled
+quantum-ai-universe.timer                  disabled enabled
+quantum-contract-check.timer               disabled enabled
+quantum-core-health.timer                  enabled  enabled
+quantum-diagnostic.timer                   enabled  enabled
+quantum-ess-watch.timer                    enabled  enabled
+quantum-exit-owner-watch.timer             enabled  enabled
+quantum-health-gate.timer                  enabled  enabled
+quantum-ledger-sync.timer                  enabled  enabled
+quantum-p28a3-latency-proof.timer          enabled  enabled
+quantum-policy-refresh.timer               enabled  enabled
+quantum-policy-sync.timer                  enabled  enabled
+quantum-rl-reward-publisher.timer          disabled enabled
+quantum-rl-shadow-scorecard.timer          enabled  enabled
+quantum-stream-recover.timer               enabled  enabled
+quantum-training-worker.timer              enabled  enabled
+quantum-verify-ensemble.timer              enabled  enabled
+quantum-verify-rl.timer                    enabled  enabled
+
+137 unit files listed.
+
+=== SYSTEMD_FAILED ===
+  UNIT                            LOAD   ACTIVE SUB    DESCRIPTION
+● quantum-harvest-brain.service   loaded failed failed Quantum Trader - HarvestBrain (Profit Harvesting Service)
+● quantum-risk-proposal.service   loaded failed failed Quantum Risk Proposal Publisher (P1.5)
+● quantum-rl-agent.service        loaded failed failed Quantum RL Agent (shadow)
+● quantum-verify-ensemble.service loaded failed failed Quantum Ensemble Health Verify Task
+
+Legend: LOAD   → Reflects whether the unit definition was properly loaded.
+        ACTIVE → The high-level unit activation state, i.e. generalization of SUB.
+        SUB    → The low-level unit activation state, values depend on unit type.
+
+4 loaded units listed.
+
+=== SYSTEMD_QUANTUM_DETAILS ===
+--- quantum-ess.path
+Result=success
+Id=quantum-ess.path
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-ai-engine-proof.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-ai-engine-proof.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-ai-engine.service
+Restart=always
+RestartUSec=5s
+Result=success
+ExecMainPID=788845
+ExecMainStatus=0
+Id=quantum-ai-engine.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 03:33:31 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 03:33:31 UTC
+
+--- quantum-ai-strategy-router.service
+Restart=always
+RestartUSec=3s
+Result=success
+ExecMainPID=766471
+ExecMainStatus=0
+Id=quantum-ai-strategy-router.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 03:22:46 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 03:22:46 UTC
+
+--- quantum-ai-universe.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-ai-universe.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-ai_engine.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-ai_engine.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-allocation-target.service
+Restart=always
+RestartUSec=2s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-allocation-target.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-apply-layer.service
+Restart=always
+RestartUSec=2s
+Result=success
+ExecMainPID=1003764
+ExecMainStatus=0
+Id=quantum-apply-layer.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 05:38:23 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 05:38:23 UTC
+
+--- quantum-autonomous-trader.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=1087609
+ExecMainStatus=0
+Id=quantum-autonomous-trader.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 06:06:03 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 06:06:03 UTC
+
+--- quantum-balance-tracker.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=2636862
+ExecMainStatus=0
+Id=quantum-balance-tracker.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Sun 2026-02-15 16:06:47 UTC
+ActiveEnterTimestamp=Sun 2026-02-15 16:06:47 UTC
+
+--- quantum-binance-pnl-tracker.service
+Restart=always
+RestartUSec=5s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-binance-pnl-tracker.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-bsc.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=787949
+ExecMainStatus=0
+Id=quantum-bsc.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 03:33:00 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 03:33:00 UTC
+
+--- quantum-capital-allocation.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=2899186
+ExecMainStatus=0
+Id=quantum-capital-allocation.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Sun 2026-02-15 23:06:30 UTC
+ActiveEnterTimestamp=Sun 2026-02-15 23:06:30 UTC
+
+--- quantum-capital-efficiency.service
+Restart=always
+RestartUSec=2s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-capital-efficiency.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-ceo-brain.service
+Restart=on-failure
+RestartUSec=5s
+Result=success
+ExecMainPID=462839
+ExecMainStatus=0
+Id=quantum-ceo-brain.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:55 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:55 UTC
+
+--- quantum-clm-minimal.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=462844
+ExecMainStatus=0
+Id=quantum-clm-minimal.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:55 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:55 UTC
+
+--- quantum-clm.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=462848
+ExecMainStatus=0
+Id=quantum-clm.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:55 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:55 UTC
+
+--- quantum-contract-check.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-contract-check.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-core-health.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=462853
+ExecMainStatus=0
+Id=quantum-core-health.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Tue 2026-02-17 02:22:55 UTC
+ActiveEnterTimestamp=
+
+--- quantum-cross-exchange-aggregator.service
+Restart=always
+RestartUSec=10s
+Result=exit-code
+ExecMainPID=3744627
+ExecMainStatus=1
+Id=quantum-cross-exchange-aggregator.service
+ActiveState=activating
+SubState=auto-restart
+StateChangeTimestamp=Tue 2026-02-17 21:45:56 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 21:45:56 UTC
+
+--- quantum-dashboard-api.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=787958
+ExecMainStatus=0
+Id=quantum-dashboard-api.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 03:33:01 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 03:33:01 UTC
+
+--- quantum-data-collector.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-data-collector.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-diagnostic.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=462913
+ExecMainStatus=0
+Id=quantum-diagnostic.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Tue 2026-02-17 02:22:55 UTC
+ActiveEnterTimestamp=
+
+--- quantum-ensemble-predictor.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=195753
+ExecMainStatus=0
+Id=quantum-ensemble-predictor.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 00:55:02 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 00:55:02 UTC
+
+--- quantum-ess-trigger.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-ess-trigger.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-ess-watch.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=469460
+ExecMainStatus=0
+Id=quantum-ess-watch.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Tue 2026-02-17 02:23:22 UTC
+ActiveEnterTimestamp=
+
+--- quantum-ess.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-ess.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-eventbus_bridge.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-eventbus_bridge.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-exchange-aggregator.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-exchange-aggregator.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-exchange-stream-bridge.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=1087610
+ExecMainStatus=0
+Id=quantum-exchange-stream-bridge.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 06:06:03 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 06:06:03 UTC
+
+--- quantum-execution-result-bridge.service
+Restart=always
+RestartUSec=2s
+Result=success
+ExecMainPID=463013
+ExecMainStatus=0
+Id=quantum-execution-result-bridge.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:55 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:55 UTC
+
+--- quantum-execution.service
+Restart=always
+RestartUSec=3s
+Result=success
+ExecMainPID=788024
+ExecMainStatus=0
+Id=quantum-execution.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 03:33:01 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 03:33:01 UTC
+
+--- quantum-exit-intelligence.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=463020
+ExecMainStatus=0
+Id=quantum-exit-intelligence.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:55 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:55 UTC
+
+--- quantum-exit-monitor.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=1087653
+ExecMainStatus=0
+Id=quantum-exit-monitor.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 06:06:03 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 06:06:03 UTC
+
+--- quantum-exit-owner-watch.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=3740732
+ExecMainStatus=0
+Id=quantum-exit-owner-watch.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Tue 2026-02-17 21:44:39 UTC
+ActiveEnterTimestamp=
+
+--- quantum-exitbrain-v35.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-exitbrain-v35.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-exposure_balancer.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=2851660
+ExecMainStatus=0
+Id=quantum-exposure_balancer.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Sun 2026-02-15 22:38:59 UTC
+ActiveEnterTimestamp=Sun 2026-02-15 22:38:59 UTC
+
+--- quantum-feature-publisher.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=72398
+ExecMainStatus=0
+Id=quantum-feature-publisher.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Mon 2026-02-16 22:54:53 UTC
+ActiveEnterTimestamp=Mon 2026-02-16 22:54:53 UTC
+
+--- quantum-frontend.service
+Restart=always
+RestartUSec=5s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-frontend.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-governor.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=2850798
+ExecMainStatus=0
+Id=quantum-governor.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Sun 2026-02-15 22:38:21 UTC
+ActiveEnterTimestamp=Sun 2026-02-15 22:38:21 UTC
+
+--- quantum-harvest-brain.service
+Restart=always
+RestartUSec=2s
+Result=exit-code
+ExecMainPID=1088792
+ExecMainStatus=203
+Id=quantum-harvest-brain.service
+ActiveState=failed
+SubState=failed
+StateChangeTimestamp=Tue 2026-02-17 06:06:14 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 06:06:12 UTC
+
+--- quantum-harvest-metrics-exporter.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=463052
+ExecMainStatus=0
+Id=quantum-harvest-metrics-exporter.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:55 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:55 UTC
+
+--- quantum-harvest-optimizer.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=463059
+ExecMainStatus=0
+Id=quantum-harvest-optimizer.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:55 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:55 UTC
+
+--- quantum-harvest-proposal.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=961940
+ExecMainStatus=0
+Id=quantum-harvest-proposal.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 05:24:51 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 05:24:51 UTC
+
+--- quantum-health-gate.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=469463
+ExecMainStatus=0
+Id=quantum-health-gate.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Tue 2026-02-17 02:23:23 UTC
+ActiveEnterTimestamp=
+
+--- quantum-heat-bridge.service
+Restart=always
+RestartUSec=5s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-heat-bridge.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-heat-gate.service
+Restart=always
+RestartUSec=5s
+Result=success
+ExecMainPID=463077
+ExecMainStatus=0
+Id=quantum-heat-gate.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:56 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:56 UTC
+
+--- quantum-intent-bridge.service
+Restart=always
+RestartUSec=2s
+Result=success
+ExecMainPID=1040651
+ExecMainStatus=0
+Id=quantum-intent-bridge.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 05:50:16 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 05:50:16 UTC
+
+--- quantum-intent-executor.service
+Restart=always
+RestartUSec=2s
+Result=success
+ExecMainPID=914294
+ExecMainStatus=0
+Id=quantum-intent-executor.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Mon 2026-02-09 21:24:29 UTC
+ActiveEnterTimestamp=Mon 2026-02-09 21:24:29 UTC
+
+--- quantum-learning-api.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=3889246
+ExecMainStatus=0
+Id=quantum-learning-api.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Mon 2026-02-16 16:17:16 UTC
+ActiveEnterTimestamp=Mon 2026-02-16 16:17:16 UTC
+
+--- quantum-learning-monitor.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=2015194
+ExecMainStatus=0
+Id=quantum-learning-monitor.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Sat 2026-02-14 10:56:20 UTC
+ActiveEnterTimestamp=Sat 2026-02-14 10:56:20 UTC
+
+--- quantum-ledger-sync.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=463083
+ExecMainStatus=0
+Id=quantum-ledger-sync.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Tue 2026-02-17 02:22:56 UTC
+ActiveEnterTimestamp=
+
+--- quantum-market-proof.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-market-proof.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-market-publisher.service
+Restart=always
+RestartUSec=2s
+Result=success
+ExecMainPID=528354
+ExecMainStatus=0
+Id=quantum-market-publisher.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:26:24 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:26:24 UTC
+
+--- quantum-marketstate.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=960371
+ExecMainStatus=0
+Id=quantum-marketstate.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 05:24:12 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 05:24:12 UTC
+
+--- quantum-meta-regime.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=463158
+ExecMainStatus=0
+Id=quantum-meta-regime.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:56 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:56 UTC
+
+--- quantum-metricpack-builder.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=463063
+ExecMainStatus=0
+Id=quantum-metricpack-builder.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:55 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:55 UTC
+
+--- quantum-model-federation.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-model-federation.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-nginx-proxy.service
+Restart=on-failure
+RestartUSec=5s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-nginx-proxy.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-p28a3-latency-proof.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=463171
+ExecMainStatus=0
+Id=quantum-p28a3-latency-proof.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Tue 2026-02-17 02:22:57 UTC
+ActiveEnterTimestamp=
+
+--- quantum-p35-decision-intelligence.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=463355
+ExecMainStatus=0
+Id=quantum-p35-decision-intelligence.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:57 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:57 UTC
+
+--- quantum-performance-attribution.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=463364
+ExecMainStatus=0
+Id=quantum-performance-attribution.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:57 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:57 UTC
+
+--- quantum-performance-tracker.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=2636872
+ExecMainStatus=0
+Id=quantum-performance-tracker.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Sun 2026-02-15 16:06:47 UTC
+ActiveEnterTimestamp=Sun 2026-02-15 16:06:47 UTC
+
+--- quantum-policy-refresh.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=3680597
+ExecMainStatus=0
+Id=quantum-policy-refresh.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Tue 2026-02-17 21:23:21 UTC
+ActiveEnterTimestamp=
+
+--- quantum-policy-sync.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=3735321
+ExecMainStatus=0
+Id=quantum-policy-sync.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Tue 2026-02-17 21:42:42 UTC
+ActiveEnterTimestamp=
+
+--- quantum-portfolio-clusters.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=463443
+ExecMainStatus=0
+Id=quantum-portfolio-clusters.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:58 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:58 UTC
+
+--- quantum-portfolio-gate.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=463450
+ExecMainStatus=0
+Id=quantum-portfolio-gate.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:58 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:58 UTC
+
+--- quantum-portfolio-governance.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=2636870
+ExecMainStatus=0
+Id=quantum-portfolio-governance.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Sun 2026-02-15 16:06:47 UTC
+ActiveEnterTimestamp=Sun 2026-02-15 16:06:47 UTC
+
+--- quantum-portfolio-heat-gate.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=463456
+ExecMainStatus=0
+Id=quantum-portfolio-heat-gate.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:58 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:58 UTC
+
+--- quantum-portfolio-intelligence.service
+Restart=always
+RestartUSec=5s
+Result=success
+ExecMainPID=463463
+ExecMainStatus=0
+Id=quantum-portfolio-intelligence.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:58 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:58 UTC
+
+--- quantum-portfolio-risk-governor.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=1087650
+ExecMainStatus=0
+Id=quantum-portfolio-risk-governor.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 06:06:03 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 06:06:03 UTC
+
+--- quantum-portfolio-state-publisher.service
+Restart=always
+RestartUSec=5s
+Result=success
+ExecMainPID=2636865
+ExecMainStatus=0
+Id=quantum-portfolio-state-publisher.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Sun 2026-02-15 16:06:47 UTC
+ActiveEnterTimestamp=Sun 2026-02-15 16:06:47 UTC
+
+--- quantum-portfolio_intelligence.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-portfolio_intelligence.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-position-monitor.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-position-monitor.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-position-state-brain.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=2636866
+ExecMainStatus=0
+Id=quantum-position-state-brain.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Sun 2026-02-15 16:06:47 UTC
+ActiveEnterTimestamp=Sun 2026-02-15 16:06:47 UTC
+
+--- quantum-position_monitor.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-position_monitor.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-price-feed.service
+Restart=always
+RestartUSec=2s
+Result=success
+ExecMainPID=3879167
+ExecMainStatus=0
+Id=quantum-price-feed.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Mon 2026-02-16 16:07:46 UTC
+ActiveEnterTimestamp=Mon 2026-02-16 16:07:46 UTC
+
+--- quantum-proof.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-proof.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-quantumfond-frontend.service
+Restart=always
+RestartUSec=5s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-quantumfond-frontend.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-reconcile-engine.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=861218
+ExecMainStatus=0
+Id=quantum-reconcile-engine.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Mon 2026-02-09 20:29:28 UTC
+ActiveEnterTimestamp=Mon 2026-02-09 20:29:28 UTC
+
+--- quantum-retrain-worker.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=463469
+ExecMainStatus=0
+Id=quantum-retrain-worker.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:58 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:58 UTC
+
+--- quantum-risk-brain.service
+Restart=always
+RestartUSec=5s
+Result=success
+ExecMainPID=463475
+ExecMainStatus=0
+Id=quantum-risk-brain.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:58 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:58 UTC
+
+--- quantum-risk-proposal.service
+Restart=always
+RestartUSec=10s
+Result=exit-code
+ExecMainPID=1090004
+ExecMainStatus=1
+Id=quantum-risk-proposal.service
+ActiveState=failed
+SubState=failed
+StateChangeTimestamp=Tue 2026-02-17 06:06:55 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 06:06:44 UTC
+
+--- quantum-risk-safety.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=1087619
+ExecMainStatus=0
+Id=quantum-risk-safety.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 06:06:03 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 06:06:03 UTC
+
+--- quantum-risk_safety.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-risk_safety.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-rl-agent.service
+Restart=always
+RestartUSec=100ms
+Result=start-limit-hit
+ExecMainPID=790734
+ExecMainStatus=0
+Id=quantum-rl-agent.service
+ActiveState=failed
+SubState=failed
+StateChangeTimestamp=Tue 2026-02-17 03:34:32 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 03:34:30 UTC
+
+--- quantum-rl-dashboard.service
+Restart=always
+RestartUSec=5s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-rl-dashboard.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-rl-feedback-v2.service
+Restart=always
+RestartUSec=3s
+Result=success
+ExecMainPID=757038
+ExecMainStatus=0
+Id=quantum-rl-feedback-v2.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 03:19:12 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 03:19:12 UTC
+
+--- quantum-rl-monitor.service
+Restart=always
+RestartUSec=100ms
+Result=success
+ExecMainPID=787951
+ExecMainStatus=0
+Id=quantum-rl-monitor.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 03:33:01 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 03:33:01 UTC
+
+--- quantum-rl-policy-publisher.service
+Restart=always
+RestartUSec=3s
+Result=success
+ExecMainPID=463480
+ExecMainStatus=0
+Id=quantum-rl-policy-publisher.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:58 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:58 UTC
+
+--- quantum-rl-reward-publisher.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-rl-reward-publisher.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-rl-shadow-metrics-exporter.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=463487
+ExecMainStatus=0
+Id=quantum-rl-shadow-metrics-exporter.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:58 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:58 UTC
+
+--- quantum-rl-shadow-scorecard.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=463492
+ExecMainStatus=0
+Id=quantum-rl-shadow-scorecard.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Tue 2026-02-17 02:22:58 UTC
+ActiveEnterTimestamp=
+
+--- quantum-rl-sizer.service
+Restart=on-failure
+RestartUSec=5s
+Result=success
+ExecMainPID=463541
+ExecMainStatus=0
+Id=quantum-rl-sizer.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:58 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:58 UTC
+
+--- quantum-rl-trainer.service
+Restart=always
+RestartUSec=5s
+Result=exit-code
+ExecMainPID=3744963
+ExecMainStatus=203
+Id=quantum-rl-trainer.service
+ActiveState=activating
+SubState=auto-restart
+StateChangeTimestamp=Tue 2026-02-17 21:46:03 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 21:46:03 UTC
+
+--- quantum-rl.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-rl.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-rl_training.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-rl_training.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-safety-telemetry.service
+Restart=always
+RestartUSec=3s
+Result=success
+ExecMainPID=463547
+ExecMainStatus=0
+Id=quantum-safety-telemetry.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:58 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:58 UTC
+
+--- quantum-strategic-evolution.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-strategic-evolution.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-strategic-memory.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=463552
+ExecMainStatus=0
+Id=quantum-strategic-memory.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:58 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:58 UTC
+
+--- quantum-strategy-brain.service
+Restart=always
+RestartUSec=5s
+Result=success
+ExecMainPID=463557
+ExecMainStatus=0
+Id=quantum-strategy-brain.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:58 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:58 UTC
+
+--- quantum-strategy-ops.service
+Restart=always
+RestartUSec=5s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-strategy-ops.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-stream-recover.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=3740131
+ExecMainStatus=0
+Id=quantum-stream-recover.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Tue 2026-02-17 21:44:22 UTC
+ActiveEnterTimestamp=
+
+--- quantum-trade-logger.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=2636871
+ExecMainStatus=0
+Id=quantum-trade-logger.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Sun 2026-02-15 16:06:47 UTC
+ActiveEnterTimestamp=Sun 2026-02-15 16:06:47 UTC
+
+--- quantum-trading_bot.service
+Restart=on-failure
+RestartUSec=10s
+Result=success
+ExecMainPID=0
+ExecMainStatus=0
+Id=quantum-trading_bot.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-training-worker.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=463617
+ExecMainStatus=0
+Id=quantum-training-worker.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Tue 2026-02-17 02:23:01 UTC
+ActiveEnterTimestamp=
+
+--- quantum-universe-service.service
+Restart=always
+RestartUSec=3s
+Result=success
+ExecMainPID=891810
+ExecMainStatus=0
+Id=quantum-universe-service.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Mon 2026-02-09 21:00:50 UTC
+ActiveEnterTimestamp=Mon 2026-02-09 21:00:50 UTC
+
+--- quantum-universe.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=2939553
+ExecMainStatus=0
+Id=quantum-universe.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Sun 2026-02-08 06:24:47 UTC
+ActiveEnterTimestamp=Sun 2026-02-08 06:24:47 UTC
+
+--- quantum-utf-publisher.service
+Restart=always
+RestartUSec=10s
+Result=success
+ExecMainPID=462843
+ExecMainStatus=0
+Id=quantum-utf-publisher.service
+ActiveState=active
+SubState=running
+StateChangeTimestamp=Tue 2026-02-17 02:22:55 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:22:55 UTC
+
+--- quantum-verify-ensemble.service
+Restart=no
+RestartUSec=100ms
+Result=exit-code
+ExecMainPID=3733034
+ExecMainStatus=1
+Id=quantum-verify-ensemble.service
+ActiveState=failed
+SubState=failed
+StateChangeTimestamp=Tue 2026-02-17 21:41:59 UTC
+ActiveEnterTimestamp=
+
+--- quantum-verify-rl.service
+Restart=no
+RestartUSec=100ms
+Result=success
+ExecMainPID=3735483
+ExecMainStatus=0
+Id=quantum-verify-rl.service
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Tue 2026-02-17 21:42:46 UTC
+ActiveEnterTimestamp=
+
+--- quantum-ai.target
+Id=quantum-ai.target
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Mon 2026-02-02 22:32:56 UTC
+ActiveEnterTimestamp=Fri 2026-01-30 06:14:00 UTC
+
+--- quantum-brains.target
+Id=quantum-brains.target
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-core.target
+Id=quantum-core.target
+ActiveState=active
+SubState=active
+StateChangeTimestamp=Sun 2026-02-15 16:06:47 UTC
+ActiveEnterTimestamp=Sun 2026-02-15 16:06:47 UTC
+
+--- quantum-exec.target
+Id=quantum-exec.target
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Mon 2026-02-02 22:32:56 UTC
+ActiveEnterTimestamp=Fri 2026-01-30 06:14:01 UTC
+
+--- quantum-obs.target
+Id=quantum-obs.target
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-rl.target
+Id=quantum-rl.target
+ActiveState=active
+SubState=active
+StateChangeTimestamp=Fri 2026-02-13 12:57:03 UTC
+ActiveEnterTimestamp=Fri 2026-02-13 12:57:03 UTC
+
+--- quantum-state.target
+Id=quantum-state.target
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Tue 2026-01-20 08:28:55 UTC
+ActiveEnterTimestamp=
+
+--- quantum-trader.target
+Id=quantum-trader.target
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Mon 2026-02-02 22:32:56 UTC
+ActiveEnterTimestamp=Mon 2026-01-19 22:45:25 UTC
+
+--- quantum-ai-universe.timer
+Result=success
+Id=quantum-ai-universe.timer
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-contract-check.timer
+Result=success
+Id=quantum-contract-check.timer
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-core-health.timer
+Result=success
+Id=quantum-core-health.timer
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Mon 2026-02-02 22:32:56 UTC
+ActiveEnterTimestamp=Mon 2026-01-19 22:45:21 UTC
+
+--- quantum-diagnostic.timer
+Result=success
+Id=quantum-diagnostic.timer
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Mon 2026-02-02 22:32:56 UTC
+ActiveEnterTimestamp=Mon 2026-01-19 22:45:21 UTC
+
+--- quantum-ess-watch.timer
+Result=success
+Id=quantum-ess-watch.timer
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Mon 2026-02-02 22:32:56 UTC
+ActiveEnterTimestamp=Wed 2026-01-28 01:50:09 UTC
+
+--- quantum-exit-owner-watch.timer
+Result=success
+Id=quantum-exit-owner-watch.timer
+ActiveState=active
+SubState=waiting
+StateChangeTimestamp=Tue 2026-02-17 21:44:39 UTC
+ActiveEnterTimestamp=Tue 2026-02-17 02:20:38 UTC
+
+--- quantum-health-gate.timer
+Result=success
+Id=quantum-health-gate.timer
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Mon 2026-02-02 22:32:56 UTC
+ActiveEnterTimestamp=Mon 2026-02-02 00:40:32 UTC
+
+--- quantum-ledger-sync.timer
+Result=success
+Id=quantum-ledger-sync.timer
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Mon 2026-02-02 22:32:56 UTC
+ActiveEnterTimestamp=Mon 2026-01-26 14:26:26 UTC
+
+--- quantum-p28a3-latency-proof.timer
+Result=success
+Id=quantum-p28a3-latency-proof.timer
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Mon 2026-02-02 22:32:56 UTC
+ActiveEnterTimestamp=Thu 2026-01-29 00:32:25 UTC
+
+--- quantum-policy-refresh.timer
+Result=success
+Id=quantum-policy-refresh.timer
+ActiveState=active
+SubState=waiting
+StateChangeTimestamp=Tue 2026-02-17 21:23:21 UTC
+ActiveEnterTimestamp=Tue 2026-02-03 13:08:11 UTC
+
+--- quantum-policy-sync.timer
+Result=success
+Id=quantum-policy-sync.timer
+ActiveState=active
+SubState=waiting
+StateChangeTimestamp=Tue 2026-02-17 21:42:42 UTC
+ActiveEnterTimestamp=Fri 2026-02-13 12:57:03 UTC
+
+--- quantum-rl-reward-publisher.timer
+Result=success
+Id=quantum-rl-reward-publisher.timer
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=
+ActiveEnterTimestamp=
+
+--- quantum-rl-shadow-scorecard.timer
+Result=success
+Id=quantum-rl-shadow-scorecard.timer
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Mon 2026-02-02 22:32:56 UTC
+ActiveEnterTimestamp=Mon 2026-01-19 22:45:21 UTC
+
+--- quantum-stream-recover.timer
+Result=success
+Id=quantum-stream-recover.timer
+ActiveState=active
+SubState=waiting
+StateChangeTimestamp=Tue 2026-02-17 21:44:22 UTC
+ActiveEnterTimestamp=Sun 2026-02-15 22:24:33 UTC
+
+--- quantum-training-worker.timer
+Result=success
+Id=quantum-training-worker.timer
+ActiveState=inactive
+SubState=dead
+StateChangeTimestamp=Mon 2026-02-02 22:32:56 UTC
+ActiveEnterTimestamp=Mon 2026-01-19 22:45:21 UTC
+
+--- quantum-verify-ensemble.timer
+Result=success
+Id=quantum-verify-ensemble.timer
+ActiveState=active
+SubState=waiting
+StateChangeTimestamp=Tue 2026-02-17 21:41:59 UTC
+ActiveEnterTimestamp=Fri 2026-02-13 12:57:03 UTC
+
+--- quantum-verify-rl.timer
+Result=success
+Id=quantum-verify-rl.timer
+ActiveState=active
+SubState=waiting
+StateChangeTimestamp=Tue 2026-02-17 21:42:46 UTC
+ActiveEnterTimestamp=Fri 2026-02-13 12:57:03 UTC
+
+
+=== PROCESS_QUANTUM ===
+  72398       1 /opt/quantum/venvs/ai-engine/bin/python -u /home/qt/quantum_trader/ai_engine/services/feature_publisher_service.py
+ 195753       1 /opt/quantum/venvs/ai-engine/bin/python -u /home/qt/quantum_trader/ai_engine/services/ensemble_predictor_service.py
+ 462848       1 /opt/quantum/venvs/ai-engine/bin/python microservices/clm/main.py
+ 462859  462843 journalctl -u quantum-ai-engine.service -o json -n 0 --follow --after-cursor s=e16baf6c036141c5b85034ee16967c69;i=2675151d;b=4d1003af2842496bbb71edafd2dfd489;m=119755b029c;t=649dee6e33966;x=9a0ce00126ed2846
+ 462860  462843 journalctl -u quantum-strategy-brain.service -o json -n 0 --follow --after-cursor s=e16baf6c036141c5b85034ee16967c69;i=266f28a6;b=4d1003af2842496bbb71edafd2dfd489;m=118dc8a6f8e;t=649de4e12a658;x=1437b9a0612f3715
+ 462861  462843 journalctl -u quantum-risk-brain.service -o json -n 0 --follow --after-cursor s=369fb1994aec4407836c8c061c301ec3;i=20207e5f;b=be4cfbe2bff94523a17b8bae9e327718;m=1c9fc2d6336;t=648c484adfd20;x=e5766cc19e1425fe
+ 462862  462843 journalctl -u quantum-execution.service -o json -n 0 --follow --after-cursor s=e16baf6c036141c5b85034ee16967c69;i=23d48503;b=4d1003af2842496bbb71edafd2dfd489;m=a389f30474;t=64968fb7b3b3e;x=6c17456d9bd5f91c
+ 463020       1 /home/qt/quantum_trader_venv/bin/python3 /home/qt/quantum_trader/microservices/exit_intelligence/main.py
+ 463052       1 /opt/quantum/venvs/ai-engine/bin/python3 /home/qt/quantum_trader/microservices/harvest_metrics_exporter/main.py
+ 463059       1 /home/qt/quantum_trader_venv/bin/python3 /home/qt/quantum_trader/microservices/harvest_optimizer/main.py
+ 463158       1 /opt/quantum/venvs/ai-engine/bin/python microservices/meta_regime/meta_regime_service.py
+ 463552       1 /opt/quantum/venvs/ai-engine/bin/python microservices/strategic_memory/memory_sync_service.py
+ 736475  736472 journalctl -u quantum-apply-layer -f --no-pager -o cat
+ 736655       1 journalctl -u quantum-apply-layer -f --no-pager -o cat
+ 766471       1 /opt/quantum/venvs/ai-engine/bin/python3 /home/qt/quantum_trader/ai_strategy_router.py
+ 787951       1 /opt/quantum/venvs/ai-engine/bin/python3 /opt/quantum/rl/rl_monitor.py
+ 787958       1 /opt/quantum/venvs/ai-engine/bin/python run.py
+ 788024       1 /opt/quantum/venvs/ai-engine/bin/python3 services/execution_service.py
+ 788845       1 /opt/quantum/venvs/ai-engine/bin/python -m uvicorn microservices.ai_engine.main:app --host 127.0.0.1 --port 8001
+ 914294       1 /usr/bin/python3 -m microservices.intent_executor.main
+ 960371       1 /opt/quantum/venvs/ai-engine/bin/python3 /home/qt/quantum_trader/microservices/market_state_publisher/main.py
+ 961940       1 /opt/quantum/venvs/ai-engine/bin/python3 /home/qt/quantum_trader/microservices/harvest_proposal_publisher/main.py
+1003764       1 /usr/bin/python3 -u microservices/apply_layer/main.py
+1040651       1 /usr/bin/python3 -m microservices.intent_bridge.main
+1087619       1 /opt/quantum/venvs/ai-engine/bin/python3 services/risk_safety_service.py
+1087650       1 /opt/quantum/venvs/ai-engine/bin/python microservices/portfolio_risk_governor/main.py
+1087653       1 /opt/quantum/venvs/ai-engine/bin/python3 services/exit_monitor_service.py
+1935557 1935556 journalctl -u quantum-intent-bridge -f --since 5 seconds ago
+2015194       1 /opt/quantum/venvs/ai-engine/bin/python -m microservices.learning.monitor --interval 300
+2296397 2296396 journalctl -u quantum-ai-engine -f --no-pager
+2636870       1 /opt/quantum/venvs/ai-engine/bin/python microservices/portfolio_governance/portfolio_governance_service.py
+2851660       1 /opt/quantum/venvs/ai-engine/bin/python -m microservices.exposure_balancer.service
+3889246       1 /opt/quantum/venvs/ai-engine/bin/python -m uvicorn microservices.learning.main:app --host 127.0.0.1 --port 8003
+
+=== ENV_FILES ===
+total 508
+drwxr-xr-x   5 root root  4096 Feb 17 05:50 .
+drwxr-xr-x 119 root root  4096 Feb 17 06:06 ..
+-rw-r-----   1 root root   152 Jan  7 03:27 ai-client-base.env
+-rw-r--r--   1 root qt     598 Feb 15 13:15 ai-engine.env
+-rw-r-----   1 root root   977 Jan  7 16:58 ai-engine.env.backup
+-rw-r--r--   1 root root   263 Feb  6 00:57 ai-engine.env.backup.20260206_015736
+-rw-r-----   1 root root  1584 Jan 15 05:34 ai-engine.env.bak.1768474686
+-rw-r-----   1 root root  1583 Jan 15 10:58 ai-engine.env.bak.1768476414
+-rw-r-----   1 root root   270 Jan 10 02:33 ai-engine.env.bak.20260110_033354
+-rw-------   1 root root    60 Jan 15 01:25 alert.env
+-rw-r--r--   1 root root   436 Jan 28 05:51 allocation-target.env
+-rw-r-----   1 root root 11908 Feb 17 05:21 apply-layer.env
+-rw-r-----   1 root root  1047 Jan 23 21:51 apply-layer.env.bak.1769205109
+-rw-r-----   1 root root  1171 Jan 23 22:22 apply-layer.env.bak.1769206951
+-rw-r-----   1 root root  1171 Jan 23 22:22 apply-layer.env.bak.1769206977
+-rw-r-----   1 root root  1171 Jan 23 22:23 apply-layer.env.bak.1769207029
+-rw-r-----   1 root root  1171 Jan 23 23:09 apply-layer.env.bak.1769209750
+-rw-r-----   1 root root  1171 Jan 24 23:47 apply-layer.env.bak.1769298442
+-rw-r-----   1 root root  1781 Jan 31 03:34 apply-layer.env.bak.1769830483
+-rw-r-----   1 root root  1618 Jan 28 18:16 apply-layer.env.bak. 2
+-rw-r-----   1 root root  1789 Jan 31 03:34 apply-layer.env.bak.20260201_031443
+-rw-r-----   1 root root  1043 Jan 23 21:54 apply-layer.env.bak2.1769205240
+-rw-r-----   1 root root  1789 Feb  2 08:29 apply-layer.env.bak_3symbols
+-rw-r-----   1 root qt    1385 Jan 25 23:50 apply-layer.env.bak.allowlist
+-rw-r-----   1 root root  1047 Jan 23 20:23 apply-layer.env.bak.dry_run.1769199785
+-rwxr-xr-x   1 root root   668 Feb 14 12:24 autonomous-trader.env
+drwxr-xr-x   2 root root  4096 Jan 28 04:25 backup_20260128_042523
+-rwxr-xr-x   1 root root   491 Feb  7 02:32 balance-tracker.env
+-rw-r-----   1 root root   398 Feb  4 02:27 binance-pnl-tracker.env
+-rw-r--r--   1 root root   884 Jan 28 03:01 capital-allocation.env
+-rw-r--r--   1 root root   572 Jan 28 05:16 capital-efficiency.env
+-rw-r-----   1 root qt      53 Jan 14 23:51 ceo-brain.env
+-rwxr-xr-x   1 root root    78 Jan 17 03:42 clm.env
+-rw-r--r--   1 root root   235 Jan 17 10:47 core_gates.env
+drwx------   2 root root  4096 Jan 29 16:43 creds
+-rw-r-----   1 root qt     179 Feb  9 21:21 cross-exchange-aggregator.env
+-rw-r-----   1 root root   204 Jan  7 03:27 cross-exchange.env
+-rw-r-----   1 root root   102 Jan 15 03:00 data-collector.env
+-rw-r--r--   1 root root    85 Jan 14 05:38 eventbus_bridge.env
+-rw-r-----   1 root root   102 Jan 15 03:00 exchange-aggregator.env
+-rw-r-----   1 root qt     211 Feb 14 20:53 exchange-stream-bridge.env
+-rw-r-----   1 root root   369 Jan  7 23:31 execution.env
+-rw-------   1 root root    81 Jan 31 04:07 exitbrain-control.env
+-rw-------   1 root root    32 Jan 31 03:03 exitbrain-control.env.bak.1769828615
+-rw-------   1 root root    80 Jan 31 04:07 exitbrain-control.env.bak.exit_activate.1769832459
+-rw-------   1 root root    81 Jan 31 03:24 exitbrain-control.env.bak.ramp.1769829893
+-rw-------   1 root root   956 Jan 29 18:08 exitbrain-v35.env
+-rw-r--r--   1 root root   671 Jan 27 03:08 exit-intelligence.env
+-rw-r--r--   1 root root    95 Jan 22 01:50 exit-monitor.env
+-rw-r-----   1 root root   207 Jan  7 03:27 exposure-balancer.env
+-rw-r-----   1 root root   151 Jan  7 03:27 frontend.env
+-rw-r--r--   1 root root   991 Feb  1 01:49 governor.env
+-rw-r--r--   1 root root   940 Jan 31 03:03 governor.env.bak.1769828587
+-rw-r--r--   1 root root   940 Jan 31 03:24 governor.env.bak.ramp.1769829893
+-rw-r--r--   1 root root  1026 Jan 31 03:44 governor.env.bak.ramp2.1769831091
+-rw-r--r--   1 root root  1060 Jan 28 04:53 governor-production-mode.env
+-rw-r--r--   1 root root  3091 Feb  7 00:44 harvest-brain.env
+-rw-r-----   1 qt   qt     311 Jan 23 00:01 harvest-metrics-exporter.env
+-rw-r--r--   1 root root   361 Jan 27 03:22 harvest-optimizer.env
+-rw-r-----   1 qt   qt     896 Feb 17 05:24 harvest-proposal.env
+-rw-r-----   1 qt   qt     858 Jan 26 01:20 harvest-proposal.env.bak
+-rw-r-----   1 qt   qt     842 Jan 22 23:16 harvest-proposal.env.bak.symbols
+-rw-------   1 root root   630 Jan 28 06:31 heat-bridge.env
+-rw-r--r--   1 root root  1715 Jan 31 22:26 heat-gate.env
+-rw-r--r--   1 root root  1705 Jan 31 05:46 heat-gate.env.bak.1769838380
+-rw-r--r--   1 root root  1689 Jan 28 20:46 heat-gate.env.bak.20260128_204651
+-rw-r--r--   1 root root  5632 Feb 17 05:50 intent-bridge.env
+-rw-r--r--   1 root root   265 Jan 31 22:51 intent-bridge.env.backup
+-rw-r--r--   1 root root   330 Feb  2 05:24 intent-bridge.env.bak
+-rw-r--r--   1 root root  1196 Feb  2 08:14 intent-bridge.env.bak_100symbols
+-rw-r--r--   1 root root   272 Feb  2 07:36 intent-bridge.env.bak2
+-rw-r--r--   1 root root   266 Feb  2 08:09 intent-bridge.env.bak_8symbols
+-rw-r--r--   1 root root   884 Feb  8 23:33 intent-executor.env
+-rw-r-----   1 root root   520 Jan  8 22:41 market-publisher.env
+-rw-r--r--   1 root root   327 Feb 17 05:24 marketstate.env
+-rw-r-----   1 root root   207 Jan  7 03:27 meta-regime.env
+-rw-r--r--   1 root root   488 Jan 27 02:47 metricpack-builder.env
+-rw-r-----   1 root root   214 Jan  7 03:27 model-federation.env
+-rw-r-----   1 root root   214 Jan  7 03:27 model-supervisor.env
+-rw-r--r--   1 root root   426 Jan 29 00:40 p28a3-latency-proof.env
+-rw-r--r--   1 qt   qt     242 Feb  1 06:54 p35-decision-intelligence.env
+-rw-r-----   1 root root   161 Jan  7 03:27 pil.env
+-rw-r--r--   1 root root   405 Jan 27 05:22 portfolio-clusters.env
+-rw-r--r--   1 root root   671 Feb  1 01:49 portfolio-gate.env
+-rw-r-----   1 root root   264 Jan  7 03:27 portfolio-governance.env
+-rw-r-----   1 root qt     571 Jan 27 21:50 portfolio-heat-gate.env
+-rw-r-----   1 root root   187 Jan  7 03:27 portfolio-intelligence.env
+-rw-r--r--   1 root root   344 Jan 28 03:06 portfolio-risk-governor.env
+-rw-r--r--   1 root root   177 Jan 28 02:02 portfolio-state-publisher.env
+-rw-------   1 root root   239 Feb  4 05:17 position-monitor.env
+drwx------   2 root root  4096 Feb  4 04:56 position-monitor-secrets
+-rw-r--r--   1 root root   776 Feb  2 07:59 position-state-brain.env
+-rw-r--r--   1 root root   752 Feb  1 05:03 position-state-brain.env.backup
+-rw-r--r--   1 root root   771 Feb  2 05:39 position-state-brain.env.bak
+-rw-r-----   1 root root   170 Jan  7 03:27 quantumfond-frontend.env
+-rw-r--r--   1 root root   663 Jan 25 23:50 reconcile-engine.env
+-rwxr-x---   1 root root   551 Jan  7 03:27 redis.conf
+-rw-r-----   1 root root   333 Jan  7 03:27 retraining-worker.env
+-rw-r-----   1 root root   137 Jan 15 03:01 retrain-worker.env
+-rw-r-----   1 root root   270 Jan  7 03:27 risk-brain.env
+-rw-r-----   1 qt   qt     656 Jan 22 22:39 risk-proposal.env
+-rw-r-----   1 root root   199 Jan  7 03:27 risk-safety.env
+-rw-r--r--   1 root root   159 Jan 13 23:31 rl.conf
+-rw-r-----   1 root root   179 Jan 14 01:08 rl-dashboard.env
+-rw-r-----   1 root qt     205 Jan  7 03:27 rl-feedback-v2.env
+-rw-r-----   1 root root   196 Jan  7 03:27 rl-monitor.env
+-rw-r--r--   1 root root   371 Jan 15 10:16 rl-policy-publisher.env
+-rw-r--r--   1 root root   316 Jan 15 09:40 rl-policy-publisher.env.bak. 
+-rw-r--r--   1 root root   175 Jan 15 23:01 rl-shadow-metrics-exporter.env
+-rw-r--r--   1 root root    91 Jan 15 11:32 rl-shadow-scorecard.env
+-rw-r--r--   1 root root    91 Jan 15 10:10 rl-shadow-scorecard.env.bak.1768476414
+-rw-r-----   1 root root   296 Jan  7 03:27 rl-sizer.env
+-rwxr-xr-x   1 root root   311 Jan 19 01:47 safety-telemetry.env
+-rw-r-----   1 root root   219 Jan  7 03:27 strategic-evolution.env
+-rw-r-----   1 root root   192 Jan  7 03:27 strategic-memory.env
+-rw-r-----   1 root root   265 Jan  7 03:27 strategy-brain.env
+-rw-r-----   1 root root   298 Jan  7 03:27 strategy-ops.env
+-rw-r-----   1 root qt    1990 Jan 29 17:18 testnet.env
+-rw-r-----   1 root root   302 Jan  7 03:27 trade-intent-consumer.env
+-rw-r-----   1 root qt     235 Jan 15 00:35 training-worker.env
+-rw-r--r--   1 root root    34 Feb  9 20:06 universe.env
+-rw-r-----   1 root root   198 Jan  7 03:27 universe-os.env
+-rwxr-xr-x   1 qt   qt     701 Feb  1 03:11 universe-service.env
+-rwxr-xr-x   1 root root   229 Jan 17 03:42 utf.env
+
+=== ENV_KEYS_REDACTED ===
+--- /etc/quantum/ai-client-base.env
+# Generic AI Client Environment Variables
+# Copy and customize per service
+PYTHONPATH=/opt/quantum
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+LOG_LEVEL=INFO
+
+--- /etc/quantum/ai-engine.env
+AI_SIZER_MODE=live
+AI_HARVEST_MODE=live
+PIPELINE_DIAG=false
+AI_MAX_LEVERAGE=80
+AI_MIN_LEVERAGE=5
+MAX_POSITION_USD=10000
+MAX_NOTIONAL_USD=100000
+MIN_ORDER_USD=50
+MIN_CONFIDENCE=0.6
+MIN_CONFIDENCE_THRESHOLD=0.60
+MAX_SIGNALS_PER_MINUTE=10
+SYMBOL_COOLDOWN_SECONDS=60
+# Meta-Agent V2 + Arbiter Configuration
+META_AGENT_ENABLED=true
+ARBITER_ENABLED=true
+ARBITER_THRESHOLD=0.70
+CROSS_EXCHANGE_ENABLED=true
+CROSS_EXCHANGE_SYMBOLS=USE_UNIVERSE_SERVICE
+# Disable broken models (dimension mismatch errors)
+ENABLED_MODELS=xgb,lgbm,nhits,patchtst,tft
+NHITS_ENABLED=true
+PATCHTST_ENABLED=true
+QT_MAX_SYMBOLS=50
+
+--- /etc/quantum/alert.env
+# Sett webhook her (Slack/Discord/etc)
+ALERT_WEBHOOK_URL=""
+
+--- /etc/quantum/allocation-target.env
+# P3.1 Integration - Allocation Target Shadow Proposer Configuration
+# Redis connection
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+# P3.1 Integration parameters
+P31_MIN_CONF=0.65
+P31_STALE_SEC=600
+P31_MIN_MULT=0.5
+P31_MAX_MULT=1.5
+P31_SCALE=1.0
+P31_BASE=1.0
+# Stream/Key configuration
+PROPOSE_STREAM_NAME=quantum:stream:allocation.target.proposed
+PROPOSE_KEY_TTL=REDACTED
+# Service parameters
+LOOP_INTERVAL_SEC=10
+METRICS_PORT=8065
+
+--- /etc/quantum/apply-layer.env
+# P3 Apply Layer Configuration
+# Mode: dry_run (P3.0) or testnet (P3.1)
+APPLY_MODE=testnet
+# Symbols to monitor (from harvest proposals)
+SYMBOLS=0GUSDT,1000000BOBUSDT,1000000MOGUSDT,1000BONKUSDC,1000BONKUSDT,1000CATUSDT,1000CHEEMSUSDT,1000FLOKIUSDT,1000LUNCUSDT,1000PEPEUSDC,1000PEPEUSDT,1000RATSUSDT,1000SATSUSDT,1000SHIBUSDC,1000SHIBUSDT,1000WHYUSDT,1000XECUSDT,1000XUSDT,1INCHUSDT,1MBABYDOGEUSDT,42USDT,4USDT,A2ZUSDT,AAVEUSDC,AAVEUSDT,ACEUSDT,ACHUSDT,ACTUSDT,ACUUSDT,ACXUSDT,ADAUSDC,ADAUSDT,AEROUSDT,AEVOUSDT,AGLDUSDT,AGTUSDT,AIAUSDT,AINUSDT,AIOTUSDT,AIOUSDT,AIUSDT,AIXBTUSDT,AKEUSDT,AKTUSDT,ALCHUSDT,ALGOUSDT,ALICEUSDT,ALLUSDT,ALPINEUSDT,ALTUSDT,ANIMEUSDT,ANKRUSDT,APEUSDT,API3USDT,APRUSDT,APTUSDT,ARBUSDC,ARBUSDT,ARCUSDT,ARIAUSDT,ARKMUSDT,ARKUSDT,ARPAUSDT,ARUSDT,ASRUSDT,ASTERUSDT,ASTRUSDT,ATAUSDT,ATHUSDT,ATOMUSDT,ATUSDT,AUCTIONUSDT,AUSDT,AVAAIUSDT,AVAUSDT,AVAXUSDC,AVAXUSDT,AVNTUSDT,AWEUSDT,AXLUSDT,AXSUSDT,B2USDT,B3USDT,BABYUSDT,BANANAS31USDT,BANANAUSDT,BANDUSDT,BANKUSDT,BANUSDT,BARDUSDT,BASUSDT,BATUSDT,BBUSDT,BCHUSDC,BCHUSDT,BDXNUSDT,BEAMXUSDT,BEATUSDT,BELUSDT,BERAUSDT,BICOUSDT,BIDUSDT,BIGTIMEUSDT,BIOUSDT,BIRBUSDT,BLESSUSDT,BLURUSDT,BMTUSDT,BNBUSDC,BNBUSDT,BNTUSDT,BOBUSDT,BOMEUSDC,BOMEUSDT,BRETTUSDT,BREVUSDT,BROCCOLI714USDT,BROCCOLIF3BUSDT,BRUSDT,BSVUSDT,BTCDOMUSDT,BTCUSDC,BTCUSDT,BTRUSDT,BULLAUSDT,BUSDT,C98USDT,CAKEUSDT,CARVUSDT,CATIUSDT,CCUSDT,CELOUSDT,CELRUSDT,CETUSUSDT,CFXUSDT,CGPTUSDT,CHESSUSDT,CHILLGUYUSDT,CHRUSDT,CHZUSDT,CKBUSDT,CLANKERUSDT,COAIUSDT,COLLECTUSDT,COMMONUSDT,COMPUSDT,COOKIEUSDT,COSUSDT,COTIUSDT,COWUSDT,CROSSUSDT,CRVUSDC,CRVUSDT,CTSIUSDT,CUDISUSDT,CUSDT,CYBERUSDT,CYSUSDT,DAMUSDT,DASHUSDT,DEEPUSDT,DEGENUSDT,DEGOUSDT,DENTUSDT,DEXEUSDT,DFUSDT,DIAUSDT,DMCUSDT,DODOXUSDT,DOGEUSDC,DOGEUSDT,DOGSUSDT,DOLOUSDT,DOODUSDT,DOTUSDT,DRIFTUSDT,DUSDT,DUSKUSDT,DYDXUSDT,DYMUSDT,EDUUSDT,EGLDUSDT,EIGENUSDT,ENAUSDC,ENAUSDT,ENJUSDT,ENSUSDT,EPICUSDT,EPTUSDT,ERAUSDT,ESPORTSUSDT,ETCUSDT,ETHBTC,ETHFIUSDC,ETHFIUSDT,ETHUSDC,ETHUSDT,ETHWUSDT,EULUSDT,FARTCOINUSDT,FETUSDT,FHEUSDT,FIDAUSDT,FIGHTUSDT,FILUSDC,FILUSDT,FIOUSDT,FISUSDT,FLOCKUSDT,FLOWUSDT,FLUIDUSDT,FLUXUSDT,FOGOUSDT,FORMUSDT,FORTHUSDT,FRAXUSDT,FUNUSDT,FUSDT,FXSUSDT,GALAUSDT,GASUSDT,GHSTUSDT,GIGGLEUSDT,GLMUSDT,GMTUSDT,GMXUSDT,GOATUSDT,GPSUSDT,GRASSUSDT,GRIFFAINUSDT,GRTUSDT,GTCUSDT,GUAUSDT,GUNUSDT,GUSDT,GWEIUSDT,HAEDALUSDT,HANAUSDT,HBARUSDC,HBARUSDT,HEIUSDT,HEMIUSDT,HFTUSDT,HIGHUSDT,HIPPOUSDT,HIVEUSDT,HMSTRUSDT,HOLOUSDT,HOMEUSDT,HOOKUSDT,HOTUSDT,HUMAUSDT,HUSDT,HYPERUSDT,HYPEUSDT,ICNTUSDT,ICXUSDT,IDOLUSDT,IDUSDT,ILVUSDT,IMXUSDT,INITUSDT,INJUSDT,INUSDT,INXUSDT,IOSTUSDT,IOTAUSDT,IOTXUSDT,IOUSDT,IPUSDC,IPUSDT,IRUSDT,JASMYUSDT,JCTUSDT,JELLYJELLYUSDT,JOEUSDT,JSTUSDT,JTOUSDT,JUPUSDT,KAIAUSDT,KAITOUSDC,KAITOUSDT,KASUSDT,KAVAUSDT,KERNELUSDT,KITEUSDT,KMNOUSDT,KNCUSDT,KOMAUSDT,KSMUSDT,LABUSDT,LAUSDT,LAYERUSDT,LDOUSDT,LIGHTUSDT,LINEAUSDT,LINKUSDC,LINKUSDT,LISTAUSDT,LPTUSDT,LQTYUSDT,LRCUSDT,LSKUSDT,LTCUSDC,LTCUSDT,LUMIAUSDT,LUNA2USDT,MAGICUSDT,MAGMAUSDT,MANAUSDT,MANTAUSDT,MASKUSDT,MAVUSDT,MBOXUSDT,MEGAUSDT,MELANIAUSDT,MEMEUSDT,MERLUSDT,METISUSDT,METUSDT,MEUSDT,MEWUSDT,MILKUSDT,MINAUSDT,MIRAUSDT,MITOUSDT,MLNUSDT,MOCAUSDT,MONUSDT,MOODENGUSDT,MORPHOUSDT,MOVEUSDT,MOVRUSDT,MTLUSDT,MUBARAKUSDT,MUSDT,MYROUSDT,MYXUSDT,NAORISUSDT,NEARUSDC,NEARUSDT,NEIROUSDT,NEOUSDC,NEOUSDT,NEWTUSDT,NFPUSDT,NIGHTUSDT,NILUSDT,NKNUSDT,NMRUSDT,NOTUSDT,NTRNUSDT,NXPCUSDT,OBOLUSDT,OGNUSDT,OGUSDT,OLUSDT,OMUSDT,ONDOUSDT,ONEUSDT,ONGUSDT,ONTUSDT,ONUSDT,OPUSDT,ORCAUSDT,ORDERUSDT,ORDIUSDC,ORDIUSDT,OXTUSDT,PARTIUSDT,PAXGUSDT,PENDLEUSDT,PENGUUSDC,PENGUUSDT,PEOPLEUSDT,PHAUSDT,PHBUSDT,PIPPINUSDT,PIXELUSDT,PLAYUSDT,PLUMEUSDT,PNUTUSDC,PNUTUSDT,POLUSDT,POLYXUSDT,PONKEUSDT,POPCATUSDT,PORT3USDT,PORTALUSDT,POWERUSDT,POWRUSDT,PROMPTUSDT,PROMUSDT,PROVEUSDT,PTBUSDT,PUFFERUSDT,PUMPBTCUSDT,PUNDIXUSDT,PYTHUSDT,QNTUSDT,QTUMUSDT,QUICKUSDT,QUSDT,RAREUSDT,RAVEUSDT,RAYSOLUSDT,RDNTUSDT,REDUSDT,REIUSDT,RENDERUSDT,RESOLVUSDT,REZUSDT,RIFUSDT,RIVERUSDT,RLCUSDT,RONINUSDT,ROSEUSDT,RPLUSDT,RSRUSDT,RUNEUSDT,RVNUSDT,SAFEUSDT,SAGAUSDT,SAHARAUSDT,SANDUSDT,SANTOSUSDT,SAPIENUSDT,SCRTUSDT,SCRUSDT,SEIUSDT,SENTUSDT,SFPUSDT,SHELLUSDT,SIGNUSDT,SIRENUSDT,SKATEUSDT,SKLUSDT,SKRUSDT,SKYAIUSDT,SKYUSDT,SLERFUSDT,SLPUSDT,SNXUSDT,SOLUSDC,SOLUSDT,SOLVUSDT,SONICUSDT,SOONUSDT,SOPHUSDT,SPACEUSDT,SPELLUSDT,SPKUSDT,SPORTFUNUSDT,SPXUSDT,SQDUSDT,SSVUSDT,STABLEUSDT,STBLUSDT,STEEMUSDT,STGUSDT,STORJUSDT,STOUSDT,STRKUSDT,STXUSDT,SUIUSDC,SUIUSDT,SUNUSDT,SUPERUSDT,SUSDT,SUSHIUSDT,SWARMSUSDT,SWELLUSDT,SXPUSDT,SXTUSDT,SYNUSDT,SYRUPUSDT,SYSUSDT,TACUSDT,TAGUSDT,TAIKOUSDT,TAKEUSDT,TAOUSDT,TAUSDT,THETAUSDT,THEUSDT,TIAUSDC,TIAUSDT,TNSRUSDT,TOKENUSDT,TONUSDT,TOSHIUSDT,TOWNSUSDT,TRADOORUSDT,TRBUSDT,TREEUSDT,TRUMPUSDC,TRUMPUSDT,TRUUSDT,TRXUSDT,TSTUSDT,TURBOUSDT,TUSDT,TUTUSDT,TWTUSDT,UBUSDT,UMAUSDT,UNIUSDC,UNIUSDT,USDCUSDT,USELESSUSDT,USTCUSDT,USUALUSDT,USUSDT,VANAUSDT,VANRYUSDT,VELODROMEUSDT,VELVETUSDT,VETUSDT,VICUSDT,VINEUSDT,VIRTUALUSDT,VOXELUSDT,VTHOUSDT,VVVUSDT,WALUSDT,WAXPUSDT,WCTUSDT,WETUSDT,WIFUSDC,WIFUSDT,WLDUSDC,WLDUSDT,WLFIUSDC,WLFIUSDT,WOOUSDT,WUSDT,XAIUSDT,XANUSDT,XLMUSDT,XMRUSDT,XNYUSDT,XPINUSDT,XPLUSDT,XRPUSDC,XRPUSDT,XTZUSDT,XVGUSDT,XVSUSDT,YALAUSDT,YBUSDT,YFIUSDT,YGGUSDT,ZAMAUSDT,ZECUSDC,ZECUSDT,ZENUSDT,ZEREBROUSDT,ZETAUSDT,ZILUSDT,ZKJUSDT,ZKPUSDT,ZKUSDT,ZORAUSDT,ZRCUSDT,ZROUSDT,ZRXUSDT
+# Allowlist: only these symbols can be executed
+# Default: BTCUSDT only (conservative start)
+APPLY_ALLOWLIST=0GUSDT,1000000BOBUSDT,1000000MOGUSDT,1000BONKUSDC,1000BONKUSDT,1000CATUSDT,1000CHEEMSUSDT,1000FLOKIUSDT,1000LUNCUSDT,1000PEPEUSDC,1000PEPEUSDT,1000RATSUSDT,1000SATSUSDT,1000SHIBUSDC,1000SHIBUSDT,1000WHYUSDT,1000XECUSDT,1000XUSDT,1INCHUSDT,1MBABYDOGEUSDT,42USDT,4USDT,A2ZUSDT,AAVEUSDC,AAVEUSDT,ACEUSDT,ACHUSDT,ACTUSDT,ACUUSDT,ACXUSDT,ADAUSDC,ADAUSDT,AEROUSDT,AEVOUSDT,AGLDUSDT,AGTUSDT,AIAUSDT,AINUSDT,AIOTUSDT,AIOUSDT,AIUSDT,AIXBTUSDT,AKEUSDT,AKTUSDT,ALCHUSDT,ALGOUSDT,ALICEUSDT,ALLUSDT,ALPINEUSDT,ALTUSDT,ANIMEUSDT,ANKRUSDT,APEUSDT,API3USDT,APRUSDT,APTUSDT,ARBUSDC,ARBUSDT,ARCUSDT,ARIAUSDT,ARKMUSDT,ARKUSDT,ARPAUSDT,ARUSDT,ASRUSDT,ASTERUSDT,ASTRUSDT,ATAUSDT,ATHUSDT,ATOMUSDT,ATUSDT,AUCTIONUSDT,AUSDT,AVAAIUSDT,AVAUSDT,AVAXUSDC,AVAXUSDT,AVNTUSDT,AWEUSDT,AXLUSDT,AXSUSDT,B2USDT,B3USDT,BABYUSDT,BANANAS31USDT,BANANAUSDT,BANDUSDT,BANKUSDT,BANUSDT,BARDUSDT,BASUSDT,BATUSDT,BBUSDT,BCHUSDC,BCHUSDT,BDXNUSDT,BEAMXUSDT,BEATUSDT,BELUSDT,BERAUSDT,BICOUSDT,BIDUSDT,BIGTIMEUSDT,BIOUSDT,BIRBUSDT,BLESSUSDT,BLURUSDT,BMTUSDT,BNBUSDC,BNBUSDT,BNTUSDT,BOBUSDT,BOMEUSDC,BOMEUSDT,BRETTUSDT,BREVUSDT,BROCCOLI714USDT,BROCCOLIF3BUSDT,BRUSDT,BSVUSDT,BTCDOMUSDT,BTCUSDC,BTCUSDT,BTRUSDT,BULLAUSDT,BUSDT,C98USDT,CAKEUSDT,CARVUSDT,CATIUSDT,CCUSDT,CELOUSDT,CELRUSDT,CETUSUSDT,CFXUSDT,CGPTUSDT,CHESSUSDT,CHILLGUYUSDT,CHRUSDT,CHZUSDT,CKBUSDT,CLANKERUSDT,COAIUSDT,COLLECTUSDT,COMMONUSDT,COMPUSDT,COOKIEUSDT,COSUSDT,COTIUSDT,COWUSDT,CROSSUSDT,CRVUSDC,CRVUSDT,CTSIUSDT,CUDISUSDT,CUSDT,CYBERUSDT,CYSUSDT,DAMUSDT,DASHUSDT,DEEPUSDT,DEGENUSDT,DEGOUSDT,DENTUSDT,DEXEUSDT,DFUSDT,DIAUSDT,DMCUSDT,DODOXUSDT,DOGEUSDC,DOGEUSDT,DOGSUSDT,DOLOUSDT,DOODUSDT,DOTUSDT,DRIFTUSDT,DUSDT,DUSKUSDT,DYDXUSDT,DYMUSDT,EDUUSDT,EGLDUSDT,EIGENUSDT,ENAUSDC,ENAUSDT,ENJUSDT,ENSUSDT,EPICUSDT,EPTUSDT,ERAUSDT,ESPORTSUSDT,ETCUSDT,ETHBTC,ETHFIUSDC,ETHFIUSDT,ETHUSDC,ETHUSDT,ETHWUSDT,EULUSDT,FARTCOINUSDT,FETUSDT,FHEUSDT,FIDAUSDT,FIGHTUSDT,FILUSDC,FILUSDT,FIOUSDT,FISUSDT,FLOCKUSDT,FLOWUSDT,FLUIDUSDT,FLUXUSDT,FOGOUSDT,FORMUSDT,FORTHUSDT,FRAXUSDT,FUNUSDT,FUSDT,FXSUSDT,GALAUSDT,GASUSDT,GHSTUSDT,GIGGLEUSDT,GLMUSDT,GMTUSDT,GMXUSDT,GOATUSDT,GPSUSDT,GRASSUSDT,GRIFFAINUSDT,GRTUSDT,GTCUSDT,GUAUSDT,GUNUSDT,GUSDT,GWEIUSDT,HAEDALUSDT,HANAUSDT,HBARUSDC,HBARUSDT,HEIUSDT,HEMIUSDT,HFTUSDT,HIGHUSDT,HIPPOUSDT,HIVEUSDT,HMSTRUSDT,HOLOUSDT,HOMEUSDT,HOOKUSDT,HOTUSDT,HUMAUSDT,HUSDT,HYPERUSDT,HYPEUSDT,ICNTUSDT,ICXUSDT,IDOLUSDT,IDUSDT,ILVUSDT,IMXUSDT,INITUSDT,INJUSDT,INUSDT,INXUSDT,IOSTUSDT,IOTAUSDT,IOTXUSDT,IOUSDT,IPUSDC,IPUSDT,IRUSDT,JASMYUSDT,JCTUSDT,JELLYJELLYUSDT,JOEUSDT,JSTUSDT,JTOUSDT,JUPUSDT,KAIAUSDT,KAITOUSDC,KAITOUSDT,KASUSDT,KAVAUSDT,KERNELUSDT,KITEUSDT,KMNOUSDT,KNCUSDT,KOMAUSDT,KSMUSDT,LABUSDT,LAUSDT,LAYERUSDT,LDOUSDT,LIGHTUSDT,LINEAUSDT,LINKUSDC,LINKUSDT,LISTAUSDT,LPTUSDT,LQTYUSDT,LRCUSDT,LSKUSDT,LTCUSDC,LTCUSDT,LUMIAUSDT,LUNA2USDT,MAGICUSDT,MAGMAUSDT,MANAUSDT,MANTAUSDT,MASKUSDT,MAVUSDT,MBOXUSDT,MEGAUSDT,MELANIAUSDT,MEMEUSDT,MERLUSDT,METISUSDT,METUSDT,MEUSDT,MEWUSDT,MILKUSDT,MINAUSDT,MIRAUSDT,MITOUSDT,MLNUSDT,MOCAUSDT,MONUSDT,MOODENGUSDT,MORPHOUSDT,MOVEUSDT,MOVRUSDT,MTLUSDT,MUBARAKUSDT,MUSDT,MYROUSDT,MYXUSDT,NAORISUSDT,NEARUSDC,NEARUSDT,NEIROUSDT,NEOUSDC,NEOUSDT,NEWTUSDT,NFPUSDT,NIGHTUSDT,NILUSDT,NKNUSDT,NMRUSDT,NOTUSDT,NTRNUSDT,NXPCUSDT,OBOLUSDT,OGNUSDT,OGUSDT,OLUSDT,OMUSDT,ONDOUSDT,ONEUSDT,ONGUSDT,ONTUSDT,ONUSDT,OPUSDT,ORCAUSDT,ORDERUSDT,ORDIUSDC,ORDIUSDT,OXTUSDT,PARTIUSDT,PAXGUSDT,PENDLEUSDT,PENGUUSDC,PENGUUSDT,PEOPLEUSDT,PHAUSDT,PHBUSDT,PIPPINUSDT,PIXELUSDT,PLAYUSDT,PLUMEUSDT,PNUTUSDC,PNUTUSDT,POLUSDT,POLYXUSDT,PONKEUSDT,POPCATUSDT,PORT3USDT,PORTALUSDT,POWERUSDT,POWRUSDT,PROMPTUSDT,PROMUSDT,PROVEUSDT,PTBUSDT,PUFFERUSDT,PUMPBTCUSDT,PUNDIXUSDT,PYTHUSDT,QNTUSDT,QTUMUSDT,QUICKUSDT,QUSDT,RAREUSDT,RAVEUSDT,RAYSOLUSDT,RDNTUSDT,REDUSDT,REIUSDT,RENDERUSDT,RESOLVUSDT,REZUSDT,RIFUSDT,RIVERUSDT,RLCUSDT,RONINUSDT,ROSEUSDT,RPLUSDT,RSRUSDT,RUNEUSDT,RVNUSDT,SAFEUSDT,SAGAUSDT,SAHARAUSDT,SANDUSDT,SANTOSUSDT,SAPIENUSDT,SCRTUSDT,SCRUSDT,SEIUSDT,SENTUSDT,SFPUSDT,SHELLUSDT,SIGNUSDT,SIRENUSDT,SKATEUSDT,SKLUSDT,SKRUSDT,SKYAIUSDT,SKYUSDT,SLERFUSDT,SLPUSDT,SNXUSDT,SOLUSDC,SOLUSDT,SOLVUSDT,SONICUSDT,SOONUSDT,SOPHUSDT,SPACEUSDT,SPELLUSDT,SPKUSDT,SPORTFUNUSDT,SPXUSDT,SQDUSDT,SSVUSDT,STABLEUSDT,STBLUSDT,STEEMUSDT,STGUSDT,STORJUSDT,STOUSDT,STRKUSDT,STXUSDT,SUIUSDC,SUIUSDT,SUNUSDT,SUPERUSDT,SUSDT,SUSHIUSDT,SWARMSUSDT,SWELLUSDT,SXPUSDT,SXTUSDT,SYNUSDT,SYRUPUSDT,SYSUSDT,TACUSDT,TAGUSDT,TAIKOUSDT,TAKEUSDT,TAOUSDT,TAUSDT,THETAUSDT,THEUSDT,TIAUSDC,TIAUSDT,TNSRUSDT,TOKENUSDT,TONUSDT,TOSHIUSDT,TOWNSUSDT,TRADOORUSDT,TRBUSDT,TREEUSDT,TRUMPUSDC,TRUMPUSDT,TRUUSDT,TRXUSDT,TSTUSDT,TURBOUSDT,TUSDT,TUTUSDT,TWTUSDT,UBUSDT,UMAUSDT,UNIUSDC,UNIUSDT,USDCUSDT,USELESSUSDT,USTCUSDT,USUALUSDT,USUSDT,VANAUSDT,VANRYUSDT,VELODROMEUSDT,VELVETUSDT,VETUSDT,VICUSDT,VINEUSDT,VIRTUALUSDT,VOXELUSDT,VTHOUSDT,VVVUSDT,WALUSDT,WAXPUSDT,WCTUSDT,WETUSDT,WIFUSDC,WIFUSDT,WLDUSDC,WLDUSDT,WLFIUSDC,WLFIUSDT,WOOUSDT,WUSDT,XAIUSDT,XANUSDT,XLMUSDT,XMRUSDT,XNYUSDT,XPINUSDT,XPLUSDT,XRPUSDC,XRPUSDT,XTZUSDT,XVGUSDT,XVSUSDT,YALAUSDT,YBUSDT,YFIUSDT,YGGUSDT,ZAMAUSDT,ZECUSDC,ZECUSDT,ZENUSDT,ZEREBROUSDT,ZETAUSDT,ZILUSDT,ZKJUSDT,ZKPUSDT,ZKUSDT,ZORAUSDT,ZRCUSDT,ZROUSDT,ZRXUSDT
+# Poll interval (seconds)
+APPLY_POLL_SEC=5
+# Idempotency: dedupe key TTL (seconds)
+# Default: 6 hours (21600s)
+APPLY_DEDUPE_TTL_SEC=21600
+# Safety gates: kill score thresholds
+# If kill_score >= K_BLOCK_CRITICAL: block all actions
+# If kill_score >= K_BLOCK_WARNING: allow only CLOSE/tighten, block risk increase
+K_BLOCK_CRITICAL=0.80
+K_BLOCK_WARNING=0.60
+# Emergency stop: if true, block all executions
+APPLY_KILL_SWITCH=false
+# Logging
+APPLY_LOG_LEVEL=INFO
+# Prometheus metrics port
+APPLY_METRICS_PORT=8043
+# Redis connection
+REDIS_HOST=localhost
+REDIS_PORT=6379
+# Binance Testnet API (for P3.1 testnet mode)
+# DO NOT COMMIT REAL CREDENTIALS - use systemd EnvironmentFile or secrets manager
+BINANCE_TESTNET_API_KEY=REDACTED
+BINANCE_TESTNET_API_SECRET=REDACTED
+# Permit wait loop (Governor + P3.3)
+APPLY_PERMIT_WAIT_MS=1200
+APPLY_PERMIT_STEP_MS=100
+TESTNET=true
+ RECONCILE_HMAC_SECRET=REDACTED
+RECONCILE_HMAC_SECRET=REDACTED
+# P2.8A Apply Shadow Observability
+P28_HEAT_OBS_ENABLED=true
+P28_HEAT_OBS_STREAM=quantum:stream:apply.heat.observed
+P28_HEAT_LOOKUP_PREFIX=quantum:harvest:heat:by_plan:
+P28_DEDUPE_TTL_SEC=600
+P28_MAX_DEBUG_CHARS=400
+# P2.8A.3 Late Observer
+P28_LATE_OBS_ENABLED=true
+P28_LATE_OBS_MAX_WAIT_MS=2000
+P28_LATE_OBS_POLL_MS=100
+P28_LATE_OBS_MAX_WORKERS=4
+P28_LATE_OBS_MAX_INFLIGHT=200
+APPLY_MAX_OPEN_POSITIONS=10
+
+--- /etc/quantum/autonomous-trader.env
+# Autonomous Trader Environment Configuration
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# Position limits
+MAX_POSITIONS=10
+MAX_EXPOSURE_USD=2500
+MAX_POSITION_USD=500
+
+# Trading parameters
+SCAN_INTERVAL_SEC=30
+MIN_CONFIDENCE=0.65
+
+# Symbols to trade (use AI Engine's symbol universe)
+SYMBOLS=ETHUSDT,BTCUSDT,SOLUSDT,XRPUSDT,BNBUSDT,ADAUSDT,SUIUSDT,LINKUSDT,AVAXUSDT,LTCUSDT,DOTUSDT,NEARUSDT
+
+# RL Model
+RL_MODEL_PATH=/home/qt/quantum_trader/models/rl_sizing_agent_v3.pth
+
+# AI Engine
+AI_ENGINE_URL=http://127.0.0.1:8001
+
+# Binance
+BINANCE_USE_TESTNET=true
+
+# Universe OS - Dynamic Symbol Selection
+USE_UNIVERSE_OS=true
+UNIVERSE_MAX_SYMBOLS=50
+
+--- /etc/quantum/balance-tracker.env
+# Balance Tracker Environment Configuration
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# Binance Configuration
+BINANCE_USE_TESTNET=true
+BINANCE_BASE_URL=https://testnet.binancefuture.com
+
+# Testnet API credentials (same as intent-executor)
+BINANCE_TESTNET_API_KEY=REDACTED
+BINANCE_TESTNET_API_SECRET=REDACTED
+
+# Polling interval (seconds)
+BALANCE_POLL_INTERVAL=30
+
+--- /etc/quantum/binance-pnl-tracker.env
+# Binance PnL Tracker Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/binance-pnl-tracker.log
+# Binance API (testnet or production)
+BINANCE_API_KEY=REDACTED
+BINANCE_API_SECRET=REDACTED
+BINANCE_TESTNET=true
+PNL_UPDATE_INTERVAL_S=60
+
+--- /etc/quantum/capital-allocation.env
+# P2.9 Capital Allocation Brain - Environment Configuration
+# Created: 2026-01-28
+
+# Mode: shadow (log only) | enforce (write allocation targets)
+P29_MODE=enforce
+
+# Loop interval (seconds)
+P29_INTERVAL_SEC=5
+
+# Metrics port
+P29_METRICS_PORT=8059
+
+# Redis configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+
+# Safety caps (40% max per symbol, 60% max per cluster)
+MAX_SYMBOL_PCT=0.40
+MAX_CLUSTER_PCT=0.60
+
+# Stale data threshold (seconds)
+STALE_DATA_SEC=60
+
+# Regime factors
+REGIME_FACTOR_TREND=1.2
+REGIME_FACTOR_MR=1.0
+REGIME_FACTOR_CHOP=0.6
+
+# Drawdown thresholds and factors
+DD_LOW_THRESHOLD=0.05
+DD_HIGH_THRESHOLD=0.15
+DD_FACTOR_LOW=1.0
+DD_FACTOR_MID=0.7
+DD_FACTOR_HIGH=0.4
+
+# Cluster stress clamp range
+CLUSTER_STRESS_MIN=0.3
+CLUSTER_STRESS_MAX=1.0
+
+# Target hash TTL (seconds)
+TARGET_TTL_SEC=300
+
+# Logging
+LOG_LEVEL=INFO
+
+--- /etc/quantum/capital-efficiency.env
+# P3.1 Capital Efficiency Brain
+P31_MODE=shadow                # shadow|enforce
+P31_PORT=8062
+P31_LOOP_SEC=5
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+EXECUTION_STREAM=quantum:stream:execution.result
+EFFICIENCY_STREAM=quantum:stream:capital.efficiency.decision
+P31_KEY_TTL_SEC=REDACTED
+P31_STALE_SEC_P30=300
+P31_STALE_SEC_P29=300
+# EWMA
+P31_SCORE_ALPHA=0.25
+P31_VOL_ALPHA=0.20
+P31_DD_ALPHA=0.20
+# Weights
+P31_W_VOL=0.80
+P31_W_DD=1.20
+P31_W_HOLD=0.60
+# Holding penalty
+P31_HOLD_PENALTY_MAX_SEC=3600
+# Safety / testing
+P31_RUN_ONCE=false
+P31_MAX_EVENTS_PER_LOOP=200
+
+--- /etc/quantum/ceo-brain.env
+ENABLE_CEO_BRAIN=true
+CEO_MODE=ACTIVE
+LOG_LEVEL=INFO
+
+--- /etc/quantum/clm.env
+CLM_INTENT_STREAM=quantum:stream:clm.intent
+CLM_ERROR_THRESHOLD_PER_HOUR=20
+
+--- /etc/quantum/core_gates.env
+# CORE TRADING KERNEL - ECONOMIC GATES
+# TESTNET enforcement | LIVE audit-only
+MIN_NOTIONAL_USD=25
+EDGE_MULTIPLIER=3.0
+MIN_HOLD_SECONDS=300
+MAX_TRADES_10MIN=3
+MIN_R_TREND=2.5
+MIN_R_RANGE=1.8
+ZOMBIE_IDLE_MS=3600000
+STALE_IDLE_MS=60000
+
+--- /etc/quantum/cross-exchange-aggregator.env
+PYTHONPATH=/home/qt/quantum_trader
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_URL=redis://127.0.0.1:6379
+TZ=Europe/Oslo
+LOG_LEVEL=INFO
+CROSS_EXCHANGE_SYMBOLS=USE_UNIVERSE_SERVICE
+
+--- /etc/quantum/cross-exchange.env
+# Cross-Exchange Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/cross-exchange.log
+# Service behavior
+CROSS_EXCHANGE_ENABLED=true
+SYNC_INTERVAL_S=60
+
+--- /etc/quantum/data-collector.env
+PYTHONPATH=/home/qt/quantum_trader
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+TZ=Europe/Oslo
+LOG_LEVEL=INFO
+
+--- /etc/quantum/eventbus_bridge.env
+REDIS_URL=redis://localhost:6379
+REDIS_HOST=localhost
+REDIS_PORT=6379
+LOG_LEVEL=INFO
+
+--- /etc/quantum/exchange-aggregator.env
+PYTHONPATH=/home/qt/quantum_trader
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+TZ=Europe/Oslo
+LOG_LEVEL=INFO
+
+--- /etc/quantum/exchange-stream-bridge.env
+PYTHONPATH=/home/qt/quantum_trader
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_URL=redis://127.0.0.1:6379
+TZ=Europe/Oslo
+LOG_LEVEL=INFO
+EXCHANGE_BRIDGE_SYMBOLS=USE_UNIVERSE_SERVICE
+EXCHANGE_BRIDGE_MAX_SYMBOLS=50
+
+--- /etc/quantum/execution.env
+# Execution Service - TESTNET Configuration with Governor
+BINANCE_USE_TESTNET=true
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+# Governor keys (checked in service_v2.py)
+# quantum:kill - 1=KILL, 0=GO
+# quantum:mode - TESTNET | LIVE
+# quantum:governor:execution - ENABLED | DISABLED
+# TESTNET Sizing
+MAX_POSITION_SIZE_USD=10
+# Observability
+LOG_LEVEL=INFO
+OTEL_ENABLED=true
+
+--- /etc/quantum/exitbrain-control.env
+EXIT_EXECUTOR_MODE=LIVE
+EXIT_LIVE_ROLLOUT_PCT=10
+EXIT_EXECUTOR_KILL_SWITCH=false
+
+--- /etc/quantum/exitbrain-v35.env
+# ============================================
+# Exit Brain v3.5 Environment Configuration
+# ============================================
+# Source: /etc/quantum/testnet.env (credentials)
+# DO NOT edit credentials here - use testnet.env as source of truth
+# To rotate keys: update testnet.env, then re-run this script
+# Binance Testnet Credentials (clean names for backend code)
+BINANCE_API_KEY=REDACTED
+BINANCE_API_SECRET=REDACTED
+BINANCE_TESTNET=true
+USE_BINANCE_TESTNET=true
+# Exit Brain v3.5 Configuration
+EXIT_BRAIN_V35_ENABLED=true
+EXIT_MODE=EXIT_BRAIN_V3
+EXIT_EXECUTOR_MODE=LIVE
+EXIT_BRAIN_V3_LIVE_ROLLOUT=ENABLED
+# Kill-Switch (fail-closed safety)
+# Set to "true" to force shadow mode regardless of other settings
+# Service restart required after changing this
+EXIT_EXECUTOR_KILL_SWITCH=false
+# Python Environment
+PYTHONUNBUFFERED=1
+
+--- /etc/quantum/exit-intelligence.env
+# Exit Intelligence Configuration
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+# Postgres (optional - will use Redis if not configured)
+POSTGRES_HOST=
+POSTGRES_PORT=5432
+POSTGRES_DB=quantum
+POSTGRES_USER=quantum
+POSTGRES_PASSWORD=REDACTED
+# Streams
+APPLY_RESULT_STREAM=quantum:stream:apply.result
+EXECUTION_RESULT_STREAM=quantum:stream:execution.result
+# Consumer
+EXIT_INTELLIGENCE_CONSUMER_GROUP=exit_intelligence
+EXIT_INTELLIGENCE_CONSUMER_NAME=exit_intelligence_1
+# Metrics
+EXIT_INTELLIGENCE_METRICS_PORT=9109
+# Regime Detection
+CANDLE_INTERVAL=1m
+CANDLE_LIMIT=100
+REGIME_ADX_TREND_THRESHOLD=25
+REGIME_ADX_CHOP_THRESHOLD=20
+REGIME_EMA_SPREAD_THRESHOLD=0.0015
+
+--- /etc/quantum/exit-monitor.env
+EXIT_MONITOR_MANUAL_CLOSE_ENABLED=true
+EXIT_MONITOR_MANUAL_CLOSE_TOKEN=REDACTED
+
+--- /etc/quantum/exposure-balancer.env
+# Exposure Balancer Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/exposure-balancer.log
+# Service behavior
+BALANCE_INTERVAL_S=30
+MAX_EXPOSURE_PCT=80.0
+
+--- /etc/quantum/frontend.env
+# Main Frontend Environment
+PORT=3000
+HOST=127.0.0.1
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+NODE_ENV=production
+LOG_FILE=/var/log/quantum/frontend.log
+
+--- /etc/quantum/governor.env
+# P3.2 Governor Configuration
+
+# Redis connection
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+
+# Rate limits (per symbol)
+GOV_MAX_EXEC_PER_HOUR=3
+GOV_MAX_EXEC_PER_5MIN=2
+
+# Daily limits (per symbol)
+GOV_MAX_REDUCE_NOTIONAL_PER_DAY_USD=5000
+GOV_MAX_REDUCE_QTY_PER_DAY=0.02
+
+# Kill score gate
+GOV_KILL_SCORE_CRITICAL=0.8
+
+# Auto-disarm
+GOV_ENABLE_AUTO_DISARM=true
+GOV_DISARM_ON_ERROR_COUNT=5
+GOV_DISARM_ON_BURST_BREACH=true
+
+# Apply Layer config path (for disarm action)
+APPLY_CONFIG_PATH=/etc/quantum/apply-layer.env
+
+# Prometheus metrics
+METRICS_PORT=8044
+
+# Redis streams
+STREAM_PLANS=quantum:stream:apply.plan
+STREAM_RESULTS=quantum:stream:apply.result
+STREAM_EVENTS=quantum:stream:governor.events
+
+# P3.1 Capital Efficiency Integration
+P31_MIN_CONF=0.65
+P31_DOWNSIZE_THRESHOLD=0.45
+P31_MIN_FACTOR=0.25
+P31_MAX_EXTRA_COOLDOWN_SEC=120
+P31_EFF_TTL_SEC=600
+EXECUTION_MODE=LIVE
+HARVEST_MODE=LIVE
+HARVEST_MAX_EXEC_PER_MIN=1
+HARVEST_LIVE_DRYRUN=false
+
+--- /etc/quantum/governor-production-mode.env
+# Governor PRODUCTION MODE Configuration
+# WARNING: Activates full enforcement of all safety gates
+# Default: disabled (use dry_run or shadow modes)
+# PRODUCTION MODE MASTER SWITCH
+GOV_PROD_MODE=false
+GOV_PROD_MODE_CONFIRM=
+# P2.9 Hard Allocation Cap Enforcement
+GOV_P29_HARD_CAP=true
+GOV_P29_ENFORCE_MODE=shadow
+# P3.1 Efficiency-Based Position Downsizing
+GOV_P31_EFFICIENCY_DOWNSIZING=false
+GOV_P31_EFFICIENCY_THRESHOLD=0.3
+GOV_P31_MAX_REDUCE_PERCENT=50.0
+# Daily Risk Budget Limits
+GOV_DAILY_RISK_BUDGET_USD=10000
+GOV_DAILY_MAX_TRADES=50
+GOV_DAILY_MAX_REDUCES=20
+# Kill Switch
+GOV_KILL_SWITCH_ENABLED=true
+GOV_KILL_SWITCH_ACTIVE=false
+# Fail-Closed Behavior
+GOV_FAIL_CLOSED=true
+GOV_FAIL_ON_REDIS_ERROR=true
+GOV_FAIL_ON_P29_MISSING=false
+# Production Mode Safeguards
+GOV_REQUIRE_P29_CONFIDENCE=0.7
+GOV_REQUIRE_P31_CONFIDENCE=0.5
+GOV_MAX_POSITION_AGE_HOURS=168
+# Override Mechanisms (use with extreme caution)
+GOV_OVERRIDE_TOKEN=REDACTED
+GOV_EMERGENCY_BYPASS=REDACTED
+# Monitoring
+GOV_ALERT_ON_BLOCK=true
+GOV_ALERT_ON_EFFICIENCY_REDUCE=true
+GOV_LOG_LEVEL=INFO
+
+--- /etc/quantum/harvest-brain.env
+#!/bin/bash
+# HarvestBrain Configuration (Template)
+# Location: /etc/quantum/harvest-brain.env
+# Copy to /etc/quantum/harvest-brain.env and adjust as needed
+# ============================================================================
+# OPERATION MODE
+# ============================================================================
+# HARVEST_MODE=live    : Proposals only (dry run, no live intents)
+# HARVEST_MODE=live      : Publish reduce-only intents to trade.intent
+HARVEST_MODE=live
+# ============================================================================
+# REDIS CONNECTION
+# ============================================================================
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+# ============================================================================
+# STREAM NAMES
+# ============================================================================
+# Input streams
+STREAM_APPLY_RESULT=quantum:stream:apply.result
+STREAM_POSITION_SNAPSHOT=quantum:stream:position.snapshot
+STREAM_PNL_SNAPSHOT=quantum:stream:pnl.snapshot
+# Output streams
+STREAM_TRADE_INTENT=quantum:stream:trade.intent
+STREAM_HARVEST_SUGGESTIONS=quantum:stream:harvest.suggestions
+# ============================================================================
+# HARVEST POLICY
+# ============================================================================
+# Minimum R to trigger harvesting
+HARVEST_MIN_R=0.5
+# R-based ladder: "R_level:fraction_to_close,R_level:fraction_to_close,..."
+# Example: At R=0.5 close 25%, at R=1.0 close 25%, at R=1.5 close 25%
+HARVEST_LADDER=0.5:0.25,1.0:0.25,1.5:0.25
+# R level at which to move stop loss to break-even
+HARVEST_SET_BE_AT_R=0.5
+# Trailing stop: ATR multiplier
+HARVEST_TRAIL_ATR_MULT=2.0
+# ============================================================================
+# SAFETY & RELIABILITY
+# ============================================================================
+# Dedup time-to-live (seconds) - prevents duplicate harvesting actions
+HARVEST_DEDUP_TTL_SEC=120
+# Require fresh position snapshot (seconds old)
+# Skip harvesting if position data is older than this
+HARVEST_REQUIRE_FRESH_SNAPSHOT_SEC=30
+# Always use reduce_only=true for harvesting intents
+HARVEST_REDUCE_ONLY=true
+# Maximum harvesting actions per minute (rate limiting)
+HARVEST_MAX_ACTIONS_PER_MIN=30
+# Kill-switch key: set to 1 to disable all harvesting
+HARVEST_KILL_SWITCH_KEY=REDACTED
+# ============================================================================
+# LOGGING
+# ============================================================================
+LOG_LEVEL=DEBUG
+LOG_FILE=/var/log/quantum/harvest_brain.log
+# Binance API (for backfilling entry_price)
+BINANCE_TESTNET_API_KEY=REDACTED
+BINANCE_TESTNET_API_SECRET=REDACTED
+# Binance API (for backfilling entry_price)
+BINANCE_TESTNET_API_KEY=REDACTED
+BINANCE_TESTNET_API_SECRET=REDACTED
+
+--- /etc/quantum/harvest-metrics-exporter.env
+# P2.7 Harvest Metrics Exporter - Environment Configuration
+
+# Redis connection
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+
+# Symbols to monitor (comma-separated)
+SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT
+
+# Polling interval (seconds)
+POLL_INTERVAL_SEC=5
+
+# Metrics HTTP server port
+METRICS_PORT=8042
+
+--- /etc/quantum/harvest-optimizer.env
+# Harvest Optimizer Configuration
+LOG_LEVEL=INFO
+SERVICE_PORT=8052
+# Source endpoints
+METRICPACK_URL=http://localhost:8051/metrics
+EXIT_INTEL_URL=http://localhost:9109/metrics
+PROMETHEUS_URL=http://localhost:9091
+# Analysis parameters
+UPDATE_INTERVAL_SECONDS=60
+ROLLING_WINDOW_SIZE=200
+SMOOTHING_ALPHA=0.3
+# Symbols to track
+SYMBOLS=BTCUSDT,ETHUSDT,TRXUSDT
+
+--- /etc/quantum/harvest-proposal.env
+# P2.5 Harvest Proposal Publisher Configuration
+# Location: /etc/quantum/harvest-proposal.env
+
+# Redis connection
+REDIS_URL=redis://127.0.0.1:6379/0
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+
+# Symbols to monitor (comma-separated)
+SYMBOLS=BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,OPUSDT,ARBUSDT,INJUSDT,DOTUSDT,STXUSDT
+
+# Publish interval (seconds)
+PUBLISH_INTERVAL_SEC=10
+
+# Redis key prefixes
+MARKETSTATE_PREFIX=quantum:marketstate:
+RISKPROPOSAL_PREFIX=quantum:risk:proposal:
+HARVEST_PREFIX=quantum:harvest:proposal:
+
+# Stream configuration
+ENABLE_STREAM=false
+STREAM_NAME=quantum:stream:harvest.proposal
+
+# Position source (auto|redis_hash|redis_stream|synthetic)
+POSITION_SOURCE=auto
+
+# Rate limiting
+MAX_PUBLISH_AGE_SEC=60
+CHANGE_EPS_PCT=0.001
+
+# Fallback stop loss percentage (if P1 proposal missing)
+FALLBACK_STOP_PCT=0.02
+
+# Logging
+LOG_LEVEL=INFO
+
+--- /etc/quantum/heat-bridge.env
+# ==============================================================================
+# P2.7 HeatBridge - Environment Configuration
+# ==============================================================================
+# Redis connection
+REDIS_HOST=localhost
+REDIS_PORT=6379
+# Stream configuration
+P27_STREAM_IN=quantum:stream:harvest.heat.decision
+P27_GROUP=heat_bridge
+P27_CONSUMER=heat_bridge_1
+P27_POLL_MS=500
+P27_BATCH=10
+# TTL for lookup keys (seconds)
+P27_TTL_PLAN_SEC=1800
+P27_TTL_SYMBOL_SEC=1800
+P27_DEDUPE_TTL_SEC=120
+# HTTP ports for metrics and health
+P27_METRICS_PORT=8070
+P27_HEALTH_PORT=8071
+# Logging
+P27_LOG_LEVEL=INFO
+
+--- /etc/quantum/heat-gate.env
+# ==============================================================================
+# P2.6 Portfolio Heat Gate - Environment Configuration
+# ==============================================================================
+# Redis connection
+REDIS_HOST=localhost
+REDIS_PORT=6379
+# HTTP ports
+HEAT_METRICS_PORT=8068
+HEAT_HEALTH_PORT=8069
+# Stream configuration
+HEAT_STREAM_IN=quantum:stream:apply.plan
+HEAT_STREAM_OUT=quantum:stream:harvest.proposal
+HEAT_GROUP=heat_gate
+HEAT_CONSUMER=heat_gate_1
+HEAT_POLL_MS=500
+# State key
+# Staleness threshold (seconds)
+STALE_SEC=600
+# ==============================================================================
+# Heat Calculation - Targets (safe defaults)
+# ==============================================================================
+GROSS_TARGET_USD=5000
+DD_TARGET_USD=250
+BURST_TARGET_USD=250
+FEE_TARGET_USD=50
+CHURN_TARGET=1.0
+# ==============================================================================
+# Heat Calculation - Component Weights
+# ==============================================================================
+W_EXP=1.0
+W_DD=1.0
+W_BURST=1.0
+W_FEE=0.5
+W_CHURN=0.5
+# ==============================================================================
+# Heat Thresholds and Partials
+# ==============================================================================
+T_WARM=0.45
+T_HOT=0.70
+WARM_PARTIAL=0.50
+HOT_PARTIAL=0.25
+# ==============================================================================
+# Hold-Close (shadow-only marker for analytics)
+# ==============================================================================
+ENABLE_HOLD_CLOSE=false
+HOLD_KILL_MAX=0.30
+HEAT_FAIL_MODE=CLOSED
+HEAT_STATE_KEY=REDACTED
+HEAT_MODE=live
+
+--- /etc/quantum/intent-bridge.env
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+INTENT_BRIDGE_ALLOWLIST=0GUSDT,1000000BOBUSDT,1000000MOGUSDT,1000BONKUSDC,1000BONKUSDT,1000CATUSDT,1000CHEEMSUSDT,1000FLOKIUSDT,1000LUNCUSDT,1000PEPEUSDC,1000PEPEUSDT,1000RATSUSDT,1000SATSUSDT,1000SHIBUSDC,1000SHIBUSDT,1000WHYUSDT,1000XECUSDT,1000XUSDT,1INCHUSDT,1MBABYDOGEUSDT,42USDT,4USDT,A2ZUSDT,AAVEUSDC,AAVEUSDT,ACEUSDT,ACHUSDT,ACTUSDT,ACUUSDT,ACXUSDT,ADAUSDC,ADAUSDT,AEROUSDT,AEVOUSDT,AGLDUSDT,AGTUSDT,AIAUSDT,AINUSDT,AIOTUSDT,AIOUSDT,AIUSDT,AIXBTUSDT,AKEUSDT,AKTUSDT,ALCHUSDT,ALGOUSDT,ALICEUSDT,ALLUSDT,ALPINEUSDT,ALTUSDT,ANIMEUSDT,ANKRUSDT,APEUSDT,API3USDT,APRUSDT,APTUSDT,ARBUSDC,ARBUSDT,ARCUSDT,ARIAUSDT,ARKMUSDT,ARKUSDT,ARPAUSDT,ARUSDT,ASRUSDT,ASTERUSDT,ASTRUSDT,ATAUSDT,ATHUSDT,ATOMUSDT,ATUSDT,AUCTIONUSDT,AUSDT,AVAAIUSDT,AVAUSDT,AVAXUSDC,AVAXUSDT,AVNTUSDT,AWEUSDT,AXLUSDT,AXSUSDT,B2USDT,B3USDT,BABYUSDT,BANANAS31USDT,BANANAUSDT,BANDUSDT,BANKUSDT,BANUSDT,BARDUSDT,BASUSDT,BATUSDT,BBUSDT,BCHUSDC,BCHUSDT,BDXNUSDT,BEAMXUSDT,BEATUSDT,BELUSDT,BERAUSDT,BICOUSDT,BIDUSDT,BIGTIMEUSDT,BIOUSDT,BIRBUSDT,BLESSUSDT,BLURUSDT,BMTUSDT,BNBUSDC,BNBUSDT,BNTUSDT,BOBUSDT,BOMEUSDC,BOMEUSDT,BRETTUSDT,BREVUSDT,BROCCOLI714USDT,BROCCOLIF3BUSDT,BRUSDT,BSVUSDT,BTCDOMUSDT,BTCUSDC,BTCUSDT,BTRUSDT,BULLAUSDT,BUSDT,C98USDT,CAKEUSDT,CARVUSDT,CATIUSDT,CCUSDT,CELOUSDT,CELRUSDT,CETUSUSDT,CFXUSDT,CGPTUSDT,CHESSUSDT,CHILLGUYUSDT,CHRUSDT,CHZUSDT,CKBUSDT,CLANKERUSDT,COAIUSDT,COLLECTUSDT,COMMONUSDT,COMPUSDT,COOKIEUSDT,COSUSDT,COTIUSDT,COWUSDT,CROSSUSDT,CRVUSDC,CRVUSDT,CTSIUSDT,CUDISUSDT,CUSDT,CYBERUSDT,CYSUSDT,DAMUSDT,DASHUSDT,DEEPUSDT,DEGENUSDT,DEGOUSDT,DENTUSDT,DEXEUSDT,DFUSDT,DIAUSDT,DMCUSDT,DODOXUSDT,DOGEUSDC,DOGEUSDT,DOGSUSDT,DOLOUSDT,DOODUSDT,DOTUSDT,DRIFTUSDT,DUSDT,DUSKUSDT,DYDXUSDT,DYMUSDT,EDUUSDT,EGLDUSDT,EIGENUSDT,ENAUSDC,ENAUSDT,ENJUSDT,ENSUSDT,EPICUSDT,EPTUSDT,ERAUSDT,ESPORTSUSDT,ETCUSDT,ETHBTC,ETHFIUSDC,ETHFIUSDT,ETHUSDC,ETHUSDT,ETHWUSDT,EULUSDT,FARTCOINUSDT,FETUSDT,FHEUSDT,FIDAUSDT,FIGHTUSDT,FILUSDC,FILUSDT,FIOUSDT,FISUSDT,FLOCKUSDT,FLOWUSDT,FLUIDUSDT,FLUXUSDT,FOGOUSDT,FORMUSDT,FORTHUSDT,FRAXUSDT,FUNUSDT,FUSDT,FXSUSDT,GALAUSDT,GASUSDT,GHSTUSDT,GIGGLEUSDT,GLMUSDT,GMTUSDT,GMXUSDT,GOATUSDT,GPSUSDT,GRASSUSDT,GRIFFAINUSDT,GRTUSDT,GTCUSDT,GUAUSDT,GUNUSDT,GUSDT,GWEIUSDT,HAEDALUSDT,HANAUSDT,HBARUSDC,HBARUSDT,HEIUSDT,HEMIUSDT,HFTUSDT,HIGHUSDT,HIPPOUSDT,HIVEUSDT,HMSTRUSDT,HOLOUSDT,HOMEUSDT,HOOKUSDT,HOTUSDT,HUMAUSDT,HUSDT,HYPERUSDT,HYPEUSDT,ICNTUSDT,ICXUSDT,IDOLUSDT,IDUSDT,ILVUSDT,IMXUSDT,INITUSDT,INJUSDT,INUSDT,INXUSDT,IOSTUSDT,IOTAUSDT,IOTXUSDT,IOUSDT,IPUSDC,IPUSDT,IRUSDT,JASMYUSDT,JCTUSDT,JELLYJELLYUSDT,JOEUSDT,JSTUSDT,JTOUSDT,JUPUSDT,KAIAUSDT,KAITOUSDC,KAITOUSDT,KASUSDT,KAVAUSDT,KERNELUSDT,KITEUSDT,KMNOUSDT,KNCUSDT,KOMAUSDT,KSMUSDT,LABUSDT,LAUSDT,LAYERUSDT,LDOUSDT,LIGHTUSDT,LINEAUSDT,LINKUSDC,LINKUSDT,LISTAUSDT,LPTUSDT,LQTYUSDT,LRCUSDT,LSKUSDT,LTCUSDC,LTCUSDT,LUMIAUSDT,LUNA2USDT,MAGICUSDT,MAGMAUSDT,MANAUSDT,MANTAUSDT,MASKUSDT,MAVUSDT,MBOXUSDT,MEGAUSDT,MELANIAUSDT,MEMEUSDT,MERLUSDT,METISUSDT,METUSDT,MEUSDT,MEWUSDT,MILKUSDT,MINAUSDT,MIRAUSDT,MITOUSDT,MLNUSDT,MOCAUSDT,MONUSDT,MOODENGUSDT,MORPHOUSDT,MOVEUSDT,MOVRUSDT,MTLUSDT,MUBARAKUSDT,MUSDT,MYROUSDT,MYXUSDT,NAORISUSDT,NEARUSDC,NEARUSDT,NEIROUSDT,NEOUSDC,NEOUSDT,NEWTUSDT,NFPUSDT,NIGHTUSDT,NILUSDT,NKNUSDT,NMRUSDT,NOTUSDT,NTRNUSDT,NXPCUSDT,OBOLUSDT,OGNUSDT,OGUSDT,OLUSDT,OMUSDT,ONDOUSDT,ONEUSDT,ONGUSDT,ONTUSDT,ONUSDT,OPUSDT,ORCAUSDT,ORDERUSDT,ORDIUSDC,ORDIUSDT,OXTUSDT,PARTIUSDT,PAXGUSDT,PENDLEUSDT,PENGUUSDC,PENGUUSDT,PEOPLEUSDT,PHAUSDT,PHBUSDT,PIPPINUSDT,PIXELUSDT,PLAYUSDT,PLUMEUSDT,PNUTUSDC,PNUTUSDT,POLUSDT,POLYXUSDT,PONKEUSDT,POPCATUSDT,PORT3USDT,PORTALUSDT,POWERUSDT,POWRUSDT,PROMPTUSDT,PROMUSDT,PROVEUSDT,PTBUSDT,PUFFERUSDT,PUMPBTCUSDT,PUNDIXUSDT,PYTHUSDT,QNTUSDT,QTUMUSDT,QUICKUSDT,QUSDT,RAREUSDT,RAVEUSDT,RAYSOLUSDT,RDNTUSDT,REDUSDT,REIUSDT,RENDERUSDT,RESOLVUSDT,REZUSDT,RIFUSDT,RIVERUSDT,RLCUSDT,RONINUSDT,ROSEUSDT,RPLUSDT,RSRUSDT,RUNEUSDT,RVNUSDT,SAFEUSDT,SAGAUSDT,SAHARAUSDT,SANDUSDT,SANTOSUSDT,SAPIENUSDT,SCRTUSDT,SCRUSDT,SEIUSDT,SENTUSDT,SFPUSDT,SHELLUSDT,SIGNUSDT,SIRENUSDT,SKATEUSDT,SKLUSDT,SKRUSDT,SKYAIUSDT,SKYUSDT,SLERFUSDT,SLPUSDT,SNXUSDT,SOLUSDC,SOLUSDT,SOLVUSDT,SONICUSDT,SOONUSDT,SOPHUSDT,SPACEUSDT,SPELLUSDT,SPKUSDT,SPORTFUNUSDT,SPXUSDT,SQDUSDT,SSVUSDT,STABLEUSDT,STBLUSDT,STEEMUSDT,STGUSDT,STORJUSDT,STOUSDT,STRKUSDT,STXUSDT,SUIUSDC,SUIUSDT,SUNUSDT,SUPERUSDT,SUSDT,SUSHIUSDT,SWARMSUSDT,SWELLUSDT,SXPUSDT,SXTUSDT,SYNUSDT,SYRUPUSDT,SYSUSDT,TACUSDT,TAGUSDT,TAIKOUSDT,TAKEUSDT,TAOUSDT,TAUSDT,THETAUSDT,THEUSDT,TIAUSDC,TIAUSDT,TNSRUSDT,TOKENUSDT,TONUSDT,TOSHIUSDT,TOWNSUSDT,TRADOORUSDT,TRBUSDT,TREEUSDT,TRUMPUSDC,TRUMPUSDT,TRUUSDT,TRXUSDT,TSTUSDT,TURBOUSDT,TUSDT,TUTUSDT,TWTUSDT,UBUSDT,UMAUSDT,UNIUSDC,UNIUSDT,USDCUSDT,USELESSUSDT,USTCUSDT,USUALUSDT,USUSDT,VANAUSDT,VANRYUSDT,VELODROMEUSDT,VELVETUSDT,VETUSDT,VICUSDT,VINEUSDT,VIRTUALUSDT,VOXELUSDT,VTHOUSDT,VVVUSDT,WALUSDT,WAXPUSDT,WCTUSDT,WETUSDT,WIFUSDC,WIFUSDT,WLDUSDC,WLDUSDT,WLFIUSDC,WLFIUSDT,WOOUSDT,WUSDT,XAIUSDT,XANUSDT,XLMUSDT,XMRUSDT,XNYUSDT,XPINUSDT,XPLUSDT,XRPUSDC,XRPUSDT,XTZUSDT,XVGUSDT,XVSUSDT,YALAUSDT,YBUSDT,YFIUSDT,YGGUSDT,ZAMAUSDT,ZECUSDC,ZECUSDT,ZENUSDT,ZEREBROUSDT,ZETAUSDT,ZILUSDT,ZKJUSDT,ZKPUSDT,ZKUSDT,ZORAUSDT,ZRCUSDT,ZROUSDT,ZRXUSDT
+INTENT_BRIDGE_LOG_LEVEL=DEBUG
+INTENT_BRIDGE_IDEMPOTENCY_TTL=86400
+# FLAT SELL skip (avoid no_position spam)
+INTENT_BRIDGE_SKIP_FLAT_SELL=false
+INTENT_BRIDGE_FLAT_EPS=0.0
+MAX_EXPOSURE_PCT=80.0
+INTENT_BRIDGE_USE_TOP10=true
+INTENT_BRIDGE_UNIVERSE_FROM_INTENTS=true
+INTENT_BRIDGE_UNIVERSE_TOP_N=49
+INTENT_BRIDGE_UNIVERSE_MIN_SYMBOLS=10
+INTENT_BRIDGE_UNIVERSE_WINDOW=60000
+INTENT_BRIDGE_UNIVERSE_MIN_CONF=0.0
+INTENT_BRIDGE_UNIVERSE_REFRESH_SEC=120
+INTENT_BRIDGE_UNIVERSE_TTL_SEC=3600
+
+--- /etc/quantum/intent-executor.env
+# Binance Testnet API
+BINANCE_TESTNET_API_KEY=REDACTED
+BINANCE_TESTNET_API_SECRET=REDACTED
+INTENT_EXECUTOR_SOURCE_ALLOWLIST=intent_bridge,apply_layer,p33,harvest_brain
+INTENT_EXECUTOR_MANUAL_STREAM=quantum:stream:apply.plan.manual
+INTENT_EXECUTOR_MANUAL_GROUP=intent_executor_manual
+INTENT_EXECUTOR_UPDATE_LEDGER_AFTER_EXEC=false
+INTENT_EXECUTOR_ALLOWLIST=BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,ADAUSDT,DOGEUSDT,TRXUSDT,AVAXUSDT,LINKUSDT,DOTUSDT,MATICUSDT,LTCUSDT,UNIUSDT,ATOMUSDT,NEARUSDT,APTUSDT,ARBUSDT,OPUSDT,FILUSDT,ZECUSDT,XMRUSDT,AAVEUSDT,FTMUSDT,SNXUSDT,INJUSDT,STXUSDT,RUNEUSDT,PENDLEUSDT,COMPUSDT,AXSUSDT
+INTENT_EXECUTOR_UNIVERSE_ENABLE=true
+UNIVERSE_ENABLE=true
+CONSUMER_NAME_SUFFIX=_v2
+INTENT_EXECUTOR_ALLOW_UPSIZE=true
+INTENT_EXECUTOR_MIN_NOTIONAL_USDT=100
+
+--- /etc/quantum/market-publisher.env
+# Market Publisher Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/market-publisher.log
+# Reduced symbol count for stability (10 symbols = 20 WebSocket connections)
+# Scale up gradually: 10 -> 20 -> 30 symbols
+SYMBOLS=BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,OPUSDT,ARBUSDT,INJUSDT,DOTUSDT,STXUSDT
+# Binance endpoints (mainnet for data reliability)
+# TESTNET: wss://testnet.binance.vision/ws
+# MAINNET: default (python-binance uses wss://stream.binance.com:9443/ws)
+
+--- /etc/quantum/marketstate.env
+# P0.5 MarketState Metrics Publisher Configuration
+MARKETSTATE_SYMBOLS=BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,OPUSDT,ARBUSDT,INJUSDT,DOTUSDT,STXUSDT
+MARKETSTATE_PUBLISH_INTERVAL=60
+MARKETSTATE_REDIS_HOST=localhost
+MARKETSTATE_REDIS_PORT=6379
+MARKETSTATE_WINDOW_SIZE=300
+MARKETSTATE_SOURCE=synthetic
+MARKETSTATE_LOG_LEVEL=INFO
+
+--- /etc/quantum/meta-regime.env
+# Meta Regime Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/meta-regime.log
+# Service behavior
+REGIME_UPDATE_INTERVAL_S=300
+CORRELATION_WINDOW_DAYS=30
+
+--- /etc/quantum/metricpack-builder.env
+# MetricPack Builder Configuration
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+# Service
+METRICPACK_PORT=8051
+METRICPACK_SYMBOLS=BTCUSDT,ETHUSDT,TRXUSDT
+METRICPACK_MODE=testnet
+# Streams
+APPLY_RESULT_STREAM=quantum:stream:apply.result
+METRICPACK_CONSUMER_GROUP=metricpack_builder
+METRICPACK_CONSUMER_NAME=metricpack_1
+# Regime Detection
+METRICPACK_ATR_PERIOD=14
+METRICPACK_REGIME_METHOD=adx
+METRICPACK_PRICE_SOURCE=binance_mark
+# Performance
+METRICPACK_DEDUPE_SIZE=10000
+
+--- /etc/quantum/model-federation.env
+# Model Federation Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/model-federation.log
+AI_ENGINE_HOST=127.0.0.1
+AI_ENGINE_PORT=8001
+FEDERATION_INTERVAL_S=120
+
+--- /etc/quantum/model-supervisor.env
+# Model Supervisor Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/model-supervisor.log
+AI_ENGINE_HOST=127.0.0.1
+AI_ENGINE_PORT=8001
+SUPERVISION_INTERVAL_S=60
+
+--- /etc/quantum/p28a3-latency-proof.env
+# P2.8A.3 Latency Proof Configuration
+# Read by systemd service via EnvironmentFile
+# Python output (script itself does not read this)
+PYTHONUNBUFFERED=1
+# Pushgateway Push (optional)
+P28A3_TRUTH_PUSH_ENABLED=false
+P28A3_TRUTH_PUSHGATEWAY_URL=http://localhost:9091
+P28A3_TRUTH_PUSH_JOB=quantum_p28a3_latency_proof
+P28A3_TRUTH_PUSH_TIMEOUT_SEC=2
+# Loki Structured Logging (optional)
+P28A3_TRUTH_LOKI_STRUCTURED_ENABLED=true
+
+--- /etc/quantum/p35-decision-intelligence.env
+# P3.5 Decision Intelligence Service Configuration
+# Source: /etc/quantum/p35-decision-intelligence.env
+# Redis Configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+# Logging
+LOG_LEVEL=INFO
+# Features
+ENABLE_SYMBOL_BREAKDOWN=true
+
+--- /etc/quantum/pil.env
+# PIL Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/pil.log
+AI_ENGINE_HOST=127.0.0.1
+AI_ENGINE_PORT=8001
+
+--- /etc/quantum/portfolio-clusters.env
+# P2.7 Portfolio Clusters Configuration
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+# Symbols
+P27_ALLOWLIST=BTCUSDT,ETHUSDT,SOLUSDT
+# Lookback window (minutes)
+P27_LOOKBACK=360
+# Update interval (seconds)
+P27_UPDATE_SEC=60
+# Clustering threshold (correlation >= this value forms cluster edges)
+P27_CLUSTER_CORR_MIN=0.70
+# Metrics port
+P27_METRICS_PORT=8048
+# Logging
+P27_LOG_LEVEL=INFO
+
+--- /etc/quantum/portfolio-gate.env
+# P2.6 Portfolio Gate Configuration
+# Redis connection
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+# Symbol allowlist (comma-separated)
+P26_ALLOWLIST=BTCUSDT,ETHUSDT,SOLUSDT
+# Permit & cooldown
+P26_PERMIT_TTL=60
+P26_COOLDOWN_SEC=60
+P26_POLL_INTERVAL=5
+# Prometheus metrics
+P26_METRICS_PORT=8047
+# Logging
+P26_LOG_LEVEL=INFO
+# Portfolio stress configuration (no hardcoded USD values)
+# Heat normalization range
+P26_H_MIN=0.05
+P26_H_MAX=0.35
+# Stress thresholds
+P26_STRESS_FULLCLOSE_MIN=0.55
+P26_STRESS_RISKOFF=0.80
+P26_KS_HARD=0.85
+# Stress formula weights: Stress = A*heat + B*concentration + C*correlation
+P26_A=0.60
+P26_B=0.25
+P26_C=0.15
+# Position limits
+
+--- /etc/quantum/portfolio-governance.env
+# Portfolio Governance Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/portfolio-governance.log
+AI_ENGINE_HOST=127.0.0.1
+AI_ENGINE_PORT=8001
+# Service behavior
+POLL_INTERVAL_MS=1000
+HEALTH_CHECK_INTERVAL_S=60
+
+--- /etc/quantum/portfolio-heat-gate.env
+# P2.6 Portfolio Heat Gate Configuration
+# Hedge Fund OS Edition
+
+# Redis connection
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+
+# Operation mode: shadow (log only) or enforce (modify proposals)
+P26_MODE=enforce
+
+# Portfolio heat thresholds
+# COLD: < 0.25 (low risk, preserve winners)
+# WARM: 0.25-0.65 (moderate risk, partial closes OK)
+# HOT: >= 0.65 (high risk, full closes allowed)
+HEAT_MIN=0.25
+HEAT_MAX=0.65
+
+# Polling interval (seconds)
+P26_POLL_SEC=2
+
+# Prometheus metrics port
+P26_METRICS_PORT=8056
+
+# Log level
+P26_LOG_LEVEL=INFO
+
+--- /etc/quantum/portfolio-intelligence.env
+# Portfolio Intelligence Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/portfolio-intelligence.log
+API_PORT=8004
+API_HOST=127.0.0.1
+
+--- /etc/quantum/portfolio-risk-governor.env
+P28_MODE=shadow
+PORT=8049
+LOG_LEVEL=INFO
+REDIS_URL=redis://localhost:6379/0
+# Budget Engine Parameters
+BASE_RISK_PCT=0.02
+ALPHA_HEAT=0.4
+BETA_CLUSTER=0.4
+GAMMA_VOL=0.2
+MIN_BUDGET_K=500
+MAX_BUDGET_K=10000
+STALE_SEC=30
+# Integration
+HEAT_GATE_METRICS_URL=http://localhost:8056/metrics
+BUDGET_COMPUTE_INTERVAL_SEC=10
+GOV_TESTNET_ENABLE_P29=true
+
+--- /etc/quantum/portfolio-state-publisher.env
+PSP_INTERVAL_SEC=5
+PSP_PORTFOLIO_KEY=REDACTED
+PSP_STATE_TTL_SEC=120
+PSP_STREAM_KEY=REDACTED
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+
+--- /etc/quantum/position-monitor.env
+# Position Monitor Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/position-monitor.log
+MONITOR_INTERVAL_MS=500
+POSITION_CHECK_ENABLED=true
+# Binance Testnet Mode
+BINANCE_TESTNET=true
+
+--- /etc/quantum/position-state-brain.env
+# P3.3 Position State Brain Configuration
+# 
+# NOTE: Binance credentials loaded from apply-layer.env via systemd EnvironmentFile
+# This file contains only P3.3-specific settings
+# Redis connection
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+# Symbol allowlist
+P33_ALLOWLIST=BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,LTCUSDT,LINKUSDT,AVAXUSDT,XRPUSDT
+# Polling interval (seconds)
+P33_POLL_SEC=1
+# Sanity check thresholds
+P33_STALE_THRESHOLD_SEC=300
+P33_COOLDOWN_SEC=15
+P33_QTY_TOLERANCE_PCT=1.0
+# Permit TTL (seconds)
+P33_PERMIT_TTL=60
+# Prometheus metrics
+P33_METRICS_PORT=8045
+# Log level (DEBUG to see stream reading)
+P33_LOG_LEVEL=INFO
+# Universe Service integration
+UNIVERSE_ENABLE=true
+UNIVERSE_CACHE_SECONDS=60
+P33_ONDEMAND_SNAPSHOT=true
+P33_ALLOWLIST_SOURCE=universe
+
+--- /etc/quantum/quantumfond-frontend.env
+# Quantumfond Frontend Environment
+PORT=3001
+HOST=127.0.0.1
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+NODE_ENV=production
+LOG_FILE=/var/log/quantum/quantumfond-frontend.log
+
+--- /etc/quantum/reconcile-engine.env
+# P3.4 Reconcile Engine Configuration
+# Symbol allowlist (comma-separated)
+P34_ALLOWLIST=BTCUSDT
+# Loop cadence (seconds)
+P34_LOOP_CADENCE_SEC=1.0
+# Exchange snapshot freshness limit (seconds)
+P34_EXCHANGE_FRESHNESS_SEC=10
+# Qty drift tolerance percentage (1.0 = 1%)
+P34_QTY_DRIFT_TOLERANCE_PCT=1.0
+# Evidence window for apply.result lookback (seconds)
+P34_EVIDENCE_WINDOW_SEC=300
+# Hold TTL when reconciliation required (seconds)
+P34_HOLD_TTL_SEC=300
+# Prometheus metrics port
+P34_PROMETHEUS_PORT=8046
+# Logging level (DEBUG, INFO, WARNING, ERROR)
+P34_LOG_LEVEL=INFO
+RECONCILE_HMAC_SECRET=REDACTED
+
+--- /etc/quantum/retraining-worker.env
+# Retraining Worker Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/retraining-worker.log
+AI_ENGINE_HOST=127.0.0.1
+AI_ENGINE_PORT=8001
+# Training config
+MODEL_PATH=/data/quantum/models
+CHECKPOINT_PATH=/data/quantum/checkpoints
+RETRAIN_INTERVAL_H=24
+MAX_EPOCHS=100
+BATCH_SIZE=32
+
+--- /etc/quantum/retrain-worker.env
+PYTHONPATH=/home/qt/quantum_trader
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_URL=redis://127.0.0.1:6379/0
+TZ=Europe/Oslo
+LOG_LEVEL=INFO
+
+--- /etc/quantum/risk-brain.env
+# Risk Brain Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/risk-brain.log
+AI_ENGINE_HOST=127.0.0.1
+AI_ENGINE_PORT=8001
+# Service behavior
+RISK_CHECK_INTERVAL_S=30
+MAX_POSITION_SIZE_PCT=10.0
+STOP_LOSS_ENABLED=true
+
+--- /etc/quantum/risk-proposal.env
+# P1.5 Risk Proposal Publisher Configuration
+
+# Redis connection
+REDIS_URL=redis://localhost:6379
+
+# Symbols to monitor (comma-separated)
+SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT
+
+# Publish interval (seconds)
+PUBLISH_INTERVAL_SEC=10
+
+# Position source mode
+# auto: try redis_hash → redis_stream → synthetic
+# redis_hash: only quantum:state:positions
+# redis_stream: only quantum:stream:execution.result
+# synthetic: generate test positions
+POSITION_SOURCE=auto
+
+# Enable stream publishing (in addition to hash)
+# If true, publishes to quantum:stream:risk.proposal for time-series data
+ENABLE_STREAM=false
+
+# Logging level
+LOG_LEVEL=INFO
+
+--- /etc/quantum/risk-safety.env
+# Risk Safety Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/risk-safety.log
+RISK_CHECK_INTERVAL_MS=500
+MAX_DRAWDOWN_PCT=15.0
+MAX_LEVERAGE=10.0
+
+--- /etc/quantum/rl-dashboard.env
+# RL Dashboard Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/rl-dashboard.log
+DASHBOARD_PORT=8025
+DASHBOARD_HOST=127.0.0.1
+
+--- /etc/quantum/rl-feedback-v2.env
+# RL Feedback V2 Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/rl-feedback-v2.log
+RL_SIZER_HOST=127.0.0.1
+RL_SIZER_PORT=8022
+FEEDBACK_INTERVAL_S=30
+
+--- /etc/quantum/rl-monitor.env
+# RL Monitor Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/rl-monitor.log
+RL_SIZER_HOST=127.0.0.1
+RL_SIZER_PORT=8022
+MONITOR_INTERVAL_S=10
+
+--- /etc/quantum/rl-policy-publisher.env
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+PUBLISH_INTERVAL_SEC=30
+SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT,DOTUSDT,OPUSDT,ARBUSDT,INJUSDT,BNBUSDT,STXUSDT
+MODE=shadow
+DEFAULT_ACTION=HOLD
+DEFAULT_CONF=0.80
+ACTION_MAP=BTCUSDT:BUY,ETHUSDT:SELL,SOLUSDT:BUY
+CONF_MAP=BTCUSDT:0.85,ETHUSDT:0.78,SOLUSDT:0.82
+KILL_SWITCH=false
+PREFIX=quantum:rl:policy:
+VERSION=v2.0
+REASON=publisher_v0
+
+--- /etc/quantum/rl-shadow-metrics-exporter.env
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+METRICS_PORT=9092
+UPDATE_INTERVAL_SEC=60
+STREAM_NAME=quantum:stream:trade.intent
+SAMPLE_COUNT=500
+POLICY_PREFIX=quantum:rl:policy:
+
+--- /etc/quantum/rl-shadow-scorecard.env
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+STREAM=quantum:stream:trade.intent
+COUNT=2000
+TOPN=10
+
+--- /etc/quantum/rl-sizer.env
+# RL Sizer Environment (Model Server)
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/rl-sizer.log
+# Model server config
+MODEL_PATH=/data/quantum/models/rl_sizer
+API_PORT=8022
+API_HOST=127.0.0.1
+# RL config
+RL_UPDATE_INTERVAL_S=300
+EXPLORATION_RATE=0.1
+
+--- /etc/quantum/safety-telemetry.env
+# P1 Safety Telemetry Exporter Configuration
+
+# Redis Configuration
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_PASSWORD=REDACTED
+
+# HTTP Server
+PORT=9105
+
+# Safety Kernel Parameters (must match router config)
+SAFETY_WINDOW_SEC=10
+
+# Sampling Configuration
+SAMPLE_INTERVAL_SEC=15
+FAULT_LOOKBACK_MAX=2000
+
+--- /etc/quantum/strategic-evolution.env
+# Strategic Evolution Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/strategic-evolution.log
+AI_ENGINE_HOST=127.0.0.1
+AI_ENGINE_PORT=8001
+EVOLUTION_INTERVAL_S=600
+
+--- /etc/quantum/strategic-memory.env
+# Strategic Memory Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/strategic-memory.log
+MEMORY_RETENTION_DAYS=90
+SNAPSHOT_INTERVAL_S=3600
+
+--- /etc/quantum/strategy-brain.env
+# Strategy Brain Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/strategy-brain.log
+AI_ENGINE_HOST=127.0.0.1
+AI_ENGINE_PORT=8001
+# Service behavior
+STRATEGY_UPDATE_INTERVAL_S=120
+SIGNAL_GENERATION_ENABLED=true
+
+--- /etc/quantum/strategy-ops.env
+# Strategy Ops Environment (Model Server)
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/strategy-ops.log
+# Model server config
+MODEL_PATH=/data/quantum/models/strategy_ops
+API_PORT=8023
+API_HOST=127.0.0.1
+# Strategy ops config
+OPS_UPDATE_INTERVAL_S=180
+
+--- /etc/quantum/testnet.env
+# ============================================
+# BINANCE TESTNET CREDENTIALS
+# ============================================
+USE_BINANCE_TESTNET=true
+BINANCE_TESTNET=true
+BINANCE_TESTNET_API_KEY=REDACTED
+BINANCE_TESTNET_SECRET_KEY=REDACTED
+# ============================================
+# TRADING CONFIGURATION
+# ============================================
+TRADING_MODE=TESTNET
+TRADING_ENABLED=true
+MAX_LEVERAGE=20
+POSITION_SIZE_USD=100
+MAX_POSITIONS=5
+RISK_PER_TRADE=0.02
+# ============================================
+# AI ENGINE SETTINGS
+# ============================================
+AI_ENGINE_ENABLED=true
+CONFIDENCE_THRESHOLD=0.65
+MIN_SIGNAL_STRENGTH=0.70
+# ============================================
+# RL AGENT CONFIGURATION
+# ============================================
+RL_ENABLED=true
+RL_MODE=shadow_gated
+RL_CONFIDENCE_THRESHOLD=0.75
+# ============================================
+# PORTFOLIO SETTINGS
+# ============================================
+INITIAL_CAPITAL=10000
+MAX_DRAWDOWN=0.15
+DAILY_LOSS_LIMIT=500
+# ============================================
+# REDIS CONFIGURATION
+# ============================================
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+# ============================================
+# LOGGING
+# ============================================
+LOG_LEVEL=INFO
+LOG_TO_FILE=true
+LOG_PATH=/var/log/quantum
+# ============================================
+# MONITORING
+# ============================================
+PROMETHEUS_ENABLED=true
+GRAFANA_ENABLED=true
+METRICS_PORT=9091
+EXIT_MONITOR_MANUAL_CLOSE_ENABLED=true
+EXIT_MONITOR_MANUAL_CLOSE_TOKEN=REDACTED
+BINANCE_TESTNET_API_SECRET=REDACTED
+BINANCE_API_KEY=REDACTED
+BINANCE_API_SECRET=REDACTED
+
+--- /etc/quantum/trade-intent-consumer.env
+# Trade Intent Consumer Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/trade-intent-consumer.log
+# Stream consumption
+STREAM_KEY=REDACTED
+CONSUMER_GROUP=trade_intent_processors
+CONSUMER_NAME=tic_001
+BATCH_SIZE=10
+BLOCK_MS=1000
+
+--- /etc/quantum/training-worker.env
+# Training Worker Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+MODEL_DIR=/data/quantum/models
+LOG_LEVEL=INFO
+DRY_RUN=1
+TRAINING_BATCH_SIZE=64
+TRAINING_EPOCHS=10
+MIN_FREE_GB=5
+LOCK_FILE=/run/quantum/training.lock
+TRAINING_ENABLED=0
+
+--- /etc/quantum/universe.env
+export AI_UNIVERSE_MAX_SYMBOLS=50
+
+--- /etc/quantum/universe-os.env
+# Universe OS Environment
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+LOGLEVEL=INFO
+LOG_FILE=/var/log/quantum/universe-os.log
+API_PORT=8006
+API_HOST=127.0.0.1
+UNIVERSE_UPDATE_INTERVAL_S=3600
+
+--- /etc/quantum/universe-service.env
+# Quantum Trading Universe Service Configuration
+# Copy this file to /etc/quantum/universe-service.env and customize
+
+# Operating mode: testnet or mainnet
+# testnet: https://testnet.binancefuture.com/fapi/v1/exchangeInfo
+# mainnet: https://fapi.binance.com/fapi/v1/exchangeInfo
+UNIVERSE_MODE=testnet
+
+# Refresh interval in seconds (minimum 10)
+# How often to fetch exchangeInfo from Binance
+UNIVERSE_REFRESH_SEC=60
+
+# Maximum number of symbols to publish (safety cap)
+# Prevents memory/performance issues from unexpected API responses
+UNIVERSE_MAX=800
+
+# Redis connection
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_DB=0
+
+# HTTP timeout for Binance API calls
+HTTP_TIMEOUT_SEC=10
+
+--- /etc/quantum/utf.env
+UTF_REDIS_URL=redis://127.0.0.1:6379/0
+UTF_STREAM=quantum:stream:utf
+UTF_MAXLEN=200000
+UTF_UNITS="quantum-ai-engine.service quantum-strategy-brain.service quantum-risk-brain.service quantum-execution.service"
+UTF_POLL_SEC=2
+
+
+=== REDIS_INFO ===
+redis_version:7.0.15
+uptime_in_seconds:193159
+
+=== REDIS_STREAM_KEYS ===
+quantum:stream:trade.closed
+quantum:stream:portfolio.cluster_state
+quantum:stream:harvest.intent
+quantum:stream:ai.decision.made
+quantum:stream:risk.events
+quantum:stream:portfolio.state
+quantum:stream:portfolio.exposure_updated
+quantum:stream:reconcile.close
+quantum:stream:rl_rewards
+quantum:stream:policy.audit
+quantum:stream:trade.intent
+quantum:stream:marketstate
+quantum:stream:apply.plan.manual
+quantum:stream:market.tick
+quantum:stream:model.retrain
+quantum:stream:policy.updated
+quantum:stream:policy.update
+quantum:stream:utf
+quantum:stream:clm.intent
+quantum:stream:bsc.events
+quantum:stream:exitbrain.pnl
+quantum:stream:exchange.raw
+quantum:stream:harvest.proposal
+quantum:stream:market.klines
+quantum:stream:ai.exit.decision
+quantum:stream:exchange.normalized
+quantum:stream:reconcile.events
+quantum:stream:position.snapshot
+quantum:stream:allocation.decision
+quantum:stream:apply.result
+quantum:stream:trade.execution.res
+quantum:stream:features
+quantum:stream:apply.heat.observed
+quantum:stream:account.balance
+quantum:stream:ai.signal_generated
+quantum:stream:signal.score
+quantum:stream:portfolio.gate
+quantum:stream:portfolio.snapshot_updated
+quantum:stream:execution.result
+quantum:stream:apply.plan
+
+=== REDIS_STREAM_DETAILS ===
+--- quantum:stream:trade.closed
+length
+1002
+radix-tree-keys
+57
+radix-tree-nodes
+123
+last-generated-id
+1771363595884-0
+max-deleted-entry-id
+0-0
+entries-added
+2011
+recorded-first-entry-id
+1771123813390-0
+groups
+1
+first-entry
+1771123813390-0
+event_type
+trade.closed
+timestamp
+2026-02-15T02:50:13.389352
+symbol
+ETHUSDT
+side
+SHORT
+entry_price
+2060.73
+exit_price
+2058.31
+pnl_percent
+0.12
+confidence
+0.7
+model_id
+autonomous_exit
+R_net
+0.06
+pnl_usd
+0.71
+reason
+FEE_PROTECTION_net_R=-0.0 (gross=0.0, fees_eaten=0.04R over 0.0h)
+order_id
+8321137723
+source
+autonomous_trader
+last-entry
+1771363595884-0
+event_type
+trade.closed
+timestamp
+2026-02-17T21:26:35.884213
+symbol
+ALICEUSDT
+side
+SHORT
+entry_price
+0.1104977523725
+exit_price
+0.11384645177535838
+pnl_percent
+-3.03
+confidence
+0.7
+model_id
+autonomous_exit
+R_net
+-1.52
+pnl_usd
+-6.03
+reason
+emergency_stop_loss (R=-1.52)
+order_id
+89628152
+source
+autonomous_trader
+name
+quantum:group:ai-engine:trade.closed
+consumers
+8
+pending
+1
+last-delivered-id
+1771363595884-0
+entries-read
+2011
+lag
+0
+1771363595884-0
+event_type
+trade.closed
+timestamp
+2026-02-17T21:26:35.884213
+symbol
+ALICEUSDT
+side
+SHORT
+entry_price
+0.1104977523725
+exit_price
+0.11384645177535838
+pnl_percent
+-3.03
+confidence
+0.7
+model_id
+autonomous_exit
+R_net
+-1.52
+pnl_usd
+-6.03
+reason
+emergency_stop_loss (R=-1.52)
+order_id
+89628152
+source
+autonomous_trader
+
+--- quantum:stream:portfolio.cluster_state
+length
+1154
+radix-tree-keys
+15
+radix-tree-nodes
+36
+last-generated-id
+1771364767247-0
+max-deleted-entry-id
+0-0
+entries-added
+1154
+recorded-first-entry-id
+1771295578326-0
+groups
+0
+first-entry
+1771295578326-0
+cluster_stress
+0.0
+clusters_count
+0
+clusters
+[]
+ts_epoch
+1771295578
+last-entry
+1771364767247-0
+cluster_stress
+0.0
+clusters_count
+0
+clusters
+[]
+ts_epoch
+1771364767
+
+1771364767247-0
+cluster_stress
+0.0
+clusters_count
+0
+clusters
+[]
+ts_epoch
+1771364767
+
+--- quantum:stream:harvest.intent
+length
+4879
+radix-tree-keys
+233
+radix-tree-nodes
+482
+last-generated-id
+1771364413918-0
+max-deleted-entry-id
+0-0
+entries-added
+4879
+recorded-first-entry-id
+1770433018064-0
+groups
+1
+first-entry
+1770433018064-0
+intent_type
+AUTONOMOUS_EXIT
+symbol
+BERAUSDT
+action
+CLOSE
+percentage
+1.0
+reason
+emergency_stop_loss (R=-1.64)
+hold_score
+0
+exit_score
+10
+R_net
+-1.6357213190153563
+pnl_usd
+-65.35229445999998
+timestamp
+1770433018
+last-entry
+1771364413918-0
+intent_type
+AUTONOMOUS_EXIT
+symbol
+AEVOUSDT
+action
+CLOSE
+percentage
+1.0
+reason
+emergency_stop_loss (R=-1.95)
+hold_score
+0
+exit_score
+10
+R_net
+-1.9519796391641213
+pnl_usd
+-74.22590327149572
+entry_price
+0.0294289434484
+exit_price
+0.028280049480132217
+timestamp
+1771364413
+name
+intent_executor_harvest
+consumers
+13
+pending
+0
+last-delivered-id
+1771364413918-0
+entries-read
+4879
+lag
+0
+1771364413918-0
+intent_type
+AUTONOMOUS_EXIT
+symbol
+AEVOUSDT
+action
+CLOSE
+percentage
+1.0
+reason
+emergency_stop_loss (R=-1.95)
+hold_score
+0
+exit_score
+10
+R_net
+-1.9519796391641213
+pnl_usd
+-74.22590327149572
+entry_price
+0.0294289434484
+exit_price
+0.028280049480132217
+timestamp
+1771364413
+
+--- quantum:stream:ai.decision.made
+length
+10002
+radix-tree-keys
+1400
+radix-tree-nodes
+3099
+last-generated-id
+1771364552298-0
+max-deleted-entry-id
+0-0
+entries-added
+12154
+recorded-first-entry-id
+1770430258916-0
+groups
+1
+first-entry
+1770430258916-0
+event_type
+ai.decision.made
+payload
+{"symbol": "FHEUSDT", "side": "buy", "confidence": 0.72, "entry_price": 0.09962, "quantity": 50.0, "leverage": 5, "stop_loss": 0.0986238, "take_profit": 0.1016124, "trail_percent": null, "model": "ensemble", "ensemble_confidence": 0.72, "strategy": "default", "meta_strategy": "default", "regime": "unknown", "position_size_usd": 50.0, "timestamp": "2026-02-07T02:10:58.916320+00:00"}
+trace_id
+
+correlation_id
+0738ef76-3fc1-4d9e-8e06-5a97a295d2d8
+timestamp
+2026-02-07T02:10:58.916404
+source
+ai-engine
+last-entry
+1771364552298-0
+event_type
+ai.decision.made
+payload
+{"symbol": "A2ZUSDT", "side": "sell", "confidence": 0.68, "entry_price": 0.000983, "quantity": 50.0, "leverage": 5, "stop_loss": 0.0009928299999999999, "take_profit": 0.0009633399999999999, "trail_percent": null, "model": "ensemble", "ensemble_confidence": 0.68, "strategy": "default", "meta_strategy": "default", "regime": "unknown", "position_size_usd": 50.0, "timestamp": "2026-02-17T21:42:20.635948+00:00"}
+trace_id
+
+correlation_id
+a9947d80-fa14-4f4e-9fc2-a2784e55a326
+timestamp
+2026-02-17T21:42:20.636131
+source
+ai-engine
+name
+router
+consumers
+1
+pending
+11343
+last-delivered-id
+1771364552298-0
+entries-read
+12154
+lag
+0
+1771364552298-0
+event_type
+ai.decision.made
+payload
+{"symbol": "A2ZUSDT", "side": "sell", "confidence": 0.68, "entry_price": 0.000983, "quantity": 50.0, "leverage": 5, "stop_loss": 0.0009928299999999999, "take_profit": 0.0009633399999999999, "trail_percent": null, "model": "ensemble", "ensemble_confidence": 0.68, "strategy": "default", "meta_strategy": "default", "regime": "unknown", "position_size_usd": 50.0, "timestamp": "2026-02-17T21:42:20.635948+00:00"}
+trace_id
+
+correlation_id
+a9947d80-fa14-4f4e-9fc2-a2784e55a326
+timestamp
+2026-02-17T21:42:20.636131
+source
+ai-engine
+
+--- quantum:stream:risk.events
+length
+30
+radix-tree-keys
+1
+radix-tree-nodes
+2
+last-generated-id
+1771361218868-0
+max-deleted-entry-id
+0-0
+entries-added
+30
+recorded-first-entry-id
+1770465332159-0
+groups
+0
+first-entry
+1770465332159-0
+event
+RISK_GUARD_ACTIVATED
+guard_type
+EMERGENCY_FLATTEN
+reason
+EMERGENCY_FLATTEN drawdown=20.1% > 10.0%
+duration_sec
+14400
+timestamp
+1770465332.159207
+last-entry
+1771361218868-0
+event
+EMERGENCY_FLATTEN_REQUESTED
+reason
+drawdown_breach
+timestamp
+1771361218.8681164
+
+1771361218868-0
+event
+EMERGENCY_FLATTEN_REQUESTED
+reason
+drawdown_breach
+timestamp
+1771361218.8681164
+
+--- quantum:stream:portfolio.state
+length
+1037
+radix-tree-keys
+26
+radix-tree-nodes
+54
+last-generated-id
+1771364765631-0
+max-deleted-entry-id
+0-0
+entries-added
+184916
+recorded-first-entry-id
+1771359477489-0
+groups
+0
+first-entry
+1771359477489-0
+ts_utc
+1771359477
+timestamp
+1771359477
+equity_usd
+3920.07
+balance_usd
+4031.21
+unrealized_pnl_usd
+-111.14
+positions_count
+47
+positions_notional_usd
+7925.76
+source
+portfolio-state-publisher
+drawdown
+0.0
+last-entry
+1771364765631-0
+ts_utc
+1771364765
+timestamp
+1771364765
+equity_usd
+3902.69
+balance_usd
+4004.44
+unrealized_pnl_usd
+-101.75
+positions_count
+47
+positions_notional_usd
+8145.31
+source
+portfolio-state-publisher
+drawdown
+0.0
+
+1771364765631-0
+ts_utc
+1771364765
+timestamp
+1771364765
+equity_usd
+3902.69
+balance_usd
+4004.44
+unrealized_pnl_usd
+-101.75
+positions_count
+47
+positions_notional_usd
+8145.31
+source
+portfolio-state-publisher
+drawdown
+0.0
+
+--- quantum:stream:portfolio.exposure_updated
+length
+6815
+radix-tree-keys
+568
+radix-tree-nodes
+1143
+last-generated-id
+1771364763766-0
+max-deleted-entry-id
+0-0
+entries-added
+6815
+recorded-first-entry-id
+1771294981772-0
+groups
+0
+first-entry
+1771294981772-0
+event_type
+portfolio.exposure_updated
+payload
+{"total_exposure": 0.0, "exposure_by_symbol": {}, "exposure_by_sector": {}, "long_exposure": 0.0, "short_exposure": 0.0, "net_exposure": 0.0, "timestamp": "2026-02-17T02:23:01.772761+00:00"}
+trace_id
+
+correlation_id
+9d00d81b-e8a7-491d-a799-783100a6309c
+timestamp
+2026-02-17T02:23:01.772817
+source
+portfolio_intelligence
+last-entry
+1771364763766-0
+event_type
+portfolio.exposure_updated
+payload
+{"total_exposure": 0.0, "exposure_by_symbol": {}, "exposure_by_sector": {}, "long_exposure": 0.0, "short_exposure": 0.0, "net_exposure": 0.0, "timestamp": "2026-02-17T21:46:03.765938+00:00"}
+trace_id
+
+correlation_id
+e9e8f8ba-742d-40e4-9f66-d5ec01eff108
+timestamp
+2026-02-17T21:46:03.766051
+source
+portfolio_intelligence
+
+1771364763766-0
+event_type
+portfolio.exposure_updated
+payload
+{"total_exposure": 0.0, "exposure_by_symbol": {}, "exposure_by_sector": {}, "long_exposure": 0.0, "short_exposure": 0.0, "net_exposure": 0.0, "timestamp": "2026-02-17T21:46:03.765938+00:00"}
+trace_id
+
+correlation_id
+e9e8f8ba-742d-40e4-9f66-d5ec01eff108
+timestamp
+2026-02-17T21:46:03.766051
+source
+portfolio_intelligence
+
+--- quantum:stream:reconcile.close
+length
+0
+radix-tree-keys
+0
+radix-tree-nodes
+1
+last-generated-id
+0-0
+max-deleted-entry-id
+0-0
+entries-added
+0
+recorded-first-entry-id
+0-0
+groups
+1
+first-entry
+
+last-entry
+
+name
+apply_recon
+consumers
+0
+pending
+0
+last-delivered-id
+0-0
+entries-read
+
+lag
+0
+
+
+--- quantum:stream:rl_rewards
+length
+110
+radix-tree-keys
+6
+radix-tree-nodes
+15
+last-generated-id
+1771298352376-1
+max-deleted-entry-id
+0-0
+entries-added
+110
+recorded-first-entry-id
+1770253357846-0
+groups
+0
+first-entry
+1770253357846-0
+timestamp
+2026-02-05T01:02:37.846106+00:00
+symbol
+BTCUSDT
+pnl
+123.45
+confidence
+0.9
+volatility
+0.02
+base_reward
+0.12345
+confidence_factor
+0.95
+vol_factor
+0.9803921568627451
+reward
+0.11497794117647057
+leverage
+0.7787444852941177
+avg_reward
+0.11497794117647057
+reward_std
+0.0
+message_count
+1
+last-entry
+1771298352376-1
+timestamp
+2026-02-17T03:19:12.376657+00:00
+symbol
+BTCUSDT
+pnl
+10.0
+confidence
+0.8
+volatility
+0.01
+base_reward
+0.01
+confidence_factor
+0.9
+vol_factor
+0.9900990099009901
+reward
+0.008910891089108912
+leverage
+0.7522277227722772
+avg_reward
+0.0787811943918177
+reward_std
+0.03886595887529564
+message_count
+6
+
+1771298352376-1
+timestamp
+2026-02-17T03:19:12.376657+00:00
+symbol
+BTCUSDT
+pnl
+10.0
+confidence
+0.8
+volatility
+0.01
+base_reward
+0.01
+confidence_factor
+0.9
+vol_factor
+0.9900990099009901
+reward
+0.008910891089108912
+leverage
+0.7522277227722772
+avg_reward
+0.0787811943918177
+reward_std
+0.03886595887529564
+message_count
+6
+
+--- quantum:stream:policy.audit
+length
+1003
+radix-tree-keys
+46
+radix-tree-nodes
+112
+last-generated-id
+1770667391783-0
+max-deleted-entry-id
+0-0
+entries-added
+1377
+recorded-first-entry-id
+1770287419817-0
+groups
+0
+first-entry
+1770287419817-0
+policy_version
+1.0.0-ai-v1
+policy_hash
+f401783cd40dead8cd32afa579f5fa9712cd6e8c5516e28382ad0403110e5993
+valid_until_epoch
+1770287719.8167782
+created_at_epoch
+1770287419
+generator
+ai_universe_v1
+universe_count
+10
+leverage_range
+6.0x-15.0x
+features_window
+15m,1h
+universe_hash
+fdf2eb6a065a1e7f
+last-entry
+1770667391783-0
+policy_version
+1.0.0-ai-v1
+policy_hash
+063e0d5647b9dcf8385a47bb803eabe26f37ba7c20f5a0e532828fdbaa1ad0e9
+valid_until_epoch
+1770667691.7826395
+created_at_epoch
+1770667391
+generator
+ai_universe_v1
+universe_count
+10
+leverage_range
+6.0x-12.0x
+features_window
+15m,1h
+universe_hash
+18338b4fe57ac574
+
+1770667391783-0
+policy_version
+1.0.0-ai-v1
+policy_hash
+063e0d5647b9dcf8385a47bb803eabe26f37ba7c20f5a0e532828fdbaa1ad0e9
+valid_until_epoch
+1770667691.7826395
+created_at_epoch
+1770667391
+generator
+ai_universe_v1
+universe_count
+10
+leverage_range
+6.0x-12.0x
+features_window
+15m,1h
+universe_hash
+18338b4fe57ac574
+
+--- quantum:stream:trade.intent
+length
+10000
+radix-tree-keys
+1581
+radix-tree-nodes
+3673
+last-generated-id
+1771364575627-0
+max-deleted-entry-id
+0-0
+entries-added
+66488
+recorded-first-entry-id
+1771110235658-0
+groups
+2
+first-entry
+1771110235658-0
+event_type
+trade.intent
+payload
+{"symbol": "BTCUSDT", "side": "SELL", "position_size_usd": 50.0, "leverage": 5, "entry_price": 71474.94, "stop_loss": 72189.6894, "take_profit": 70045.4412, "confidence": 0.68, "timestamp": "2026-02-14T23:02:36.463987+00:00", "model": "ensemble", "meta_strategy": "default", "consensus_count": 1, "total_models": 4, "model_breakdown": {"xgb": {"action": "HOLD", "confidence": 0.9957418441772461, "model": "vunknown"}, "lgbm": {"action": "HOLD", "confidence": 0.9916517101581528, "model": "vv5"}, "fallback": {"action": "SELL", "confidence": 0.68, "reason": "consensus_not_met_or_hold_signal", "triggered_by": "rsi_macd_rules"}}, "atr_value": 0.0, "volatility_factor": 1.0, "exchange_divergence": 19.040000000000873, "funding_rate": -3.094e-05, "regime": "unknown", "rl_influence_enabled": false, "rl_gate_pass": false, "rl_gate_reason": "rl_disabled", "rl_action": null, "rl_confidence": 0.0, "rl_version": null, "rl_policy_age_sec": null, "rl_weight_effective": 0.0, "rl_effect": "none", "ai_leverage": 56.00000000000001, "ai_size_usd": 152.00000000000003, "ai_harvest_policy": {"mode": "swing", "trail_pct": 1.0, "max_time_sec": 3600, "partial_close_pct": 0.0}}
+trace_id
+
+correlation_id
+d5d2bf7e-5953-4f8c-9234-606f49083109
+timestamp
+2026-02-14T23:03:32.349227
+source
+ai-engine
+last-entry
+1771364575627-0
+event_type
+trade.intent
+payload
+{"symbol": "A2ZUSDT", "side": "SELL", "position_size_usd": 50.0, "leverage": 5, "entry_price": 0.000983, "stop_loss": 0.0009928299999999999, "take_profit": 0.0009633399999999999, "confidence": 0.68, "timestamp": "2026-02-17T21:42:20.635948+00:00", "model": "ensemble", "meta_strategy": "default", "consensus_count": 1, "total_models": 4, "model_breakdown": {"patchtst": {"action": "HOLD", "confidence": 0.5, "model": "vunknown"}, "fallback": {"action": "SELL", "confidence": 0.68, "reason": "consensus_not_met_or_hold_signal", "triggered_by": "rsi_macd_rules"}}, "atr_value": 0.02, "volatility_factor": 1.0, "exchange_divergence": 0.0, "funding_rate": 0.0, "regime": "unknown", "rl_influence_enabled": false, "rl_gate_pass": false, "rl_gate_reason": "rl_disabled", "rl_action": null, "rl_confidence": 0.0, "rl_version": null, "rl_policy_age_sec": null, "rl_weight_effective": 0.0, "rl_effect": "none", "ai_leverage": 56.00000000000001, "ai_size_usd": 152.00000000000003, "ai_harvest_policy": {"mode": "swing", "trail_pct": 1.0, "max_time_sec": 3600, "partial_close_pct": 0.0}}
+trace_id
+
+correlation_id
+0aef85be-9d00-48d1-a736-be15e17008de
+timestamp
+2026-02-17T21:42:43.991667
+source
+ai-engine
+name
+quantum:group:execution:trade.intent
+consumers
+0
+pending
+0
+last-delivered-id
+1770679225293-0
+entries-read
+56228
+lag
+10260
+name
+quantum:group:intent_bridge
+consumers
+12
+pending
+3
+last-delivered-id
+1771364575627-0
+entries-read
+66488
+lag
+0
+1771364575627-0
+event_type
+trade.intent
+payload
+{"symbol": "A2ZUSDT", "side": "SELL", "position_size_usd": 50.0, "leverage": 5, "entry_price": 0.000983, "stop_loss": 0.0009928299999999999, "take_profit": 0.0009633399999999999, "confidence": 0.68, "timestamp": "2026-02-17T21:42:20.635948+00:00", "model": "ensemble", "meta_strategy": "default", "consensus_count": 1, "total_models": 4, "model_breakdown": {"patchtst": {"action": "HOLD", "confidence": 0.5, "model": "vunknown"}, "fallback": {"action": "SELL", "confidence": 0.68, "reason": "consensus_not_met_or_hold_signal", "triggered_by": "rsi_macd_rules"}}, "atr_value": 0.02, "volatility_factor": 1.0, "exchange_divergence": 0.0, "funding_rate": 0.0, "regime": "unknown", "rl_influence_enabled": false, "rl_gate_pass": false, "rl_gate_reason": "rl_disabled", "rl_action": null, "rl_confidence": 0.0, "rl_version": null, "rl_policy_age_sec": null, "rl_weight_effective": 0.0, "rl_effect": "none", "ai_leverage": 56.00000000000001, "ai_size_usd": 152.00000000000003, "ai_harvest_policy": {"mode": "swing", "trail_pct": 1.0, "max_time_sec": 3600, "partial_close_pct": 0.0}}
+trace_id
+
+correlation_id
+0aef85be-9d00-48d1-a736-be15e17008de
+timestamp
+2026-02-17T21:42:43.991667
+source
+ai-engine
+
+--- quantum:stream:marketstate
+length
+10028
+radix-tree-keys
+168
+radix-tree-nodes
+343
+last-generated-id
+1771364731429-0
+max-deleted-entry-id
+0-0
+entries-added
+66308
+recorded-first-entry-id
+1771301123567-0
+groups
+0
+first-entry
+1771301123567-0
+symbol
+BTCUSDT
+ts
+0.005411
+sigma
+0.01069900
+mu
+-0.00005789
+regime
+chop
+timestamp
+1771301123
+last-entry
+1771364731429-0
+symbol
+STXUSDT
+ts
+0.086604
+sigma
+0.00014993
+mu
+-0.00001298
+regime
+chop
+timestamp
+1771364731
+
+1771364731429-0
+symbol
+STXUSDT
+ts
+0.086604
+sigma
+0.00014993
+mu
+-0.00001298
+regime
+chop
+timestamp
+1771364731
+
+--- quantum:stream:apply.plan.manual
+length
+0
+radix-tree-keys
+0
+radix-tree-nodes
+1
+last-generated-id
+0-0
+max-deleted-entry-id
+0-0
+entries-added
+0
+recorded-first-entry-id
+0-0
+groups
+1
+first-entry
+
+last-entry
+
+name
+intent_executor_manual
+consumers
+0
+pending
+0
+last-delivered-id
+0-0
+entries-read
+
+lag
+0
+
+
+--- quantum:stream:market.tick
+length
+10005
+radix-tree-keys
+569
+radix-tree-nodes
+1228
+last-generated-id
+1771364767665-0
+max-deleted-entry-id
+0-0
+entries-added
+3373356
+recorded-first-entry-id
+1771364397517-1
+groups
+2
+first-entry
+1771364397517-1
+event_type
+market.tick
+payload
+{"symbol": "SOLUSDT", "price": 84.94, "qty": 0.065, "is_buyer_maker": false, "timestamp": 1771364397.517197}
+correlation_id
+d16f4330-2dcc-49fb-8197-c31d3ec07d83
+timestamp
+2026-02-17T21:39:57.517240
+source
+market-publisher
+trace_id
+
+last-entry
+1771364767665-0
+event_type
+market.tick
+payload
+{"symbol": "BNBUSDT", "price": 617.1, "qty": 0.05, "is_buyer_maker": true, "timestamp": 1771364767.664869}
+correlation_id
+5ab0f81f-5204-44e9-a114-54fe8968667a
+timestamp
+2026-02-17T21:46:07.664899
+source
+market-publisher
+trace_id
+
+name
+feature_publisher
+consumers
+0
+pending
+0
+last-delivered-id
+0-0
+entries-read
+
+lag
+10005
+name
+quantum:group:ai-engine:market.tick
+consumers
+15
+pending
+123
+last-delivered-id
+1771364113686-1
+entries-read
+19339
+lag
+3354017
+1771364767665-0
+event_type
+market.tick
+payload
+{"symbol": "BNBUSDT", "price": 617.1, "qty": 0.05, "is_buyer_maker": true, "timestamp": 1771364767.664869}
+correlation_id
+5ab0f81f-5204-44e9-a114-54fe8968667a
+timestamp
+2026-02-17T21:46:07.664899
+source
+market-publisher
+trace_id
+
+
+--- quantum:stream:model.retrain
+length
+0
+radix-tree-keys
+0
+radix-tree-nodes
+1
+last-generated-id
+0-0
+max-deleted-entry-id
+0-0
+entries-added
+0
+recorded-first-entry-id
+0-0
+groups
+1
+first-entry
+
+last-entry
+
+name
+retraining_workers
+consumers
+0
+pending
+0
+last-delivered-id
+0-0
+entries-read
+
+lag
+0
+
+
+--- quantum:stream:policy.updated
+length
+0
+radix-tree-keys
+0
+radix-tree-nodes
+1
+last-generated-id
+0-0
+max-deleted-entry-id
+0-0
+entries-added
+0
+recorded-first-entry-id
+0-0
+groups
+1
+first-entry
+
+last-entry
+
+name
+quantum:group:ai-engine:policy.updated
+consumers
+0
+pending
+0
+last-delivered-id
+0-0
+entries-read
+
+lag
+0
+
+
+--- quantum:stream:policy.update
+length
+104
+radix-tree-keys
+2
+radix-tree-nodes
+6
+last-generated-id
+1770667391783-0
+max-deleted-entry-id
+0-0
+entries-added
+1377
+recorded-first-entry-id
+1770557817599-0
+groups
+0
+first-entry
+1770557817599-0
+event
+policy.updated
+version
+1.0.0-ai-v1
+timestamp
+1770557817.5995228
+last-entry
+1770667391783-0
+event
+policy.updated
+version
+1.0.0-ai-v1
+timestamp
+1770667391.7833147
+
+1770667391783-0
+event
+policy.updated
+version
+1.0.0-ai-v1
+timestamp
+1770667391.7833147
+
+--- quantum:stream:utf
+length
+200008
+radix-tree-keys
+17436
+radix-tree-nodes
+38447
+last-generated-id
+1771364762523-0
+max-deleted-entry-id
+0-0
+entries-added
+247293
+recorded-first-entry-id
+1771295145792-0
+groups
+1
+first-entry
+1771295145792-0
+event
+{"ts": "1771293443097250", "unit": "quantum-ai-engine.service", "level": "6", "message": "[PHASE 3B] AAVEUSDC Secondary: range_trading", "symbol": null, "correlation_id": null, "source": "ai_engine", "host": "quantumtrader-prod-1", "tags": []}
+last-entry
+1771364762523-0
+event
+{"ts": "1771364762306650", "unit": "quantum-ai-engine.service", "level": "6", "message": "\ud83d\udcce correlation_id set: 49be0a19-d2a0-4de6-a503-4727d4bad7ed for event_type=market.klines", "symbol": null, "correlation_id": "49be0a19-d2a0-4de6-a503-4727d4bad7ed", "source": "ai_engine", "host": "quantumtrader-prod-1", "tags": []}
+name
+clm
+consumers
+1
+pending
+0
+last-delivered-id
+1771364762523-0
+entries-read
+247293
+lag
+0
+1771364762523-0
+event
+{"ts": "1771364762306650", "unit": "quantum-ai-engine.service", "level": "6", "message": "\ud83d\udcce correlation_id set: 49be0a19-d2a0-4de6-a503-4727d4bad7ed for event_type=market.klines", "symbol": null, "correlation_id": "49be0a19-d2a0-4de6-a503-4727d4bad7ed", "source": "ai_engine", "host": "quantumtrader-prod-1", "tags": []}
+
+--- quantum:stream:clm.intent
+length
+702
+radix-tree-keys
+39
+radix-tree-nodes
+85
+last-generated-id
+1771299214400-0
+max-deleted-entry-id
+0-0
+entries-added
+702
+recorded-first-entry-id
+1771295696994-0
+groups
+0
+first-entry
+1771295696994-0
+intent
+{"ts": 1771295696, "reason": "High error rate: 21 errors/hour", "unit": "quantum-ai-engine.service", "symbol": null, "severity": "high", "suggested_action": "investigate", "consumer": "quantumtrader-prod-1"}
+last-entry
+1771299214400-0
+intent
+{"ts": 1771299214, "reason": "High error rate: 438 errors/hour", "unit": "quantum-ai-engine.service", "symbol": null, "severity": "high", "suggested_action": "investigate", "consumer": "quantumtrader-prod-1"}
+
+1771299214400-0
+intent
+{"ts": 1771299214, "reason": "High error rate: 438 errors/hour", "unit": "quantum-ai-engine.service", "symbol": null, "severity": "high", "suggested_action": "investigate", "consumer": "quantumtrader-prod-1"}
+
+--- quantum:stream:bsc.events
+length
+1251
+radix-tree-keys
+22
+radix-tree-nodes
+52
+last-generated-id
+1771364727152-0
+max-deleted-entry-id
+0-0
+entries-added
+1251
+recorded-first-entry-id
+1770757890607-0
+groups
+0
+first-entry
+1770757890607-0
+event
+BSC_ACTIVATED
+timestamp
+2026-02-10T21:11:30.606528+00:00
+max_loss_pct
+-3.0
+max_duration_hours
+72
+max_margin_ratio
+0.85
+last-entry
+1771364727152-0
+event
+BSC_HEALTH_CHECK
+timestamp
+2026-02-17T21:45:27.152077+00:00
+positions_checked
+0
+cycle
+1089
+
+1771364727152-0
+event
+BSC_HEALTH_CHECK
+timestamp
+2026-02-17T21:45:27.152077+00:00
+positions_checked
+0
+cycle
+1089
+
+--- quantum:stream:exitbrain.pnl
+length
+6
+radix-tree-keys
+1
+radix-tree-nodes
+2
+last-generated-id
+1770263286488-0
+max-deleted-entry-id
+0-0
+entries-added
+6
+recorded-first-entry-id
+1-0
+groups
+0
+first-entry
+1-0
+symbol
+BTCUSDT
+pnl
+123.45
+confidence
+0.9
+volatility
+0.02
+last-entry
+1770263286488-0
+symbol
+BTCUSDT
+pnl
+10
+confidence
+0.8
+volatility
+0.01
+
+1770263286488-0
+symbol
+BTCUSDT
+pnl
+10
+confidence
+0.8
+volatility
+0.01
+
+--- quantum:stream:exchange.raw
+length
+1538643
+radix-tree-keys
+29471
+radix-tree-nodes
+64326
+last-generated-id
+1771364767403-0
+max-deleted-entry-id
+0-0
+entries-added
+1651069
+recorded-first-entry-id
+1770580520180-0
+groups
+1
+first-entry
+1770580520180-0
+exchange
+binance
+symbol
+ETHUSDT
+timestamp
+1770580500
+open
+2127.09
+high
+2127.24
+low
+2126.39
+close
+2126.89
+volume
+81.8066
+last-entry
+1771364767403-0
+exchange
+binance
+symbol
+A2ZUSDT
+timestamp
+1771364760
+open
+0.000962
+high
+0.000962
+low
+0.000961
+close
+0.000961
+volume
+639541.0
+name
+quantum:group:ai-engine:exchange.raw
+consumers
+48
+pending
+342
+last-delivered-id
+1771297893100-0
+entries-read
+1517439
+lag
+133630
+1771364767403-0
+exchange
+binance
+symbol
+A2ZUSDT
+timestamp
+1771364760
+open
+0.000962
+high
+0.000962
+low
+0.000961
+close
+0.000961
+volume
+639541.0
+
+--- quantum:stream:harvest.proposal
+length
+20369
+radix-tree-keys
+1387
+radix-tree-nodes
+2873
+last-generated-id
+1771364759527-0
+max-deleted-entry-id
+0-0
+entries-added
+20369
+recorded-first-entry-id
+1771294976212-0
+groups
+2
+first-entry
+1771294976212-0
+ts_epoch
+1771294976
+symbol
+BTCUSDT
+plan_id
+8188151ac8e76b73
+in_action
+FULL_CLOSE_PROPOSED
+out_action
+FULL_CLOSE_PROPOSED
+action
+FULL_CLOSE_PROPOSED
+heat_level
+cold
+heat_score
+0.0
+heat_action
+NONE
+recommended_partial
+
+reason
+ok
+inputs_age_sec
+3
+mode
+live
+debug_json
+{"components":{"exposure01":0.0,"dd01":0.0,"burst01":0.0,"fee01":0.0,"churn01":0.0},"thresholds":{"warm":0.45,"hot":0.7}}
+last-entry
+1771364759527-0
+ts_epoch
+1771364759
+symbol
+XRPUSDT
+plan_id
+48b33c2d7aafb9f2
+in_action
+PARTIAL_25
+out_action
+PARTIAL_25
+action
+PARTIAL_25
+heat_level
+cold
+heat_score
+0.0
+heat_action
+NONE
+recommended_partial
+
+reason
+ok
+inputs_age_sec
+4
+mode
+live
+debug_json
+{"components":{"exposure01":0.0,"dd01":0.0,"burst01":0.0,"fee01":0.0,"churn01":0.0},"thresholds":{"warm":0.45,"hot":0.7}}
+name
+p26_heat_gate
+consumers
+1
+pending
+0
+last-delivered-id
+1771364759527-0
+entries-read
+20369
+lag
+0
+name
+p26_portfolio_gate
+consumers
+1
+pending
+0
+last-delivered-id
+1771364759527-0
+entries-read
+20369
+lag
+0
+1771364759527-0
+ts_epoch
+1771364759
+symbol
+XRPUSDT
+plan_id
+48b33c2d7aafb9f2
+in_action
+PARTIAL_25
+out_action
+PARTIAL_25
+action
+PARTIAL_25
+heat_level
+cold
+heat_score
+0.0
+heat_action
+NONE
+recommended_partial
+
+reason
+ok
+inputs_age_sec
+4
+mode
+live
+debug_json
+{"components":{"exposure01":0.0,"dd01":0.0,"burst01":0.0,"fee01":0.0,"churn01":0.0},"thresholds":{"warm":0.45,"hot":0.7}}
+
+--- quantum:stream:market.klines
+length
+10005
+radix-tree-keys
+910
+radix-tree-nodes
+1897
+last-generated-id
+1771364760290-0
+max-deleted-entry-id
+0-0
+entries-added
+11600
+recorded-first-entry-id
+1771304760197-0
+groups
+1
+first-entry
+1771304760197-0
+event_type
+market.klines
+payload
+{"symbol": "INJUSDT", "interval": "1m", "open": 3.142, "high": 3.143, "low": 3.142, "close": 3.142, "volume": 113.78, "open_time": 1771304700000, "close_time": 1771304759999, "is_closed": true, "timestamp": 1771304760.1967819}
+correlation_id
+0ef21009-25a3-4fa1-ad89-229bcfb48054
+timestamp
+2026-02-17T05:06:00.196851
+source
+market-publisher
+trace_id
+
+last-entry
+1771364760290-0
+event_type
+market.klines
+payload
+{"symbol": "SOLUSDT", "interval": "1m", "open": 85.06, "high": 85.1, "low": 85.03, "close": 85.05, "volume": 153.99, "open_time": 1771364700000, "close_time": 1771364759999, "is_closed": true, "timestamp": 1771364760.2906983}
+correlation_id
+7b3cb832-e52a-4e64-8690-a146f02438aa
+timestamp
+2026-02-17T21:46:00.290728
+source
+market-publisher
+trace_id
+
+name
+quantum:group:ai-engine:market.klines
+consumers
+13
+pending
+93
+last-delivered-id
+1771312260262-0
+entries-read
+2850
+lag
+8750
+1771364760290-0
+event_type
+market.klines
+payload
+{"symbol": "SOLUSDT", "interval": "1m", "open": 85.06, "high": 85.1, "low": 85.03, "close": 85.05, "volume": 153.99, "open_time": 1771364700000, "close_time": 1771364759999, "is_closed": true, "timestamp": 1771364760.2906983}
+correlation_id
+7b3cb832-e52a-4e64-8690-a146f02438aa
+timestamp
+2026-02-17T21:46:00.290728
+source
+market-publisher
+trace_id
+
+
+--- quantum:stream:ai.exit.decision
+length
+46882
+radix-tree-keys
+1362
+radix-tree-nodes
+2779
+last-generated-id
+1771364738992-1
+max-deleted-entry-id
+0-0
+entries-added
+46882
+recorded-first-entry-id
+1770428840910-0
+groups
+1
+first-entry
+1770428840910-0
+symbol
+BTCUSDT
+action
+HOLD
+percentage
+0.0
+reason
+momentum_strong (hold=12 vs exit=0)
+hold_score
+12
+exit_score
+0
+regime
+UNKNOWN
+R_net
+2.5
+timestamp
+1770428840
+last-entry
+1771364738992-1
+symbol
+ACXUSDT
+action
+PARTIAL_CLOSE
+percentage
+0.42
+reason
+profit_taking_R=-0.6 (exit=5 vs hold=3)
+hold_score
+3
+exit_score
+5
+regime
+None
+R_net
+-0.5594142713757775
+timestamp
+1771364727
+name
+autonomous-trader:exit-listeners
+consumers
+4
+pending
+9
+last-delivered-id
+1771034618927-0
+entries-read
+40955
+lag
+5927
+1771364738992-1
+symbol
+ACXUSDT
+action
+PARTIAL_CLOSE
+percentage
+0.42
+reason
+profit_taking_R=-0.6 (exit=5 vs hold=3)
+hold_score
+3
+exit_score
+5
+regime
+None
+R_net
+-0.5594142713757775
+timestamp
+1771364727
+
+--- quantum:stream:exchange.normalized
+length
+5423029
+radix-tree-keys
+109624
+radix-tree-nodes
+229206
+last-generated-id
+1771308363509-0
+max-deleted-entry-id
+0-0
+entries-added
+5634318
+recorded-first-entry-id
+1770589423256-0
+groups
+2
+first-entry
+1770589423256-0
+symbol
+BTCUSDT
+timestamp
+1770589380
+avg_price
+70888.2
+price_divergence
+11.80000000000291
+num_exchanges
+2
+binance_price
+70900.0
+bybit_price
+70876.4
+coinbase_price
+None
+last-entry
+1771308363509-0
+symbol
+ALICEUSDT
+timestamp
+1771308360
+avg_price
+0.113
+price_divergence
+0.0
+num_exchanges
+1
+binance_price
+0.113
+bybit_price
+None
+coinbase_price
+None
+name
+feature_publisher
+consumers
+1
+pending
+33
+last-delivered-id
+1771308363509-0
+entries-read
+5634318
+lag
+0
+name
+quantum:group:ai-engine:exchange.normalized
+consumers
+19
+pending
+951
+last-delivered-id
+1771273562703-0
+entries-read
+5574976
+lag
+59342
+1771308363509-0
+symbol
+ALICEUSDT
+timestamp
+1771308360
+avg_price
+0.113
+price_divergence
+0.0
+num_exchanges
+1
+binance_price
+0.113
+bybit_price
+None
+coinbase_price
+None
+
+--- quantum:stream:reconcile.events
+length
+10004
+radix-tree-keys
+189
+radix-tree-nodes
+385
+last-generated-id
+1771364768621-1
+max-deleted-entry-id
+0-0
+entries-added
+521311
+recorded-first-entry-id
+1771349430662-0
+groups
+0
+first-entry
+1771349430662-0
+event
+HOLD_SET
+symbol
+BTCUSDT
+ts
+1771349430
+reason
+stale_exchange
+ttl_sec
+300
+last-entry
+1771364768621-1
+event
+MANUAL_REQUIRED
+symbol
+BTCUSDT
+ts
+1771364768
+reason
+stale_exchange
+age_sec
+17
+
+1771364768621-1
+event
+MANUAL_REQUIRED
+symbol
+BTCUSDT
+ts
+1771364768
+reason
+stale_exchange
+age_sec
+17
+
+--- quantum:stream:position.snapshot
+length
+1017
+radix-tree-keys
+41
+radix-tree-nodes
+90
+last-generated-id
+1771364740706-1
+max-deleted-entry-id
+0-0
+entries-added
+81443
+recorded-first-entry-id
+1771362498488-0
+groups
+0
+first-entry
+1771362498488-0
+event_type
+position.snapshot
+symbol
+A2ZUSDT
+side
+SHORT
+position_qty
+946857.0
+entry_price
+0.0009494375053
+mark_price
+0.0009640075053
+unrealized_pnl
+-13.79570649
+leverage
+20
+isolated
+False
+liquidation_price
+0
+margin_type
+cross
+entry_timestamp
+1771362498
+timestamp
+1771362498
+source
+balance-tracker
+last-entry
+1771364740706-1
+event_type
+position.snapshot
+symbol
+1000CHEEMSUSDT
+side
+SHORT
+position_qty
+206748.0
+entry_price
+0.0004880077137
+mark_price
+0.0004870077137
+unrealized_pnl
+0.206748
+leverage
+20
+isolated
+False
+liquidation_price
+0
+margin_type
+cross
+entry_timestamp
+1771364740
+timestamp
+1771364740
+source
+balance-tracker
+
+1771364740706-1
+event_type
+position.snapshot
+symbol
+1000CHEEMSUSDT
+side
+SHORT
+position_qty
+206748.0
+entry_price
+0.0004880077137
+mark_price
+0.0004870077137
+unrealized_pnl
+0.206748
+leverage
+20
+isolated
+False
+liquidation_price
+0
+margin_type
+cross
+entry_timestamp
+1771364740
+timestamp
+1771364740
+source
+balance-tracker
+
+--- quantum:stream:allocation.decision
+length
+1012
+radix-tree-keys
+37
+radix-tree-nodes
+93
+last-generated-id
+1771364765657-1
+max-deleted-entry-id
+0-0
+entries-added
+1142091
+recorded-first-entry-id
+1771364658246-0
+groups
+0
+first-entry
+1771364658246-0
+symbol
+1000XECUSDT
+target_usd
+49.8215744680851
+weight
+0.01276595744680851
+cluster_id
+UNKNOWN
+regime
+UNKNOWN
+drawdown_zone
+LOW
+confidence
+0.5
+mode
+enforce
+timestamp
+1771364658
+regime_factor
+1.0
+cluster_factor
+1.0
+drawdown_factor
+1.0
+performance_factor
+1.0
+performance_source
+fallback
+last-entry
+1771364765657-1
+symbol
+1000BONKUSDC
+target_usd
+49.8215744680851
+weight
+0.01276595744680851
+cluster_id
+UNKNOWN
+regime
+UNKNOWN
+drawdown_zone
+LOW
+confidence
+0.5
+mode
+enforce
+timestamp
+1771364765
+regime_factor
+1.0
+cluster_factor
+1.0
+drawdown_factor
+1.0
+performance_factor
+1.0
+performance_source
+fallback
+
+1771364765657-1
+symbol
+1000BONKUSDC
+target_usd
+49.8215744680851
+weight
+0.01276595744680851
+cluster_id
+UNKNOWN
+regime
+UNKNOWN
+drawdown_zone
+LOW
+confidence
+0.5
+mode
+enforce
+timestamp
+1771364765
+regime_factor
+1.0
+cluster_factor
+1.0
+drawdown_factor
+1.0
+performance_factor
+1.0
+performance_source
+fallback
+
+--- quantum:stream:apply.result
+length
+10002
+radix-tree-keys
+317
+radix-tree-nodes
+710
+last-generated-id
+1771364768618-0
+max-deleted-entry-id
+0-0
+entries-added
+563436
+recorded-first-entry-id
+1771359991862-0
+groups
+6
+first-entry
+1771359991862-0
+plan_id
+c07e735d4cb0ef1e
+symbol
+BTCUSDT
+decision
+SKIP
+executed
+False
+would_execute
+False
+steps_results
+[]
+error
+kill_score_close_ok
+timestamp
+1771359991
+last-entry
+1771364768618-0
+plan_id
+48b33c2d7aafb9f2
+symbol
+XRPUSDT
+decision
+SKIP
+executed
+False
+would_execute
+False
+steps_results
+[]
+error
+duplicate_plan
+timestamp
+1771364768
+name
+exit_intelligence
+consumers
+1
+pending
+1
+last-delivered-id
+1771364768437-0
+entries-read
+563426
+lag
+10
+name
+harvest_brain:execution
+consumers
+1
+pending
+0
+last-delivered-id
+1771308359392-0
+entries-read
+291229
+lag
+272207
+name
+metricpack_builder
+consumers
+1
+pending
+0
+last-delivered-id
+1771364768608-0
+entries-read
+563435
+lag
+1
+name
+p35_decision_intel
+consumers
+1
+pending
+11
+last-delivered-id
+1771364768618-0
+entries-read
+563436
+lag
+0
+name
+quantum:group:execution:trade.intent
+consumers
+2
+pending
+0
+last-delivered-id
+1771364768618-0
+entries-read
+563436
+lag
+0
+name
+trade_history_logger
+consumers
+5
+pending
+0
+last-delivered-id
+1771364768618-0
+entries-read
+563436
+lag
+0
+1771364768618-0
+plan_id
+48b33c2d7aafb9f2
+symbol
+XRPUSDT
+decision
+SKIP
+executed
+False
+would_execute
+False
+steps_results
+[]
+error
+duplicate_plan
+timestamp
+1771364768
+
+--- quantum:stream:trade.execution.res
+length
+2154
+radix-tree-keys
+169
+radix-tree-nodes
+355
+last-generated-id
+1771294980385-3
+max-deleted-entry-id
+0-0
+entries-added
+2154
+recorded-first-entry-id
+1771294976880-0
+groups
+0
+first-entry
+1771294976880-0
+event_type
+execution.result
+payload
+{"symbol": "XMRUSDT", "action": "BUY", "entry_price": 0.0, "position_size_usd": 0.0, "leverage": 5, "timestamp": "2026-02-06T03:36:35.832383Z", "order_id": "234787678", "status": "filled", "slippage_pct": 0.0, "fee_usd": 0.0}
+timestamp
+2026-02-06T03:36:35.832666Z
+source
+execution-service
+last-entry
+1771294980385-3
+event_type
+execution.result
+payload
+{"symbol": "BTCUSDT", "action": "SELL", "entry_price": 71208.945, "position_size_usd": 0.0, "leverage": 5, "timestamp": "2026-02-09T23:20:25.849497Z", "order_id": "REJECTED", "status": "rejected", "slippage_pct": 0.0, "fee_usd": 0.0}
+timestamp
+2026-02-09T23:20:25.849704Z
+source
+execution-service
+
+1771294980385-3
+event_type
+execution.result
+payload
+{"symbol": "BTCUSDT", "action": "SELL", "entry_price": 71208.945, "position_size_usd": 0.0, "leverage": 5, "timestamp": "2026-02-09T23:20:25.849497Z", "order_id": "REJECTED", "status": "rejected", "slippage_pct": 0.0, "fee_usd": 0.0}
+timestamp
+2026-02-09T23:20:25.849704Z
+source
+execution-service
+
+--- quantum:stream:features
+length
+10001
+radix-tree-keys
+2563
+radix-tree-nodes
+5425
+last-generated-id
+1771308363511-0
+max-deleted-entry-id
+0-0
+entries-added
+5542674
+recorded-first-entry-id
+1771302463100-0
+groups
+1
+first-entry
+1771302463100-0
+returns
+0.0
+log_returns
+0.0
+price_range
+0.0
+body_size
+0.0
+upper_wick
+0.0
+lower_wick
+0.0
+is_doji
+1.0
+is_hammer
+0.0
+is_engulfing
+0.0
+gap_up
+0.0
+gap_down
+0.0
+rsi
+50.0
+macd
+1.2218671972374483e-07
+macd_signal
+1.0996804775137035e-07
+macd_hist
+1.2218671972374483e-08
+stoch_k
+100.0
+stoch_d
+95.0
+roc
+0.19880715705766772
+ema_9
+0.0005036223488000002
+ema_9_dist
+0.0007493079365075815
+ema_21
+0.0005034571414992015
+ema_21_dist
+0.0010771001999970687
+ema_50
+0.0005035381573123059
+ema_50_dist
+0.0009163545390756781
+ema_200
+0.0005035
+ema_200_dist
+0.0009920634920634085
+sma_20
+0.0005034499999999999
+sma_50
+0.0005035
+adx
+14.28571428571429
+plus_di
+57.14285714285715
+minus_di
+42.85714285714286
+bb_middle
+0.0005034499999999999
+bb_upper
+0.0005044449874371065
+bb_lower
+0.0005024550125628933
+bb_width
+1.989974874213288e-06
+bb_position
+0.5527707983926484
+atr
+5.000000000000122e-07
+atr_pct
+0.0992063492063516
+volatility
+0.001469639563393619
+volume_sma
+0.0
+volume_ratio
+1.0
+obv
+0.0
+obv_ema
+0.0
+vpt
+0.0
+momentum_5
+0.0
+momentum_10
+0.001988071570576677
+momentum_20
+0.001988071570576677
+acceleration
+0.001988071570576677
+relative_spread
+0.0
+symbol
+1000CHEEMSUSDT
+timestamp
+2026-02-17T04:27:43.099741Z
+last-entry
+1771308363511-0
+returns
+0.0
+log_returns
+0.0
+price_range
+0.0
+body_size
+0.0
+upper_wick
+0.0
+lower_wick
+0.0
+is_doji
+1.0
+is_hammer
+0.0
+is_engulfing
+0.0
+gap_up
+0.0
+gap_down
+0.0
+rsi
+33.33333333333333
+macd
+-7.82192730006126e-06
+macd_signal
+-7.039734570055134e-06
+macd_hist
+-7.821927300061262e-07
+stoch_k
+33.33333333333488
+stoch_d
+31.66666666666813
+roc
+-0.17667844522967213
+ema_9
+0.11307168000000001
+ema_9_dist
+-0.0006343362831858807
+ema_21
+0.11311171540634093
+ema_21_dist
+-0.0009886319145215173
+ema_50
+0.11304777491810145
+ema_50_dist
+-0.0004227868858534736
+ema_200
+0.113024
+ema_200_dist
+-0.00021238938053094023
+sma_20
+0.11315
+sma_50
+0.113024
+adx
+33.333333333333336
+plus_di
+33.333333333333336
+minus_di
+66.66666666666667
+bb_middle
+0.11315
+bb_upper
+0.11334493588689618
+bb_lower
+0.11295506411310383
+bb_width
+0.00038987177379234695
+bb_position
+-0.769483764063875
+atr
+4.285714285714111e-05
+atr_pct
+0.037926675094815135
+volatility
+0.000763958718726362
+volume_sma
+0.0
+volume_ratio
+1.0
+obv
+0.0
+obv_ema
+0.0
+vpt
+0.0
+momentum_5
+-0.0017667844522967213
+momentum_10
+-0.0017667844522967213
+momentum_20
+-0.0008841732979664174
+acceleration
+-0.0017667844522967213
+relative_spread
+0.0
+symbol
+ALICEUSDT
+timestamp
+2026-02-17T06:06:03.511261Z
+name
+ensemble_predictor
+consumers
+1
+pending
+27
+last-delivered-id
+1771308363511-0
+entries-read
+5536854
+lag
+5820
+1771308363511-0
+returns
+0.0
+log_returns
+0.0
+price_range
+0.0
+body_size
+0.0
+upper_wick
+0.0
+lower_wick
+0.0
+is_doji
+1.0
+is_hammer
+0.0
+is_engulfing
+0.0
+gap_up
+0.0
+gap_down
+0.0
+rsi
+33.33333333333333
+macd
+-7.82192730006126e-06
+macd_signal
+-7.039734570055134e-06
+macd_hist
+-7.821927300061262e-07
+stoch_k
+33.33333333333488
+stoch_d
+31.66666666666813
+roc
+-0.17667844522967213
+ema_9
+0.11307168000000001
+ema_9_dist
+-0.0006343362831858807
+ema_21
+0.11311171540634093
+ema_21_dist
+-0.0009886319145215173
+ema_50
+0.11304777491810145
+ema_50_dist
+-0.0004227868858534736
+ema_200
+0.113024
+ema_200_dist
+-0.00021238938053094023
+sma_20
+0.11315
+sma_50
+0.113024
+adx
+33.333333333333336
+plus_di
+33.333333333333336
+minus_di
+66.66666666666667
+bb_middle
+0.11315
+bb_upper
+0.11334493588689618
+bb_lower
+0.11295506411310383
+bb_width
+0.00038987177379234695
+bb_position
+-0.769483764063875
+atr
+4.285714285714111e-05
+atr_pct
+0.037926675094815135
+volatility
+0.000763958718726362
+volume_sma
+0.0
+volume_ratio
+1.0
+obv
+0.0
+obv_ema
+0.0
+vpt
+0.0
+momentum_5
+-0.0017667844522967213
+momentum_10
+-0.0017667844522967213
+momentum_20
+-0.0008841732979664174
+acceleration
+-0.0017667844522967213
+relative_spread
+0.0
+symbol
+ALICEUSDT
+timestamp
+2026-02-17T06:06:03.511261Z
+
+--- quantum:stream:apply.heat.observed
+length
+10020
+radix-tree-keys
+358
+radix-tree-nodes
+729
+last-generated-id
+1771364765485-1
+max-deleted-entry-id
+0-0
+entries-added
+75570
+recorded-first-entry-id
+1771334725217-0
+groups
+0
+first-entry
+1771334725217-0
+ts_epoch
+1771334725
+plan_id
+94cc7a52575c26c6
+symbol
+ARBUSDT
+apply_component
+apply
+obs_point
+create_apply_plan
+heat_found
+0
+heat_ts_epoch
+
+heat_level
+
+heat_score
+
+heat_action
+
+heat_out_action
+
+heat_recommended_partial
+
+heat_reason
+missing
+apply_decision
+EXECUTE
+debug_json
+{"apply_decision": "EXECUTE"}
+last-entry
+1771364765485-1
+ts_epoch
+1771364765
+plan_id
+a85b320aa683b327
+symbol
+STXUSDT
+apply_component
+apply
+obs_point
+publish_plan_post
+heat_found
+0
+heat_ts_epoch
+
+heat_level
+
+heat_score
+
+heat_action
+
+heat_out_action
+
+heat_recommended_partial
+
+heat_reason
+timeout
+apply_decision
+EXECUTE
+debug_json
+{"apply_decision": "EXECUTE"}
+
+1771364765485-1
+ts_epoch
+1771364765
+plan_id
+a85b320aa683b327
+symbol
+STXUSDT
+apply_component
+apply
+obs_point
+publish_plan_post
+heat_found
+0
+heat_ts_epoch
+
+heat_level
+
+heat_score
+
+heat_action
+
+heat_out_action
+
+heat_recommended_partial
+
+heat_reason
+timeout
+apply_decision
+EXECUTE
+debug_json
+{"apply_decision": "EXECUTE"}
+
+--- quantum:stream:account.balance
+length
+116
+radix-tree-keys
+4
+radix-tree-nodes
+10
+last-generated-id
+1771364740697-0
+max-deleted-entry-id
+0-0
+entries-added
+35816
+recorded-first-entry-id
+1771361256291-0
+groups
+0
+first-entry
+1771361256291-0
+event_type
+account.balance
+balance
+3920.26822534
+available
+3414.48773942
+margin_used
+399.13459206
+unrealized_pnl
+-101.64711317
+positions
+13
+margin_ratio
+0.10181308245187319
+timestamp
+1771361256
+last-entry
+1771364740697-0
+event_type
+account.balance
+balance
+3902.68617702
+available
+3378.35427135
+margin_used
+419.81892415
+unrealized_pnl
+-101.40761817
+positions
+14
+margin_ratio
+0.10757178648439622
+timestamp
+1771364740
+
+1771364740697-0
+event_type
+account.balance
+balance
+3902.68617702
+available
+3378.35427135
+margin_used
+419.81892415
+unrealized_pnl
+-101.40761817
+positions
+14
+margin_ratio
+0.10757178648439622
+timestamp
+1771364740
+
+--- quantum:stream:ai.signal_generated
+length
+10003
+radix-tree-keys
+837
+radix-tree-nodes
+1805
+last-generated-id
+1771364505715-0
+max-deleted-entry-id
+0-0
+entries-added
+17192
+recorded-first-entry-id
+1770486691537-0
+groups
+0
+first-entry
+1770486691537-0
+event_type
+ai.signal_generated
+payload
+{"symbol": "XRPUSDT", "action": "buy", "confidence": 0.7063437939043071, "ensemble_confidence": 0.7063437939043071, "model_votes": {"BUY": 0.55, "SELL": 0.25, "HOLD": 0.2}, "consensus": 2, "timestamp": "2026-02-07T17:51:31.537591+00:00"}
+trace_id
+
+correlation_id
+a0eb46a7-57de-4377-ba7d-e83029883916
+timestamp
+2026-02-07T17:51:31.537704
+source
+ai-engine
+last-entry
+1771364505715-0
+event_type
+ai.signal_generated
+payload
+{"symbol": "A2ZUSDT", "action": "sell", "confidence": 0.68, "ensemble_confidence": 0.68, "model_votes": {"SELL": "fallback"}, "consensus": 1, "timestamp": "2026-02-17T21:41:21.951258+00:00"}
+trace_id
+
+correlation_id
+b156a6b6-9b24-4872-8b3d-f0a12fc5c906
+timestamp
+2026-02-17T21:41:21.951447
+source
+ai-engine
+
+1771364505715-0
+event_type
+ai.signal_generated
+payload
+{"symbol": "A2ZUSDT", "action": "sell", "confidence": 0.68, "ensemble_confidence": 0.68, "model_votes": {"SELL": "fallback"}, "consensus": 1, "timestamp": "2026-02-17T21:41:21.951258+00:00"}
+trace_id
+
+correlation_id
+b156a6b6-9b24-4872-8b3d-f0a12fc5c906
+timestamp
+2026-02-17T21:41:21.951447
+source
+ai-engine
+
+--- quantum:stream:signal.score
+length
+10004
+radix-tree-keys
+295
+radix-tree-nodes
+685
+last-generated-id
+1771308363533-0
+max-deleted-entry-id
+0-0
+entries-added
+5502726
+recorded-first-entry-id
+1771302455278-0
+groups
+0
+first-entry
+1771302455278-0
+symbol
+AAVEUSDT
+horizon
+exit
+suggested_action
+HOLD
+confidence
+0.0
+expected_edge
+0.0
+risk_context
+aggregation_error_KeyErro
+ensemble_version
+v1.0.0
+models_used
+none
+timestamp
+2026-02-17T04:27:35.278176Z
+last-entry
+1771308363533-0
+symbol
+ALICEUSDT
+horizon
+exit
+suggested_action
+HOLD
+confidence
+0.0
+expected_edge
+0.0
+risk_context
+aggregation_error_KeyErro
+ensemble_version
+v1.0.0
+models_used
+none
+timestamp
+2026-02-17T06:06:03.532822Z
+
+1771308363533-0
+symbol
+ALICEUSDT
+horizon
+exit
+suggested_action
+HOLD
+confidence
+0.0
+expected_edge
+0.0
+risk_context
+aggregation_error_KeyErro
+ensemble_version
+v1.0.0
+models_used
+none
+timestamp
+2026-02-17T06:06:03.532822Z
+
+--- quantum:stream:portfolio.gate
+length
+20369
+radix-tree-keys
+605
+radix-tree-nodes
+1277
+last-generated-id
+1771364759528-0
+max-deleted-entry-id
+0-0
+entries-added
+20369
+recorded-first-entry-id
+1771294978639-0
+groups
+0
+first-entry
+1771294978639-0
+plan_id
+8188151ac8e76b73
+symbol
+BTCUSDT
+action_proposed
+FULL_CLOSE_PROPOSED
+final_action
+PARTIAL_50
+gate_reason
+forbid_full_close_portfolio_cold
+stress
+0.0
+heat
+0.0
+concentration
+0.0
+corr_proxy
+0.0
+kill_score
+0.0
+ts_epoch
+1771294978
+last-entry
+1771364759528-0
+plan_id
+48b33c2d7aafb9f2
+symbol
+XRPUSDT
+action_proposed
+PARTIAL_25
+final_action
+HOLD
+gate_reason
+not_allowed
+stress
+0.0
+heat
+0.0
+concentration
+0.0
+corr_proxy
+0.0
+kill_score
+0.0
+ts_epoch
+1771364759
+
+1771364759528-0
+plan_id
+48b33c2d7aafb9f2
+symbol
+XRPUSDT
+action_proposed
+PARTIAL_25
+final_action
+HOLD
+gate_reason
+not_allowed
+stress
+0.0
+heat
+0.0
+concentration
+0.0
+corr_proxy
+0.0
+kill_score
+0.0
+ts_epoch
+1771364759
+
+--- quantum:stream:portfolio.snapshot_updated
+length
+6816
+radix-tree-keys
+620
+radix-tree-nodes
+1247
+last-generated-id
+1771364763765-0
+max-deleted-entry-id
+0-0
+entries-added
+6816
+recorded-first-entry-id
+1771294981525-0
+groups
+0
+first-entry
+1771294981525-0
+event_type
+portfolio.snapshot_updated
+payload
+{"total_equity": 10000.0, "cash_balance": 10000.0, "total_exposure": 0.0, "num_positions": 0, "unrealized_pnl": 0.0, "realized_pnl_today": 0.0, "daily_drawdown_pct": 0.0, "timestamp": "2026-02-17T02:23:01.519505+00:00"}
+trace_id
+
+correlation_id
+e23e6298-99ba-43e9-9fa4-928b4e71a8bc
+timestamp
+2026-02-17T02:23:01.522998
+source
+portfolio_intelligence
+last-entry
+1771364763765-0
+event_type
+portfolio.snapshot_updated
+payload
+{"total_equity": 10000.0, "cash_balance": 10000.0, "total_exposure": 0.0, "num_positions": 0, "unrealized_pnl": 0.0, "realized_pnl_today": 0.0, "daily_drawdown_pct": 0.0, "timestamp": "2026-02-17T21:46:03.763196+00:00"}
+trace_id
+
+correlation_id
+75488dd4-46fc-44f4-913d-49b40ffe28ce
+timestamp
+2026-02-17T21:46:03.765302
+source
+portfolio_intelligence
+
+1771364763765-0
+event_type
+portfolio.snapshot_updated
+payload
+{"total_equity": 10000.0, "cash_balance": 10000.0, "total_exposure": 0.0, "num_positions": 0, "unrealized_pnl": 0.0, "realized_pnl_today": 0.0, "daily_drawdown_pct": 0.0, "timestamp": "2026-02-17T21:46:03.763196+00:00"}
+trace_id
+
+correlation_id
+75488dd4-46fc-44f4-913d-49b40ffe28ce
+timestamp
+2026-02-17T21:46:03.765302
+source
+portfolio_intelligence
+
+--- quantum:stream:execution.result
+length
+2154
+radix-tree-keys
+171
+radix-tree-nodes
+360
+last-generated-id
+1770679225850-0
+max-deleted-entry-id
+0-0
+entries-added
+2154
+recorded-first-entry-id
+1770348995833-0
+groups
+1
+first-entry
+1770348995833-0
+event_type
+execution.result
+payload
+{"symbol": "XMRUSDT", "action": "BUY", "entry_price": 0.0, "position_size_usd": 0.0, "leverage": 5, "timestamp": "2026-02-06T03:36:35.832383Z", "order_id": "234787678", "status": "filled", "slippage_pct": 0.0, "fee_usd": 0.0}
+timestamp
+2026-02-06T03:36:35.832666Z
+source
+execution-service
+last-entry
+1770679225850-0
+event_type
+execution.result
+payload
+{"symbol": "BTCUSDT", "action": "SELL", "entry_price": 71208.945, "position_size_usd": 0.0, "leverage": 5, "timestamp": "2026-02-09T23:20:25.849497Z", "order_id": "REJECTED", "status": "rejected", "slippage_pct": 0.0, "fee_usd": 0.0}
+timestamp
+2026-02-09T23:20:25.849704Z
+source
+execution-service
+name
+quantum:group:bridge:execution.result
+consumers
+1
+pending
+0
+last-delivered-id
+1770679225850-0
+entries-read
+2154
+lag
+0
+1770679225850-0
+event_type
+execution.result
+payload
+{"symbol": "BTCUSDT", "action": "SELL", "entry_price": 71208.945, "position_size_usd": 0.0, "leverage": 5, "timestamp": "2026-02-09T23:20:25.849497Z", "order_id": "REJECTED", "status": "rejected", "slippage_pct": 0.0, "fee_usd": 0.0}
+timestamp
+2026-02-09T23:20:25.849704Z
+source
+execution-service
+
+--- quantum:stream:apply.plan
+length
+10008
+radix-tree-keys
+770
+radix-tree-nodes
+1593
+last-generated-id
+1771364759526-0
+max-deleted-entry-id
+0-0
+entries-added
+78442
+recorded-first-entry-id
+1771305126628-0
+groups
+5
+first-entry
+1771305126628-0
+plan_id
+abc5f1f59a4df545
+symbol
+BTCUSDT
+action
+FULL_CLOSE_PROPOSED
+kill_score
+0.7247424076694772
+k_regime_flip
+1.0
+k_sigma_spike
+0.06990000000000007
+k_ts_drop
+0.294589
+k_age_penalty
+0.041666666666666664
+new_sl_proposed
+100.29999999999998
+R_net
+6.2778337764166965
+decision
+EXECUTE
+reason_codes
+kill_score_close_ok
+steps
+[{"step": "CLOSE_FULL", "type": "market_reduce_only", "side": "close", "pct": 100.0}]
+close_qty
+0.0
+price
+
+reduceOnly
+true
+timestamp
+1771305126
+last-entry
+1771364759526-0
+plan_id
+48b33c2d7aafb9f2
+symbol
+XRPUSDT
+action
+PARTIAL_25
+kill_score
+0.5100379844222276
+k_regime_flip
+0.0
+k_sigma_spike
+0.0
+k_ts_drop
+0.07955999999999999
+k_age_penalty
+0.041666666666666664
+new_sl_proposed
+50.14999999999999
+R_net
+2.44
+decision
+SKIP
+reason_codes
+action_normalized_partial_25_unknown_variant,action_hold
+steps
+[]
+close_qty
+0.0
+price
+
+reduceOnly
+true
+timestamp
+1771364759
+name
+apply_layer_entry
+consumers
+38
+pending
+0
+last-delivered-id
+1771364759526-0
+entries-read
+78442
+lag
+0
+name
+governor
+consumers
+5
+pending
+0
+last-delivered-id
+1771364759526-0
+entries-read
+78442
+lag
+0
+name
+heat_gate
+consumers
+1
+pending
+0
+last-delivered-id
+1771364759526-0
+entries-read
+78442
+lag
+0
+name
+intent_executor
+consumers
+26
+pending
+3
+last-delivered-id
+1771364759526-0
+entries-read
+78442
+lag
+0
+name
+p33
+consumers
+2
+pending
+0
+last-delivered-id
+1771364698006-0
+entries-read
+78432
+lag
+10
+1771364759526-0
+plan_id
+48b33c2d7aafb9f2
+symbol
+XRPUSDT
+action
+PARTIAL_25
+kill_score
+0.5100379844222276
+k_regime_flip
+0.0
+k_sigma_spike
+0.0
+k_ts_drop
+0.07955999999999999
+k_age_penalty
+0.041666666666666664
+new_sl_proposed
+50.14999999999999
+R_net
+2.44
+decision
+SKIP
+reason_codes
+action_normalized_partial_25_unknown_variant,action_hold
+steps
+[]
+close_qty
+0.0
+price
+
+reduceOnly
+true
+timestamp
+1771364759
+
+
+=== REDIS_KEY_SAMPLES ===
+quantum:cfg:universe:dynamic
+quantum:cfg:universe:last_ok
+quantum:cfg:universe:active
+quantum:cfg:universe:meta
+quantum:policy:current

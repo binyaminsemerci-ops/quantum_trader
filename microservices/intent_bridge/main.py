@@ -113,6 +113,16 @@ BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "")
 BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET", "")
 BINANCE_TESTNET = os.getenv("BINANCE_TESTNET", "true").lower() == "true"
 
+# Dynamic universe from ensemble confidence (trade.intent stream)
+UNIVERSE_FROM_INTENTS = os.getenv("INTENT_BRIDGE_UNIVERSE_FROM_INTENTS", "false").lower() == "true"
+UNIVERSE_TOP_N = int(os.getenv("INTENT_BRIDGE_UNIVERSE_TOP_N", "49"))
+UNIVERSE_MIN_SYMBOLS = int(os.getenv("INTENT_BRIDGE_UNIVERSE_MIN_SYMBOLS", "10"))
+UNIVERSE_WINDOW = int(os.getenv("INTENT_BRIDGE_UNIVERSE_WINDOW", "5000"))
+UNIVERSE_MIN_CONF = float(os.getenv("INTENT_BRIDGE_UNIVERSE_MIN_CONF", "0.0"))
+UNIVERSE_RANK_MODE = os.getenv("INTENT_BRIDGE_UNIVERSE_RANK_MODE", "avg").lower()
+UNIVERSE_REFRESH_SEC = int(os.getenv("INTENT_BRIDGE_UNIVERSE_REFRESH_SEC", "300"))
+UNIVERSE_TTL_SEC = int(os.getenv("INTENT_BRIDGE_UNIVERSE_TTL_SEC", "3600"))
+
 # Build tag for deployment verification
 BUILD_TAG = "intent-bridge-ledger-open-v1"
 
@@ -163,6 +173,9 @@ class IntentBridge:
         self.current_allowlist = ALLOWLIST.copy()
         self.top10_last_refresh = 0
         self.TOP10_REFRESH_INTERVAL = 300  # 5 minutes
+
+        # Dynamic universe refresh (from trade.intent confidence stream)
+        self.dynamic_universe_last_refresh = 0
         
         # Load AI policy (fail-closed)
         self.current_policy: Optional[PolicyData] = None
@@ -186,6 +199,155 @@ class IntentBridge:
         except Exception as e:
             logger.error(f"Failed to load policy: {e}")
             self.current_policy = None
+
+    def _refresh_dynamic_universe_from_intents(self):
+        """Update PolicyStore universe from recent trade.intent confidence list."""
+        if not UNIVERSE_FROM_INTENTS:
+            return
+
+        now = time.time()
+        if now - self.dynamic_universe_last_refresh < UNIVERSE_REFRESH_SEC:
+            return
+
+        try:
+            entries = self.redis.xrevrange(INTENT_STREAM, count=UNIVERSE_WINDOW)
+        except Exception as e:
+            logger.warning(f"Failed to read {INTENT_STREAM} for universe refresh: {e}")
+            return
+
+        symbol_conf = {}
+        symbol_count = {}
+        symbol_max = {}
+
+        for _stream_id, event_data in entries:
+            payload = None
+            try:
+                if b"payload" in event_data:
+                    payload = json.loads(event_data[b"payload"].decode())
+                else:
+                    payload = {k.decode(): v.decode() for k, v in event_data.items()}
+            except Exception:
+                continue
+
+            symbol = (payload.get("symbol") or "").upper()
+            conf = payload.get("confidence")
+            if not symbol or conf is None:
+                continue
+
+            try:
+                conf_val = float(conf)
+            except Exception:
+                continue
+
+            if conf_val < UNIVERSE_MIN_CONF:
+                continue
+
+            symbol_conf[symbol] = symbol_conf.get(symbol, 0.0) + conf_val
+            symbol_count[symbol] = symbol_count.get(symbol, 0) + 1
+            symbol_max[symbol] = max(symbol_max.get(symbol, conf_val), conf_val)
+
+        if UNIVERSE_RANK_MODE == "max":
+            ranked = [
+                (sym, symbol_max[sym], symbol_count[sym])
+                for sym in symbol_conf
+            ]
+        else:
+            ranked = [
+                (sym, symbol_conf[sym] / symbol_count[sym], symbol_count[sym])
+                for sym in symbol_conf
+            ]
+
+        ranked = sorted(ranked, key=lambda x: x[1], reverse=True)
+
+        # Prefer USDT pairs to avoid mixing quote currencies
+        ranked = [item for item in ranked if item[0].endswith("USDT")]
+        top_symbols = [sym for sym, _score, _cnt in ranked[:UNIVERSE_TOP_N]]
+        top10_by_conf = [sym for sym, _score, _cnt in ranked[:10]]
+
+        if len(top_symbols) < UNIVERSE_MIN_SYMBOLS:
+            # Fallback: use Universe Service active list if available
+            try:
+                universe_raw = self.redis.get("quantum:cfg:universe:active")
+                if universe_raw:
+                    universe_data = json.loads(universe_raw.decode() if isinstance(universe_raw, bytes) else universe_raw)
+                    fallback_symbols = universe_data.get("symbols", [])
+                    if fallback_symbols:
+                        logger.warning(
+                            f"Dynamic universe below min ({len(top_symbols)} < {UNIVERSE_MIN_SYMBOLS}); "
+                            f"falling back to universe:active count={len(fallback_symbols)}"
+                        )
+                        fallback_symbols = [s for s in fallback_symbols if s.endswith("USDT")]
+                        # De-duplicate while preserving order
+                        seen = set()
+                        top_symbols = []
+                        for sym in fallback_symbols:
+                            if sym in seen:
+                                continue
+                            seen.add(sym)
+                            top_symbols.append(sym)
+                            if len(top_symbols) >= UNIVERSE_TOP_N:
+                                break
+                    else:
+                        logger.warning(
+                            f"Dynamic universe refresh skipped (only {len(top_symbols)} symbols, "
+                            f"min={UNIVERSE_MIN_SYMBOLS}); universe:active empty"
+                        )
+                        return
+                else:
+                    logger.warning(
+                        f"Dynamic universe refresh skipped (only {len(top_symbols)} symbols, "
+                        f"min={UNIVERSE_MIN_SYMBOLS}); universe:active missing"
+                    )
+                    return
+            except Exception as e:
+                logger.warning(
+                    f"Dynamic universe refresh failed fallback: {e} (count={len(top_symbols)})"
+                )
+                return
+
+        # Update PolicyStore universe in Redis (keep other fields intact)
+        valid_until = int(time.time() + UNIVERSE_TTL_SEC)
+        self.redis.hset(
+            "quantum:policy:current",
+            mapping={
+                "universe_symbols": json.dumps(top_symbols),
+                "valid_until_epoch": str(valid_until)
+            }
+        )
+
+        top10_symbols = top10_by_conf or top_symbols[:10]
+        self.redis.set(
+            "quantum:cfg:universe:top10",
+            json.dumps({
+                "asof_epoch": int(time.time()),
+                "source": "trade.intent_confidence",
+                "rank_mode": UNIVERSE_RANK_MODE,
+                "symbols": top10_symbols
+            }),
+            ex=UNIVERSE_TTL_SEC
+        )
+
+        # Publish diagnostic universe key for observability
+        self.redis.set(
+            "quantum:cfg:universe:dynamic",
+            json.dumps({
+                "asof_epoch": int(time.time()),
+                "source": "trade.intent_confidence",
+                "top_n": UNIVERSE_TOP_N,
+                "rank_mode": UNIVERSE_RANK_MODE,
+                "symbols": top_symbols
+            }),
+            ex=UNIVERSE_TTL_SEC
+        )
+
+        self.dynamic_universe_last_refresh = time.time()
+        logger.info(
+            f"✅ Dynamic universe refreshed from intents: count={len(top_symbols)} "
+            f"top_n={UNIVERSE_TOP_N} min_conf={UNIVERSE_MIN_CONF} rank_mode={UNIVERSE_RANK_MODE}"
+        )
+
+        # Reload policy into memory
+        self._refresh_policy()
     
     def _refresh_top10_allowlist(self):
         """Refresh allowlist from quantum:cfg:universe:top10."""
@@ -760,6 +922,12 @@ class IntentBridge:
                     count=10,
                     block=2000  # 2 second timeout
                 )
+
+                # Periodic dynamic universe refresh (non-blocking best-effort)
+                try:
+                    self._refresh_dynamic_universe_from_intents()
+                except Exception as e:
+                    logger.warning(f"Dynamic universe refresh failed: {e}")
                 
                 if not messages:
                     continue
