@@ -1,0 +1,1027 @@
+#!/usr/bin/env python3
+"""
+P3.3 Position State Brain - Exchange↔Redis↔Ledger Sanity Check
+
+Reconciles 3 sources of truth before allowing Apply Layer to execute:
+1. Exchange truth (Binance testnet: positionAmt, side, entryPrice, markPrice)
+2. Redis truth (harvest proposals, apply plans/results)
+3. Internal ledger (shadow ledger from executed orders)
+
+Outputs:
+- Position snapshots: quantum:position:snapshot:<symbol>
+- Ledger state: quantum:position:ledger:<symbol>
+- Execution permits: quantum:permit:p33:<plan_id> (60s TTL)
+
+Decisions:
+- OK_TO_EXECUTE: safe_close_qty computed, permit granted
+- BLOCK: reason_code + deny permit
+- RECONCILE_REQUIRED: side/qty mismatch, deny permit
+"""
+
+import os
+import sys
+import time
+import json
+import hmac
+import hashlib
+import urllib.request
+import urllib.parse
+import logging
+from typing import Dict, Optional, Any
+from datetime import datetime
+from dataclasses import dataclass
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+try:
+    import redis
+except ImportError:
+    print("ERROR: redis-py not installed. Install with: pip install redis")
+    sys.exit(1)
+
+# Prometheus metrics
+try:
+    from prometheus_client import Counter, Gauge, start_http_server
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+    print("WARN: prometheus_client not installed, metrics disabled")
+
+logging.basicConfig(
+    level=os.getenv("P33_LOG_LEVEL", "INFO"),
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger(__name__)
+
+# Build tag for deployment verification
+BUILD_TAG = "p3.3-snapshot-ondemand-v2"
+
+
+@dataclass
+class Config:
+    """P3.3 Configuration"""
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+    REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
+    REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
+    
+    # Binance testnet credentials
+    BINANCE_TESTNET_API_KEY: str = os.getenv("BINANCE_TESTNET_API_KEY", "")
+    BINANCE_TESTNET_API_SECRET: str = os.getenv("BINANCE_TESTNET_API_SECRET", "")
+    
+    # Symbol allowlist (fallback if Universe unavailable)
+    ALLOWLIST: str = os.getenv("P33_ALLOWLIST", os.getenv("APPLY_ALLOWLIST", "BTCUSDT"))
+    
+    # Universe Service integration (3-tier fallback: active → last_ok → env)
+    ALLOWLIST_SOURCE: str = os.getenv("P33_ALLOWLIST_SOURCE", "universe")  # universe|env
+    UNIVERSE_KEY_ACTIVE: str = os.getenv("P33_UNIVERSE_KEY_ACTIVE", "quantum:cfg:universe:active")
+    UNIVERSE_KEY_LAST_OK: str = os.getenv("P33_UNIVERSE_KEY_LAST_OK", "quantum:cfg:universe:last_ok")
+    UNIVERSE_KEY_META: str = os.getenv("P33_UNIVERSE_KEY_META", "quantum:cfg:universe:meta")
+    UNIVERSE_MAX_AGE_S: int = int(os.getenv("P33_UNIVERSE_MAX_AGE_S", "300"))  # 5 minutes
+    ALLOWLIST_REFRESH_S: int = int(os.getenv("P33_ALLOWLIST_REFRESH_S", "60"))  # Refresh every 60s
+    
+    # Candidate-based snapshot system (2026-02-02)
+    # =============================================
+    # SMART COVERAGE: Snapshot only candidates = open_positions + recent_intents + topK(universe)
+    # - Prevents 566-symbol API flood (170+ seconds blocking)
+    # - Ensures coverage for symbols that are actually traded
+    # - K is formula-based from measured latency (not hardcoded)
+    
+    # Recent intent window (symbols from trade.intent stream)
+    INTENT_WINDOW_SEC: int = int(os.getenv("P33_INTENT_WINDOW_SEC", "1800"))  # 30 minutes
+    
+    # Formula-based top-K: K = max(min_k, floor(target_cycle_sec / ewma_latency_sec))
+    TARGET_CYCLE_SEC: float = float(os.getenv("P33_TARGET_CYCLE_SEC", "3.0"))  # Snapshot cycle budget
+    MIN_TOP_K: int = int(os.getenv("P33_MIN_TOP_K", "20"))  # Minimum universe symbols
+    EWMA_ALPHA: float = 0.3  # Exponential weighted moving average for latency
+    
+    # On-demand snapshot (if missing during permit check)
+    ONDEMAND_ENABLED: bool = os.getenv("P33_ONDEMAND_SNAPSHOT", "true").lower() == "true"
+    ONDEMAND_TTL_SEC: int = int(os.getenv("P33_ONDEMAND_TTL_SEC", "300"))  # 5 minutes
+    
+    # Polling interval
+    POLL_INTERVAL: int = int(os.getenv("P33_POLL_SEC", "5"))
+    
+    # Sanity check thresholds
+    STALE_THRESHOLD_SEC: int = int(os.getenv("P33_STALE_THRESHOLD_SEC", "10"))
+    COOLDOWN_SEC: int = int(os.getenv("P33_COOLDOWN_SEC", "15"))
+    QTY_TOLERANCE_PCT: float = float(os.getenv("P33_QTY_TOLERANCE_PCT", "1.0"))
+    
+    # Permit TTL
+    PERMIT_TTL: int = int(os.getenv("P33_PERMIT_TTL", "60"))
+    
+    # Metrics port
+    METRICS_PORT: int = int(os.getenv("P33_METRICS_PORT", "8045"))
+
+
+class BinanceTestnetClient:
+    """Minimal Binance Futures Testnet client for position data"""
+    
+    def __init__(self, api_key: str, api_secret: str):
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.base_url = "https://testnet.binancefuture.com"
+    
+    def _sign_request(self, params: Dict[str, Any]) -> str:
+        """Sign request with HMAC SHA256"""
+        query_string = urllib.parse.urlencode(params)
+        return hmac.new(
+            self.api_secret.encode('utf-8'),
+            query_string.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+    
+    def _request(self, method: str, endpoint: str, params: Optional[Dict] = None, signed: bool = False) -> Any:
+        """Make HTTP request to Binance API"""
+        if params is None:
+            params = {}
+        
+        if signed:
+            params['timestamp'] = int(time.time() * 1000)
+            params['signature'] = self._sign_request(params)
+        
+        url = f"{self.base_url}{endpoint}"
+        if params:
+            url += f"?{urllib.parse.urlencode(params)}"
+        
+        req = urllib.request.Request(url, method=method)
+        req.add_header('X-MBX-APIKEY', self.api_key)
+        
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                return json.loads(response.read().decode('utf-8'))
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode('utf-8')
+            logger.error(f"Binance API error {e.code}: {error_body}")
+            raise
+        except Exception as e:
+            logger.error(f"Binance API request failed: {e}")
+            raise
+    
+    def get_position(self, symbol: str) -> Optional[Dict]:
+        """Get position for symbol"""
+        try:
+            positions = self._request('GET', '/fapi/v2/positionRisk', signed=True)
+            for pos in positions:
+                if pos['symbol'] == symbol:
+                    return {
+                        'symbol': symbol,
+                        'positionAmt': float(pos['positionAmt']),
+                        'entryPrice': float(pos['entryPrice']) if pos['entryPrice'] else 0.0,
+                        'markPrice': float(pos['markPrice']) if pos['markPrice'] else 0.0,
+                        'unRealizedProfit': float(pos['unRealizedProfit']),
+                        'leverage': int(pos['leverage']),
+                        'side': 'LONG' if float(pos['positionAmt']) > 0 else ('SHORT' if float(pos['positionAmt']) < 0 else 'NONE')
+                    }
+            return None
+        except Exception as e:
+            logger.error(f"{symbol}: Failed to get position: {e}")
+            return None
+    
+    def get_mark_price(self, symbol: str) -> Optional[float]:
+        """Get current mark price"""
+        try:
+            result = self._request('GET', '/fapi/v1/premiumIndex', params={'symbol': symbol})
+            return float(result['markPrice'])
+        except Exception as e:
+            logger.error(f"{symbol}: Failed to get mark price: {e}")
+            return None
+
+
+class PositionStateBrain:
+    """P3.3 Position State Brain - Exchange↔Redis↔Ledger Reconciliation"""
+    
+    def __init__(self, config: Config):
+        self.config = config
+        
+        # Redis connection
+        self.redis = redis.Redis(
+            host=config.REDIS_HOST,
+            port=config.REDIS_PORT,
+            db=config.REDIS_DB,
+            decode_responses=True
+        )
+        
+        # Binance client
+        self.binance_client = None
+        if config.BINANCE_TESTNET_API_KEY and config.BINANCE_TESTNET_API_SECRET:
+            self.binance_client = BinanceTestnetClient(
+                config.BINANCE_TESTNET_API_KEY,
+                config.BINANCE_TESTNET_API_SECRET
+            )
+            logger.info("Binance testnet client initialized")
+        else:
+            logger.error("Missing Binance credentials - P3.3 cannot function")
+            sys.exit(1)
+        
+        # Universe Service integration (3-tier fallback)
+        self.allowlist_refresh_ts = 0
+        self.allowlist = set()  # Current active allowlist
+        self.allowlist_source = "none"  # Track source: universe|last_ok|env|none
+        self.allowlist_meta = {}  # Metadata about current source
+        
+        # Load initial allowlist (from Universe or fallback)
+        self._refresh_allowlist(force=True)
+        
+        if not self.allowlist:
+            logger.error("FAIL-CLOSED: No valid allowlist loaded - service will deny all permits")
+        
+        # Legacy: Keep self.symbols for backwards compatibility
+        self.symbols = list(self.allowlist)
+        
+        # Snapshot performance tracking (2026-02-02 candidate system)
+        self.ewma_latency_ms = 100.0  # Initial estimate: 100ms per snapshot
+        self.last_stats_log = 0  # Last time we logged stats
+        
+        # Metrics
+        if PROMETHEUS_AVAILABLE:
+            self.metric_permit_allow = Counter('p33_permit_allow_total', 'P3.3 permits granted', ['symbol'])
+            self.metric_permit_deny = Counter('p33_permit_deny_total', 'P3.3 permits denied', ['symbol', 'reason'])
+            self.metric_snapshot_age = Gauge('p33_snapshot_age_seconds', 'Exchange snapshot age', ['symbol'])
+            self.metric_ledger_amt = Gauge('p33_ledger_position_amt', 'Ledger position amount', ['symbol'])
+            self.metric_exchange_amt = Gauge('p33_exchange_position_amt', 'Exchange position amount', ['symbol'])
+            self.metric_snapshot_candidates = Gauge('p33_snapshot_candidates', 'Number of candidate symbols')
+            self.metric_ondemand_snapshots = Counter('p33_ondemand_snapshots_total', 'On-demand snapshots created')
+            
+            # Start metrics server
+            start_http_server(config.METRICS_PORT)
+            logger.info(f"Metrics server started on port {config.METRICS_PORT}")
+    
+    def _load_universe_active(self) -> tuple:
+        """Try to load from universe:active (primary source)
+        
+        Returns:
+            (symbols: list, meta: dict, source: str, ok: bool)
+        """
+        try:
+            # Check if universe:active exists
+            if not self.redis.exists(self.config.UNIVERSE_KEY_ACTIVE):
+                return (None, {}, "none", False)
+            
+            # Get metadata
+            meta = self.redis.hgetall(self.config.UNIVERSE_KEY_META)
+            stale = int(meta.get('stale', 1))
+            count = int(meta.get('count', 0))
+            asof_epoch = int(meta.get('asof_epoch', 0))
+            
+            # Check staleness
+            now_epoch = int(time.time())
+            age_s = now_epoch - asof_epoch
+            
+            # Criteria: stale=0 AND count>0 AND age not too old
+            if stale != 0:
+                logger.debug(f"Universe active rejected: stale={stale}")
+                return (None, meta, "stale", False)
+            
+            if count == 0:
+                logger.debug(f"Universe active rejected: count=0")
+                return (None, meta, "empty", False)
+            
+            if age_s > self.config.UNIVERSE_MAX_AGE_S:
+                logger.debug(f"Universe active rejected: age={age_s}s > max={self.config.UNIVERSE_MAX_AGE_S}s")
+                return (None, meta, "too_old", False)
+            
+            # Load universe JSON
+            universe_json = self.redis.get(self.config.UNIVERSE_KEY_ACTIVE)
+            if not universe_json:
+                return (None, meta, "missing", False)
+            
+            universe = json.loads(universe_json)
+            symbols = universe.get('symbols', [])
+            
+            if not symbols:
+                return (None, meta, "no_symbols", False)
+            
+            # Success: active is usable
+            meta['age_s'] = age_s
+            return (symbols, meta, "universe", True)
+            
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.warning(f"Universe active parse error: {e}")
+            return (None, {}, "parse_error", False)
+        except Exception as e:
+            logger.error(f"Universe active load error: {e}")
+            return (None, {}, "load_error", False)
+    
+    def _load_universe_last_ok(self) -> tuple:
+        """Try to load from universe:last_ok (backup source)
+        
+        Returns:
+            (symbols: list, meta: dict, source: str, ok: bool)
+        """
+        try:
+            # Check if last_ok exists
+            if not self.redis.exists(self.config.UNIVERSE_KEY_LAST_OK):
+                logger.debug("Universe last_ok not found")
+                return (None, {}, "none", False)
+            
+            # Load last_ok JSON
+            last_ok_json = self.redis.get(self.config.UNIVERSE_KEY_LAST_OK)
+            if not last_ok_json:
+                return (None, {}, "missing", False)
+            
+            last_ok = json.loads(last_ok_json)
+            symbols = last_ok.get('symbols', [])
+            asof_epoch = last_ok.get('asof_epoch', 0)
+            
+            if not symbols:
+                return (None, {}, "no_symbols", False)
+            
+            # Check age
+            now_epoch = int(time.time())
+            age_s = now_epoch - asof_epoch
+            
+            if age_s > self.config.UNIVERSE_MAX_AGE_S:
+                logger.debug(f"Universe last_ok rejected: age={age_s}s > max={self.config.UNIVERSE_MAX_AGE_S}s")
+                return (None, {}, "too_old", False)
+            
+            # Success: last_ok is usable
+            meta = {
+                'stale': '1',  # Mark as stale (backup source)
+                'count': str(len(symbols)),
+                'asof_epoch': str(asof_epoch),
+                'age_s': age_s
+            }
+            return (symbols, meta, "last_ok", True)
+            
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.warning(f"Universe last_ok parse error: {e}")
+            return (None, {}, "parse_error", False)
+        except Exception as e:
+            logger.error(f"Universe last_ok load error: {e}")
+            return (None, {}, "load_error", False)
+    
+    def _load_env_allowlist(self) -> tuple:
+        """Load from env var (final fallback)
+        
+        Returns:
+            (symbols: list, meta: dict, source: str, ok: bool)
+        """
+        symbols = [s.strip() for s in self.config.ALLOWLIST.split(',') if s.strip()]
+        
+        if not symbols:
+            logger.warning("Env allowlist (P33_ALLOWLIST) is empty!")
+            return (None, {}, "empty", False)
+        
+        meta = {
+            'stale': 'env',
+            'count': str(len(symbols)),
+            'asof_epoch': 'static',
+            'age_s': 0
+        }
+        return (symbols, meta, "env", True)
+    
+    def _refresh_allowlist(self, force: bool = False):
+        """Refresh allowlist using 3-tier fallback: active → last_ok → env
+        
+        Args:
+            force: If True, skip cache age check and refresh immediately
+        """
+        # Check if refresh needed
+        if not force:
+            now = time.time()
+            age = now - self.allowlist_refresh_ts
+            
+            if age < self.config.ALLOWLIST_REFRESH_S:
+                return  # Cache still fresh
+        
+        old_count = len(self.allowlist)
+        old_source = self.allowlist_source
+        
+        # Tier 1: Try universe:active
+        if self.config.ALLOWLIST_SOURCE == "universe":
+            symbols, meta, source, ok = self._load_universe_active()
+            
+            if ok:
+                self.allowlist = set(symbols)
+                self.allowlist_source = source
+                self.allowlist_meta = meta
+                self.allowlist_refresh_ts = time.time()
+                self._log_allowlist_source()
+                return
+            
+            # Tier 2: Try universe:last_ok
+            symbols, meta, source, ok = self._load_universe_last_ok()
+            
+            if ok:
+                self.allowlist = set(symbols)
+                self.allowlist_source = source
+                self.allowlist_meta = meta
+                self.allowlist_refresh_ts = time.time()
+                self._log_allowlist_source()
+                return
+        
+        # Tier 3: Fallback to env
+        symbols, meta, source, ok = self._load_env_allowlist()
+        
+        if ok:
+            self.allowlist = set(symbols)
+            self.allowlist_source = source
+            self.allowlist_meta = meta
+            self.allowlist_refresh_ts = time.time()
+            self._log_allowlist_source()
+            return
+        
+        # FAIL-CLOSED: No valid allowlist
+        if not self.allowlist:  # Only warn if we have nothing
+            logger.error("FAIL-CLOSED: No valid allowlist from any source!")
+            self.allowlist = set()  # Empty set = deny all
+            self.allowlist_source = "none"
+            self.allowlist_meta = {}
+            self._log_allowlist_source()
+    
+    def _log_allowlist_source(self):
+        """Log which allowlist source is active with full metadata"""
+        source = self.allowlist_source
+        stale = self.allowlist_meta.get('stale', '?')
+        count = self.allowlist_meta.get('count', len(self.allowlist))
+        asof = self.allowlist_meta.get('asof_epoch', '?')
+        age_s = self.allowlist_meta.get('age_s', '?')
+        
+        logger.info(f"P3.3 allowlist source={source} stale={stale} count={count} asof_epoch={asof} age_s={age_s}")
+    
+    def _build_snapshot_candidates(self) -> set:
+        """Build candidate list: open_positions + recent_intents + topK(universe)
+        
+        Formula-based K = max(MIN_TOP_K, floor(TARGET_CYCLE_SEC / (ewma_latency_ms/1000)))
+        """
+        candidates = set()
+        
+        # 1) Open positions (from ledger keys)
+        try:
+            ledger_keys = self.redis.keys("quantum:position:ledger:*")
+            for key in ledger_keys:
+                symbol = key.split(":")[-1]
+                if symbol and symbol in self.allowlist:
+                    candidates.add(symbol)
+        except Exception as e:
+            logger.warning(f"Failed to load open positions: {e}")
+        
+        # 2) Recent intent symbols (from trade.intent stream, last INTENT_WINDOW_SEC)
+        try:
+            cutoff = int((time.time() - self.config.INTENT_WINDOW_SEC) * 1000)
+            intent_stream = "quantum:stream:trade.intent"
+            messages = self.redis.xrevrange(intent_stream, count=1000)  # Last 1000 messages
+            
+            for msg_id, fields in messages:
+                # Parse timestamp from msg_id (format: timestamp-sequence)
+                msg_ts = int(msg_id.split(b'-')[0]) if isinstance(msg_id, bytes) else int(msg_id.split('-')[0])
+                if msg_ts < cutoff:
+                    break  # Older than window
+                
+                symbol = fields.get('symbol') if isinstance(fields, dict) else fields.get(b'symbol')
+                if symbol:
+                    if isinstance(symbol, bytes):
+                        symbol = symbol.decode('utf-8')
+                    if symbol in self.allowlist:
+                        candidates.add(symbol)
+        except Exception as e:
+            logger.debug(f"No recent intents or stream read error: {e}")
+        
+        # 3) Top-K from universe (formula-based)
+        top_k = max(
+            self.config.MIN_TOP_K,
+            int(self.config.TARGET_CYCLE_SEC / (self.ewma_latency_ms / 1000))
+        )
+        
+        # Get top-K symbols alphabetically (deterministic)
+        sorted_allowlist = sorted(list(self.allowlist))
+        for symbol in sorted_allowlist[:top_k]:
+            candidates.add(symbol)
+        
+        return candidates
+    
+    def update_exchange_snapshot(self, symbol: str, ttl_sec: int = 3600) -> tuple[bool, float]:
+        """Fetch and store exchange position snapshot
+        
+        Returns:
+            (success: bool, latency_ms: float)
+        """
+        start = time.time()
+        position = self.binance_client.get_position(symbol)
+        latency_ms = (time.time() - start) * 1000
+        
+        if position is None:
+            logger.warning(f"{symbol}: Failed to fetch exchange position")
+            return False, latency_ms
+            return False
+        
+        snapshot_key = f"quantum:position:snapshot:{symbol}"
+        snapshot_data = {
+            'position_amt': position['positionAmt'],
+            'side': position['side'],
+            'entry_price': position['entryPrice'],
+            'mark_price': position['markPrice'],
+            'unrealized_pnl': position['unRealizedProfit'],
+            'leverage': position['leverage'],
+            'ts_epoch': int(time.time()),
+            'source': 'binance_testnet'
+        }
+        
+        self.redis.hset(snapshot_key, mapping=snapshot_data)
+        self.redis.expire(snapshot_key, ttl_sec)
+        
+        if PROMETHEUS_AVAILABLE:
+            self.metric_exchange_amt.labels(symbol=symbol).set(position['positionAmt'])
+        
+        logger.debug(f"{symbol}: Snapshot updated (amt={position['positionAmt']}, latency={latency_ms:.1f}ms)")
+        return True, latency_ms
+    
+    def get_exchange_snapshot(self, symbol: str, on_demand: bool = False) -> Optional[Dict]:
+        """Get cached exchange snapshot (with optional on-demand fetch)
+        
+        Args:
+            symbol: Symbol to get snapshot for
+            on_demand: If True and snapshot missing, fetch immediately
+        
+        Returns:
+            Snapshot dict or None
+        """
+        snapshot_key = f"quantum:position:snapshot:{symbol}"
+        data = self.redis.hgetall(snapshot_key)
+        
+        if not data and on_demand and self.config.ONDEMAND_ENABLED:
+            # On-demand snapshot: fetch immediately for this symbol
+            try:
+                logger.info(f"{symbol}: On-demand snapshot (missing during permit check)")
+                success, latency = self.update_exchange_snapshot(symbol, ttl_sec=self.config.ONDEMAND_TTL_SEC)
+                
+                if success:
+                    if PROMETHEUS_AVAILABLE:
+                        self.metric_ondemand_snapshots.inc()
+                    data = self.redis.hgetall(snapshot_key)
+                else:
+                    logger.warning(f"{symbol}: On-demand snapshot failed")
+                    return None
+            except Exception as e:
+                logger.warning(f"{symbol}: On-demand exception: {type(e).__name__}: {e}")
+                return None
+        
+        if not data:
+            return None
+        
+        return {
+            'position_amt': float(data.get('position_amt', 0)),
+            'side': data.get('side', 'NONE'),
+            'entry_price': float(data.get('entry_price', 0)),
+            'mark_price': float(data.get('mark_price', 0)),
+            'ts_epoch': int(data.get('ts_epoch', 0)),
+            'source': data.get('source', 'unknown')
+        }
+    
+    def update_ledger(self, symbol: str, result: Dict):
+        """
+        Update ledger metadata from executed result.
+        
+        NOTE: Executor owns position_amt and last_known_amt (signed, from exchange snapshot).
+        P3.3 only updates metadata fields (last_order_id, last_result_plan_id, timestamps).
+        DO NOT update last_known_amt here - it causes sign corruption!
+        """
+        if not result.get('executed'):
+            return
+        
+        ledger_key = f"quantum:position:ledger:{symbol}"
+        
+        # Extract order info from result
+        steps_results = result.get('steps_results', [])
+        if not steps_results:
+            return
+        
+        last_step = steps_results[-1]
+        order_id = last_step.get('order_id', '')
+        executed_qty = float(last_step.get('executed_qty', 0))
+        side = last_step.get('side', 'UNKNOWN')
+        
+        # Update ledger METADATA only (executor owns position_amt/last_known_amt)
+        ledger_data = {
+            'last_order_id': order_id,
+            'last_result_plan_id': result['plan_id'],
+            'last_executed_qty': executed_qty,
+            'last_side': side,
+            'updated_at': int(time.time())
+        }
+        
+        # DO NOT update last_known_amt - executor writes this from exchange snapshot (signed)
+        # Old code caused sign corruption: abs() logic overwrote executor's negative SHORT values
+        
+        self.redis.hset(ledger_key, mapping=ledger_data)
+        self.redis.expire(ledger_key, 86400)  # 24 hour TTL
+        
+        # Read current amt for metrics only (don't modify it)
+        current_data = self.redis.hgetall(ledger_key)
+        current_amt = float(current_data.get('last_known_amt', 0)) if current_data else 0.0
+        
+        if PROMETHEUS_AVAILABLE:
+            self.metric_ledger_amt.labels(symbol=symbol).set(current_amt)
+        
+        logger.info(f"{symbol}: Ledger metadata updated (order={order_id}, current_amt={current_amt:.4f})")
+    
+    def get_ledger(self, symbol: str) -> Optional[Dict]:
+        """Get internal ledger state"""
+        ledger_key = f"quantum:position:ledger:{symbol}"
+        data = self.redis.hgetall(ledger_key)
+        
+        if not data:
+            return None
+        
+        return {
+            'last_known_amt': float(data.get('last_known_amt', 0)),
+            'last_order_id': data.get('last_order_id', ''),
+            'last_result_plan_id': data.get('last_result_plan_id', ''),
+            'updated_at': int(data.get('updated_at', 0))
+        }
+    
+    def evaluate_plan(self, plan_id: str, symbol: str, data: Dict) -> Dict:
+        """Evaluate plan and issue P3.3 permit with sanity checks"""
+        decision = data.get('decision')
+        action = data.get('action', '')
+        
+        # Check if this is a RECONCILE_CLOSE (Patch B special handling)
+        is_reconcile_close = (decision == 'RECONCILE_CLOSE')
+
+        # Only evaluate EXECUTE and RECONCILE_CLOSE decisions
+        if decision not in ('EXECUTE', 'RECONCILE_CLOSE'):
+            logger.debug(f"{symbol}: Plan {plan_id[:8]} decision={decision}, skipping P3.3")
+            return {'evaluated': False, 'reason': 'not_execute_decision'}
+
+        # Fast-path for RECONCILE_CLOSE: bypass most checks, validate guardrails only
+        if is_reconcile_close:
+            logger.info(f"{symbol}: RECONCILE_CLOSE plan detected - fast-track through P3.3 (Patch B)")
+            return self._grant_permit(plan_id, symbol, 0, 0, 0, is_reconcile_close=True)
+
+        # Get exchange snapshot (on-demand if missing)
+        snapshot = self.get_exchange_snapshot(symbol, on_demand=True)
+        
+        # Check 1: Stale snapshot
+        if not snapshot:
+            logger.info(f"P3.3_SNAPSHOT_MISS symbol={symbol} plan={plan_id[:8]} ondemand_enabled={self.config.ONDEMAND_ENABLED} attempted={on_demand}")
+            return self._deny_permit(plan_id, symbol, 'no_exchange_snapshot', {})
+        
+        age = int(time.time()) - snapshot['ts_epoch']
+        if age > self.config.STALE_THRESHOLD_SEC:
+            if PROMETHEUS_AVAILABLE:
+                self.metric_snapshot_age.labels(symbol=symbol).set(age)
+            return self._deny_permit(plan_id, symbol, 'stale_exchange_state', {'age_seconds': age})
+        
+        # Check 2: Handle OPEN (no position) vs CLOSE (position exists)
+        exchange_amt = snapshot['position_amt']
+        has_position = abs(exchange_amt) >= 0.0001
+        
+        # Extract reduceOnly flag to determine OPEN vs CLOSE
+        # Handle both string "false"/"true" and boolean False/True
+        reduce_only_raw = data.get('reduceOnly', False)
+        if isinstance(reduce_only_raw, str):
+            reduce_only = reduce_only_raw.lower() in ('true', '1', 'yes')
+        else:
+            reduce_only = bool(reduce_only_raw)
+        
+        logger.debug(f"{symbol}: Plan {plan_id[:8]} reduceOnly={reduce_only} (raw={reduce_only_raw}, has_position={has_position})")
+        
+        # OPEN pathway: reduceOnly=false + no position
+        if not reduce_only and not has_position:
+            # Allow opens when: snapshot fresh + cooldown satisfied + allowlist OK
+            cooldown_key = f"quantum:cooldown:last_exec_ts:{symbol}"
+            last_exec_ts_ms = self.redis.get(cooldown_key)
+            
+            if last_exec_ts_ms:
+                try:
+                    last_exec_ms = int(last_exec_ts_ms)
+                    now_ms = int(time.time() * 1000)
+                    elapsed_ms = now_ms - last_exec_ms
+                    elapsed_sec = elapsed_ms / 1000.0
+                    
+                    if elapsed_sec < self.config.COOLDOWN_SEC:
+                        return self._deny_permit(plan_id, symbol, 'cooldown_in_flight', {
+                            'seconds_since_exec': round(elapsed_sec, 2),
+                            'cooldown_sec': self.config.COOLDOWN_SEC,
+                            'last_exec_ts_ms': last_exec_ms
+                        })
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Invalid cooldown timestamp for {symbol}: {e}")
+            
+            # Grant OPEN permit (safe_qty=0 for opens, will be computed by executor from plan qty)
+            logger.info(f"{symbol}: P3.3 ALLOW OPEN plan {plan_id[:8]} (exchange_amt=0, reduceOnly=false)")
+            return self._grant_permit(plan_id, symbol, safe_qty=0, exchange_amt=0, ledger_amt=0, is_open=True)
+        
+        # CLOSE pathway: requires existing position
+        if not has_position:
+            return self._deny_permit(plan_id, symbol, 'no_position', {'exchange_amt': exchange_amt})
+        
+        # Get ledger state
+        ledger = self.get_ledger(symbol)
+        
+        # Check 3: Side mismatch (if ledger exists)
+        if ledger:
+            ledger_amt = ledger['last_known_amt']
+            exchange_side = snapshot['side']
+            ledger_side = 'LONG' if ledger_amt > 0 else ('SHORT' if ledger_amt < 0 else 'NONE')
+            
+            if exchange_side != 'NONE' and ledger_side != 'NONE' and exchange_side != ledger_side:
+                return self._deny_permit(plan_id, symbol, 'reconcile_required_side_mismatch', {
+                    'exchange_side': exchange_side,
+                    'ledger_side': ledger_side
+                })
+            
+            # Check 4: Qty mismatch beyond tolerance
+            qty_diff = abs(abs(exchange_amt) - abs(ledger_amt))
+            tolerance = max(0.001, abs(exchange_amt) * (self.config.QTY_TOLERANCE_PCT / 100))
+            
+            if qty_diff > tolerance:
+                return self._deny_permit(plan_id, symbol, 'reconcile_required_qty_mismatch', {
+                    'exchange_amt': exchange_amt,
+                    'ledger_amt': ledger_amt,
+                    'diff': qty_diff,
+                    'tolerance': tolerance
+                })
+        
+        # Check 5: Cooldown (execution-based, not plan-based)
+        # Only trigger cooldown if there was a recent EXECUTION (not just a plan evaluation)
+        cooldown_key = f"quantum:cooldown:last_exec_ts:{symbol}"
+        last_exec_ts_ms = self.redis.get(cooldown_key)
+        
+        if last_exec_ts_ms:
+            try:
+                last_exec_ms = int(last_exec_ts_ms)
+                now_ms = int(time.time() * 1000)
+                elapsed_ms = now_ms - last_exec_ms
+                elapsed_sec = elapsed_ms / 1000.0
+                
+                if elapsed_sec < self.config.COOLDOWN_SEC:
+                    return self._deny_permit(plan_id, symbol, 'cooldown_in_flight', {
+                        'seconds_since_exec': round(elapsed_sec, 2),
+                        'cooldown_sec': self.config.COOLDOWN_SEC,
+                        'last_exec_ts_ms': last_exec_ms
+                    })
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid cooldown timestamp for {symbol}: {e}")
+        
+        # Check 6: Compute safe_close_qty
+        # Parse requested qty from action
+        if action == 'FULL_CLOSE_PROPOSED':
+            requested_qty = abs(exchange_amt)
+        elif action == 'PARTIAL_75':
+            requested_qty = abs(exchange_amt) * 0.75
+        elif action == 'PARTIAL_50':
+            requested_qty = abs(exchange_amt) * 0.50
+        else:
+            requested_qty = abs(exchange_amt)  # Default to full
+        
+        # Clamp to actual position
+        safe_close_qty = min(requested_qty, abs(exchange_amt))
+        
+        # Round to step size (BTCUSDT = 0.001)
+        step_size = 0.001
+        safe_close_qty = round(safe_close_qty / step_size) * step_size
+        
+        # Grant permit
+        return self._grant_permit(plan_id, symbol, safe_close_qty, exchange_amt, ledger['last_known_amt'] if ledger else 0.0)
+    
+    def _grant_permit(self, plan_id: str, symbol: str, safe_qty: float, exchange_amt: float, ledger_amt: float, is_reconcile_close: bool = False, is_open: bool = False) -> Dict:
+        """Grant P3.3 execution permit (checks P3.4 hold first, with RECONCILE_CLOSE bypass)"""
+        hold_key = f"quantum:reconcile:hold:{symbol}"
+        hold_active = self.redis.get(hold_key)
+
+        if hold_active and not is_reconcile_close:
+            logger.warning(f"{symbol}: P3.3 blocked by P3.4 reconcile hold")
+            return self._deny_permit(plan_id, symbol, "reconcile_hold_active", {
+                "exchange_amt": exchange_amt,
+                "ledger_amt": ledger_amt,
+                "p34_hold": "active"
+            })
+
+        if hold_active and is_reconcile_close:
+            logger.info(f"{symbol}: RECONCILE_CLOSE allowed to bypass HOLD (Patch B)")
+
+        permit_key = f"quantum:permit:p33:{plan_id}"
+
+        permit_data = {
+            'allow': True,
+            'symbol': symbol,
+            'safe_qty': safe_qty,  # Renamed from safe_close_qty (0 for opens)
+            'exchange_position_amt': exchange_amt,
+            'ledger_amt': ledger_amt,
+            'created_at': time.time(),
+            'reason': 'sanity_checks_passed' if not is_reconcile_close else ('open_permit_granted' if is_open else 'reconcile_close_bypass')
+        }
+
+        self.redis.setex(permit_key, self.config.PERMIT_TTL, json.dumps(permit_data))
+
+        if PROMETHEUS_AVAILABLE:
+            self.metric_permit_allow.labels(symbol=symbol).inc()
+
+        logger.info(f"{symbol}: P3.3 ALLOW plan {plan_id[:8]} (safe_qty={safe_qty:.4f}, exchange_amt={exchange_amt:.4f})")
+
+        return {'evaluated': True, 'allow': True, 'safe_qty': safe_qty}
+    
+    def _deny_permit(self, plan_id: str, symbol: str, reason: str, context: Dict) -> Dict:
+        """Deny P3.3 execution permit"""
+        permit_key = f"quantum:permit:p33:{plan_id}"
+        
+        permit_data = {
+            'allow': False,
+            'symbol': symbol,
+            'reason': reason,
+            'context': context,
+            'created_at': time.time()
+        }
+        
+        self.redis.setex(permit_key, self.config.PERMIT_TTL, json.dumps(permit_data))
+        
+        if PROMETHEUS_AVAILABLE:
+            self.metric_permit_deny.labels(symbol=symbol, reason=reason).inc()
+        
+        logger.warning(f"{symbol}: P3.3 DENY plan {plan_id[:8]} reason={reason} context={context}")
+        
+        return {'evaluated': True, 'allow': False, 'reason': reason}
+    
+    def process_apply_results(self, symbol: str):
+        """Process recent apply results to update ledger"""
+        result_stream = "quantum:stream:apply.result"
+        
+        # Get latest result for this symbol
+        try:
+            results = self.redis.xrevrange(result_stream, count=10)
+            
+            for msg_id, fields in results:
+                if fields.get('symbol') == symbol and fields.get('executed') == 'True':
+                    # Update ledger from this result
+                    result_data = {
+                        'plan_id': fields.get('plan_id', ''),
+                        'symbol': symbol,
+                        'executed': True,
+                        'steps_results': json.loads(fields.get('steps_results', '[]'))
+                    }
+                    self.update_ledger(symbol, result_data)
+                    break  # Only process most recent executed result
+        except Exception as e:
+            logger.error(f"{symbol}: Failed to process apply results: {e}")
+    
+    def process_apply_plans_stream(self):
+        """Event-driven: consume apply.plan stream via consumer group"""
+        plan_stream = "quantum:stream:apply.plan"
+        consumer_group = "p33"
+        consumer_id = f"p33-{os.getpid()}"
+        
+        # Create consumer group (idempotent)
+        try:
+            self.redis.xgroup_create(plan_stream, consumer_group, id='$', mkstream=True)
+            logger.info(f"Consumer group '{consumer_group}' created on {plan_stream}")
+        except Exception as e:
+            if "BUSYGROUP" not in str(e):
+                logger.warning(f"Consumer group create error: {e}")
+        
+        try:
+            # XREADGROUP: block 1000ms, read up to 10 messages
+            messages = self.redis.xreadgroup(
+                groupname=consumer_group,
+                consumername=consumer_id,
+                streams={plan_stream: '>'},
+                count=10,
+                block=1000  # 1 second block
+            )
+            
+            if not messages:
+                return  # No new messages
+            
+            for stream_name, stream_messages in messages:
+                for msg_id, fields in stream_messages:
+                    # Parse plan_id (REQUIRED - no fallback)
+                    plan_id = fields.get('plan_id')
+                    if not plan_id:
+                        logger.error(f"Message {msg_id}: Missing plan_id field - ACK and skip")
+                        self.redis.xack(plan_stream, consumer_group, msg_id)
+                        continue
+                    
+                    symbol = fields.get('symbol', 'UNKNOWN')
+                    decision = fields.get('decision', '')
+                    
+                    # Only evaluate EXECUTE and RECONCILE_CLOSE decisions
+                    if decision not in ('EXECUTE', 'RECONCILE_CLOSE'):
+                        self.redis.xack(plan_stream, consumer_group, msg_id)
+                        continue
+                    
+                    # Filter by allowlist (fail-closed: deny if not in allowlist)
+                    if symbol not in self.allowlist:
+                        logger.debug(f"{symbol}: Not in allowlist (source={self.allowlist_source}) - ACK plan {plan_id[:8]}")
+                        self.redis.xack(plan_stream, consumer_group, msg_id)
+                        continue
+                    
+                    # Evaluate plan (issue or deny permit)
+                    try:
+                        logger.info(f"{symbol}: Evaluating plan {plan_id[:8]} from stream msg {msg_id}")
+                        self.evaluate_plan(plan_id, symbol, fields)
+                    except Exception as eval_err:
+                        logger.error(f"{symbol}: Evaluation error for plan {plan_id[:8]}: {eval_err}")
+                    
+                    # ACK message after processing
+                    self.redis.xack(plan_stream, consumer_group, msg_id)
+                    
+        except Exception as e:
+            logger.error(f"Stream read error: {e}")
+    
+    def run(self):
+        """Main loop - event-driven with periodic snapshot refresh"""
+        logger.info("P3.3 Position State Brain starting (event-driven mode)")
+        logger.info(f"P3.3_BUILD_TAG={BUILD_TAG}")
+        logger.info(f"Snapshot refresh: {self.config.POLL_INTERVAL}s")
+        logger.info(f"Stale threshold: {self.config.STALE_THRESHOLD_SEC}s")
+        logger.info(f"Cooldown: {self.config.COOLDOWN_SEC}s")
+        logger.info(f"Permit TTL: {self.config.PERMIT_TTL}s")
+        logger.info("Consumer group: p33 on quantum:stream:apply.plan")
+        
+        # Snapshot config (deployment verification)
+        logger.info(f"P3.3 snapshot config: ONDEMAND={self.config.ONDEMAND_ENABLED}, TTL={self.config.ONDEMAND_TTL_SEC}s")
+        logger.info(f"P3.3 candidate config: INTENT_WINDOW={self.config.INTENT_WINDOW_SEC}s, TARGET_CYCLE={self.config.TARGET_CYCLE_SEC}s, MIN_TOP_K={self.config.MIN_TOP_K}")
+        logger.info(f"P3.3 allowlist: source={self.allowlist_source}, count={len(self.allowlist)}")
+        
+        last_snapshot_update = 0
+        
+        logger.info("P3.3 entering main event loop")
+        
+        while True:
+            logger.info("P3.3 loop iteration START")
+            try:
+                # Update exchange snapshots periodically (every POLL_INTERVAL seconds)
+                now = time.time()
+                age_since_last = now - last_snapshot_update
+                logger.info(f"P3.3 loop tick: age={age_since_last:.1f}s, interval={self.config.POLL_INTERVAL}s, will_snapshot={age_since_last >= self.config.POLL_INTERVAL}")
+                
+                if now - last_snapshot_update >= self.config.POLL_INTERVAL:
+                    logger.info(f"P3.3 snapshot refresh triggered")
+                    
+                    # Refresh allowlist from Universe (3-tier fallback: active → last_ok → env)
+                    self._refresh_allowlist()
+                    
+                    # SNAPSHOT COVERAGE EXPANSION (2026-02-01)
+                    # ==========================================
+                    # ISSUE: P3.3 only snapshotted BTC/ETH (hardcoded fallback)
+                    #        → 56.7% of entries blocked with no_exchange_snapshot
+                    # 
+                    # ROOT CAUSE: Tried to optimize by only snapshotting open positions
+                    #             to avoid 170+ seconds of API calls from blocking event loop
+                    #             BUT quantum:ledger:latest doesn't exist → falls back to {'BTCUSDT', 'ETHUSDT'}
+                    # 
+                    # FIX V1: Snapshot ALL symbols in allowlist (not just open positions)
+                    # FIX V2: TOP-N filter to prevent 566-symbol API flood
+                    #         → Take first N symbols from allowlist (alphabetically sorted for determinism)
+                    #         → Default: TOP 50 symbols (balances coverage vs API limits)
+                    # 
+                    # TRADE-OFF: 50 API calls vs 2 (BTC/ETH) or 566 (all Universe)
+                    #            Enables entry flow for top symbols without blocking event loop
+                    # 
+                    # TODO: Add volume-based ranking when Universe Service provides it
+                    # FUTURE: Implement async/parallel Binance API fetching if snapshot time > 5s
+                    
+                    # CANDIDATE-BASED SNAPSHOT (2026-02-02)
+                    # Build candidates: open_positions + recent_intents + topK(universe)
+                    candidates = self._build_snapshot_candidates()
+                    
+                    # Snapshot with latency tracking
+                    cycle_start = time.time()
+                    latencies = []
+                    
+                    for symbol in candidates:
+                        success, latency = self.update_exchange_snapshot(symbol)
+                        if success:
+                            latencies.append(latency)
+                        self.process_apply_results(symbol)
+                    
+                    # Update EWMA latency
+                    if latencies:
+                        avg_latency = sum(latencies) / len(latencies)
+                        self.ewma_latency_ms = (self.config.EWMA_ALPHA * avg_latency + 
+                                                (1 - self.config.EWMA_ALPHA) * self.ewma_latency_ms)
+                    
+                    cycle_ms = (time.time() - cycle_start) * 1000
+                    
+                    # Update metrics
+                    if PROMETHEUS_AVAILABLE:
+                        self.metric_snapshot_candidates.set(len(candidates))
+                    
+                    # Log summary once per minute
+                    now_log = time.time()
+                    if now_log - self.last_stats_log >= 60:
+                        logger.info(f"P3.3 snapshot: candidates={len(candidates)}, cycle_ms={cycle_ms:.0f}, ewma_ms={self.ewma_latency_ms:.1f}")
+                        self.last_stats_log = now_log
+                    
+                    last_snapshot_update = now
+                
+                # EVENT-DRIVEN: Read from apply.plan stream (blocks 1s)
+                self.process_apply_plans_stream()
+                
+            except KeyboardInterrupt:
+                logger.info("Shutting down...")
+                break
+            except Exception as e:
+                logger.error(f"Error in main loop: {e}", exc_info=True)
+                time.sleep(1)
+
+
+def main():
+    config = Config()
+    brain = PositionStateBrain(config)
+    brain.run()
+
+
+if __name__ == "__main__":
+    main()

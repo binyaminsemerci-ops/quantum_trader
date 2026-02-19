@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+"""
+Simple standalone market data publisher for VPS deployment.
+Publishes market.tick events to Redis for AI Engine consumption.
+"""
+import asyncio
+import json
+import logging
+import os
+from datetime import datetime, timezone
+
+# Redis for event publishing
+import redis.asyncio as redis_async
+
+# Binance websocket for market data (use python-binance library)
+from binance import AsyncClient, BinanceSocketManager
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Configuration
+REDIS_HOST = os.getenv("REDIS_HOST", "redis")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+
+# Parse symbols from environment or use defaults (top 30 liquid coins, can handle 200+)
+symbols_str = os.getenv("MARKET_SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,DOGEUSDT,AVAXUSDT,ADAUSDT,DOTUSDT,LINKUSDT,MATICUSDT,UNIUSDT,LTCUSDT,BCHUSDT,FILUSDT,ICPUSDT,NEARUSDT,AAVEUSDT,FETUSDT,TRXUSDT,ATOMUSDT,APTUSDT,OPUSDT,ARBUSDT,SUIUSDT,SEIUSDT,INJUSDT,STXUSDT,RENDERUSDT,TIAUSDT")
+SYMBOLS = [s.strip() for s in symbols_str.split(",")]
+
+redis_client: redis_async.Redis = None
+
+
+async def publish_market_tick(symbol: str, price: float, volume: float):
+    """Publish market.tick event to Redis"""
+    try:
+        event_data = {
+            "symbol": symbol,
+            "price": price,
+            "volume": volume,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        
+        stream_key = "quantum:stream:market.tick"  # Fixed: Match EventBus stream naming
+        await redis_client.xadd(
+            stream_key,
+            {"payload": json.dumps(event_data)},  # FIXED: Use "payload" key to match EventBus consumer
+            maxlen=10000,  # Keep last 10000 events for high-frequency data
+        )
+        logger.debug(f"[MARKET] Published tick: {symbol} @ ${price:.2f}")
+    except Exception as e:
+        logger.error(f"[ERROR] Failed to publish tick: {e}")
+
+
+async def handle_trade_message(msg):
+    """Handle Binance trade message"""
+    try:
+        if msg.get("e") == "trade":
+            symbol = msg["s"]
+            price = float(msg["p"])
+            volume = float(msg["q"])
+            await publish_market_tick(symbol, price, volume)
+    except Exception as e:
+        logger.error(f"[ERROR] Error handling trade message: {e}")
+
+
+async def start_market_streams():
+    """Start Binance WebSocket streams for all symbols"""
+    global redis_client
+    
+    # Connect to Redis
+    redis_client = redis_async.Redis(
+        host=REDIS_HOST,
+        port=REDIS_PORT,
+        db=REDIS_DB,
+        decode_responses=False,
+    )
+    await redis_client.ping()
+    logger.info(f"[REDIS] ✅ Connected to {REDIS_HOST}:{REDIS_PORT}")
+    
+    # Initialize Binance Async Client
+    client = await AsyncClient.create()
+    bsm = BinanceSocketManager(client)
+    
+    logger.info(f"[BINANCE] Starting individual streams for {len(SYMBOLS)} symbols")
+    
+    # Create SEPARATE WebSocket for each symbol (original approach that worked with 200+ symbols)
+    async def handle_symbol_stream(symbol):
+        """Handle trade stream for a single symbol"""
+        logger.info(f"[BINANCE] Subscribing to {symbol} trade stream")
+        ts = bsm.trade_socket(symbol)
+        
+        async with ts as stream:
+            while True:
+                try:
+                    msg = await stream.recv()
+                    await handle_trade_message(msg)
+                except Exception as e:
+                    logger.error(f"[ERROR] {symbol} stream error: {e}")
+                    await asyncio.sleep(1)
+    
+    # Run all symbol streams concurrently
+    tasks = [handle_symbol_stream(symbol) for symbol in SYMBOLS]
+    await asyncio.gather(*tasks)
+
+
+async def main():
+    """Main entry point"""
+    logger.info("=" * 60)
+    logger.info("📈 SIMPLE MARKET DATA PUBLISHER")
+    logger.info(f"Redis: {REDIS_HOST}:{REDIS_PORT}")
+    logger.info(f"Symbols: {', '.join(SYMBOLS)}")
+    logger.info("=" * 60)
+    
+    try:
+        await start_market_streams()
+    except KeyboardInterrupt:
+        logger.info("[STOP] Shutting down...")
+    except Exception as e:
+        logger.error(f"[FATAL] {e}", exc_info=True)
+    finally:
+        if redis_client:
+            await redis_client.close()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

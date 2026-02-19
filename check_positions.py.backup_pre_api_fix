@@ -1,0 +1,15 @@
+import os
+from binance.client import Client
+
+c = Client(os.getenv("BINANCE_API_KEY"), os.getenv("BINANCE_API_SECRET"), testnet=True)
+pos = c.futures_position_information()
+active = [p for p in pos if float(p["positionAmt"]) != 0]
+print(f"Active positions: {len(active)}\n")
+for p in active[:10]:
+    print(f"{p['symbol']}: Amt={p['positionAmt']}, Leverage={p['leverage']}x, Entry=${p['entryPrice']}, PnL=${p['unRealizedProfit']}")
+
+print("\n--- Open Orders (TP/SL) ---")
+orders = c.futures_get_open_orders()
+print(f"Total open orders: {len(orders)}")
+for o in orders[:10]:
+    print(f"{o['symbol']}: Type={o['type']}, Side={o['side']}, Price=${o['price']}, StopPrice=${o.get('stopPrice', 'N/A')}")

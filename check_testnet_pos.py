@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import os, hmac, hashlib, urllib.parse, urllib.request, json, time
 
-api_key = "your_binance_testnet_api_key_here"
-api_secret = "your_binance_testnet_api_secret_here"
+api_key = "w2W60kzuCfPJKGIqSvmp0pqISUO8XKICjc5sD8QyJuJpp9LKQgvXKhtd09Ii3rwg"
+api_secret = "QI18cg4zcbApc9uaDL8ZUmoAJQthQczZ9cKzORlSJfnK2zBEdLvSLb5ZEgZ6R1Kg"
 base_url = "https://testnet.binancefuture.com"
 
 params = {"timestamp": int(time.time() * 1000)}

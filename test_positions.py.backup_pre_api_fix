@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""Test Binance position fetching"""
+from binance.client import Client
+import os
+
+# Connect using environment variables
+api_key = os.getenv("BINANCE_API_KEY")
+api_secret = os.getenv("BINANCE_API_SECRET")
+
+print(f"API Key: {api_key[:20]}...")
+print(f"Testnet: {os.getenv('TESTNET', 'false')}")
+
+client = Client(api_key, api_secret, testnet=True)
+
+print("\n=== TEST 1: All positions (no symbol param) ===")
+try:
+    all_positions = client.futures_position_information()
+    active = [p for p in all_positions if float(p.get('positionAmt', 0)) != 0]
+    print(f"Total active positions: {len(active)}")
+    
+    if active:
+        for pos in active[:10]:
+            symbol = pos['symbol']
+            amt = pos['positionAmt']
+            entry = pos['entryPrice']
+            pnl = pos.get('unrealizedProfit', 0)
+            print(f"  {symbol}: {amt} @ {entry} (PnL: {pnl})")
+    else:
+        print("  NO ACTIVE POSITIONS FOUND!")
+except Exception as e:
+    print(f"ERROR: {e}")
+
+print("\n=== TEST 2: Specific symbol (TRXUSDT) ===")
+try:
+    trx_pos = client.futures_position_information(symbol='TRXUSDT')
+    for pos in trx_pos:
+        if float(pos.get('positionAmt', 0)) != 0:
+            print(f"  {pos['symbol']}: {pos['positionAmt']} @ {pos['entryPrice']}")
+        else:
+            print(f"  {pos['symbol']}: No position (positionAmt=0)")
+except Exception as e:
+    print(f"ERROR: {e}")
+
+print("\n=== TEST 3: Account balance ===")
+try:
+    account = client.futures_account_balance()
+    for bal in account:
+        if float(bal.get('balance', 0)) > 0:
+            print(f"  {bal['asset']}: {bal['balance']}")
+except Exception as e:
+    print(f"ERROR: {e}")

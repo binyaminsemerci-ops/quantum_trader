@@ -9,10 +9,8 @@ def load_env():
     if not api_key:
         with open(".env") as f:
             for line in f:
-                if line.startswith("BINANCE_API_KEY="):
-                    api_key = line.split("=", 1)[1].strip()
-                elif line.startswith("BINANCE_API_SECRET="):
-                    api_secret = line.split("=", 1)[1].strip()
+                if line.startswith("BINANCE_API_KEY="w2W60kzuCfPJKGIqSvmp0pqISUO8XKICjc5sD8QyJuJpp9LKQgvXKhtd09Ii3rwg"=", 1)[1].strip()
+                elif line.startswith("BINANCE_API_SECRET="QI18cg4zcbApc9uaDL8ZUmoAJQthQczZ9cKzORlSJfnK2zBEdLvSLb5ZEgZ6R1Kg"=", 1)[1].strip()
     
     return api_key, api_secret
 

@@ -41,6 +41,18 @@ from ai_engine.services.eventbus_bridge import (
     TradeIntent
 )
 
+# Import formula-based exit logic (NO HARDCODED PERCENTAGES)
+from common.exit_math import (
+    Position as ExitPosition,
+    Account,
+    Market,
+    RiskSettings,
+    evaluate_exit,
+    get_exit_metrics,
+    compute_dynamic_stop
+)
+from common.risk_settings import get_settings
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -58,18 +70,23 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class TrackedPosition:
-    """Position being tracked for exit"""
+    """Position being tracked for exit - FORMULA-BASED LOGIC"""
     symbol: str
     side: str  # "BUY" or "SELL"
     entry_price: float
     quantity: float
     leverage: float
-    take_profit: Optional[float]
-    stop_loss: Optional[float]
     order_id: str
     opened_at: str
     highest_price: float = 0.0  # For trailing stop (LONG)
     lowest_price: float = 999999.0  # For trailing stop (SHORT)
+    time_in_trade: float = 0.0  # Seconds since entry
+    distance_to_liq: float = 1.0  # % distance to liquidation (default: far)
+    
+    # REMOVED: take_profit and stop_loss (now calculated dynamically)
+    # OLD LOGIC (hardcoded):
+    # take_profit: Optional[float]
+    # stop_loss: Optional[float]
 
 
 # ============================================================================
@@ -93,7 +110,12 @@ stats = {
 
 # Config
 CHECK_INTERVAL = 5  # Check prices every 5 seconds
-TRAILING_STOP_PCT = 0.015  # 1.5% trailing stop callback
+
+# Load formula-based risk settings (NO HARDCODED PERCENTAGES)
+EXIT_SETTINGS = get_settings()
+
+# Account equity (fetch from AI Engine or environment)
+ACCOUNT_EQUITY = float(os.getenv("ACCOUNT_EQUITY_USDT", "10000"))  # Default 10k USDT
 
 # ============================================================================
 # BINANCE CLIENT SETUP
@@ -124,58 +146,163 @@ def get_current_price(symbol: str) -> Optional[float]:
         logger.error(f"❌ Failed to get price for {symbol}: {e}")
     return None
 
-
-def check_exit_conditions(position: TrackedPosition, current_price: float) -> Optional[str]:
+def get_atr(symbol: str, period: int = 14, timeframe: str = "5m") -> float:
     """
-    Check if position should be closed.
+    Get Average True Range (ATR) for symbol.
+    
+    Uses Binance klines to calculate ATR.
+    Fallback: 1% of current price if calculation fails.
+    
+    Args:
+        symbol: Trading symbol
+        period: ATR period (default: 14)
+        timeframe: Candle timeframe (default: 5m)
+    
+    Returns:
+        ATR value
+    """
+    try:
+        if not binance_client:
+            # Fallback: 1% of current price
+            price = get_current_price(symbol)
+            return price * 0.01 if price else 10.0
+        
+        # Fetch recent klines
+        klines = binance_client.futures_klines(
+            symbol=symbol,
+            interval=timeframe,
+            limit=period + 1
+        )
+        
+        if len(klines) < period:
+            logger.warning(f"Insufficient klines for {symbol} ATR calculation")
+            price = get_current_price(symbol)
+            return price * 0.01 if price else 10.0
+        
+        # Calculate True Range for each candle
+        true_ranges = []
+        for i in range(1, len(klines)):
+            high = float(klines[i][2])
+            low = float(klines[i][3])
+            prev_close = float(klines[i-1][4])
+            
+            tr = max(
+                high - low,
+                abs(high - prev_close),
+                abs(low - prev_close)
+            )
+            true_ranges.append(tr)
+        
+        # ATR = average of true ranges
+        atr = sum(true_ranges) / len(true_ranges) if true_ranges else 10.0
+        
+        logger.debug(f"[{symbol}] ATR({period}, {timeframe}) = {atr:.4f}")
+        return atr
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to calculate ATR for {symbol}: {e}")
+        # Fallback: 1% of current price
+        price = get_current_price(symbol)
+        return price * 0.01 if price else 10.0
+
+def check_exit_conditions(position: TrackedPosition, current_price: float, atr: float) -> Optional[str]:
+    """
+    Check if position should be closed using FORMULA-BASED LOGIC.
+    
+    NO HARDCODED PERCENTAGES. All exit decisions based on:
+    - Account equity
+    - Position leverage
+    - Market volatility (ATR)
+    - Risk capital allocation
+    - Time in trade
     
     Returns:
         Exit reason if should close, None otherwise
     """
-    if position.side == "BUY":
-        # LONG position
-        # Update highest price for trailing stop
+    # Update highest/lowest prices FOR trailing stop calculation
+    if position.side in ("BUY", "LONG"):
         if current_price > position.highest_price:
             position.highest_price = current_price
-        
-        # Check Take Profit
-        if position.take_profit and current_price >= position.take_profit:
-            return "TAKE_PROFIT"
-        
-        # Check Stop Loss
-        if position.stop_loss and current_price <= position.stop_loss:
-            return "STOP_LOSS"
-        
-        # Check Trailing Stop (if price dropped X% from highest)
-        if position.highest_price > position.entry_price * 1.01:  # Only if in profit
-            trailing_trigger = position.highest_price * (1 - TRAILING_STOP_PCT)
-            if current_price <= trailing_trigger:
-                return "TRAILING_STOP"
-    
-    else:  # SHORT position
-        # Update lowest price for trailing stop
+    else:
         if current_price < position.lowest_price:
             position.lowest_price = current_price
+    
+    # Create exit_math compatible data structures
+    exit_position = ExitPosition(
+        symbol=position.symbol,
+        side=position.side,
+        entry_price=position.entry_price,
+        size=position.quantity,
+        leverage=position.leverage,
+        highest_price=position.highest_price,
+        lowest_price=position.lowest_price,
+        time_in_trade=position.time_in_trade,
+        distance_to_liq=position.distance_to_liq
+    )
+    
+    account = Account(equity=ACCOUNT_EQUITY)
+    market = Market(current_price=current_price, atr=atr)
+    
+    # FORMULA-BASED EXIT EVALUATION
+    exit_reason = evaluate_exit(exit_position, account, market, EXIT_SETTINGS)
+    
+    # Get metrics for logging
+    metrics = get_exit_metrics(exit_position, account, market, EXIT_SETTINGS)
+    
+    # Shadow validation logging (if enabled)
+    if EXIT_SETTINGS.SHADOW_MODE:
+        # OLD LOGIC (hardcoded):
+        # tp = entry * 1.025 (BUY) or entry * 0.975 (SELL)
+        # sl = entry * 0.985 (BUY) or entry * 1.015 (SELL)
+        # trailing = 1.5% callback
         
-        # Check Take Profit
-        if position.take_profit and current_price <= position.take_profit:
-            return "TAKE_PROFIT"
+        old_decision = _get_old_exit_decision(position, current_price)
         
-        # Check Stop Loss
-        if position.stop_loss and current_price >= position.stop_loss:
-            return "STOP_LOSS"
+        logger.info(
+            f"[SHADOW] {position.symbol} | "
+            f"OLD: {old_decision} | "
+            f"NEW: {exit_reason} | "
+            f"R={metrics['current_r']:.2f} | "
+            f"Stop=${metrics['dynamic_stop']:.4f} | "
+            f"ATR=${metrics['atr']:.4f} | "
+            f"Trail={metrics['trailing_active']}"
+        )
+    
+    return exit_reason
+
+
+def _get_old_exit_decision(position: TrackedPosition, current_price: float) -> Optional[str]:
+    """OLD HARDCODED LOGIC - for shadow validation only"""
+    if position.side == "BUY":
+        old_tp = position.entry_price * 1.025  # +2.5%
+        old_sl = position.entry_price * 0.985  # -1.5%
         
-        # Check Trailing Stop (if price rose X% from lowest)
-        if position.lowest_price < position.entry_price * 0.99:  # Only if in profit
-            trailing_trigger = position.lowest_price * (1 + TRAILING_STOP_PCT)
+        if current_price >= old_tp:
+            return "TP"
+        elif current_price <= old_sl:
+            return "SL"
+        elif position.highest_price > position.entry_price * 1.01:
+            trailing_trigger = position.highest_price * (1 - 0.015)  # 1.5%
+            if current_price <= trailing_trigger:
+                return "TRAIL"
+    else:  # SELL
+        old_tp = position.entry_price * 0.975  # -2.5%
+        old_sl = position.entry_price * 1.015  # +1.5%
+        
+        if current_price <= old_tp:
+            return "TP"
+        elif current_price >= old_sl:
+            return "SL"
+        elif position.lowest_price < position.entry_price * 0.99:
+            trailing_trigger = position.lowest_price * (1 + 0.015)  # 1.5%
             if current_price >= trailing_trigger:
-                return "TRAILING_STOP"
+                return "TRAIL"
     
     return None
 
 
 async def send_close_order(position: TrackedPosition, reason: str):
-    """Send close order to execution service"""
+    """Send close order to execution service (FORMULA-BASED)"""
     try:
         # Create TradeIntent for closing position
         close_side = "SELL" if position.side == "BUY" else "BUY"
@@ -195,7 +322,7 @@ async def send_close_order(position: TrackedPosition, reason: str):
             take_profit=None,
             confidence=1.0,
             timestamp=datetime.utcnow().isoformat() + "Z",
-            model="exit_monitor",
+            model="exit_monitor_formula",  # Updated model name
             meta_strategy="EXIT"
         )
         
@@ -205,14 +332,16 @@ async def send_close_order(position: TrackedPosition, reason: str):
             data=intent.dict()
         )
         
-        # Update stats
+        # Update stats (map new formula reasons to old stats)
         stats["exits_triggered"] += 1
-        if reason == "TAKE_PROFIT":
-            stats["tp_hits"] += 1
-        elif reason == "STOP_LOSS":
+        if reason == "risk_stop":
             stats["sl_hits"] += 1
-        elif reason == "TRAILING_STOP":
+        elif reason == "trailing_stop":
             stats["trailing_hits"] += 1
+        elif reason == "liq_protection":
+            stats["sl_hits"] += 1  # Count liquidation protection as SL
+        elif reason == "time_exit":
+            stats["trailing_hits"] += 1  # Count time exit as trailing
         
         # Remove from tracked positions
         del tracked_positions[position.symbol]
@@ -220,11 +349,12 @@ async def send_close_order(position: TrackedPosition, reason: str):
         pnl_pct = ((current_price - position.entry_price) / position.entry_price * 100) if position.side == "BUY" else ((position.entry_price - current_price) / position.entry_price * 100)
         
         logger.info(
-            f"🎯 EXIT TRIGGERED: {position.symbol} {position.side} | "
-            f"Reason: {reason} | "
+            f"🚨 EXIT TRIGGERED (FORMULA): {position.symbol} {position.side} | "
+            f"Reason: {reason.upper()} | "
             f"Entry=${position.entry_price:.4f} | "
             f"Exit=${current_price:.4f} | "
-            f"PnL={pnl_pct:+.2f}%"
+            f"PnL={pnl_pct:+.2f}% | "
+            f"Time={position.time_in_trade:.0f}s"
         )
         
     except Exception as e:
@@ -352,19 +482,12 @@ async def position_listener():
                         
                         entry_price = current_price  # Use current market price as entry
                         
-                        # Get TP/SL from original intent (should be included in result or fetched)
-                        # For now, use basic calculation
-                        tp = None
-                        sl = None
-                        
-                        # TODO: Fetch actual TP/SL from AI Engine signal or ExitBrain
-                        # For testnet protection, use simple fixed percentages
-                        if side == "BUY":
-                            tp = entry_price * 1.025  # +2.5%
-                            sl = entry_price * 0.985  # -1.5%
-                        else:  # SELL (SHORT)
-                            tp = entry_price * 0.975  # -2.5%
-                            sl = entry_price * 1.015  # +1.5%
+                        # TP/SL now calculated DYNAMICALLY via exit_math formulas
+                        # NO hardcoded percentages - exit evaluation uses:
+                        #   - compute_dynamic_stop() for risk-based stops
+                        #   - ATR-based trailing stops
+                        #   - Liquidation protection
+                        #   - Max hold time limits
                         
                         # Calculate quantity (use filled_qty from order)
                         quantity = float(filled_qty) if filled_qty else 0
@@ -376,8 +499,6 @@ async def position_listener():
                             entry_price=entry_price,
                             quantity=quantity,
                             leverage=float(details.get('leverage', 1.0)),
-                            take_profit=tp,
-                            stop_loss=sl,
                             order_id=str(order_id),
                             opened_at=result_data.get('timestamp', ''),
                             highest_price=entry_price,
@@ -388,11 +509,12 @@ async def position_listener():
                         stats["positions_tracked"] += 1
                         
                         logger.info(
-                            f"📌 TRACKING NEW POSITION: {symbol} {side} | "
+                            f"📌 TRACKING NEW POSITION (FORMULA MODE): {symbol} {side} | "
                             f"Entry=${entry_price:.4f} | "
-                            f"TP=${tp:.4f} | SL=${sl:.4f} | "
                             f"Qty={quantity:.4f} | "
-                            f"Order={order_id}"
+                            f"Lev={position.leverage:.1f}x | "
+                            f"Order={order_id} | "
+                            f"TP/SL: DYNAMIC (formula-based)"
                         )
             
             except asyncio.CancelledError:
@@ -407,8 +529,8 @@ async def position_listener():
 
 
 async def exit_monitor_loop():
-    """Monitor tracked positions and trigger exits"""
-    logger.info("🔍 Starting exit monitor loop...")
+    """Monitor tracked positions and trigger exits (FORMULA-BASED)"""
+    logger.info("🔍 Starting exit monitor loop (formula-based exit evaluation)...")
     
     await asyncio.sleep(10)  # Wait for system to initialize
     
@@ -427,8 +549,29 @@ async def exit_monitor_loop():
                 if not current_price:
                     continue
                 
-                # Check exit conditions
-                exit_reason = check_exit_conditions(position, current_price)
+                # Update highest/lowest price (peak/bottom tracking)
+                if position.side == "BUY":
+                    if current_price > position.highest_price:
+                        position.highest_price = current_price
+                else:  # SELL
+                    if current_price < position.lowest_price:
+                        position.lowest_price = current_price
+                
+                # Calculate time in trade
+                from datetime import datetime
+                try:
+                    opened_at = datetime.fromisoformat(position.opened_at.replace('Z', '+00:00'))
+                    time_in_trade = (datetime.utcnow() - opened_at.replace(tzinfo=None)).total_seconds()
+                    position.time_in_trade = time_in_trade
+                except Exception as e:
+                    logger.warning(f"Failed to calculate time_in_trade for {symbol}: {e}")
+                    position.time_in_trade = 0.0
+                
+                # Fetch ATR for formula-based calculations
+                atr = get_atr(symbol)
+                
+                # Check exit conditions using formula-based evaluation
+                exit_reason = check_exit_conditions(position, current_price, atr)
                 
                 if exit_reason:
                     await send_close_order(position, exit_reason)

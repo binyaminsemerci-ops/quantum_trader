@@ -398,17 +398,37 @@ class HarvestPolicy:
             p_chop=0.2
         )
     
-    def _get_harvest_theta(self) -> HarvestTheta:
-        """Get harvest theta from config or defaults"""
+    def _get_harvest_theta(self, leverage: float = 1.0) -> HarvestTheta:
+        """
+        Get harvest theta with FORMULA-BASED R-targets (leverage-aware).
+        
+        NO HARDCODED R-LADDER - uses common.risk_settings for configuration.
+        R-targets scale inversely with leverage: R_effective = R_base / sqrt(leverage)
+        
+        Args:
+            leverage: Position leverage (default: 1.0)
+        
+        Returns:
+            HarvestTheta with leverage-scaled R-targets
+        """
+        # Import risk settings
+        import sys
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+        from common.risk_settings import compute_harvest_r_targets, DEFAULT_SETTINGS
+        
+        # Get leverage-aware R-targets
+        r_targets = compute_harvest_r_targets(leverage, DEFAULT_SETTINGS)
+        
         return HarvestTheta(
-            fallback_stop_pct=0.02,
-            cost_bps=10.0,
-            T1_R=2.0,
-            T2_R=4.0,
-            T3_R=6.0,
-            lock_R=1.5,
-            be_plus_pct=0.002,
-            kill_threshold=0.6
+            fallback_stop_pct=DEFAULT_SETTINGS.RISK_FRACTION,  # Use risk fraction instead of hardcoded 0.02
+            cost_bps=10.0,  # Keep cost estimation
+            T1_R=r_targets["T1_R"],  # LEVERAGE-SCALED (not hardcoded 2.0)
+            T2_R=r_targets["T2_R"],  # LEVERAGE-SCALED (not hardcoded 4.0)
+            T3_R=r_targets["T3_R"],  # LEVERAGE-SCALED (not hardcoded 6.0)
+            lock_R=r_targets["lock_R"],  # LEVERAGE-SCALED (not hardcoded 1.5)
+            be_plus_pct=r_targets["be_plus_pct"],  # From settings (not hardcoded)
+            kill_threshold=r_targets["kill_threshold"]  # From settings (not hardcoded)
         )
     
     def _load_symbol_config(self, symbol: str) -> SymbolConfig:
@@ -621,13 +641,48 @@ class HarvestPolicy:
         # Fetch market state from Redis (or use defaults)
         market_state = self._get_market_state(position.symbol)
         
-        # Build P1 proposal (stop distance)
-        p1_proposal = P1Proposal(
-            stop_dist_pct=abs(position.entry_price - position.stop_loss) / position.entry_price if position.stop_loss else 0.02
+        # Build P1 proposal (stop distance) using FORMULA-BASED calculation
+        # Import exit_math for dynamic stop calculation
+        import sys
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+        from common.exit_math import compute_dynamic_stop, ExitPosition, Account, Market
+        from common.risk_settings import DEFAULT_SETTINGS
+        
+        # Build ExitPosition for stop calculation
+        exit_position = ExitPosition(
+            symbol=position.symbol,
+            side="BUY" if position.side == "LONG" else "SELL",
+            entry_price=position.entry_price,
+            size=position.qty,
+            leverage=position.leverage,
+            highest_price=position.peak_price if position.peak_price > 0 else position.current_price,
+            lowest_price=position.trough_price if position.trough_price > 0 else position.current_price,
+            time_in_trade=position.age_sec,
+            distance_to_liq=None  # Not available in harvest brain context
         )
         
-        # Get harvest theta from config
-        theta = self._get_harvest_theta()
+        # Get account equity (fallback to reasonable value)
+        # TODO: Fetch from Redis if available
+        account_equity = 10000.0  # USD
+        account = Account(equity=account_equity)
+        
+        # Get market data (use current price and estimate ATR)
+        # Estimate ATR as 1% of entry price (fallback)
+        atr_estimate = position.entry_price * 0.01
+        market = Market(current_price=position.current_price, atr=atr_estimate)
+        
+        # Calculate FORMULA-BASED dynamic stop distance
+        dynamic_stop = compute_dynamic_stop(exit_position, account, market, DEFAULT_SETTINGS)
+        stop_dist_pct = abs(position.entry_price - dynamic_stop) / position.entry_price
+        
+        # Build P1 proposal with formula-based stop distance (NO HARDCODED 0.02)
+        p1_proposal = P1Proposal(
+            stop_dist_pct=stop_dist_pct
+        )
+        
+        # Get harvest theta with LEVERAGE-SCALED R-targets (NO HARDCODED R-ladder)
+        theta = self._get_harvest_theta(leverage=position.leverage)
         
         # **RUN P2 HARVEST KERNEL**
         p2_result = compute_harvest_proposal(

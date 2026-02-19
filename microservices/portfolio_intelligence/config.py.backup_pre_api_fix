@@ -1,0 +1,59 @@
+"""
+Portfolio Intelligence Service - Configuration
+"""
+from pydantic_settings import BaseSettings
+from typing import Optional
+
+
+class Settings(BaseSettings):
+    """Portfolio Intelligence Service settings."""
+    
+    # Service info
+    SERVICE_NAME: str = "portfolio-intelligence"
+    VERSION: str = "1.0.0"
+    PORT: int = 8004
+    
+    # Redis (EventBus) - 🔥 FIX: Use env var instead of localhost
+    REDIS_HOST: str = "quantum_redis"  # Override with REDIS_HOST env var
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    
+    # TradeStore (SQLite/Redis)
+    TRADE_STORE_TYPE: str = "sqlite"  # "sqlite" or "redis"
+    TRADE_STORE_DB_PATH: str = "data/trades.db"
+    TRADE_STORE_REDIS_URL: Optional[str] = None
+    
+    # Risk-safety-service (PolicyStore) - 🔥 FIX: Use service name
+    RISK_SAFETY_SERVICE_URL: str = "http://risk-safety:8003"
+    
+    # Binance (account/balance data)
+    BINANCE_API_KEY: str = ""
+    BINANCE_API_SECRET: str = ""
+    USE_TESTNET: bool = True
+    
+    # Portfolio calculation settings
+    SNAPSHOT_UPDATE_INTERVAL_SEC: int = 10  # Update snapshot every 10s
+    PNL_LOOKBACK_DAYS: int = 30              # Historical PnL window
+    DRAWDOWN_LOOKBACK_DAYS: int = 7          # Rolling drawdown window
+    
+    # Exposure limits (for validation)
+    MAX_TOTAL_EXPOSURE_USD: float = 15000.0
+    MAX_POSITION_PER_SYMBOL_USD: float = 3000.0
+    MAX_POSITIONS: int = 50
+    
+    # Logging
+    LOG_LEVEL: str = "INFO"
+    LOG_DIR: str = "logs"
+    
+    @property
+    def REDIS_URL(self) -> str:
+        """Construct Redis URL."""
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+    
+    class Config:
+        env_file = ".env"
+        env_prefix = "PORTFOLIO_"
+        extra = "allow"  # Allow extra env vars
+
+
+settings = Settings()
