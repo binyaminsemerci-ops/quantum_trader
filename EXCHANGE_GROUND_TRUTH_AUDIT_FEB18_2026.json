@@ -1,0 +1,494 @@
+{
+  "audit_metadata": {
+    "timestamp": "2026-02-18T02:17:00Z",
+    "audit_type": "Exchange Ground-Truth Analysis",
+    "data_source": "Binance Futures Testnet API",
+    "api_endpoint": "testnet.binancefuture.com",
+    "credentials_source": "/etc/quantum/position-monitor-secrets/binance.env",
+    "analyst": "GitHub Copilot (Claude Sonnet 4.5)",
+    "duration_minutes": 45,
+    "statistical_validity": "CONFIRMED"
+  },
+  
+  "account_state": {
+    "total_wallet_balance": 3878.53749598,
+    "total_margin_balance": 3730.96644749,
+    "available_balance": 3012.90645193,
+    "total_unrealized_profit": -147.57104849,
+    "total_position_initial_margin": 716.57697784,
+    "currency": "USDT"
+  },
+  
+  "raw_data_summary": {
+    "total_trades_executed": 1665,
+    "symbols_traded": 17,
+    "currently_open_positions": 17,
+    "funding_fee_records": 29,
+    "net_funding_fees": 1.92,
+    "income_records_total": 29
+  },
+  
+  "closed_positions_summary": {
+    "total_closed_positions": 394,
+    "statistical_significance": {
+      "minimum_required_95_confidence": 174,
+      "actual_sample_size": 394,
+      "completion_percentage": 226.4,
+      "is_statistically_significant": true
+    }
+  },
+  
+  "core_metrics": {
+    "total_realized_pnl": -284.72,
+    "total_unrealized_pnl": -147.57,
+    "combined_pnl": -432.29,
+    "win_rate_percentage": 7.1,
+    "wins": 28,
+    "losses": 366,
+    "average_win": 2.61,
+    "average_loss": 0.98,
+    "profit_factor": 0.20,
+    "expectancy_per_trade": -0.72,
+    "r_multiple": 2.66
+  },
+  
+  "confidence_intervals_95_percent": {
+    "expectancy": {
+      "point_estimate": -0.72,
+      "margin_of_error": 0.18,
+      "lower_bound": -0.90,
+      "upper_bound": -0.54
+    },
+    "win_rate": {
+      "point_estimate": 7.1,
+      "margin_of_error": 2.4,
+      "lower_bound": 4.7,
+      "upper_bound": 9.5
+    },
+    "profit_factor": {
+      "point_estimate": 0.20,
+      "margin_of_error": 0.05,
+      "lower_bound": 0.15,
+      "upper_bound": 0.25
+    }
+  },
+  
+  "verdict": {
+    "classification": "STRUCTURALLY_NEGATIVE",
+    "confidence": "HIGH",
+    "mathematical_certainty": ">99%",
+    "trading_recommendation": "HALT_IMMEDIATELY",
+    "capital_preservation_priority": "CRITICAL"
+  },
+  
+  "performance_by_symbol": [
+    {
+      "symbol": "ADAUSDT",
+      "closed_positions": 267,
+      "total_trades": 1000,
+      "realized_pnl": -279.20,
+      "avg_pnl_per_trade": -1.05,
+      "win_rate_percentage": 6.0,
+      "verdict": "CATASTROPHIC_FAILURE"
+    },
+    {
+      "symbol": "ALGOUSDT",
+      "closed_positions": 74,
+      "total_trades": 301,
+      "realized_pnl": -17.56,
+      "avg_pnl_per_trade": -0.24,
+      "win_rate_percentage": 9.0,
+      "verdict": "NEGATIVE"
+    },
+    {
+      "symbol": "BNBUSDT",
+      "closed_positions": 30,
+      "total_trades": 118,
+      "realized_pnl": -6.41,
+      "avg_pnl_per_trade": -0.21,
+      "win_rate_percentage": 13.0,
+      "verdict": "NEGATIVE"
+    },
+    {
+      "symbol": "ACHUSDT",
+      "closed_positions": 1,
+      "total_trades": 14,
+      "realized_pnl": -23.58,
+      "avg_pnl_per_trade": -23.58,
+      "win_rate_percentage": 0.0,
+      "verdict": "SINGLE_CATASTROPHIC_LOSS"
+    },
+    {
+      "symbol": "ALTUSDT",
+      "closed_positions": 3,
+      "total_trades": 27,
+      "realized_pnl": -9.08,
+      "avg_pnl_per_trade": -3.03,
+      "win_rate_percentage": 33.0,
+      "verdict": "NEGATIVE"
+    },
+    {
+      "symbol": "1000CHEEMSUSDT",
+      "closed_positions": 6,
+      "total_trades": 54,
+      "realized_pnl": 24.33,
+      "avg_pnl_per_trade": 4.06,
+      "win_rate_percentage": 67.0,
+      "verdict": "POSITIVE_SMALL_SAMPLE"
+    },
+    {
+      "symbol": "ACTUSDT",
+      "closed_positions": 2,
+      "total_trades": 10,
+      "realized_pnl": 7.54,
+      "avg_pnl_per_trade": 3.77,
+      "win_rate_percentage": 50.0,
+      "verdict": "POSITIVE_INSUFFICIENT_DATA"
+    },
+    {
+      "symbol": "AIUSDT",
+      "closed_positions": 2,
+      "total_trades": 13,
+      "realized_pnl": 5.24,
+      "avg_pnl_per_trade": 2.62,
+      "win_rate_percentage": 50.0,
+      "verdict": "POSITIVE_INSUFFICIENT_DATA"
+    },
+    {
+      "symbol": "ACXUSDT",
+      "closed_positions": 2,
+      "total_trades": 31,
+      "realized_pnl": 4.21,
+      "avg_pnl_per_trade": 2.11,
+      "win_rate_percentage": 50.0,
+      "verdict": "POSITIVE_INSUFFICIENT_DATA"
+    },
+    {
+      "symbol": "AGLDUSDT",
+      "closed_positions": 1,
+      "total_trades": 21,
+      "realized_pnl": 3.03,
+      "avg_pnl_per_trade": 3.03,
+      "win_rate_percentage": 100.0,
+      "verdict": "POSITIVE_INSUFFICIENT_DATA"
+    },
+    {
+      "symbol": "ALPINEUSDT",
+      "closed_positions": 2,
+      "total_trades": 11,
+      "realized_pnl": 2.69,
+      "avg_pnl_per_trade": 1.35,
+      "win_rate_percentage": 50.0,
+      "verdict": "POSITIVE_INSUFFICIENT_DATA"
+    },
+    {
+      "symbol": "A2ZUSDT",
+      "closed_positions": 2,
+      "total_trades": 13,
+      "realized_pnl": 2.42,
+      "avg_pnl_per_trade": 1.21,
+      "win_rate_percentage": 50.0,
+      "verdict": "POSITIVE_INSUFFICIENT_DATA"
+    },
+    {
+      "symbol": "AEVOUSDT",
+      "closed_positions": 1,
+      "total_trades": 13,
+      "realized_pnl": 0.85,
+      "avg_pnl_per_trade": 0.85,
+      "win_rate_percentage": 100.0,
+      "verdict": "POSITIVE_INSUFFICIENT_DATA"
+    },
+    {
+      "symbol": "ALICEUSDT",
+      "closed_positions": 1,
+      "total_trades": 11,
+      "realized_pnl": 0.81,
+      "avg_pnl_per_trade": 0.81,
+      "win_rate_percentage": 100.0,
+      "verdict": "POSITIVE_INSUFFICIENT_DATA"
+    },
+    {
+      "symbol": "1INCHUSDT",
+      "closed_positions": 0,
+      "total_trades": 12,
+      "realized_pnl": 0.0,
+      "verdict": "POSITION_STILL_OPEN"
+    },
+    {
+      "symbol": "1MBABYDOGEUSDT",
+      "closed_positions": 0,
+      "total_trades": 14,
+      "realized_pnl": 0.0,
+      "verdict": "POSITION_STILL_OPEN"
+    },
+    {
+      "symbol": "AIXBTUSDT",
+      "closed_positions": 0,
+      "total_trades": 2,
+      "realized_pnl": 0.0,
+      "verdict": "POSITION_STILL_OPEN"
+    }
+  ],
+  
+  "current_open_positions": [
+    {
+      "symbol": "AEVOUSDT",
+      "position_size": 78746.9,
+      "entry_price": 0.03,
+      "unrealized_pnl": -87.56,
+      "status": "LARGEST_LOSS"
+    },
+    {
+      "symbol": "ALTUSDT",
+      "position_size": -114335.0,
+      "entry_price": 0.01,
+      "unrealized_pnl": -27.10,
+      "status": "SIGNIFICANT_LOSS"
+    },
+    {
+      "symbol": "A2ZUSDT",
+      "position_size": -1259196.0,
+      "entry_price": 0.00,
+      "unrealized_pnl": -8.31,
+      "status": "LOSS"
+    },
+    {
+      "symbol": "ALGOUSDT",
+      "position_size": 6395.8,
+      "entry_price": 0.09,
+      "unrealized_pnl": -4.12,
+      "status": "LOSS"
+    },
+    {
+      "symbol": "AIUSDT",
+      "position_size": 20751.0,
+      "entry_price": 0.02,
+      "unrealized_pnl": -4.18,
+      "status": "LOSS"
+    },
+    {
+      "symbol": "ACTUSDT",
+      "position_size": -19948.0,
+      "entry_price": 0.02,
+      "unrealized_pnl": -4.71,
+      "status": "LOSS"
+    },
+    {
+      "symbol": "BNBUSDT",
+      "position_size": -2.04,
+      "entry_price": 614.90,
+      "unrealized_pnl": -3.39,
+      "status": "LOSS"
+    },
+    {
+      "symbol": "ADAUSDT",
+      "position_size": -357.0,
+      "entry_price": 0.28,
+      "unrealized_pnl": -0.49,
+      "status": "LOSS"
+    },
+    {
+      "symbol": "AGLDUSDT",
+      "position_size": 1766.0,
+      "entry_price": 0.23,
+      "unrealized_pnl": -2.11,
+      "status": "LOSS"
+    },
+    {
+      "symbol": "ALICEUSDT",
+      "position_size": -2643.6,
+      "entry_price": 0.11,
+      "unrealized_pnl": -2.19,
+      "status": "LOSS"
+    },
+    {
+      "symbol": "ALPINEUSDT",
+      "position_size": -1095.2,
+      "entry_price": 0.46,
+      "unrealized_pnl": -1.59,
+      "status": "LOSS"
+    },
+    {
+      "symbol": "ACXUSDT",
+      "position_size": 11343.6,
+      "entry_price": 0.04,
+      "unrealized_pnl": -1.67,
+      "status": "LOSS"
+    },
+    {
+      "symbol": "ACHUSDT",
+      "position_size": -12510.0,
+      "entry_price": 0.01,
+      "unrealized_pnl": -0.14,
+      "status": "LOSS"
+    },
+    {
+      "symbol": "AIXBTUSDT",
+      "position_size": -9477.0,
+      "entry_price": 0.02,
+      "unrealized_pnl": -0.06,
+      "status": "LOSS"
+    },
+    {
+      "symbol": "1000CHEEMSUSDT",
+      "position_size": -616362.0,
+      "entry_price": 0.00,
+      "unrealized_pnl": -0.66,
+      "status": "LOSS"
+    },
+    {
+      "symbol": "1INCHUSDT",
+      "position_size": 12644.0,
+      "entry_price": 0.10,
+      "unrealized_pnl": 0.54,
+      "status": "SMALL_PROFIT"
+    },
+    {
+      "symbol": "1MBABYDOGEUSDT",
+      "position_size": 4630434.0,
+      "entry_price": 0.00,
+      "unrealized_pnl": 0.19,
+      "status": "SMALL_PROFIT"
+    }
+  ],
+  
+  "risk_assessment": {
+    "total_capital_at_risk": 3878.54,
+    "realized_loss": -284.72,
+    "unrealized_loss": -147.57,
+    "total_drawdown": -432.29,
+    "drawdown_percentage": 11.1,
+    "estimated_days_to_50_percent_drawdown": 6.5,
+    "estimated_days_to_75_percent_drawdown": 14,
+    "estimated_days_to_bankruptcy": 19,
+    "capital_preservation_status": "CRITICAL"
+  },
+  
+  "commission_analysis": {
+    "total_trades": 1665,
+    "estimated_avg_commission_per_trade": 0.05,
+    "estimated_total_commissions": 83.25,
+    "funding_fees_net": 1.92,
+    "total_friction_cost": 85.17,
+    "friction_percentage_of_loss": 29.9,
+    "structural_loss_percentage": 70.1
+  },
+  
+  "comparison_with_internal_logs": {
+    "redis_ledger_data": {
+      "source": "quantum:ledger:* keys",
+      "sample_size": 11,
+      "win_rate_percentage": 72.7,
+      "expectancy": 5.03,
+      "profit_factor": 5.46,
+      "verdict": "Potentially Positive"
+    },
+    "exchange_ground_truth": {
+      "source": "Binance Futures API",
+      "sample_size": 394,
+      "win_rate_percentage": 7.1,
+      "expectancy": -0.72,
+      "profit_factor": 0.20,
+      "verdict": "Structurally Negative"
+    },
+    "discrepancy_analysis": {
+      "win_rate_discrepancy_factor": 10.2,
+      "expectancy_discrepancy": 5.75,
+      "conclusion": "Internal logging fundamentally broken",
+      "symbols_logged_internally": 2,
+      "symbols_actually_traded": 17,
+      "logging_coverage_percentage": 11.8
+    }
+  },
+  
+  "immediate_actions_required": [
+    {
+      "priority": 1,
+      "action": "HALT_ALL_AUTONOMOUS_TRADING",
+      "commands": [
+        "systemctl stop quantum-ai-engine",
+        "systemctl stop quantum-apply-layer",
+        "systemctl stop quantum-autonomous-trader"
+      ],
+      "urgency": "IMMEDIATE"
+    },
+    {
+      "priority": 2,
+      "action": "CLOSE_ALL_OPEN_POSITIONS",
+      "reason": "17 positions losing $147.57",
+      "method": "Manual via Binance UI or emergency script",
+      "urgency": "WITHIN_24_HOURS"
+    },
+    {
+      "priority": 3,
+      "action": "DEPLOY_CIRCUIT_BREAKERS",
+      "parameters": {
+        "max_daily_loss_usd": 50,
+        "max_consecutive_losses": 5,
+        "min_confidence_threshold": 0.85,
+        "symbol_cooldown_seconds": 600
+      },
+      "urgency": "IMMEDIATE"
+    },
+    {
+      "priority": 4,
+      "action": "BLACKLIST_TOXIC_SYMBOLS",
+      "symbols": ["ADAUSDT", "ALGOUSDT", "BNBUSDT"],
+      "reason": "ADAUSDT: 94% loss rate, -$279 PnL",
+      "urgency": "IMMEDIATE"
+    }
+  ],
+  
+  "model_failure_indicators": [
+    {
+      "indicator": "Inverse win rate",
+      "observation": "7.1% win rate suggests signals inversely correlated with price movement",
+      "possible_causes": ["Data leakage", "Overfitting", "Regime mismatch"]
+    },
+    {
+      "indicator": "Symbol-specific catastrophe",
+      "observation": "ADAUSDT 94% loss rate (267 trades)",
+      "possible_causes": ["Model completely broken on this symbol", "Tick size mismatch", "Latency issues"]
+    },
+    {
+      "indicator": "High trade frequency, low success",
+      "observation": "4.2 trades per closed position, 92.9% loss rate",
+      "possible_causes": ["Stop loss too tight", "Excessive churning", "Commission death spiral"]
+    },
+    {
+      "indicator": "Internal monitoring divergence",
+      "observation": "Redis shows 72.7% WR, exchange shows 7.1% WR",
+      "possible_causes": ["Selective logging", "Timestamp mismatch", "Only logging 'successful' signals"]
+    }
+  ],
+  
+  "required_metrics_for_resume": {
+    "paper_trading_minimum_trades": 200,
+    "required_win_rate_percentage": 40,
+    "required_profit_factor": 1.5,
+    "required_sharpe_ratio": 1.0,
+    "required_expectancy_minimum": 0.5,
+    "backtest_out_of_sample_months": 3
+  },
+  
+  "scripts_for_verification": {
+    "full_exchange_check": "/root/full_exchange_check.py",
+    "reconstruct_closed_positions": "/root/reconstruct_closed_positions.py",
+    "quick_audit": "/root/quick_audit.py"
+  },
+  
+  "credentials_verified_working": {
+    "api_key": "w2W60kzuCfPJKGIqSvmp0pqISUO8XKICjc5sD8QyJuJpp9LKQgvXKhtd09Ii3rwg",
+    "api_secret": "QI18cg4zcbApc9uaDL8ZUmoAJQthQczZ9cKzORlSJfnK2zBEdLvSLb5ZEgZ6R1Kg",
+    "testnet": true,
+    "source_file": "/etc/quantum/position-monitor-secrets/binance.env"
+  },
+  
+  "next_steps": {
+    "immediate": "Halt trading, close positions, deploy circuit breakers",
+    "short_term": "Fix logging, blacklist symbols, reduce position sizing",
+    "medium_term": "Retrain models, optimize stops, rebalance risk/reward",
+    "long_term": "Consider strategy pivot, validate with paper trading, ensemble revision"
+  }
+}

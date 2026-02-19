@@ -3,7 +3,7 @@ import os, redis, time, hmac, hashlib
 import aiohttp, asyncio
 
 API_KEY = "w2W60kzuCfPJKGIqSvmp0pqISUO8XKICjc5sD8QyJuJpp9LKQgvXKhtd09Ii3rwg"
-API_SECRET = "ZowBZEfL1R1ValcYLkbxjMfZ1tOxfEDRW4eloWRGGjk5etn0vSFFSU3gCTdCFoja"
+API_SECRET = "QI18cg4zcbApc9uaDL8ZUmoAJQthQczZ9cKzORlSJfnK2zBEdLvSLb5ZEgZ6R1Kg"
 BASE_URL = "https://testnet.binancefuture.com"
 
 async def fetch_account():

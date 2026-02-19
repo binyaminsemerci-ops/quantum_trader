@@ -1,0 +1,79 @@
+from fastapi import APIRouter, HTTPException
+from pathlib import Path
+import json
+import sys
+import os
+
+# Add parent directory to path to find config module
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
+from config.config import load_config, masked_config_summary, get_qt_symbols, get_qt_universe, get_qt_max_symbols
+
+router = APIRouter()
+
+
+@router.get("/health")
+def health_check():
+    cfg = load_config()
+    summary = masked_config_summary(cfg)
+    # capability summary - which adapters are available (based on presence of keys)
+    capabilities = {
+        "exchanges": {
+            "binance": bool(cfg.binance_api_key and cfg.binance_api_secret),
+            "coinbase": bool(getattr(cfg, 'coinbase_api_key', None) and getattr(cfg, 'coinbase_api_secret', None)),
+            "kucoin": bool(getattr(cfg, 'kucoin_api_key', None) and getattr(cfg, 'kucoin_api_secret', None)),
+        }
+    }
+    return {"status": "ok", "secrets": summary, "capabilities": capabilities}
+
+
+@router.get("/universe")
+def universe_info():
+    """Get current trading universe configuration and loaded symbols.
+    
+    This endpoint provides visibility into:
+    - Active universe mode (explicit vs dynamic)
+    - Configuration parameters
+    - Symbol count and sample symbols
+    """
+    try:
+        # Read environment configuration
+        qt_symbols_env = get_qt_symbols()
+        qt_universe = get_qt_universe()
+        qt_max_symbols = get_qt_max_symbols()
+        
+        # Determine mode
+        mode = "explicit" if qt_symbols_env else "dynamic"
+        
+        # Try to read snapshot
+        snapshot_path = Path("/app/data/universe_snapshot.json")
+        snapshot_data = None
+        
+        if snapshot_path.exists():
+            try:
+                with open(snapshot_path, "r") as f:
+                    snapshot_data = json.load(f)
+            except Exception as e:
+                snapshot_data = {"error": f"Failed to read snapshot: {e}"}
+        
+        response = {
+            "status": "ok",
+            "mode": mode,
+            "config": {
+                "qt_symbols_defined": bool(qt_symbols_env),
+                "qt_universe": qt_universe if not qt_symbols_env else None,
+                "qt_max_symbols": qt_max_symbols if not qt_symbols_env else len(qt_symbols_env.split(",")) if qt_symbols_env else 0
+            },
+            "snapshot": snapshot_data
+        }
+        
+        # Add symbol count and preview from snapshot if available
+        if snapshot_data and "symbols" in snapshot_data:
+            symbols = snapshot_data["symbols"]
+            response["symbol_count"] = len(symbols)
+            response["sample_symbols"] = symbols[:20]  # First 20
+        
+        return response
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve universe info: {e}")

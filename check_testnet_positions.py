@@ -1,7 +1,7 @@
 import os, hmac, hashlib, time, requests
 
 api_key = 'w2W60kzuCfPJKGIqSvmp0pqISUO8XKICjc5sD8QyJuJpp9LKQgvXKhtd09Ii3rwg'
-api_secret = '6dw3PKJE6oTcJ43lEaKS1N7OOxsvlIBv24ZmTBJeEsNKEOuO2pmmIjS5VBP89kKv'
+api_secret = 'QI18cg4zcbApc9uaDL8ZUmoAJQthQczZ9cKzORlSJfnK2zBEdLvSLb5ZEgZ6R1Kg'
 
 base_url = 'https://testnet.binancefuture.com'
 timestamp = int(time.time() * 1000)

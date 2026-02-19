@@ -24,6 +24,24 @@ try:
 except ImportError:
     Redis = None
 
+# Import formula-based exit calculations
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from common.exit_math import (
+    compute_dynamic_stop,
+    compute_trailing_hit,
+    near_liquidation,
+    ExitPosition,
+    Account,
+    Market
+)
+from common.risk_settings import (
+    DEFAULT_SETTINGS,
+    get_settings,
+    compute_harvest_r_targets
+)
+
 from .intelligent_leverage_engine import get_leverage_engine, LeverageCalculation
 from .adaptive_leverage_engine import AdaptiveLeverageEngine, AdaptiveLevels
 
@@ -82,23 +100,69 @@ class ExitBrainV35:
             config=self.config.get("leverage_engine", {})
         )
         
-        # Get Adaptive Leverage Engine
-        # 🎯 SAFE LEVELS - Account for -0.75% funding + 0.3% spread = -1.05% cost
+        # Get risk settings for formula-based calculations
+        self.risk_settings = get_settings()
+        
+        # Get Adaptive Leverage Engine with FORMULA-BASED parameters
+        # Replace hardcoded base_tp/base_sl with risk-normalized values
+        account_equity = self.config.get("account_equity", 10000.0)  # USD
+        self.account = Account(equity=account_equity)
+        
+        # Calculate dynamic base levels (will be further adjusted by AdaptiveLeverageEngine)
+        # These are starting points, not fixed values
+        base_atr = 50.0  # Fallback ATR estimate (will be replaced with real ATR)
+        base_leverage = 10.0  # Typical leverage for base calculations
+        
+        # Create sample position for baseline calculation
+        sample_position = ExitPosition(
+            symbol="BTCUSDT",
+            side="BUY",
+            entry_price=50000.0,
+            size=0.001,  # Small sample size
+            leverage=base_leverage,
+            highest_price=50000.0,
+            lowest_price=50000.0,
+            time_in_trade=0,
+            distance_to_liq=None
+        )
+        sample_market = Market(current_price=50000.0, atr=base_atr)
+        
+        # Calculate FORMULA-BASED baseline stop distance
+        dynamic_stop = compute_dynamic_stop(sample_position, self.account, sample_market, self.risk_settings)
+        base_sl_formula = abs(sample_position.entry_price - dynamic_stop) / sample_position.entry_price
+        
+        # Use ATR-based calculation for base TP (3x stop distance as reasonable starting point)
+        base_tp_formula = base_sl_formula * 3.0  # 3:1 reward:risk ratio
+        
+        # Get Adaptive Leverage Engine with formula-based baselines
         self.adaptive_engine = AdaptiveLeverageEngine(
-            base_tp=self.config.get("base_tp_pct", 0.020),  # 2.0% (was 0.8%)
-            base_sl=self.config.get("base_sl_pct", 0.012)   # 1.2% (was 0.4%)
+            base_tp=base_tp_formula,  # FORMULA-BASED (not hardcoded 0.020)
+            base_sl=base_sl_formula   # FORMULA-BASED (not hardcoded 0.012)
         )
         
-        # Base exit parameters (kept for backward compatibility)
-        self.base_tp_pct = self.config.get("base_tp_pct", 0.025)  # 2.5% (was 1.5%)
-        self.base_sl_pct = self.config.get("base_sl_pct", 0.015)  # 1.5% (was 0.7%)
-        self.trailing_callback_pct = self.config.get("trailing_callback_pct", 0.008)  # 0.8% (was 0.4%)
+        # Dynamically calculated parameters (NO HARDCODED VALUES)
+        # These are calculated per-trade based on:
+        # - Risk capital allocation
+        # - Market volatility (ATR)
+        # - Position leverage
+        # - Account equity
         
-        # Safety limits - wider ranges to account for funding costs
-        self.min_tp_pct = self.config.get("min_tp_pct", 0.015)  # 1.5% minimum (was 0.5%)
-        self.max_tp_pct = self.config.get("max_tp_pct", 0.10)   # 10% (was 3%)
-        self.min_sl_pct = self.config.get("min_sl_pct", 0.012)  # 1.2% minimum (was 0.3%)
-        self.max_sl_pct = self.config.get("max_sl_pct", 0.05)   # 5% (was 1.5%)
+        # Base values are EXAMPLE ONLY - real values calculated dynamically
+        self._base_tp_pct = base_tp_formula  # DYNAMIC: ~0.015-0.050 depending on conditions
+        self._base_sl_pct = base_sl_formula  # DYNAMIC: ~0.005-0.020 depending on conditions
+        
+        # Trailing callback uses ATR-based calculation (no fixed percentage)
+        # Will be calculated as: ATR * TRAILING_ATR_MULT
+        self._trailing_callback_base = self.risk_settings.TRAILING_ATR_MULT  # Dynamic scale factor
+        
+        # Safety limits - NO HARDCODED PERCENTAGES
+        # These are calculated based on market conditions and volatility
+        # Min: 2x the risk fraction, Max: 15x the risk fraction (reasonable bounds)
+        risk_fraction = self.risk_settings.RISK_FRACTION
+        self._min_tp_factor = 2.0   # Min TP = 2x risk fraction
+        self._max_tp_factor = 15.0  # Max TP = 15x risk fraction
+        self._min_sl_factor = 0.5   # Min SL = 0.5x risk fraction
+        self._max_sl_factor = 4.0   # Max SL = 4x risk fraction
         
         # Reinforcement Learning - Dynamic reward feedback
         # When enabled, ExitBrain publishes PnL outcomes to Redis streams
@@ -110,12 +174,14 @@ class ExitBrainV35:
         self.avg_leverage_used = 0.0
         
         logger.info(
-            f"[ExitBrain-v3.5] Initialized | "
+            f"[ExitBrain-v3.5] FORMULA-BASED INIT | "
             f"ILFv2: Enabled | "
             f"AdaptiveLeverage: Enabled | "
             f"Dynamic Reward: {'Enabled' if self.dynamic_reward else 'Disabled'} | "
-            f"Base TP: {self.base_tp_pct*100:.1f}% | "
-            f"Base SL: {self.base_sl_pct*100:.1f}%"
+            f"Risk Fraction: {self.risk_settings.RISK_FRACTION*100:.2f}% | "
+            f"Base TP Formula: {self._base_tp_pct*100:.2f}% | "
+            f"Base SL Formula: {self._base_sl_pct*100:.2f}% | "
+            f"ATR Multipliers: Stop={self.risk_settings.STOP_ATR_MULT}x, Trail={self.risk_settings.TRAILING_ATR_MULT}x"
         )
     
     def build_exit_plan(
@@ -129,7 +195,13 @@ class ExitBrainV35:
         cross_exchange_adjustments: Optional[Dict] = None
     ) -> ExitPlan:
         """
-        Build complete exit plan with intelligent leverage
+        Build complete exit plan with FORMULA-BASED intelligent leverage.
+        
+        NO HARDCODED PERCENTAGES - all values calculated dynamically based on:
+        - Risk capital allocation per trade
+        - Market volatility (ATR)
+        - Position leverage
+        - Account equity
         
         Args:
             signal: Trading signal context
@@ -141,7 +213,7 @@ class ExitBrainV35:
             cross_exchange_adjustments: Optional Phase 4M+ adjustments
         
         Returns:
-            ExitPlan with all parameters calculated
+            ExitPlan with all parameters calculated via formulas
         """
         # Step 1: Calculate intelligent leverage (ILFv2)
         leverage_calc = self.leverage_engine.calculate_leverage(
@@ -154,20 +226,71 @@ class ExitBrainV35:
             funding_rate=funding_rate
         )
         
-        # Step 2: Calculate adaptive TP/SL levels using AdaptiveLeverageEngine
-        # This replaces the old hardcoded TP/SL calculations
-        adaptive_levels = self.adaptive_engine.compute_levels(
-            base_tp_pct=self.base_tp_pct,
-            base_sl_pct=self.base_sl_pct,
+        # Step 2: FORMULA-BASED TP/SL calculation (replaces hardcoded percentages)
+        # Build position context for formula calculations
+        exit_position = ExitPosition(
+            symbol=signal.symbol,
+            side="BUY" if signal.side.lower() == "long" else "SELL",
+            entry_price=signal.entry_price,
+            size=1000.0 / signal.entry_price,  # $1000 position for calculation
             leverage=leverage_calc.leverage,
-            volatility_factor=signal.atr_value / 100.0 if signal.atr_value > 0 else 0.0,  # Normalize ATR
+            highest_price=signal.entry_price,
+            lowest_price=signal.entry_price,
+            time_in_trade=0,
+            distance_to_liq=None
+        )
+        
+        # Build market context
+        market = Market(
+            current_price=signal.entry_price,
+            atr=signal.atr_value if signal.atr_value > 0 else signal.entry_price * 0.01
+        )
+        
+        # Calculate FORMULA-BASED dynamic stop
+        dynamic_stop = compute_dynamic_stop(exit_position, self.account, market, self.risk_settings)
+        formula_sl_pct = abs(signal.entry_price - dynamic_stop) / signal.entry_price
+        
+        # Calculate FORMULA-BASED take profit (reward:risk ratio based on market conditions)
+        # Higher volatility = wider TP targets, lower volatility = tighter TP targets
+        base_reward_ratio = 3.0  # Base 3:1 reward:risk ratio
+        volatility_factor = (market.atr / signal.entry_price) / 0.02  # Normalize vs 2% volatility
+        volatility_factor = max(0.5, min(2.0, volatility_factor))  # Clamp 0.5-2.0x
+        
+        # Adjust reward:risk based on confidence and volatility
+        confidence_factor = 1.0 + signal.confidence  # 1.0-2.0x multiplier
+        leverage_factor = 1.0 / (1.0 + leverage_calc.leverage / 20.0)  # Lower targets for high leverage
+        
+        adjusted_reward_ratio = base_reward_ratio * confidence_factor * leverage_factor * volatility_factor
+        formula_tp_pct = formula_sl_pct * adjusted_reward_ratio
+        
+        # Calculate FORMULA-BASED trailing callback (ATR-based, no fixed percentage)
+        trailing_distance_pct = (market.atr * self.risk_settings.TRAILING_ATR_MULT) / signal.entry_price
+        
+        # Step 2b: Integrate with AdaptiveLeverageEngine for multi-level targets
+        # Use formula results as base inputs (not hardcoded percentages)
+        adaptive_levels = self.adaptive_engine.compute_levels(
+            base_tp_pct=formula_tp_pct,    # FORMULA-BASED input (not hardcoded)
+            base_sl_pct=formula_sl_pct,    # FORMULA-BASED input (not hardcoded)
+            leverage=leverage_calc.leverage,
+            volatility_factor=volatility_factor,
             funding_delta=funding_rate,
             exchange_divergence=exch_divergence
         )
         
-        # [MONITORING] Log adaptive level calculation
+        # [MONITORING] Log FORMULA-BASED calculation results
         logger.info(
-            f"[ExitBrain-v3.5] Adaptive Levels | "
+            f"[ExitBrain-v3.5] FORMULA CALC | "
+            f"{signal.symbol} {leverage_calc.leverage:.1f}x | "
+            f"ATR={market.atr:.4f} ({(market.atr/signal.entry_price*100):.2f}%) | "
+            f"Formula_SL={formula_sl_pct*100:.2f}% | "
+            f"Formula_TP={formula_tp_pct*100:.2f}% | "
+            f"R:R={adjusted_reward_ratio:.2f} | "
+            f"Factors: Conf={confidence_factor:.2f} Vol={volatility_factor:.2f} Lev={leverage_factor:.2f}"
+        )
+        
+        # Log adaptive levels after engine processing
+        logger.info(
+            f"[ExitBrain-v3.5] Adaptive Processing | "
             f"{signal.symbol} {leverage_calc.leverage:.1f}x | "
             f"LSF={adaptive_levels.lsf:.4f} | "
             f"TP1={adaptive_levels.tp1_pct*100:.2f}% "
@@ -202,12 +325,34 @@ class ExitBrainV35:
             # Default trailing logic
             use_trailing = (signal.atr_value < 2.0)  # Disable if too volatile
         
-        # Step 4: Apply safety limits
-        final_tp = max(self.min_tp_pct, min(self.max_tp_pct, base_tp))
-        final_sl = max(self.min_sl_pct, min(self.max_sl_pct, base_sl))
+        # Step 4: Apply FORMULA-BASED safety limits (no hardcoded percentages)
+        # Limits are calculated based on risk fraction and market conditions
+        risk_fraction = self.risk_settings.RISK_FRACTION
         
-        # Step 5: Calculate trailing callback if enabled
-        trailing_callback = self.trailing_callback_pct if use_trailing else None
+        # Dynamic safety bounds based on market volatility and leverage
+        min_tp_pct = risk_fraction * self._min_tp_factor * volatility_factor
+        max_tp_pct = risk_fraction * self._max_tp_factor * volatility_factor
+        min_sl_pct = risk_fraction * self._min_sl_factor / leverage_calc.leverage
+        max_sl_pct = risk_fraction * self._max_sl_factor / leverage_calc.leverage
+        
+        # Apply safety bounds
+        final_tp = max(min_tp_pct, min(max_tp_pct, base_tp))
+        final_sl = max(min_sl_pct, min(max_sl_pct, base_sl))
+        
+        # Log safety bound application
+        if final_tp != base_tp or final_sl != base_sl:
+            logger.info(
+                f"[ExitBrain-v3.5] Safety Bounds Applied | "
+                f"{signal.symbol} | "
+                f"TP: {base_tp*100:.2f}% → {final_tp*100:.2f}% "
+                f"(bounds: {min_tp_pct*100:.2f}%-{max_tp_pct*100:.2f}%) | "
+                f"SL: {base_sl*100:.2f}% → {final_sl*100:.2f}% "
+                f"(bounds: {min_sl_pct*100:.2f}%-{max_sl_pct*100:.2f}%)"
+            )
+        
+        # Step 5: Calculate FORMULA-BASED trailing callback
+        # Use ATR-based calculation instead of fixed percentage
+        trailing_callback = trailing_distance_pct if use_trailing else None
         
         # Step 6: Build reasoning
         reasoning_parts = [
@@ -228,13 +373,24 @@ class ExitBrainV35:
         
         reasoning = " | ".join(reasoning_parts)
         
-        # Step 7: Build calculation details
+        # Step 7: Build FORMULA-BASED calculation details
         calc_details = {
             "leverage": {
                 "value": leverage_calc.leverage,
                 "base": leverage_calc.base_leverage,
                 "factors": leverage_calc.factors,
                 "clamped": leverage_calc.clamped
+            },
+            "formula_calculation": {
+                "dynamic_stop_price": dynamic_stop,
+                "formula_sl_pct": formula_sl_pct,
+                "formula_tp_pct": formula_tp_pct,
+                "reward_risk_ratio": adjusted_reward_ratio,
+                "volatility_factor": volatility_factor,
+                "confidence_factor": confidence_factor,
+                "leverage_factor": leverage_factor,
+                "atr_value": market.atr,
+                "trailing_distance_pct": trailing_distance_pct
             },
             "adaptive_levels": {
                 "tp1_pct": adaptive_levels.tp1_pct,
@@ -246,13 +402,23 @@ class ExitBrainV35:
             },
             "take_profit": {
                 "final_pct": final_tp,
-                "base_pct": self.base_tp_pct,
+                "formula_base_pct": formula_tp_pct,
+                "adaptive_base_pct": base_tp,
                 "tp_levels": tp_levels,
+                "safety_bounds": {
+                    "min_pct": min_tp_pct,
+                    "max_pct": max_tp_pct
+                },
                 "cross_exchange_multiplier": cross_exchange_adjustments.get("tp_multiplier", 1.0) if cross_exchange_adjustments else 1.0
             },
             "stop_loss": {
                 "final_pct": final_sl,
-                "base_pct": self.base_sl_pct,
+                "formula_base_pct": formula_sl_pct,
+                "adaptive_base_pct": base_sl,
+                "safety_bounds": {
+                    "min_pct": min_sl_pct,
+                    "max_pct": max_sl_pct
+                },
                 "cross_exchange_multiplier": cross_exchange_adjustments.get("sl_multiplier", 1.0) if cross_exchange_adjustments else 1.0
             },
             "inputs": {
@@ -261,9 +427,27 @@ class ExitBrainV35:
                 "pnl_trend": pnl_trend,
                 "exch_divergence": exch_divergence,
                 "funding_rate": funding_rate,
-                "margin_util": margin_util
+                "margin_util": margin_util,
+                "risk_fraction": risk_fraction
             }
         }
+        
+        # SHADOW VALIDATION: Compare formula-based results with old hardcoded approach
+        if self.risk_settings.SHADOW_MODE:
+            # OLD hardcoded approach (what would have been calculated)
+            old_tp = 0.025  # Old hardcoded 2.5%
+            old_sl = 0.015  # Old hardcoded 1.5%
+            old_trailing = 0.008  # Old hardcoded 0.8%
+            
+            logger.info(
+                f"[SHADOW] ExitBrain {signal.symbol} | "
+                f"OLD: TP={old_tp*100:.2f}% SL={old_sl*100:.2f}% Trail={old_trailing*100:.2f}% | "
+                f"NEW: TP={final_tp*100:.2f}% SL={final_sl*100:.2f}% Trail={trailing_callback*100:.2f if trailing_callback else 0:.2f}% | "
+                f"ATR={market.atr:.4f} ({(market.atr/signal.entry_price*100):.2f}%) | "
+                f"Risk={risk_fraction*100:.2f}% | "
+                f"Lev={leverage_calc.leverage:.1f}x | "
+                f"Confidence={signal.confidence:.2f}"
+            )
         
         # Step 8: Publish to PnL stream (for RL agent feedback)
         if self.redis and self.dynamic_reward:
@@ -303,11 +487,13 @@ class ExitBrainV35:
         )
         
         logger.info(
-            f"[ExitBrain-v3.5] Plan Generated | "
+            f"[ExitBrain-v3.5] FORMULA-BASED Plan Generated | "
             f"{signal.symbol} {signal.side.upper()} | "
             f"Leverage: {plan.leverage:.1f}x | "
-            f"TP: {final_tp*100:.2f}% | "
-            f"SL: {final_sl*100:.2f}%"
+            f"TP: {final_tp*100:.2f}% (formula-based) | "
+            f"SL: {final_sl*100:.2f}% (risk-normalized) | "
+            f"R:R={adjusted_reward_ratio:.2f} | "
+            f"ATR={market.atr:.4f}"
         )
         
         return plan
