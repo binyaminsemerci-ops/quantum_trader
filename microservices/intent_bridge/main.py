@@ -765,6 +765,19 @@ class IntentBridge:
             b"timestamp": str(ts_unix).encode()
         }
         
+        # 🔥 FIX: Map side/reduceOnly to action for Governor Active Slots
+        if intent["side"].upper() == "BUY" and not intent["reduceOnly"]:
+            action = "ENTRY_PROPOSED"  # New position (LONG)
+        elif intent["side"].upper() == "SELL" and not intent["reduceOnly"]:
+            action = "ENTRY_PROPOSED"  # New position (SHORT)
+        elif intent["reduceOnly"]:
+            action = "FULL_CLOSE_PROPOSED"  # Closing existing position
+        else:
+            action = "UNKNOWN"  # Fallback
+        
+        message_fields[b"action"] = action.encode()
+        logger.info(f"📋 Mapped {intent['symbol']} {intent['side']} reduceOnly={intent['reduceOnly']} → action={action}")
+        
         # DEBUG: Log what we're trying to add
         leverage = intent.get("leverage")
         stop_loss = intent.get("stop_loss")

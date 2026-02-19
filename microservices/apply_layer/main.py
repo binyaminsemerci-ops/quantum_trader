@@ -1217,11 +1217,11 @@ class ApplyLayer:
             reason_code = f"action_normalized_{original_action.lower()}_to_close"
             logger.info(f"ACTION_NORMALIZED {symbol}: from={original_action} to={action} (close_synonym)")
         
-        # OPEN synonyms (not used in harvest context, but handle for robustness)
-        elif action_upper in ["ENTRY", "ENTER", "OPEN"]:
-            action = "HOLD"  # Harvest layer doesn't open positions, map to HOLD
-            reason_code = f"action_normalized_{original_action.lower()}_to_hold"
-            logger.info(f"ACTION_NORMALIZED {symbol}: from={original_action} to={action} (open_synonym_ignored)")
+        # OPEN synonyms - Allow entries from AutonomousTrader
+        elif action_upper in ["ENTRY", "ENTER", "OPEN", "BUY", "SELL"]:
+            action = "ENTRY_PROPOSED"  # FIX: Enable entry actions for AutonomousTrader
+            reason_code = f"action_normalized_{original_action.lower()}_to_entry"
+            logger.info(f"ACTION_NORMALIZED {symbol}: from={original_action} to={action} (entry_allowed)")
         
         # Already standard actions (pass through)
         elif action in ["FULL_CLOSE_PROPOSED", "PARTIAL_75", "PARTIAL_50", "UPDATE_SL", "HOLD"]:
@@ -1367,6 +1367,15 @@ class ApplyLayer:
                     "type": "market_reduce_only",
                     "side": "close",
                     "pct": 50.0
+                })
+            
+            elif action == "ENTRY_PROPOSED":
+                # NEW: Handle entry actions from AutonomousTrader
+                steps.append({
+                    "step": "OPEN_POSITION",
+                    "type": "market_entry",
+                    "side": proposal.get("side", "UNKNOWN"),  # LONG/SHORT from intent
+                    "reduceOnly": False
                 })
             
             elif action == "UPDATE_SL":
