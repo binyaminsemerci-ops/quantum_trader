@@ -70,6 +70,31 @@ MIN_SHADOW_TRADES  = int(os.getenv("MIN_SHADOW_TRADES",    "30"))
 MIN_ACCURACY       = float(os.getenv("MIN_ACCURACY",       "55.0"))   # %
 MIN_PROFIT_FACTOR  = float(os.getenv("MIN_PROFIT_FACTOR",  "1.1"))
 
+# Layer 3 backtest C2 fallback — used when live shadow trades < MIN_SHADOW_TRADES
+REDIS_DB_BT      = 1
+BT_MIN_WR        = float(os.getenv("BT_MIN_WR",    "35.0"))   # % win rate
+BT_MIN_PF        = float(os.getenv("BT_MIN_PF",    "1.1"))
+BT_MIN_SHARPE    = float(os.getenv("BT_MIN_SHARPE", "2.0"))
+BT_MIN_TRADES    = int(os.getenv("BT_MIN_TRADES",  "50"))     # min backtest n
+BT_MIN_QUALIFY   = int(os.getenv("BT_MIN_QUALIFY", "2"))      # symbols needed
+
+BT_SYMBOL_MAP: dict = {
+    "SOLUSDT":  "auto_sol",
+    "LINKUSDT": "auto_lin",
+    "BTCUSDT":  "auto_btc",
+    "ETHUSDT":  "auto_eth",
+    "BNBUSDT":  "auto_bnb",
+    "ADAUSDT":  "auto_ada",
+    "AVAXUSDT": "auto_ava",
+    "DOGEUSDT": "auto_dog",
+    "DOTUSDT":  "auto_dot",
+    "INJUSDT":  "auto_inj",
+    "LTCUSDT":  "auto_ltc",
+    "NEARUSDT": "auto_nea",
+    "UNIUSDT":  "auto_uni",
+    "XRPUSDT":  "auto_xrp",
+}
+
 # Redis keyspace
 KEY_PHASE         = "quantum:dag8:current_phase"
 KEY_SHADOW_PORT   = "quantum:shadow:portfolio:latest"
@@ -211,29 +236,89 @@ class ShadowPortfolio:
 
 
 # ── Signal Processor ──────────────────────────────────────────────────────
+_HARVEST_V2_CLOSES = {"FULL_CLOSE", "PARTIAL_75", "PARTIAL_50", "PARTIAL_25"}
+
+
 async def process_signal(
     portfolio: ShadowPortfolio,
     fields: dict,
     r: aioredis.Redis,
 ):
-    """Process one shadow harvest signal."""
-    signal_type = fields.get("type", fields.get("signal_type", ""))
-    sym         = fields.get("symbol", fields.get("Symbol", ""))
-    price       = float(fields.get("price", fields.get("close", 0.0)))
-    side        = fields.get("side", "LONG")
-    size        = float(fields.get("size",     0.01))
-    reason      = fields.get("reason", fields.get("signal", ""))
+    """Process one shadow harvest signal.
 
-    if not sym or price <= 0:
+    Supports two formats:
+    1. Harvest v2 (current): decision=FULL_CLOSE/HOLD, unrealized_pnl, R_net, initial_risk
+    2. Legacy: signal_type=OPEN/CLOSE/SELL, price, size
+    """
+    decision    = fields.get("decision", "").upper()
+    signal_type = fields.get("type", fields.get("signal_type", "")).upper()
+    sym         = fields.get("symbol", fields.get("Symbol", ""))
+    side        = fields.get("side", "LONG").upper()
+    price       = float(fields.get("price", fields.get("close", 0.0)))
+
+    if not sym:
         return
 
-    if signal_type.upper() in ("OPEN", "ENTRY", "BUY", "LONG", "SHORT"):
+    # ── Harvest v2: decision-based signals ───────────────────────────────
+    if decision in _HARVEST_V2_CLOSES:
+        unrealized_pnl = float(fields.get("unrealized_pnl", 0.0))
+        initial_risk   = float(fields.get("initial_risk",   10.0))
+        r_net          = float(fields.get("R_net",           0.0))
+
+        if sym in portfolio.positions and price > 0:
+            # Shadow portfolio tracked this position — use normal close
+            trade = portfolio.close_position(sym, price, decision)
+        else:
+            # Pre-existing or untracked position: record directly from P&L fields.
+            # unrealized_pnl is the actual USDT result of the live position.
+            is_win = unrealized_pnl > 0.0
+            portfolio._win_window.append(1 if is_win else 0)
+            portfolio.equity += unrealized_pnl
+            if portfolio.equity > portfolio.peak:
+                portfolio.peak = portfolio.equity
+            trade = {
+                "symbol":    sym,
+                "side":      side,
+                "entry":     0.0,
+                "exit":      price,
+                "size":      round(initial_risk / 10.0, 4),  # size approx (10 USDT/unit)
+                "notional":  initial_risk,
+                "pnl_usdt":  round(unrealized_pnl, 4),
+                "pnl_pct":   round(r_net * 100.0, 3),   # R_net expressed as pct
+                "reason":    decision,
+                "source":    "harvest_v2_direct",
+                "open_ts":   int(time.time()),
+                "close_ts":  int(time.time()),
+                "duration_s": 0,
+            }
+            portfolio.closed_trades.append(trade)
+            log.info(
+                f"[SHADOW] V2_CLOSE {sym} pnl={unrealized_pnl:+.2f}USDT "
+                f"R={r_net:+.2f} win={is_win} "
+                f"n={portfolio.n_trades} acc={portfolio.rolling_accuracy:.1f}%"
+            )
+
+        if trade:
+            await r.lpush(KEY_SHADOW_TRADES, json.dumps(trade))
+            await r.ltrim(KEY_SHADOW_TRADES, 0, 499)
+
+        await r.zadd(KEY_SHADOW_EQUITY, {str(portfolio.equity): int(time.time())})
+        await r.zremrangebyrank(KEY_SHADOW_EQUITY, 0, -2001)
+        return  # handled
+
+    # ── Legacy: signal_type-based signals ────────────────────────────────
+    if not price or price <= 0:
+        return
+
+    size   = float(fields.get("size", 0.01))
+    reason = fields.get("reason", fields.get("signal", ""))
+
+    if signal_type in ("OPEN", "ENTRY", "BUY", "LONG", "SHORT"):
         portfolio.open_position(sym, side, price, size)
 
-    elif signal_type.upper() in ("CLOSE", "EXIT", "SELL"):
+    elif signal_type in ("CLOSE", "EXIT", "SELL"):
         trade = portfolio.close_position(sym, price, reason)
         if trade:
-            # Publish to shadow trades list (capped 500)
             await r.lpush(KEY_SHADOW_TRADES, json.dumps(trade))
             await r.ltrim(KEY_SHADOW_TRADES, 0, 499)
 
@@ -242,8 +327,75 @@ async def process_signal(
     await r.zremrangebyrank(KEY_SHADOW_EQUITY, 0, -2001)  # keep 2000 points
 
 
+
+# ── Layer 3 Backtest C2 Evaluator ─────────────────────────────────────────
+async def evaluate_c2_from_backtest(r_bt: aioredis.Redis) -> dict:
+    """Read Layer 3 backtest results (db=1) and compute C2 gate status.
+
+    A symbol qualifies when:
+      - metrics_n_trades  >= BT_MIN_TRADES  (sufficient sample)
+      - metrics_win_rate_pct >= BT_MIN_WR
+      - metrics_profit_factor >= BT_MIN_PF
+      - metrics_sharpe       >= BT_MIN_SHARPE
+
+    Returns a dict compatible with the accuracy key format expected by DAG 8.
+    """
+    qualifying = []
+    all_results = []
+
+    for sym, code in BT_SYMBOL_MAP.items():
+        key = f"quantum:backtest:results:{code}"
+        try:
+            d = await r_bt.hgetall(key)
+        except Exception:
+            continue
+        if not d:
+            continue
+
+        n   = int(float(d.get("metrics_n_trades",  "0")))
+        wr  = float(d.get("metrics_win_rate_pct",  "0"))
+        pf  = float(d.get("metrics_profit_factor", "0"))
+        sh  = float(d.get("metrics_sharpe",        "0"))
+
+        passes = (n >= BT_MIN_TRADES and wr >= BT_MIN_WR and
+                  pf >= BT_MIN_PF and sh >= BT_MIN_SHARPE)
+        all_results.append({"sym": sym, "n": n, "wr": wr, "pf": pf, "sh": sh, "passes": passes})
+        if passes:
+            qualifying.append(sym)
+
+    gate_open = len(qualifying) >= BT_MIN_QUALIFY
+    top_wr    = max((r["wr"] for r in all_results), default=0.0)
+    top_pf    = max((r["pf"] for r in all_results), default=0.0)
+    top_sh    = max((r["sh"] for r in all_results), default=0.0)
+
+    log.info(
+        f"[C2/BT] {len(qualifying)}/{BT_MIN_QUALIFY} qualify "
+        f"gate={'OPEN' if gate_open else 'CLOSED'} "
+        f"symbols={qualifying}"
+    )
+
+    return {
+        "gate":             "OPEN" if gate_open else "CLOSED",
+        "source":           "layer3_backtest",
+        "qualifying_syms":  ",".join(qualifying) or "none",
+        "n_qualifying":     len(qualifying),
+        "n_evaluated":      len(all_results),
+        "best_wr":          round(top_wr, 2),
+        "best_pf":          round(top_pf, 3),
+        "best_sharpe":      round(top_sh, 3),
+        "bt_min_wr":        BT_MIN_WR,
+        "bt_min_pf":        BT_MIN_PF,
+        "bt_min_sharpe":    BT_MIN_SHARPE,
+        "accuracy_pct":     round(top_wr, 2),     # alias for DAG 8 reader compat
+        "n_trades":         sum(r["n"] for r in all_results if r["passes"]),
+        "profit_factor":    round(top_pf, 3),
+        "ts":               int(time.time()),
+    }
+
+
 # ── Portfolio Publisher ───────────────────────────────────────────────────
-async def publish_portfolio(portfolio: ShadowPortfolio, r: aioredis.Redis):
+async def publish_portfolio(portfolio: ShadowPortfolio, r: aioredis.Redis,
+                             r_bt: Optional[aioredis.Redis] = None):
     gate = portfolio.gate_status()
     ts   = int(time.time())
 
@@ -264,39 +416,63 @@ async def publish_portfolio(portfolio: ShadowPortfolio, r: aioredis.Redis):
 
     await r.hset(KEY_SHADOW_PORT, mapping={k: str(v) for k, v in port_data.items()})
 
-    # Also write to Layer 2 accuracy key (read by DAG 8 C2!)
-    accuracy_data = {
-        "accuracy_pct":      gate["rolling_accuracy"],
-        "n_trades":           gate["n_trades"],
-        "profit_factor":      gate["profit_factor"],
-        "gate":               gate["gate"],
-        "min_trades_needed":  gate["trades_needed"],
-        "ts":                 ts,
-    }
+    # ── C2 gate: prefer Layer 3 backtest stats when live trades insufficient ──
+    if portfolio.n_trades < MIN_SHADOW_TRADES and r_bt is not None:
+        # Fallback to Layer 3 backtest quality evaluation
+        bt = await evaluate_c2_from_backtest(r_bt)
+        accuracy_data = {
+            "accuracy_pct":     bt["accuracy_pct"],
+            "n_trades":          bt["n_trades"],
+            "profit_factor":     bt["profit_factor"],
+            "gate":              bt["gate"],
+            "source":            bt["source"],
+            "qualifying_syms":   bt["qualifying_syms"],
+            "n_qualifying":      bt["n_qualifying"],
+            "best_sharpe":       bt["best_sharpe"],
+            "ts":                ts,
+        }
+        gate_reason = (
+            f"backtest: {bt['n_qualifying']}/{BT_MIN_QUALIFY} syms qualify "
+            f"(wr>{BT_MIN_WR}% pf>{BT_MIN_PF} sh>{BT_MIN_SHARPE}) "
+            f"syms={bt['qualifying_syms']}"
+        )
+        log.info(f"[C2] Using backtest fallback: gate={bt['gate']} {gate_reason}")
+    else:
+        # Enough live trades — use shadow portfolio accuracy
+        accuracy_data = {
+            "accuracy_pct":     gate["rolling_accuracy"],
+            "n_trades":          gate["n_trades"],
+            "profit_factor":     gate["profit_factor"],
+            "gate":              gate["gate"],
+            "source":            "live_shadow",
+            "ts":                ts,
+        }
+        gate_reason = (
+            f"live: n={gate['n_trades']}/{MIN_SHADOW_TRADES} "
+            f"acc={gate['rolling_accuracy']:.1f}% "
+            f"pf={gate['profit_factor']:.2f}"
+        )
+
     await r.hset(KEY_L2_ACCURACY, mapping={k: str(v) for k, v in accuracy_data.items()})
 
     # Gate key
     await r.hset(KEY_L2_GATE, mapping={
-        "gate":    gate["gate"],
-        "reason":  (
-            f"n={gate['n_trades']}/{MIN_SHADOW_TRADES} "
-            f"acc={gate['rolling_accuracy']:.1f}% "
-            f"pf={gate['profit_factor']:.2f}"
-        ),
-        "ts": str(ts),
+        "gate":   accuracy_data["gate"],
+        "reason": gate_reason,
+        "ts":     str(ts),
     })
 
 
 # ── Main Loop ─────────────────────────────────────────────────────────────
-async def run_shadow_loop(r: aioredis.Redis):
+async def run_shadow_loop(r: aioredis.Redis, r_bt: Optional[aioredis.Redis] = None):
     portfolio     = ShadowPortfolio(PAPER_EQUITY_START)
     last_publish  = 0.0
     consumer_name = f"shadow_{os.getpid()}"
 
     # Create consumer group if needed
     try:
-        await r.xgroup_create(STREAM_SHADOW, CG_NAME, id="$", mkstream=True)
-        log.info(f"[SHADOW] Consumer group '{CG_NAME}' created (id=$)")
+        await r.xgroup_create(STREAM_SHADOW, CG_NAME, id="0", mkstream=True)
+        log.info(f"[SHADOW] Consumer group '{CG_NAME}' created (id=0) — will replay full history")
     except Exception:
         pass  # already exists
 
@@ -348,7 +524,7 @@ async def run_shadow_loop(r: aioredis.Redis):
         except Exception as e:
             if "NOGROUP" in str(e):
                 try:
-                    await r.xgroup_create(STREAM_SHADOW, CG_NAME, id="$", mkstream=True)
+                    await r.xgroup_create(STREAM_SHADOW, CG_NAME, id="0", mkstream=True)
                 except Exception:
                     pass
             else:
@@ -359,7 +535,7 @@ async def run_shadow_loop(r: aioredis.Redis):
         # Periodic port publish
         now = time.time()
         if now - last_publish >= PUBLISH_EVERY:
-            await publish_portfolio(portfolio, r)
+            await publish_portfolio(portfolio, r, r_bt)
             gate = portfolio.gate_status()
             log.info(
                 f"[SHADOW] phase={phase_val}({'FREEZE→building' if phase_val==0 else 'SHADOW_ONLY'}) "
@@ -376,10 +552,12 @@ async def run_shadow_loop(r: aioredis.Redis):
 
 async def main():
     log.info("[SHADOW] Phase 1 controller starting")
-    r = aioredis.Redis(host=REDIS_HOST, port=6379, db=REDIS_DB, decode_responses=True)
+    r    = aioredis.Redis(host=REDIS_HOST, port=6379, db=REDIS_DB,    decode_responses=True)
+    r_bt = aioredis.Redis(host=REDIS_HOST, port=6379, db=REDIS_DB_BT, decode_responses=True)
     await r.ping()
-    log.info("[SHADOW] Redis OK")
-    await run_shadow_loop(r)
+    await r_bt.ping()
+    log.info("[SHADOW] Redis OK (db=0 live, db=1 backtest)")
+    await run_shadow_loop(r, r_bt)
 
 
 if __name__ == "__main__":
