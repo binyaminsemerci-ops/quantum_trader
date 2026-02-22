@@ -1,0 +1,22 @@
+[Unit]
+Description=Quantum Layer 1 — Historical OHLCV Backfill (one-shot)
+After=network.target
+Documentation=https://github.com/quantum_trader
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+WorkingDirectory=/opt/quantum/microservices/layer1_historical_backfill
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python layer1_historical_backfill.py
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=layer1-backfill
+TimeoutStartSec=3600
+
+Environment=DATA_ROOT=/opt/quantum/data
+Environment=DAYS_BACK=14
+Environment=REDIS_HOST=localhost
+
+[Install]
+WantedBy=multi-user.target

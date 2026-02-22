@@ -1,0 +1,24 @@
+[Unit]
+Description=Quantum Layer 3 — Offline Backtest Runner (ISOLATED db=1)
+After=network.target redis.service
+Documentation=https://github.com/quantum_trader
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/quantum/microservices/layer3_backtest_runner
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python layer3_backtest_runner.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=layer3-backtest
+
+Environment=DATA_ROOT=/opt/quantum/data
+Environment=REDIS_HOST=localhost
+
+# ISOLATION: this service uses Redis db=1, not db=0
+# It NEVER writes to live Redis db=0
+
+[Install]
+WantedBy=multi-user.target
