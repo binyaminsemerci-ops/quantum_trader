@@ -21,6 +21,7 @@ This service sits between market data and the ensemble predictor.
 """
 import asyncio
 import logging
+import os
 import signal
 import sys
 from datetime import datetime, timedelta
@@ -466,8 +467,10 @@ class FeaturePublisherService:
     
     def __init__(
         self,
-        redis_url: str = "redis://localhost:6379",
-        input_stream: str = "quantum:stream:exchange.normalized",
+        redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379"),
+        input_stream: str = os.getenv(
+            "FEATURE_PUBLISHER_INPUT_STREAM", "quantum:stream:market.tick"
+        ),
         output_stream: str = "quantum:stream:features"
     ):
         self.redis_url = redis_url
@@ -564,19 +567,33 @@ class FeaturePublisherService:
     async def _process_tick(self, message_id: str, fields: Dict[str, str]):
         """Process single market tick and publish features."""
         try:
-            # Extract tick data (from exchange.normalized format)
+            # Unwrap nested payload format: {"event_type": "market.tick", "payload": "{...}"}
+            # The market.tick stream stores tick data inside a JSON "payload" field
+            payload_raw = fields.get("payload")
+            if payload_raw:
+                try:
+                    import json as _json
+                    payload = _json.loads(payload_raw)
+                    # Merge payload fields into fields dict (payload takes priority)
+                    fields = {**fields, **{str(k): str(v) for k, v in payload.items()}}
+                except Exception:
+                    pass  # fall through to flat-field extraction
+
+            # Extract tick data (from exchange.normalized or unwrapped payload)
             symbol = fields.get("symbol", "UNKNOWN")
-            
-            # Try avg_price first (aggregated), fallback to binance_price
-            price_str = fields.get("avg_price") or fields.get("binance_price") or fields.get("close") or "0"
+
+            # Try avg_price first (aggregated), fallback to price/binance_price/close
+            price_str = (fields.get("avg_price") or fields.get("price") or
+                         fields.get("binance_price") or fields.get("close") or "0")
             price = float(price_str)
             
             # Get high/low if available (for candlestick patterns)
             high = float(fields.get("high", price))
             low = float(fields.get("low", price))
             
-            # Get volume - check multiple fields
-            volume_str = fields.get("volume") or fields.get("binance_volume") or "0"
+            # Get volume - check multiple fields (payload uses "qty")
+            volume_str = (fields.get("volume") or fields.get("qty") or
+                          fields.get("binance_volume") or "0")
             volume = float(volume_str)
             
             # If no volume, use price divergence as proxy
