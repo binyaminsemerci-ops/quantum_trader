@@ -300,6 +300,39 @@ class AIEngineService:
             # Load AI modules
             await self._load_ai_modules()
             
+            # ── STARTUP MODEL VALIDATION (fail-fast) ────────────────────────
+            # Check that ENABLED_MODELS match what was actually loaded.
+            # Logs ERROR for each missing model so ops can detect drift between
+            # env config and what the AI engine is actually running.
+            if settings.ENSEMBLE_MODELS and self.ensemble_manager is not None:
+                model_checks = {
+                    "xgb":      getattr(self.ensemble_manager, "xgb_agent", None),
+                    "lgbm":     getattr(self.ensemble_manager, "lgbm_agent", None),
+                    "nhits":    getattr(self.ensemble_manager, "nhits_agent", None),
+                    "patchtst": getattr(self.ensemble_manager, "patchtst_agent", None),
+                    "tft":      getattr(self.ensemble_manager, "tft_agent", None),
+                }
+                missing = [m for m in settings.ENSEMBLE_MODELS if model_checks.get(m) is None]
+                loaded  = [m for m in settings.ENSEMBLE_MODELS if model_checks.get(m) is not None]
+                if missing:
+                    logger.error(
+                        f"[AI-ENGINE] ⛔ STARTUP MODEL MISMATCH: "
+                        f"ENABLED_MODELS={settings.ENSEMBLE_MODELS} but "
+                        f"loaded={loaded} missing={missing}. "
+                        f"Service will run with degraded ensemble. "
+                        f"Check XGB_MODEL_PATH, LGBM_MODEL_PATH in ai-engine.env."
+                    )
+                else:
+                    logger.info(
+                        f"[AI-ENGINE] ✅ All ensemble models verified: {loaded}"
+                    )
+            elif settings.ENSEMBLE_MODELS and self.ensemble_manager is None:
+                logger.error(
+                    f"[AI-ENGINE] ⛔ STARTUP FAIL: ENSEMBLE_MODELS={settings.ENSEMBLE_MODELS} "
+                    f"but EnsembleManager failed to load entirely. No predictions possible."
+                )
+            # ── END STARTUP MODEL VALIDATION ─────────────────────────────────
+            
             # Initialize Portfolio Selector (needs Redis client)
             self.portfolio_selector = PortfolioSelector(
                 settings=settings,

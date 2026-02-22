@@ -1,0 +1,24 @@
+[Unit]
+Description=Quantum DAG5 Lockdown Guard
+Documentation=https://github.com/quantum_trader
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/quantum/testnet.env
+WorkingDirectory=/opt/quantum/microservices/dag5_lockdown_guard
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python dag5_lockdown_guard.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dag5-lockdown-guard
+
+# Safety: if systemd itself is being torn down, keep guarding
+KillMode=control-group
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
