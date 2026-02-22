@@ -1,0 +1,24 @@
+[Unit]
+Description=Quantum DAG 8 — Freeze Exit Analyzer & Phased Recovery
+After=network.target redis.service
+Documentation=https://github.com/quantum_trader
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/quantum/microservices/dag8_freeze_exit
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python dag8_freeze_exit.py
+Restart=always
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dag8-freeze-exit
+
+Environment=REDIS_HOST=localhost
+Environment=DD_TARGET_PCT=22.0
+Environment=FEAR_GREED_MIN=20
+Environment=HEALTH_STREAK_NEEDED=3
+Environment=CHECK_INTERVAL=60
+
+[Install]
+WantedBy=multi-user.target
