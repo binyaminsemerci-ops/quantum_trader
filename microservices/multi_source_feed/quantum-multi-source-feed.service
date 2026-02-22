@@ -1,0 +1,17 @@
+[Unit]
+Description=Quantum Multi-Source Data Feed (Bybit WS + OKX WS + CoinGecko + Fear&Greed + Funding Rates)
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/quantum/microservices/multi_source_feed
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python multi_source_feed.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-multi-source-feed
+
+[Install]
+WantedBy=multi-user.target
