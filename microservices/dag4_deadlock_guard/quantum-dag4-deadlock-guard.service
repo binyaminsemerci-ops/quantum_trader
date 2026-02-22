@@ -1,0 +1,26 @@
+[Unit]
+Description=Quantum Trader - DAG4 Redis Deadlock Guard (XAUTOCLAIM)
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/quantum/microservices/dag4_deadlock_guard
+Environment=REDIS_HOST=localhost
+Environment=REDIS_PORT=6379
+Environment=DAG4_INTERVAL_SEC=60
+Environment=DAG4_IDLE_MS=300000
+Environment=DAG4_BATCH=100
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python -u dag4_deadlock_guard.py
+Restart=always
+RestartSec=10
+StartLimitInterval=120
+StartLimitBurst=5
+StandardOutput=append:/var/log/quantum/dag4_deadlock_guard.log
+StandardError=append:/var/log/quantum/dag4_deadlock_guard.log
+
+[Install]
+WantedBy=multi-user.target

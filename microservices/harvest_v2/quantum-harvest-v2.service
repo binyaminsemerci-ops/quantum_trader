@@ -1,0 +1,28 @@
+[Unit]
+Description=Quantum Harvest V2 HF (Shadow Mode)
+After=network.target redis-server.service
+Wants=redis-server.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+
+WorkingDirectory=/opt/quantum/microservices/harvest_v2
+ExecStart=/opt/quantum/venvs/harvest-v2/bin/python -u harvest_v2.py
+
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+# Hard safety
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging (journal only, shadow)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

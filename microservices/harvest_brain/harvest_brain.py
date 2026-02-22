@@ -1372,6 +1372,16 @@ class HarvestBrainService:
                         skipped_price_count += 1
                         continue
                     
+                    # Always recompute unrealized_pnl from live mark price (fixes pnl_flat bug)
+                    # Redis value is stale/empty — mark_price is authoritative
+                    if mark_price > 0 and entry_price > 0 and qty > 0:
+                        if side in ['LONG', 'BUY']:
+                            unrealized_pnl = (mark_price - entry_price) * qty
+                        else:  # SHORT, SELL
+                            unrealized_pnl = (entry_price - mark_price) * qty
+                        # Write back to Redis so other services see fresh value
+                        self.redis.hset(pos_key, 'unrealized_pnl', str(unrealized_pnl))
+
                     # Compute R_net
                     cost_bps = 10.0  # 10 bps cost estimate
                     cost_est = unrealized_pnl * (cost_bps / 10000.0)

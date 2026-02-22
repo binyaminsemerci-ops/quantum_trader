@@ -1,9 +1,16 @@
 """
 AI Engine Service - Configuration
+
+Controlled Refactor 2026-02-21:
+  All model LOAD paths → /opt/quantum/model_registry/approved/
+  All model WRITE paths → /opt/quantum/model_registry/staging/  (retrain worker only)
 """
 from pydantic_settings import BaseSettings
 from typing import List
 import os
+import logging
+
+_guard_log = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -32,13 +39,19 @@ class Settings(BaseSettings):
     }
     MIN_CONSENSUS: int = 3  # 3/4 models must agree
     
-    # Model paths
-    MODELS_DIR: str = "models"
-    XGB_MODEL_PATH: str = "/opt/quantum/ai_engine/models/xgb_model.pkl"
-    XGB_SCALER_PATH: str = "/opt/quantum/ai_engine/models/scaler.pkl"
-    LGBM_MODEL_PATH: str = "models/lgbm_model.txt"
-    NHITS_MODEL_PATH: str = "models/nhits_model.pt"
-    PATCHTST_MODEL_PATH: str = "models/patchtst_model.pt"
+    # Model paths — Controlled Refactor 2026-02-21
+    # READ (live AI engine) : /opt/quantum/model_registry/approved/
+    # WRITE (retrain worker): /opt/quantum/model_registry/staging/
+    # DO NOT change these defaults to point anywhere else without running
+    # the CLM promotion workflow first.
+    APPROVED_MODEL_DIR: str = "/opt/quantum/model_registry/approved"
+    STAGING_MODEL_DIR:  str = "/opt/quantum/model_registry/staging"
+    MODELS_DIR: str = "/opt/quantum/model_registry/approved"
+    XGB_MODEL_PATH:     str = "/opt/quantum/model_registry/approved/xgb_model.pkl"
+    XGB_SCALER_PATH:    str = "/opt/quantum/model_registry/approved/scaler.pkl"
+    LGBM_MODEL_PATH:    str = "/opt/quantum/model_registry/approved/lgbm_model.txt"
+    NHITS_MODEL_PATH:   str = "/opt/quantum/model_registry/approved/nhits_model.pt"
+    PATCHTST_MODEL_PATH: str = "/opt/quantum/model_registry/approved/patchtst_model.pt"
     
     # Meta-strategy configuration
     META_STRATEGY_ENABLED: bool = True
@@ -132,3 +145,51 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def validate_approved_model_paths() -> None:
+    """
+    Import-time assertion: all configured model paths must resolve under
+    APPROVED_MODEL_DIR.  Called once at module load so any misconfiguration
+    is caught before the service accepts traffic.
+
+    Raises RuntimeError and aborts startup if any path is outside approved/.
+    """
+    try:
+        from model_path_guard import assert_approved_load_path
+    except ImportError:
+        _guard_log.error(
+            "[MODEL-GUARD] model_path_guard module not found — "
+            "path enforcement is DISABLED. Deploy model_path_guard.py."
+        )
+        return
+
+    paths_to_check = [
+        (settings.XGB_MODEL_PATH,      "xgb_model"),
+        (settings.XGB_SCALER_PATH,     "xgb_scaler"),
+        (settings.LGBM_MODEL_PATH,     "lgbm_model"),
+        (settings.NHITS_MODEL_PATH,    "nhits_model"),
+        (settings.PATCHTST_MODEL_PATH, "patchtst_model"),
+    ]
+
+    violations = []
+    for path, label in paths_to_check:
+        try:
+            assert_approved_load_path(path, label=label)
+        except RuntimeError as exc:
+            violations.append(str(exc))
+
+    if violations:
+        joined = "\n".join(violations)
+        raise RuntimeError(
+            f"[MODEL-GUARD] Config validation failed — {len(violations)} path violation(s):\n{joined}"
+        )
+
+    _guard_log.info(
+        "[MODEL-GUARD] ✅ All model load paths verified under approved registry: "
+        f"{settings.APPROVED_MODEL_DIR}"
+    )
+
+
+# Run at import time so misconfiguration is caught before service start
+validate_approved_model_paths()
