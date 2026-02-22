@@ -1,0 +1,26 @@
+[Unit]
+Description=Quantum Layer 4 — Portfolio Optimizer & Position Sizer
+After=network.target redis.service
+Documentation=https://github.com/quantum_trader
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/quantum/microservices/layer4_portfolio_optimizer
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python layer4_portfolio_optimizer.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=layer4-portfolio
+
+Environment=REDIS_HOST=localhost
+Environment=EVAL_INTERVAL=30
+Environment=MAX_HEAT_PCT=40.0
+Environment=MAX_SYMBOL_PCT=30.0
+Environment=MAX_POSITIONS=5
+Environment=KELLY_FRACTION=0.25
+Environment=MIN_EDGE=0.02
+
+[Install]
+WantedBy=multi-user.target

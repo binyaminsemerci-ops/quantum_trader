@@ -1,0 +1,22 @@
+[Unit]
+Description=Quantum Layer 5 — Execution Quality Monitor
+After=network.target redis.service
+Documentation=https://github.com/quantum_trader
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/quantum/microservices/layer5_execution_monitor
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python layer5_execution_monitor.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=layer5-exec-quality
+
+Environment=REDIS_HOST=localhost
+Environment=MAX_SLIPPAGE_BPS=10.0
+Environment=CHURN_THRESHOLD=6
+
+[Install]
+WantedBy=multi-user.target

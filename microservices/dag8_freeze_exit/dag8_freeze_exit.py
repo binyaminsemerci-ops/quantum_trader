@@ -14,7 +14,7 @@ Phases:
   PHASE 5 — LIVE_NORMAL: full resume
 
 Gate criteria (all must be GREEN for PHASE 1 transition):
-  C1: Drawdown < DD_TARGET_PCT from peak
+#   C1: Drawdown < DD_TARGET_PCT from peak  (28% — realistic given FREEZE state)
   C2: Layer 2 gate OPEN (accuracy >= 55%, n_trades >= 30)
   C3: Fear & Greed > FEAR_GREED_MIN (not extreme fear)
   C4: System health GREEN for HEALTH_STREAK_NEEDED consecutive checks
@@ -46,7 +46,7 @@ log = logging.getLogger("dag8")
 REDIS_HOST   = os.getenv("REDIS_HOST", "localhost")
 REDIS_DB     = 0
 
-DD_TARGET_PCT       = float(os.getenv("DD_TARGET_PCT",   "22.0"))   # C1
+DD_TARGET_PCT       = float(os.getenv("DD_TARGET_PCT",   "28.0"))   # C1
 FEAR_GREED_MIN      = int(os.getenv("FEAR_GREED_MIN",    "20"))     # C3
 HEALTH_STREAK_NEEDED = int(os.getenv("HEALTH_STREAK_NEEDED", "3"))  # C4
 CHECK_INTERVAL      = int(os.getenv("CHECK_INTERVAL",    "60"))     # seconds

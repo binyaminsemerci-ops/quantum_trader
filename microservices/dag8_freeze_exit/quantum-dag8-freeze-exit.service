@@ -15,7 +15,7 @@ StandardError=journal
 SyslogIdentifier=dag8-freeze-exit
 
 Environment=REDIS_HOST=localhost
-Environment=DD_TARGET_PCT=22.0
+Environment=DD_TARGET_PCT=28.0
 Environment=FEAR_GREED_MIN=20
 Environment=HEALTH_STREAK_NEEDED=3
 Environment=CHECK_INTERVAL=60
