@@ -118,10 +118,6 @@ DEDUPE_TTL = 5 if DEDUPE_BYPASS else 300  # 5 sec vs 5 min
 # ---- Position Guard: Epsilon for floating point comparison ----
 POSITION_EPSILON = 1e-12  # abs(position_amt) > epsilon means "has position"
 
-# ---- Position Cap: configurable top-k open positions ----
-# Default stays 10 unless overridden in apply-layer.env.
-MAX_OPEN_POSITIONS = int(os.getenv("APPLY_MAX_OPEN_POSITIONS", "10"))
-
 if TESTNET_MODE:
     logger.warning("ΓÜá∩╕Å  TESTNET MODE ENABLED - Governor bypass active (NO PRODUCTION USAGE)")
 else:
@@ -879,24 +875,6 @@ class ApplyLayer:
             'quantum_apply_dedupe_hits_total',
             'Total duplicate plan detections'
         )
-
-    def _count_active_positions(self) -> int:
-        """Count active positions based on nonzero size to avoid snapshot-only keys."""
-        count = 0
-        for key in self.redis.scan_iter("quantum:position:*"):
-            try:
-                pos = self.redis.hgetall(key)
-                if not pos:
-                    continue
-                amt_raw = pos.get("position_amt") or pos.get("quantity") or pos.get("positionAmt")
-                if amt_raw is None:
-                    continue
-                amt = float(amt_raw)
-                if abs(amt) > POSITION_EPSILON:
-                    count += 1
-            except Exception:
-                continue
-        return count
         self.metric_last_success = Gauge(
             'quantum_apply_last_success_epoch',
             'Timestamp of last successful execution',
@@ -1024,17 +1002,6 @@ class ApplyLayer:
                 f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} "
                 f"reason=symbol_not_in_policy policy_count={len(policy_universe)} "
                 f"policy_sample={sorted(list(policy_universe))}"
-            )
-            return False
-
-        if not self.allowlist:
-            logger.error(f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} reason=empty_allowlist")
-            return False
-
-        if symbol not in self.allowlist:
-            logger.warning(
-                f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} "
-                f"reason=symbol_not_in_allowlist allowlist_count={len(self.allowlist)}"
             )
             return False
         
@@ -1217,11 +1184,11 @@ class ApplyLayer:
             reason_code = f"action_normalized_{original_action.lower()}_to_close"
             logger.info(f"ACTION_NORMALIZED {symbol}: from={original_action} to={action} (close_synonym)")
         
-        # OPEN synonyms - Allow entries from AutonomousTrader
-        elif action_upper in ["ENTRY", "ENTER", "OPEN", "BUY", "SELL"]:
-            action = "ENTRY_PROPOSED"  # FIX: Enable entry actions for AutonomousTrader
-            reason_code = f"action_normalized_{original_action.lower()}_to_entry"
-            logger.info(f"ACTION_NORMALIZED {symbol}: from={original_action} to={action} (entry_allowed)")
+        # OPEN synonyms (not used in harvest context, but handle for robustness)
+        elif action_upper in ["ENTRY", "ENTER", "OPEN"]:
+            action = "HOLD"  # Harvest layer doesn't open positions, map to HOLD
+            reason_code = f"action_normalized_{original_action.lower()}_to_hold"
+            logger.info(f"ACTION_NORMALIZED {symbol}: from={original_action} to={action} (open_synonym_ignored)")
         
         # Already standard actions (pass through)
         elif action in ["FULL_CLOSE_PROPOSED", "PARTIAL_75", "PARTIAL_50", "UPDATE_SL", "HOLD"]:
@@ -1338,6 +1305,26 @@ class ApplyLayer:
                 reason_codes.append("duplicate_plan")
                 logger.info(f"{symbol}: Plan {plan_id} already executed (duplicate)")
         
+        # Safety gate 5: Anti-churn guard — OPEN actions only (CLOSE/EXIT always allowed)
+        if decision == Decision.EXECUTE:
+            _churn_action = proposal.get('harvest_action', '')
+            _is_open_action = _churn_action not in (
+                'FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50', 'UPDATE_SL', 'HOLD'
+            )
+            if _is_open_action:
+                try:
+                    if self.redis.exists('quantum:churn:global_freeze'):
+                        decision = Decision.BLOCKED
+                        reason_codes.append('churn_global_freeze')
+                        logger.warning(f'{symbol}: OPEN blocked — churn GLOBAL FREEZE active')
+                    elif self.redis.exists(f'quantum:churn:blacklist:{symbol}'):
+                        _ttl = self.redis.ttl(f'quantum:churn:blacklist:{symbol}')
+                        decision = Decision.BLOCKED
+                        reason_codes.append('churn_blacklist')
+                        logger.warning(f'{symbol}: OPEN blocked — churn blacklist TTL={_ttl}s remaining')
+                except Exception as _ce:
+                    logger.debug(f'{symbol}: churn guard check failed (fail-open): {_ce}')
+
         # Build execution steps
         if decision == Decision.EXECUTE:
             # Normalize action before building steps (apply-layer-entry-exit-sep-v1)
@@ -1367,15 +1354,6 @@ class ApplyLayer:
                     "type": "market_reduce_only",
                     "side": "close",
                     "pct": 50.0
-                })
-            
-            elif action == "ENTRY_PROPOSED":
-                # NEW: Handle entry actions from AutonomousTrader
-                steps.append({
-                    "step": "OPEN_POSITION",
-                    "type": "market_entry",
-                    "side": proposal.get("side", "UNKNOWN"),  # LONG/SHORT from intent
-                    "reduceOnly": False
                 })
             
             elif action == "UPDATE_SL":
@@ -2599,13 +2577,10 @@ class ApplyLayer:
                         position_side = 'LONG' if side == 'BUY' else 'SHORT'
                         logger.info(f"[ENTRY] {symbol}: Processing {side} intent (→{position_side}, leverage={leverage}, qty={qty}, plan_id={plan_id[:8]})")
                         
-                        # 🔥 HARD GATE: Check total position limit (configurable)
-                        active_positions = self._count_active_positions()
-                        if active_positions >= MAX_OPEN_POSITIONS:
-                            logger.warning(
-                                f"[ENTRY] {symbol}: Order REJECTED - position limit reached "
-                                f"({active_positions}/{MAX_OPEN_POSITIONS} symbols)"
-                            )
+                        # 🔥 HARD GATE: Check total position limit (MAX 10 SYMBOLS)
+                        all_positions = self.redis.keys("quantum:position:*")
+                        if len(all_positions) >= 10:
+                            logger.warning(f"[ENTRY] {symbol}: Order REJECTED - position limit reached ({len(all_positions)}/10 symbols)")
                             self.redis.xack(stream_key, consumer_group, msg_id)
                             # Publish rejection to apply.result
                             self.redis.xadd('quantum:stream:apply.result', {
@@ -2613,7 +2588,7 @@ class ApplyLayer:
                                 'symbol': symbol,
                                 'action': 'ENTRY',
                                 'executed': 'False',
-                                'error': f'position_limit_reached_{active_positions}/{MAX_OPEN_POSITIONS}',
+                                'error': f'position_limit_reached_{len(all_positions)}/10',
                                 'timestamp': str(int(time.time()))
                             })
                             continue
