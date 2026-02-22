@@ -1,0 +1,23 @@
+[Unit]
+Description=Quantum Shadow Mode Controller (Phase 1)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/quantum/microservices/shadow_mode_controller
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python shadow_mode_controller.py
+Restart=always
+RestartSec=10
+Environment=REDIS_HOST=localhost
+Environment=PAPER_EQUITY_START=10000.0
+Environment=MAX_POSITION_PCT=0.05
+Environment=MAX_HEAT_PCT=0.40
+Environment=MIN_SHADOW_TRADES=30
+Environment=MIN_ACCURACY=55.0
+Environment=MIN_PROFIT_FACTOR=1.1
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

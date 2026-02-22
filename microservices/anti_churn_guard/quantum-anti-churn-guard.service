@@ -1,0 +1,22 @@
+[Unit]
+Description=Quantum Anti-Churn Guard
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/quantum/microservices/anti_churn_guard
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python anti_churn_guard.py
+Restart=always
+RestartSec=10
+Environment=REDIS_HOST=localhost
+Environment=CHURN_THRESHOLD=4
+Environment=COOLDOWN_HOURS=4.0
+Environment=DAILY_LOSS_LIMIT=2.0
+Environment=CONSEC_LOSS_LIMIT=3
+Environment=GLOBAL_DAILY_LOSS=5.0
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

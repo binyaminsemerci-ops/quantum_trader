@@ -1,0 +1,20 @@
+[Unit]
+Description=Quantum Layer 6 Post-Trade Analytics Reporter
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/quantum/microservices/layer6_post_trade
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python layer6_post_trade.py
+Restart=always
+RestartSec=15
+Environment=REDIS_HOST=localhost
+Environment=DATA_ROOT=/opt/quantum/data
+Environment=PUBLISH_EVERY=300
+Environment=ROLLING_WINDOW=300
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
