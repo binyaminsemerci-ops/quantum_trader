@@ -1,0 +1,23 @@
+[Unit]
+Description=Quantum Paper Trade Controller — Phase 2 TESTNET execution
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+User=root
+WorkingDirectory=/opt/quantum/microservices/paper_trade_controller
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python /opt/quantum/microservices/paper_trade_controller/paper_trade_controller.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+Environment=REDIS_HOST=localhost
+Environment=BINANCE_TESTNET_API_KEY=
+Environment=BINANCE_TESTNET_API_SECRET=
+Environment=MAX_NOTIONAL_USDT=200.0
+Environment=DEFAULT_SIZE_USDT=50.0
+Environment=LEVERAGE=3
+
+[Install]
+WantedBy=multi-user.target

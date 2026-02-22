@@ -1325,6 +1325,39 @@ class ApplyLayer:
                 except Exception as _ce:
                     logger.debug(f'{symbol}: churn guard check failed (fail-open): {_ce}')
 
+        # Safety gate 6: Layer 4 Kelly sizing advisory — OPEN actions only (fail-soft)
+        if decision == Decision.EXECUTE:
+            _l4_action = proposal.get('harvest_action', '')
+            _l4_is_open = _l4_action not in (
+                'FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50', 'UPDATE_SL', 'HOLD'
+            )
+            if _l4_is_open:
+                try:
+                    import time as _time
+                    _l4 = self.redis.hgetall(f'quantum:layer4:sizing:{symbol}')
+                    if _l4 and (int(_time.time()) - int(_l4.get('ts', 0))) < 300:
+                        _l4_rec = _l4.get('recommendation', 'SKIP')
+                        if _l4_rec == 'SKIP':
+                            decision = Decision.BLOCKED
+                            reason_codes.append(f'layer4_no_edge:{_l4.get("reason", "low_kelly")}')
+                            logger.info(
+                                f'{symbol}: OPEN blocked by Layer 4 Kelly — '
+                                f'reason={_l4.get("reason","?")} '
+                                f'kelly={_l4.get("kelly_adj","0")} sharpe={_l4.get("metrics_sharpe","0")}'
+                            )
+                        else:
+                            _l4_size = float(_l4.get('size_usdt', 0))
+                            if _l4_size > 0:
+                                proposal['kelly_size_usdt'] = _l4_size
+                                reason_codes.append(f'layer4_kelly_{_l4_size:.0f}usdt')
+                                logger.info(
+                                    f'{symbol}: Layer 4 Kelly approved — '
+                                    f'size={_l4_size:.1f}USDT kelly={_l4.get("kelly_adj","?")} '
+                                    f'lev={_l4.get("max_leverage","?")}x'
+                                )
+                except Exception as _l4e:
+                    logger.debug(f'{symbol}: Layer 4 gate check failed (fail-open): {_l4e}')
+
         # Build execution steps
         if decision == Decision.EXECUTE:
             # Normalize action before building steps (apply-layer-entry-exit-sep-v1)

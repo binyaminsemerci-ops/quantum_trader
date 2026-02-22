@@ -71,16 +71,19 @@ KEY_POSITIONS = "quantum:position:{sym}"        # live positions (read-only)
 # ── Kelly Calculator ─────────────────────────────────────────────────────
 def kelly_fraction(win_rate: float, profit_factor: float) -> float:
     """
-    Kelly criterion: f = (W*b - L) / b
-    where b = profit_factor (avg_win / avg_loss), W = win_rate, L = 1 - W
-    Returns optimal fraction; caller applies fractional Kelly multiplier.
+    Kelly criterion using profit_factor (sum_wins / sum_losses) and win_rate.
+    Correct formula: f = win_rate * (1 - 1 / profit_factor)
+
+    Derivation: b_odds = avg_win / avg_loss = profit_factor * (1 - win_rate) / win_rate
+    Standard Kelly: f = (W * b_odds - L) / b_odds = W - L / b_odds
+                      = W - (1-W) / (pf * (1-W)/W) = W - W/pf = W * (1 - 1/pf)
+
+    Returns fractional edge (0..1); caller applies fractional Kelly multiplier.
     """
-    if profit_factor <= 0 or win_rate <= 0 or win_rate >= 1:
+    if profit_factor <= 1.0 or win_rate <= 0 or win_rate >= 1:
+        # pf must be > 1 to have any positive expectancy
         return 0.0
-    b = profit_factor
-    w = win_rate
-    l = 1.0 - w
-    k = (w * b - l) / b
+    k = win_rate * (1.0 - 1.0 / profit_factor)
     return max(0.0, k)
 
 
