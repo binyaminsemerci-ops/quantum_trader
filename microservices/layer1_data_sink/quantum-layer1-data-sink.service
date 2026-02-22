@@ -1,0 +1,22 @@
+[Unit]
+Description=Quantum Layer 1 — OHLCV & Feature Data Sink (Persistent Storage)
+Documentation=https://github.com/quantum_trader
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/quantum/testnet.env
+Environment=QUANTUM_DATA_ROOT=/opt/quantum/data
+Environment=OHLCV_LOOKBACK_ROWS=500
+Environment=OHLCV_FLUSH_ROWS=60
+WorkingDirectory=/opt/quantum/microservices/layer1_data_sink
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python layer1_data_sink.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=layer1-data-sink
+
+[Install]
+WantedBy=multi-user.target

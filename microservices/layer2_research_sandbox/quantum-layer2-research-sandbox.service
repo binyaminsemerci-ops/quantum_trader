@@ -1,0 +1,23 @@
+[Unit]
+Description=Quantum Layer 2 — Research Sandbox & Signal Validation Gate
+Documentation=https://github.com/quantum_trader
+After=network.target redis.service quantum-layer1-data-sink.service
+Wants=redis.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/quantum/testnet.env
+Environment=QUANTUM_DATA_ROOT=/opt/quantum/data
+Environment=GATE_MIN_SIGNALS=30
+Environment=GATE_ACCURACY_THRESHOLD=0.55
+Environment=SIGNAL_MATCH_WINDOW_SEC=3600
+WorkingDirectory=/opt/quantum/microservices/layer2_research_sandbox
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python layer2_research_sandbox.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=layer2-research-sandbox
+
+[Install]
+WantedBy=multi-user.target
