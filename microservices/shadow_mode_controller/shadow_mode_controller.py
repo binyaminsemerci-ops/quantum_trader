@@ -307,22 +307,31 @@ async def run_shadow_loop(r: aioredis.Redis):
         phase_raw = await r.get(KEY_PHASE)
         phase_val = int(phase_raw) if phase_raw is not None else 0
 
-        if phase_val != 1:
+        # Phase 0 = FREEZE: simulate to build C2 gate (no real execution anyway)
+        # Phase 1 = SHADOW_ONLY: simulate as actual execution layer
+        # Phase 2+ = PAPER/LIVE: real execution takes over — shadow idles
+        if phase_val >= 2:
             await r.hset(KEY_SHADOW_STATUS, mapping={
                 "status": "IDLE",
                 "phase":  str(phase_val),
-                "reason": f"waiting for phase=1, currently phase={phase_val}",
+                "reason": f"real execution active at phase={phase_val} — shadow idle",
                 "ts":     str(int(time.time())),
             })
-            log.debug(f"[SHADOW] idle, phase={phase_val}")
+            log.debug(f"[SHADOW] idle, phase={phase_val} (real execution active)")
             await asyncio.sleep(IDLE_SLEEP)
             continue
 
-        # Phase 1 — active shadow trading
+        # Phase 0 or 1 — process shadow signals
+        status_label = "BUILDING_GATE" if phase_val == 0 else "ACTIVE_SHADOW"
+        reason_label = (
+            "FREEZE mode — accumulating shadow trades for C2 gate"
+            if phase_val == 0 else
+            "SHADOW_ONLY mode — shadow simulation is live execution"
+        )
         await r.hset(KEY_SHADOW_STATUS, mapping={
-            "status": "ACTIVE",
-            "phase":  "1",
-            "reason": "SHADOW_ONLY mode — simulating signals",
+            "status": status_label,
+            "phase":  str(phase_val),
+            "reason": reason_label,
             "ts":     str(int(time.time())),
         })
 
@@ -353,14 +362,14 @@ async def run_shadow_loop(r: aioredis.Redis):
             await publish_portfolio(portfolio, r)
             gate = portfolio.gate_status()
             log.info(
-                f"[SHADOW] phase={phase_val} "
+                f"[SHADOW] phase={phase_val}({'FREEZE→building' if phase_val==0 else 'SHADOW_ONLY'}) "
                 f"equity={portfolio.equity:.2f} "
                 f"dd={portfolio.dd_pct:.2f}% "
-                f"trades={portfolio.n_trades} "
+                f"trades={portfolio.n_trades}/{MIN_SHADOW_TRADES} "
                 f"acc={portfolio.rolling_accuracy:.1f}% "
                 f"pf={portfolio.profit_factor:.2f} "
                 f"gate={gate['gate']} "
-                f"({gate['trades_needed']} trades to open)"
+                f"(need {gate['trades_needed']} more trades)"
             )
             last_publish = now
 
