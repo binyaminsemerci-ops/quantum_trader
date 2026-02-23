@@ -33,6 +33,68 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def get_authoritative_open_positions(redis_client) -> int:
+    """
+    Returns the count of currently open positions by scanning
+    quantum:position:{SYMBOL} keys directly from Redis.
+
+    Rules:
+    - Skips :snapshot: and :ledger: sub-namespaces (different schemas).
+    - Only counts keys where abs(float(quantity)) > 0.
+    - Uses non-blocking SCAN with COUNT 200 per batch.
+    - Hard-limits total key inspection to 10k to prevent runaway scans.
+    - Logs a warning if truncated.
+
+    Returns: int open_count
+    Raises:  RuntimeError on scan failure (caller must handle).
+    """
+    count: int = 0
+    keys_scanned: int = 0
+    MAX_KEYS: int = 10_000
+    SCAN_COUNT: int = 200
+    cursor: int = 0
+    truncated: bool = False
+
+    try:
+        while True:
+            cursor, keys = await redis_client.scan(
+                cursor, match="quantum:position:*", count=SCAN_COUNT
+            )
+            for key in keys:
+                # Skip sub-namespaces — snapshot/ledger carry different schemas
+                if ":snapshot:" in key or ":ledger:" in key:
+                    continue
+
+                keys_scanned += 1
+                if keys_scanned > MAX_KEYS:
+                    truncated = True
+                    break
+
+                qty_raw = await redis_client.hget(key, "quantity")
+                if qty_raw is not None:
+                    try:
+                        if abs(float(qty_raw)) > 0.0:
+                            count += 1
+                    except (ValueError, TypeError):
+                        pass  # unparseable quantity — skip
+
+            if truncated or cursor == 0:
+                break
+
+        if truncated:
+            logger.warning(
+                f"[SLOT_FIX] SCAN truncated at {MAX_KEYS} keys — "
+                f"authoritative_count={count} may be undercount"
+            )
+
+    except Exception as e:
+        raise RuntimeError(
+            f"get_authoritative_open_positions failed: {e}"
+        ) from e
+
+    return count
+
+
 class AutonomousTrader:
     """
     Autonomous trading system
@@ -276,7 +338,25 @@ class AutonomousTrader:
         
         positions = self.position_tracker.get_all_positions()
         current_count = len(positions)
-        
+
+        # ── SLOT_FIX: authoritative Redis-scan position count ─────────────────
+        # Legacy count reads position_tracker in-memory dict (stream-sourced).
+        # Authoritative count scans quantum:position:{SYMBOL} hashes directly,
+        # filtering only non-zero quantity keys and skipping sub-namespaces.
+        # Falls back to legacy_count on any error — fail-safe.
+        legacy_count = current_count
+        try:
+            authoritative_count = await get_authoritative_open_positions(self.redis)
+            logger.info(f"[SLOT_FIX] authoritative_count={authoritative_count}")
+            logger.info(f"[SLOT_FIX] legacy_count={legacy_count}")
+            logger.info(f"[SLOT_FIX] delta={legacy_count - authoritative_count}")
+            current_count = authoritative_count
+            logger.info(f"[SLOT_FIX] Using authoritative position count: {current_count}")
+        except Exception as _slot_fix_err:
+            logger.warning(f"[SLOT_FIX] Fallback to legacy slot logic — {_slot_fix_err}")
+            current_count = legacy_count
+        # ── END SLOT_FIX ──────────────────────────────────────────────────────
+
         if current_count >= self.max_positions:
             logger.info(f"[Scanner] Max positions reached ({current_count}/{self.max_positions})")
             return
