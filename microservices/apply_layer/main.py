@@ -2622,11 +2622,12 @@ class ApplyLayer:
                         # Extract ATR/volatility data for risk computation
                         atr_value = float(plan_data.get('atr_value', 0.0))
                         volatility_factor = float(plan_data.get('volatility_factor', 0.0))
+                        entry_price = float(plan_data.get('entry_price', 0.0))
                         
-                        # 🔥 FALLBACK: If ATR missing, try to fetch from trade.intent stream
-                        if atr_value == 0.0 or volatility_factor == 0.0:
+                        # 🔥 FALLBACK: If ATR/entry_price missing, fetch from trade.intent stream
+                        # trade.intent messages store data as JSON inside a 'payload' field
+                        if atr_value == 0.0 or volatility_factor == 0.0 or entry_price == 0.0:
                             try:
-                                # Search recent trade.intent messages for this symbol
                                 intent_messages = self.redis.xrevrange('quantum:stream:trade.intent', '+', '-', count=50)
                                 for msg_id_intent, fields_intent in intent_messages:
                                     intent_data = {}
@@ -2634,19 +2635,28 @@ class ApplyLayer:
                                         key = k.decode() if isinstance(k, bytes) else k
                                         val = v.decode() if isinstance(v, bytes) else v
                                         intent_data[key] = val
-                                    
-                                    if intent_data.get('symbol') == symbol:
-                                        fallback_atr = float(intent_data.get('atr_value', 0.0))
-                                        fallback_vol = float(intent_data.get('volatility_factor', 0.0))
+
+                                    # Payload is a nested JSON string
+                                    try:
+                                        payload = json.loads(intent_data.get('payload', '{}'))
+                                    except Exception:
+                                        payload = intent_data  # flat fallback
+
+                                    if payload.get('symbol') == symbol:
+                                        fallback_atr = float(payload.get('atr_value', 0.0))
+                                        fallback_vol = float(payload.get('volatility_factor', 0.0))
+                                        fallback_price = float(payload.get('entry_price', 0.0))
                                         if fallback_atr > 0 and fallback_vol > 0:
                                             atr_value = fallback_atr
                                             volatility_factor = fallback_vol
-                                            logger.info(f"[ENTRY] {symbol}: ATR fallback loaded from trade.intent (atr={atr_value:.4f}, vol={volatility_factor:.4f})")
+                                            logger.info(f"[ENTRY] {symbol}: ATR fallback from trade.intent payload (atr={atr_value:.4f}, vol={volatility_factor:.4f})")
+                                        if fallback_price > 0 and entry_price == 0.0:
+                                            entry_price = fallback_price
+                                            logger.info(f"[ENTRY] {symbol}: entry_price fallback from trade.intent payload ({entry_price})")
+                                        if fallback_atr > 0 or fallback_price > 0:
                                             break
                             except Exception as e:
-                                logger.warning(f"[ENTRY] {symbol}: ATR fallback failed: {e}")
-                        
-                        entry_price = float(plan_data.get('entry_price', 0.0))
+                                logger.warning(f"[ENTRY] {symbol}: ATR/price fallback failed: {e}")
                         
                         # Process both BUY and SELL entry signals
                         if side not in ['BUY', 'SELL']:
