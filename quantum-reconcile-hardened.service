@@ -1,0 +1,37 @@
+[Unit]
+Description=Quantum Position Invariant Enforcer (Hardened)
+Documentation=file:///home/qt/quantum_trader/microservices/reconcile_engine/reconcile_engine.py
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/qt/quantum_trader
+
+# Credentials — testnet API key + secret
+EnvironmentFile=-/etc/quantum/intent-executor.env
+EnvironmentFile=-/etc/quantum/reconcile-engine.env
+
+# Tuning
+Environment=RECONCILE_INTERVAL_SEC=60
+Environment=MAX_POSITIONS=10
+
+ExecStart=/usr/bin/python3 /home/qt/quantum_trader/microservices/reconcile_engine/reconcile_engine.py
+
+# Restart policy — always restart, 10 second delay, cap at 5 restarts in 5 min
+Restart=always
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-reconcile-hardened
+
+# Permissions
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

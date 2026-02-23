@@ -1,0 +1,98 @@
+# quantum-rl-trainer.service — DRAFT
+# ============================================================
+# DO NOT ENABLE. Do not copy to /etc/systemd/system/ yet.
+# Review architecture/MIGRATION_PLAN.md before deployment.
+# ============================================================
+#
+# Service:   RL Trainer (PPO/A2C sizing calibration — RESEARCH ONLY)
+# Tier:      RESEARCH LAB — ISOLATED FROM LIVE
+# User:      quantum-research
+# Src:       /opt/quantum/microservices/rl_training/
+#            /opt/quantum/microservices/rl_calibrator/
+#            /opt/quantum/bin/start_rl_trainer.sh
+#
+# CRITICAL ISOLATION RULES:
+#   - Writes ONLY to:   /opt/quantum/model_registry/staging/rl/
+#   - Reads ONLY from:  /opt/quantum/research_lab/rl_trainer/
+#   - MUST NOT access:  /opt/quantum/model_registry/approved/
+#   - MUST NOT access:  /opt/quantum/live_core/
+#
+# Promotion path: staging/ → approved/ via promote_model.sh only (manual)
+#
+# Target path after migration:
+#   /opt/quantum/research_lab/rl_trainer/
+
+[Unit]
+Description=Quantum Trader — RL Trainer (Research Lab — ISOLATED)
+Documentation=file:///opt/quantum/research_lab/rl_trainer/README.md
+After=network-online.target redis.service
+Wants=network-online.target
+Requires=redis.service
+# Explicitly NOT dependent on any live_core service
+# Explicitly NOT a dependency of any live_core service
+
+[Service]
+Type=simple
+User=quantum-research
+Group=quantum-research
+
+WorkingDirectory=/opt/quantum/research_lab/rl_trainer
+
+EnvironmentFile=/opt/quantum/research_lab/rl_trainer/config/rl_trainer.env
+Environment="PYTHONPATH=/opt/quantum"
+Environment="RUNTIME_ENV=research"
+Environment="LOG_LEVEL=INFO"
+Environment="SERVICE_NAME=quantum-rl-trainer"
+
+# Research isolation: write only to staging
+Environment="MODEL_OUTPUT_DIR=/opt/quantum/model_registry/staging/rl"
+Environment="CHECKPOINT_DIR=/opt/quantum/research_lab/rl_trainer/checkpoints"
+Environment="EXPERIMENT_DIR=/opt/quantum/research_lab/rl_trainer/experiments"
+
+# RL training configuration
+Environment="RL_ALGORITHM=PPO"
+Environment="TRAINING_STEPS=500000"
+Environment="EVAL_EPISODES=100"
+Environment="SAVE_FREQ=10000"
+
+# Manifest update on checkpoint save
+Environment="STAGING_MANIFEST=/opt/quantum/model_registry/staging/.staging_manifest.json"
+
+# Hard filesystem isolation
+InaccessiblePaths=/opt/quantum/model_registry/approved
+InaccessiblePaths=/opt/quantum/live_core
+
+ExecStart=/opt/quantum/venvs/runtime/bin/python \
+    /opt/quantum/research_lab/rl_trainer/main.py \
+    --config /opt/quantum/research_lab/rl_trainer/config/rl_trainer.env
+
+ExecStop=/bin/kill -TERM $MAINPID
+# Allow long stop — training jobs may be mid-epoch; checkpoint before exit
+TimeoutStopSec=120
+
+# Training jobs: restart on failure but with longer delay
+Restart=on-failure
+RestartSec=60s
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-rl-trainer
+
+# Training is CPU/GPU intensive — restrict to prevent starving live services
+MemoryMax=12G
+CPUWeight=50          # Lower than live services — research yields to live
+# Optional: CPUAffinity=4 5 6 7  # Pin to specific cores away from live
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/quantum/model_registry/staging/rl
+ReadWritePaths=/opt/quantum/research_lab/rl_trainer
+
+[Install]
+# NOT in multi-user.target default — must be explicitly started
+# Prevents accidental auto-start alongside live services
+WantedBy=quantum-research.target

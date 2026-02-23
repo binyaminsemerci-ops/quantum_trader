@@ -1,0 +1,20 @@
+#!/bin/bash
+set -e
+SSH="ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254"
+echo '=== Stripping CRLF and placing files ==='
+$SSH 'sed -i s/\r// /tmp/apply_layer_main.py /tmp/paper_trade_controller.py /tmp/layer2_signal_promoter.py /tmp/layer4_portfolio_optimizer.py /tmp/quantum-paper-trade-controller.service /tmp/quantum-layer2-signal-promoter.service && echo CRLF_STRIPPED'
+$SSH 'cp /tmp/layer4_portfolio_optimizer.py /opt/quantum/microservices/layer4_portfolio_optimizer/layer4_portfolio_optimizer.py && echo OK:layer4'
+$SSH 'cp /tmp/apply_layer_main.py /opt/quantum/microservices/apply_layer/main.py && echo OK:apply_layer'
+$SSH 'cp /tmp/paper_trade_controller.py /opt/quantum/microservices/paper_trade_controller/ && echo OK:paper_trade'
+$SSH 'cp /tmp/layer2_signal_promoter.py /opt/quantum/microservices/layer2_signal_promoter/ && echo OK:l2_promoter'
+$SSH 'cp /tmp/quantum-paper-trade-controller.service /etc/systemd/system/ && sed -i s/\r// /etc/systemd/system/quantum-paper-trade-controller.service && echo OK:svc_paper'
+$SSH 'cp /tmp/quantum-layer2-signal-promoter.service /etc/systemd/system/ && sed -i s/\r// /etc/systemd/system/quantum-layer2-signal-promoter.service && echo OK:svc_promoter'
+echo '=== FILES PLACED ==='
+$SSH 'systemctl daemon-reload && echo DAEMON_RELOADED'
+$SSH 'systemctl restart quantum-layer4-portfolio-optimizer && echo RESTARTED:layer4'
+$SSH 'systemctl restart quantum-apply-layer && echo RESTARTED:apply_layer'
+$SSH 'systemctl enable quantum-paper-trade-controller quantum-layer2-signal-promoter && echo ENABLED'
+$SSH 'systemctl start quantum-paper-trade-controller && echo STARTED:paper_trade'
+$SSH 'systemctl start quantum-layer2-signal-promoter && echo STARTED:l2_promoter'
+$SSH 'systemctl is-active quantum-layer4-portfolio-optimizer quantum-apply-layer quantum-paper-trade-controller quantum-layer2-signal-promoter'
+echo '=== DEPLOY COMPLETE ==='

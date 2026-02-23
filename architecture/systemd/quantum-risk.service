@@ -1,0 +1,81 @@
+# quantum-risk.service — DRAFT
+# ============================================================
+# DO NOT ENABLE. Do not copy to /etc/systemd/system/ yet.
+# Review architecture/MIGRATION_PLAN.md before deployment.
+# ============================================================
+#
+# Service:   Risk Engine (RiskGuardV2 + SafetyGovernor + circuit breaker)
+# Tier:      LIVE CORE — CRITICAL PATH
+# User:      quantum-live
+# Depends:   quantum-allocator.service
+# Src:       /opt/quantum/backend/domains/risk/risk_guard_v2.py
+#            /opt/quantum/backend/services/risk/safety_governor.py
+#            /opt/quantum/microservices/risk_safety/
+#
+# NOTE: Risk engine is the HIGHEST PRIORITY live service.
+# If this service fails, all trading must halt.
+#
+# Target path after migration:
+#   /opt/quantum/live_core/risk_engine/
+
+[Unit]
+Description=Quantum Trader — Risk Engine (Live Core — CRITICAL)
+Documentation=file:///opt/quantum/live_core/risk_engine/README.md
+After=network-online.target redis.service quantum-allocator.service
+Wants=network-online.target
+Requires=redis.service quantum-signal.service quantum-allocator.service
+
+[Service]
+Type=simple
+User=quantum-live
+Group=quantum-live
+
+WorkingDirectory=/opt/quantum/live_core/risk_engine
+
+EnvironmentFile=/opt/quantum/live_core/risk_engine/config/risk_engine.env
+Environment="PYTHONPATH=/opt/quantum"
+Environment="RUNTIME_ENV=production"
+Environment="LOG_LEVEL=INFO"
+Environment="SERVICE_NAME=quantum-risk"
+Environment="HEALTH_PORT=8012"
+
+# Circuit breaker defaults (overridden by env file)
+Environment="CIRCUIT_BREAKER_ENABLED=true"
+Environment="MAX_DRAWDOWN_PERCENT=15"
+Environment="MAX_POSITION_LOSS_PERCENT=5"
+Environment="EMERGENCY_STOP_ENABLED=true"
+
+# Strict isolation from research
+InaccessiblePaths=/opt/quantum/model_registry/staging
+InaccessiblePaths=/opt/quantum/research_lab
+
+ExecStart=/opt/quantum/venvs/runtime/bin/python \
+    /opt/quantum/live_core/risk_engine/main.py \
+    --config /opt/quantum/live_core/risk_engine/config/risk_engine.env
+
+ExecStop=/bin/kill -TERM $MAINPID
+# Risk engine needs longer to flush position metrics before shutdown
+TimeoutStopSec=60
+
+# CRITICAL: restart aggressively — risk must always be running while positions open
+Restart=on-failure
+RestartSec=5s
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-risk
+
+MemoryMax=2G
+# Higher CPU weight — risk calculations are latency-sensitive
+CPUWeight=150
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/quantum/model_registry/approved
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,27 @@
+fix: Kelly formula + Gate 6 + Paper Trade Controller + Layer 2 Promoter
+
+Kelly formula fix (layer4_portfolio_optimizer):
+- Old formula: k = (w*b - l) / b with b=profit_factor (WRONG)
+- New formula: k = win_rate * (1 - 1 / profit_factor) (CORRECT)
+- SOLUSDT: kelly_raw 0.0 -> 0.061, LINKUSDT: 0.0 -> 0.069
+- size_usdt=0 is expected: portfolio heat at 83%, cap=40%
+
+Apply layer Gate 6 (Kelly advisory):
+- New Safety Gate 6 after Gate 5 (churn)
+- Blocks OPEN when Layer 4 recommendation=SKIP (no edge)
+- Injects kelly_size_usdt into proposal when EXECUTE approved
+- Fail-soft: if Layer 4 data absent or stale (5min), gate passes
+
+Paper Trade Controller (new microservice):
+- Activates ONLY at dag8 phase=2 (PAPER_TRADE phase)
+- Executes shadow signals against Binance TESTNET (zero real capital)
+- Simulated fills if no testnet API keys (2bps slippage)
+- Writes to quantum:paper:portfolio:latest and trade.closed stream
+
+Layer 2 Signal Auto-Promoter (new microservice):
+- Polls quantum:sandbox:gate:latest every 60s
+- On gate CLOSED->OPEN: builds promoted strategy config from L3+L4
+- Writes quantum:strategy:active_config and promotion events log
+- On gate CLOSED: marks config as GATE_RECLOSED
+
+All 4 services deployed and running on VPS 46.224.116.254

@@ -1,0 +1,98 @@
+# quantum-clm-trainer.service — DRAFT
+# ============================================================
+# DO NOT ENABLE. Do not copy to /etc/systemd/system/ yet.
+# Review architecture/MIGRATION_PLAN.md before deployment.
+# ============================================================
+#
+# Service:   CLM Trainer (Continuous Learning Model v3 — RESEARCH ONLY)
+# Tier:      RESEARCH LAB — ISOLATED FROM LIVE
+# User:      quantum-research
+# Src:       /opt/quantum/microservices/training_worker/
+#            /opt/quantum/backend/domains/ai/clm_v3/
+#
+# CRITICAL ISOLATION RULES:
+#   - Writes ONLY to:   /opt/quantum/model_registry/staging/clm/
+#   - Reads ONLY from:  /opt/quantum/research_lab/clm_trainer/
+#   - MUST NOT access:  /opt/quantum/model_registry/approved/
+#   - MUST NOT access:  /opt/quantum/live_core/
+#
+# CLM v3 uses continuous online learning — extra care needed that
+# this loop NEVER writes directly into approved/ (would corrupt live models).
+#
+# Promotion path: staging/ → approved/ via promote_model.sh only (manual)
+#
+# Target path after migration:
+#   /opt/quantum/research_lab/clm_trainer/
+
+[Unit]
+Description=Quantum Trader — CLM Trainer v3 (Research Lab — ISOLATED)
+Documentation=file:///opt/quantum/research_lab/clm_trainer/README.md
+After=network-online.target redis.service
+Wants=network-online.target
+Requires=redis.service
+# Explicitly NOT dependent on, and NOT a dependency of, any live_core service
+
+[Service]
+Type=simple
+User=quantum-research
+Group=quantum-research
+
+WorkingDirectory=/opt/quantum/research_lab/clm_trainer
+
+EnvironmentFile=/opt/quantum/research_lab/clm_trainer/config/clm_trainer.env
+Environment="PYTHONPATH=/opt/quantum"
+Environment="RUNTIME_ENV=research"
+Environment="LOG_LEVEL=INFO"
+Environment="SERVICE_NAME=quantum-clm-trainer"
+
+# Research isolation: output to staging only
+Environment="MODEL_OUTPUT_DIR=/opt/quantum/model_registry/staging/clm"
+Environment="CHECKPOINT_DIR=/opt/quantum/research_lab/clm_trainer/checkpoints"
+Environment="EXPERIMENT_DIR=/opt/quantum/research_lab/clm_trainer/experiments"
+
+# CLM training config (overridden by env file)
+Environment="CLM_VERSION=3"
+Environment="LEARNING_RATE=0.0003"
+Environment="BATCH_SIZE=256"
+Environment="SAVE_CHECKPOINT_EVERY_N_STEPS=5000"
+Environment="MAX_TRAINING_HOURS=24"
+
+# Staging manifest update
+Environment="STAGING_MANIFEST=/opt/quantum/model_registry/staging/.staging_manifest.json"
+
+# Hard filesystem isolation — cannot touch production models
+InaccessiblePaths=/opt/quantum/model_registry/approved
+InaccessiblePaths=/opt/quantum/live_core
+
+ExecStart=/opt/quantum/venvs/runtime/bin/python \
+    /opt/quantum/research_lab/clm_trainer/main.py \
+    --config /opt/quantum/research_lab/clm_trainer/config/clm_trainer.env
+
+ExecStop=/bin/kill -TERM $MAINPID
+# CLM continuous training: allow ample time to flush final checkpoint
+TimeoutStopSec=180
+
+Restart=on-failure
+RestartSec=60s
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-clm-trainer
+
+MemoryMax=16G             # CLM v3 can be memory-intensive (transformer attention)
+CPUWeight=40              # Yield aggressively to live services
+# Optional GPU pinning:
+# Environment="CUDA_VISIBLE_DEVICES=1"   # Pin to secondary GPU if live uses GPU 0
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/quantum/model_registry/staging/clm
+ReadWritePaths=/opt/quantum/research_lab/clm_trainer
+
+[Install]
+# NOT in multi-user.target — must be explicitly started
+WantedBy=quantum-research.target
