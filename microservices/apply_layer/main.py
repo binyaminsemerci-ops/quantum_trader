@@ -45,9 +45,9 @@ except ImportError:
 try:
     from lib.policy_store import load_policy, PolicyData
     POLICY_ENABLED = True
-except ImportError:
+except Exception as e:
     POLICY_ENABLED = False
-    print("WARN: policy_store module not found, allowlist gate disabled")
+    print(f"WARN: policy_store module not available ({type(e).__name__}: {e}), falling back to APPLY_ALLOWLIST")
 
 # P2.8A Apply Heat Observer
 try:
@@ -774,7 +774,7 @@ class ApplyLayer:
                 vol_min=float(os.getenv("RISK_VOL_MIN", "0.005")),
                 vol_max=float(os.getenv("RISK_VOL_MAX", "0.10")),
                 max_spread_bps=float(os.getenv("RISK_MAX_SPREAD_BPS", "10.0")),
-                symbol_whitelist=os.getenv("RISK_SYMBOL_WHITELIST", "BTCUSDT,ETHUSDT").split(",")
+                symbol_whitelist=[s.strip() for s in os.getenv("RISK_SYMBOL_WHITELIST", "").split(",") if s.strip()]
             )
             self.risk_enforcer = RiskPolicyEnforcer(self.redis, risk_limits)
             logger.info("Risk Policy Enforcer initialized (LAYER 0-2 active)")
@@ -992,24 +992,34 @@ class ApplyLayer:
     def _check_symbol_allowlist(self, symbol: str) -> bool:
         """
         HARD GATE: Check if symbol is in policy universe before order placement.
-        Fail-closed: if symbol not in policy → REJECT order.
+        Fail-closed with fallback: if PolicyStore unavailable, check APPLY_ALLOWLIST.
         """
-        policy_universe = self._get_policy_universe()
-        
-        if not policy_universe:
-            logger.error(f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} reason=empty_policy_universe")
-            return False
-        
-        if symbol not in policy_universe:
-            logger.warning(
-                f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} "
-                f"reason=symbol_not_in_policy policy_count={len(policy_universe)} "
-                f"policy_sample={sorted(list(policy_universe))}"
-            )
-            return False
-        
-        logger.debug(f"SYMBOL_ALLOWED: {symbol} in policy universe")
-        return True
+        if POLICY_ENABLED:
+            policy_universe = self._get_policy_universe()
+
+            if not policy_universe:
+                logger.warning(f"[POLICY_GATE] Policy universe empty for {symbol}, falling back to APPLY_ALLOWLIST")
+            else:
+                if symbol not in policy_universe:
+                    logger.warning(
+                        f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} "
+                        f"reason=symbol_not_in_policy policy_count={len(policy_universe)} "
+                        f"policy_sample={sorted(list(policy_universe))[:10]}"
+                    )
+                    return False
+                logger.debug(f"SYMBOL_ALLOWED: {symbol} in policy universe")
+                return True
+
+        # Fallback: check self.allowlist (loaded from APPLY_ALLOWLIST env var / universe cache)
+        if symbol in self.allowlist:
+            logger.debug(f"SYMBOL_ALLOWED: {symbol} in apply allowlist (policy fallback)")
+            return True
+
+        logger.warning(
+            f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} "
+            f"reason=not_in_apply_allowlist policy_enabled={POLICY_ENABLED} allowlist_size={len(self.allowlist)}"
+        )
+        return False
     
     def _refresh_allowlist_if_needed(self):
         """Refresh allowlist cache if expired (P2 Universe integration)"""
@@ -2423,11 +2433,20 @@ class ApplyLayer:
                                 })
                                 continue
                             
-                            # Get current position
+                            # Get current position — check primary key, fallback to ledger key
                             pos_key = f"quantum:position:{symbol}"
                             existing_pos = self.redis.hgetall(pos_key)
+                            _used_ledger_fallback = False
                             if not existing_pos:
-                                logger.warning(f"[CLOSE] {symbol}: SKIP_NO_POSITION plan_id={plan_id[:8]} (no position exists)")
+                                # FIX: Fallback to reconcile-engine ledger key
+                                ledger_key = f"quantum:position:ledger:{symbol}"
+                                ledger_pos = self.redis.hgetall(ledger_key)
+                                if ledger_pos:
+                                    existing_pos = ledger_pos
+                                    _used_ledger_fallback = True
+                                    logger.info(f"[CLOSE] {symbol}: Using ledger fallback key {ledger_key}")
+                            if not existing_pos:
+                                logger.warning(f"[CLOSE] {symbol}: SKIP_NO_POSITION plan_id={plan_id[:8]} (no position exists in primary or ledger key)")
                                 self.redis.xack(stream_key, consumer_group, msg_id)
                                 # Set dedupe marker
                                 self.redis.setex(dedupe_key, 600, "1")  # 10 min TTL
@@ -2443,8 +2462,11 @@ class ApplyLayer:
                                 continue
                             
                             # Parse position data
+                            # FIX: Handle both 'quantity' (primary key) and 'qty' (ledger key) field names
                             position_side = existing_pos.get(b'side', existing_pos.get('side', b'')).decode() if isinstance(existing_pos.get(b'side', existing_pos.get('side', b'')), bytes) else existing_pos.get(b'side', existing_pos.get('side', ''))
-                            position_qty_str = existing_pos.get(b'quantity', existing_pos.get('quantity', b'0')).decode() if isinstance(existing_pos.get(b'quantity', existing_pos.get('quantity', b'0')), bytes) else existing_pos.get(b'quantity', existing_pos.get('quantity', '0'))
+                            _qty_raw = existing_pos.get(b'quantity', existing_pos.get('quantity',
+                                       existing_pos.get(b'qty', existing_pos.get('qty', b'0'))))
+                            position_qty_str = _qty_raw.decode() if isinstance(_qty_raw, bytes) else str(_qty_raw)
                             position_qty = float(position_qty_str)
                             
                             # Parse steps from plan to get close percentage
@@ -2614,9 +2636,16 @@ class ApplyLayer:
                         logger.info(f"[ENTRY] {symbol}: Processing {side} intent (→{position_side}, leverage={leverage}, qty={qty}, plan_id={plan_id[:8]})")
                         
                         # 🔥 HARD GATE: Check total position limit (MAX 10 SYMBOLS)
-                        all_positions = self.redis.keys("quantum:position:*")
+                        # FIX: Only count ACTIVE positions — exclude snapshot:, ledger:, cooldown: keys
+                        _all_raw = self.redis.keys("quantum:position:*")
+                        all_positions = [
+                            k for k in _all_raw
+                            if b'snapshot' not in (k if isinstance(k, bytes) else k.encode())
+                            and b'ledger' not in (k if isinstance(k, bytes) else k.encode())
+                            and b'cooldown' not in (k if isinstance(k, bytes) else k.encode())
+                        ]
                         if len(all_positions) >= 10:
-                            logger.warning(f"[ENTRY] {symbol}: Order REJECTED - position limit reached ({len(all_positions)}/10 symbols)")
+                            logger.warning(f"[ENTRY] {symbol}: Order REJECTED - position limit reached ({len(all_positions)}/10 active positions, total_keys={len(_all_raw)})")
                             self.redis.xack(stream_key, consumer_group, msg_id)
                             # Publish rejection to apply.result
                             self.redis.xadd('quantum:stream:apply.result', {
