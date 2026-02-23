@@ -105,9 +105,10 @@ logger = logging.getLogger(__name__)
 
 
 # ---- PRODUCTION HYGIENE: Hard Mode Switch ----
-# TESTNET=true: Governor bypass (for development/testing)
-# TESTNET=false: Require THREE permits (production safety)
+# TESTNET_MODE: targets Binance testnet endpoint (decoupled from governor)
+# GOVERNOR_BYPASS: explicitly skip all permits (dev/QA only, default=false)
 TESTNET_MODE = os.getenv("TESTNET", "false").lower() in ("true", "1", "yes")
+GOVERNOR_BYPASS = os.getenv("GOVERNOR_BYPASS", "false").lower() in ("true", "1", "yes")
 
 # ---- DEV MODE: Dedupe bypass for rapid testing ----
 # APPLY_DEDUPE_BYPASS=true: 5s TTL (dev/QA only)
@@ -119,9 +120,11 @@ DEDUPE_TTL = 5 if DEDUPE_BYPASS else 300  # 5 sec vs 5 min
 POSITION_EPSILON = 1e-12  # abs(position_amt) > epsilon means "has position"
 
 if TESTNET_MODE:
-    logger.warning("ΓÜá∩╕Å  TESTNET MODE ENABLED - Governor bypass active (NO PRODUCTION USAGE)")
+    logger.info("✅ TESTNET execution endpoint active (Binance futures testnet)")
+if GOVERNOR_BYPASS:
+    logger.warning("⚠️  GOVERNOR_BYPASS=true — permits skipped! (dev/QA only, NOT for production)")
 else:
-    logger.info("Γ£à PRODUCTION MODE - Three permits required (Governor + P3.3 + P2.6)")
+    logger.info("✅ Governor active — THREE permits required (Governor + P3.3 + P2.6)")
 
 # ---- PRODUCTION HYGIENE: Safety Kill Switch ----
 # Set quantum:global:kill_switch = true to halt all execution
@@ -1819,17 +1822,17 @@ class ApplyLayer:
             pos_side = position['side']
             logger.info(f"{plan.symbol}: Current position: {pos_amt} ({pos_side})")
             
-            # ---- HARD MODE SWITCH: TESTNET vs PRODUCTION ----
-            if TESTNET_MODE:
-                # TESTNET: Skip all permits, go straight to execution
-                logger.info(f"[TESTNET_BYPASS] Skipping permits for {plan.plan_id}")
-                gov_permit = {"granted": True, "mode": "testnet_bypass"}
-                p33_permit = {"allow": True, "safe_qty": plan.sell_qty, "mode": "testnet_bypass"}
-                p26_permit = {"granted": True, "mode": "testnet_bypass"}
+            # ---- HARD MODE SWITCH: GOVERNOR_BYPASS (explicit) vs PRODUCTION ----
+            if GOVERNOR_BYPASS:
+                # EXPLICIT bypass only — not tied to testnet endpoint mode
+                logger.info(f"[GOVERNOR_BYPASS] Skipping permits for {plan.plan_id}")
+                gov_permit = {"granted": True, "mode": "governor_bypass"}
+                p33_permit = {"allow": True, "safe_qty": plan.sell_qty, "mode": "governor_bypass"}
+                p26_permit = {"granted": True, "mode": "governor_bypass"}
                 ok = True
                 wait_ms = 0
                 if PROMETHEUS_AVAILABLE:
-                    apply_executed.labels(status='testnet_bypass').inc()
+                    apply_executed.labels(status='governor_bypass').inc()
             else:
                 # PRODUCTION: Require THREE permits (Governor + P3.3 + P2.6)
                 t0 = time.time()

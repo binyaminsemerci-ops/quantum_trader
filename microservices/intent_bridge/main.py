@@ -95,6 +95,15 @@ MAX_EXPOSURE_PCT = float(os.getenv("MAX_EXPOSURE_PCT", "80.0"))  # From Exposure
 SKIP_FLAT_SELL = os.getenv("INTENT_BRIDGE_SKIP_FLAT_SELL", "true").lower() == "true"
 FLAT_EPS = float(os.getenv("INTENT_BRIDGE_FLAT_EPS", "0.0") or "0.0")
 
+# Anti-churn gate: minimum time between CLOSE and next OPEN for the same symbol
+# Prevents rapid open→close→open churning that eats fees. Default: 15 minutes.
+MIN_HOLD_SECONDS = int(os.getenv("MIN_HOLD_SECONDS", "900"))  # 15 min
+
+# Fee parameters for breakeven metadata added to each plan
+# Downstream services (apply_layer, risk_kernel) can use this without re-computing
+TAKER_FEE_RATE = float(os.getenv("COST_TAKER_FEE_RATE", "0.0004"))  # 0.04% Binance taker
+ROUND_TRIP_COST = TAKER_FEE_RATE * 2 + 0.0002   # fees (entry+exit) + typical slippage ≈ 0.10%
+
 # Streams
 INTENT_STREAM = "quantum:stream:trade.intent"
 PLAN_STREAM = "quantum:stream:apply.plan"
@@ -124,7 +133,7 @@ UNIVERSE_REFRESH_SEC = int(os.getenv("INTENT_BRIDGE_UNIVERSE_REFRESH_SEC", "300"
 UNIVERSE_TTL_SEC = int(os.getenv("INTENT_BRIDGE_UNIVERSE_TTL_SEC", "3600"))
 
 # Build tag for deployment verification
-BUILD_TAG = "intent-bridge-ledger-open-v1"
+BUILD_TAG = "intent-bridge-anti-churn-fee-v2"
 
 logger.info("=" * 80)
 logger.info(f"Intent Bridge - trade.intent → apply.plan [{BUILD_TAG}]")
@@ -737,6 +746,7 @@ class IntentBridge:
                 "leverage": leverage,
                 "stop_loss": stop_loss,
                 "take_profit": take_profit,
+                "entry_price": price_used,   # may be None for FORMAT1 without price fetch
                 "source_payload": payload
             }
             
@@ -796,6 +806,14 @@ class IntentBridge:
         if take_profit is not None:
             message_fields[b"take_profit"] = str(take_profit).encode()
             logger.info(f"✓ Added take_profit={take_profit} to {intent['symbol']}")
+
+        # Fee breakeven metadata: minimum price move needed to cover round-trip costs.
+        # Downstream risk_kernel and apply_layer can use this to filter marginal trades.
+        entry_price = intent.get("entry_price")
+        if entry_price and entry_price > 0 and intent["side"].upper() == "BUY":
+            breakeven = entry_price * (1 + ROUND_TRIP_COST)
+            message_fields[b"breakeven_price"] = f"{breakeven:.8f}".encode()
+            logger.debug(f"[FEE_META] {intent['symbol']} entry={entry_price:.4f} breakeven={breakeven:.4f} ({ROUND_TRIP_COST:.4%} rt-cost)")
         
         # Publish to quantum:stream:apply.plan with FLAT structure
         message_id = self.redis.xadd(
@@ -875,6 +893,18 @@ class IntentBridge:
                 ledger_amt = _ledger_last_known_amt(self.redis, intent["symbol"])
                 if math.isnan(ledger_amt):
                     logger.info(f"LEDGER_MISSING_OPEN allowed: symbol={intent['symbol']} side=BUY (plan_id={plan_id[:8]})")
+
+            # Anti-churn gate: don't re-open within MIN_HOLD_SECONDS of a close
+            churn_key = f"quantum:intent_bridge:last_close:{intent['symbol']}"
+            if self.redis.exists(churn_key):
+                remaining = self.redis.ttl(churn_key)
+                logger.info(
+                    f"ANTI_CHURN_BLOCK {intent['symbol']} BUY: just closed, "
+                    f"{remaining}s remaining of MIN_HOLD={MIN_HOLD_SECONDS}s (plan_id={plan_id[:8]})"
+                )
+                self._mark_seen(stream_id_str)
+                self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
+                return
         
         elif intent["side"].upper() == "SELL":
             # SELL/CLOSE: Always check ledger if SKIP_FLAT_SELL enabled
@@ -913,6 +943,12 @@ class IntentBridge:
             # Mark as seen and ack
             self._mark_seen(stream_id_str)
             self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
+
+            # Anti-churn: record this SELL so next BUY is held off for MIN_HOLD_SECONDS
+            if intent["side"].upper() == "SELL":
+                churn_key = f"quantum:intent_bridge:last_close:{intent['symbol']}"
+                self.redis.setex(churn_key, MIN_HOLD_SECONDS, str(int(time.time())))
+                logger.info(f"ANTI_CHURN_SET {intent['symbol']}: next BUY blocked for {MIN_HOLD_SECONDS}s")
             
             logger.info(f"✅ Bridge success: {stream_id_str} → {plan_id[:8]}")
             
