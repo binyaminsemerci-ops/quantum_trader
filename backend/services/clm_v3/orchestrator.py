@@ -94,8 +94,9 @@ class ClmOrchestrator:
                 "min_trades": 50,
             },
             
-            # Auto-promotion settings
-            "auto_promote_to_candidate": True,  # Auto-promote to CANDIDATE if passed
+            # Auto-promotion settings — Controlled Refactor 2026-02-21
+            # Both gates disabled.  Promotion requires explicit operator action.
+            "auto_promote_to_candidate": False,  # Controlled Refactor: disabled
             "auto_promote_to_production": False,  # Require manual approval for PRODUCTION
             
             # Safety settings
