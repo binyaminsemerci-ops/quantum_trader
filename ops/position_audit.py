@@ -15,7 +15,7 @@ print("REDIS POSITIONS")
 print("=" * 60)
 pos_keys = [k.decode() for k in r.keys("quantum:position:*")
             if not any(x in k.decode() for x in
-                       ["ledger","snapshot","cooldown","dedupe","hold","lock","stream"])]
+                       ["ledger","snapshot","cooldown","dedupe","hold","lock","stream","claim"])]
 print(f"Active: {len(pos_keys)}/10\n")
 for key in sorted(pos_keys):
     data = {k.decode(): v.decode() for k, v in r.hgetall(key).items()}

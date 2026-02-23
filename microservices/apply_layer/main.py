@@ -2795,8 +2795,25 @@ class ApplyLayer:
                                 "risk_missing": str(risk_missing)
                             }
                             
+                            # 🔥 Fill actual entry price from order avgPrice/entryPrice
+                            order_avg_price = 0.0
+                            try:
+                                raw_order = client._request('GET', '/fapi/v1/order',
+                                    params={'symbol': symbol, 'orderId': order_result.get('orderId')},
+                                    signed=True)
+                                order_avg_price = float(raw_order.get('avgPrice', raw_order.get('price', 0)))
+                            except Exception as _ep:
+                                logger.warning(f"[ENTRY] {symbol}: avgPrice lookup failed: {_ep}")
+                            if order_avg_price > 0:
+                                position_mapping["entry_price"] = str(order_avg_price)
+                                logger.info(f"[ENTRY] {symbol}: Actual fill price={order_avg_price}")
+                            elif entry_price > 0:
+                                pass  # keep plan entry_price
+
                             self.redis.hset(pos_key, mapping=position_mapping)
+                            self.redis.hset(pos_key, "unrealized_pnl", "0.0")  # initialize (not missing)
                             logger.info(f"[ENTRY] {symbol}: Position reference stored (entry_risk_usdt={entry_risk_usdt:.4f}, atr={atr_value}, vol_factor={volatility_factor})")
+                            logger.info(f"[ENTRY] {symbol}: entry_price={position_mapping['entry_price']}  leverage={position_mapping['leverage']}  qty={position_mapping['quantity']}")
                             
                             # 🔥 Set cooldown to prevent rapid re-opening (180s = 3 minutes)
                             cooldown_key = f"quantum:cooldown:open:{symbol}"
