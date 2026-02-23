@@ -403,6 +403,17 @@ class BinanceTestnetClient:
             logger.error(f"Failed to place order: {e}")
             raise
 
+    def set_leverage(self, symbol: str, leverage: int) -> dict:
+        """Set initial leverage for a symbol on Binance Futures."""
+        params = {"symbol": symbol, "leverage": int(leverage)}
+        try:
+            result = self._request("POST", "/fapi/v1/leverage", params=params, signed=True)
+            logger.info(f"[LEVERAGE] {symbol}: set to {leverage}x -> {result}")
+            return result
+        except Exception as e:
+            logger.error(f"[LEVERAGE] {symbol}: Failed to set leverage {leverage}x: {e}")
+            raise
+
 
 @dataclass
 class ApplyPlan:
@@ -714,6 +725,17 @@ class BinanceTestnetClient:
             }
         except Exception as e:
             logger.error(f"Failed to place order: {e}")
+            raise
+
+    def set_leverage(self, symbol: str, leverage: int) -> dict:
+        """Set initial leverage for a symbol on Binance Futures."""
+        params = {"symbol": symbol, "leverage": int(leverage)}
+        try:
+            result = self._request("POST", "/fapi/v1/leverage", params=params, signed=True)
+            logger.info(f"[LEVERAGE] {symbol}: set to {leverage}x -> {result}")
+            return result
+        except Exception as e:
+            logger.error(f"[LEVERAGE] {symbol}: Failed to set leverage {leverage}x: {e}")
             raise
 
 
@@ -2694,10 +2716,27 @@ class ApplyLayer:
                             self.redis.xack(stream_key, consumer_group, msg_id)
                             continue
                         
+                        # ── ATOMIC RACE-CONDITION GUARD ──────────────────
+                        # Set position claim key BEFORE placing order (SETNX).
+                        # If two messages for the same symbol arrive in the same
+                        # batch, the second one is blocked here.
+                        claim_key = f"quantum:position:claim:{symbol}"
+                        claimed = self.redis.set(claim_key, plan_id, nx=True, ex=30)
+                        if not claimed:
+                            logger.warning(f"[ENTRY] {symbol}: Race-condition guard — position claim already held, skipping")
+                            self.redis.xack(stream_key, consumer_group, msg_id)
+                            continue
+
                         # Place market order (BUY or SELL)
                         try:
                             client = BinanceTestnetClient(api_key, api_secret)
-                            
+
+                            # Set leverage on Binance to match plan before placing order
+                            try:
+                                client.set_leverage(symbol, int(leverage))
+                            except Exception as lev_err:
+                                logger.warning(f"[ENTRY] {symbol}: set_leverage failed (non-fatal): {lev_err}")
+
                             # Place market order (NOT reduce-only)
                             order_result = client.place_market_order(
                                 symbol=symbol,
