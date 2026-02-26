@@ -189,10 +189,11 @@ class ReconcileEngine:
                 logger.error(f"Loop error: {e}", exc_info=True)
                 time.sleep(LOOP_CADENCE_SEC)
     
-    def _fetch_binance_open_symbols(self) -> Optional[set]:
-        """Call Binance /fapi/v2/positionRisk directly and return the set of
-        symbols with abs(positionAmt) > 0.  Returns None on any error so the
-        caller can skip the purge pass safely (fail-closed)."""
+    def _fetch_binance_open_symbols(self) -> Optional[dict]:
+        """Call Binance /fapi/v2/positionRisk directly and return a dict mapping
+        symbol → full position record for every position with abs(positionAmt) > 0.
+        Returns None on any error so the caller can skip the purge pass safely
+        (fail-closed)."""
         if not BINANCE_API_KEY or not BINANCE_API_SECRET:
             logger.warning("GHOST_PURGE: BINANCE_TESTNET_API_KEY/SECRET not set — skipping")
             return None
@@ -204,13 +205,13 @@ class ReconcileEngine:
             req = urllib.request.Request(url, headers={"X-MBX-APIKEY": BINANCE_API_KEY})
             with urllib.request.urlopen(req, timeout=10) as resp:
                 raw = json.loads(resp.read())
-            open_symbols = {
-                p["symbol"]
+            open_positions = {
+                p["symbol"]: p
                 for p in raw
                 if abs(float(p.get("positionAmt", 0))) > 0
             }
-            logger.info(f"GHOST_PURGE: Binance reports {len(open_symbols)} open positions: {sorted(open_symbols)}")
-            return open_symbols
+            logger.info(f"GHOST_PURGE: Binance reports {len(open_positions)} open positions: {sorted(open_positions)}")
+            return open_positions
         except Exception as e:
             logger.error(f"GHOST_PURGE: Binance API call failed: {e} — skipping purge pass")
             return None
@@ -229,9 +230,10 @@ class ReconcileEngine:
         self._last_ghost_purge_ts = now
 
         # 1. Get ground truth from Binance
-        open_symbols = self._fetch_binance_open_symbols()
-        if open_symbols is None:
+        open_positions = self._fetch_binance_open_symbols()
+        if open_positions is None:
             return  # API error — skip, be safe
+        open_symbols = set(open_positions.keys())
 
         # 2. Scan all Redis position keys
         cursor = 0
@@ -264,54 +266,83 @@ class ReconcileEngine:
             if cursor == 0:
                 break
 
-        # --- LEDGER REPAIR: For every symbol confirmed open on Binance:
-        #   A) create missing ledger (was never initialized)
-        #   B) repair zero/FLAT ledger (e.g. DOGEUSDT: ledger_amt=0, side=FLAT
-        #      but Binance confirms open position)
-        #   C) create missing quantum:position:{sym} key so harvest brain can
-        #      see symbols that were ghost-purged incorrectly (1INCHUSDT, ACEUSDT, etc.)
-        for symbol in open_symbols:
+        # --- BOOTSTRAP + LEDGER REPAIR ---
+        # For every symbol confirmed open on Binance:
+        #   A) If no quantum:position:snapshot:{sym} exists, write one directly
+        #      from Binance data.  This breaks the chicken-and-egg loop where
+        #      P3.3 only snapshots symbols with ledger keys and LEDGER_REPAIR
+        #      only creates ledgers for symbols with snapshots.
+        #   B) If ledger is missing or zero/FLAT, initialize it.
+        #   C) If quantum:position:{sym} is missing, bootstrap it.
+        for symbol, bpos in open_positions.items():
+            b_amt   = float(bpos.get("positionAmt", 0))
+            b_entry = float(bpos.get("entryPrice", 0))
+            b_mark  = float(bpos.get("markPrice",  b_entry))
+            b_lev   = int(float(bpos.get("leverage", 1)))
+            b_side  = "LONG" if b_amt > 0 else "SHORT"
+
+            snap_key   = f"quantum:position:snapshot:{symbol}"
             ledger_key = f"quantum:position:ledger:{symbol}"
             pos_key    = f"quantum:position:{symbol}"
 
-            # Check ledger health
-            ledger_data = self.redis.hgetall(ledger_key) if self.redis.exists(ledger_key) else {}
-            ledger_amt  = abs(float(ledger_data.get("ledger_amt",
-                               ledger_data.get("last_known_amt", 0)) or 0))
-            ledger_side = (ledger_data.get("ledger_side",
-                           ledger_data.get("last_side", "FLAT")) or "FLAT").upper()
-            ledger_bad  = (not ledger_data) or (ledger_amt < 0.0001) or (ledger_side == "FLAT")
-
-            exchange = self._read_exchange_snapshot(symbol)
-            if not exchange:
-                continue  # P3.3 hasn't written a snapshot yet — skip safely
-
-            if ledger_bad:
-                repaired = self._initialize_ledger(symbol, exchange)
-                if repaired:
-                    action = "missing" if not ledger_data else "zero/FLAT"
-                    logger.warning(
-                        f"{symbol}: LEDGER_REPAIR ({action}) — initialized ledger from "
-                        f"exchange snapshot amt={exchange.position_amt:.4f} side={exchange.side}"
-                    )
-
-            # C) If quantum:position:{sym} key is missing, bootstrap it from the
-            # exchange snapshot so harvest brain can evaluate the position.
-            if not self.redis.exists(pos_key) and abs(exchange.position_amt) > 0.0001:
-                side = "LONG" if exchange.position_amt > 0 else "SHORT"
-                self.redis.hset(pos_key, mapping={
-                    "symbol":        symbol,
-                    "side":          side,
-                    "quantity":      abs(exchange.position_amt),
-                    "entry_price":   exchange.entry_price if hasattr(exchange, "entry_price") else 0,
-                    "leverage":      exchange.leverage    if hasattr(exchange, "leverage")    else 1,
-                    "opened_at":     int(time.time()),
-                    "source":        "p34_position_bootstrap",
-                    "risk_missing":  1,  # harvest brain will skip until enriched
+            # A) Bootstrap missing snapshot so P3.3 picks up the symbol
+            if not self.redis.exists(snap_key):
+                self.redis.hset(snap_key, mapping={
+                    "position_amt": b_amt,
+                    "side":         b_side,
+                    "entry_price":  b_entry,
+                    "mark_price":   b_mark,
+                    "leverage":     b_lev,
+                    "ts_epoch":     int(time.time()),
+                    "source":       "p34_bootstrap",
                 })
                 logger.warning(
-                    f"{symbol}: POSITION_BOOTSTRAP — created missing Redis position key "
-                    f"from exchange snapshot (side={side} qty={abs(exchange.position_amt):.4f})"
+                    f"{symbol}: SNAPSHOT_BOOTSTRAP — wrote exchange snapshot directly "
+                    f"(amt={b_amt:.4f} side={b_side} entry={b_entry})"
+                )
+
+            # B) Repair ledger if missing or stale
+            ledger_data = self.redis.hgetall(ledger_key) if self.redis.exists(ledger_key) else {}
+            # decode_responses=False → values are bytes; decode before float/str conversion
+            def _b(v, default="0"):
+                if v is None:
+                    return default
+                return v.decode("utf-8", errors="ignore") if isinstance(v, bytes) else str(v)
+            raw_amt  = ledger_data.get(b"last_known_amt", ledger_data.get(b"ledger_amt"))
+            raw_side = ledger_data.get(b"last_side",      ledger_data.get(b"ledger_side"))
+            try:
+                l_amt = float(_b(raw_amt, "0"))
+            except (ValueError, TypeError):
+                l_amt = 0.0
+            l_side = _b(raw_side, "FLAT").upper()
+            ledger_bad = (not ledger_data) or (abs(l_amt) < 0.0001) or (l_side in ("FLAT", "NONE", ""))
+
+            if ledger_bad:
+                exchange = self._read_exchange_snapshot(symbol)
+                if exchange:
+                    repaired = self._initialize_ledger(symbol, exchange)
+                    if repaired:
+                        action = "missing" if not ledger_data else "zero/FLAT"
+                        logger.warning(
+                            f"{symbol}: LEDGER_REPAIR ({action}) — initialized from "
+                            f"exchange snapshot amt={exchange.position_amt:.4f} side={exchange.side}"
+                        )
+
+            # C) Bootstrap missing quantum:position:{sym} key
+            if not self.redis.exists(pos_key) and abs(b_amt) > 0.0001:
+                self.redis.hset(pos_key, mapping={
+                    "symbol":       symbol,
+                    "side":         b_side,
+                    "quantity":     abs(b_amt),
+                    "entry_price":  b_entry,
+                    "leverage":     b_lev,
+                    "opened_at":    int(time.time()),
+                    "source":       "p34_position_bootstrap",
+                    "risk_missing": 1,
+                })
+                logger.warning(
+                    f"{symbol}: POSITION_BOOTSTRAP — created Redis position key "
+                    f"(side={b_side} qty={abs(b_amt):.4f})"
                 )
 
     def reconcile_symbol(self, symbol: str):
@@ -400,12 +431,25 @@ class ReconcileEngine:
         )
         
         key = f"quantum:position:ledger:{symbol}"
+        # DELETE first — HSET only adds fields; stale fields from a previous
+        # intent_executor write (e.g. last_known_amt=84.8 side=LONG before a
+        # partial exit) will otherwise survive and confuse P3.3.
+        self.redis.delete(key)
+        # Write BOTH field-name conventions so all readers see consistent data:
+        #   reconcile_engine reads: ledger_amt, ledger_side
+        #   P3.3 reads:             last_known_amt (signed), last_side, updated_at
         self.redis.hset(key, mapping={
-            "ledger_amt": ledger.ledger_amt,
-            "ledger_side": ledger.ledger_side,
-            "ts_epoch": ledger.ts_epoch,
-            "source": ledger.source,
-            "version": ledger.version
+            # reconcile_engine fields
+            "ledger_amt":      ledger.ledger_amt,
+            "ledger_side":     ledger.ledger_side,
+            "ts_epoch":        ledger.ts_epoch,
+            "source":          ledger.source,
+            "version":         ledger.version,
+            # P3.3 fields (last_known_amt must be SIGNED: negative = SHORT)
+            "last_known_amt":  ledger.ledger_amt,   # same value, signed
+            "last_side":       ledger.ledger_side,
+            "position_amt":    ledger.ledger_amt,
+            "updated_at":      ledger.ts_epoch,
         })
         
         self._emit_event("LEDGER_INIT", symbol, {
