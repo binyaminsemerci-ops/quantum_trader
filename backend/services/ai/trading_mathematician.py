@@ -10,8 +10,10 @@ NO MANUAL ADJUSTMENTS NEEDED!
 """
 import logging
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 import math
+
+from backend.services.ai.leverage_engine import LeverageEngine
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +74,10 @@ class TradingMathematician:
     
     def __init__(
         self,
-        risk_per_trade_pct: float = 0.20,  # 20% of balance as MARGIN per trade
+        risk_per_trade_pct: float = 0.02,   # 2% of equity as MARGIN per trade
         target_profit_pct: float = 0.20,    # 20% daily profit target
         min_risk_reward: float = 2.0,       # Minimum 2:1 R:R
-        safety_cap: float = 75.0,           # Safety cap (bug protection, not optimization)
+        safety_cap: float = 50.0,           # Hard cap — never above 50× (crypto-safe)
         conservative_mode: bool = False,
     ):
         self.risk_per_trade_pct = risk_per_trade_pct
@@ -94,12 +96,18 @@ class TradingMathematician:
             "INJUSDT": 50, "SHIBUSDT": 50, "SUIUSDT": 50,
         }
         
+        # Instantiate LeverageEngine once — reused for every calculation
+        self._leverage_engine = LeverageEngine(
+            binance_max_leverage=self.binance_max_leverage,
+            hard_cap=self.safety_cap,
+        )
+
         logger.info(f"🧮 Trading Mathematician initialized:")
-        logger.info(f"   Margin per trade: {risk_per_trade_pct*100}% of balance")
+        logger.info(f"   Margin per trade: {risk_per_trade_pct*100:.1f}% of equity")
         logger.info(f"   Target profit: {target_profit_pct*100}%")
         logger.info(f"   Min R:R: {min_risk_reward}:1")
-        logger.info(f"   Kelly safety cap: {safety_cap}x")
-    
+        logger.info(f"   Hard cap: {safety_cap}x (LeverageEngine)")
+
     def calculate_optimal_parameters(
         self,
         account: AccountState,
@@ -109,7 +117,7 @@ class TradingMathematician:
     ) -> OptimalParameters:
         """
         Calculate optimal trading parameters using AI-driven math.
-        
+
         This is the CORE intelligence - replaces manual adjustments!
         """
         logger.info(f"\n{'='*80}")
@@ -294,95 +302,46 @@ class TradingMathematician:
         signal_confidence: float = 0.70,  # Signal confidence from AI ensemble
     ) -> float:
         """
-        Calculate optimal leverage using Kelly Criterion.
-        
-        Formula: Optimal Leverage = Edge / Variance
-        - Edge = (Win_Rate × Avg_Win) - (Loss_Rate × Avg_Loss)
-        - Variance = Win_Rate × (Avg_Win)² + Loss_Rate × (Avg_Loss)²
-        
-        This maximizes long-term growth rate while accounting for risk.
+        Delegate to LeverageEngine — sophisticated formula-based calculation.
+
+        Formula (first principles):
+          leverage = risk_fraction / (sl_fraction × margin_fraction)
+            where sl_fraction = ATR_SL_MULT × atr_pct
+
+        Components (all mathematically derived, no magic numbers):
+          • 25% fractional Kelly  (Thorp 2006, crypto fat-tail consensus)
+          • ATR-based SL anchor   (leverage auto-scales with volatility)
+          • Geometric blend       (Kelly × ATR — conservative multiplicative mean)
+          • Convex confidence     (confidence^1.5 — reflects information quality)
+          • Drawdown circuit breaker (50% cut at max_dd threshold)
+          • Regime scalar via ADX (trending → more, ranging → less)
+          • Portfolio utilization (fuller portfolio → less per-position leverage)
         """
-        # Minimum trades for Kelly leverage
-        if performance.total_trades < 5:
-            # Not enough history, use conservative default
-            default_lev = 10.0
-            binance_max = self.binance_max_leverage.get(market.symbol, 50)
-            safe_lev = min(default_lev, binance_max, self.safety_cap)
-            logger.info(f"   📊 Limited history ({performance.total_trades} trades), using conservative {safe_lev:.1f}x")
-            return safe_lev
-        
-        # Calculate edge and variance
-        win_rate = performance.win_rate
-        loss_rate = 1 - win_rate
-        avg_win = performance.avg_win_pct
-        avg_loss = abs(performance.avg_loss_pct)  # Make positive
-        
-        if avg_win == 0 or avg_loss == 0:
-            logger.warning("   ⚠️  Invalid avg_win/loss, using default 10x")
-            return 10.0
-        
-        # Kelly Criterion for leverage
-        edge = (win_rate * avg_win) - (loss_rate * avg_loss)
-        variance = (win_rate * (avg_win ** 2)) + (loss_rate * (avg_loss ** 2))
-        
-        if variance == 0 or edge <= 0:
-            logger.warning(f"   ⚠️  No edge detected (edge={edge:.4f}), using minimum 5x")
-            return 5.0
-        
-        # Optimal Kelly leverage
-        kelly_leverage = edge / variance
-        
-        # Use fractional Kelly (50%) for safety
-        fractional_kelly = kelly_leverage * 0.5
-        
-        logger.info(
-            f"   🎲 KELLY LEVERAGE: Edge={edge*100:.2f}%, Variance={variance*100:.2f}% → "
-            f"Full Kelly={kelly_leverage:.1f}x, Fractional (50%)={fractional_kelly:.1f}x"
+        # Retrieve drawdown info from account state if available
+        current_dd  = getattr(account, "current_drawdown_pct", 0.0) or 0.0
+        max_dd      = getattr(account, "max_drawdown_threshold", 0.20) or 0.20
+        adx         = getattr(market, "adx", None)
+
+        logger.info(f"\n{'='*60}")
+        logger.info(f"🧮 LeverageEngine: {market.symbol}")
+
+        lev = self._leverage_engine.compute(
+            symbol=market.symbol,
+            win_rate=performance.win_rate,
+            avg_win_pct=performance.avg_win_pct,
+            avg_loss_pct=abs(performance.avg_loss_pct),
+            atr_pct=market.atr_pct,
+            signal_confidence=signal_confidence,
+            open_positions=account.open_positions,
+            max_positions=account.max_positions,
+            current_drawdown_pct=current_dd,
+            max_drawdown_threshold=max_dd,
+            total_trades=performance.total_trades,
+            margin_fraction=self.risk_per_trade_pct,
+            conservative_mode=self.conservative_mode,
+            adx=adx,
         )
-        
-        # Adjust for market conditions
-        adjusted_lev = fractional_kelly
-        
-        if market.daily_volatility > 0.08:  # >8% daily volatility
-            adjusted_lev *= 0.7
-            logger.debug(f"   High volatility ({market.daily_volatility*100:.1f}%), reducing by 30%")
-        
-        if market.liquidity_score < 0.5:
-            adjusted_lev *= 0.8
-            logger.debug(f"   Low liquidity, reducing by 20%")
-        
-        # Portfolio utilization adjustment
-        utilization = account.open_positions / account.max_positions
-        if utilization > 0.7:
-            adjusted_lev *= 0.85
-            logger.debug(f"   Portfolio {utilization*100:.0f}% full, reducing leverage")
-        
-        # Conservative mode
-        if self.conservative_mode:
-            adjusted_lev *= 0.6
-            logger.debug(f"   Conservative mode: reducing by 40%")
-        
-        # 🆕 CONFIDENCE ADJUSTMENT: Scale leverage by signal confidence
-        # High confidence (>80%) → Full leverage
-        # Medium confidence (60-80%) → 70-100% leverage  
-        # Low confidence (<60%) → 50-70% leverage
-        if signal_confidence < 0.80:
-            confidence_mult = 0.5 + (signal_confidence * 0.625)  # 0.5 at 0%, 1.0 at 80%
-            adjusted_lev *= confidence_mult
-            logger.info(
-                f"   🎯 CONFIDENCE ADJUSTMENT: {signal_confidence*100:.0f}% confidence "
-                f"→ {confidence_mult*100:.0f}% of Kelly leverage"
-            )
-        
-        # Apply limits: Binance max, safety cap, minimum 5x
-        binance_max = self.binance_max_leverage.get(market.symbol, 50)
-        final_lev = max(5.0, min(adjusted_lev, binance_max, self.safety_cap))
-        
-        logger.info(
-            f"   ✅ FINAL LEVERAGE: {final_lev:.1f}x (Binance max={binance_max}x, Safety cap={self.safety_cap:.0f}x)"
-        )
-        
-        return round(final_lev, 1)
+        return lev
     
     def _calculate_position_size(
         self, risk_amount: float, sl_pct: float, leverage: float
