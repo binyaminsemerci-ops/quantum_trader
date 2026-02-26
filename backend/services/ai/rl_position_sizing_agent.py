@@ -138,8 +138,8 @@ class RLPositionSizingAgent:
         exploration_rate: float = 0.10,  # 🎯 REDUCED from 0.50 to 0.10 - 90% exploit (full size), 10% explore
         min_position_usd: float = 10.0,
         max_position_usd: float = 8000.0,  # 🔥 INCREASED from $1000 to $8000 (80% of $10K balance)
-        min_leverage: float = 15.0,        # 🔥 Minimum 15x
-        max_leverage: float = 25.0,        # 🔥 Maximum 25x (fallback if PolicyStore unavailable)
+        min_leverage: float = 3.0,         # Minimum leverage (cold-start/low-confidence floor)
+        max_leverage: float = 35.0,        # Maximum leverage (fallback if PolicyStore unavailable)
         use_math_ai: bool = True,  # 🧮 NEW: Enable Trading Mathematician
     ):
         self.policy_store = policy_store  # 🔧 SPRINT 1 - D1
@@ -237,7 +237,10 @@ class RLPositionSizingAgent:
             0.5,           # 50% of max ($500)
             1.0            # 100% of max ($1000)
         ]
-        self.leverages = [1.0, 2.0, 3.0, 4.0, 5.0]
+        # Leverage action space: covers real trading range 3–35×
+        # Previous [1,2,3,4,5] was capped at 5× — far below Kelly optimum.
+        # New range: log-spaced to give fine control at low end, coarser at high end.
+        self.leverages = [3.0, 5.0, 8.0, 12.0, 18.0, 25.0, 35.0]
         
         # 🔥 NEW: TP/SL Action Space
         # Format: (full_tp_pct, partial_tp_pct, sl_pct, partial_enabled)
