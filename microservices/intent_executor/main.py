@@ -608,11 +608,16 @@ class IntentExecutor:
                     
                     ledger_key = f"quantum:position:ledger:{symbol}"
                     self.redis.hset(ledger_key, mapping={
-                        "last_known_amt": str(abs_amt),
-                        "last_side": side,
-                        "updated_at": str(int(time.time()))
+                        # reconcile_engine fields
+                        "ledger_amt":     str(amt),   # SIGNED (neg=SHORT)
+                        "ledger_side":    side,
+                        # P3.3 fields (last_known_amt must be signed)
+                        "last_known_amt": str(amt),   # SIGNED (neg=SHORT)
+                        "last_side":      side,
+                        "position_amt":   str(amt),
+                        "updated_at":     str(int(time.time())),
                     })
-                    logger.info(f"📊 Ledger updated: {symbol} {side} {abs_amt:.4f}")
+                    logger.info(f"📊 Ledger updated: {symbol} {side} {amt:.4f}")
                 else:
                     logger.warning(f"Position not found for {symbol} in positionRisk")
         except Exception as e:
@@ -702,25 +707,29 @@ class IntentExecutor:
             
             # Build ledger payload (source: exchange snapshot)
             # CRITICAL: position_amt MUST be signed (negative=SHORT, positive=LONG)
-            # P3.3 reads last_known_amt to derive ledger_side by sign
+            # Both reconcile_engine (ledger_amt) and P3.3 (last_known_amt) must agree.
             ledger_key = f"quantum:position:ledger:{symbol}"
             ledger_payload = {
-                "position_amt": str(position_amt),  # SIGNED: keep negative for SHORT
-                "last_known_amt": str(position_amt),  # P3.3 reads this field
-                "qty": str(abs(position_amt)),  # Magnitude (always positive)
-                "side": ledger_side,  # Derived from sign
-                "last_side": ledger_side,
-                "avg_entry_price": str(entry_price),
-                "entry_price": str(entry_price),
-                "unrealized_pnl": str(unrealized_pnl),
-                "leverage": str(leverage),
-                "last_order_id": str(order_id),
-                "last_filled_qty": str(filled_qty),
-                "last_executed_qty": str(filled_qty),
-                "last_update_ts": str(int(time.time())),
-                "updated_at": str(int(time.time())),
-                "synced_at": str(int(time.time())),
-                "source": "intent_executor_exactly_once"
+                # reconcile_engine fields
+                "ledger_amt":         str(position_amt),   # SIGNED
+                "ledger_side":        ledger_side,
+                # P3.3 fields (last_known_amt signed: neg=SHORT)
+                "position_amt":       str(position_amt),
+                "last_known_amt":     str(position_amt),
+                "qty":                str(abs(position_amt)),
+                "side":               ledger_side,
+                "last_side":          ledger_side,
+                "avg_entry_price":    str(entry_price),
+                "entry_price":        str(entry_price),
+                "unrealized_pnl":     str(unrealized_pnl),
+                "leverage":           str(leverage),
+                "last_order_id":      str(order_id),
+                "last_filled_qty":    str(filled_qty),
+                "last_executed_qty":  str(filled_qty),
+                "last_update_ts":     str(int(time.time())),
+                "updated_at":         str(int(time.time())),
+                "synced_at":          str(int(time.time())),
+                "source":             "intent_executor_exactly_once"
             }
             
             # Atomic ledger write

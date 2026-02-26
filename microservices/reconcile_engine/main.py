@@ -657,12 +657,23 @@ class ReconcileEngine:
         )
         
         key = f"quantum:position:ledger:{symbol}"
+        # DELETE first so no stale fields from previous writes survive.
+        # Write BOTH field-name conventions (same pattern as _initialize_ledger):
+        #   reconcile_engine reads: ledger_amt, ledger_side
+        #   P3.3 reads:             last_known_amt (signed), last_side, updated_at
+        self.redis.delete(key)
         self.redis.hset(key, mapping={
-            "ledger_amt": new_ledger.ledger_amt,
-            "ledger_side": new_ledger.ledger_side,
-            "ts_epoch": new_ledger.ts_epoch,
-            "source": new_ledger.source,
-            "version": new_ledger.version
+            # reconcile_engine fields
+            "ledger_amt":     new_ledger.ledger_amt,
+            "ledger_side":    new_ledger.ledger_side,
+            "ts_epoch":       new_ledger.ts_epoch,
+            "source":         new_ledger.source,
+            "version":        new_ledger.version,
+            # P3.3 fields (last_known_amt signed: neg=SHORT)
+            "last_known_amt": new_ledger.ledger_amt,
+            "last_side":      new_ledger.ledger_side,
+            "position_amt":   new_ledger.ledger_amt,
+            "updated_at":     new_ledger.ts_epoch,
         })
         
         # Update state
