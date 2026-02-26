@@ -282,6 +282,14 @@ class ReconcileEngine:
     def reconcile_symbol(self, symbol: str):
         """Reconcile single symbol (drift correction — allowlist only)"""
         try:
+            # Quick exit: no Redis position key means symbol is flat — nothing to reconcile.
+            # P3.3 only writes exchange snapshots for open positions, so a missing snapshot
+            # for a flat allowlist symbol would otherwise spam HOLD_SET every loop tick.
+            pos_key = f"quantum:position:{symbol}"
+            if not self.redis.exists(pos_key):
+                self._clear_hold(symbol)
+                return
+
             # 1. Read exchange snapshot
             exchange = self._read_exchange_snapshot(symbol)
             if not exchange:
