@@ -264,6 +264,21 @@ class ReconcileEngine:
             if cursor == 0:
                 break
 
+        # --- LEDGER REPAIR: For every symbol confirmed open on Binance,
+        # ensure a ledger exists.  Covers symbols missed by drift-correction
+        # allowlist (e.g. ADAUSDT) whose ledger was never initialized.
+        for symbol in open_symbols:
+            ledger_key = f"quantum:position:ledger:{symbol}"
+            if not self.redis.exists(ledger_key):
+                exchange = self._read_exchange_snapshot(symbol)
+                if exchange:
+                    repaired = self._initialize_ledger(symbol, exchange)
+                    if repaired:
+                        logger.warning(
+                            f"{symbol}: LEDGER_REPAIR — initialized missing ledger from "
+                            f"exchange snapshot amt={exchange.position_amt:.4f}"
+                        )
+
     def reconcile_symbol(self, symbol: str):
         """Reconcile single symbol (drift correction — allowlist only)"""
         try:

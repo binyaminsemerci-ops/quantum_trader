@@ -197,7 +197,8 @@ class BalanceTracker:
                 entry_price = float(position.get("entryPrice", 0))
                 position_amt = float(position.get("positionAmt", 0))  # Signed: +LONG, -SHORT
                 unrealized = float(position.get("unrealizedProfit", 0))
-                
+                _sym = position.get("symbol", "")
+
                 # Calculate mark price from PnL
                 # For linear contracts: PnL = (mark - entry) * qty for LONG
                 #                       PnL = (entry - mark) * abs(qty) for SHORT
@@ -206,10 +207,27 @@ class BalanceTracker:
                     mark_price = entry_price + (unrealized / position_amt)  # Uses signed qty!
                 else:
                     mark_price = entry_price
-                
+
+                # Read stop_loss/take_profit from Redis position ledger if available
+                _sl = "0"
+                _tp = "0"
+                try:
+                    _pos_hash = await self.redis.hgetall(f"quantum:position:{_sym}") or {}
+                    if not _pos_hash:
+                        _pos_hash = await self.redis.hgetall(f"quantum:position:ledger:{_sym}") or {}
+
+                    def _fld(h, key):
+                        v = h.get(key) or h.get(key.encode(), b"")
+                        return v.decode() if isinstance(v, bytes) else str(v) if v else ""
+
+                    _sl = _fld(_pos_hash, "stop_loss") or "0"
+                    _tp = _fld(_pos_hash, "take_profit") or "0"
+                except Exception:
+                    pass
+
                 position_data = {
                     "event_type": "position.snapshot",
-                    "symbol": position.get("symbol", ""),
+                    "symbol": _sym,
                     "side": "LONG" if position_amt > 0 else "SHORT",
                     "position_qty": str(abs(position_amt)),  # PositionTracker expects position_qty
                     "entry_price": str(entry_price),
@@ -219,6 +237,8 @@ class BalanceTracker:
                     "isolated": str(position.get("isolated", False)),
                     "liquidation_price": str(position.get("liquidationPrice", 0)),
                     "margin_type": "isolated" if position.get("isolated", False) else "cross",
+                    "stop_loss": _sl,
+                    "take_profit": _tp,
                     "entry_timestamp": str(int(time.time())),  # Add entry_timestamp
                     "timestamp": str(int(time.time())),
                     "source": "balance-tracker"
