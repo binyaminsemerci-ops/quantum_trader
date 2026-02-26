@@ -17,11 +17,13 @@ import sys
 import time
 import json
 import logging
+import hmac
+import hashlib
+import urllib.request
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from enum import Enum
-import hashlib
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -56,6 +58,12 @@ REDIS_DB = int(os.getenv("QUANTUM_REDIS_DB", "0"))
 ALLOWLIST = os.getenv("P34_ALLOWLIST", "BTCUSDT").split(",")
 LOOP_CADENCE_SEC = float(os.getenv("P34_LOOP_CADENCE_SEC", "1.0"))
 PROMETHEUS_PORT = int(os.getenv("P34_PROMETHEUS_PORT", "8046"))
+
+# Binance API (source of truth for ghost detection)
+BINANCE_API_KEY    = os.getenv("BINANCE_TESTNET_API_KEY", "")
+BINANCE_API_SECRET = os.getenv("BINANCE_TESTNET_API_SECRET", "")
+BINANCE_BASE_URL   = os.getenv("BINANCE_TESTNET_BASE_URL", "https://testnet.binancefuture.com")
+GHOST_PURGE_INTERVAL_SEC = int(os.getenv("P34_GHOST_PURGE_INTERVAL_SEC", "60"))  # call Binance every 60s
 
 # Drift detection thresholds
 EXCHANGE_FRESHNESS_SEC = int(os.getenv("P34_EXCHANGE_FRESHNESS_SEC", "10"))
@@ -153,6 +161,8 @@ class ReconcileEngine:
         logger.info(f"Loop cadence: {LOOP_CADENCE_SEC}s")
         logger.info(f"Exchange freshness: {EXCHANGE_FRESHNESS_SEC}s")
         logger.info(f"Drift tolerance: {QTY_DRIFT_TOLERANCE_PCT}%")
+        logger.info(f"Ghost purge interval: {GHOST_PURGE_INTERVAL_SEC}s (calls Binance API directly)")
+        self._last_ghost_purge_ts = 0.0  # force purge on first run
     
     def run(self):
         """Main reconciliation loop"""
@@ -160,13 +170,16 @@ class ReconcileEngine:
         
         while True:
             try:
+                # ── Ghost purge: runs for ALL Redis position keys, allowlist-independent ──
+                self._purge_ghosts()
+
+                # ── Drift correction: runs only for allowlisted symbols ──
                 for symbol in ALLOWLIST:
                     symbol = symbol.strip()
                     if not symbol:
                         continue
-                    
                     self.reconcile_symbol(symbol)
-                
+
                 time.sleep(LOOP_CADENCE_SEC)
                 
             except KeyboardInterrupt:
@@ -176,8 +189,83 @@ class ReconcileEngine:
                 logger.error(f"Loop error: {e}", exc_info=True)
                 time.sleep(LOOP_CADENCE_SEC)
     
+    def _fetch_binance_open_symbols(self) -> Optional[set]:
+        """Call Binance /fapi/v2/positionRisk directly and return the set of
+        symbols with abs(positionAmt) > 0.  Returns None on any error so the
+        caller can skip the purge pass safely (fail-closed)."""
+        if not BINANCE_API_KEY or not BINANCE_API_SECRET:
+            logger.warning("GHOST_PURGE: BINANCE_TESTNET_API_KEY/SECRET not set — skipping")
+            return None
+        try:
+            ts  = int(time.time() * 1000)
+            qs  = f"timestamp={ts}"
+            sig = hmac.new(BINANCE_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
+            url = f"{BINANCE_BASE_URL}/fapi/v2/positionRisk?{qs}&signature={sig}"
+            req = urllib.request.Request(url, headers={"X-MBX-APIKEY": BINANCE_API_KEY})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                raw = json.loads(resp.read())
+            open_symbols = {
+                p["symbol"]
+                for p in raw
+                if abs(float(p.get("positionAmt", 0))) > 0
+            }
+            logger.info(f"GHOST_PURGE: Binance reports {len(open_symbols)} open positions: {sorted(open_symbols)}")
+            return open_symbols
+        except Exception as e:
+            logger.error(f"GHOST_PURGE: Binance API call failed: {e} — skipping purge pass")
+            return None
+
+    def _purge_ghosts(self):
+        """Compare ALL quantum:position:{symbol} Redis keys directly against
+        live Binance positionRisk API.  Any symbol in Redis that Binance
+        reports as FLAT (positionAmt == 0) is a ghost and is deleted.
+
+        Runs every GHOST_PURGE_INTERVAL_SEC (default 60s), independently of
+        the ALLOWLIST — no ghost can survive regardless of trading symbol.
+        """
+        now = time.time()
+        if now - self._last_ghost_purge_ts < GHOST_PURGE_INTERVAL_SEC:
+            return  # not time yet
+        self._last_ghost_purge_ts = now
+
+        # 1. Get ground truth from Binance
+        open_symbols = self._fetch_binance_open_symbols()
+        if open_symbols is None:
+            return  # API error — skip, be safe
+
+        # 2. Scan all Redis position keys
+        cursor = 0
+        while True:
+            cursor, keys = self.redis.scan(cursor, match=b"quantum:position:*", count=200)
+            for raw_key in keys:
+                key = raw_key.decode() if isinstance(raw_key, bytes) else raw_key
+                if ":snapshot:" in key or ":ledger:" in key or ":claim:" in key:
+                    continue
+                symbol = key.replace("quantum:position:", "")
+
+                if symbol in open_symbols:
+                    continue  # Binance confirms open — leave it
+
+                # Not in Binance open positions → ghost → purge
+                ledger_key = f"quantum:position:ledger:{symbol}"
+                snap_key   = f"quantum:position:snapshot:{symbol}"
+                d_pos    = self.redis.delete(key)
+                d_ledger = self.redis.delete(ledger_key)
+                d_snap   = self.redis.delete(snap_key)
+                logger.warning(
+                    f"{symbol}: GHOST_PURGE — not in Binance positionRisk (confirmed FLAT). "
+                    f"Deleted: position={d_pos} ledger={d_ledger} snapshot={d_snap}"
+                )
+                self._emit_event("GHOST_PURGE", symbol, {
+                    "reason": "not_in_binance_position_risk",
+                })
+                if PROMETHEUS_AVAILABLE:
+                    p34_drift_detected.labels(symbol=symbol, reason="ghost_purge").inc()
+            if cursor == 0:
+                break
+
     def reconcile_symbol(self, symbol: str):
-        """Reconcile single symbol"""
+        """Reconcile single symbol (drift correction — allowlist only)"""
         try:
             # 1. Read exchange snapshot
             exchange = self._read_exchange_snapshot(symbol)
