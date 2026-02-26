@@ -192,15 +192,14 @@ class PnLFeedbackListener:
                 "margin_util": margin_util
             }
             
-            # Update RL agent (deprecated method, kept for compatibility)
-            self.rl_agent.update_policy(
-                pnl_trend=pnl_trend,
-                leverage=leverage,
-                confidence=confidence,
-                exch_divergence=exch_divergence,
-                funding_rate=funding_rate
-            )
-            
+            # This stream contains PRE-TRADE state data (confidence, volatility,
+            # pnl_trend, etc.) but NO trade outcome (pnl_pct).  We cannot call
+            # record_experience() without the outcome reward.  The closed-trade
+            # learning path is handled by rl_agent_daemon.py which reads from
+            # quantum:stream:trade.closed and quantum:stream:rl_rewards.
+            # update_policy() was a deprecated stub that did nothing —
+            # removed to avoid misleading log noise.
+
             # Update statistics
             self.messages_processed += 1
             
@@ -238,14 +237,9 @@ class PnLFeedbackListener:
                 "margin_util": margin_util
             }
             
-            # Update RL agent
-            self.rl_agent.update_policy(
-                pnl_trend=pnl_trend,
-                leverage=leverage,
-                confidence=confidence,
-                exch_divergence=exch_divergence,
-                funding_rate=funding_rate
-            )
+            # This stream contains PRE-TRADE state data only — no pnl_pct outcome.
+            # Real RL learning happens in rl_agent_daemon.py (trade.closed path).
+            # update_policy() was a deprecated no-op stub — removed.
             
             # Update statistics
             self.messages_processed += 1

@@ -810,10 +810,25 @@ class IntentBridge:
         # Fee breakeven metadata: minimum price move needed to cover round-trip costs.
         # Downstream risk_kernel and apply_layer can use this to filter marginal trades.
         entry_price = intent.get("entry_price")
-        if entry_price and entry_price > 0 and intent["side"].upper() == "BUY":
-            breakeven = entry_price * (1 + ROUND_TRIP_COST)
-            message_fields[b"breakeven_price"] = f"{breakeven:.8f}".encode()
-            logger.debug(f"[FEE_META] {intent['symbol']} entry={entry_price:.4f} breakeven={breakeven:.4f} ({ROUND_TRIP_COST:.4%} rt-cost)")
+        if entry_price and entry_price > 0:
+            # BUG FIX: publish entry_price so apply_layer SL-direction check works.
+            # Without this, apply_layer always reads entry_price=0.0 and silently
+            # skips the SL-direction validation → wrong-direction SL goes through.
+            message_fields[b"entry_price"] = f"{entry_price:.8f}".encode()
+            if intent["side"].upper() == "BUY":
+                breakeven = entry_price * (1 + ROUND_TRIP_COST)
+                message_fields[b"breakeven_price"] = f"{breakeven:.8f}".encode()
+                logger.debug(f"[FEE_META] {intent['symbol']} entry={entry_price:.4f} breakeven={breakeven:.4f} ({ROUND_TRIP_COST:.4%} rt-cost)")
+
+        # BUG FIX: forward ATR/volatility data from source_payload so apply_layer
+        # can compute entry_risk_usdt correctly (was always 0.0 / risk_missing=1).
+        _src = intent.get("source_payload") or {}
+        _atr = _src.get("atr_value") or intent.get("atr_value")
+        _vol = _src.get("volatility_factor") or intent.get("volatility_factor")
+        if _atr:
+            message_fields[b"atr_value"] = str(_atr).encode()
+        if _vol:
+            message_fields[b"volatility_factor"] = str(_vol).encode()
         
         # Publish to quantum:stream:apply.plan with FLAT structure
         message_id = self.redis.xadd(

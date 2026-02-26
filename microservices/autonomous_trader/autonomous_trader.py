@@ -422,8 +422,10 @@ class AutonomousTrader:
                 "margin_util": 0.0  # Not using yet
             }
             
-            # Get RL agent decision
-            action = self.rl_agent.get_action(state)
+            # Get RL sizing multiplier (returns float in [0.5, 1.5])
+            # NOTE: get_position_size_multiplier() replaces the old get_action()
+            #       which no longer exists on RLPositionSizingAgent.
+            multiplier = self.rl_agent.get_position_size_multiplier(state)
             
             # Default sizing if RL fails
             position_usd = min(self.max_position_usd, 300.0)
@@ -431,12 +433,9 @@ class AutonomousTrader:
             tp_pct = 2.0
             sl_pct = 1.0
             
-            if action:
-                # Parse RL output (position%, leverage, tp%, sl%)
-                position_usd = min(self.max_position_usd, action.get("position_size_usd", 300.0))
-                leverage = max(1.0, min(5.0, action.get("leverage", 2.0)))
-                tp_pct = action.get("tp_pct", 2.0)
-                sl_pct = action.get("sl_pct", 1.0)
+            if multiplier:
+                # Apply RL multiplier to base position size
+                position_usd = min(self.max_position_usd, 300.0 * multiplier)
             
             return {
                 "position_usd": position_usd,

@@ -92,8 +92,13 @@ class XGBAgent:
         try:
             import glob
             all_files = glob.glob(os.path.join(base_dir, pattern))
-            # Filter out scaler, features, and metadata files
-            model_files = [f for f in all_files if not any(x in os.path.basename(f) for x in ["_scaler", "_features", "_metadata"])]
+            # Only filter out auxiliary files when pattern targets the main model
+            # (i.e. skip the filter if pattern itself targets _scaler/_features/_metadata)
+            is_auxiliary_pattern = any(x in pattern for x in ["_scaler", "_features", "_metadata"])
+            if is_auxiliary_pattern:
+                model_files = all_files  # Keep as-is — pattern already targets specific suffix
+            else:
+                model_files = [f for f in all_files if not any(x in os.path.basename(f) for x in ["_scaler", "_features", "_metadata"])]
             if model_files:
                 # Sort by filename (timestamp is in filename)
                 latest = sorted(model_files)[-1]
@@ -159,11 +164,12 @@ class XGBAgent:
         logger.info(f"[XGB-INIT] Model file: {os.path.basename(self.model_path)}")
         logger.info(f"[XGB-INIT] Scaler file: {os.path.basename(self.scaler_path) if self.scaler else 'None'}")
         
-        # Try to log expected feature dimension
-        feature_names_path = os.path.join(
-            os.path.dirname(self.model_path), 
-            'xgboost_features.pkl'
-        )
+        # Try to log expected feature dimension — check versioned file first, then legacy name
+        model_dir = os.path.dirname(self.model_path)
+        model_stem = os.path.splitext(os.path.basename(self.model_path))[0]  # e.g. xgb_v6_20260224_211219
+        feature_names_path = os.path.join(model_dir, model_stem + '_features.pkl')
+        if not os.path.exists(feature_names_path):
+            feature_names_path = os.path.join(model_dir, 'xgboost_features.pkl')  # legacy fallback
         if os.path.exists(feature_names_path):
             try:
                 with open(feature_names_path, 'rb') as f:
@@ -353,11 +359,25 @@ class XGBAgent:
             
             # Load feature names from model training if available
             import os
-            feature_names_path = os.path.join(
-                os.path.dirname(self.model_path), 
-                'xgboost_features.pkl'
-            )
+            # Check versioned features file first (e.g. xgb_v6_20260224_211219_features.pkl)
+            model_stem = os.path.splitext(os.path.basename(self.model_path))[0]
+            feature_names_path = os.path.join(os.path.dirname(self.model_path), model_stem + '_features.pkl')
+            if not os.path.exists(feature_names_path):
+                # Legacy fallback
+                feature_names_path = os.path.join(os.path.dirname(self.model_path), 'xgboost_features.pkl')
             
+            # 🔧 Pre-process: cap features known to produce init artifacts
+            # ADX/DI hitting exactly 100 (or 0) means insufficient candle history
+            # in the feature publisher — these out-of-range values cause HOLD degeneracy.
+            # Cap to physiologically realistic maximums (ADX rarely exceeds 80 in real markets).
+            _FEAT_CAPS = {'adx': 80.0, 'plus_di': 55.0, 'minus_di': 55.0}
+            _capped = {k: min(float(features.get(k, 0.0)), v) for k, v in _FEAT_CAPS.items()
+                       if k in features and float(features.get(k, 0.0)) > v}
+            if _capped:
+                features = dict(features)  # don't mutate caller's dict
+                features.update(_capped)
+                logger.debug(f"[XGB] {symbol}: capped init artifacts {_capped}")
+
             if os.path.exists(feature_names_path):
                 # FUTURES model - use exact feature order from training
                 with open(feature_names_path, 'rb') as f:
@@ -405,7 +425,12 @@ class XGBAgent:
             if np.any(np.isinf(feature_array)):
                 raise ValueError(f"[XGB] QSC FAIL-CLOSED: Feature array contains Inf values for {symbol}")
             
-            # Check dimension match if scaler available
+            # XGBoost is scale-invariant (tree thresholds learned from raw values during training).
+            # Live features from the feature publisher, when transformed by the training scaler,
+            # fall in an OOD region → 93-100% HOLD degeneracy. Raw features give correct
+            # ~40% SELL / ~37% HOLD / ~23% BUY distribution (verified 2026-02-24).
+            # The scaler is retained for diagnostic metadata only.
+            skip_scaler = True
             if self.scaler and hasattr(self.scaler, 'n_features_in_'):
                 expected_dim = self.scaler.n_features_in_
                 actual_dim = feature_array.shape[1]
@@ -413,14 +438,14 @@ class XGBAgent:
                     # BYPASS scaler when dimension mismatch (feature engineering evolution)
                     logger.warning(
                         f"[XGB] Feature dimension mismatch for {symbol}: "
-                        f"Model expects {expected_dim}, got {actual_dim}. "
-                        f"Bypassing scaler and using raw features (model may have been trained differently)."
+                        f"Scaler expects {expected_dim}, got {actual_dim}. "
+                        f"Bypassing scaler for this prediction (XGBoost is scale-invariant)."
                     )
-                    # Continue without scaling (model will use raw features)
-                    self.scaler = None
+                    # Use local skip flag — do NOT null out self.scaler (avoid permanent side-effect)
+                    skip_scaler = True
             
-            # Scale if scaler available
-            if self.scaler:
+            # Scale if scaler available and dimensions match
+            if self.scaler and not skip_scaler:
                 try:
                     import pandas as pd
                     if hasattr(self.scaler, "feature_names_in_"):
@@ -437,6 +462,17 @@ class XGBAgent:
                     feature_array = self.scaler.transform(feature_array)
                 except Exception:
                     feature_array = self.scaler.transform(feature_array)
+                
+                # 🔒 Clip extreme z-scores — ADX/DI hitting 100 (initialization artifact)
+                # produces z≈8σ which makes XGBoost degenerate. Clip to ±5σ (robust inference).
+                outlier_mask = np.abs(feature_array) > 5
+                if outlier_mask.any():
+                    n_outliers = outlier_mask.sum()
+                    logger.warning(
+                        f"[XGB] {symbol}: clipping {n_outliers} feature(s) outside ±5σ "
+                        f"(max |z|={np.abs(feature_array).max():.1f}) — likely ADX/DI init artifact"
+                    )
+                    feature_array = np.clip(feature_array, -5, 5)
             else:
                 import numpy as np
                 feature_array = np.array(feature_list).reshape(1, -1)
@@ -473,7 +509,8 @@ class XGBAgent:
                 confidence = float(max(proba))
             
             # Map prediction to action
-            action_map = {0: 'HOLD', 1: 'BUY', 2: 'SELL'}
+            # Labels from train_xgb_v6.py: 0=SELL (bottom 20%), 1=HOLD (middle 60%), 2=BUY (top 20%)
+            action_map = {0: 'SELL', 1: 'HOLD', 2: 'BUY'}
             action = action_map.get(prediction, 'HOLD')
             
             # 🔬 FORENSICS: Rate-limited debug logging (max once per 30s)
@@ -492,10 +529,8 @@ class XGBAgent:
                     f"mode={conf_mode} feat_dim={feature_array.shape[1]} hash={feat_hash}"
                 )
             
-            # DEBUG: Log every 10th prediction (existing code)
-            import random
-            if random.random() < 0.1:  # 10% sampling
-                logger.info(f"XGB {symbol}: {action} {confidence:.2%} (pred={prediction})")
+            # Log every prediction (matches LGBM/NHiTS format for proof-script parsing)
+            logger.info(f"XGB {symbol}: {action} {confidence:.2%} (pred={prediction})")
             
             # 🔒 FAIL-CLOSED: Degeneracy detection (testnet/collection only)
             is_testnet = os.getenv('BINANCE_TESTNET', 'false').lower() == 'true'

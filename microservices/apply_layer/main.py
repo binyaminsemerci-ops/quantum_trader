@@ -2668,13 +2668,16 @@ class ApplyLayer:
                         logger.info(f"[ENTRY] {symbol}: Processing {side} intent (→{position_side}, leverage={leverage}, qty={qty}, plan_id={plan_id[:8]})")
                         
                         # 🔥 HARD GATE: Check total position limit (MAX 10 SYMBOLS)
-                        # FIX: Only count ACTIVE positions — exclude snapshot:, ledger:, cooldown: keys
+                        # FIX: Only count ACTIVE positions — exclude snapshot:, ledger:,
+                        # cooldown: and claim: keys (claim keys are 30s race-guards that
+                        # would otherwise falsely inflate the count by 1 per in-flight order).
                         _all_raw = self.redis.keys("quantum:position:*")
                         all_positions = [
                             k for k in _all_raw
                             if b'snapshot' not in (k if isinstance(k, bytes) else k.encode())
                             and b'ledger' not in (k if isinstance(k, bytes) else k.encode())
                             and b'cooldown' not in (k if isinstance(k, bytes) else k.encode())
+                            and b'claim' not in (k if isinstance(k, bytes) else k.encode())
                         ]
                         if len(all_positions) >= 10:
                             logger.warning(f"[ENTRY] {symbol}: Order REJECTED - position limit reached ({len(all_positions)}/10 active positions, total_keys={len(_all_raw)})")

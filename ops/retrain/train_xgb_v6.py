@@ -39,17 +39,24 @@ print("=" * 70)
 print("XGBoost v6 Training - Fresh from Binance (49 features)")
 print("=" * 70)
 
+# v7: 12 symbols + percentile labels (same approach as TFT v3)
+symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT",
+           "XRPUSDT", "DOTUSDT", "DOGEUSDT", "AVAXUSDT", "LTCUSDT",
+           "UNIUSDT", "SUIUSDT"]
+LABEL_PERCENTILE = 25  # top/bottom 25% per-symbol → BUY/SELL, middle 50% → HOLD (aligns with LGBM v3)
+LOOKAHEAD = 4          # 4-candle (4h) lookahead — stronger signal than 1h noise
+
 # Fetch data from Binance
 print(f"\n📊 Fetching data from Binance...")
-symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT", "XRPUSDT", "DOTUSDT", "MATICUSDT"]
 bc = BinanceMarketDataClient()
 dfs = []
 
 for symbol in symbols:
     print(f"   {symbol}: ", end="", flush=True)
-    candles = bc.get_latest_candles(symbol, "1h", limit=1000)
+    candles = bc.get_latest_candles(symbol, "1h", limit=5000)  # ~208 days for meaningful 4h signal
     if candles is not None and len(candles) > 0:
         print(f"{len(candles)} candles")
+        candles['_symbol'] = symbol  # Track symbol for per-symbol labeling
         dfs.append(candles)
     else:
         print("FAILED")
@@ -58,31 +65,45 @@ if not dfs:
     print("❌ ERROR: No data fetched from Binance")
     sys.exit(1)
 
-df = pd.concat(dfs, ignore_index=True)
-df_original = df.copy()  # Save original for create_labels
-print(f"[INFO] Total raw samples: {len(df)}")
+# Combine all raw data before per-symbol processing
+df_raw = pd.concat(dfs, ignore_index=True)
+print(f"[INFO] Total raw samples: {len(df_raw)}")
 
-# Calculate v6 features (49 features)
-print(f"\n[FEATURES] Calculating 49 v6 features...")
-df = calculate_features_v6(df)
+# Apply per-symbol percentile labels (prevents HOLD bias from absolute threshold)
+print(f"\n[LABELS] Applying percentile labels (LABEL_PERCENTILE={LABEL_PERCENTILE})...")
+processed_dfs = []
+for sym_name in symbols:
+    df_sym_orig = df_raw[df_raw['_symbol']==sym_name].copy()
+    if len(df_sym_orig) < 100:
+        print(f"  [{sym_name}] Skipping - too few rows ({len(df_sym_orig)})")
+        continue
+    df_sym_feat = calculate_features_v6(df_sym_orig.copy())
+    # 1-candle lookahead forward return
+    fwd = (df_sym_orig['close'].shift(-LOOKAHEAD) / df_sym_orig['close'] - 1.0) * 100.0
+    fwd = fwd.loc[df_sym_feat.index]  # align indices
+    buy_thresh  = np.nanpercentile(fwd.dropna().values, 100 - LABEL_PERCENTILE)
+    sell_thresh = np.nanpercentile(fwd.dropna().values, LABEL_PERCENTILE)
+    labels = np.where(fwd >= buy_thresh, 2, np.where(fwd <= sell_thresh, 0, 1))
+    df_sym_feat['label'] = labels
+    df_sym_feat = df_sym_feat.dropna(subset=FEATURES_V6 + ['label']).iloc[:-LOOKAHEAD]
+    buy_cnt  = int((df_sym_feat['label']==2).sum())
+    hold_cnt = int((df_sym_feat['label']==1).sum())
+    sell_cnt = int((df_sym_feat['label']==0).sum())
+    print(f"  [{sym_name}]: {len(df_sym_feat)} rows  SELL={sell_cnt} HOLD={hold_cnt} BUY={buy_cnt}  thresh=[{sell_thresh:.3f}%, {buy_thresh:.3f}%]")
+    processed_dfs.append(df_sym_feat)
 
-# Verify features
-available_features = [f for f in FEATURES_V6 if f in df.columns]
-missing_features = [f for f in FEATURES_V6 if f not in df.columns]
+if not processed_dfs:
+    print("❌ ERROR: No processed data")
+    sys.exit(1)
 
-if missing_features:
-    print(f"⚠️ WARNING: Missing features: {missing_features}")
-    print(f"[FEATURES] Using {len(available_features)}/49 features")
-    FEATURES_V6 = available_features
-else:
-    print(f"[FEATURES] ✅ All 49 features calculated, {len(df)} valid samples")
-
-# Create labels
-print(f"\n[LABELS] Creating labels...")
-df, y = create_labels(df, df_original, threshold=0.015, lookahead=5)
-
-# Extract features
+df = pd.concat(processed_dfs, ignore_index=True)
+y = df['label'].values.astype(int)
 X = df[FEATURES_V6].values
+
+total = len(y)
+print(f"\n[INFO] Combined: {total} samples")
+sell_c, hold_c, buy_c = int((y==0).sum()), int((y==1).sum()), int((y==2).sum())
+print(f"[LABELS] Global dist: SELL={sell_c} ({sell_c/total*100:.1f}%) HOLD={hold_c} ({hold_c/total*100:.1f}%) BUY={buy_c} ({buy_c/total*100:.1f}%)")
 
 # Train/validation/test split (70/15/15)
 print(f"\n[SPLIT] Splitting data...")
@@ -112,14 +133,14 @@ print(f"\n⚖️ Class weights: {class_weights}")
 params = {
     "objective": "multi:softprob",
     "num_class": 3,
-    "learning_rate": 0.05,
-    "max_depth": 8,
-    "min_child_weight": 3,
+    "learning_rate": 0.03,   # was 0.05 — lower lr for better generalization (matches LGBM)
+    "max_depth": 5,          # was 8 — shallower trees reduce overfitting
+    "min_child_weight": 10,  # was 3 — require more samples per leaf
     "subsample": 0.8,
-    "colsample_bytree": 0.8,
-    "gamma": 0.1,
-    "reg_alpha": 0.1,  # L1 regularization
-    "reg_lambda": 1.0,  # L2 regularization
+    "colsample_bytree": 0.7, # was 0.8 — more feature randomness
+    "gamma": 0.2,            # was 0.1 — higher min-split-loss
+    "reg_alpha": 0.3,        # was 0.1 — stronger L1 (matches LGBM)
+    "reg_lambda": 2.0,       # was 1.0 — stronger L2 (matches LGBM)
     "eval_metric": "mlogloss",
     "tree_method": "hist",
     "random_state": 42
@@ -137,10 +158,10 @@ evals = [(dtrain, 'train'), (dval, 'valid')]
 model = xgb.train(
     params,
     dtrain,
-    num_boost_round=200,
+    num_boost_round=600,        # was 200 — more rounds needed with lower lr=0.03
     evals=evals,
-    early_stopping_rounds=20,
-    verbose_eval=10
+    early_stopping_rounds=30,   # was 20
+    verbose_eval=25
 )
 
 best_iteration = model.best_iteration

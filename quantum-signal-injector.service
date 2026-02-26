@@ -1,0 +1,22 @@
+[Unit]
+Description=QuantumTrader Signal Injector - Redis stream publisher
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/quantum
+Environment=QT_SIGNAL_SYMBOLS=ETHUSDT,BTCUSDT,SOLUSDT,XRPUSDT,BNBUSDT,ADAUSDT,SUIUSDT,LINKUSDT,AVAXUSDT,LTCUSDT,DOTUSDT,NEARUSDT
+Environment=QT_INJECT_INTERVAL=60
+Environment=QT_INJECT_MIN_MOVE=0.003
+Environment=QT_INJECT_CONFIDENCE=0.68
+Environment=REDIS_URL=redis://127.0.0.1:6379
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python /opt/quantum/signal_injector.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

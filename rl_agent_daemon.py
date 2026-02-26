@@ -113,17 +113,30 @@ class RLAgentDaemon:
                         
                         # Parse state
                         state = json.loads(state_json) if state_json else {}
-                        
-                        # Convert state dict to numpy array
-                        state_vector = self._state_dict_to_vector(state)
-                        
-                        # Store experience in agent
-                        # (The agent has its own experience buffer)
+                        pnl_pct   = float(fields.get("pnl_pct", reward * 100)) / 100.0  # normalise to fraction
+                        leverage  = float(fields.get("leverage", 1.0))
+                        tgt_lev   = float(fields.get("target_leverage", leverage))
+
+                        # next_state is not stored in the stream — use current state
+                        # as an approximation (only exp.state & exp.reward are used
+                        # in _retrain, so this is safe).
+                        next_state = state.copy()
+
+                        # ── FIXED: actually store experience in the agent buffer ──
+                        self.agent.record_experience(
+                            state=state,
+                            action=action,
+                            pnl_pct=pnl_pct,
+                            next_state=next_state,
+                            leverage=leverage,
+                            target_leverage=tgt_lev,
+                        )
+
                         logger.debug(
                             f"Reward received: {symbol} "
                             f"reward={reward:.4f} action={action:.4f}"
                         )
-                        
+
                         self.experiences_processed += 1
                         
                     except Exception as e:

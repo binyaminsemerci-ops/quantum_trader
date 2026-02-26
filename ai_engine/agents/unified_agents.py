@@ -358,9 +358,11 @@ class BaseAgent:
             self.logger.w(f"Scaler not found at {scaler_path}")
             self.scaler = None
         
-        # Load metadata
-        if os.path.exists(meta_path):
-            meta=json.load(open(meta_path))
+        # Load metadata — try both _meta.json and _metadata.json suffixes
+        meta_alt_path = f"{base_path}_metadata.json"
+        meta_found = meta_path if os.path.exists(meta_path) else (meta_alt_path if os.path.exists(meta_alt_path) else None)
+        if meta_found:
+            meta=json.load(open(meta_found))
             self.features=meta.get("features",[])
             self.version=meta.get("version","unknown")
         else:
@@ -717,6 +719,7 @@ class TFTAgent(BaseAgent):
     def __init__(self):
         super().__init__("TFT-Agent", "tft_v")
         self.pytorch_model = None
+        self.calibration_bias = None  # logit calibration vector to de-bias HOLD class
         self._load()
     
     def _load_pytorch_model(self, state_dict, meta_path):
@@ -738,6 +741,11 @@ class TFTAgent(BaseAgent):
                 num_layers = checkpoint.get('num_layers', 3)
                 num_classes = checkpoint.get('num_classes', 3)
                 dropout = checkpoint.get('dropout', 0.1)
+                # Extract calibration bias if present (v3+ models)
+                cal_bias_raw = checkpoint.get('calibration_bias', None)
+                if cal_bias_raw is not None:
+                    self.calibration_bias = torch.FloatTensor(cal_bias_raw)
+                    self.logger.i(f"Logit calibration bias loaded: {self.calibration_bias.numpy().round(3)}")
                 self.logger.i(f"Checkpoint params: input_size={input_size}, hidden_size={hidden_size}")
             else:
                 actual_state_dict = state_dict
@@ -848,6 +856,9 @@ class TFTAgent(BaseAgent):
                 # Forward pass
                 with torch.no_grad():
                     logits = self.pytorch_model(X_tensor)  # [1, 3]
+                    # Apply calibration bias to de-bias HOLD class (v3+ models)
+                    if self.calibration_bias is not None:
+                        logits = logits - self.calibration_bias.to(logits.device)
                     probs = torch.softmax(logits, dim=1)
                     class_pred = torch.argmax(probs, dim=1).item()
                     confidence = probs[0, class_pred].item()

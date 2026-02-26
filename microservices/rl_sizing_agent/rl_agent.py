@@ -356,18 +356,24 @@ class RLPositionSizingAgent:
         """Check if policy should be retrained"""
         if not TORCH_AVAILABLE or not self.policy:
             return
-        
-        # Retrain every N trades
-        if self.trades_processed % self.retrain_interval == 0 and len(self.experiences) >= 50:
-            mean_abs_pnl = np.mean([abs(exp.reward) for exp in self.experiences[-50:]])
-            
-            # Only retrain if performance below threshold
-            if mean_abs_pnl < self.retrain_threshold:
-                logger.info(
-                    f"[RL-Agent] Low performance detected "
-                    f"(mean PnL: {mean_abs_pnl:.4f}), retraining..."
-                )
-                self._retrain()
+
+        # Retrain every N trades when experience buffer is sufficiently full.
+        # NOTE: the old `mean_abs_pnl < threshold` gate was inverted — real
+        # trades produce rewards >> 0.001, so the condition was never True and
+        # learning was permanently disabled.  Removed: retrain unconditionally
+        # every `retrain_interval` trades once we have ≥ 50 experiences.
+        if (
+            self.trades_processed > 0
+            and self.trades_processed % self.retrain_interval == 0
+            and len(self.experiences) >= 50
+        ):
+            mean_abs_reward = np.mean([abs(exp.reward) for exp in self.experiences[-50:]])
+            logger.info(
+                f"[RL-Agent] Scheduled retrain at trade #{self.trades_processed} "
+                f"| mean_abs_reward={mean_abs_reward:.4f} "
+                f"| buffer={len(self.experiences)}"
+            )
+            self._retrain()
     
     def _retrain(self):
         """Retrain policy network using policy gradient"""
