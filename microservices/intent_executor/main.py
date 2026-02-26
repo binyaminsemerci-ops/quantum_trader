@@ -470,6 +470,34 @@ class IntentExecutor:
             logger.warning(f"Failed to fetch mark price for {symbol}: {e}")
             return 0
     
+    def _set_leverage(self, symbol: str, leverage: int) -> bool:
+        """Set Binance Futures leverage for a symbol before an entry order.
+        Non-fatal: warns and continues if Binance rejects (e.g. already set)."""
+        try:
+            params = {
+                "symbol": symbol,
+                "leverage": leverage,
+                "timestamp": int(time.time() * 1000)
+            }
+            query_string = urllib.parse.urlencode(params)
+            signature = hmac.new(
+                BINANCE_API_SECRET.encode(),
+                query_string.encode(),
+                hashlib.sha256
+            ).hexdigest()
+            params["signature"] = signature
+            url = f"{BINANCE_BASE_URL}/fapi/v1/leverage?{urllib.parse.urlencode(params)}"
+            req = urllib.request.Request(url, method="POST")
+            req.add_header("X-MBX-APIKEY", BINANCE_API_KEY)
+            with urllib.request.urlopen(req, timeout=10) as response:
+                result = json.loads(response.read().decode())
+                actual = result.get("leverage", leverage)
+                logger.info(f"[LEVERAGE] {symbol}: set to {actual}x ✅")
+                return True
+        except Exception as e:
+            logger.warning(f"[LEVERAGE] {symbol}: set_leverage failed (non-fatal): {e}")
+            return False
+
     def _execute_binance_order(self, symbol: str, side: str, qty: float, reduce_only: bool = True) -> Dict:
         """Execute Binance futures market order with exchange-aware sizing"""
         # Get filters
@@ -608,11 +636,16 @@ class IntentExecutor:
                     
                     ledger_key = f"quantum:position:ledger:{symbol}"
                     self.redis.hset(ledger_key, mapping={
-                        "last_known_amt": str(abs_amt),
-                        "last_side": side,
-                        "updated_at": str(int(time.time()))
+                        # reconcile_engine fields
+                        "ledger_amt":     str(amt),   # SIGNED (neg=SHORT)
+                        "ledger_side":    side,
+                        # P3.3 fields (last_known_amt must be signed)
+                        "last_known_amt": str(amt),   # SIGNED (neg=SHORT)
+                        "last_side":      side,
+                        "position_amt":   str(amt),
+                        "updated_at":     str(int(time.time())),
                     })
-                    logger.info(f"📊 Ledger updated: {symbol} {side} {abs_amt:.4f}")
+                    logger.info(f"📊 Ledger updated: {symbol} {side} {amt:.4f}")
                 else:
                     logger.warning(f"Position not found for {symbol} in positionRisk")
         except Exception as e:
@@ -702,25 +735,29 @@ class IntentExecutor:
             
             # Build ledger payload (source: exchange snapshot)
             # CRITICAL: position_amt MUST be signed (negative=SHORT, positive=LONG)
-            # P3.3 reads last_known_amt to derive ledger_side by sign
+            # Both reconcile_engine (ledger_amt) and P3.3 (last_known_amt) must agree.
             ledger_key = f"quantum:position:ledger:{symbol}"
             ledger_payload = {
-                "position_amt": str(position_amt),  # SIGNED: keep negative for SHORT
-                "last_known_amt": str(position_amt),  # P3.3 reads this field
-                "qty": str(abs(position_amt)),  # Magnitude (always positive)
-                "side": ledger_side,  # Derived from sign
-                "last_side": ledger_side,
-                "avg_entry_price": str(entry_price),
-                "entry_price": str(entry_price),
-                "unrealized_pnl": str(unrealized_pnl),
-                "leverage": str(leverage),
-                "last_order_id": str(order_id),
-                "last_filled_qty": str(filled_qty),
-                "last_executed_qty": str(filled_qty),
-                "last_update_ts": str(int(time.time())),
-                "updated_at": str(int(time.time())),
-                "synced_at": str(int(time.time())),
-                "source": "intent_executor_exactly_once"
+                # reconcile_engine fields
+                "ledger_amt":         str(position_amt),   # SIGNED
+                "ledger_side":        ledger_side,
+                # P3.3 fields (last_known_amt signed: neg=SHORT)
+                "position_amt":       str(position_amt),
+                "last_known_amt":     str(position_amt),
+                "qty":                str(abs(position_amt)),
+                "side":               ledger_side,
+                "last_side":          ledger_side,
+                "avg_entry_price":    str(entry_price),
+                "entry_price":        str(entry_price),
+                "unrealized_pnl":     str(unrealized_pnl),
+                "leverage":           str(leverage),
+                "last_order_id":      str(order_id),
+                "last_filled_qty":    str(filled_qty),
+                "last_executed_qty":  str(filled_qty),
+                "last_update_ts":     str(int(time.time())),
+                "updated_at":         str(int(time.time())),
+                "synced_at":          str(int(time.time())),
+                "source":             "intent_executor_exactly_once"
             }
             
             # Atomic ledger write
@@ -872,7 +909,16 @@ class IntentExecutor:
             # Missing field = assume CLOSE (reduce_only=true) not OPEN
             reduce_only_str = event_data.get(b"reduceOnly", b"true").decode().lower()
             reduce_only = reduce_only_str in ("true", "1", "yes")
+
+
             
+            # Extract leverage from plan (LeverageEngine via intent-bridge)
+            _lev_str = event_data.get(b"leverage", b"1").decode()
+            try:
+                plan_leverage = max(1, min(125, int(float(_lev_str))))
+            except (ValueError, TypeError):
+                plan_leverage = 1
+
             # Log warning if field was missing (indicates old/malformed plan)
             if b"reduceOnly" not in event_data:
                 logger.warning(f"⚠️  P3.3 plan {plan_id[:8]} missing reduceOnly field, defaulting to TRUE (safe mode)")
@@ -1032,8 +1078,12 @@ class IntentExecutor:
                     self._mark_done(plan_id)
                     return True
             
+            # Set leverage on Binance before entry orders (LeverageEngine value)
+            if not reduce_only:
+                self._set_leverage(symbol, plan_leverage)
+
             # Execute Binance order
-            logger.info(f"🚀 Executing Binance order: {symbol} {side} {qty_to_use:.4f} reduceOnly={reduce_only}")
+            logger.info(f"🚀 Executing Binance order: {symbol} {side} {qty_to_use:.4f} reduceOnly={reduce_only} leverage={plan_leverage}x")
             
             # Set inflight tracking (30s TTL as safety net)
             inflight_key = f"quantum:inflight:{symbol}"
