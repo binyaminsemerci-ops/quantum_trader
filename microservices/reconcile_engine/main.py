@@ -264,20 +264,55 @@ class ReconcileEngine:
             if cursor == 0:
                 break
 
-        # --- LEDGER REPAIR: For every symbol confirmed open on Binance,
-        # ensure a ledger exists.  Covers symbols missed by drift-correction
-        # allowlist (e.g. ADAUSDT) whose ledger was never initialized.
+        # --- LEDGER REPAIR: For every symbol confirmed open on Binance:
+        #   A) create missing ledger (was never initialized)
+        #   B) repair zero/FLAT ledger (e.g. DOGEUSDT: ledger_amt=0, side=FLAT
+        #      but Binance confirms open position)
+        #   C) create missing quantum:position:{sym} key so harvest brain can
+        #      see symbols that were ghost-purged incorrectly (1INCHUSDT, ACEUSDT, etc.)
         for symbol in open_symbols:
             ledger_key = f"quantum:position:ledger:{symbol}"
-            if not self.redis.exists(ledger_key):
-                exchange = self._read_exchange_snapshot(symbol)
-                if exchange:
-                    repaired = self._initialize_ledger(symbol, exchange)
-                    if repaired:
-                        logger.warning(
-                            f"{symbol}: LEDGER_REPAIR — initialized missing ledger from "
-                            f"exchange snapshot amt={exchange.position_amt:.4f}"
-                        )
+            pos_key    = f"quantum:position:{symbol}"
+
+            # Check ledger health
+            ledger_data = self.redis.hgetall(ledger_key) if self.redis.exists(ledger_key) else {}
+            ledger_amt  = abs(float(ledger_data.get("ledger_amt",
+                               ledger_data.get("last_known_amt", 0)) or 0))
+            ledger_side = (ledger_data.get("ledger_side",
+                           ledger_data.get("last_side", "FLAT")) or "FLAT").upper()
+            ledger_bad  = (not ledger_data) or (ledger_amt < 0.0001) or (ledger_side == "FLAT")
+
+            exchange = self._read_exchange_snapshot(symbol)
+            if not exchange:
+                continue  # P3.3 hasn't written a snapshot yet — skip safely
+
+            if ledger_bad:
+                repaired = self._initialize_ledger(symbol, exchange)
+                if repaired:
+                    action = "missing" if not ledger_data else "zero/FLAT"
+                    logger.warning(
+                        f"{symbol}: LEDGER_REPAIR ({action}) — initialized ledger from "
+                        f"exchange snapshot amt={exchange.position_amt:.4f} side={exchange.side}"
+                    )
+
+            # C) If quantum:position:{sym} key is missing, bootstrap it from the
+            # exchange snapshot so harvest brain can evaluate the position.
+            if not self.redis.exists(pos_key) and abs(exchange.position_amt) > 0.0001:
+                side = "LONG" if exchange.position_amt > 0 else "SHORT"
+                self.redis.hset(pos_key, mapping={
+                    "symbol":        symbol,
+                    "side":          side,
+                    "quantity":      abs(exchange.position_amt),
+                    "entry_price":   exchange.entry_price if hasattr(exchange, "entry_price") else 0,
+                    "leverage":      exchange.leverage    if hasattr(exchange, "leverage")    else 1,
+                    "opened_at":     int(time.time()),
+                    "source":        "p34_position_bootstrap",
+                    "risk_missing":  1,  # harvest brain will skip until enriched
+                })
+                logger.warning(
+                    f"{symbol}: POSITION_BOOTSTRAP — created missing Redis position key "
+                    f"from exchange snapshot (side={side} qty={abs(exchange.position_amt):.4f})"
+                )
 
     def reconcile_symbol(self, symbol: str):
         """Reconcile single symbol (drift correction — allowlist only)"""
@@ -288,6 +323,12 @@ class ReconcileEngine:
             pos_key = f"quantum:position:{symbol}"
             if not self.redis.exists(pos_key):
                 self._clear_hold(symbol)
+                return
+
+            # If a hold is already active with plenty of TTL left, skip reconcile silently.
+            # This prevents per-second WARNING logs while waiting for snapshot to refresh.
+            hold_key = f"quantum:reconcile:hold:{symbol}"
+            if self.redis.exists(hold_key) and (self.redis.ttl(hold_key) or 0) > 60:
                 return
 
             # 1. Read exchange snapshot
@@ -608,11 +649,17 @@ class ReconcileEngine:
             p34_last_fix_age_sec.labels(symbol=symbol).set(0)
     
     def _set_hold(self, symbol: str, reason: str, exchange=None, ledger=None):
-        """Set reconcile hold and publish RECONCILE_CLOSE plan"""
+        """Set reconcile hold and publish RECONCILE_CLOSE plan.
+        Rate-limited: if hold already active with >60s TTL remaining, skip
+        re-setting to avoid spamming logs and reconcile.events stream.
+        """
         key = f"quantum:reconcile:hold:{symbol}"
+        ttl = self.redis.ttl(key)
+        if ttl is not None and ttl > 60:
+            # Hold already active — no need to renew or log again
+            return
         self.redis.setex(key, HOLD_TTL_SEC, "1")
         logger.warning(f"{symbol}: HOLD set (reason={reason}, TTL={HOLD_TTL_SEC}s)")
-        
         self._emit_event("HOLD_SET", symbol, {"reason": reason, "ttl_sec": HOLD_TTL_SEC})
         if exchange and ledger:
             self._publish_reconcile_close_plan(symbol, exchange, ledger, reason)

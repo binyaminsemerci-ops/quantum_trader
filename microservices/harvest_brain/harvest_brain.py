@@ -532,10 +532,11 @@ class HarvestPolicy:
         # FACTOR 4: Extreme profit scaling
         # At very high R-levels (>6R), be more aggressive
         extreme_scale = 1.0
-        if position.R_net > 6:
-            extreme_scale = 1.15  # Take more at extreme profits
-        elif position.R_net > 8:
+        r_now = position.r_level()
+        if r_now > 8:
             extreme_scale = 1.25  # Very aggressive at 8R+
+        elif r_now > 6:
+            extreme_scale = 1.15  # Take more at extreme profits
         
         # COMBINE ALL FACTORS
         combined_scale = vol_scale * age_scale * r_scale * extreme_scale
@@ -1163,10 +1164,15 @@ class HarvestBrainService:
             
             logger.info(f"✅ STARTUP: Synced {synced_count} positions from Binance testnet")
             
-            # Remove any ghost positions that don't exist on Binance
+            # Remove any ghost positions that don't exist on Binance.
+            # CRITICAL: only scan bare position keys — NOT ledger/snapshot/claim/hold
+            # sub-keys, or we'll delete reconcile infrastructure on every restart.
             all_pos_keys = self.redis.keys("quantum:position:*")
             ghost_count = 0
             for key in all_pos_keys:
+                # Skip sub-key types
+                if any(sub in key for sub in [':snapshot:', ':ledger:', ':claim:', ':hold:', ':state:']):
+                    continue
                 symbol = key.replace("quantum:position:", "")
                 # Check if symbol exists in positions_data
                 symbol_exists = any(p["symbol"] == symbol for p in positions_data)
@@ -1294,10 +1300,10 @@ class HarvestBrainService:
                     match='quantum:position:*',
                     count=100
                 )
-                # Filter out ledger/snapshot keys
+                # Filter out ledger/snapshot/claim keys
                 position_keys.extend([
-                    k for k in keys 
-                    if ':ledger:' not in k and ':snapshot:' not in k
+                    k for k in keys
+                    if ':ledger:' not in k and ':snapshot:' not in k and ':claim:' not in k
                 ])
                 if cursor == 0:
                     break
