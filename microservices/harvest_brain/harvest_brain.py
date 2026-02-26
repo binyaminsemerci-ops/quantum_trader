@@ -803,9 +803,20 @@ class HarvestPolicy:
         else:
             logger.debug(f"{position.symbol}: harvest_action={harvest_action} (HOLD)")
         
-        return intents
-        
-        return intents
+        # ── Minimum notional guard ──────────────────────────────────────
+        min_notional = float(os.getenv("HARVEST_MIN_NOTIONAL", "5.0"))
+        filtered = []
+        for _intent in intents:
+            if _intent.intent_type == "EMERGENCY_SL_CLOSE":
+                filtered.append(_intent)  # always allow SL
+            elif _intent.qty * position.current_price >= min_notional:
+                filtered.append(_intent)
+            else:
+                logger.debug(
+                    f"SKIP_MIN_NOTIONAL {position.symbol}: "
+                    f"notional={_intent.qty * position.current_price:.2f} < {min_notional}"
+                )
+        return filtered
 
 
 # ============================================================================
@@ -820,18 +831,13 @@ class DedupManager:
         self.config = config
     
     def build_key(self, intent: HarvestIntent) -> str:
-        """Build dedup key from intent"""
-        if intent.intent_type in ['MOVE_SL_BREAKEVEN', 'MOVE_SL_TRAIL']:
-            # Only one SL move per symbol (either BE or TRAIL, whichever comes first)
-            # Use symbol-only key to prevent duplicate moves
-            return f"quantum:dedup:harvest:{intent.symbol}:{intent.intent_type}"
-        else:
-            # Regular harvest dedup by R level
-            return (
-                f"quantum:dedup:harvest:"
-                f"{intent.symbol}:{intent.intent_type}:{intent.r_level}:"
-                f"{int(intent.unrealized_pnl * 100)}"
-            )
+        """Build dedup key from intent.
+        Key = symbol:intent_type ONLY.
+        r_level and unrealized_pnl excluded: both change every tick
+        (float drift), bypassing dedup and causing 20+ duplicate orders.
+        TTL (900s default) prevents same action re-firing within 15 min.
+        """
+        return f"quantum:dedup:harvest:{intent.symbol}:{intent.intent_type}"
     
     def is_duplicate(self, intent: HarvestIntent) -> bool:
         """Check if intent is duplicate (already processed)"""
