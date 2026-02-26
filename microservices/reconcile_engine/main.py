@@ -309,12 +309,37 @@ class ReconcileEngine:
             p34_hold_active.labels(symbol=symbol).set(1)
     
     def _handle_side_mismatch(self, symbol: str, exchange: ExchangeSnapshot, ledger: Ledger):
-        """Handle side mismatch (not auto-fixable)"""
+        """Handle side mismatch.
+        Special case: exchange.position_amt == 0 means Binance closed the position.
+        In that case the Redis position key is a ghost — delete it immediately.
+        """
         logger.error(
             f"{symbol}: SIDE MISMATCH - exchange={exchange.side}({exchange.position_amt}) "
             f"ledger={ledger.ledger_side}({ledger.ledger_amt})"
         )
-        
+
+        # ── Ghost detection: exchange says flat → position closed on Binance ──
+        if abs(exchange.position_amt) < 0.0001:
+            pos_key     = f"quantum:position:{symbol}"
+            ledger_key  = f"quantum:position:ledger:{symbol}"
+            snap_key    = f"quantum:position:snapshot:{symbol}"
+            deleted_pos    = self.redis.delete(pos_key)
+            deleted_ledger = self.redis.delete(ledger_key)
+            deleted_snap   = self.redis.delete(snap_key)
+            logger.warning(
+                f"{symbol}: GHOST_PURGE — exchange=FLAT, Redis position closed on exchange. "
+                f"Deleted: position={deleted_pos} ledger={deleted_ledger} snapshot={deleted_snap}"
+            )
+            self._emit_event("GHOST_PURGE", symbol, {
+                "reason": "exchange_flat_side_mismatch",
+                "ledger_side": ledger.ledger_side,
+                "ledger_amt": ledger.ledger_amt,
+            })
+            if PROMETHEUS_AVAILABLE:
+                p34_drift_detected.labels(symbol=symbol, reason="ghost_purge").inc()
+            return
+
+        # ── True side mismatch (both sides have non-zero amt) — not auto-fixable ──
         self._set_hold(symbol, "side_mismatch", exchange, ledger)
         self._update_state(
             symbol, ReconcileStatus.HOLD, "side_mismatch",
@@ -327,7 +352,7 @@ class ReconcileEngine:
             "ledger_side": ledger.ledger_side,
             "ledger_amt": ledger.ledger_amt
         })
-        
+
         if PROMETHEUS_AVAILABLE:
             p34_drift_detected.labels(symbol=symbol, reason="side_mismatch").inc()
             p34_hold_active.labels(symbol=symbol).set(1)
