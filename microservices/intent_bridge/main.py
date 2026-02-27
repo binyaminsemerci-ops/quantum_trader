@@ -875,6 +875,7 @@ class IntentBridge:
             "reason": "auto_bypass_no_p33",
             "timestamp": str(int(time.time()))
         })
+        self.redis.expire(permit_key, 86400)  # H1 fix: 24h TTL
         logger.debug(f"✅ Auto-created permit: {plan_id[:8]}")
     
     def process_intent(self, stream_id: bytes, event_data: Dict):
