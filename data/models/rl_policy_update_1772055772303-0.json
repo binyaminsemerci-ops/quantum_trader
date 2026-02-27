@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055772303-0",
+  "reward": {
+    "symbol": "ACEUSDT",
+    "reward": "0.010747088509455636",
+    "pnl": "3.23",
+    "pnl_pct": "1.0747088509455636",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:42:52.302292"
+  },
+  "updated_at": "2026-02-25T21:42:52.306622+00:00"
+}

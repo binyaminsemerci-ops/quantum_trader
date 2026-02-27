@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772124841892-0",
+  "reward": {
+    "symbol": "LTCUSDT",
+    "reward": "-0.347438",
+    "pnl": "-3.43574",
+    "pnl_net": "-3.474376",
+    "commission": "0.038636",
+    "pnl_pct": "-6.1515",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "971587979",
+    "source": "binance",
+    "timestamp": "2026-02-26T16:54:01.857044+00:00"
+  },
+  "updated_at": "2026-02-26T16:54:01.894153+00:00"
+}

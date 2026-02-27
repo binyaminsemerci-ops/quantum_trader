@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055746529-0",
+  "reward": {
+    "symbol": "AEVOUSDT",
+    "reward": "-0.03044412607449857",
+    "pnl": "-3.04",
+    "pnl_pct": "-3.044412607449857",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:42:26.528772"
+  },
+  "updated_at": "2026-02-25T21:42:26.531356+00:00"
+}

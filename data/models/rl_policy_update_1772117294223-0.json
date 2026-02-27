@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772117294223-0",
+  "reward": {
+    "symbol": "XRPUSDT",
+    "reward": "0.128782",
+    "pnl": "1.32729",
+    "pnl_net": "1.287822",
+    "commission": "0.039468",
+    "pnl_pct": "89.1191",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "1476718846",
+    "source": "binance",
+    "timestamp": "2026-02-26T14:48:13.940564+00:00"
+  },
+  "updated_at": "2026-02-26T14:48:14.655233+00:00"
+}

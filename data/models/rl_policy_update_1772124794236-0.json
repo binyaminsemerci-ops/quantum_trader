@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772124794236-0",
+  "reward": {
+    "symbol": "ALICEUSDT",
+    "reward": "0.070312",
+    "pnl": "0.7425",
+    "pnl_net": "0.703122",
+    "commission": "0.039378",
+    "pnl_pct": "690.9492",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "91327866",
+    "source": "binance",
+    "timestamp": "2026-02-26T16:53:14.235440+00:00"
+  },
+  "updated_at": "2026-02-26T16:53:14.237224+00:00"
+}

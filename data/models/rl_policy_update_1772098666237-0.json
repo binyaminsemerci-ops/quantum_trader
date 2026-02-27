@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772098666237-0",
+  "reward": {
+    "symbol": "INJUSDT",
+    "reward": "0.049811",
+    "pnl": "0.5384",
+    "pnl_net": "0.498108",
+    "commission": "0.040292",
+    "pnl_pct": "15.561",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "83326259",
+    "source": "binance",
+    "timestamp": "2026-02-26T09:37:45.796712+00:00"
+  },
+  "updated_at": "2026-02-26T09:37:46.238636+00:00"
+}

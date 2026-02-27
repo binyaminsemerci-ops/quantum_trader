@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055824344-0",
+  "reward": {
+    "symbol": "FILUSDT",
+    "reward": "0.011551035110188602",
+    "pnl": "1.16",
+    "pnl_pct": "1.1551035110188603",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:43:44.343702"
+  },
+  "updated_at": "2026-02-25T21:43:44.346508+00:00"
+}

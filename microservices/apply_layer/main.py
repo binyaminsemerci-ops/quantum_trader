@@ -45,9 +45,9 @@ except ImportError:
 try:
     from lib.policy_store import load_policy, PolicyData
     POLICY_ENABLED = True
-except ImportError:
+except Exception as e:
     POLICY_ENABLED = False
-    print("WARN: policy_store module not found, allowlist gate disabled")
+    print(f"WARN: policy_store module not available ({type(e).__name__}: {e}), falling back to APPLY_ALLOWLIST")
 
 # P2.8A Apply Heat Observer
 try:
@@ -105,9 +105,10 @@ logger = logging.getLogger(__name__)
 
 
 # ---- PRODUCTION HYGIENE: Hard Mode Switch ----
-# TESTNET=true: Governor bypass (for development/testing)
-# TESTNET=false: Require THREE permits (production safety)
+# TESTNET_MODE: targets Binance testnet endpoint (decoupled from governor)
+# GOVERNOR_BYPASS: explicitly skip all permits (dev/QA only, default=false)
 TESTNET_MODE = os.getenv("TESTNET", "false").lower() in ("true", "1", "yes")
+GOVERNOR_BYPASS = os.getenv("GOVERNOR_BYPASS", "false").lower() in ("true", "1", "yes")
 
 # ---- DEV MODE: Dedupe bypass for rapid testing ----
 # APPLY_DEDUPE_BYPASS=true: 5s TTL (dev/QA only)
@@ -118,14 +119,12 @@ DEDUPE_TTL = 5 if DEDUPE_BYPASS else 300  # 5 sec vs 5 min
 # ---- Position Guard: Epsilon for floating point comparison ----
 POSITION_EPSILON = 1e-12  # abs(position_amt) > epsilon means "has position"
 
-# ---- Position Cap: configurable top-k open positions ----
-# Default stays 10 unless overridden in apply-layer.env.
-MAX_OPEN_POSITIONS = int(os.getenv("APPLY_MAX_OPEN_POSITIONS", "10"))
-
 if TESTNET_MODE:
-    logger.warning("ΓÜá∩╕Å  TESTNET MODE ENABLED - Governor bypass active (NO PRODUCTION USAGE)")
+    logger.info("✅ TESTNET execution endpoint active (Binance futures testnet)")
+if GOVERNOR_BYPASS:
+    logger.warning("⚠️  GOVERNOR_BYPASS=true — permits skipped! (dev/QA only, NOT for production)")
 else:
-    logger.info("Γ£à PRODUCTION MODE - Three permits required (Governor + P3.3 + P2.6)")
+    logger.info("✅ Governor active — THREE permits required (Governor + P3.3 + P2.6)")
 
 # ---- PRODUCTION HYGIENE: Safety Kill Switch ----
 # Set quantum:global:kill_switch = true to halt all execution
@@ -404,6 +403,17 @@ class BinanceTestnetClient:
             logger.error(f"Failed to place order: {e}")
             raise
 
+    def set_leverage(self, symbol: str, leverage: int) -> dict:
+        """Set initial leverage for a symbol on Binance Futures."""
+        params = {"symbol": symbol, "leverage": int(leverage)}
+        try:
+            result = self._request("POST", "/fapi/v1/leverage", params=params, signed=True)
+            logger.info(f"[LEVERAGE] {symbol}: set to {leverage}x -> {result}")
+            return result
+        except Exception as e:
+            logger.error(f"[LEVERAGE] {symbol}: Failed to set leverage {leverage}x: {e}")
+            raise
+
 
 @dataclass
 class ApplyPlan:
@@ -717,6 +727,17 @@ class BinanceTestnetClient:
             logger.error(f"Failed to place order: {e}")
             raise
 
+    def set_leverage(self, symbol: str, leverage: int) -> dict:
+        """Set initial leverage for a symbol on Binance Futures."""
+        params = {"symbol": symbol, "leverage": int(leverage)}
+        try:
+            result = self._request("POST", "/fapi/v1/leverage", params=params, signed=True)
+            logger.info(f"[LEVERAGE] {symbol}: set to {leverage}x -> {result}")
+            return result
+        except Exception as e:
+            logger.error(f"[LEVERAGE] {symbol}: Failed to set leverage {leverage}x: {e}")
+            raise
+
 
 @dataclass
 class ApplyPlan:
@@ -775,7 +796,7 @@ class ApplyLayer:
                 vol_min=float(os.getenv("RISK_VOL_MIN", "0.005")),
                 vol_max=float(os.getenv("RISK_VOL_MAX", "0.10")),
                 max_spread_bps=float(os.getenv("RISK_MAX_SPREAD_BPS", "10.0")),
-                symbol_whitelist=os.getenv("RISK_SYMBOL_WHITELIST", "BTCUSDT,ETHUSDT").split(",")
+                symbol_whitelist=[s.strip() for s in os.getenv("RISK_SYMBOL_WHITELIST", "").split(",") if s.strip()]
             )
             self.risk_enforcer = RiskPolicyEnforcer(self.redis, risk_limits)
             logger.info("Risk Policy Enforcer initialized (LAYER 0-2 active)")
@@ -879,24 +900,6 @@ class ApplyLayer:
             'quantum_apply_dedupe_hits_total',
             'Total duplicate plan detections'
         )
-
-    def _count_active_positions(self) -> int:
-        """Count active positions based on nonzero size to avoid snapshot-only keys."""
-        count = 0
-        for key in self.redis.scan_iter("quantum:position:*"):
-            try:
-                pos = self.redis.hgetall(key)
-                if not pos:
-                    continue
-                amt_raw = pos.get("position_amt") or pos.get("quantity") or pos.get("positionAmt")
-                if amt_raw is None:
-                    continue
-                amt = float(amt_raw)
-                if abs(amt) > POSITION_EPSILON:
-                    count += 1
-            except Exception:
-                continue
-        return count
         self.metric_last_success = Gauge(
             'quantum_apply_last_success_epoch',
             'Timestamp of last successful execution',
@@ -1011,35 +1014,34 @@ class ApplyLayer:
     def _check_symbol_allowlist(self, symbol: str) -> bool:
         """
         HARD GATE: Check if symbol is in policy universe before order placement.
-        Fail-closed: if symbol not in policy → REJECT order.
+        Fail-closed with fallback: if PolicyStore unavailable, check APPLY_ALLOWLIST.
         """
-        policy_universe = self._get_policy_universe()
-        
-        if not policy_universe:
-            logger.error(f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} reason=empty_policy_universe")
-            return False
-        
-        if symbol not in policy_universe:
-            logger.warning(
-                f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} "
-                f"reason=symbol_not_in_policy policy_count={len(policy_universe)} "
-                f"policy_sample={sorted(list(policy_universe))}"
-            )
-            return False
+        if POLICY_ENABLED:
+            policy_universe = self._get_policy_universe()
 
-        if not self.allowlist:
-            logger.error(f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} reason=empty_allowlist")
-            return False
+            if not policy_universe:
+                logger.warning(f"[POLICY_GATE] Policy universe empty for {symbol}, falling back to APPLY_ALLOWLIST")
+            else:
+                if symbol not in policy_universe:
+                    logger.warning(
+                        f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} "
+                        f"reason=symbol_not_in_policy policy_count={len(policy_universe)} "
+                        f"policy_sample={sorted(list(policy_universe))[:10]}"
+                    )
+                    return False
+                logger.debug(f"SYMBOL_ALLOWED: {symbol} in policy universe")
+                return True
 
-        if symbol not in self.allowlist:
-            logger.warning(
-                f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} "
-                f"reason=symbol_not_in_allowlist allowlist_count={len(self.allowlist)}"
-            )
-            return False
-        
-        logger.debug(f"SYMBOL_ALLOWED: {symbol} in policy universe")
-        return True
+        # Fallback: check self.allowlist (loaded from APPLY_ALLOWLIST env var / universe cache)
+        if symbol in self.allowlist:
+            logger.debug(f"SYMBOL_ALLOWED: {symbol} in apply allowlist (policy fallback)")
+            return True
+
+        logger.warning(
+            f"🔥 DENY_SYMBOL_NOT_IN_ALLOWLIST symbol={symbol} "
+            f"reason=not_in_apply_allowlist policy_enabled={POLICY_ENABLED} allowlist_size={len(self.allowlist)}"
+        )
+        return False
     
     def _refresh_allowlist_if_needed(self):
         """Refresh allowlist cache if expired (P2 Universe integration)"""
@@ -1338,6 +1340,59 @@ class ApplyLayer:
                 reason_codes.append("duplicate_plan")
                 logger.info(f"{symbol}: Plan {plan_id} already executed (duplicate)")
         
+        # Safety gate 5: Anti-churn guard — OPEN actions only (CLOSE/EXIT always allowed)
+        if decision == Decision.EXECUTE:
+            _churn_action = proposal.get('harvest_action', '')
+            _is_open_action = _churn_action not in (
+                'FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50', 'UPDATE_SL', 'HOLD'
+            )
+            if _is_open_action:
+                try:
+                    if self.redis.exists('quantum:churn:global_freeze'):
+                        decision = Decision.BLOCKED
+                        reason_codes.append('churn_global_freeze')
+                        logger.warning(f'{symbol}: OPEN blocked — churn GLOBAL FREEZE active')
+                    elif self.redis.exists(f'quantum:churn:blacklist:{symbol}'):
+                        _ttl = self.redis.ttl(f'quantum:churn:blacklist:{symbol}')
+                        decision = Decision.BLOCKED
+                        reason_codes.append('churn_blacklist')
+                        logger.warning(f'{symbol}: OPEN blocked — churn blacklist TTL={_ttl}s remaining')
+                except Exception as _ce:
+                    logger.debug(f'{symbol}: churn guard check failed (fail-open): {_ce}')
+
+        # Safety gate 6: Layer 4 Kelly sizing advisory — OPEN actions only (fail-soft)
+        if decision == Decision.EXECUTE:
+            _l4_action = proposal.get('harvest_action', '')
+            _l4_is_open = _l4_action not in (
+                'FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50', 'UPDATE_SL', 'HOLD'
+            )
+            if _l4_is_open:
+                try:
+                    import time as _time
+                    _l4 = self.redis.hgetall(f'quantum:layer4:sizing:{symbol}')
+                    if _l4 and (int(_time.time()) - int(_l4.get('ts', 0))) < 300:
+                        _l4_rec = _l4.get('recommendation', 'SKIP')
+                        if _l4_rec == 'SKIP':
+                            decision = Decision.BLOCKED
+                            reason_codes.append(f'layer4_no_edge:{_l4.get("reason", "low_kelly")}')
+                            logger.info(
+                                f'{symbol}: OPEN blocked by Layer 4 Kelly — '
+                                f'reason={_l4.get("reason","?")} '
+                                f'kelly={_l4.get("kelly_adj","0")} sharpe={_l4.get("metrics_sharpe","0")}'
+                            )
+                        else:
+                            _l4_size = float(_l4.get('size_usdt', 0))
+                            if _l4_size > 0:
+                                proposal['kelly_size_usdt'] = _l4_size
+                                reason_codes.append(f'layer4_kelly_{_l4_size:.0f}usdt')
+                                logger.info(
+                                    f'{symbol}: Layer 4 Kelly approved — '
+                                    f'size={_l4_size:.1f}USDT kelly={_l4.get("kelly_adj","?")} '
+                                    f'lev={_l4.get("max_leverage","?")}x'
+                                )
+                except Exception as _l4e:
+                    logger.debug(f'{symbol}: Layer 4 gate check failed (fail-open): {_l4e}')
+
         # Build execution steps
         if decision == Decision.EXECUTE:
             # Normalize action before building steps (apply-layer-entry-exit-sep-v1)
@@ -1799,17 +1854,17 @@ class ApplyLayer:
             pos_side = position['side']
             logger.info(f"{plan.symbol}: Current position: {pos_amt} ({pos_side})")
             
-            # ---- HARD MODE SWITCH: TESTNET vs PRODUCTION ----
-            if TESTNET_MODE:
-                # TESTNET: Skip all permits, go straight to execution
-                logger.info(f"[TESTNET_BYPASS] Skipping permits for {plan.plan_id}")
-                gov_permit = {"granted": True, "mode": "testnet_bypass"}
-                p33_permit = {"allow": True, "safe_qty": plan.sell_qty, "mode": "testnet_bypass"}
-                p26_permit = {"granted": True, "mode": "testnet_bypass"}
+            # ---- HARD MODE SWITCH: GOVERNOR_BYPASS (explicit) vs PRODUCTION ----
+            if GOVERNOR_BYPASS:
+                # EXPLICIT bypass only — not tied to testnet endpoint mode
+                logger.info(f"[GOVERNOR_BYPASS] Skipping permits for {plan.plan_id}")
+                gov_permit = {"granted": True, "mode": "governor_bypass"}
+                p33_permit = {"allow": True, "safe_qty": plan.sell_qty, "mode": "governor_bypass"}
+                p26_permit = {"granted": True, "mode": "governor_bypass"}
                 ok = True
                 wait_ms = 0
                 if PROMETHEUS_AVAILABLE:
-                    apply_executed.labels(status='testnet_bypass').inc()
+                    apply_executed.labels(status='governor_bypass').inc()
             else:
                 # PRODUCTION: Require THREE permits (Governor + P3.3 + P2.6)
                 t0 = time.time()
@@ -2400,11 +2455,20 @@ class ApplyLayer:
                                 })
                                 continue
                             
-                            # Get current position
+                            # Get current position — check primary key, fallback to ledger key
                             pos_key = f"quantum:position:{symbol}"
                             existing_pos = self.redis.hgetall(pos_key)
+                            _used_ledger_fallback = False
                             if not existing_pos:
-                                logger.warning(f"[CLOSE] {symbol}: SKIP_NO_POSITION plan_id={plan_id[:8]} (no position exists)")
+                                # FIX: Fallback to reconcile-engine ledger key
+                                ledger_key = f"quantum:position:ledger:{symbol}"
+                                ledger_pos = self.redis.hgetall(ledger_key)
+                                if ledger_pos:
+                                    existing_pos = ledger_pos
+                                    _used_ledger_fallback = True
+                                    logger.info(f"[CLOSE] {symbol}: Using ledger fallback key {ledger_key}")
+                            if not existing_pos:
+                                logger.warning(f"[CLOSE] {symbol}: SKIP_NO_POSITION plan_id={plan_id[:8]} (no position exists in primary or ledger key)")
                                 self.redis.xack(stream_key, consumer_group, msg_id)
                                 # Set dedupe marker
                                 self.redis.setex(dedupe_key, 600, "1")  # 10 min TTL
@@ -2420,8 +2484,11 @@ class ApplyLayer:
                                 continue
                             
                             # Parse position data
+                            # FIX: Handle both 'quantity' (primary key) and 'qty' (ledger key) field names
                             position_side = existing_pos.get(b'side', existing_pos.get('side', b'')).decode() if isinstance(existing_pos.get(b'side', existing_pos.get('side', b'')), bytes) else existing_pos.get(b'side', existing_pos.get('side', ''))
-                            position_qty_str = existing_pos.get(b'quantity', existing_pos.get('quantity', b'0')).decode() if isinstance(existing_pos.get(b'quantity', existing_pos.get('quantity', b'0')), bytes) else existing_pos.get(b'quantity', existing_pos.get('quantity', '0'))
+                            _qty_raw = existing_pos.get(b'quantity', existing_pos.get('quantity',
+                                       existing_pos.get(b'qty', existing_pos.get('qty', b'0'))))
+                            position_qty_str = _qty_raw.decode() if isinstance(_qty_raw, bytes) else str(_qty_raw)
                             position_qty = float(position_qty_str)
                             
                             # Parse steps from plan to get close percentage
@@ -2509,6 +2576,10 @@ class ApplyLayer:
                                 
                                 # Set dedupe marker
                                 self.redis.setex(dedupe_key, 600, "1")  # 10 min TTL
+                                # Post-close re-entry cooldown (prevents churn)
+                                _exit_cd = int(__import__("os").getenv("APPLY_EXIT_COOLDOWN_SEC", "600"))
+                                self.redis.setex(f"quantum:cooldown:open:{symbol}", _exit_cd, "1")
+                                logger.info(f"[CLOSE] {symbol}: Post-exit cooldown ({_exit_cd}s)")
                                 
                                 # Publish success result
                                 self.redis.xadd('quantum:stream:apply.result', {
@@ -2555,11 +2626,12 @@ class ApplyLayer:
                         # Extract ATR/volatility data for risk computation
                         atr_value = float(plan_data.get('atr_value', 0.0))
                         volatility_factor = float(plan_data.get('volatility_factor', 0.0))
+                        entry_price = float(plan_data.get('entry_price', 0.0))
                         
-                        # 🔥 FALLBACK: If ATR missing, try to fetch from trade.intent stream
-                        if atr_value == 0.0 or volatility_factor == 0.0:
+                        # 🔥 FALLBACK: If ATR/entry_price missing, fetch from trade.intent stream
+                        # trade.intent messages store data as JSON inside a 'payload' field
+                        if atr_value == 0.0 or volatility_factor == 0.0 or entry_price == 0.0:
                             try:
-                                # Search recent trade.intent messages for this symbol
                                 intent_messages = self.redis.xrevrange('quantum:stream:trade.intent', '+', '-', count=50)
                                 for msg_id_intent, fields_intent in intent_messages:
                                     intent_data = {}
@@ -2567,19 +2639,28 @@ class ApplyLayer:
                                         key = k.decode() if isinstance(k, bytes) else k
                                         val = v.decode() if isinstance(v, bytes) else v
                                         intent_data[key] = val
-                                    
-                                    if intent_data.get('symbol') == symbol:
-                                        fallback_atr = float(intent_data.get('atr_value', 0.0))
-                                        fallback_vol = float(intent_data.get('volatility_factor', 0.0))
+
+                                    # Payload is a nested JSON string
+                                    try:
+                                        payload = json.loads(intent_data.get('payload', '{}'))
+                                    except Exception:
+                                        payload = intent_data  # flat fallback
+
+                                    if payload.get('symbol') == symbol:
+                                        fallback_atr = float(payload.get('atr_value', 0.0))
+                                        fallback_vol = float(payload.get('volatility_factor', 0.0))
+                                        fallback_price = float(payload.get('entry_price', 0.0))
                                         if fallback_atr > 0 and fallback_vol > 0:
                                             atr_value = fallback_atr
                                             volatility_factor = fallback_vol
-                                            logger.info(f"[ENTRY] {symbol}: ATR fallback loaded from trade.intent (atr={atr_value:.4f}, vol={volatility_factor:.4f})")
+                                            logger.info(f"[ENTRY] {symbol}: ATR fallback from trade.intent payload (atr={atr_value:.4f}, vol={volatility_factor:.4f})")
+                                        if fallback_price > 0 and entry_price == 0.0:
+                                            entry_price = fallback_price
+                                            logger.info(f"[ENTRY] {symbol}: entry_price fallback from trade.intent payload ({entry_price})")
+                                        if fallback_atr > 0 or fallback_price > 0:
                                             break
                             except Exception as e:
-                                logger.warning(f"[ENTRY] {symbol}: ATR fallback failed: {e}")
-                        
-                        entry_price = float(plan_data.get('entry_price', 0.0))
+                                logger.warning(f"[ENTRY] {symbol}: ATR/price fallback failed: {e}")
                         
                         # Process both BUY and SELL entry signals
                         if side not in ['BUY', 'SELL']:
@@ -2590,13 +2671,20 @@ class ApplyLayer:
                         position_side = 'LONG' if side == 'BUY' else 'SHORT'
                         logger.info(f"[ENTRY] {symbol}: Processing {side} intent (→{position_side}, leverage={leverage}, qty={qty}, plan_id={plan_id[:8]})")
                         
-                        # 🔥 HARD GATE: Check total position limit (configurable)
-                        active_positions = self._count_active_positions()
-                        if active_positions >= MAX_OPEN_POSITIONS:
-                            logger.warning(
-                                f"[ENTRY] {symbol}: Order REJECTED - position limit reached "
-                                f"({active_positions}/{MAX_OPEN_POSITIONS} symbols)"
-                            )
+                        # 🔥 HARD GATE: Check total position limit (MAX 10 SYMBOLS)
+                        # FIX: Only count ACTIVE positions — exclude snapshot:, ledger:,
+                        # cooldown: and claim: keys (claim keys are 30s race-guards that
+                        # would otherwise falsely inflate the count by 1 per in-flight order).
+                        _all_raw = self.redis.keys("quantum:position:*")
+                        all_positions = [
+                            k for k in _all_raw
+                            if b'snapshot' not in (k if isinstance(k, bytes) else k.encode())
+                            and b'ledger' not in (k if isinstance(k, bytes) else k.encode())
+                            and b'cooldown' not in (k if isinstance(k, bytes) else k.encode())
+                            and b'claim' not in (k if isinstance(k, bytes) else k.encode())
+                        ]
+                        if len(all_positions) >= 10:
+                            logger.warning(f"[ENTRY] {symbol}: Order REJECTED - position limit reached ({len(all_positions)}/10 active positions, total_keys={len(_all_raw)})")
                             self.redis.xack(stream_key, consumer_group, msg_id)
                             # Publish rejection to apply.result
                             self.redis.xadd('quantum:stream:apply.result', {
@@ -2604,7 +2692,7 @@ class ApplyLayer:
                                 'symbol': symbol,
                                 'action': 'ENTRY',
                                 'executed': 'False',
-                                'error': f'position_limit_reached_{active_positions}/{MAX_OPEN_POSITIONS}',
+                                'error': f'position_limit_reached_{len(all_positions)}/10',
                                 'timestamp': str(int(time.time()))
                             })
                             continue
@@ -2645,10 +2733,27 @@ class ApplyLayer:
                             self.redis.xack(stream_key, consumer_group, msg_id)
                             continue
                         
+                        # ── ATOMIC RACE-CONDITION GUARD ──────────────────
+                        # Set position claim key BEFORE placing order (SETNX).
+                        # If two messages for the same symbol arrive in the same
+                        # batch, the second one is blocked here.
+                        claim_key = f"quantum:position:claim:{symbol}"
+                        claimed = self.redis.set(claim_key, plan_id, nx=True, ex=30)
+                        if not claimed:
+                            logger.warning(f"[ENTRY] {symbol}: Race-condition guard — position claim already held, skipping")
+                            self.redis.xack(stream_key, consumer_group, msg_id)
+                            continue
+
                         # Place market order (BUY or SELL)
                         try:
                             client = BinanceTestnetClient(api_key, api_secret)
-                            
+
+                            # Set leverage on Binance to match plan before placing order
+                            try:
+                                client.set_leverage(symbol, int(leverage))
+                            except Exception as lev_err:
+                                logger.warning(f"[ENTRY] {symbol}: set_leverage failed (non-fatal): {lev_err}")
+
                             # Place market order (NOT reduce-only)
                             order_result = client.place_market_order(
                                 symbol=symbol,
@@ -2707,13 +2812,31 @@ class ApplyLayer:
                                 "risk_missing": str(risk_missing)
                             }
                             
+                            # 🔥 Fill actual entry price from order avgPrice/entryPrice
+                            order_avg_price = 0.0
+                            try:
+                                raw_order = client._request('GET', '/fapi/v1/order',
+                                    params={'symbol': symbol, 'orderId': order_result.get('orderId')},
+                                    signed=True)
+                                order_avg_price = float(raw_order.get('avgPrice', raw_order.get('price', 0)))
+                            except Exception as _ep:
+                                logger.warning(f"[ENTRY] {symbol}: avgPrice lookup failed: {_ep}")
+                            if order_avg_price > 0:
+                                position_mapping["entry_price"] = str(order_avg_price)
+                                logger.info(f"[ENTRY] {symbol}: Actual fill price={order_avg_price}")
+                            elif entry_price > 0:
+                                pass  # keep plan entry_price
+
                             self.redis.hset(pos_key, mapping=position_mapping)
+                            self.redis.hset(pos_key, "unrealized_pnl", "0.0")  # initialize (not missing)
                             logger.info(f"[ENTRY] {symbol}: Position reference stored (entry_risk_usdt={entry_risk_usdt:.4f}, atr={atr_value}, vol_factor={volatility_factor})")
+                            logger.info(f"[ENTRY] {symbol}: entry_price={position_mapping['entry_price']}  leverage={position_mapping['leverage']}  qty={position_mapping['quantity']}")
                             
                             # 🔥 Set cooldown to prevent rapid re-opening (180s = 3 minutes)
                             cooldown_key = f"quantum:cooldown:open:{symbol}"
-                            self.redis.setex(cooldown_key, 180, "1")
-                            logger.info(f"[ENTRY] {symbol}: Cooldown set (180s)")
+                            _entry_cd = int(__import__("os").getenv("APPLY_ENTRY_COOLDOWN_SEC", "600"))
+                            self.redis.setex(cooldown_key, _entry_cd, "1")
+                            logger.info(f"[ENTRY] {symbol}: Cooldown set ({_entry_cd}s)")
                         
                         except Exception as e:
                             logger.error(f"[ENTRY] {symbol}: Failed to place order: {e}", exc_info=True)
@@ -2817,13 +2940,10 @@ class ApplyLayer:
         # P2 Universe: Refresh allowlist cache if expired
         self._refresh_allowlist_if_needed()
         
-        # HIGHEST PRIORITY: Process entry intents from intent_bridge
-        try:
-            logger.info("[ENTRY_CYCLE_START] Calling process_apply_plan_stream...")
-            self.process_apply_plan_stream()
-            logger.info("[ENTRY_CYCLE_END] process_apply_plan_stream completed")
-        except Exception as e:
-            logger.error(f"[ENTRY_CYCLE_ERROR] Error processing apply.plan stream: {e}", exc_info=True)
+        # DEACTIVATED 2026-02-25: intent_executor is now the SINGLE executor for apply.plan
+        # apply_layer MUST NOT consume apply.plan — would cause double-execution on Binance
+        # All entry gates now live in intent_executor
+        logger.debug("[ENTRY_CYCLE_DISABLED] intent_executor owns apply.plan — skipping")
         
         # HIGH PRIORITY: Process RECONCILE_CLOSE plans (self-healing)
         try:

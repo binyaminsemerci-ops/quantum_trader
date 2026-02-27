@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772098666241-0",
+  "reward": {
+    "timestamp": "2026-02-26T09:37:46.239411+00:00",
+    "symbol": "INJUSDT",
+    "pnl": "0.498108",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.000498108",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.00041509",
+    "leverage": "0.7501037724999999",
+    "avg_reward": "0.016394930046582972",
+    "reward_std": "0.03660516787703157",
+    "message_count": "29"
+  },
+  "updated_at": "2026-02-26T09:37:46.242939+00:00"
+}

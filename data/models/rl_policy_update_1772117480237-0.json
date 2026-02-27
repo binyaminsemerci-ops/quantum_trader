@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772117480237-0",
+  "reward": {
+    "symbol": "ALPINEUSDT",
+    "reward": "-0.011672000619489703",
+    "pnl": "1.17",
+    "pnl_pct": "-1.1672000619489702",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-26T14:51:20.236814"
+  },
+  "updated_at": "2026-02-26T14:51:20.237658+00:00"
+}

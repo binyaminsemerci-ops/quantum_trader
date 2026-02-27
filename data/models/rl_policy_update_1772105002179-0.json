@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772105002179-0",
+  "reward": {
+    "symbol": "1000CHEEMSUSDT",
+    "reward": "0.100281",
+    "pnl": "1.052126",
+    "pnl_net": "1.002808",
+    "commission": "0.049318",
+    "pnl_pct": "220494.2788",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "48562512",
+    "source": "binance",
+    "timestamp": "2026-02-26T11:23:21.889685+00:00"
+  },
+  "updated_at": "2026-02-26T11:23:22.180711+00:00"
+}

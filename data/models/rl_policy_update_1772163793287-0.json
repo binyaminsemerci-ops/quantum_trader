@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772163793287-0",
+  "reward": {
+    "timestamp": "2026-02-27T03:43:13.286341+00:00",
+    "symbol": "AAVEUSDT",
+    "pnl": "0.741359",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.000741359",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.0006177991666666666",
+    "leverage": "0.7501544497916667",
+    "avg_reward": "0.0005620869119636963",
+    "reward_std": "0.009943490216942226",
+    "message_count": "104"
+  },
+  "updated_at": "2026-02-27T03:43:13.289643+00:00"
+}

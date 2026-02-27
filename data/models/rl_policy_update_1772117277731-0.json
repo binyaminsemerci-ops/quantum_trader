@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772117277731-0",
+  "reward": {
+    "symbol": "BTCUSDT",
+    "reward": "0.168716",
+    "pnl": "1.741",
+    "pnl_net": "1.687156",
+    "commission": "0.053844",
+    "pnl_pct": "0.0025",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "12550437245",
+    "source": "binance",
+    "timestamp": "2026-02-26T14:47:57.730676+00:00"
+  },
+  "updated_at": "2026-02-26T14:47:57.732389+00:00"
+}

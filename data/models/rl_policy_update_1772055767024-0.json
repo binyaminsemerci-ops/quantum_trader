@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055767024-0",
+  "reward": {
+    "symbol": "ACXUSDT",
+    "reward": "0.011667615253272643",
+    "pnl": "1.17",
+    "pnl_pct": "1.1667615253272643",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:42:47.024205"
+  },
+  "updated_at": "2026-02-25T21:42:47.027799+00:00"
+}

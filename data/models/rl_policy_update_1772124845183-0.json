@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772124845183-0",
+  "reward": {
+    "symbol": "AVAXUSDT",
+    "reward": "-0.360407",
+    "pnl": "-3.564",
+    "pnl_net": "-3.604066",
+    "commission": "0.040066",
+    "pnl_pct": "-38.2192",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "173230081",
+    "source": "binance",
+    "timestamp": "2026-02-26T16:54:05.182699+00:00"
+  },
+  "updated_at": "2026-02-26T16:54:05.183313+00:00"
+}

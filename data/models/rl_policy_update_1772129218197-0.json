@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772129218197-0",
+  "reward": {
+    "symbol": "1MBABYDOGEUSDT",
+    "reward": "-0.309089",
+    "pnl": "-3.042424",
+    "pnl_net": "-3.090889",
+    "commission": "0.048465",
+    "pnl_pct": "-777386.5845",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "69285217",
+    "source": "binance",
+    "timestamp": "2026-02-26T18:06:57.819173+00:00"
+  },
+  "updated_at": "2026-02-26T18:06:58.199167+00:00"
+}

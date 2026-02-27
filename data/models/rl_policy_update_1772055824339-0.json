@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055824339-0",
+  "reward": {
+    "symbol": "AIXBTUSDT",
+    "reward": "0.03482169701005014",
+    "pnl": "-3.47",
+    "pnl_pct": "3.482169701005014",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:43:44.339032"
+  },
+  "updated_at": "2026-02-25T21:43:44.341683+00:00"
+}

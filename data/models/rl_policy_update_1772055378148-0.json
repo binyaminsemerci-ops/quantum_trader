@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055378148-0",
+  "reward": {
+    "symbol": "LINKUSDT",
+    "reward": "0.00022946305644798854",
+    "pnl": "0.02",
+    "pnl_pct": "0.022946305644798853",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:36:18.148588"
+  },
+  "updated_at": "2026-02-25T21:36:18.150726+00:00"
+}

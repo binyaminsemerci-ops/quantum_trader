@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772103231683-0",
+  "reward": {
+    "timestamp": "2026-02-26T10:53:51.682382+00:00",
+    "symbol": "ACTUSDT",
+    "pnl": "1.137877",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.001137877",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.0009482308333333332",
+    "leverage": "0.7502370577083333",
+    "avg_reward": "0.014527465192451702",
+    "reward_std": "0.03468150828121544",
+    "message_count": "33"
+  },
+  "updated_at": "2026-02-26T10:53:51.684271+00:00"
+}

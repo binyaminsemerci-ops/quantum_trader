@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772132718789-0",
+  "reward": {
+    "timestamp": "2026-02-26T19:05:18.788121+00:00",
+    "symbol": "ALTUSDT",
+    "pnl": "-4.422734",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "-0.004422734",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "-0.0036856116666666664",
+    "leverage": "0.7490785970833334",
+    "avg_reward": "0.0051888389798891",
+    "reward_std": "0.023435469772766157",
+    "message_count": "82"
+  },
+  "updated_at": "2026-02-26T19:05:18.813059+00:00"
+}

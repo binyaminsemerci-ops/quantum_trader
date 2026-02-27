@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772068946336-0",
+  "reward": {
+    "timestamp": "2026-02-26T01:22:26.336542+00:00",
+    "symbol": "1000SATSUSDT",
+    "pnl": "-0.926007",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "-0.0009260070000000001",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "-0.0007716725",
+    "leverage": "0.749807081875",
+    "avg_reward": "0.031084193590060413",
+    "reward_std": "0.046284225523035974",
+    "message_count": "15"
+  },
+  "updated_at": "2026-02-26T01:22:26.337269+00:00"
+}

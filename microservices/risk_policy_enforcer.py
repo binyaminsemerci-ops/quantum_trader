@@ -350,8 +350,8 @@ class RiskPolicyEnforcer:
         
         Returns: (passed, failure_reason)
         """
-        # § 6.3 Symbol whitelist
-        if symbol not in self.limits.symbol_whitelist:
+        # § 6.3 Symbol whitelist (empty list = disabled, any symbol passes)
+        if self.limits.symbol_whitelist and symbol not in self.limits.symbol_whitelist:
             return False, f"Symbol {symbol} not in whitelist"
         
         # § 6.1 Volatility gate
@@ -393,7 +393,7 @@ class RiskPolicyEnforcer:
             daily_pnl=self._get_daily_pnl(),
             rolling_drawdown_pct=self._get_rolling_drawdown(),
             consecutive_losses=self._count_consecutive_losses(),
-            symbol_in_whitelist=(symbol in self.limits.symbol_whitelist) if symbol else False,
+            symbol_in_whitelist=(not self.limits.symbol_whitelist or symbol in self.limits.symbol_whitelist) if symbol else True,
             realized_volatility=volatility,
             spread_bps=spread_bps,
             uptime_seconds=uptime,

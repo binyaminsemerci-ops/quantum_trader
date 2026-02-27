@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055756955-0",
+  "reward": {
+    "symbol": "INJUSDT",
+    "reward": "0.01981245028897802",
+    "pnl": "1.98",
+    "pnl_pct": "1.981245028897802",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:42:36.954887"
+  },
+  "updated_at": "2026-02-25T21:42:36.963091+00:00"
+}

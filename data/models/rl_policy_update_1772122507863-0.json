@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772122507863-0",
+  "reward": {
+    "timestamp": "2026-02-26T16:15:07.862705+00:00",
+    "symbol": "OPUSDT",
+    "pnl": "-3.492845",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "-0.003492845",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "-0.0029107041666666666",
+    "leverage": "0.7492723239583333",
+    "avg_reward": "0.00853987399733761",
+    "reward_std": "0.027593436088041406",
+    "message_count": "56"
+  },
+  "updated_at": "2026-02-26T16:15:07.865388+00:00"
+}

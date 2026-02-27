@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772132271176-0",
+  "reward": {
+    "timestamp": "2026-02-26T18:57:51.175852+00:00",
+    "symbol": "AGLDUSDT",
+    "pnl": "1.16529",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.00116529",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.000971075",
+    "leverage": "0.75024276875",
+    "avg_reward": "0.005610780381469661",
+    "reward_std": "0.023538289566839378",
+    "message_count": "80"
+  },
+  "updated_at": "2026-02-26T18:57:51.176971+00:00"
+}

@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772068941179-0",
+  "reward": {
+    "symbol": "1000SATSUSDT",
+    "reward": "0.00438596491228066",
+    "pnl": "-0.44",
+    "pnl_pct": "0.438596491228066",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-26T01:22:21.177694"
+  },
+  "updated_at": "2026-02-26T01:22:21.181983+00:00"
+}

@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055429510-0",
+  "reward": {
+    "symbol": "DOGEUSDT",
+    "reward": "-0.0007843713278495849",
+    "pnl": "-0.08",
+    "pnl_pct": "-0.0784371327849585",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:37:09.510670"
+  },
+  "updated_at": "2026-02-25T21:37:09.513272+00:00"
+}

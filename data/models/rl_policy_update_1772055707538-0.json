@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055707538-0",
+  "reward": {
+    "symbol": "ACTUSDT",
+    "reward": "-0.010183953033268049",
+    "pnl": "1.02",
+    "pnl_pct": "-1.018395303326805",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:41:47.538438"
+  },
+  "updated_at": "2026-02-25T21:41:47.539193+00:00"
+}

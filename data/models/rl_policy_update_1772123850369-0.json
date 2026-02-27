@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772123850369-0",
+  "reward": {
+    "symbol": "ACHUSDT",
+    "reward": "0.156563",
+    "pnl": "1.605055",
+    "pnl_net": "1.565629",
+    "commission": "0.039426",
+    "pnl_pct": "21814.5363",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "121474273",
+    "source": "binance",
+    "timestamp": "2026-02-26T16:37:30.368967+00:00"
+  },
+  "updated_at": "2026-02-26T16:37:30.369645+00:00"
+}

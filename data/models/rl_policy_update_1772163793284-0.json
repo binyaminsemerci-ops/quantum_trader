@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772163793284-0",
+  "reward": {
+    "symbol": "AAVEUSDT",
+    "reward": "0.074136",
+    "pnl": "0.783",
+    "pnl_net": "0.741359",
+    "commission": "0.041641",
+    "pnl_pct": "0.6487",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "122315109",
+    "source": "binance",
+    "timestamp": "2026-02-27T03:43:13.283226+00:00"
+  },
+  "updated_at": "2026-02-27T03:43:13.284623+00:00"
+}

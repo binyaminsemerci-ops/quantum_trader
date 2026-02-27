@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772165746866-0",
+  "reward": {
+    "symbol": "RENDERUSDT",
+    "reward": "0.01092896174863389",
+    "pnl": "1.1",
+    "pnl_pct": "1.092896174863389",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-27T04:15:46.866326"
+  },
+  "updated_at": "2026-02-27T04:15:46.867735+00:00"
+}

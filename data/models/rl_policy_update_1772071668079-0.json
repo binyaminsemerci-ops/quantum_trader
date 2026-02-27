@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772071668079-0",
+  "reward": {
+    "timestamp": "2026-02-26T02:07:48.078352+00:00",
+    "symbol": "AIUSDT",
+    "pnl": "0.052726",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "5.2726e-05",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "4.393833333333333e-05",
+    "leverage": "0.7500109845833334",
+    "avg_reward": "0.019501765611843313",
+    "reward_std": "0.039530045706102475",
+    "message_count": "24"
+  },
+  "updated_at": "2026-02-26T02:07:48.080104+00:00"
+}

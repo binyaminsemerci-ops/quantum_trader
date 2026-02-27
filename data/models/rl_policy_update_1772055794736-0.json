@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055794736-0",
+  "reward": {
+    "symbol": "LTCUSDT",
+    "reward": "0.010779122663556042",
+    "pnl": "1.08",
+    "pnl_pct": "1.0779122663556042",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:43:14.736191"
+  },
+  "updated_at": "2026-02-25T21:43:14.745784+00:00"
+}

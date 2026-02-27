@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772165548385-0",
+  "reward": {
+    "symbol": "SUIUSDT",
+    "reward": "-0.304393",
+    "pnl": "-3.00268",
+    "pnl_net": "-3.043928",
+    "commission": "0.041248",
+    "pnl_pct": "-329.5721",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "520942118",
+    "source": "binance",
+    "timestamp": "2026-02-27T04:12:28.385266+00:00"
+  },
+  "updated_at": "2026-02-27T04:12:28.385863+00:00"
+}

@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772124443770-0",
+  "reward": {
+    "symbol": "ETHUSDT",
+    "reward": "-0.300352",
+    "pnl": "-2.96446",
+    "pnl_net": "-3.003521",
+    "commission": "0.039061",
+    "pnl_pct": "-0.1463",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "8431456215",
+    "source": "binance",
+    "timestamp": "2026-02-26T16:47:23.769937+00:00"
+  },
+  "updated_at": "2026-02-26T16:47:23.771059+00:00"
+}

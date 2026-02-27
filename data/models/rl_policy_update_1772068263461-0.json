@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772068263461-0",
+  "reward": {
+    "symbol": "ACTUSDT",
+    "reward": "-0.088722",
+    "pnl": "-0.837",
+    "pnl_net": "-0.88722",
+    "commission": "0.05022",
+    "pnl_pct": "-6213.0252",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "75828847",
+    "source": "binance",
+    "timestamp": "2026-02-26T01:11:03.423710+00:00"
+  },
+  "updated_at": "2026-02-26T01:11:03.462030+00:00"
+}

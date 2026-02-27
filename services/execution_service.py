@@ -1023,7 +1023,14 @@ async def order_consumer():
             intent_timestamp = signal_data.get('timestamp')
             if intent_timestamp:
                 try:
-                    intent_time = date_parser.isoparse(intent_timestamp)
+                    ts_str = str(intent_timestamp).strip()
+                    if ts_str.isdigit():
+                        # Unix timestamp (ms if len>11, else seconds)
+                        ts_sec = int(ts_str) / 1000 if len(ts_str) > 11 else int(ts_str)
+                        from datetime import datetime as _dt, timezone as _tz
+                        intent_time = _dt.fromtimestamp(ts_sec, tz=_tz.utc)
+                    else:
+                        intent_time = date_parser.isoparse(ts_str)
                     if intent_time.tzinfo is None:
                         intent_time = intent_time.replace(tzinfo=timezone.utc)
                     age_seconds = (datetime.now(timezone.utc) - intent_time).total_seconds()
@@ -1147,39 +1154,31 @@ async def order_consumer():
                 # Fall through to TradeIntent parsing
 
                 signal_data.pop('side', None)  # Remove 'side' if present (already mapped to 'action')
-            
-            # Filter signal_data to only include TradeIntent fields
-            # BRIDGE-PATCH: Added ai_size_usd, ai_leverage, ai_harvest_policy for AI-driven sizing
-            # P0.4C: Added reason, reduce_only for exit flow audit trail
-            allowed_fields = {
-                'symbol', 'action', 'confidence', 'position_size_usd', 'leverage', 
-                'timestamp', 'source', 'stop_loss_pct', 'take_profit_pct', 
-                'entry_price', 'stop_loss', 'take_profit', 'quantity',
-                'ai_size_usd', 'ai_leverage', 'ai_harvest_policy',  # BRIDGE-PATCH v1.1
-                'reason', 'reduce_only'  # P0.4C exit flow
-            }
-            filtered_data = {k: v for k, v in signal_data.items() if k in allowed_fields}
-            
-            # Add default 'source' if missing
-            if 'source' not in filtered_data:
-                filtered_data['source'] = 'trading-bot'
-            
-            # Parse as TradeIntent (AI Engine schema)
-            try:
-                intent = TradeIntent(**filtered_data)
-                
-                # P0.4C: Schema guard - warn if reduce_only without full context
-                if getattr(intent, 'reduce_only', False):
-                    if not getattr(intent, 'source', None) or not getattr(intent, 'reason', None):
-                        logger.warning(
-                            f"⚠️ SCHEMA_GUARD: {symbol} has reduce_only=True but missing source or reason | "
-                            f"source={getattr(intent, 'source', None)} reason={getattr(intent, 'reason', None)}"
-                        )
-            except Exception as parse_err:
-                logger.error(f"❌ Failed to parse TradeIntent for {symbol}: {parse_err}")
-                if os.getenv('PIPELINE_DIAG') == 'true':
-                    logger.error(f"[DIAG] Filtered data: {filtered_data}")
+
+            # P0 FIX Feb 19: Handle SKIP decisions (do not parse as TradeIntent)
+            if signal_data.get("decision") == "SKIP":
+                logger.debug(f"[PATH1B] ACK SKIP/BLOCKED {symbol}: {signal_data.get('error', 'no_error')}")
+                if stream_name and group_name:
+                    try:
+                        await eventbus.redis.xack(stream_name, group_name, msg_id)
+                    except Exception as ack_err:
+                        logger.error(f"Failed to ACK SKIP {msg_id}: {ack_err}")
                 continue
+
+            # C3-FIX-2: Guard — skip non-trade apply.result entries
+            # Skip entries without action OR with non-directional action values
+            # (e.g., action=FULL_CLOSE_PROPOSED from apply_layer close reports)
+            _valid_trade_actions = ('BUY', 'SELL', 'LONG', 'SHORT', 'buy', 'sell', 'long', 'short')
+            if signal_data.get('action') not in _valid_trade_actions:
+                _action_val = signal_data.get('action', '<absent>')
+                logger.debug(f"[ACK-NONTRADE] {symbol}: action={_action_val!r} is not a trade direction, skipping")
+                if stream_name and group_name:
+                    try:
+                        await eventbus.redis.xack(stream_name, group_name, msg_id)
+                    except Exception:
+                        pass
+                continue
+
             
             # P0.D.5: Execute with concurrency control
             if EXEC_CONCURRENCY > 1:

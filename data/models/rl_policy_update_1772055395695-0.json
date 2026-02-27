@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055395695-0",
+  "reward": {
+    "symbol": "BNBUSDT",
+    "reward": "-9.930748098131178e-05",
+    "pnl": "-0.04",
+    "pnl_pct": "-0.009930748098131178",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:36:35.695502"
+  },
+  "updated_at": "2026-02-25T21:36:35.697327+00:00"
+}

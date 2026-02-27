@@ -20,7 +20,7 @@ class SimpleNHiTS(nn.Module):
         self,
         input_size: int = 120,
         hidden_size: int = 256,
-        num_features: int = 12,
+        num_features: int = 49,   # v2: 49 unified features (was 12)
         dropout: float = 0.1
     ):
         super().__init__()

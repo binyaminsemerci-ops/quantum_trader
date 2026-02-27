@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772159188307-0",
+  "reward": {
+    "timestamp": "2026-02-27T02:26:28.307009+00:00",
+    "symbol": "ALICEUSDT",
+    "pnl": "0.92562",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.00092562",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.00077135",
+    "leverage": "0.7501928375",
+    "avg_reward": "0.004263707046842395",
+    "reward_std": "0.021323177167305467",
+    "message_count": "100"
+  },
+  "updated_at": "2026-02-27T02:26:28.309336+00:00"
+}

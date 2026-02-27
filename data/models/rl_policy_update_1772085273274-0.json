@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772085273274-0",
+  "reward": {
+    "symbol": "ACXUSDT",
+    "reward": "0.104753",
+    "pnl": "1.098086",
+    "pnl_net": "1.047531",
+    "commission": "0.050555",
+    "pnl_pct": "3026.6706",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "81488364",
+    "source": "binance",
+    "timestamp": "2026-02-26T05:54:33.273047+00:00"
+  },
+  "updated_at": "2026-02-26T05:54:33.276104+00:00"
+}

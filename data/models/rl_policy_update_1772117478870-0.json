@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772117478870-0",
+  "reward": {
+    "symbol": "ALPINEUSDT",
+    "reward": "0.047483",
+    "pnl": "0.52448",
+    "pnl_net": "0.47483",
+    "commission": "0.04965",
+    "pnl_pct": "111.4964",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "105253908",
+    "source": "binance",
+    "timestamp": "2026-02-26T14:51:18.224919+00:00"
+  },
+  "updated_at": "2026-02-26T14:51:18.870904+00:00"
+}

@@ -317,6 +317,9 @@ class EnsemblePredictorService:
                 weights = {"BUY": 0.0, "SELL": 0.0, "HOLD": 0.0}
                 
                 for agent_name, action, conf in predictions:
+                    action = (action or "HOLD").upper()  # normalize: some agents return lowercase
+                    if action not in votes:
+                        action = "HOLD"
                     votes[action] += 1
                     weights[action] += conf  # Sum confidence for each action
                 

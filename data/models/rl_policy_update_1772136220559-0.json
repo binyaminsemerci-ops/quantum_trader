@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772136220559-0",
+  "reward": {
+    "timestamp": "2026-02-26T20:03:40.559096+00:00",
+    "symbol": "UNIUSDT",
+    "pnl": "-3.20045",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "-0.00320045",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "-0.0026670416666666665",
+    "leverage": "0.7493332395833333",
+    "avg_reward": "0.004773150576976474",
+    "reward_std": "0.022544540528692605",
+    "message_count": "89"
+  },
+  "updated_at": "2026-02-26T20:03:40.560807+00:00"
+}

@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772123805075-0",
+  "reward": {
+    "symbol": "ADAUSDT",
+    "reward": "0.111476",
+    "pnl": "1.155",
+    "pnl_net": "1.114764",
+    "commission": "0.040236",
+    "pnl_pct": "383.4757",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "588955700",
+    "source": "binance",
+    "timestamp": "2026-02-26T16:36:45.075121+00:00"
+  },
+  "updated_at": "2026-02-26T16:36:45.076021+00:00"
+}

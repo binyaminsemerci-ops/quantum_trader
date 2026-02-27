@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772164828961-0",
+  "reward": {
+    "symbol": "LDOUSDT",
+    "reward": "0.141738",
+    "pnl": "1.458",
+    "pnl_net": "1.417383",
+    "commission": "0.040617",
+    "pnl_pct": "458.8486",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "171835229",
+    "source": "binance",
+    "timestamp": "2026-02-27T04:00:28.961717+00:00"
+  },
+  "updated_at": "2026-02-27T04:00:28.962189+00:00"
+}

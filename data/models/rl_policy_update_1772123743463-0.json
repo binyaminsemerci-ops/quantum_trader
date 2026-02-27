@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772123743463-0",
+  "reward": {
+    "symbol": "ARBUSDT",
+    "reward": "-0.329479",
+    "pnl": "-3.25611",
+    "pnl_net": "-3.294789",
+    "commission": "0.038679",
+    "pnl_pct": "-3252.5061",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "96268607",
+    "source": "binance",
+    "timestamp": "2026-02-26T16:35:43.462881+00:00"
+  },
+  "updated_at": "2026-02-26T16:35:43.463963+00:00"
+}

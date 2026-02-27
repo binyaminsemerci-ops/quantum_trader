@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772165566571-0",
+  "reward": {
+    "symbol": "1000CATUSDT",
+    "reward": "0.03343108504398826",
+    "pnl": "-3.33",
+    "pnl_pct": "3.343108504398826",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-27T04:12:46.570980"
+  },
+  "updated_at": "2026-02-27T04:12:46.575575+00:00"
+}

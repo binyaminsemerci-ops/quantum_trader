@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772124842437-0",
+  "reward": {
+    "symbol": "AVAXUSDT",
+    "reward": "-0.034512638388122956",
+    "pnl": "-3.58",
+    "pnl_pct": "-3.4512638388122956",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-26T16:54:02.437229"
+  },
+  "updated_at": "2026-02-26T16:54:02.439252+00:00"
+}

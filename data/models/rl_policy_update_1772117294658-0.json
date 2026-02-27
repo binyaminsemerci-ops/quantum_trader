@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772117294658-0",
+  "reward": {
+    "timestamp": "2026-02-26T14:48:14.656804+00:00",
+    "symbol": "XRPUSDT",
+    "pnl": "1.287822",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.001287822",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.001073185",
+    "leverage": "0.75026829625",
+    "avg_reward": "0.010757774289279395",
+    "reward_std": "0.03036004996157873",
+    "message_count": "45"
+  },
+  "updated_at": "2026-02-26T14:48:14.660514+00:00"
+}

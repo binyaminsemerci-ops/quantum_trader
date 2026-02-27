@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772165316166-0",
+  "reward": {
+    "timestamp": "2026-02-27T04:08:36.166033+00:00",
+    "symbol": "AVAXUSDT",
+    "pnl": "1.091508",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.001091508",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.0009095899999999998",
+    "leverage": "0.7502273975",
+    "avg_reward": "-0.00039708134166666667",
+    "reward_std": "0.0025931727262112473",
+    "message_count": "113"
+  },
+  "updated_at": "2026-02-27T04:08:36.171145+00:00"
+}

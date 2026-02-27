@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772132780693-0",
+  "reward": {
+    "symbol": "A2ZUSDT",
+    "reward": "-0.31783",
+    "pnl": "-3.12689",
+    "pnl_net": "-3.178303",
+    "commission": "0.051413",
+    "pnl_pct": "-383390.0217",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "57506924",
+    "source": "binance",
+    "timestamp": "2026-02-26T19:06:20.235481+00:00"
+  },
+  "updated_at": "2026-02-26T19:06:20.701572+00:00"
+}

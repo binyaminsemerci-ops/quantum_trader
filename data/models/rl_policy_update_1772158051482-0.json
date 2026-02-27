@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772158051482-0",
+  "reward": {
+    "symbol": "DOGEUSDT",
+    "reward": "0.097682",
+    "pnl": "1.01724",
+    "pnl_net": "0.976816",
+    "commission": "0.040424",
+    "pnl_pct": "1013.505",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "708423331",
+    "source": "binance",
+    "timestamp": "2026-02-27T02:07:31.481132+00:00"
+  },
+  "updated_at": "2026-02-27T02:07:31.482617+00:00"
+}

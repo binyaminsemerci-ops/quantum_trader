@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772122507864-0",
+  "reward": {
+    "symbol": "OPUSDT",
+    "reward": "-0.03405762435811024",
+    "pnl": "-3.41",
+    "pnl_pct": "-3.405762435811024",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-26T16:15:07.863293"
+  },
+  "updated_at": "2026-02-26T16:15:07.866259+00:00"
+}

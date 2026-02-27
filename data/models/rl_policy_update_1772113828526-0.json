@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772113828526-0",
+  "reward": {
+    "symbol": "DOTUSDT",
+    "reward": "0.037375578677682174",
+    "pnl": "-3.74",
+    "pnl_pct": "3.7375578677682175",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-26T13:50:28.526219"
+  },
+  "updated_at": "2026-02-26T13:50:28.527385+00:00"
+}

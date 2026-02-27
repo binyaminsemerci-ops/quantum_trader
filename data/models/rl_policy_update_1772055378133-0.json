@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055378133-0",
+  "reward": {
+    "symbol": "ETHUSDT",
+    "reward": "-2.7200186664278304e-05",
+    "pnl": "-0.02",
+    "pnl_pct": "-0.0027200186664278303",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:36:18.132676"
+  },
+  "updated_at": "2026-02-25T21:36:18.136111+00:00"
+}

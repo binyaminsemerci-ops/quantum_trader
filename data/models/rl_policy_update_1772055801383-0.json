@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055801383-0",
+  "reward": {
+    "symbol": "LDOUSDT",
+    "reward": "0.01444991789819381",
+    "pnl": "1.45",
+    "pnl_pct": "1.4449917898193811",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:43:21.383514"
+  },
+  "updated_at": "2026-02-25T21:43:21.384700+00:00"
+}

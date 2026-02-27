@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772119287825-0",
+  "reward": {
+    "symbol": "BNBUSDT",
+    "reward": "0.095383",
+    "pnl": "0.9936",
+    "pnl_net": "0.953835",
+    "commission": "0.039765",
+    "pnl_pct": "0.152",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "1275042163",
+    "source": "binance",
+    "timestamp": "2026-02-26T15:21:27.824936+00:00"
+  },
+  "updated_at": "2026-02-26T15:21:27.825443+00:00"
+}

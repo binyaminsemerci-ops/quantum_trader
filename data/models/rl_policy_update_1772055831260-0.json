@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055831260-0",
+  "reward": {
+    "symbol": "STXUSDT",
+    "reward": "0.03748582244793649",
+    "pnl": "-3.75",
+    "pnl_pct": "3.7485822447936488",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:43:51.259171"
+  },
+  "updated_at": "2026-02-25T21:43:51.273879+00:00"
+}

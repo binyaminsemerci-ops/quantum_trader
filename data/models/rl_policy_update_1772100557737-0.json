@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772100557737-0",
+  "reward": {
+    "timestamp": "2026-02-26T10:09:17.737074+00:00",
+    "symbol": "SOLUSDT",
+    "pnl": "0.982822",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.000982822",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.0008190183333333332",
+    "leverage": "0.7502047545833334",
+    "avg_reward": "0.015399831226373319",
+    "reward_std": "0.03560688675504939",
+    "message_count": "31"
+  },
+  "updated_at": "2026-02-26T10:09:17.739021+00:00"
+}

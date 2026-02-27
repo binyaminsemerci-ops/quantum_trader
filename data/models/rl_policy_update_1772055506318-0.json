@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055506318-0",
+  "reward": {
+    "symbol": "ADAUSDT",
+    "reward": "0.0032461781076758255",
+    "pnl": "-2.25",
+    "pnl_pct": "0.32461781076758256",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:38:26.317886"
+  },
+  "updated_at": "2026-02-25T21:38:26.324123+00:00"
+}

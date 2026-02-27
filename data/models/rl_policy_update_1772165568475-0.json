@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772165568475-0",
+  "reward": {
+    "symbol": "1000CATUSDT",
+    "reward": "-0.338094",
+    "pnl": "-3.329484",
+    "pnl_net": "-3.380945",
+    "commission": "0.051461",
+    "pnl_pct": "-198295.8927",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "65499417",
+    "source": "binance",
+    "timestamp": "2026-02-27T04:12:48.473005+00:00"
+  },
+  "updated_at": "2026-02-27T04:12:48.477073+00:00"
+}

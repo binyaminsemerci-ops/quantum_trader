@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055751578-0",
+  "reward": {
+    "symbol": "ALTUSDT",
+    "reward": "-0.010908586448484811",
+    "pnl": "1.09",
+    "pnl_pct": "-1.0908586448484812",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:42:31.577512"
+  },
+  "updated_at": "2026-02-25T21:42:31.581555+00:00"
+}

@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772117478876-0",
+  "reward": {
+    "timestamp": "2026-02-26T14:51:18.874480+00:00",
+    "symbol": "ALPINEUSDT",
+    "pnl": "0.47483",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.00047483",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.00039569166666666663",
+    "leverage": "0.7500989229166667",
+    "avg_reward": "0.010129651764254989",
+    "reward_std": "0.02949653378393201",
+    "message_count": "48"
+  },
+  "updated_at": "2026-02-26T14:51:19.258379+00:00"
+}

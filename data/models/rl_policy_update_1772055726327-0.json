@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055726327-0",
+  "reward": {
+    "symbol": "SOLUSDT",
+    "reward": "-0.014132212099976733",
+    "pnl": "2.42",
+    "pnl_pct": "-1.4132212099976733",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:42:06.324852"
+  },
+  "updated_at": "2026-02-25T21:42:06.327573+00:00"
+}

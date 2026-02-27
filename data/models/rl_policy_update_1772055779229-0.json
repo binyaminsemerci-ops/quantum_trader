@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055779229-0",
+  "reward": {
+    "symbol": "A2ZUSDT",
+    "reward": "0.010287292817679563",
+    "pnl": "6.17",
+    "pnl_pct": "1.0287292817679563",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:42:59.227729"
+  },
+  "updated_at": "2026-02-25T21:42:59.235155+00:00"
+}

@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772114472673-0",
+  "reward": {
+    "symbol": "UNIUSDT",
+    "reward": "-0.013393864541832647",
+    "pnl": "1.34",
+    "pnl_pct": "-1.3393864541832647",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-26T14:01:12.673557"
+  },
+  "updated_at": "2026-02-26T14:01:12.674226+00:00"
+}

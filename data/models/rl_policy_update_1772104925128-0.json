@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772104925128-0",
+  "reward": {
+    "timestamp": "2026-02-26T11:22:05.127606+00:00",
+    "symbol": "BNBUSDT",
+    "pnl": "1.097673",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.001097673",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.0009147274999999999",
+    "leverage": "0.750228681875",
+    "avg_reward": "0.013752096967168748",
+    "reward_std": "0.033822995562624095",
+    "message_count": "35"
+  },
+  "updated_at": "2026-02-26T11:22:05.130359+00:00"
+}

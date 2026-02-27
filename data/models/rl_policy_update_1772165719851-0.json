@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772165719851-0",
+  "reward": {
+    "symbol": "ALGOUSDT",
+    "reward": "0.108931",
+    "pnl": "1.1298",
+    "pnl_net": "1.089308",
+    "commission": "0.040492",
+    "pnl_pct": "1229.4672",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "189856816",
+    "source": "binance",
+    "timestamp": "2026-02-27T04:15:19.851131+00:00"
+  },
+  "updated_at": "2026-02-27T04:15:19.851574+00:00"
+}

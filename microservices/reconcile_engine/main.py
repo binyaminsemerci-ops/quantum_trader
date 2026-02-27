@@ -17,11 +17,13 @@ import sys
 import time
 import json
 import logging
+import hmac
+import hashlib
+import urllib.request
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from enum import Enum
-import hashlib
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -56,6 +58,12 @@ REDIS_DB = int(os.getenv("QUANTUM_REDIS_DB", "0"))
 ALLOWLIST = os.getenv("P34_ALLOWLIST", "BTCUSDT").split(",")
 LOOP_CADENCE_SEC = float(os.getenv("P34_LOOP_CADENCE_SEC", "1.0"))
 PROMETHEUS_PORT = int(os.getenv("P34_PROMETHEUS_PORT", "8046"))
+
+# Binance API (source of truth for ghost detection)
+BINANCE_API_KEY    = os.getenv("BINANCE_TESTNET_API_KEY", "")
+BINANCE_API_SECRET = os.getenv("BINANCE_TESTNET_API_SECRET", "")
+BINANCE_BASE_URL   = os.getenv("BINANCE_TESTNET_BASE_URL", "https://testnet.binancefuture.com")
+GHOST_PURGE_INTERVAL_SEC = int(os.getenv("P34_GHOST_PURGE_INTERVAL_SEC", "60"))  # call Binance every 60s
 
 # Drift detection thresholds
 EXCHANGE_FRESHNESS_SEC = int(os.getenv("P34_EXCHANGE_FRESHNESS_SEC", "10"))
@@ -153,6 +161,8 @@ class ReconcileEngine:
         logger.info(f"Loop cadence: {LOOP_CADENCE_SEC}s")
         logger.info(f"Exchange freshness: {EXCHANGE_FRESHNESS_SEC}s")
         logger.info(f"Drift tolerance: {QTY_DRIFT_TOLERANCE_PCT}%")
+        logger.info(f"Ghost purge interval: {GHOST_PURGE_INTERVAL_SEC}s (calls Binance API directly)")
+        self._last_ghost_purge_ts = 0.0  # force purge on first run
     
     def run(self):
         """Main reconciliation loop"""
@@ -160,13 +170,16 @@ class ReconcileEngine:
         
         while True:
             try:
+                # ── Ghost purge: runs for ALL Redis position keys, allowlist-independent ──
+                self._purge_ghosts()
+
+                # ── Drift correction: runs only for allowlisted symbols ──
                 for symbol in ALLOWLIST:
                     symbol = symbol.strip()
                     if not symbol:
                         continue
-                    
                     self.reconcile_symbol(symbol)
-                
+
                 time.sleep(LOOP_CADENCE_SEC)
                 
             except KeyboardInterrupt:
@@ -176,9 +189,179 @@ class ReconcileEngine:
                 logger.error(f"Loop error: {e}", exc_info=True)
                 time.sleep(LOOP_CADENCE_SEC)
     
-    def reconcile_symbol(self, symbol: str):
-        """Reconcile single symbol"""
+    def _fetch_binance_open_symbols(self) -> Optional[dict]:
+        """Call Binance /fapi/v2/positionRisk directly and return a dict mapping
+        symbol → full position record for every position with abs(positionAmt) > 0.
+        Returns None on any error so the caller can skip the purge pass safely
+        (fail-closed)."""
+        if not BINANCE_API_KEY or not BINANCE_API_SECRET:
+            logger.warning("GHOST_PURGE: BINANCE_TESTNET_API_KEY/SECRET not set — skipping")
+            return None
         try:
+            ts  = int(time.time() * 1000)
+            qs  = f"timestamp={ts}"
+            sig = hmac.new(BINANCE_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
+            url = f"{BINANCE_BASE_URL}/fapi/v2/positionRisk?{qs}&signature={sig}"
+            req = urllib.request.Request(url, headers={"X-MBX-APIKEY": BINANCE_API_KEY})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                raw = json.loads(resp.read())
+            open_positions = {
+                p["symbol"]: p
+                for p in raw
+                if abs(float(p.get("positionAmt", 0))) > 0
+            }
+            logger.info(f"GHOST_PURGE: Binance reports {len(open_positions)} open positions: {sorted(open_positions)}")
+            return open_positions
+        except Exception as e:
+            logger.error(f"GHOST_PURGE: Binance API call failed: {e} — skipping purge pass")
+            return None
+
+    def _purge_ghosts(self):
+        """Compare ALL quantum:position:{symbol} Redis keys directly against
+        live Binance positionRisk API.  Any symbol in Redis that Binance
+        reports as FLAT (positionAmt == 0) is a ghost and is deleted.
+
+        Runs every GHOST_PURGE_INTERVAL_SEC (default 60s), independently of
+        the ALLOWLIST — no ghost can survive regardless of trading symbol.
+        """
+        now = time.time()
+        if now - self._last_ghost_purge_ts < GHOST_PURGE_INTERVAL_SEC:
+            return  # not time yet
+        self._last_ghost_purge_ts = now
+
+        # 1. Get ground truth from Binance
+        open_positions = self._fetch_binance_open_symbols()
+        if open_positions is None:
+            return  # API error — skip, be safe
+        open_symbols = set(open_positions.keys())
+
+        # 2. Scan all Redis position keys
+        cursor = 0
+        while True:
+            cursor, keys = self.redis.scan(cursor, match=b"quantum:position:*", count=200)
+            for raw_key in keys:
+                key = raw_key.decode() if isinstance(raw_key, bytes) else raw_key
+                if ":snapshot:" in key or ":ledger:" in key or ":claim:" in key:
+                    continue
+                symbol = key.replace("quantum:position:", "")
+
+                if symbol in open_symbols:
+                    continue  # Binance confirms open — leave it
+
+                # Not in Binance open positions → ghost → purge
+                ledger_key = f"quantum:position:ledger:{symbol}"
+                snap_key   = f"quantum:position:snapshot:{symbol}"
+                d_pos    = self.redis.delete(key)
+                d_ledger = self.redis.delete(ledger_key)
+                d_snap   = self.redis.delete(snap_key)
+                logger.warning(
+                    f"{symbol}: GHOST_PURGE — not in Binance positionRisk (confirmed FLAT). "
+                    f"Deleted: position={d_pos} ledger={d_ledger} snapshot={d_snap}"
+                )
+                self._emit_event("GHOST_PURGE", symbol, {
+                    "reason": "not_in_binance_position_risk",
+                })
+                if PROMETHEUS_AVAILABLE:
+                    p34_drift_detected.labels(symbol=symbol, reason="ghost_purge").inc()
+            if cursor == 0:
+                break
+
+        # --- BOOTSTRAP + LEDGER REPAIR ---
+        # For every symbol confirmed open on Binance:
+        #   A) If no quantum:position:snapshot:{sym} exists, write one directly
+        #      from Binance data.  This breaks the chicken-and-egg loop where
+        #      P3.3 only snapshots symbols with ledger keys and LEDGER_REPAIR
+        #      only creates ledgers for symbols with snapshots.
+        #   B) If ledger is missing or zero/FLAT, initialize it.
+        #   C) If quantum:position:{sym} is missing, bootstrap it.
+        for symbol, bpos in open_positions.items():
+            b_amt   = float(bpos.get("positionAmt", 0))
+            b_entry = float(bpos.get("entryPrice", 0))
+            b_mark  = float(bpos.get("markPrice",  b_entry))
+            b_lev   = int(float(bpos.get("leverage", 1)))
+            b_side  = "LONG" if b_amt > 0 else "SHORT"
+
+            snap_key   = f"quantum:position:snapshot:{symbol}"
+            ledger_key = f"quantum:position:ledger:{symbol}"
+            pos_key    = f"quantum:position:{symbol}"
+
+            # A) Bootstrap missing snapshot so P3.3 picks up the symbol
+            if not self.redis.exists(snap_key):
+                self.redis.hset(snap_key, mapping={
+                    "position_amt": b_amt,
+                    "side":         b_side,
+                    "entry_price":  b_entry,
+                    "mark_price":   b_mark,
+                    "leverage":     b_lev,
+                    "ts_epoch":     int(time.time()),
+                    "source":       "p34_bootstrap",
+                })
+                logger.warning(
+                    f"{symbol}: SNAPSHOT_BOOTSTRAP — wrote exchange snapshot directly "
+                    f"(amt={b_amt:.4f} side={b_side} entry={b_entry})"
+                )
+
+            # B) Repair ledger if missing or stale
+            ledger_data = self.redis.hgetall(ledger_key) if self.redis.exists(ledger_key) else {}
+            # decode_responses=False → values are bytes; decode before float/str conversion
+            def _b(v, default="0"):
+                if v is None:
+                    return default
+                return v.decode("utf-8", errors="ignore") if isinstance(v, bytes) else str(v)
+            raw_amt  = ledger_data.get(b"last_known_amt", ledger_data.get(b"ledger_amt"))
+            raw_side = ledger_data.get(b"last_side",      ledger_data.get(b"ledger_side"))
+            try:
+                l_amt = float(_b(raw_amt, "0"))
+            except (ValueError, TypeError):
+                l_amt = 0.0
+            l_side = _b(raw_side, "FLAT").upper()
+            ledger_bad = (not ledger_data) or (abs(l_amt) < 0.0001) or (l_side in ("FLAT", "NONE", ""))
+
+            if ledger_bad:
+                exchange = self._read_exchange_snapshot(symbol)
+                if exchange:
+                    repaired = self._initialize_ledger(symbol, exchange)
+                    if repaired:
+                        action = "missing" if not ledger_data else "zero/FLAT"
+                        logger.warning(
+                            f"{symbol}: LEDGER_REPAIR ({action}) — initialized from "
+                            f"exchange snapshot amt={exchange.position_amt:.4f} side={exchange.side}"
+                        )
+
+            # C) Bootstrap missing quantum:position:{sym} key
+            if not self.redis.exists(pos_key) and abs(b_amt) > 0.0001:
+                self.redis.hset(pos_key, mapping={
+                    "symbol":       symbol,
+                    "side":         b_side,
+                    "quantity":     abs(b_amt),
+                    "entry_price":  b_entry,
+                    "leverage":     b_lev,
+                    "opened_at":    int(time.time()),
+                    "source":       "p34_position_bootstrap",
+                    "risk_missing": 1,
+                })
+                logger.warning(
+                    f"{symbol}: POSITION_BOOTSTRAP — created Redis position key "
+                    f"(side={b_side} qty={abs(b_amt):.4f})"
+                )
+
+    def reconcile_symbol(self, symbol: str):
+        """Reconcile single symbol (drift correction — allowlist only)"""
+        try:
+            # Quick exit: no Redis position key means symbol is flat — nothing to reconcile.
+            # P3.3 only writes exchange snapshots for open positions, so a missing snapshot
+            # for a flat allowlist symbol would otherwise spam HOLD_SET every loop tick.
+            pos_key = f"quantum:position:{symbol}"
+            if not self.redis.exists(pos_key):
+                self._clear_hold(symbol)
+                return
+
+            # If a hold is already active with plenty of TTL left, skip reconcile silently.
+            # This prevents per-second WARNING logs while waiting for snapshot to refresh.
+            hold_key = f"quantum:reconcile:hold:{symbol}"
+            if self.redis.exists(hold_key) and (self.redis.ttl(hold_key) or 0) > 60:
+                return
+
             # 1. Read exchange snapshot
             exchange = self._read_exchange_snapshot(symbol)
             if not exchange:
@@ -248,12 +431,25 @@ class ReconcileEngine:
         )
         
         key = f"quantum:position:ledger:{symbol}"
+        # DELETE first — HSET only adds fields; stale fields from a previous
+        # intent_executor write (e.g. last_known_amt=84.8 side=LONG before a
+        # partial exit) will otherwise survive and confuse P3.3.
+        self.redis.delete(key)
+        # Write BOTH field-name conventions so all readers see consistent data:
+        #   reconcile_engine reads: ledger_amt, ledger_side
+        #   P3.3 reads:             last_known_amt (signed), last_side, updated_at
         self.redis.hset(key, mapping={
-            "ledger_amt": ledger.ledger_amt,
-            "ledger_side": ledger.ledger_side,
-            "ts_epoch": ledger.ts_epoch,
-            "source": ledger.source,
-            "version": ledger.version
+            # reconcile_engine fields
+            "ledger_amt":      ledger.ledger_amt,
+            "ledger_side":     ledger.ledger_side,
+            "ts_epoch":        ledger.ts_epoch,
+            "source":          ledger.source,
+            "version":         ledger.version,
+            # P3.3 fields (last_known_amt must be SIGNED: negative = SHORT)
+            "last_known_amt":  ledger.ledger_amt,   # same value, signed
+            "last_side":       ledger.ledger_side,
+            "position_amt":    ledger.ledger_amt,
+            "updated_at":      ledger.ts_epoch,
         })
         
         self._emit_event("LEDGER_INIT", symbol, {
@@ -309,12 +505,37 @@ class ReconcileEngine:
             p34_hold_active.labels(symbol=symbol).set(1)
     
     def _handle_side_mismatch(self, symbol: str, exchange: ExchangeSnapshot, ledger: Ledger):
-        """Handle side mismatch (not auto-fixable)"""
+        """Handle side mismatch.
+        Special case: exchange.position_amt == 0 means Binance closed the position.
+        In that case the Redis position key is a ghost — delete it immediately.
+        """
         logger.error(
             f"{symbol}: SIDE MISMATCH - exchange={exchange.side}({exchange.position_amt}) "
             f"ledger={ledger.ledger_side}({ledger.ledger_amt})"
         )
-        
+
+        # ── Ghost detection: exchange says flat → position closed on Binance ──
+        if abs(exchange.position_amt) < 0.0001:
+            pos_key     = f"quantum:position:{symbol}"
+            ledger_key  = f"quantum:position:ledger:{symbol}"
+            snap_key    = f"quantum:position:snapshot:{symbol}"
+            deleted_pos    = self.redis.delete(pos_key)
+            deleted_ledger = self.redis.delete(ledger_key)
+            deleted_snap   = self.redis.delete(snap_key)
+            logger.warning(
+                f"{symbol}: GHOST_PURGE — exchange=FLAT, Redis position closed on exchange. "
+                f"Deleted: position={deleted_pos} ledger={deleted_ledger} snapshot={deleted_snap}"
+            )
+            self._emit_event("GHOST_PURGE", symbol, {
+                "reason": "exchange_flat_side_mismatch",
+                "ledger_side": ledger.ledger_side,
+                "ledger_amt": ledger.ledger_amt,
+            })
+            if PROMETHEUS_AVAILABLE:
+                p34_drift_detected.labels(symbol=symbol, reason="ghost_purge").inc()
+            return
+
+        # ── True side mismatch (both sides have non-zero amt) — not auto-fixable ──
         self._set_hold(symbol, "side_mismatch", exchange, ledger)
         self._update_state(
             symbol, ReconcileStatus.HOLD, "side_mismatch",
@@ -327,7 +548,7 @@ class ReconcileEngine:
             "ledger_side": ledger.ledger_side,
             "ledger_amt": ledger.ledger_amt
         })
-        
+
         if PROMETHEUS_AVAILABLE:
             p34_drift_detected.labels(symbol=symbol, reason="side_mismatch").inc()
             p34_hold_active.labels(symbol=symbol).set(1)
@@ -436,12 +657,23 @@ class ReconcileEngine:
         )
         
         key = f"quantum:position:ledger:{symbol}"
+        # DELETE first so no stale fields from previous writes survive.
+        # Write BOTH field-name conventions (same pattern as _initialize_ledger):
+        #   reconcile_engine reads: ledger_amt, ledger_side
+        #   P3.3 reads:             last_known_amt (signed), last_side, updated_at
+        self.redis.delete(key)
         self.redis.hset(key, mapping={
-            "ledger_amt": new_ledger.ledger_amt,
-            "ledger_side": new_ledger.ledger_side,
-            "ts_epoch": new_ledger.ts_epoch,
-            "source": new_ledger.source,
-            "version": new_ledger.version
+            # reconcile_engine fields
+            "ledger_amt":     new_ledger.ledger_amt,
+            "ledger_side":    new_ledger.ledger_side,
+            "ts_epoch":       new_ledger.ts_epoch,
+            "source":         new_ledger.source,
+            "version":        new_ledger.version,
+            # P3.3 fields (last_known_amt signed: neg=SHORT)
+            "last_known_amt": new_ledger.ledger_amt,
+            "last_side":      new_ledger.ledger_side,
+            "position_amt":   new_ledger.ledger_amt,
+            "updated_at":     new_ledger.ts_epoch,
         })
         
         # Update state
@@ -472,11 +704,17 @@ class ReconcileEngine:
             p34_last_fix_age_sec.labels(symbol=symbol).set(0)
     
     def _set_hold(self, symbol: str, reason: str, exchange=None, ledger=None):
-        """Set reconcile hold and publish RECONCILE_CLOSE plan"""
+        """Set reconcile hold and publish RECONCILE_CLOSE plan.
+        Rate-limited: if hold already active with >60s TTL remaining, skip
+        re-setting to avoid spamming logs and reconcile.events stream.
+        """
         key = f"quantum:reconcile:hold:{symbol}"
+        ttl = self.redis.ttl(key)
+        if ttl is not None and ttl > 60:
+            # Hold already active — no need to renew or log again
+            return
         self.redis.setex(key, HOLD_TTL_SEC, "1")
         logger.warning(f"{symbol}: HOLD set (reason={reason}, TTL={HOLD_TTL_SEC}s)")
-        
         self._emit_event("HOLD_SET", symbol, {"reason": reason, "ttl_sec": HOLD_TTL_SEC})
         if exchange and ledger:
             self._publish_reconcile_close_plan(symbol, exchange, ledger, reason)

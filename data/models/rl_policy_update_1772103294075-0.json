@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772103294075-0",
+  "reward": {
+    "symbol": "SOLUSDT",
+    "reward": "0.120278",
+    "pnl": "1.2426",
+    "pnl_net": "1.202778",
+    "commission": "0.039822",
+    "pnl_pct": "1.3603",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "1732635095",
+    "source": "binance",
+    "timestamp": "2026-02-26T10:54:53.035327+00:00"
+  },
+  "updated_at": "2026-02-26T10:54:54.076414+00:00"
+}

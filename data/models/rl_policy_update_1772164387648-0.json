@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772164387648-0",
+  "reward": {
+    "symbol": "1000SATSUSDT",
+    "reward": "0.086256",
+    "pnl": "0.913242",
+    "pnl_net": "0.862557",
+    "commission": "0.050685",
+    "pnl_pct": "7841428.8182",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "125137481",
+    "source": "binance",
+    "timestamp": "2026-02-27T03:53:07.647887+00:00"
+  },
+  "updated_at": "2026-02-27T03:53:07.648634+00:00"
+}

@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772164798613-0",
+  "reward": {
+    "symbol": "AIXBTUSDT",
+    "reward": "0.120214",
+    "pnl": "1.25275",
+    "pnl_net": "1.202139",
+    "commission": "0.050611",
+    "pnl_pct": "6025.7589",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "80400625",
+    "source": "binance",
+    "timestamp": "2026-02-27T03:59:58.613062+00:00"
+  },
+  "updated_at": "2026-02-27T03:59:58.614530+00:00"
+}

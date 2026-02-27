@@ -1960,6 +1960,24 @@ class AIEngineService:
             logger.warning(f"[AI-ENGINE] ⚠️ Emergency stop cache refresh failed: {e}")
             self._emergency_stop_cache['updating'] = False
     
+    async def _get_live_equity(self, fallback: float = 1000.0) -> float:
+        """Read live account balance from Redis (quantum:account:balance).
+
+        Scales correctly for any capital size (50 USD to 1 million USD).
+        Leverage (Kelly-based) is completely independent of balance size.
+        Falls back to `fallback` if Redis is unavailable.
+        """
+        try:
+            val = await self.redis_client.hget("quantum:account:balance", "balance")
+            if val:
+                equity = float(val)
+                if equity > 0:
+                    logger.debug(f"[EQUITY] Live equity: ${equity:.2f}")
+                    return equity
+        except Exception as e:
+            logger.warning(f"[EQUITY] Redis read failed: {e} — using fallback ${fallback:.0f}")
+        return fallback
+
     # ========================================================================
     # SIGNAL GENERATION (MAIN PIPELINE)
     # ========================================================================
@@ -2522,8 +2540,8 @@ class AIEngineService:
                 # TODO: Get real portfolio state from execution-service
                 portfolio_exposure = 0.0
                 
-                # TODO: Get real account equity from execution-service
-                equity_usd = 10000.0  # Default $10K account
+                # Live equity from Redis — scales for $50 to $1M+
+                equity_usd = await self._get_live_equity()
                 
                 sizing_decision = await asyncio.to_thread(
                     self.rl_sizing_agent.decide_sizing,  # ✅ FIXED: decide_sizing (not decide_size)
@@ -2812,8 +2830,8 @@ class AIEngineService:
                 from microservices.ai_engine.ai_sizer_policy import get_ai_sizer
                 sizer = get_ai_sizer()
                 volatility_factor = features.get("volatility_factor", 1.0)
-                # TODO: Get real account equity from Binance account info
-                account_equity = 10000.0  # Placeholder
+                # Live equity from Redis — scales for $50 to $1M+
+                account_equity = await self._get_live_equity()
                 trade_intent_payload = sizer.inject_into_payload(
                     trade_intent_payload,
                     signal_confidence=ensemble_confidence,

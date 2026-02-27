@@ -31,11 +31,22 @@ class LightGBMAgent:
     ):
         # Use 49-feature LightGBM model (Dec 13, 2025)
         # This model expects all 49 engineered features from feature_publisher_service.py
-        retraining_dir = Path("/app/models") if Path("/app/models").exists() else (
-            Path("models") if Path("models").exists() else Path("ai_engine/models")
-        )
-        latest_model = self._find_latest_model(retraining_dir, "lightgbm_v*_v2.pkl")
-        latest_scaler = self._find_latest_model(retraining_dir, "lightgbm_scaler_v*_v2.pkl")
+        # Search multiple directories for the latest model (v3 > v2 priority)
+        _search_dirs = [
+            Path("/app/models"),
+            Path("/home/qt/quantum_trader/models"),
+            Path("models"),
+            Path("ai_engine/models"),
+        ]
+        latest_model = None
+        latest_scaler = None
+        for _dir in _search_dirs:
+            if not _dir.exists():
+                continue
+            latest_model = latest_model or self._find_latest_model(_dir, "lightgbm_v*_v3.pkl")
+            latest_model = latest_model or self._find_latest_model(_dir, "lightgbm_v*_v2.pkl")
+            latest_scaler = latest_scaler or self._find_latest_model(_dir, "lightgbm_v*_v3_scaler.pkl")
+            latest_scaler = latest_scaler or self._find_latest_model(_dir, "lightgbm_scaler_v*_v2.pkl")
         
         # Default to 49-feature model (292KB file, trained Dec 13)
         # NOTE: lightgbm_v20251228_154858.pkl is just metadata (166 bytes), not a real model
@@ -145,42 +156,13 @@ class LightGBMAgent:
                     "Fix feature engineering or exclude from ensemble."
                 )
             
-            # Scale features (or skip if scaler incompatible)
+            # LightGBM uses decision trees — splits only compare values against
+            # thresholds (e.g. "RSI > 60?"), so feature scaling has zero effect
+            # on predictions.  Skipping the scaler step permanently removes the
+            # "Scaler expects 12 features" warning and avoids sklearn version
+            # incompatibilities between training and inference environments.
             feature_values = feature_values.reshape(1, -1)
-            num_features = feature_values.shape[1]
-            
-            # Check if scaler is compatible with our feature count
-            try:
-                import pandas as pd
-                import numpy as np
-                
-                # Get expected feature count from scaler
-                if hasattr(self.scaler, "n_features_in_"):
-                    expected_features = self.scaler.n_features_in_
-                elif hasattr(self.scaler, "feature_names_in_"):
-                    expected_features = len(self.scaler.feature_names_in_)
-                else:
-                    expected_features = num_features  # Assume OK if can't determine
-                
-                # If mismatch, skip scaling (use raw features)
-                if num_features != expected_features:
-                    logger.warning(
-                        f"[LGBM] Scaler expects {expected_features} features but got {num_features}. "
-                        f"Bypassing scaler, using raw features."
-                    )
-                    X_scaled = feature_values  # Use raw features (no scaling)
-                else:
-                    # Scale features normally
-                    if hasattr(self.scaler, "feature_names_in_"):
-                        cols = list(self.scaler.feature_names_in_)
-                        df_vec = pd.DataFrame(feature_values, columns=cols)
-                        X_scaled = self.scaler.transform(df_vec)
-                    else:
-                        X_scaled = self.scaler.transform(feature_values)
-                        
-            except Exception as e:
-                logger.warning(f"[LGBM] Scaler transform failed: {e}. Using raw features.")
-                X_scaled = feature_values  # Fallback to raw features
+            X_scaled = feature_values  # raw features — correct for tree models
             
             # Make prediction (handle both Classifier and Regressor)
             if hasattr(self.model, 'predict_proba'):
@@ -198,8 +180,8 @@ class LightGBMAgent:
                 action_map = {0: 'SELL', 1: 'HOLD', 2: 'BUY'}
                 action = action_map[pred_class]
                 
-                logger.debug(
-                    f"LightGBM Classifier {symbol}: {action} (conf={confidence:.2f}, "
+                logger.info(
+                    f"LGBM {symbol}: {action} (conf={confidence:.2f}, "
                     f"probs=[{probs[0]:.2f}, {probs[1]:.2f}, {probs[2]:.2f}])"
                 )
                 
@@ -208,18 +190,20 @@ class LightGBMAgent:
                 prediction = self.model.predict(X_scaled)[0]  # Single value
                 
                 # Convert regression output to action
-                # Assume output range: negative=SELL, ~0=HOLD, positive=BUY
-                if prediction > 0.3:
+                # Model predicts 1h forward-return fraction (e.g. 0.003 = +0.3%)
+                # Threshold ±0.003 (0.3%) gives ~30% BUY, ~40% SELL, ~30% HOLD on real data
+                THRESH = 0.003
+                if prediction > THRESH:
                     action = 'BUY'
-                    confidence = min(0.50 + abs(prediction) * 0.30, 1.0)
-                elif prediction < -0.3:
+                    confidence = min(0.50 + abs(prediction) / THRESH * 0.15, 0.90)
+                elif prediction < -THRESH:
                     action = 'SELL'
-                    confidence = min(0.50 + abs(prediction) * 0.30, 1.0)
+                    confidence = min(0.50 + abs(prediction) / THRESH * 0.15, 0.90)
                 else:
                     action = 'HOLD'
-                    confidence = 0.50 + (0.3 - abs(prediction)) * 0.10  # Higher confidence near 0
+                    confidence = 0.50 + (THRESH - abs(prediction)) / THRESH * 0.10
                 
-                logger.debug(f"LightGBM Regressor {symbol}: {prediction:.3f} → {action} (conf={confidence:.2f})")
+                logger.info(f"LGBM {symbol}: {prediction:.4f} → {action} (conf={confidence:.2f})")
             
             return {"action": action, "confidence": confidence, "model": "lgbm_model"}
             
@@ -303,33 +287,35 @@ class LightGBMAgent:
         - EMA divergence > 1.5%: Strong trend
         """
         try:
-            rsi = features.get('rsi_14', 50)
-            ema_10_20_cross = features.get('ema_10_20_cross', 0) * 100
+            # 49-feature schema uses 'rsi', 'momentum_20', 'ema_21_dist'
+            rsi = features.get('rsi', features.get('rsi_14', 50))
+            momentum_20 = features.get('momentum_20', 0) * 100
+            ema_21_dist = features.get('ema_21_dist', 0) * 100  # % distance from EMA21
             
             action = 'HOLD'
             confidence = 0.50
             
-            # RSI-based signals (conservative) - REMOVED 0.75 CAP
+            # RSI-based signals (conservative)
             if rsi < 30:  # Oversold
                 action = 'BUY'
-                confidence = 0.55 + (30 - rsi) / 60  # Real confidence (no cap)
+                confidence = 0.55 + (30 - rsi) / 60
             elif rsi > 70:  # Overbought
                 action = 'SELL'
-                confidence = 0.55 + (rsi - 70) / 60  # Real confidence (no cap)
+                confidence = 0.55 + (rsi - 70) / 60
             
-            # EMA-based signals (strong trends only) - REMOVED 0.75 CAP
-            if ema_10_20_cross > 1.5:  # Strong uptrend
+            # Momentum-based signals (strong trends only)
+            if ema_21_dist > 1.5:  # Price well above EMA21 = uptrend
                 if action == 'HOLD':
                     action = 'BUY'
-                    confidence = 0.55 + min(0.20, abs(ema_10_20_cross) / 10)  # Real confidence (no cap)
-            elif ema_10_20_cross < -1.5:  # Strong downtrend
+                    confidence = 0.55 + min(0.20, abs(ema_21_dist) / 10)
+            elif ema_21_dist < -1.5:  # Price well below EMA21 = downtrend
                 if action == 'HOLD':
                     action = 'SELL'
-                    confidence = 0.55 + min(0.20, abs(ema_10_20_cross) / 10)  # Real confidence (no cap)
+                    confidence = 0.55 + min(0.20, abs(ema_21_dist) / 10)
             
             logger.debug(
                 f"LightGBM fallback: {action} (conf={confidence:.2f}, "
-                f"rsi={rsi:.1f}, ema_cross={ema_10_20_cross:.2f}%)"
+                f"rsi={rsi:.1f}, ema21_dist={ema_21_dist:.2f}%, momentum20={momentum_20:.2f}%)"
             )
             
             return {"action": action, "confidence": confidence, "model": "lgbm_fallback_rules"}

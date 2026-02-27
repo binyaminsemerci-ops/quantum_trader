@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772165675436-0",
+  "reward": {
+    "symbol": "FILUSDT",
+    "reward": "0.116274",
+    "pnl": "1.2034",
+    "pnl_net": "1.162741",
+    "commission": "0.040659",
+    "pnl_pct": "113.9082",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "116486444",
+    "source": "binance",
+    "timestamp": "2026-02-27T04:14:35.436488+00:00"
+  },
+  "updated_at": "2026-02-27T04:14:35.437060+00:00"
+}

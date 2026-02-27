@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772154515241-0",
+  "reward": {
+    "timestamp": "2026-02-27T01:08:35.240420+00:00",
+    "symbol": "ETHUSDT",
+    "pnl": "1.076429",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.001076429",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.0008970241666666666",
+    "leverage": "0.7502242560416666",
+    "avg_reward": "0.004407364336988606",
+    "reward_std": "0.02175101850303055",
+    "message_count": "96"
+  },
+  "updated_at": "2026-02-27T01:08:35.669871+00:00"
+}

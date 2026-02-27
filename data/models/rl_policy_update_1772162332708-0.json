@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772162332708-0",
+  "reward": {
+    "timestamp": "2026-02-27T03:18:52.707839+00:00",
+    "symbol": "ALGOUSDT",
+    "pnl": "0.87588",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.00087588",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.0007299",
+    "leverage": "0.750182475",
+    "avg_reward": "0.003121226635077689",
+    "reward_std": "0.018191236476676705",
+    "message_count": "101"
+  },
+  "updated_at": "2026-02-27T03:18:52.709066+00:00"
+}

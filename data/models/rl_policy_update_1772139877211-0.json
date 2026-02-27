@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772139877211-0",
+  "reward": {
+    "timestamp": "2026-02-26T21:04:37.211486+00:00",
+    "symbol": "1000CHEEMSUSDT",
+    "pnl": "0.65248",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.00065248",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.0005437333333333333",
+    "leverage": "0.7501359333333333",
+    "avg_reward": "0.004683395289570397",
+    "reward_std": "0.022303470525403806",
+    "message_count": "91"
+  },
+  "updated_at": "2026-02-26T21:04:37.215973+00:00"
+}

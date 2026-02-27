@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055439570-0",
+  "reward": {
+    "symbol": "XRPUSDT",
+    "reward": "0.0005256738767824571",
+    "pnl": "-0.37",
+    "pnl_pct": "0.05256738767824571",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:37:19.570167"
+  },
+  "updated_at": "2026-02-25T21:37:19.572654+00:00"
+}

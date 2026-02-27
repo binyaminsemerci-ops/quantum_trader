@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772117509710-0",
+  "reward": {
+    "timestamp": "2026-02-26T14:51:49.709771+00:00",
+    "symbol": "DOTUSDT",
+    "pnl": "1.021363",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.001021363",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.0008511358333333333",
+    "leverage": "0.7502127839583334",
+    "avg_reward": "0.009940294296276997",
+    "reward_std": "0.02922345931917556",
+    "message_count": "49"
+  },
+  "updated_at": "2026-02-26T14:51:49.711732+00:00"
+}

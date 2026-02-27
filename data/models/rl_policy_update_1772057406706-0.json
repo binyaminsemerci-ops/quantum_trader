@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772057406706-0",
+  "reward": {
+    "symbol": "APTUSDT",
+    "reward": "0.311606",
+    "pnl": "3.27445",
+    "pnl_net": "3.116056",
+    "commission": "0.158394",
+    "pnl_pct": "300.3717",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "149046592",
+    "source": "binance",
+    "timestamp": "2026-02-25T22:10:06.092479+00:00"
+  },
+  "updated_at": "2026-02-25T22:10:06.707114+00:00"
+}

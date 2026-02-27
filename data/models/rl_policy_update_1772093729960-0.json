@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772093729960-0",
+  "reward": {
+    "symbol": "AGLDUSDT",
+    "reward": "0.155357",
+    "pnl": "1.6021",
+    "pnl_net": "1.553569",
+    "commission": "0.048531",
+    "pnl_pct": "561.8696",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "64395166",
+    "source": "binance",
+    "timestamp": "2026-02-26T08:15:29.959734+00:00"
+  },
+  "updated_at": "2026-02-26T08:15:29.961728+00:00"
+}

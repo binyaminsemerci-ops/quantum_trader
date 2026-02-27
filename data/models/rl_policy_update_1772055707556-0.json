@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055707556-0",
+  "reward": {
+    "symbol": "AIUSDT",
+    "reward": "0.020477745139475898",
+    "pnl": "2.05",
+    "pnl_pct": "2.04777451394759",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:41:47.556551"
+  },
+  "updated_at": "2026-02-25T21:41:47.560023+00:00"
+}

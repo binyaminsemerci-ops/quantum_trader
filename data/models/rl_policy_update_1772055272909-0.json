@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055272909-0",
+  "reward": {
+    "symbol": "BTCUSDT",
+    "reward": "-0.0013725899948977033",
+    "pnl": "-1.26",
+    "pnl_pct": "-0.13725899948977033",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:34:32.909123"
+  },
+  "updated_at": "2026-02-25T21:34:32.912001+00:00"
+}

@@ -38,8 +38,11 @@ class NHiTSAgent:
         # 🔥 USE LATEST TIMESTAMPED MODEL (not old hardcoded names)
         # Retraining saves to /app/models/, agents default to ai_engine/models
         retraining_dir = Path("/app/models") if Path("/app/models").exists() else Path("ai_engine/models")
-        # Search for .pth files (PyTorch format)
-        latest_model = self._find_latest_model(retraining_dir, "nhits_v*_v2.pth")
+        # Search for .pth files — prefer v3 (label_smoothing) > v2
+        latest_model = (
+            self._find_latest_model(retraining_dir, "nhits_v*_v3.pth") or
+            self._find_latest_model(retraining_dir, "nhits_v*_v2.pth")
+        )
         self.model_path = model_path or str(latest_model) if latest_model else "ai_engine/models/nhits_model.pth"
         
         # Auto-detect device
@@ -272,7 +275,7 @@ class NHiTSAgent:
             action_map = {0: 'SELL', 1: 'HOLD', 2: 'BUY'}
             action = action_map[pred_class]
             
-            logger.debug(
+            logger.info(
                 f"N-HiTS {symbol}: {action} (conf={confidence:.2f}, "
                 f"probs=[{probs[0]:.2f}, {probs[1]:.2f}, {probs[2]:.2f}])"
             )
@@ -316,10 +319,9 @@ class NHiTSAgent:
 
         # BYPASS scaler when dimension mismatch (feature engineering evolution)
         # This allows models trained on fewer features to work with new 49-feature schema
-        logger.warning(
+        logger.debug(
             f"[NHITS] Feature dimension mismatch {sequence.shape[-1]} != {target_len}. "
-            f"Bypassing scaler to support model compatibility. "
-            f"Consider retraining model with 49 features for optimal performance."
+            f"Truncating to {target_len} features (model trained on {target_len} features)."
         )
         
         # Trim or pad to match target
@@ -373,10 +375,10 @@ class NHiTSAgent:
         - Trend filter: Block SELL in strong uptrend, block BUY in strong downtrend
         """
         try:
-            rsi = features.get('rsi_14', 50)
-            price_change = features.get('price_change', 0) * 100
+            rsi = features.get('rsi', features.get('rsi_14', 50))  # 49-feature schema uses 'rsi'
+            price_change = features.get('returns', features.get('price_change', 0)) * 100
             price = features.get('close', 0)
-            ema_50 = features.get('ema_50', price)  # Use EMA50 (exists in features)
+            ema_50 = features.get('ema_50', price)  # Use EMA50 (exists in 49-feature schema)
             
             # Calculate trend strength
             if price > 0 and ema_50 > 0:

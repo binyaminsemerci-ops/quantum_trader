@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772132809327-0",
+  "reward": {
+    "symbol": "1MBABYDOGEUSDT",
+    "reward": "0.011308147005911073",
+    "pnl": "1.13",
+    "pnl_pct": "1.1308147005911073",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-26T19:06:49.324336"
+  },
+  "updated_at": "2026-02-26T19:06:49.760283+00:00"
+}

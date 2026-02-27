@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772132811583-0",
+  "reward": {
+    "timestamp": "2026-02-26T19:06:51.583701+00:00",
+    "symbol": "1MBABYDOGEUSDT",
+    "pnl": "1.080529",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.001080529",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.0009004408333333333",
+    "leverage": "0.7502251102083333",
+    "avg_reward": "0.004952393881987281",
+    "reward_std": "0.022911582752395174",
+    "message_count": "86"
+  },
+  "updated_at": "2026-02-26T19:06:51.590885+00:00"
+}

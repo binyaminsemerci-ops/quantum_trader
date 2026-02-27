@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772165750248-0",
+  "reward": {
+    "symbol": "RENDERUSDT",
+    "reward": "0.097684",
+    "pnl": "1.0275",
+    "pnl_net": "0.976844",
+    "commission": "0.050656",
+    "pnl_pct": "66.7243",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "69481871",
+    "source": "binance",
+    "timestamp": "2026-02-27T04:15:50.161864+00:00"
+  },
+  "updated_at": "2026-02-27T04:15:50.248964+00:00"
+}

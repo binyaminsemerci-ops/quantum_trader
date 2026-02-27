@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772124427082-0",
+  "reward": {
+    "timestamp": "2026-02-26T16:47:07.081422+00:00",
+    "symbol": "ACXUSDT",
+    "pnl": "-3.225057",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "-0.003225057",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "-0.0026875475",
+    "leverage": "0.749328113125",
+    "avg_reward": "0.007081168540063276",
+    "reward_std": "0.02545057854778167",
+    "message_count": "67"
+  },
+  "updated_at": "2026-02-26T16:47:07.082664+00:00"
+}

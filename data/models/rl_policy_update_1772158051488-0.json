@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772158051488-0",
+  "reward": {
+    "timestamp": "2026-02-27T02:07:31.488749+00:00",
+    "symbol": "DOGEUSDT",
+    "pnl": "0.976816",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.000976816",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.0008140133333333332",
+    "leverage": "0.7502035033333334",
+    "avg_reward": "0.004298983380648884",
+    "reward_std": "0.021427695826657118",
+    "message_count": "99"
+  },
+  "updated_at": "2026-02-27T02:07:31.489860+00:00"
+}

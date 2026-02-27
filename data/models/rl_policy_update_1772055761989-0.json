@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055761989-0",
+  "reward": {
+    "symbol": "AGLDUSDT",
+    "reward": "-0.03430921860247023",
+    "pnl": "-3.43",
+    "pnl_pct": "-3.430921860247023",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:42:41.988488"
+  },
+  "updated_at": "2026-02-25T21:42:41.991207+00:00"
+}

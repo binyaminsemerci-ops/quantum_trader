@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055751579-0",
+  "reward": {
+    "symbol": "ACHUSDT",
+    "reward": "-0.010629816635663062",
+    "pnl": "1.07",
+    "pnl_pct": "-1.0629816635663063",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:42:31.578966"
+  },
+  "updated_at": "2026-02-25T21:42:31.582100+00:00"
+}

@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772057406712-0",
+  "reward": {
+    "timestamp": "2026-02-25T22:10:06.708378+00:00",
+    "symbol": "APTUSDT",
+    "pnl": "3.116056",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.003116056",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.0025967133333333332",
+    "leverage": "0.7506491783333333",
+    "avg_reward": "0.046619984635090615",
+    "reward_std": "0.04988927968276457",
+    "message_count": "10"
+  },
+  "updated_at": "2026-02-25T22:10:06.714954+00:00"
+}

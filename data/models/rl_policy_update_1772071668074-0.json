@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772071668074-0",
+  "reward": {
+    "symbol": "AIUSDT",
+    "reward": "0.005273",
+    "pnl": "0.0667",
+    "pnl_net": "0.052726",
+    "commission": "0.013974",
+    "pnl_pct": "251.0779",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "88110419",
+    "source": "binance",
+    "timestamp": "2026-02-26T02:07:48.073659+00:00"
+  },
+  "updated_at": "2026-02-26T02:07:48.075092+00:00"
+}

@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772165546767-0",
+  "reward": {
+    "symbol": "SUIUSDT",
+    "reward": "0.03129060199220446",
+    "pnl": "-3.13",
+    "pnl_pct": "3.129060199220446",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-27T04:12:26.767015"
+  },
+  "updated_at": "2026-02-27T04:12:26.767617+00:00"
+}

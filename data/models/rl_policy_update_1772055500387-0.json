@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772055500387-0",
+  "reward": {
+    "timestamp": "2026-02-25T21:38:20.381166+00:00",
+    "symbol": "RENDERUSDT",
+    "pnl": "1.53547",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.00153547",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.0012795583333333332",
+    "leverage": "0.7503198895833334",
+    "avg_reward": "0.06002145298136327",
+    "reward_std": "0.04679980714948263",
+    "message_count": "8"
+  },
+  "updated_at": "2026-02-25T21:38:21.281343+00:00"
+}

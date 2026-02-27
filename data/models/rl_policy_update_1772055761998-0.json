@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055761998-0",
+  "reward": {
+    "symbol": "1000CHEEMSUSDT",
+    "reward": "-0.03143761712953136",
+    "pnl": "-3.15",
+    "pnl_pct": "-3.143761712953136",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:42:41.997675"
+  },
+  "updated_at": "2026-02-25T21:42:42.006780+00:00"
+}

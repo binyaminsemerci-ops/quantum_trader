@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772055756938-0",
+  "reward": {
+    "symbol": "1INCHUSDT",
+    "reward": "0.01093386194989101",
+    "pnl": "1.09",
+    "pnl_pct": "1.0933861949891008",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-25T21:42:36.938231"
+  },
+  "updated_at": "2026-02-25T21:42:36.946216+00:00"
+}

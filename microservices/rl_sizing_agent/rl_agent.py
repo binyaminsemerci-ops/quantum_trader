@@ -96,7 +96,11 @@ class RLPositionSizingAgent:
     
     def __init__(
         self,
-        model_path: str = "/models/rl_sizing_agent_v3.pth",
+        # Controlled Refactor 2026-02-21:
+        #   model_path      = where to LOAD the approved policy on startup
+        #   model_save_path = where to WRITE policy updates (staging only)
+        model_path: str = "/opt/quantum/model_registry/approved/rl_sizing_agent_v3.pth",
+        model_save_path: str = "/opt/quantum/model_registry/staging/rl_sizing_agent_v3.pth",
         config: Optional[Dict] = None
     ):
         """
@@ -107,7 +111,21 @@ class RLPositionSizingAgent:
             config: Configuration overrides
         """
         self.model_path = Path(model_path)
+        self.model_save_path = Path(model_save_path)
         self.config = config or {}
+
+        # --- Controlled Refactor 2026-02-21: path boundary enforcement ---
+        # Import guard lazily so unit tests without the module still work.
+        try:
+            from model_path_guard import assert_approved_load_path, assert_staging_write_path
+            assert_approved_load_path(self.model_path, label="rl_sizing_agent (load)")
+            assert_staging_write_path(self.model_save_path, label="rl_sizing_agent (save)")
+        except ImportError:
+            logger.warning(
+                "[RL-Agent] model_path_guard not available — "
+                "path boundary enforcement is DISABLED."
+            )
+        # ------------------------------------------------------------------
         
         # State dimension
         self.state_dim = 6  # [confidence, volatility, pnl_trend, divergence, funding, margin_util]
@@ -338,18 +356,24 @@ class RLPositionSizingAgent:
         """Check if policy should be retrained"""
         if not TORCH_AVAILABLE or not self.policy:
             return
-        
-        # Retrain every N trades
-        if self.trades_processed % self.retrain_interval == 0 and len(self.experiences) >= 50:
-            mean_abs_pnl = np.mean([abs(exp.reward) for exp in self.experiences[-50:]])
-            
-            # Only retrain if performance below threshold
-            if mean_abs_pnl < self.retrain_threshold:
-                logger.info(
-                    f"[RL-Agent] Low performance detected "
-                    f"(mean PnL: {mean_abs_pnl:.4f}), retraining..."
-                )
-                self._retrain()
+
+        # Retrain every N trades when experience buffer is sufficiently full.
+        # NOTE: the old `mean_abs_pnl < threshold` gate was inverted — real
+        # trades produce rewards >> 0.001, so the condition was never True and
+        # learning was permanently disabled.  Removed: retrain unconditionally
+        # every `retrain_interval` trades once we have ≥ 50 experiences.
+        if (
+            self.trades_processed > 0
+            and self.trades_processed % self.retrain_interval == 0
+            and len(self.experiences) >= 50
+        ):
+            mean_abs_reward = np.mean([abs(exp.reward) for exp in self.experiences[-50:]])
+            logger.info(
+                f"[RL-Agent] Scheduled retrain at trade #{self.trades_processed} "
+                f"| mean_abs_reward={mean_abs_reward:.4f} "
+                f"| buffer={len(self.experiences)}"
+            )
+            self._retrain()
     
     def _retrain(self):
         """Retrain policy network using policy gradient"""
@@ -396,46 +420,63 @@ class RLPositionSizingAgent:
             logger.error(f"[RL-Agent] Retraining failed: {e}")
     
     def _save_policy(self):
-        """Save policy network to disk"""
+        """Save policy network to staging directory."""
         if not TORCH_AVAILABLE or not self.policy:
             return
-        
+
         try:
-            self.model_path.parent.mkdir(parents=True, exist_ok=True)
-            
+            # Guard: write must target staging/
+            try:
+                from model_path_guard import assert_staging_write_path
+                assert_staging_write_path(self.model_save_path, label="rl_sizing_agent")
+            except ImportError:
+                pass
+
+            self.model_save_path.parent.mkdir(parents=True, exist_ok=True)
+
             torch.save({
                 'policy_state_dict': self.policy.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),
                 'policy_updates': self.policy_updates,
                 'trades_processed': self.trades_processed,
                 'avg_reward': self.avg_reward
-            }, self.model_path)
-            
-            logger.debug(f"[RL-Agent] Policy saved to {self.model_path}")
-            
+            }, self.model_save_path)
+
+            logger.debug(f"[RL-Agent] Policy saved to staging: {self.model_save_path}")
+
         except Exception as e:
             logger.error(f"[RL-Agent] Failed to save policy: {e}")
     
     def _load_policy(self):
-        """Load policy network from disk"""
+        """Load policy network from approved directory."""
         if not TORCH_AVAILABLE or not self.policy:
             return
-        
+
         try:
+            # Guard: load must come from approved/
+            try:
+                from model_path_guard import assert_approved_load_path
+                assert_approved_load_path(self.model_path, label="rl_sizing_agent")
+            except ImportError:
+                logger.warning(
+                    "[RL-Agent] model_path_guard not available — "
+                    "load path assertion skipped."
+                )
+
             checkpoint = torch.load(self.model_path)
-            
+
             self.policy.load_state_dict(checkpoint['policy_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             self.policy_updates = checkpoint.get('policy_updates', 0)
             self.trades_processed = checkpoint.get('trades_processed', 0)
             self.avg_reward = checkpoint.get('avg_reward', 0.0)
-            
+
             logger.info(
-                f"[RL-Agent] Policy loaded | "
+                f"[RL-Agent] Policy loaded from approved | "
                 f"Updates: {self.policy_updates} | "
                 f"Trades: {self.trades_processed}"
             )
-            
+
         except Exception as e:
             logger.error(f"[RL-Agent] Failed to load policy: {e}")
     
@@ -457,14 +498,19 @@ _rl_agent: Optional[RLPositionSizingAgent] = None
 
 
 def get_rl_agent(
-    model_path: str = "/models/rl_sizing_agent_v3.pth",
+    model_path: str = "/opt/quantum/model_registry/approved/rl_sizing_agent_v3.pth",
+    model_save_path: str = "/opt/quantum/model_registry/staging/rl_sizing_agent_v3.pth",
     config: Optional[Dict] = None
 ) -> RLPositionSizingAgent:
     """Get or create global RL agent instance"""
     global _rl_agent
-    
+
     if _rl_agent is None:
-        _rl_agent = RLPositionSizingAgent(model_path=model_path, config=config)
+        _rl_agent = RLPositionSizingAgent(
+            model_path=model_path,
+            model_save_path=model_save_path,
+            config=config
+        )
         logger.info("[RL-Agent] Global agent initialized")
-    
+
     return _rl_agent

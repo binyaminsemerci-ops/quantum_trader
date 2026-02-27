@@ -50,8 +50,8 @@ class ExitManager:
         self.redis = redis_client
         self.ai_engine_url = ai_engine_url
         self.use_ai_exits = use_ai_exits
-        # Increased timeout: AI Engine can take 10-30s when busy with predictions
-        self.http_client = httpx.AsyncClient(timeout=30.0)
+        # Increased timeout: AI Engine can take 30-60s under heavy load with 19+ positions
+        self.http_client = httpx.AsyncClient(timeout=15.0)  # Reduced: fast fallback
         
         # Statistics
         self.evaluations_count = 0

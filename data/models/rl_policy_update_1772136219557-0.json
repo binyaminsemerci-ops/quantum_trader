@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772136219557-0",
+  "reward": {
+    "symbol": "UNIUSDT",
+    "reward": "-0.320045",
+    "pnl": "-3.159",
+    "pnl_net": "-3.20045",
+    "commission": "0.04145",
+    "pnl_pct": "-86.0105",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "131871009",
+    "source": "binance",
+    "timestamp": "2026-02-26T20:03:39.079005+00:00"
+  },
+  "updated_at": "2026-02-26T20:03:40.449718+00:00"
+}

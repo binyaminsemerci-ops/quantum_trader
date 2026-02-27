@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772113828051-0",
+  "reward": {
+    "symbol": "DOTUSDT",
+    "reward": "-0.37129",
+    "pnl": "-3.6714",
+    "pnl_net": "-3.712899",
+    "commission": "0.041499",
+    "pnl_pct": "-234.845",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "171383312",
+    "source": "binance",
+    "timestamp": "2026-02-26T13:50:28.051436+00:00"
+  },
+  "updated_at": "2026-02-26T13:50:28.052169+00:00"
+}

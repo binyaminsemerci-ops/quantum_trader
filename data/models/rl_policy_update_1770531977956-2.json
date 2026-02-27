@@ -1,0 +1,19 @@
+{
+  "reward_id": "1770531977956-2",
+  "reward": {
+    "timestamp": "2026-02-08T06:26:17.956688+00:00",
+    "symbol": "BTCUSDT",
+    "pnl": "100.0",
+    "confidence": "0.9",
+    "volatility": "0.01",
+    "base_reward": "0.1",
+    "confidence_factor": "0.95",
+    "vol_factor": "0.9900990099009901",
+    "reward": "0.09405940594059406",
+    "leverage": "0.7735148514851485",
+    "avg_reward": "0.0924292173303008",
+    "reward_std": "0.028297612105608435",
+    "message_count": "4"
+  },
+  "updated_at": "2026-02-25T03:01:11.163288+00:00"
+}

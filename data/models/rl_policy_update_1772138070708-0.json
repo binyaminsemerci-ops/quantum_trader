@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772138070708-0",
+  "reward": {
+    "symbol": "ALTUSDT",
+    "reward": "0.10018",
+    "pnl": "1.05128",
+    "pnl_net": "1.001804",
+    "commission": "0.049476",
+    "pnl_pct": "13164.312",
+    "confidence": "0.7",
+    "side": "SHORT",
+    "order_id": "107130842",
+    "source": "binance",
+    "timestamp": "2026-02-26T20:34:29.863915+00:00"
+  },
+  "updated_at": "2026-02-26T20:34:30.709394+00:00"
+}

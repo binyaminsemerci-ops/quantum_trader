@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772123805082-0",
+  "reward": {
+    "timestamp": "2026-02-26T16:36:45.079325+00:00",
+    "symbol": "ADAUSDT",
+    "pnl": "1.114764",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "0.001114764",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "0.00092897",
+    "leverage": "0.7502322425",
+    "avg_reward": "0.007911023189181769",
+    "reward_std": "0.026765381900572517",
+    "message_count": "60"
+  },
+  "updated_at": "2026-02-26T16:36:45.082414+00:00"
+}

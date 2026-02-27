@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772132626475-0",
+  "reward": {
+    "symbol": "ALICEUSDT",
+    "reward": "0.030000000000000027",
+    "pnl": "-17.54",
+    "pnl_pct": "3.0000000000000027",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-26T19:03:46.080562"
+  },
+  "updated_at": "2026-02-26T19:03:46.480047+00:00"
+}

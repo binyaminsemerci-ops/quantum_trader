@@ -1,0 +1,17 @@
+{
+  "reward_id": "1772129236211-0",
+  "reward": {
+    "symbol": "OPUSDT",
+    "reward": "-0.33949",
+    "pnl": "-3.356",
+    "pnl_net": "-3.394896",
+    "commission": "0.038896",
+    "pnl_pct": "-2831.4396",
+    "confidence": "0.7",
+    "side": "LONG",
+    "order_id": "138095350",
+    "source": "binance",
+    "timestamp": "2026-02-26T18:07:15.514074+00:00"
+  },
+  "updated_at": "2026-02-26T18:07:16.212831+00:00"
+}

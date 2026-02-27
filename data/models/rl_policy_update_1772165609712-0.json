@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772165609712-0",
+  "reward": {
+    "symbol": "APTUSDT",
+    "reward": "0.030202730657840304",
+    "pnl": "-3.03",
+    "pnl_pct": "3.02027306578403",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-27T04:13:29.712492"
+  },
+  "updated_at": "2026-02-27T04:13:29.713931+00:00"
+}

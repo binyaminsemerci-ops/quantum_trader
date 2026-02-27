@@ -1,0 +1,19 @@
+{
+  "reward_id": "1772132781602-0",
+  "reward": {
+    "timestamp": "2026-02-26T19:06:21.602056+00:00",
+    "symbol": "A2ZUSDT",
+    "pnl": "-3.178303",
+    "confidence": "0.7",
+    "volatility": "0.02",
+    "base_reward": "-0.003178303",
+    "confidence_factor": "0.85",
+    "vol_factor": "0.9803921568627451",
+    "reward": "-0.002648585833333333",
+    "leverage": "0.7493378535416666",
+    "avg_reward": "0.005044707625209201",
+    "reward_std": "0.02317481487826655",
+    "message_count": "84"
+  },
+  "updated_at": "2026-02-26T19:06:21.611493+00:00"
+}

@@ -1,0 +1,15 @@
+{
+  "reward_id": "1772132749273-0",
+  "reward": {
+    "symbol": "ALGOUSDT",
+    "reward": "0.012932118371357087",
+    "pnl": "1.3",
+    "pnl_pct": "1.2932118371357086",
+    "confidence": "0.7",
+    "leverage": "1.0",
+    "regime": "unknown",
+    "state_source": "fallback",
+    "timestamp": "2026-02-26T19:05:49.271547"
+  },
+  "updated_at": "2026-02-26T19:05:49.274838+00:00"
+}
