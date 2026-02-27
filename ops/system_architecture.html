@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<title>Quantum Trader — Full Pipeline</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1e1e2e; color: #cdd6f4; font-family: 'Segoe UI', sans-serif; padding: 28px; }
+  h1 { color: #cba6f7; font-size: 1.35em; margin-bottom: 4px; }
+  .sub { color: #585b70; font-size: 0.82em; margin-bottom: 28px; }
+  .wrap { background: #181825; border-radius: 14px; padding: 28px; overflow: auto; }
+  .legend { margin-top: 20px; display: flex; gap: 20px; flex-wrap: wrap; }
+  .li { display:flex; align-items:center; gap:7px; font-size:0.78em; color:#a6adc8; }
+  .dot { width:12px; height:12px; border-radius:3px; }
+  .fixes { margin-top:24px; background:#181825; border-radius:8px; padding:14px 18px; font-size:0.78em; line-height:1.9; color:#585b70; }
+  .fixes b { color:#a6adc8; }
+  code { color:#f38ba8; background:#2a2a3e; padding:1px 5px; border-radius:3px; }
+</style>
+</head>
+<body>
+
+<h1>&#x1F916; Quantum Trader &mdash; Full Pipeline Architecture</h1>
+<div class="sub">February 23, 2026 &nbsp;&middot;&nbsp; VPS 46.224.116.254 &nbsp;&middot;&nbsp; Branch: main</div>
+
+<div class="wrap">
+<svg width="980" height="840" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+    <path d="M0,0 L0,6 L8,3 z" fill="#89b4fa"/>
+  </marker>
+  <marker id="g" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+    <path d="M0,0 L0,6 L8,3 z" fill="#a6e3a1"/>
+  </marker>
+  <marker id="d" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+    <path d="M0,0 L0,6 L8,3 z" fill="#585b70"/>
+  </marker>
+</defs>
+
+<!-- ══ COLUMN HEADERS ══════════════════════════════════════════════════ -->
+<text x="82"  y="18" fill="#585b70" font-size="10" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">DATA</text>
+<text x="252" y="18" fill="#585b70" font-size="10" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">AI ENGINE</text>
+<text x="452" y="18" fill="#585b70" font-size="10" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">INTENT BRIDGE</text>
+<text x="642" y="18" fill="#585b70" font-size="10" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">P3.3 GATE</text>
+<text x="844" y="18" fill="#585b70" font-size="10" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">EXECUTOR</text>
+
+<!-- ══ COL 1: DATA ════════════════════════════════════════════════════ -->
+<rect x="22" y="36" width="120" height="56" rx="8" fill="#2a2a3e" stroke="#45475a" stroke-width="1.2"/>
+<text x="82" y="57" fill="#89dceb" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">market-publisher</text>
+<text x="82" y="73" fill="#6c7086" font-size="10" text-anchor="middle" font-family="Segoe UI,sans-serif">market.tick stream</text>
+<text x="82" y="86" fill="#6c7086" font-size="10" text-anchor="middle" font-family="Segoe UI,sans-serif">XRPUSDT, ADAUSDT ...</text>
+
+<!-- ══ COL 2: AI ENGINE (container) ═══════════════════════════════════ -->
+<rect x="158" y="30" width="186" height="580" rx="10" fill="#12121f" stroke="#313244" stroke-width="1.4" stroke-dasharray="6,3"/>
+<text x="251" y="47" fill="#cba6f7" font-size="10" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">&#x1F9E0; quantum-ai-engine</text>
+
+<!-- generate_signal -->
+<rect x="169" y="56" width="164" height="54" rx="7" fill="#2a2a3e" stroke="#45475a" stroke-width="1.2"/>
+<text x="251" y="75" fill="#a6e3a1" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">generate_signal()</text>
+<text x="251" y="91" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">PatchTST &middot; TFT &middot; NHiTS</text>
+<text x="251" y="104" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">XGB &middot; LGBM</text>
+
+<!-- prediction_buffer -->
+<rect x="169" y="126" width="164" height="42" rx="7" fill="#2a2a3e" stroke="#45475a" stroke-width="1.2"/>
+<text x="251" y="144" fill="#cdd6f4" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">_prediction_buffer</text>
+<text x="251" y="159" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">rolling window</text>
+
+<!-- portfolio_selector -->
+<rect x="169" y="184" width="164" height="42" rx="7" fill="#2a2a3e" stroke="#45475a" stroke-width="1.2"/>
+<text x="251" y="202" fill="#cdd6f4" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">portfolio_selector</text>
+<text x="251" y="217" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">runs every 2s</text>
+
+<!-- ai.signal_generated -->
+<rect x="169" y="242" width="164" height="42" rx="7" fill="#1e1e2e" stroke="#585b70" stroke-width="1" stroke-dasharray="3,3"/>
+<text x="251" y="260" fill="#7f849c" font-size="10" text-anchor="middle" font-family="Segoe UI,sans-serif">&#x25C6; ai.signal_generated</text>
+<text x="251" y="275" fill="#585b70" font-size="9" text-anchor="middle" font-family="Segoe UI,sans-serif">stream (monitoring only)</text>
+
+<!-- Governor -->
+<rect x="169" y="312" width="164" height="54" rx="7" fill="#2a2a3e" stroke="#45475a" stroke-width="1.2"/>
+<text x="251" y="331" fill="#fab387" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">Governor</text>
+<text x="251" y="347" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">min_conf &ge; 0.75</text>
+<text x="251" y="360" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">size $100&ndash;500</text>
+
+<!-- Dynamic Sizing — GREEN BORDER (fixed) -->
+<rect x="169" y="382" width="164" height="64" rx="7" fill="#2a2a3e" stroke="#a6e3a1" stroke-width="1.8"/>
+<text x="251" y="401" fill="#a6e3a1" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">Dynamic Sizing &#x2705;</text>
+<text x="251" y="416" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">BINANCE_USE_TESTNET=true</text>
+<text x="251" y="429" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">RL sizing agent &middot; cap $500</text>
+<text x="251" y="442" fill="#585b70" font-size="9" text-anchor="middle" font-family="Segoe UI,sans-serif">(was: else &rarr; SKIP all trades)</text>
+
+<!-- trade.intent stream -->
+<rect x="169" y="462" width="164" height="42" rx="7" fill="#2e2a45" stroke="#cba6f7" stroke-width="1.4"/>
+<text x="251" y="480" fill="#cba6f7" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">trade.intent stream</text>
+<text x="251" y="495" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">NHiTS conf &ge; 0.75</text>
+
+<!-- Disk Buffer -->
+<rect x="169" y="534" width="164" height="52" rx="7" fill="#252525" stroke="#585b70" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="251" y="553" fill="#7f849c" font-size="10" text-anchor="middle" font-family="Segoe UI,sans-serif">&#x1F4BE; EventBus Disk Buffer</text>
+<text x="251" y="568" fill="#585b70" font-size="9" text-anchor="middle" font-family="Segoe UI,sans-serif">buffer_*.jsonl</text>
+<text x="251" y="581" fill="#585b70" font-size="9" text-anchor="middle" font-family="Segoe UI,sans-serif">async Redis fallback &rarr; replay</text>
+
+<!-- ══ COL 3: INTENT BRIDGE (container) ═══════════════════════════════ -->
+<rect x="364" y="30" width="166" height="380" rx="10" fill="#12121f" stroke="#313244" stroke-width="1.4" stroke-dasharray="6,3"/>
+<text x="447" y="47" fill="#89dceb" font-size="10" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">&#x1F500; quantum-intent-bridge</text>
+
+<!-- Allowlist -->
+<rect x="375" y="57" width="144" height="52" rx="7" fill="#2a2a3e" stroke="#45475a" stroke-width="1.2"/>
+<text x="447" y="76" fill="#cdd6f4" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">Allowlist check</text>
+<text x="447" y="91" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">41 symbols (PolicyStore)</text>
+<text x="447" y="103" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">binance-testnet</text>
+
+<!-- Skip flat SELL — GREEN BORDER (fixed) -->
+<rect x="375" y="125" width="144" height="54" rx="7" fill="#2a2a3e" stroke="#a6e3a1" stroke-width="1.8"/>
+<text x="447" y="144" fill="#a6e3a1" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">Skip flat SELL: false &#x2705;</text>
+<text x="447" y="159" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">(was true &mdash; FIXED)</text>
+<text x="447" y="172" fill="#585b70" font-size="9" text-anchor="middle" font-family="Segoe UI,sans-serif">SELL signals now pass</text>
+
+<!-- Parse+enrich -->
+<rect x="375" y="195" width="144" height="52" rx="7" fill="#2a2a3e" stroke="#45475a" stroke-width="1.2"/>
+<text x="447" y="214" fill="#cdd6f4" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">Parse + enrich</text>
+<text x="447" y="229" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">qty &middot; leverage &middot; SL &middot; TP</text>
+<text x="447" y="241" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">FORMAT4_POSITION_SIZE</text>
+
+<!-- apply.plan stream -->
+<rect x="375" y="263" width="144" height="42" rx="7" fill="#2e2a45" stroke="#cba6f7" stroke-width="1.4"/>
+<text x="447" y="281" fill="#cba6f7" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">apply.plan stream</text>
+<text x="447" y="296" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">source=intent_bridge</text>
+
+<!-- ExitBrain plans -->
+<rect x="375" y="338" width="144" height="52" rx="7" fill="#3a1a00" stroke="#7f3a00" stroke-width="1.2"/>
+<text x="447" y="357" fill="#fab387" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">ExitBrain plans</text>
+<text x="447" y="372" fill="#cd6a00" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">FULL_CLOSE_PROPOSED</text>
+<text x="447" y="385" fill="#cd6a00" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">close_qty=0 &rarr; DENY</text>
+
+<!-- ══ COL 4: P3.3 (container) ════════════════════════════════════════ -->
+<rect x="554" y="30" width="166" height="360" rx="10" fill="#12121f" stroke="#313244" stroke-width="1.4" stroke-dasharray="6,3"/>
+<text x="637" y="47" fill="#f9e2af" font-size="10" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">&#x1F6E1; quantum-position-state-brain</text>
+
+<!-- Exchange snapshots -->
+<rect x="565" y="57" width="144" height="52" rx="7" fill="#2a2a3e" stroke="#45475a" stroke-width="1.2"/>
+<text x="637" y="76" fill="#cdd6f4" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">Exchange snapshots</text>
+<text x="637" y="91" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">position:snapshot:*</text>
+<text x="637" y="103" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">binance_testnet polling</text>
+
+<!-- Ledger — GREEN BORDER (fixed) -->
+<rect x="565" y="125" width="144" height="54" rx="7" fill="#2a2a3e" stroke="#a6e3a1" stroke-width="1.8"/>
+<text x="637" y="144" fill="#a6e3a1" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">Position ledger &#x2705;</text>
+<text x="637" y="159" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">LTCUSDT 1.958 LONG</text>
+<text x="637" y="172" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">AEVOUSDT 4340.6 LONG</text>
+
+<!-- Permit check -->
+<rect x="565" y="195" width="144" height="64" rx="7" fill="#2a2a3e" stroke="#45475a" stroke-width="1.2"/>
+<text x="637" y="214" fill="#cdd6f4" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">Permit check (P3.3)</text>
+<text x="637" y="229" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">exchange_amt &gt; 0</text>
+<text x="637" y="242" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">cooldown 15s</text>
+<text x="637" y="255" fill="#585b70" font-size="9" text-anchor="middle" font-family="Segoe UI,sans-serif">no_position &rarr; DENY</text>
+
+<!-- ALLOW / DENY labels -->
+<text x="637" y="300" fill="#a6e3a1" font-size="10.5" text-anchor="middle" font-family="Segoe UI,sans-serif">ALLOW &#x2193;</text>
+<text x="637" y="320" fill="#f38ba8" font-size="10" text-anchor="middle" font-family="Segoe UI,sans-serif">DENY (no_position) &#x21BA;</text>
+<text x="637" y="336" fill="#585b70" font-size="9" text-anchor="middle" font-family="Segoe UI,sans-serif">Manual lane bypasses P3.3</text>
+
+<!-- ══ COL 5: EXECUTOR (container) ════════════════════════════════════ -->
+<rect x="742" y="30" width="210" height="450" rx="10" fill="#12121f" stroke="#313244" stroke-width="1.4" stroke-dasharray="6,3"/>
+<text x="847" y="47" fill="#f38ba8" font-size="10" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">&#x26A1; quantum-intent-executor</text>
+
+<!-- P3.5 Guard -->
+<rect x="753" y="57" width="188" height="52" rx="7" fill="#2a2a3e" stroke="#45475a" stroke-width="1.2"/>
+<text x="847" y="76" fill="#cdd6f4" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">P3.5 Guard</text>
+<text x="847" y="91" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">action variant check</text>
+<text x="847" y="103" fill="#585b70" font-size="9" text-anchor="middle" font-family="Segoe UI,sans-serif">BNBUSDT partial_25 &rarr; SKIP</text>
+
+<!-- Manual Lane -->
+<rect x="753" y="125" width="188" height="64" rx="7" fill="#1a3f6b" stroke="#89b4fa" stroke-width="1.8"/>
+<text x="847" y="144" fill="#89b4fa" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">Manual Lane &#x2705;</text>
+<text x="847" y="159" fill="#89b4fa" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">TTL ~21h remaining</text>
+<text x="847" y="172" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">auto_bypass_no_p33</text>
+<text x="847" y="184" fill="#585b70" font-size="9" text-anchor="middle" font-family="Segoe UI,sans-serif">quantum:manual_lane:enabled=1</text>
+
+<!-- Binance Testnet -->
+<rect x="753" y="205" width="188" height="52" rx="7" fill="#2a2a3e" stroke="#45475a" stroke-width="1.2"/>
+<text x="847" y="224" fill="#cdd6f4" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">Binance Testnet FAPI</text>
+<text x="847" y="239" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">testnet.binancefuture.com</text>
+<text x="847" y="251" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">MARKET orders &middot; side=SELL/BUY</text>
+
+<!-- apply.result -->
+<rect x="753" y="273" width="188" height="42" rx="7" fill="#2e2a45" stroke="#cba6f7" stroke-width="1.4"/>
+<text x="847" y="291" fill="#cba6f7" font-size="11" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">apply.result stream</text>
+<text x="847" y="306" fill="#6c7086" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">executed=true / false</text>
+
+<!-- FILLS — GREEN BOX -->
+<rect x="753" y="333" width="188" height="114" rx="8" fill="#0d3b1a" stroke="#40a060" stroke-width="2.2"/>
+<text x="847" y="355" fill="#a6e3a1" font-size="12" font-weight="bold" text-anchor="middle" font-family="Segoe UI,sans-serif">&#x2705; CONFIRMED FILLS</text>
+<text x="847" y="374" fill="#a6e3a1" font-size="11" text-anchor="middle" font-family="Segoe UI,sans-serif">ALICEUSDT SELL 1000</text>
+<text x="847" y="389" fill="#585b70" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">order_id: 90400942 &middot; FILLED</text>
+<text x="847" y="408" fill="#a6e3a1" font-size="11" text-anchor="middle" font-family="Segoe UI,sans-serif">XRPUSDT SELL 75</text>
+<text x="847" y="423" fill="#585b70" font-size="9.5" text-anchor="middle" font-family="Segoe UI,sans-serif">order_id: 1462447279 &middot; FILLED</text>
+<text x="847" y="441" fill="#40a060" font-size="9" text-anchor="middle" font-family="Segoe UI,sans-serif">order_status: FILLED &#x2713;</text>
+
+<!-- ══ ARROWS ══════════════════════════════════════════════════════════ -->
+
+<!-- market.tick → generate_signal -->
+<line x1="142" y1="64" x2="167" y2="64" stroke="#89b4fa" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- generate_signal → prediction_buffer -->
+<line x1="251" y1="110" x2="251" y2="124" stroke="#89b4fa" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- prediction_buffer → portfolio_selector -->
+<line x1="251" y1="168" x2="251" y2="182" stroke="#89b4fa" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- portfolio_selector → ai.signal_generated (dashed) -->
+<line x1="251" y1="226" x2="251" y2="240" stroke="#585b70" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#d)"/>
+
+<!-- generate_signal → Governor (via gap, label APPROVED) -->
+<path d="M 251 110 L 251 310" fill="none" stroke="#fab387" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#a)"/>
+<rect x="256" y="250" width="58" height="14" rx="3" fill="#12121f"/>
+<text x="285" y="261" fill="#fab387" font-size="9" text-anchor="middle" font-family="Segoe UI,sans-serif">APPROVED</text>
+
+<!-- Governor → Dynamic Sizing -->
+<line x1="251" y1="366" x2="251" y2="380" stroke="#89b4fa" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- Dynamic Sizing → trade.intent -->
+<line x1="251" y1="446" x2="251" y2="460" stroke="#89b4fa" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- Dynamic Sizing → Disk Buffer (Redis fail, dashed) -->
+<path d="M 315 414 C 350 414 355 560 335 560" fill="none" stroke="#585b70" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#d)"/>
+<text x="356" y="498" fill="#585b70" font-size="9" text-anchor="middle" font-family="Segoe UI,sans-serif">Redis fail</text>
+
+<!-- Disk Buffer → trade.intent (dashed replay) -->
+<path d="M 251 534 L 251 506" fill="none" stroke="#585b70" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#d)"/>
+<text x="255" y="524" fill="#585b70" font-size="8" font-family="Segoe UI,sans-serif">replay</text>
+
+<!-- trade.intent → Allowlist -->
+<line x1="333" y1="480" x2="373" y2="83" stroke="#89b4fa" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="339" y="278" width="30" height="14" rx="3" fill="#12121f"/>
+<text x="354" y="289" fill="#89b4fa" font-size="8" text-anchor="middle" font-family="Segoe UI,sans-serif">intent</text>
+
+<!-- Allowlist → Skip flat SELL -->
+<line x1="447" y1="109" x2="447" y2="123" stroke="#89b4fa" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- Skip flat SELL → Parse+enrich -->
+<line x1="447" y1="179" x2="447" y2="193" stroke="#89b4fa" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- Parse+enrich → apply.plan -->
+<line x1="447" y1="247" x2="447" y2="261" stroke="#89b4fa" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- ExitBrain → apply.plan (dashed, upward) -->
+<path d="M 447 338 L 447 307" fill="none" stroke="#7f3a00" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#d)"/>
+
+<!-- apply.plan → P3.3 Permit check -->
+<line x1="519" y1="281" x2="563" y2="225" stroke="#89b4fa" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="524" y="268" width="30" height="14" rx="3" fill="#12121f"/>
+<text x="539" y="279" fill="#89b4fa" font-size="8" text-anchor="middle" font-family="Segoe UI,sans-serif">plan</text>
+
+<!-- P3.3 → P3.5 Guard (ALLOW) -->
+<line x1="711" y1="225" x2="751" y2="83" stroke="#89b4fa" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="712" y="155" width="32" height="14" rx="3" fill="#12121f"/>
+<text x="728" y="166" fill="#a6e3a1" font-size="9" text-anchor="middle" font-family="Segoe UI,sans-serif">ALLOW</text>
+
+<!-- P3.5 Guard → Manual Lane -->
+<line x1="847" y1="109" x2="847" y2="123" stroke="#89b4fa" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- Manual Lane → Binance -->
+<line x1="847" y1="189" x2="847" y2="203" stroke="#89b4fa" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- Binance → apply.result -->
+<line x1="847" y1="257" x2="847" y2="271" stroke="#89b4fa" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- apply.result → FILLS (green) -->
+<line x1="847" y1="315" x2="847" y2="331" stroke="#a6e3a1" stroke-width="2.2" marker-end="url(#g)"/>
+
+</svg>
+</div>
+
+<div class="legend">
+  <div class="li"><div class="dot" style="background:#0d3b1a;border:2px solid #40a060"></div> Bekreftede fills (testnet)</div>
+  <div class="li"><div class="dot" style="background:#1a3f6b;border:2px solid #89b4fa"></div> Manual lane (TTL 21h)</div>
+  <div class="li"><div class="dot" style="background:#2a2a3e;border:2px solid #a6e3a1"></div> Fikset denne sesjonen &#x2705;</div>
+  <div class="li"><div class="dot" style="background:#252525;border:1px dashed #585b70"></div> Disk buffer (Redis fallback)</div>
+  <div class="li"><div class="dot" style="background:#3a1a00;border:1px solid #7f3a00"></div> ExitBrain (blokkert &mdash; ingen posisjon)</div>
+</div>
+
+<div class="fixes">
+  <b>Fikser denne sesjonen:</b><br>
+  &nbsp;&bull; <code>BINANCE_USE_TESTNET=true</code> &rarr; <code>/etc/quantum/ai-engine.env</code> &mdash; fjernet else-grenen som skipet alle trades<br>
+  &nbsp;&bull; <code>INTENT_BRIDGE_SKIP_FLAT_SELL=false</code> &rarr; <code>/etc/quantum/intent-bridge.env</code> &mdash; SELL-signaler passerer n&#xE5;<br>
+  &nbsp;&bull; Ledger synkronisert: LTCUSDT (1.958 LONG), AEVOUSDT (4340.6 LONG) fra exchange snapshots
+</div>
+
+</body>
+</html>

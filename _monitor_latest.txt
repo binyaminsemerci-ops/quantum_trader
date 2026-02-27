@@ -1,0 +1,60 @@
+[SERVICES]
+  Γ£à intent-executor: active
+  Γ£à apply-layer: active
+  Γ£à autonomous-trader: active
+
+[AKTIVE POSISJONER]
+  (ingen aktive posisjoner)
+
+[TRADES SISTE 30 MIN]
+  Antall: 2  |  PnL: $-9.61  |  WR: 50%
+  22:01:46  AIXBTUSDT       $-10.89  R=-1.81  [emergency_stop_loss (R=-1.81)]
+  22:10:02  APTUSDT         $ +1.28  R=0.64  [fallback_fee_protection (R=0.64)]
+
+[PNL SAMMENDRAG]
+  1t:   $  -1.57  (4 trades, WR=75%)
+  24t:  $  +7.66  (94 trades, WR=63%)
+
+[CHURN CHECK siste 1t]
+  Γ£à Ingen churn (alle gaps ΓëÑ 5 min)
+
+[COOLDOWNS AKTIVE]
+  Ingen aktive open-cooldowns
+
+[INTENT PIPELINE siste 30 min]
+  Intents generert: 0
+  Harvest intents:  0
+
+=================================================================
+=================================================================
+LIVE MONITOR  2026-02-25 22:20:10 UTC
+=================================================================
+
+[SERVICES]
+  Γ£à intent-executor: active
+  Γ£à apply-layer: active
+  Γ£à autonomous-trader: active
+
+[AKTIVE POSISJONER]
+  (ingen aktive posisjoner)
+
+[TRADES SISTE 30 MIN]
+  Antall: 2  |  PnL: $-9.61  |  WR: 50%
+  22:01:46  AIXBTUSDT       $-10.89  R=-1.81  [emergency_stop_loss (R=-1.81)]
+  22:10:02  APTUSDT         $ +1.28  R=0.64  [fallback_fee_protection (R=0.64)]
+
+[PNL SAMMENDRAG]
+  1t:   $  -1.57  (4 trades, WR=75%)
+  24t:  $  +7.66  (94 trades, WR=63%)
+
+[CHURN CHECK siste 1t]
+  Γ£à Ingen churn (alle gaps ΓëÑ 5 min)
+
+[COOLDOWNS AKTIVE]
+  Ingen aktive open-cooldowns
+
+[INTENT PIPELINE siste 30 min]
+  Intents generert: 0
+  Harvest intents:  0
+
+=================================================================

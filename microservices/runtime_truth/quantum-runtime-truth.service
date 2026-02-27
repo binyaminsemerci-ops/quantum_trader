@@ -1,0 +1,27 @@
+[Unit]
+Description=Quantum Runtime Truth Engine - LAG 1 Observability
+Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
+After=network.target redis-server.service
+Wants=redis-server.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/quantum/microservices/runtime_truth
+Environment=PYTHONPATH=/home/qt/quantum_trader
+Environment=PYTHONUNBUFFERED=1
+Environment=REDIS_HOST=localhost
+Environment=REDIS_PORT=6379
+Environment=TRUTH_INTERVAL_SEC=10
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python -u runtime_truth.py
+Restart=always
+RestartSec=5
+StartLimitInterval=60
+StartLimitBurst=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-runtime-truth
+
+[Install]
+WantedBy=multi-user.target

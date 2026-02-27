@@ -1,0 +1,74 @@
+# quantum-allocator.service — DRAFT
+# ============================================================
+# DO NOT ENABLE. Do not copy to /etc/systemd/system/ yet.
+# Review architecture/MIGRATION_PLAN.md before deployment.
+# ============================================================
+#
+# Service:   Position Allocator (slot management, adaptive leverage)
+# Tier:      LIVE CORE
+# User:      quantum-live
+# Depends:   quantum-signal.service (signal must be running)
+# Src:       /opt/quantum/microservices/exposure_balancer/
+#            /opt/quantum/microservices/portfolio_governance/
+#
+# Target path after migration:
+#   /opt/quantum/live_core/allocator/
+
+[Unit]
+Description=Quantum Trader — Position Allocator (Live Core)
+Documentation=file:///opt/quantum/live_core/allocator/README.md
+After=network-online.target redis.service quantum-signal.service
+Wants=network-online.target
+Requires=redis.service quantum-signal.service
+# Must start after signal is healthy — signals feed allocator
+After=quantum-signal.service
+
+[Service]
+Type=simple
+User=quantum-live
+Group=quantum-live
+
+WorkingDirectory=/opt/quantum/live_core/allocator
+
+EnvironmentFile=/opt/quantum/live_core/allocator/config/allocator.env
+Environment="PYTHONPATH=/opt/quantum"
+Environment="RUNTIME_ENV=production"
+Environment="LOG_LEVEL=INFO"
+Environment="SERVICE_NAME=quantum-allocator"
+Environment="HEALTH_PORT=8011"
+
+# Allocator does not load ML models directly, but must not touch staging
+Environment="MODEL_REGISTRY_STAGING_DIR="   # Intentionally empty
+InaccessiblePaths=/opt/quantum/model_registry/staging
+InaccessiblePaths=/opt/quantum/research_lab
+
+# Position slot config — overridden by env file
+Environment="MAX_CONCURRENT_POSITIONS=5"
+Environment="MAX_LEVERAGE=10"
+
+ExecStart=/opt/quantum/venvs/runtime/bin/python \
+    /opt/quantum/live_core/allocator/main.py \
+    --config /opt/quantum/live_core/allocator/config/allocator.env
+
+ExecStop=/bin/kill -TERM $MAINPID
+TimeoutStopSec=30
+
+Restart=on-failure
+RestartSec=15s
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-allocator
+
+MemoryMax=2G
+CPUWeight=80
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

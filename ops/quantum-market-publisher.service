@@ -1,0 +1,18 @@
+[Unit]
+Description=Quantum Trader - Market Data Publisher (INFRA)
+After=network.target redis-server.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/quantum/ops/market
+EnvironmentFile=/etc/quantum/market-publisher.env
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python /opt/quantum/ops/market/market_publisher.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-market-publisher
+
+[Install]
+WantedBy=multi-user.target

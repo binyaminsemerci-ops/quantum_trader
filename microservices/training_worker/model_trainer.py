@@ -3,6 +3,11 @@ Model Trainer - Actual Training Execution
 ==========================================
 Executes model retraining with specified hyperparameters.
 
+Controlled Refactor 2026-02-21:
+  Trained models are written ONLY to /opt/quantum/model_registry/staging/
+  The live AI engine loads from /opt/quantum/model_registry/approved/ only.
+  Promotion from staging → approved requires explicit operator action.
+
 Supports:
 - XGBoost
 - LightGBM
@@ -24,17 +29,32 @@ class ModelTrainer:
     """
     Handles actual model training execution.
     """
-    
-    def __init__(self, models_dir: str = "/app/models"):
+
+    def __init__(self, models_dir: str = "/opt/quantum/model_registry/staging"):
         """
         Initialize model trainer.
-        
+
         Args:
-            models_dir: Directory to save trained models
+            models_dir: Directory to save trained models.
+                        MUST be under /opt/quantum/model_registry/staging/.
         """
+        # Controlled Refactor 2026-02-21: enforce staging write boundary
+        try:
+            import sys
+            import os as _os
+            _guard_dir = _os.path.join(_os.path.dirname(__file__), '..', 'ai_engine')
+            sys.path.insert(0, _os.path.abspath(_guard_dir))
+            from model_path_guard import assert_staging_write_path
+            assert_staging_write_path(models_dir, label="ModelTrainer.models_dir")
+        except ImportError:
+            logger.warning(
+                "[ModelTrainer] model_path_guard not available — "
+                "write-path enforcement disabled."
+            )
+
         self.models_dir = models_dir
         os.makedirs(self.models_dir, exist_ok=True)
-        logger.info(f"[ModelTrainer] Models directory: {self.models_dir}")
+        logger.info(f"[ModelTrainer] Models directory (staging): {self.models_dir}")
     
     def run_training(
         self,

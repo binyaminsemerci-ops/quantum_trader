@@ -1,0 +1,24 @@
+[Unit]
+Description=Quantum Emergency Risk Brake v1
+Documentation=https://github.com/quantum-trader/risk_brake_v1_patch
+After=network.target redis-server.service
+Wants=redis-server.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/opt/quantum/microservices
+ExecStart=/opt/quantum/venvs/harvest-v2/bin/python /opt/quantum/microservices/risk_brake_v1_patch.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-risk-brake
+
+# Tight resource bounds — this is a lightweight loop script
+MemoryLimit=128M
+CPUQuota=10%
+
+[Install]
+WantedBy=multi-user.target

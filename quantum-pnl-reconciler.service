@@ -1,0 +1,20 @@
+[Unit]
+Description=QuantumTrader PnL Reconciler - Real Binance reward bridge
+After=network.target redis.service quantum-autonomous-trader.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/quantum
+EnvironmentFile=/etc/quantum/intent-executor.env
+Environment=REDIS_URL=redis://127.0.0.1:6379
+Environment=BINANCE_BASE_URL=https://testnet.binancefuture.com
+ExecStart=/opt/quantum/venvs/ai-engine/bin/python /opt/quantum/pnl_reconciler.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

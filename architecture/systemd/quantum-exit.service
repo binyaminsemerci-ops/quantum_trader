@@ -1,0 +1,86 @@
+# quantum-exit.service — DRAFT
+# ============================================================
+# DO NOT ENABLE. Do not copy to /etc/systemd/system/ yet.
+# Review architecture/MIGRATION_PLAN.md before deployment.
+# ============================================================
+#
+# Service:   Exit Engine (ExitBrainV3.5 + robust_exit_engine + ATR trailing)
+# Tier:      LIVE CORE
+# User:      quantum-live
+# Depends:   quantum-execution.service
+# Src:       /opt/quantum/microservices/exitbrain_v3_5/
+#            /opt/quantum/microservices/risk_guard/robust_exit_engine.py
+#
+# Reads approved RL model for exit hints.
+# Must NOT have any access to staging or research artifacts.
+#
+# Target path after migration:
+#   /opt/quantum/live_core/exit_engine/
+
+[Unit]
+Description=Quantum Trader — Exit Engine (Live Core)
+Documentation=file:///opt/quantum/live_core/exit_engine/README.md
+After=network-online.target redis.service quantum-execution.service
+Wants=network-online.target
+Requires=redis.service quantum-execution.service quantum-risk.service
+
+[Service]
+Type=simple
+User=quantum-live
+Group=quantum-live
+
+WorkingDirectory=/opt/quantum/live_core/exit_engine
+
+EnvironmentFile=/opt/quantum/live_core/exit_engine/config/exit_engine.env
+Environment="PYTHONPATH=/opt/quantum"
+Environment="RUNTIME_ENV=production"
+Environment="LOG_LEVEL=INFO"
+Environment="SERVICE_NAME=quantum-exit"
+Environment="HEALTH_PORT=8013"
+
+# Exit engine reads approved RL model for hints
+Environment="RL_MODEL_PATH=/opt/quantum/model_registry/approved/rl"
+Environment="MODEL_REGISTRY_STAGING_DIR="   # Intentionally blank
+
+# ATR / trailing stop defaults (overridden by env file)
+Environment="ATR_MULT_INITIAL_SL=2.0"
+Environment="ATR_MULT_TP1=3.0"
+Environment="ATR_MULT_TRAIL=1.5"
+Environment="TP1_FRACTION=0.5"
+Environment="CHECK_INTERVAL_SEC=5"
+
+# Redis stream keys
+Environment="STREAM_APPLY_PLAN=quantum:stream:apply.plan"
+Environment="STREAM_HARVEST_EVENTS=quantum:stream:harvest.events"
+
+InaccessiblePaths=/opt/quantum/model_registry/staging
+InaccessiblePaths=/opt/quantum/research_lab
+
+ExecStart=/opt/quantum/venvs/runtime/bin/python \
+    /opt/quantum/live_core/exit_engine/main.py \
+    --config /opt/quantum/live_core/exit_engine/config/exit_engine.env
+
+ExecStop=/bin/kill -TERM $MAINPID
+# Allow time for pending exit plans to flush
+TimeoutStopSec=45
+
+Restart=on-failure
+RestartSec=10s
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-exit
+
+MemoryMax=2G
+CPUWeight=100
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/quantum/model_registry/approved
+
+[Install]
+WantedBy=multi-user.target

@@ -428,6 +428,13 @@ class ContinuousLearningManager:
         min_improvement_threshold: float = 0.02,
         training_lookback_days: int = 90,
         policy_store = None,  # [NEW] PolicyStore for model version tracking
+        # ---------------------------------------------------------------
+        # Controlled Refactor 2026-02-21: auto-promotion is DISABLED by
+        # default.  Set to True only via explicit operator action and with
+        # corresponding /opt/quantum/model_registry/staging → approved
+        # promotion workflow in place.
+        # ---------------------------------------------------------------
+        auto_promotion_enabled: bool = False,
     ):
         """
         Initialize CLM.
@@ -452,6 +459,21 @@ class ContinuousLearningManager:
         self.shadow_tester = shadow_tester
         self.registry = registry
         self.policy_store = policy_store  # [NEW] Store reference for version writes
+
+        # Controlled Refactor 2026-02-21
+        self.auto_promotion_enabled: bool = auto_promotion_enabled
+        if self.auto_promotion_enabled:
+            logger.warning(
+                "[CLM] ⚠️  auto_promotion_enabled=True — CLM will promote models "
+                "to ACTIVE without manual sign-off.  Ensure staging → approved "
+                "promotion workflow and filesystem ACLs are in place."
+            )
+        else:
+            logger.info(
+                "[CLM] 🔒 auto_promotion_enabled=False — promote_if_better() is a "
+                "no-op.  Models retrained to staging will NOT be loaded by the "
+                "live AI engine until explicitly promoted."
+            )
         
         self.retrain_interval_days = retrain_interval_days
         self.shadow_test_hours = shadow_test_hours
@@ -815,7 +837,27 @@ class ContinuousLearningManager:
             List of promoted model types
         """
         logger.info("[CLM] Evaluating promotion candidates...")
-        
+
+        # ---------------------------------------------------------------
+        # Controlled Refactor 2026-02-21: hard gate on auto-promotion.
+        # If disabled, log the candidates that WOULD have been promoted
+        # (so the operator can make an informed manual decision) and
+        # return an empty promoted list.
+        # ---------------------------------------------------------------
+        if not self.auto_promotion_enabled:
+            candidate_summary = [
+                f"{mt.value} (artifact={'present' if art else 'None'})"
+                for mt, art in artifacts.items()
+                if art is not None
+            ]
+            logger.info(
+                f"[CLM] 🔒 Auto-promotion DISABLED. "
+                f"Skipping promotion for candidates: {candidate_summary}. "
+                f"Retrained models remain in staging. "
+                f"Run the manual promotion workflow to move a model to approved/."
+            )
+            return []
+
         promoted = []
         
         for model_type, artifact in artifacts.items():

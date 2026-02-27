@@ -1,0 +1,22 @@
+[Unit]
+Description=Quantum Layer 2 Signal Auto-Promoter
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+User=root
+WorkingDirectory=/opt/quantum/microservices/layer2_signal_promoter
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python /opt/quantum/microservices/layer2_signal_promoter/layer2_signal_promoter.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+Environment=REDIS_HOST=localhost
+Environment=CHECK_INTERVAL=60
+Environment=TOP_N_SYMBOLS=10
+Environment=MIN_SHARPE=2.0
+Environment=MIN_KELLY_EDGE=0.01
+
+[Install]
+WantedBy=multi-user.target

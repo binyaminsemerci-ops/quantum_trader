@@ -1,0 +1,84 @@
+# quantum-signal.service — DRAFT
+# ============================================================
+# DO NOT ENABLE. Do not copy to /etc/systemd/system/ yet.
+# Review architecture/MIGRATION_PLAN.md before deployment.
+# ============================================================
+#
+# Service:   Signal Engine (AI 5-Model Ensemble)
+# Tier:      LIVE CORE
+# User:      quantum-live
+# Model dir: /opt/quantum/model_registry/approved/signal/
+# Src:       /opt/quantum/microservices/ai_engine/ (current)
+#
+# Target path after migration:
+#   /opt/quantum/live_core/signal_engine/
+
+[Unit]
+Description=Quantum Trader — Signal Engine (Live Core)
+Documentation=file:///opt/quantum/live_core/signal_engine/README.md
+After=network-online.target redis.service
+Wants=network-online.target
+Requires=redis.service
+# Explicit ordering: signal must start before allocator
+Before=quantum-allocator.service
+
+[Service]
+Type=simple
+User=quantum-live
+Group=quantum-live
+
+# Working directory — Live Core path (post-migration target)
+WorkingDirectory=/opt/quantum/live_core/signal_engine
+
+# Environment
+EnvironmentFile=/opt/quantum/live_core/signal_engine/config/signal_engine.env
+Environment="PYTHONPATH=/opt/quantum"
+Environment="MODEL_DIR=/opt/quantum/model_registry/approved/signal"
+Environment="RUNTIME_ENV=production"
+Environment="LOG_LEVEL=INFO"
+Environment="SERVICE_NAME=quantum-signal"
+Environment="HEALTH_PORT=8010"
+
+# Model registry enforcement: read approved/ only
+# Staging directory must NOT be accessible from this service
+# (enforced at OS level via ACL — see DIRECTORY_STRUCTURE.md)
+Environment="MODEL_REGISTRY_APPROVED_DIR=/opt/quantum/model_registry/approved"
+Environment="MODEL_REGISTRY_STAGING_DIR="   # Intentionally empty — live services must not know staging path
+
+# Process
+ExecStartPre=/usr/bin/sha256sum --check /opt/quantum/model_registry/approved/.registry_manifest.json
+ExecStart=/opt/quantum/venvs/runtime/bin/python \
+    /opt/quantum/live_core/signal_engine/main.py \
+    --config /opt/quantum/live_core/signal_engine/config/signal_engine.env
+
+# Graceful shutdown: allow 30s for orderly exit (in-flight signal completion)
+ExecStop=/bin/kill -TERM $MAINPID
+TimeoutStopSec=30
+
+# Restart policy: auto-restart on failure, NOT on intentional stop
+Restart=on-failure
+RestartSec=10s
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+# Output / logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-signal
+
+# Resource limits
+# Prevent signal engine from consuming unlimited memory
+MemoryMax=4G
+CPUWeight=100
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/quantum/model_registry/approved
+InaccessiblePaths=/opt/quantum/model_registry/staging
+InaccessiblePaths=/opt/quantum/research_lab
+
+[Install]
+WantedBy=multi-user.target

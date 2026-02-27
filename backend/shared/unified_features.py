@@ -100,7 +100,7 @@ class UnifiedFeatureEngineer:
             df = self._add_microstructure_features(df)
             
             # Handle NaN values
-            df = df.fillna(method='ffill').fillna(method='bfill').fillna(0)
+            df = df.ffill().bfill().fillna(0)
             
             logger.debug(f"Computed {len(df.columns)} features for {len(df)} rows")
             return df

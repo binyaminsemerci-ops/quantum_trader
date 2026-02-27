@@ -1,0 +1,28 @@
+[Unit]
+Description=Quantum Trader - DAG3 Hardware TP/SL Guardian
+After=network.target redis.service quantum-execution.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/quantum/microservices/dag3_hw_stops
+EnvironmentFile=/etc/quantum/testnet.env
+Environment=REDIS_HOST=localhost
+Environment=REDIS_PORT=6379
+Environment=BINANCE_BASE_URL=https://testnet.binancefuture.com
+Environment=DAG3_INTERVAL_SEC=30
+Environment=DAG3_R_STOP=0.7
+Environment=DAG3_R_TARGET=4.2
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python -u dag3_hw_stops.py
+Restart=always
+RestartSec=10
+StartLimitInterval=120
+StartLimitBurst=5
+StandardOutput=append:/var/log/quantum/dag3_hw_stops.log
+StandardError=append:/var/log/quantum/dag3_hw_stops.log
+
+[Install]
+WantedBy=multi-user.target

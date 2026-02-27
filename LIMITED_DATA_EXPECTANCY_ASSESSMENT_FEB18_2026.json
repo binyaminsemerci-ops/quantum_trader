@@ -1,0 +1,106 @@
+{
+  "audit_date": "2026-02-18T01:41:35.041678",
+  "data_status": "INSUFFICIENT",
+  "sample_size": 11,
+  "min_required": 174,
+  "metrics": {
+    "total_trades": 11,
+    "win_count": 8,
+    "loss_count": 3,
+    "win_rate": 0.7272727272727273,
+    "avg_win_usdt": 8.4625,
+    "avg_loss_usdt": -4.133333333333333,
+    "total_pnl_usdt": 55.3,
+    "avg_pnl_usdt": 5.027272727272727,
+    "profit_factor": 5.45967741935484,
+    "expectancy_usdt": 5.027272727272727,
+    "std_dev": 6.773758310782321,
+    "std_error": 2.0423649761287783,
+    "min_sample_required": 174
+  },
+  "trades": [
+    {
+      "symbol": "RIVERUSDT",
+      "timestamp": 1770098629.5904078,
+      "pnl_usdt": 3.2,
+      "pnl_pct": 0.3,
+      "is_winner": true
+    },
+    {
+      "symbol": "RIVERUSDT",
+      "timestamp": 1770113029.5904088,
+      "pnl_usdt": -4.1,
+      "pnl_pct": -0.4,
+      "is_winner": false
+    },
+    {
+      "symbol": "RIVERUSDT",
+      "timestamp": 1770127429.590409,
+      "pnl_usdt": 2.1,
+      "pnl_pct": 0.2,
+      "is_winner": true
+    },
+    {
+      "symbol": "RIVERUSDT",
+      "timestamp": 1770141829.5904093,
+      "pnl_usdt": -3.2,
+      "pnl_pct": -0.3,
+      "is_winner": false
+    },
+    {
+      "symbol": "RIVERUSDT",
+      "timestamp": 1770156229.5904095,
+      "pnl_usdt": 5.3,
+      "pnl_pct": 0.5,
+      "is_winner": true
+    },
+    {
+      "symbol": "ARCUSDT",
+      "timestamp": 1770091429.5893164,
+      "pnl_usdt": 12.5,
+      "pnl_pct": 1.2,
+      "is_winner": true
+    },
+    {
+      "symbol": "ARCUSDT",
+      "timestamp": 1770105829.589317,
+      "pnl_usdt": 8.2,
+      "pnl_pct": 0.8,
+      "is_winner": true
+    },
+    {
+      "symbol": "ARCUSDT",
+      "timestamp": 1770120229.5893173,
+      "pnl_usdt": -5.1,
+      "pnl_pct": -0.5,
+      "is_winner": false
+    },
+    {
+      "symbol": "ARCUSDT",
+      "timestamp": 1770134629.5893176,
+      "pnl_usdt": 15.8,
+      "pnl_pct": 1.5,
+      "is_winner": true
+    },
+    {
+      "symbol": "ARCUSDT",
+      "timestamp": 1770149029.5893178,
+      "pnl_usdt": 9.4,
+      "pnl_pct": 0.9,
+      "is_winner": true
+    },
+    {
+      "symbol": "ARCUSDT",
+      "timestamp": 1770163429.589318,
+      "pnl_usdt": 11.2,
+      "pnl_pct": 1.1,
+      "is_winner": true
+    }
+  ],
+  "warnings": [
+    "Sample size below statistical minimum",
+    "Results not statistically significant",
+    "Cannot calculate R-multiples without entry/exit/SL data",
+    "Conclusions are preliminary only"
+  ]
+}

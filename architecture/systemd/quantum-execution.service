@@ -1,0 +1,87 @@
+# quantum-execution.service — DRAFT
+# ============================================================
+# DO NOT ENABLE. Do not copy to /etc/systemd/system/ yet.
+# Review architecture/MIGRATION_PLAN.md before deployment.
+# ============================================================
+#
+# Service:   Execution Engine (BinanceFuturesExecutionAdapter + exec_risk_service)
+# Tier:      LIVE CORE — DIRECT EXCHANGE ACCESS
+# User:      quantum-live
+# Depends:   quantum-risk.service (risk must be healthy before execution runs)
+# Src:       /opt/quantum/services/exec_risk_service/run_exec_risk_service.py
+#            /opt/quantum/backend/services/execution/execution.py
+#
+# CRITICAL: This service places real orders on Binance Futures.
+# Risk service MUST be healthy before this starts.
+#
+# Target path after migration:
+#   /opt/quantum/live_core/execution/
+
+[Unit]
+Description=Quantum Trader — Execution Engine (Live Core — EXCHANGE)
+Documentation=file:///opt/quantum/live_core/execution/README.md
+After=network-online.target redis.service quantum-risk.service
+Wants=network-online.target
+# Hard requirement: risk must be running before any orders can be placed
+Requires=redis.service quantum-risk.service quantum-signal.service quantum-allocator.service
+
+[Service]
+Type=simple
+User=quantum-live
+Group=quantum-live
+
+WorkingDirectory=/opt/quantum/live_core/execution
+
+EnvironmentFile=/opt/quantum/live_core/execution/config/execution.env
+Environment="PYTHONPATH=/opt/quantum"
+Environment="RUNTIME_ENV=production"
+Environment="LOG_LEVEL=INFO"
+Environment="SERVICE_NAME=quantum-execution"
+Environment="HEALTH_PORT=8002"
+
+# Exchange configuration (real values come from env file, NOT hardcoded)
+Environment="EXCHANGE=binance_futures"
+Environment="EXCHANGE_TESTNET=false"
+# BINANCE_API_KEY and BINANCE_API_SECRET must be in execution.env (600 permissions)
+
+# Order safety
+Environment="DRY_RUN=false"
+Environment="MIN_NOTIONAL=10"
+Environment="MAX_LEVERAGE=10"
+
+# Complete research isolation
+InaccessiblePaths=/opt/quantum/model_registry/staging
+InaccessiblePaths=/opt/quantum/research_lab
+
+ExecStartPre=/bin/sh -c 'systemctl is-active quantum-risk.service || { echo "Risk service not active, refusing execution start"; exit 1; }'
+
+ExecStart=/opt/quantum/venvs/runtime/bin/python \
+    /opt/quantum/live_core/execution/run_exec_risk_service.py \
+    --config /opt/quantum/live_core/execution/config/execution.env
+
+ExecStop=/bin/kill -TERM $MAINPID
+# Allow 60s for in-flight orders to complete/cancel gracefully
+TimeoutStopSec=60
+
+# Do NOT restart immediately — failed execution needs investigation
+Restart=on-failure
+RestartSec=30s
+StartLimitIntervalSec=600
+StartLimitBurst=2
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-execution
+
+MemoryMax=3G
+CPUWeight=120
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# Config must be readable but not writable
+ReadWritePaths=/opt/quantum/live_core/execution/logs
+
+[Install]
+WantedBy=multi-user.target
