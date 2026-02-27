@@ -150,6 +150,8 @@ def update_risk_guard_equity(r: redis.Redis, equity: float) -> None:
             "last_update_ts": str(time.time())
         })
         
+        # SYNC: also write flat string key used by ai_engine
+        r.set("quantum:equity_usd", str(equity))
         drawdown_pct = ((new_peak - equity) / new_peak * 100) if new_peak > 0 else 0.0
         logger.info(f"✅ RiskGuard equity updated: ${equity:.2f} (peak=${new_peak:.2f}, dd={drawdown_pct:.1f}%)")
         

@@ -95,6 +95,15 @@ MAX_EXPOSURE_PCT = float(os.getenv("MAX_EXPOSURE_PCT", "80.0"))  # From Exposure
 SKIP_FLAT_SELL = os.getenv("INTENT_BRIDGE_SKIP_FLAT_SELL", "true").lower() == "true"
 FLAT_EPS = float(os.getenv("INTENT_BRIDGE_FLAT_EPS", "0.0") or "0.0")
 
+# Anti-churn gate: minimum time between CLOSE and next OPEN for the same symbol
+# Prevents rapid open→close→open churning that eats fees. Default: 15 minutes.
+MIN_HOLD_SECONDS = int(os.getenv("MIN_HOLD_SECONDS", "900"))  # 15 min
+
+# Fee parameters for breakeven metadata added to each plan
+# Downstream services (apply_layer, risk_kernel) can use this without re-computing
+TAKER_FEE_RATE = float(os.getenv("COST_TAKER_FEE_RATE", "0.0004"))  # 0.04% Binance taker
+ROUND_TRIP_COST = TAKER_FEE_RATE * 2 + 0.0002   # fees (entry+exit) + typical slippage ≈ 0.10%
+
 # Streams
 INTENT_STREAM = "quantum:stream:trade.intent"
 PLAN_STREAM = "quantum:stream:apply.plan"
@@ -124,7 +133,7 @@ UNIVERSE_REFRESH_SEC = int(os.getenv("INTENT_BRIDGE_UNIVERSE_REFRESH_SEC", "300"
 UNIVERSE_TTL_SEC = int(os.getenv("INTENT_BRIDGE_UNIVERSE_TTL_SEC", "3600"))
 
 # Build tag for deployment verification
-BUILD_TAG = "intent-bridge-ledger-open-v1"
+BUILD_TAG = "intent-bridge-anti-churn-fee-v2"
 
 logger.info("=" * 80)
 logger.info(f"Intent Bridge - trade.intent → apply.plan [{BUILD_TAG}]")
@@ -681,6 +690,20 @@ class IntentBridge:
                     format_used = "FORMAT4_POSITION_SIZE_ENTRY_PRICE"
                     logger.info(f"[PARSE] {format_used}: size={size_usd}, price={price_used}, qty={qty}")
             
+            # NOTIONAL CAP: prevent -4005 on cheap coins (2026-02-25)
+            if qty and qty > 0:
+                try:
+                    import os as _os
+                    _p = locals().get("price_used") or float(payload.get("price", 0) or payload.get("entry_price", 0))
+                    if _p and _p > 0:
+                        _n = qty * _p
+                        _mx = float(_os.getenv("QT_MAX_NOTIONAL_USD", "3000"))
+                        if _n > _mx:
+                            qty = _mx / _p
+                            logger.warning(f"[NOTIONAL_CAP] {symbol}: notional ${_n:.2f} > ${_mx:.0f} capped qty={qty:.4f}")
+                except Exception:
+                    pass
+
             if not qty or qty <= 0:
                 logger.warning(f"Invalid quantity: format={format_used}, payload={payload}")
                 return None
@@ -737,6 +760,7 @@ class IntentBridge:
                 "leverage": leverage,
                 "stop_loss": stop_loss,
                 "take_profit": take_profit,
+                "entry_price": price_used,   # may be None for FORMAT1 without price fetch
                 "source_payload": payload
             }
             
@@ -765,6 +789,19 @@ class IntentBridge:
             b"timestamp": str(ts_unix).encode()
         }
         
+        # 🔥 FIX: Map side/reduceOnly to action for Governor Active Slots
+        if intent["side"].upper() == "BUY" and not intent["reduceOnly"]:
+            action = "ENTRY_PROPOSED"  # New position (LONG)
+        elif intent["side"].upper() == "SELL" and not intent["reduceOnly"]:
+            action = "ENTRY_PROPOSED"  # New position (SHORT)
+        elif intent["reduceOnly"]:
+            action = "FULL_CLOSE_PROPOSED"  # Closing existing position
+        else:
+            action = "UNKNOWN"  # Fallback
+        
+        message_fields[b"action"] = action.encode()
+        logger.info(f"📋 Mapped {intent['symbol']} {intent['side']} reduceOnly={intent['reduceOnly']} → action={action}")
+        
         # DEBUG: Log what we're trying to add
         leverage = intent.get("leverage")
         stop_loss = intent.get("stop_loss")
@@ -783,6 +820,40 @@ class IntentBridge:
         if take_profit is not None:
             message_fields[b"take_profit"] = str(take_profit).encode()
             logger.info(f"✓ Added take_profit={take_profit} to {intent['symbol']}")
+
+        # Fee breakeven metadata: minimum price move needed to cover round-trip costs.
+        # Downstream risk_kernel and apply_layer can use this to filter marginal trades.
+        entry_price = intent.get("entry_price")
+        if entry_price and entry_price > 0:
+            # BUG FIX: publish entry_price so apply_layer SL-direction check works.
+            # Without this, apply_layer always reads entry_price=0.0 and silently
+            # skips the SL-direction validation → wrong-direction SL goes through.
+            message_fields[b"entry_price"] = f"{entry_price:.8f}".encode()
+            if intent["side"].upper() == "BUY":
+                breakeven = entry_price * (1 + ROUND_TRIP_COST)
+                message_fields[b"breakeven_price"] = f"{breakeven:.8f}".encode()
+                logger.debug(f"[FEE_META] {intent['symbol']} entry={entry_price:.4f} breakeven={breakeven:.4f} ({ROUND_TRIP_COST:.4%} rt-cost)")
+
+        # BUG FIX: forward ATR/volatility data from source_payload so apply_layer
+        # can compute entry_risk_usdt correctly (was always 0.0 / risk_missing=1).
+        _src = intent.get("source_payload") or {}
+        _atr = _src.get("atr_value") or intent.get("atr_value")
+        _vol = _src.get("volatility_factor") or intent.get("volatility_factor")
+        if _atr:
+            message_fields[b"atr_value"] = str(_atr).encode()
+        if _vol:
+            message_fields[b"volatility_factor"] = str(_vol).encode()
+
+        # RL STATE: forward confidence + regime so intent_executor can store
+        # order_id → state mapping for correct RL experience attribution
+        _conf = _src.get("confidence") or intent.get("confidence")
+        _regime = _src.get("regime") or intent.get("regime")
+        if _conf is not None:
+            message_fields[b"confidence"] = str(_conf).encode()
+            logger.debug(f"✓ RL state: confidence={_conf} forwarded to {intent['symbol']}")
+        if _regime is not None:
+            message_fields[b"regime"] = str(_regime).encode()
+            logger.debug(f"✓ RL state: regime={_regime} forwarded to {intent['symbol']}")
         
         # Publish to quantum:stream:apply.plan with FLAT structure
         message_id = self.redis.xadd(
@@ -862,6 +933,18 @@ class IntentBridge:
                 ledger_amt = _ledger_last_known_amt(self.redis, intent["symbol"])
                 if math.isnan(ledger_amt):
                     logger.info(f"LEDGER_MISSING_OPEN allowed: symbol={intent['symbol']} side=BUY (plan_id={plan_id[:8]})")
+
+            # Anti-churn gate: don't re-open within MIN_HOLD_SECONDS of a close
+            churn_key = f"quantum:intent_bridge:last_close:{intent['symbol']}"
+            if self.redis.exists(churn_key):
+                remaining = self.redis.ttl(churn_key)
+                logger.info(
+                    f"ANTI_CHURN_BLOCK {intent['symbol']} BUY: just closed, "
+                    f"{remaining}s remaining of MIN_HOLD={MIN_HOLD_SECONDS}s (plan_id={plan_id[:8]})"
+                )
+                self._mark_seen(stream_id_str)
+                self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
+                return
         
         elif intent["side"].upper() == "SELL":
             # SELL/CLOSE: Always check ledger if SKIP_FLAT_SELL enabled
@@ -893,6 +976,22 @@ class IntentBridge:
                 return
 
         
+        # Gate: skip if same symbol already has an open position (2026-02-25)
+        # intent_bridge was publishing SELL entries for already-open SHORTs -> spam
+        _bridge_snap_key = f"quantum:position:snapshot:{intent['symbol']}"
+        try:
+            _bridge_snap_raw = self.redis.hget(_bridge_snap_key, "position_amt")
+            _bridge_snap_amt = float(_bridge_snap_raw) if _bridge_snap_raw else 0.0
+        except Exception:
+            _bridge_snap_amt = 0.0
+        if abs(_bridge_snap_amt) > 0.0:
+            logger.debug(
+                f"[BRIDGE_SKIP] {intent['symbol']}: already_open={_bridge_snap_amt} — skipping new entry"
+            )
+            self._mark_seen(stream_id_str)
+            self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
+            return
+
         # Publish to apply.plan
         try:
             self._publish_plan(plan_id, intent)
@@ -900,6 +999,12 @@ class IntentBridge:
             # Mark as seen and ack
             self._mark_seen(stream_id_str)
             self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
+
+            # Anti-churn: record this SELL so next BUY is held off for MIN_HOLD_SECONDS
+            if intent["side"].upper() == "SELL":
+                churn_key = f"quantum:intent_bridge:last_close:{intent['symbol']}"
+                self.redis.setex(churn_key, MIN_HOLD_SECONDS, str(int(time.time())))
+                logger.info(f"ANTI_CHURN_SET {intent['symbol']}: next BUY blocked for {MIN_HOLD_SECONDS}s")
             
             logger.info(f"✅ Bridge success: {stream_id_str} → {plan_id[:8]}")
             

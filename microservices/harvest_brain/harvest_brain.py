@@ -168,6 +168,7 @@ class Position:
     age_sec: float = 0.0  # Position age for P2 kill_score
     peak_price: float = 0.0  # Highest price reached (LONG) or lowest (SHORT)
     trough_price: float = 0.0  # Lowest price reached (LONG) or highest (SHORT)
+    R_net: float = 0.0          # Current R (set after P2 runs)
     
     def r_level(self) -> float:
         """Calculate current R (return on risk)"""
@@ -398,17 +399,37 @@ class HarvestPolicy:
             p_chop=0.2
         )
     
-    def _get_harvest_theta(self) -> HarvestTheta:
-        """Get harvest theta from config or defaults"""
+    def _get_harvest_theta(self, leverage: float = 1.0) -> HarvestTheta:
+        """
+        Get harvest theta with FORMULA-BASED R-targets (leverage-aware).
+        
+        NO HARDCODED R-LADDER - uses common.risk_settings for configuration.
+        R-targets scale inversely with leverage: R_effective = R_base / sqrt(leverage)
+        
+        Args:
+            leverage: Position leverage (default: 1.0)
+        
+        Returns:
+            HarvestTheta with leverage-scaled R-targets
+        """
+        # Import risk settings
+        import sys
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+        from common.risk_settings import compute_harvest_r_targets, DEFAULT_SETTINGS
+        
+        # Get leverage-aware R-targets
+        r_targets = compute_harvest_r_targets(leverage, DEFAULT_SETTINGS)
+        
         return HarvestTheta(
-            fallback_stop_pct=0.02,
-            cost_bps=10.0,
-            T1_R=2.0,
-            T2_R=4.0,
-            T3_R=6.0,
-            lock_R=1.5,
-            be_plus_pct=0.002,
-            kill_threshold=0.6
+            fallback_stop_pct=DEFAULT_SETTINGS.RISK_FRACTION,  # Use risk fraction instead of hardcoded 0.02
+            cost_bps=10.0,  # Keep cost estimation
+            T1_R=r_targets["T1_R"],  # LEVERAGE-SCALED (not hardcoded 2.0)
+            T2_R=r_targets["T2_R"],  # LEVERAGE-SCALED (not hardcoded 4.0)
+            T3_R=r_targets["T3_R"],  # LEVERAGE-SCALED (not hardcoded 6.0)
+            lock_R=r_targets["lock_R"],  # LEVERAGE-SCALED (not hardcoded 1.5)
+            be_plus_pct=r_targets["be_plus_pct"],  # From settings (not hardcoded)
+            kill_threshold=r_targets["kill_threshold"]  # From settings (not hardcoded)
         )
     
     def _load_symbol_config(self, symbol: str) -> SymbolConfig:
@@ -592,7 +613,7 @@ class HarvestPolicy:
                 qty=position.qty,
                 reason=f'[EMERGENCY] Stop Loss triggered at {position.current_price:.6f} (SL={position.stop_loss:.6f})',
                 r_level=0.0,
-                unrealized_pnl=position.unrealized_pnl,
+                unrealized_pnl=pnl_per_unit,
                 correlation_id=f"emergency:sl:{position.symbol}:{int(time.time())}",
                 trace_id=f"emergency:{position.symbol}:sl",
                 dry_run=(self.config.harvest_mode == 'shadow')
@@ -621,13 +642,40 @@ class HarvestPolicy:
         # Fetch market state from Redis (or use defaults)
         market_state = self._get_market_state(position.symbol)
         
-        # Build P1 proposal (stop distance)
+        # P1: use actual SL from Redis position hash (accurate & direct).
+        # Falls back to ATR-based estimate only when stop_loss is missing.
+        if position.stop_loss and position.stop_loss > 0 and position.entry_price > 0:
+            stop_dist_pct = abs(position.entry_price - position.stop_loss) / position.entry_price
+        else:
+            # Fallback: ATR-based dynamic stop (only used if no SL stored)
+            import os as _os, sys as _sys
+            _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..', '..'))
+            from common.exit_math import compute_dynamic_stop, ExitPosition as _EP
+            from common.exit_math import Account as _Acc, Market as _Mkt
+            from common.risk_settings import DEFAULT_SETTINGS as _DS
+            _exit = _EP(
+                symbol=position.symbol,
+                side='BUY' if position.side == 'LONG' else 'SELL',
+                entry_price=position.entry_price, size=position.qty,
+                leverage=position.leverage,
+                highest_price=position.peak_price if position.peak_price > 0 else position.current_price,
+                lowest_price=position.trough_price if position.trough_price > 0 else position.current_price,
+                time_in_trade=position.age_sec, distance_to_liq=None
+            )
+            _dyn_stop = compute_dynamic_stop(
+                _exit, _Acc(equity=10000.0),
+                _Mkt(current_price=position.current_price, atr=position.entry_price * 0.02),
+                _DS
+            )
+            stop_dist_pct = abs(position.entry_price - _dyn_stop) / position.entry_price
+
         p1_proposal = P1Proposal(
-            stop_dist_pct=abs(position.entry_price - position.stop_loss) / position.entry_price if position.stop_loss else 0.02
+            stop_dist_pct=max(stop_dist_pct, 0.001)  # floor at 0.1%
         )
+
         
-        # Get harvest theta from config
-        theta = self._get_harvest_theta()
+        # Get harvest theta with LEVERAGE-SCALED R-targets (NO HARDCODED R-ladder)
+        theta = self._get_harvest_theta(leverage=position.leverage)
         
         # **RUN P2 HARVEST KERNEL**
         p2_result = compute_harvest_proposal(
@@ -641,6 +689,7 @@ class HarvestPolicy:
         r_net = p2_result['R_net']
         kill_score = p2_result['kill_score']
         reason_codes = p2_result['reason_codes']
+        position.R_net = r_net  # attach P2 R_net for _calculate_dynamic_fraction
         
         logger.info(
             f"[HARVEST] {position.symbol} | "
@@ -1317,6 +1366,16 @@ class HarvestBrainService:
                         skipped_price_count += 1
                         continue
                     
+                    # Always recompute unrealized_pnl from live mark price (fixes pnl_flat bug)
+                    # Redis value is stale/empty — mark_price is authoritative
+                    if mark_price > 0 and entry_price > 0 and qty > 0:
+                        if side in ['LONG', 'BUY']:
+                            unrealized_pnl = (mark_price - entry_price) * qty
+                        else:  # SHORT, SELL
+                            unrealized_pnl = (entry_price - mark_price) * qty
+                        # Write back to Redis so other services see fresh value
+                        self.redis.hset(pos_key, 'unrealized_pnl', str(unrealized_pnl))
+
                     # Compute R_net
                     cost_bps = 10.0  # 10 bps cost estimate
                     cost_est = unrealized_pnl * (cost_bps / 10000.0)
@@ -1370,7 +1429,7 @@ class HarvestBrainService:
                         emitted_count += 1
                 
                 except Exception as e:
-                    logger.debug(f"Error evaluating position {pos_key}: {e}")
+                    logger.error(f"TRACEBACK evaluating {pos_key}: {e}", exc_info=True)
             
             # Log tick summary (rate-limited: once per scan)
             if scanned_count > 0:
