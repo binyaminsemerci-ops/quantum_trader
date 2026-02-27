@@ -39,6 +39,7 @@ def create_permits():
             'reason': 'auto_bypass',
             'timestamp': str(int(time.time()))
         })
+        r.expire(permit_key, 86400)  # H1 fix: 24h TTL
         
         print(f"✅ Created permit for {symbol} plan {plan_id[:8]}")
         created += 1

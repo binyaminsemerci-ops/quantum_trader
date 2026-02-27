@@ -929,6 +929,7 @@ class StreamPublisher:
                 "reason": "harvest_brain_auto_permit",
                 "timestamp": str(ts_unix)
             })
+            self.redis.expire(permit_key, 86400)  # H1 fix: 24h TTL
             
             logger.warning(
                 f"⚠️  LIVE: {intent.intent_type} {intent.symbol} "
