@@ -1039,6 +1039,10 @@ class HarvestBrainService:
         self.exchange_positions_cache = {}  # symbol -> {entryPrice, positionAmt, ...}
         self.exchange_positions_last_fetch = 0
         self.exchange_positions_ttl = 30  # seconds
+
+        # ATR cache: symbol -> (atr_value, timestamp)
+        self.atr_cache: dict = {}
+        self.atr_cache_ttl = 600.0  # 10 min - klines ATR is stable at this granularity
     
     async def start(self) -> None:
         """Start the service"""
@@ -1508,7 +1512,12 @@ class HarvestBrainService:
             
             if not pos_data:
                 return
-            
+
+            # Ensure sync_timestamp is set (prevents harvest_v2 SKIP_STALE_AGE due to
+            # epoch-zero default when positions were bootstrapped without this field)
+            if not pos_data.get('sync_timestamp') or pos_data.get('sync_timestamp', '0') == '0':
+                self.redis.hset(pos_key, 'sync_timestamp', str(int(time.time())))
+
             # Parse position data
             side = pos_data.get('side', 'LONG')
             qty = float(pos_data.get('quantity', 0.0))
@@ -1558,8 +1567,26 @@ class HarvestBrainService:
                     self.redis.hset(pos_key, 'risk_missing', '0')
                     logger.info(f"[HARVEST] {symbol}: Computed entry_risk_usdt={entry_risk_usdt:.4f} (atr={atr_value}, vol={volatility_factor})")
                 else:
-                    logger.warning(f"[HARVEST] {symbol}: SKIP_RISK_MISSING (atr={atr_value}, vol={volatility_factor})")
-                    self.redis.hset(pos_key, 'risk_missing', '1')
+                    # No atr_value/volatility_factor stored — try computing from Binance klines
+                    klines_atr = await self._compute_atr_from_klines(symbol)
+                    if klines_atr and klines_atr > 0:
+                        volatility_factor = 1.5  # Conservative default: stop at 1.5x ATR
+                        atr_value = klines_atr
+                        risk_price = atr_value * volatility_factor
+                        entry_risk_usdt = abs(qty) * risk_price
+                        self.redis.hset(pos_key, 'atr_value', str(atr_value))
+                        self.redis.hset(pos_key, 'volatility_factor', str(volatility_factor))
+                        self.redis.hset(pos_key, 'entry_risk_usdt', str(entry_risk_usdt))
+                        self.redis.hset(pos_key, 'risk_price', str(risk_price))
+                        self.redis.hset(pos_key, 'risk_missing', '0')
+                        logger.info(
+                            f"[HARVEST] {symbol}: ATR_ENRICHED from klines "
+                            f"atr={atr_value:.6f} vol_factor={volatility_factor} "
+                            f"entry_risk_usdt={entry_risk_usdt:.4f}"
+                        )
+                    else:
+                        logger.warning(f"[HARVEST] {symbol}: SKIP_RISK_MISSING (atr={atr_value}, vol={volatility_factor})")
+                        self.redis.hset(pos_key, 'risk_missing', '1')
         
         except Exception as e:
             logger.warning(f"Failed to enrich position {symbol}: {e}")
@@ -1618,7 +1645,53 @@ class HarvestBrainService:
         except Exception as e:
             logger.debug(f"Failed to get mark price for {symbol}: {e}")
             return (0.0, 'error')
-    
+
+    async def _compute_atr_from_klines(self, symbol: str, period: int = 14, interval: str = '1h') -> float:
+        """Compute ATR from Binance testnet klines (14-period, 1h candles).
+        Returns ATR in price units. Cached for 10 min to avoid excessive API calls.
+        """
+        try:
+            # Serve from cache if fresh
+            if symbol in self.atr_cache:
+                cached_atr, cached_ts = self.atr_cache[symbol]
+                if time.time() - cached_ts < self.atr_cache_ttl:
+                    return cached_atr
+
+            import urllib.request
+            import json as json_lib
+
+            url = (
+                f"https://testnet.binancefuture.com/fapi/v1/klines"
+                f"?symbol={symbol}&interval={interval}&limit={period + 1}"
+            )
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=5) as response:
+                klines = json_lib.loads(response.read().decode())
+
+            if not klines or len(klines) < period + 1:
+                return 0.0
+
+            # Compute True Range for each candle: max(H-L, |H-prevC|, |L-prevC|)
+            true_ranges = []
+            for i in range(1, len(klines)):
+                high = float(klines[i][2])
+                low = float(klines[i][3])
+                prev_close = float(klines[i - 1][4])
+                tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+                true_ranges.append(tr)
+
+            if not true_ranges:
+                return 0.0
+
+            atr = sum(true_ranges[-period:]) / period
+            self.atr_cache[symbol] = (atr, time.time())
+            logger.info(f"[HARVEST] {symbol}: ATR({period},{interval}) = {atr:.6f} (from Binance klines)")
+            return atr
+
+        except Exception as e:
+            logger.debug(f"[HARVEST] Failed to compute ATR for {symbol}: {e}")
+            return 0.0
+
     async def _sync_position_to_redis(self, position: Position) -> None:
         """Sync position to quantum:position:{symbol} Redis key"""
         try:
