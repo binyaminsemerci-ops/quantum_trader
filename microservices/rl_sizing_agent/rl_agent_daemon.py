@@ -273,9 +273,10 @@ class RLAgentDaemon:
             )
             
             # Also publish to stream for monitoring
+            # NOTE: all values must be scalar — convert same as hset above
             self.redis_client.xadd(
                 "quantum:stream:rl.stats",
-                stats,
+                {k: str(v) for k, v in stats.items()},
                 maxlen=1000
             )
             

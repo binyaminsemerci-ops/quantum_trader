@@ -75,14 +75,14 @@ def get_grunnlov_validator():
             logger.warning(f"⚠️ GRUNNLOV: Could not initialize validator: {e}")
     return _grunnlov_validator
 
-# Setup logging
+# Setup logging — write to both file AND stdout so journald captures it
+import sys as _sys
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
     handlers=[
-        logging.FileHandler("/var/log/quantum/execution.log")
-        # P2 FIX: Removed StreamHandler - systemd already logs stdout to file
-        # This prevents duplicate log entries
+        logging.FileHandler("/var/log/quantum/execution.log"),
+        logging.StreamHandler(_sys.stdout),   # captured by journald via systemd
     ]
 )
 logger = logging.getLogger(__name__)
