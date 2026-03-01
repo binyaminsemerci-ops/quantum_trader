@@ -182,6 +182,12 @@ class EnsemblePredictorService:
         
         # Model loading deferred (prevent execution imports)
         self.models_loaded = False
+
+        # Per-symbol rate limiting: don't run inference more than once per MIN_PRED_INTERVAL seconds
+        # Features arrive at ~5-6/sec per symbol but we only need 1 prediction/sec per symbol
+        self._last_pred_time: dict = {}
+        self._min_pred_interval = float(os.getenv("ENSEMBLE_MIN_PRED_INTERVAL", "1.0"))
+        logger.info(f"[ENSEMBLE-PREDICTOR] Min prediction interval: {self._min_pred_interval}s per symbol")
         
         # Calibration (loaded if available)
         self.calibration_loader = None
@@ -548,7 +554,7 @@ class EnsemblePredictorService:
                     group_name,
                     consumer_name,
                     {feature_stream: '>'},
-                    count=10,
+                    count=100,  # larger batch to amortize loop overhead
                     block=5000  # 5s timeout
                 )
                 
@@ -606,7 +612,15 @@ class EnsemblePredictorService:
                 logger.warning(f"[ENSEMBLE-PREDICTOR] No symbol in message {message_id}")
                 await self.redis.xack(stream_name, group_name, message_id)
                 return
-            
+
+            # Per-symbol rate limiting: skip inference if predicted too recently
+            now = time.time()
+            if now - self._last_pred_time.get(symbol, 0) < self._min_pred_interval:
+                # ACK without inference (feature already covered by a recent prediction)
+                await self.redis.xack(stream_name, group_name, message_id)
+                return
+            self._last_pred_time[symbol] = now
+
             # Produce signal
             success = await self.produce_signal(symbol, features)
             
