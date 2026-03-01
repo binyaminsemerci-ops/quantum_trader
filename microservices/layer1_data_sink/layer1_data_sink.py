@@ -53,6 +53,11 @@ FEATURES_STREAM = "quantum:stream:features"
 CONSUMER_GROUP  = "layer1_data_sink"
 CONSUMER_ID     = "sink_worker_1"
 
+# Shard-based feature writing: compact every N flushes per symbol (avoids read-back on hot path)
+FEATURE_COMPACT_EVERY = int(os.getenv("FEATURE_COMPACT_EVERY", "20"))
+# Disk usage stat interval (seconds) — walking all parquet files is expensive if done too often
+STAT_INTERVAL = int(os.getenv("LAYER1_STAT_INTERVAL", "120"))
+
 # ── Graceful shutdown ─────────────────────────────────────────────────────
 _RUNNING = True
 
@@ -94,7 +99,9 @@ def _feature_path(symbol: str, date_str: str) -> str:
 
 
 def _append_parquet(path: str, df_new: pd.DataFrame):
-    """Append rows to parquet file, dedup on open_time or timestamp."""
+    """Append rows to parquet file, dedup on open_time or timestamp.
+    Used by OHLCV (infrequent flushes) — not features (see shard write below).
+    """
     if os.path.isfile(path):
         df_existing = pd.read_parquet(path)
         df_combined = pd.concat([df_existing, df_new], ignore_index=True)
@@ -104,6 +111,56 @@ def _append_parquet(path: str, df_new: pd.DataFrame):
     else:
         df_combined = df_new
     df_combined.to_parquet(path, index=False, compression="snappy")
+
+
+def _write_parquet_shard(base_path: str, df_new: pd.DataFrame) -> str:
+    """Write df_new to a timestamped shard file WITHOUT reading existing data.
+    Fast path (~10ms) used for high-frequency feature flushes.
+    Shard naming: '<date>.shard_<timestamp_ms>.parquet'
+    """
+    shard_path = base_path.replace(".parquet", f".shard_{int(time.time() * 1000)}.parquet")
+    df_new.to_parquet(shard_path, index=False, compression="snappy")
+    return shard_path
+
+
+def _compact_parquet_shards(base_path: str):
+    """Merge all shard files for base_path into the main daily Parquet file.
+    Slow (~1-2s) but called rarely (every FEATURE_COMPACT_EVERY flushes per symbol).
+    """
+    import glob
+    shard_pattern = base_path.replace(".parquet", ".shard_*.parquet")
+    shard_files = sorted(glob.glob(shard_pattern))
+    if not shard_files:
+        return  # nothing to compact
+
+    dfs = []
+    if os.path.isfile(base_path):
+        try:
+            dfs.append(pd.read_parquet(base_path))
+        except Exception as e:
+            logger.warning("Compact: failed to read main %s: %s", base_path, e)
+    for f in shard_files:
+        try:
+            dfs.append(pd.read_parquet(f))
+        except Exception as e:
+            logger.warning("Compact: failed to read shard %s: %s", f, e)
+
+    if not dfs:
+        return
+
+    df_combined = pd.concat(dfs, ignore_index=True)
+    ts_col = "timestamp" if "timestamp" in df_combined.columns else "open_time"
+    if ts_col in df_combined.columns:
+        df_combined = df_combined.drop_duplicates(subset=[ts_col], keep="last")
+        df_combined = df_combined.sort_values(ts_col)
+    df_combined.to_parquet(base_path, index=False, compression="snappy")
+
+    for f in shard_files:
+        try:
+            os.remove(f)
+        except Exception:
+            pass
+    logger.debug("Compacted %d shards → %s (%d rows)", len(shard_files), os.path.basename(base_path), len(df_combined))
 
 
 def _update_redis_zset(r: redis_lib.Redis, symbol: str, interval: str, row: dict):
@@ -188,10 +245,16 @@ class OHLCVBuffer:
 
 
 class FeatureBuffer:
-    """Accumulates feature rows, flushes to Parquet by date."""
+    """Accumulates feature rows, flushes to Parquet using shard-based writes.
+
+    Hot path: write each flush as a small shard file (no read-back, ~10ms).
+    Compaction path: every FEATURE_COMPACT_EVERY flushes per symbol, merge all
+    shards into the daily Parquet file (slow ~1-2s, but infrequent).
+    """
 
     def __init__(self):
         self._buf: dict[str, list[dict]] = defaultdict(list)
+        self._flush_counts: dict[str, int] = defaultdict(int)
 
     def add(self, row: dict):
         symbol = row.get("symbol", "UNKNOWN")
@@ -216,15 +279,27 @@ class FeatureBuffer:
         written = 0
         for date_str, group in df.groupby("_date"):
             group_clean = group.drop(columns=["_date"])
-            path = _feature_path(symbol, str(date_str))
-            _append_parquet(path, group_clean)
+            base_path = _feature_path(symbol, str(date_str))
+            # Fast path: write shard without reading any existing data
+            _write_parquet_shard(base_path, group_clean)
             written += len(group_clean)
+
+        # Periodic compaction: merge shards into the main daily file
+        self._flush_counts[symbol] += 1
+        if self._flush_counts[symbol] % FEATURE_COMPACT_EVERY == 0:
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            _compact_parquet_shards(_feature_path(symbol, today))
+
         return written
 
     def flush_all(self):
         symbols = list(self._buf.keys())
         for sym in symbols:
             self.flush_symbol(sym)
+        # On full flush (shutdown), compact remaining shards for today
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        for sym in symbols:
+            _compact_parquet_shards(_feature_path(sym, today))
 
 
 # ── Main ──────────────────────────────────────────────────────────────────
@@ -312,8 +387,8 @@ def main():
             if id_list:
                 r.xack(stream, CONSUMER_GROUP, *id_list)
 
-        # Publish state every 30s
-        if time.monotonic() - last_state_ts > 30:
+        # Publish state every STAT_INTERVAL seconds
+        if time.monotonic() - last_state_ts > STAT_INTERVAL:
             # Compute disk usage
             def disk_usage(path: str) -> int:
                 total = 0
