@@ -180,7 +180,7 @@ class CrossExchangeAggregator:
                 return
             
             logger.debug(f"About to XADD: {message}")
-            stream_id = await self.redis_manager.client.xadd(REDIS_STREAM_NORMALIZED, message)
+            stream_id = await self.redis_manager.client.xadd(REDIS_STREAM_NORMALIZED, message, maxlen=50000)
             logger.info(f"✅ XADD SUCCESS: {data['symbol']} @ {data['avg_price']:.2f} -> {stream_id}")
         
         except Exception as e:

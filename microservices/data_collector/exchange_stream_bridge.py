@@ -164,7 +164,7 @@ class ExchangeStreamBridge:
                 "volume": str(data["v"])
             }
             
-            await self.redis_manager.client.xadd(REDIS_STREAM_RAW, message)
+            await self.redis_manager.client.xadd(REDIS_STREAM_RAW, message, maxlen=10000)
             logger.debug(f"Published {data['exchange']}:{data['symbol']} @ {data['c']}")
             
         except Exception as e:
