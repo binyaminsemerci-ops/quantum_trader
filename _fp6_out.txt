@@ -1,0 +1,9 @@
+==============================
+ FIX P6: intent_executor WRONGTYPE
+ Root cause: P3.3 uses setex(json) = STRING
+ intent_executor uses hgetall = expects HASH
+ Fix: add _read_permit_safe() to handle both
+==============================
+--- Backup ---
+  Backup OK
+ERROR: _wait_for_permit old pattern not found

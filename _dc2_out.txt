@@ -1,0 +1,77 @@
+=== intent_executor lines 1030-1100 ===
+                        side=side, qty=qty_to_use
+                    )
+                    self._mark_done(plan_id)
+                    return True
+            
+            # Execute Binance order
+            logger.info(f"🚀 Executing Binance order: {symbol} {side} {qty_to_use:.4f} reduceOnly={reduce_only}")
+            
+            # Set inflight tracking (30s TTL as safety net)
+            inflight_key = f"quantum:inflight:{symbol}"
+            self.redis.setex(inflight_key, 30, order_id if 'order_id' in locals() else "pending")
+            
+            order_result = self._execute_binance_order(symbol, side, qty_to_use, reduce_only)
+            
+            if order_result["success"]:
+                order_id = order_result.get("order_id")
+                
+                # Poll for fill confirmation
+                fill_result = self._poll_order_fill(symbol, order_id, max_attempts=3)
+                final_status = fill_result.get("status", order_result.get("status"))
+                final_filled = fill_result.get("filled_qty", order_result.get("filled_qty", 0))
+                
+                logger.info(
+                    f"✅ ORDER FILLED: {symbol} {side} qty={qty_to_use:.4f} "
+                    f"order_id={order_id} status={final_status} filled={final_filled:.4f}"
+                )
+                
+                logger.info(f"🔍 DEBUG: final_status='{final_status}' type={type(final_status)} equals_FILLED={final_status == 'FILLED'}")
+                
+                # Set execution-based cooldown timestamp (ms)
+                cooldown_key = f"quantum:cooldown:last_exec_ts:{symbol}"
+                self.redis.set(cooldown_key, str(int(time.time() * 1000)))
+                
+                # Clear inflight tracking if order is terminal state
+                if final_status in ("FILLED", "CANCELED", "REJECTED", "EXPIRED"):
+                    inflight_key = f"quantum:inflight:{symbol}"
+                    self.redis.delete(inflight_key)
+                    logger.debug(f"Cleared inflight tracking: {symbol}")
+                
+                # Update ledger with fresh position after order (optional, timer already syncs)
+                if UPDATE_LEDGER_AFTER_EXEC:
+                    self._update_ledger(symbol)
+                
+                # Exactly-once ledger commit (idempotent on order_id)
+                if final_status == "FILLED":
+                    logger.info(f"🔍 DEBUG: Calling ledger commit for {symbol} order_id={order_id}")
+                    self._commit_ledger_exactly_once(symbol, order_id, final_filled, side)
+                
+                self._write_result(
+                    plan_id, symbol, executed=True,
+                    side=side,
+                    qty=qty_to_use,
+                    order_id=order_id,
+                    filled_qty=final_filled,
+                    order_status=final_status,
+                    permit=permit
+                )
+                self._inc_redis_counter("processed")
+                self._inc_redis_counter("executed_true")
+                if lane == "manual":
+                    self._inc_redis_counter("manual_processed")
+            else:
+                logger.error(f"❌ ORDER FAILED: {order_result.get('error')}")
+                self._write_result(
+                    plan_id, symbol, executed=False,
+                    error=f"binance_error:{order_result.get('error')}",
+                    side=side,
+                    qty=qty_to_use,
+                    permit=permit
+                )
+                self._inc_redis_counter("processed")
+
+=== Search: how is last_exec_ts read (cooldown check) ===
+1060:                cooldown_key = f"quantum:cooldown:last_exec_ts:{symbol}"
+
+=== governor: cooldown references ===

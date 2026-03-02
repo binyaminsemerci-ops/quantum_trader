@@ -1,0 +1,45 @@
+=== harvest-v2 service unit ===
+User=qt
+WorkingDirectory=/opt/quantum/microservices/harvest_v2
+ExecStart=/opt/quantum/venvs/harvest-v2/bin/python -u harvest_v2.py
+
+=== intent-executor service unit ===
+User=qt
+WorkingDirectory=/home/qt/quantum_trader
+EnvironmentFile=/etc/quantum/intent-executor.env
+ExecStart=/usr/bin/python3 -m microservices.intent_executor.main
+
+=== which position_provider.py is used by running harvest-v2? ===
+  PID: 1425553
+lrwxrwxrwx 1 qt qt 0 Mar  2 01:42 /proc/1425553/cwd -> /opt/quantum/microservices/harvest_v2
+/opt/quantum/venvs/harvest-v2/bin/python -u harvest_v2.py 
+
+=== Find ALL position_provider.py files ===
+/opt/quantum/microservices/harvest_v2/feeds/position_provider.py
+/home/qt/quantum_trader/microservices/harvest_v2/feeds/position_provider.py
+
+=== ADAUSDT cooldown details ===
+-1
+1772415711767
+
+=== Intent-executor logs (last 2 min) ===
+Mar 02 01:41:46 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:46 [INFO] [INTENT-EXEC] ▶️  Processing plan: 06a30931 | ADAUSDT SELL qty=880.9920
+Mar 02 01:41:46 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:46 [INFO] [INTENT-EXEC] 🚀 Executing Binance order: ADAUSDT SELL 880.9920 reduceOnly=True leverage=1x
+Mar 02 01:41:46 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:46 [INFO] [INTENT-EXEC] ✅ ORDER FILLED: ADAUSDT SELL qty=880.9920 order_id=590746978 status=FILLED filled=881.0000
+Mar 02 01:41:46 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:46 [INFO] [INTENT-EXEC] 🔍 DEBUG: final_status='FILLED' type=<class 'str'> equals_FILLED=True
+Mar 02 01:41:47 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:47 [INFO] [INTENT-EXEC] 📊 Ledger updated: ADAUSDT LONG 366.0000
+Mar 02 01:41:47 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:47 [INFO] [INTENT-EXEC] 🔍 DEBUG: Calling ledger commit for ADAUSDT order_id=590746978
+Mar 02 01:41:47 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:47 [INFO] [INTENT-EXEC] 🔍 LEDGER_COMMIT_START symbol=ADAUSDT order_id=590746978 filled_qty=881.0
+Mar 02 01:41:47 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:47 [INFO] [INTENT-EXEC] 🔧 ATOMIC UPDATE: ADAUSDT SELL 881.0000 | 366.0000 → -515.0000 (delta=-881.0000)
+Mar 02 01:41:47 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:47 [INFO] [INTENT-EXEC] LEDGER_COMMIT symbol=ADAUSDT order_id=590746978 amt=-515.0000 side=SHORT entry_price=0.28 unrealized_pnl=0.12 filled_qty=881.0000
+Mar 02 01:41:51 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:51 [INFO] [INTENT-EXEC] ▶️  Processing plan: fe8429e8 | ADAUSDT SELL qty=880.9920
+Mar 02 01:41:51 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:51 [INFO] [INTENT-EXEC] 🚀 Executing Binance order: ADAUSDT SELL 880.9920 reduceOnly=True leverage=1x
+Mar 02 01:41:51 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:51 [INFO] [INTENT-EXEC] ✅ ORDER FILLED: ADAUSDT SELL qty=880.9920 order_id=590747040 status=FILLED filled=366.0000
+Mar 02 01:41:51 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:51 [INFO] [INTENT-EXEC] 🔍 DEBUG: final_status='FILLED' type=<class 'str'> equals_FILLED=True
+Mar 02 01:41:52 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:52 [INFO] [INTENT-EXEC] 📊 Ledger updated: ADAUSDT FLAT 0.0000
+Mar 02 01:41:52 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:52 [INFO] [INTENT-EXEC] 🔍 DEBUG: Calling ledger commit for ADAUSDT order_id=590747040
+Mar 02 01:41:52 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:52 [INFO] [INTENT-EXEC] 🔍 LEDGER_COMMIT_START symbol=ADAUSDT order_id=590747040 filled_qty=366.0
+Mar 02 01:41:52 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:52 [INFO] [INTENT-EXEC] 🔧 ATOMIC UPDATE: ADAUSDT SELL 366.0000 | 0.0000 → -366.0000 (delta=-366.0000)
+Mar 02 01:41:52 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:41:52 [INFO] [INTENT-EXEC] LEDGER_COMMIT symbol=ADAUSDT order_id=590747040 amt=-366.0000 side=SHORT entry_price=0.28 unrealized_pnl=0.08 filled_qty=366.0000
+Mar 02 01:42:10 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:42:10 [INFO] [INTENT-EXEC] ▶️  Processing plan: 0980157e | ADAUSDT SELL qty=510.7200
+Mar 02 01:42:10 quantumtrader-prod-1 quantum-intent-executor[1425612]: 2026-03-02 01:42:10 [INFO] [INTENT-EXEC] 🚀 Executing Binance order: ADAUSDT SELL 510.7200 reduceOnly=True leverage=1x

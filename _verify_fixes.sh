@@ -1,4 +1,5 @@
 #!/bin/bash
+# Verification script v2 - 2026-03-02
 echo "=== CURRENT POSITIONS (what harvest_v2 tracks) ==="
 redis-cli KEYS "quantum:position:*" | grep -v snapshot | grep -v ledger | sort
 

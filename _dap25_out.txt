@@ -1,0 +1,59 @@
+=== apply_layer: PARTIAL_25 references ===
+1197:        elif action in ["FULL_CLOSE_PROPOSED", "PARTIAL_75", "PARTIAL_50", "PARTIAL_25", "UPDATE_SL", "HOLD"]:
+1266:            is_close_action = action in ["FULL_CLOSE_PROPOSED", "PARTIAL_75", "PARTIAL_50", "PARTIAL_25"]
+1315:                'FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50', 'PARTIAL_25', 'UPDATE_SL', 'HOLD'
+1335:                'FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50', 'PARTIAL_25', 'UPDATE_SL', 'HOLD'
+1395:            elif action == "PARTIAL_25":
+1397:                    "step": "CLOSE_PARTIAL_25",
+2415:                        if action in ['FULL_CLOSE_PROPOSED', 'PARTIAL_25', 'PARTIAL_50', 'PARTIAL_75']:
+
+=== apply_layer: normalize_action function ===
+1146:    def normalize_action(self, action: str, proposal: Dict[str, Any], symbol: str) -> tuple[str, Optional[str]]:
+1167:                    reason_code = f"action_normalized_unknown_to_update_sl"
+1177:                reason_code = f"action_normalized_unknown_to_hold"
+1187:            reason_code = f"action_normalized_{original_action.lower()}_to_close"
+1193:            reason_code = f"action_normalized_{original_action.lower()}_to_hold"
+1204:            reason_code = f"action_normalized_{original_action.lower()}_unknown_variant"
+1266:            is_close_action = action in ["FULL_CLOSE_PROPOSED", "PARTIAL_75", "PARTIAL_50", "PARTIAL_25"]
+1268:            if is_close_action:
+1367:            action, norm_reason = self.normalize_action(proposal["harvest_action"], proposal, symbol)
+
+=== apply_layer lines around 1190-1210 (normalize_action) ===
+        # OPEN synonyms (not used in harvest context, but handle for robustness)
+        elif action_upper in ["ENTRY", "ENTER", "OPEN"]:
+            action = "HOLD"  # Harvest layer doesn't open positions, map to HOLD
+            reason_code = f"action_normalized_{original_action.lower()}_to_hold"
+            logger.info(f"ACTION_NORMALIZED {symbol}: from={original_action} to={action} (open_synonym_ignored)")
+        
+        # Already standard actions (pass through)
+        elif action in ["FULL_CLOSE_PROPOSED", "PARTIAL_75", "PARTIAL_50", "PARTIAL_25", "UPDATE_SL", "HOLD"]:
+            pass  # No normalization needed, reason_code=None
+        
+        else:
+            # Unknown action variant → default to HOLD (fail-soft)
+            logger.warning(f"ACTION_NORMALIZED {symbol}: from={original_action} to=HOLD (unknown_variant_fail_soft)")
+            action = "HOLD"
+            reason_code = f"action_normalized_{original_action.lower()}_unknown_variant"
+        
+        return action, reason_code
+    
+    def check_idempotency(self, plan_id: str) -> bool:
+        """Check if plan already executed (returns True if duplicate)"""
+        key = f"quantum:apply:dedupe:{plan_id}"
+        result = self.redis.setnx(key, int(time.time()))
+        if result == 1:
+            # New plan, set TTL (use DEDUPE_TTL for dev bypass support)
+            self.redis.expire(key, DEDUPE_TTL)
+            return False
+
+=== apply_layer lines around layer4/kelly_200usdt ===
+1340:                    _l4 = self.redis.hgetall(f'quantum:layer4:sizing:{symbol}')
+1345:                            reason_codes.append(f'layer4_no_edge:{_l4.get("reason", "low_kelly")}')
+1355:                                reason_codes.append(f'layer4_kelly_{_l4_size:.0f}usdt')
+
+=== apply_layer: action_hold decision ===
+1167:                    reason_code = f"action_normalized_unknown_to_update_sl"
+1177:                reason_code = f"action_normalized_unknown_to_hold"
+1202:            logger.warning(f"ACTION_NORMALIZED {symbol}: from={original_action} to=HOLD (unknown_variant_fail_soft)")
+1204:            reason_code = f"action_normalized_{original_action.lower()}_unknown_variant"
+1416:                reason_codes.append("action_hold")

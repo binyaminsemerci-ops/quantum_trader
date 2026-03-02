@@ -1,0 +1,50 @@
+==============================
+ FIX P3: position_provider.py
+==============================
+--- Backup ---
+  Backup OK
+--- Applying patch: filter snapshot+ledger keys ---
+  PATCHED position_provider.py
+--- Verify patch applied ---
+98:        all_keys = self._redis.keys(f"{POSITION_KEY_PREFIX}*")
+102:        _skip = (POSITION_KEY_PREFIX + "snapshot:", POSITION_KEY_PREFIX + "ledger:")
+103:        keys = [k for k in all_keys if not any(k.startswith(p) for p in _skip)]
+
+==============================
+ FIX P4: intent_executor cooldown TTL
+==============================
+--- Backup ---
+  Backup OK
+--- Applying patch: add ex=3600 to cooldown SET ---
+  PATCHED intent_executor/main.py
+--- Verify patch applied ---
+1060:                cooldown_key = f"quantum:cooldown:last_exec_ts:{symbol}"
+1061:                self.redis.set(cooldown_key, str(int(time.time() * 1000)), ex=3600)  # 1h TTL — prevents permanent cooldown
+
+==============================
+ CLEANUP: Delete current permanent cooldowns
+==============================
+--- Delete all TTL=-1 cooldown keys ---
+  DELETED permanent cooldown: quantum:cooldown:last_exec_ts:ADAUSDT
+  DELETED permanent cooldown: quantum:cooldown:last_exec_ts:SOLUSDT
+
+==============================
+ RESTART services
+==============================
+--- Restart quantum-harvest-v2.service ---
+  harvest-v2: active
+--- Restart quantum-intent-executor.service ---
+  intent-executor: active
+
+==============================
+ VERIFY: 30s wait then check
+==============================
+--- HV2 skip count after fix ---
+Mar 02 01:41:35 quantumtrader-prod-1 python[1425553]: 2026-03-02 01:41:35,587 INFO hv2 [HV2_TICK] ts=1772415695.587 scanned=36 evaluated=4 emitted=0 skipped_invalid=32 skipped_stale=0 hold_suppressed=4 heat=0.0000
+Mar 02 01:41:37 quantumtrader-prod-1 python[1425553]: 2026-03-02 01:41:37,598 INFO hv2 [HV2_TICK] ts=1772415697.598 scanned=36 evaluated=4 emitted=0 skipped_invalid=32 skipped_stale=0 hold_suppressed=4 heat=0.0000
+Mar 02 01:41:39 quantumtrader-prod-1 python[1425553]: 2026-03-02 01:41:39,582 INFO hv2 [HV2_TICK] ts=1772415699.582 scanned=36 evaluated=4 emitted=0 skipped_invalid=32 skipped_stale=0 hold_suppressed=4 heat=0.0000
+--- Snapshot keys remaining ---
+  Snapshot keys: 27 (still exist in Redis, but HV2 now ignores them)
+--- ADAUSDT cooldown TTL after fix ---
+-1
+[DONE] P3+P4 permanent fixes applied

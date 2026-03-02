@@ -1,0 +1,147 @@
+=== home/qt intent_executor lines 385-420 (_wait_for_permit) ===
+    
+    def _inc_redis_counter(self, field: str):
+        """Increment Redis hash counter for metrics"""
+        try:
+            self.redis.hincrby(METRICS_REDIS_HASH, field, 1)
+        except Exception as e:
+            logger.debug(f"Failed to increment Redis counter {field}: {e}")
+    
+    def _wait_for_permit(self, plan_id: str) -> Optional[Dict]:
+        """Wait for P3.3 permit with timeout"""
+        key = f"quantum:permit:p33:{plan_id}"
+        start_time = time.time()
+        
+        while time.time() - start_time < PERMIT_TIMEOUT_SEC:
+            # Permit is stored as HASH not STRING
+            permit_data = self.redis.hgetall(key)
+            if permit_data:
+                try:
+                    # Convert bytes keys/values to strings
+                    permit = {
+                        k.decode() if isinstance(k, bytes) else k: 
+                        v.decode() if isinstance(v, bytes) else v 
+                        for k, v in permit_data.items()
+                    }
+                    return permit
+                except Exception as e:
+                    logger.warning(f"Failed to parse permit: {e}")
+                    return None
+            
+            time.sleep(PERMIT_POLL_INTERVAL)
+        
+        return None
+    
+    def _validate_and_adjust_qty(self, symbol: str, qty: float, mark_price: float) -> tuple:
+        """
+        Validate and adjust qty to meet exchange filters.
+        Returns: (adjusted_qty, reason) or (0, reason) if order should be blocked.
+        """
+        filters = self.exchange_filters.get(symbol, {})
+        min_notional = MIN_NOTIONAL_OVERRIDE or filters.get("minNotional", 0)
+        min_qty = filters.get("minQty", 0)
+
+=== home/qt intent_executor lines 975-1010 (inline permit check) ===
+                logger.debug(f"Plan already executed: {plan_id[:8]}")
+                return True  # Already done
+            
+            logger.info(f"▶️  Processing plan: {plan_id[:8]} | {symbol} {side} qty={qty:.4f}")
+            
+            # Get P3.3 permit
+            # For empty source (P3.3 bypass), wait for permit (it will be created after plan arrives)
+            # For other sources, try cached permit first, then wait if needed
+            permit_key = f"quantum:permit:p33:{plan_id}"
+            permit_data = self.redis.hgetall(permit_key)  # FIX: HASH not STRING
+            
+            if permit_data:
+                # Permit already exists (cached)
+                try:
+                    # Convert bytes keys/values to strings
+                    permit = {
+                        k.decode() if isinstance(k, bytes) else k: 
+                        v.decode() if isinstance(v, bytes) else v 
+                        for k, v in permit_data.items()
+                    }
+                    if source == '':
+                        logger.info(f"✅ Permit found immediately (P3.3 bypass): {plan_id[:8]}")
+                    else:
+                        logger.info(f"✅ Permit cached: {plan_id[:8]}")
+                except Exception as e:
+                    logger.warning(f"Failed to parse cached permit: {e}")
+                    permit = None
+            else:
+                # Permit not in cache - wait for it
+                # This handles race condition where P3.3 permit not created yet
+                if source == '':
+                    logger.info(f"⏳ P3.3 permit not cached, waiting for creation: {plan_id[:8]}")
+                else:
+                    logger.info(f"⏳ Waiting for P3.3 permit: {plan_id[:8]}")
+                permit = self._wait_for_permit(plan_id)
+            
+            if not permit:
+                logger.warning(f"❌ No P3.3 permit: {plan_id[:8]}")
+                self._write_result(
+                    plan_id, symbol, executed=False,
+                    error="p33_permit_missing_or_denied",
+
+=== import json in home/qt intent_executor? ===
+16:import json
+
+=== position_state_brain: full permit setex lines ===
+            })
+
+        if hold_active and is_reconcile_close:
+            logger.info(f"{symbol}: RECONCILE_CLOSE allowed to bypass HOLD (Patch B)")
+
+        permit_key = f"quantum:permit:p33:{plan_id}"
+
+        permit_data = {
+            'allow': True,
+            'symbol': symbol,
+            'safe_qty': safe_qty,  # Renamed from safe_close_qty (0 for opens)
+            'exchange_position_amt': exchange_amt,
+            'ledger_amt': ledger_amt,
+            'created_at': time.time(),
+            'reason': 'sanity_checks_passed' if not is_reconcile_close else ('open_permit_granted' if is_open else 'reconcile_close_bypass')
+        }
+
+        self.redis.setex(permit_key, self.config.PERMIT_TTL, json.dumps(permit_data))
+
+        if PROMETHEUS_AVAILABLE:
+            self.metric_permit_allow.labels(symbol=symbol).inc()
+
+        logger.info(f"{symbol}: P3.3 ALLOW plan {plan_id[:8]} (safe_qty={safe_qty:.4f}, exchange_amt={exchange_amt:.4f})")
+
+        return {'evaluated': True, 'allow': True, 'safe_qty': safe_qty}
+    
+    def _deny_permit(self, plan_id: str, symbol: str, reason: str, context: Dict) -> Dict:
+        """Deny P3.3 execution permit"""
+        permit_key = f"quantum:permit:p33:{plan_id}"
+        
+        permit_data = {
+            'allow': False,
+            'symbol': symbol,
+            'reason': reason,
+            'context': context,
+            'created_at': time.time()
+        }
+        
+        self.redis.setex(permit_key, self.config.PERMIT_TTL, json.dumps(permit_data))
+        
+        if PROMETHEUS_AVAILABLE:
+            self.metric_permit_deny.labels(symbol=symbol, reason=reason).inc()
+        
+        logger.warning(f"{symbol}: P3.3 DENY plan {plan_id[:8]} reason={reason} context={context}")
+        
+        return {'evaluated': True, 'allow': False, 'reason': reason}
+    
+    def process_apply_results(self, symbol: str):
+        """Process recent apply results to update ledger"""
+        result_stream = "quantum:stream:apply.result"
+        
+
+=== P3.3 config.PERMIT_TTL value ===
+111:    PERMIT_TTL: int = int(os.getenv("P33_PERMIT_TTL", "60"))
+807:        self.redis.setex(permit_key, self.config.PERMIT_TTL, json.dumps(permit_data))
+828:        self.redis.setex(permit_key, self.config.PERMIT_TTL, json.dumps(permit_data))
+929:        logger.info(f"Permit TTL: {self.config.PERMIT_TTL}s")

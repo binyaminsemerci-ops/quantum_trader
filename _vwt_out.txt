@@ -1,0 +1,21 @@
+=== Waiting 60s for intent-executor to process plans ===
+
+=== WRONGTYPE errors in last 60s (expect 0) ===
+  WRONGTYPE errors: 0
+0
+
+=== Recent intent-executor log (last 60s) ===
+Mar 02 01:53:47 quantumtrader-prod-1 quantum-intent-executor[1454105]: 2026-03-02 01:53:47 [INFO] [INTENT-EXEC] 📝 Result written: plan=130c9909 executed=False
+Mar 02 01:53:48 quantumtrader-prod-1 quantum-intent-executor[1454105]: 2026-03-02 01:53:48 [INFO] [INTENT-EXEC] 📝 Result written: plan=81adcdcc executed=False
+Mar 02 01:54:21 quantumtrader-prod-1 quantum-intent-executor[1454105]: 2026-03-02 01:54:21 [INFO] [INTENT-EXEC] 📊 Metrics: p35_guard_blocked=19024 processed=42816 executed_true=10740 executed_false=32076 blocked_source=1497 harvest_executed=2498 harvest_failed=482 manual_consumed=1
+Mar 02 01:54:33 quantumtrader-prod-1 quantum-intent-executor[1454105]: 2026-03-02 01:54:33 [INFO] [INTENT-EXEC] 📝 Result written: plan=e8df46a8 executed=False
+Mar 02 01:54:35 quantumtrader-prod-1 quantum-intent-executor[1454105]: 2026-03-02 01:54:35 [INFO] [INTENT-EXEC] 📝 Result written: plan=306260a6 executed=False
+Mar 02 01:54:36 quantumtrader-prod-1 quantum-intent-executor[1454105]: 2026-03-02 01:54:36 [INFO] [INTENT-EXEC] 📝 Result written: plan=16b79cce executed=False
+Mar 02 01:54:36 quantumtrader-prod-1 quantum-intent-executor[1454105]: 2026-03-02 01:54:36 [INFO] [INTENT-EXEC] 📝 Result written: plan=ccec7423 executed=False
+Mar 02 01:54:37 quantumtrader-prod-1 quantum-intent-executor[1454105]: 2026-03-02 01:54:37 [INFO] [INTENT-EXEC] 📝 Result written: plan=5a6b79ab executed=False
+Mar 02 01:54:39 quantumtrader-prod-1 quantum-intent-executor[1454105]: 2026-03-02 01:54:39 [INFO] [INTENT-EXEC] 📝 Result written: plan=24365dbc executed=False
+
+=== Summary ===
+  WRONGTYPE: 0
+0 (pass if 0)
+  intent-executor: active
