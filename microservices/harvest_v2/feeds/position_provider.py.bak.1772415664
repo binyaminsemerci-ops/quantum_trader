@@ -95,12 +95,7 @@ class PositionProvider:
 
     def fetch_positions(self) -> FetchResult:
         result = FetchResult()
-        all_keys = self._redis.keys(f"{POSITION_KEY_PREFIX}*")
-        # Filter out sub-namespace keys — only live position keys
-        # snapshot:* = reconcile-engine snapshots for ALL symbols (qty=0 when no pos)
-        # ledger:*   = execution ledger entries managed by intent_executor
-        _skip = (POSITION_KEY_PREFIX + "snapshot:", POSITION_KEY_PREFIX + "ledger:")
-        keys = [k for k in all_keys if not any(k.startswith(p) for p in _skip)]
+        keys = self._redis.keys(f"{POSITION_KEY_PREFIX}*")
         if not keys:
             return result
 

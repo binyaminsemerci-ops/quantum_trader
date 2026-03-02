@@ -390,45 +390,29 @@ class IntentExecutor:
         except Exception as e:
             logger.debug(f"Failed to increment Redis counter {field}: {e}")
     
-    def _read_permit_safe(self, key: str) -> Optional[Dict]:
-        """Read P3.3 permit key — handles both STRING (json) and HASH types.
-        P3.3 position_state_brain uses: setex(key, ttl, json.dumps(data)) -> STRING.
-        auto_permit_p33.py / legacy code used: hset() -> HASH.
-        """
-        # Try HASH first
-        try:
-            data = self.redis.hgetall(key)
-            if data:
-                return {
-                    k.decode() if isinstance(k, bytes) else k:
-                    v.decode() if isinstance(v, bytes) else v
-                    for k, v in data.items()
-                }
-        except Exception:
-            # WRONGTYPE: key is STRING (P3.3 uses setex with json) — fall through
-            pass
-        # Fallback: STRING / json
-        try:
-            raw = self.redis.get(key)
-            if raw:
-                if isinstance(raw, bytes):
-                    raw = raw.decode()
-                return json.loads(raw)
-        except Exception as e:
-            logger.warning(f"Error reading permit {key}: {e}")
-        return None
-
     def _wait_for_permit(self, plan_id: str) -> Optional[Dict]:
-        """Wait for P3.3 permit with timeout. Handles STRING (json) and HASH permit types."""
+        """Wait for P3.3 permit with timeout"""
         key = f"quantum:permit:p33:{plan_id}"
         start_time = time.time()
-
+        
         while time.time() - start_time < PERMIT_TIMEOUT_SEC:
-            permit = self._read_permit_safe(key)
-            if permit:
-                return permit
+            # Permit is stored as HASH not STRING
+            permit_data = self.redis.hgetall(key)
+            if permit_data:
+                try:
+                    # Convert bytes keys/values to strings
+                    permit = {
+                        k.decode() if isinstance(k, bytes) else k: 
+                        v.decode() if isinstance(v, bytes) else v 
+                        for k, v in permit_data.items()
+                    }
+                    return permit
+                except Exception as e:
+                    logger.warning(f"Failed to parse permit: {e}")
+                    return None
+            
             time.sleep(PERMIT_POLL_INTERVAL)
-
+        
         return None
     
     def _validate_and_adjust_qty(self, symbol: str, qty: float, mark_price: float) -> tuple:
@@ -997,19 +981,29 @@ class IntentExecutor:
             # For empty source (P3.3 bypass), wait for permit (it will be created after plan arrives)
             # For other sources, try cached permit first, then wait if needed
             permit_key = f"quantum:permit:p33:{plan_id}"
-            # _read_permit_safe handles both STRING (P3.3 setex json) and HASH types
-            permit = self._read_permit_safe(permit_key)
+            permit_data = self.redis.hgetall(permit_key)  # FIX: HASH not STRING
             
-            if permit:
-                if source == '':
-                    logger.info(f"✅ Permit found (P3.3 bypass): {plan_id[:8]}")
-                else:
-                    logger.info(f"✅ Permit found: {plan_id[:8]}")
+            if permit_data:
+                # Permit already exists (cached)
+                try:
+                    # Convert bytes keys/values to strings
+                    permit = {
+                        k.decode() if isinstance(k, bytes) else k: 
+                        v.decode() if isinstance(v, bytes) else v 
+                        for k, v in permit_data.items()
+                    }
+                    if source == '':
+                        logger.info(f"✅ Permit found immediately (P3.3 bypass): {plan_id[:8]}")
+                    else:
+                        logger.info(f"✅ Permit cached: {plan_id[:8]}")
+                except Exception as e:
+                    logger.warning(f"Failed to parse cached permit: {e}")
+                    permit = None
             else:
-                # Permit not in cache yet - wait for it
+                # Permit not in cache - wait for it
                 # This handles race condition where P3.3 permit not created yet
                 if source == '':
-                    logger.info(f"⏳ P3.3 permit not yet created, waiting: {plan_id[:8]}")
+                    logger.info(f"⏳ P3.3 permit not cached, waiting for creation: {plan_id[:8]}")
                 else:
                     logger.info(f"⏳ Waiting for P3.3 permit: {plan_id[:8]}")
                 permit = self._wait_for_permit(plan_id)
@@ -1131,7 +1125,7 @@ class IntentExecutor:
                 
                 # Set execution-based cooldown timestamp (ms)
                 cooldown_key = f"quantum:cooldown:last_exec_ts:{symbol}"
-                self.redis.set(cooldown_key, str(int(time.time() * 1000)), ex=3600)  # 1h TTL — prevents permanent cooldown
+                self.redis.set(cooldown_key, str(int(time.time() * 1000)))
                 
                 # Clear inflight tracking if order is terminal state
                 if final_status in ("FILLED", "CANCELED", "REJECTED", "EXPIRED"):

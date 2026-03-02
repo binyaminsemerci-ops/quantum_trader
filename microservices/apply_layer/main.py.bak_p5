@@ -1225,9 +1225,9 @@ class ApplyLayer:
             reason_code = f"action_normalized_{original_action.lower()}_to_hold"
             logger.info(f"ACTION_NORMALIZED {symbol}: from={original_action} to={action} (open_synonym_ignored)")
         
-        # Already standard actions (pass through) — case-insensitive, PARTIAL_25 included
-        elif action_upper in ["FULL_CLOSE_PROPOSED", "PARTIAL_75", "PARTIAL_50", "PARTIAL_25", "UPDATE_SL", "HOLD"]:
-            action = action_upper  # normalize to uppercase e.g. partial_25 → PARTIAL_25
+        # Already standard actions (pass through)
+        elif action in ["FULL_CLOSE_PROPOSED", "PARTIAL_75", "PARTIAL_50", "UPDATE_SL", "HOLD"]:
+            pass  # No normalization needed, reason_code=None
         
         else:
             # Unknown action variant → default to HOLD (fail-soft)
@@ -1295,7 +1295,7 @@ class ApplyLayer:
             action = proposal["harvest_action"]
             
             # Detect action type
-            is_close_action = action in ["FULL_CLOSE_PROPOSED", "PARTIAL_75", "PARTIAL_50", "PARTIAL_25"]
+            is_close_action = action in ["FULL_CLOSE_PROPOSED", "PARTIAL_75", "PARTIAL_50"]
             
             if is_close_action:
                 # CLOSE: use stricter threshold (fail-closed)
@@ -1344,7 +1344,7 @@ class ApplyLayer:
         if decision == Decision.EXECUTE:
             _churn_action = proposal.get('harvest_action', '')
             _is_open_action = _churn_action not in (
-                'FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50', 'PARTIAL_25', 'UPDATE_SL', 'HOLD'
+                'FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50', 'UPDATE_SL', 'HOLD'
             )
             if _is_open_action:
                 try:
@@ -1364,7 +1364,7 @@ class ApplyLayer:
         if decision == Decision.EXECUTE:
             _l4_action = proposal.get('harvest_action', '')
             _l4_is_open = _l4_action not in (
-                'FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50', 'PARTIAL_25', 'UPDATE_SL', 'HOLD'
+                'FULL_CLOSE_PROPOSED', 'PARTIAL_75', 'PARTIAL_50', 'UPDATE_SL', 'HOLD'
             )
             if _l4_is_open:
                 try:
@@ -1422,14 +1422,6 @@ class ApplyLayer:
                     "type": "market_reduce_only",
                     "side": "close",
                     "pct": 50.0
-                })
-            
-            elif action == "PARTIAL_25":
-                steps.append({
-                    "step": "CLOSE_PARTIAL_25",
-                    "type": "market_reduce_only",
-                    "side": "close",
-                    "pct": 25.0
                 })
             
             elif action == "UPDATE_SL":
@@ -1973,7 +1965,7 @@ class ApplyLayer:
                 logger.info(f"{plan.symbol}: Executing step {step['step']} (TESTNET)")
                 
                 try:
-                    if step['step'] in ['CLOSE_FULL', 'CLOSE_PARTIAL_75', 'CLOSE_PARTIAL_50', 'CLOSE_PARTIAL_25']:
+                    if step['step'] in ['CLOSE_FULL', 'CLOSE_PARTIAL_75', 'CLOSE_PARTIAL_50']:
                         # USE SAFE_CLOSE_QTY FROM P3.3 PERMIT (already clamped and rounded)
                         close_qty = safe_close_qty
                         
