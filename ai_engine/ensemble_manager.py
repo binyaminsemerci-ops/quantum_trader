@@ -32,7 +32,17 @@ except ImportError:
     EVENTBUS_AVAILABLE = False
 
 # Import unified agent system
-from ai_engine.agents.unified_agents import XGBoostAgent, LightGBMAgent, NHiTSAgent, PatchTSTAgent, TFTAgent
+from ai_engine.agents.unified_agents import XGBoostAgent, LightGBMAgent, NHiTSAgent, PatchTSTAgent
+
+# Import TFT agent (dedicated implementation with real model support)
+try:
+    from ai_engine.agents.tft_agent import TFTAgent
+    TFT_AGENT_AVAILABLE = True
+except ImportError as e:
+    from ai_engine.agents.unified_agents import TFTAgent  # fallback dummy
+    TFT_AGENT_AVAILABLE = False
+    import logging as _logging
+    _logging.getLogger(__name__).warning(f"Real TFTAgent unavailable, using dummy: {e}")
 
 # Import meta agent (V2 preferred, V1 fallback)
 META_AVAILABLE = False
