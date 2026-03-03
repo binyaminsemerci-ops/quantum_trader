@@ -142,6 +142,13 @@ class AutonomousTrader:
         model_path = os.getenv("RL_MODEL_PATH", "/models/rl_sizing_agent_v3.pth")
         self.rl_agent = RLPositionSizingAgent(model_path=model_path)
         
+        # Stream routing — override via env to redirect entries to shadow stream
+        # STREAM_ENTRY_INTENT=quantum:stream:shadow.intent  → shadow mode (no live execution)
+        # STREAM_ENTRY_INTENT=quantum:stream:trade.intent   → live mode (default)
+        self.stream_entry_intent = os.getenv(
+            "STREAM_ENTRY_INTENT", "quantum:stream:trade.intent"
+        )
+
         # State
         self._running = False
         self._main_loop_task: Optional[asyncio.Task] = None
@@ -153,6 +160,7 @@ class AutonomousTrader:
         
         logger.info("[AutonomousTrader] Initialized")
         logger.info(f"  Max positions: {self.max_positions}")
+        logger.info(f"  Entry stream: {self.stream_entry_intent}")
         logger.info(f"  Max exposure: ${self.max_exposure_usd}")
         logger.info(f"  Max position size: ${self.max_position_usd}")
         logger.info(f"  Scan interval: {self.scan_interval_sec}s")
@@ -477,10 +485,10 @@ class AutonomousTrader:
                 "timestamp": str(int(time.time()))
             }
             
-            await self.redis.xadd("quantum:stream:trade.intent", intent)
-            
+            await self.redis.xadd(self.stream_entry_intent, intent)
+
             self.entries_executed += 1
-            logger.info(f"✅ Entry intent published: {opportunity.symbol}")
+            logger.info(f"✅ Entry intent published: {opportunity.symbol} → {self.stream_entry_intent}")
         
         except Exception as e:
             logger.error(f"[AutonomousTrader] Execute entry error: {e}", exc_info=True)
