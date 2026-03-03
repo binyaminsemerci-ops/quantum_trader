@@ -27,7 +27,7 @@ frontend/dist/
 frontend/node_modules/.vite/
 frontend/.vite/
 
-# === Docker ===
+# === Runtime artifacts ===
 *.pid
 *.sock
 *.log
