@@ -200,9 +200,10 @@ def print_report(r: redis.Redis, verbose: bool = True):
             for t in recent:
                 sym  = t.get("symbol", t.get("Symbol", "?"))
                 side = t.get("side", "?")
-                pnl  = t.get("realized_pnl", t.get("pnl_usdt", t.get("pnl", "?")))
+                pnl  = t.get("pnl_usd", t.get("pnl_usdt", t.get("realized_pnl", t.get("pnl", "?"))))
+                r    = t.get("R_net", "")
                 ts   = t.get("timestamp", t.get("close_ts", ""))
-                print(f"  {sym:<12} {side:<6} pnl={pnl}  ts={ts[:19] if ts else '?'}")
+                print(f"  {sym:<12} {side:<6} pnl={pnl} R={r}  ts={ts[:19] if ts else '?'}")
         else:
             print("  LAST 5 TRADE.CLOSED EVENTS: (none yet)")
         print()
