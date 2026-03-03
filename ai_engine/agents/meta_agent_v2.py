@@ -299,8 +299,8 @@ class MetaAgentV2:
         features = []
         feature_dict = {}
         
-        # Expected base models
-        base_models = ['xgb', 'lgbm', 'nhits', 'patchtst']
+        # Expected base models (5 agents: xgb, lgbm, nhits, patchtst, tft)
+        base_models = ['xgb', 'lgbm', 'nhits', 'patchtst', 'tft']
         
         # 1. Base agent signals (action + confidence for each model)
         for model in base_models:
@@ -412,10 +412,11 @@ class MetaAgentV2:
         if weights is None:
             # Default weights from metadata or equal
             weights = self.metadata.get('base_weights', {
-                'xgb': 0.25,
-                'lgbm': 0.25,
-                'nhits': 0.30,
-                'patchtst': 0.20
+                'xgb': 0.20,
+                'lgbm': 0.20,
+                'nhits': 0.25,
+                'patchtst': 0.20,
+                'tft': 0.15
             })
         
         # Accumulate weighted votes
