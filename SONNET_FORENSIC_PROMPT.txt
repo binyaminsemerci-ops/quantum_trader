@@ -1,0 +1,204 @@
+ROLE: Quantum Trader — VPS Forensic Auditor (READ-ONLY)
+GOAL: Produce a FACTUAL, evidence-backed architecture & status report of Quantum Trader on the VPS (NOT local). No assumptions. If unknown, say UNKNOWN and show what was checked.
+
+RULES:
+- READ-ONLY. Do not modify files, do not restart services, do not write to Redis.
+- Do not print secrets. Redact tokens/keys. If env contains secrets, show only variable NAMES (not values).
+- Every claim must be backed by command output snippets (short) + file path.
+
+OUTPUT FORMAT:
+1) VPS Identity (hostname, date, kernel)
+2) Systemd inventory (running/failed quantum-* units)
+3) NGINX routing proof (ports, upstreams, active config)
+4) Open ports proof (ss -lntp)
+5) Redis proof (streams exist, last events, consumer group lag)
+6) Service-to-stream ownership table (producer/consumer) with evidence
+7) Health verdict: WORKS / BROKEN / UNKNOWN per layer (L0–L8)
+8) "Top 10 breakpoints" with exact logs/paths to inspect
+
+ASSUME (as hypotheses to verify, NOT facts):
+- Redis is the central event bus.
+- Key streams likely include: market:data, signal:generated, trade:intent, portfolio:state, system:panic_close
+  (actual namespace may differ — actual namespace discovered 2026-03-03: quantum:stream:*)
+- AI API likely on :8001, universe service :8006, UI 3000/3002, RL dashboard 8026/8888 proxied.
+
+COMMANDS TO RUN (collect outputs):
+
+================================================================================
+A) IDENTITY
+================================================================================
+hostname; date -u; uname -a; whoami; uptime
+
+================================================================================
+B) SYSTEMD TRUTH
+================================================================================
+
+# Full unit list
+systemctl list-units "quantum-*.service" --all --no-pager
+
+# Failed units
+systemctl --no-pager --failed
+
+# Identify all relevant units
+systemctl list-units --all --no-pager | egrep "quantum|ai|exit|execution|trading|portfolio|risk|market|universe|rl" || true
+
+# Critical unit status (check each):
+#   quantum-ai-engine
+#   quantum-autonomous-trader
+#   quantum-execution
+#   quantum-exitbrain-v35
+#   quantum-exit-monitor
+#   quantum-emergency-exit-worker
+#   quantum-portfolio-governance
+#   quantum-exposure_balancer
+#   quantum-market-publisher
+#   quantum-position-state-brain
+
+for unit in \
+  quantum-ai-engine \
+  quantum-autonomous-trader \
+  quantum-execution \
+  quantum-exitbrain-v35 \
+  quantum-exit-monitor \
+  quantum-emergency-exit-worker \
+  quantum-portfolio-governance \
+  quantum-exposure_balancer \
+  quantum-market-publisher \
+  quantum-position-state-brain; do
+    echo "=== $unit ===";
+    systemctl status $unit --no-pager -l 2>&1 | tail -20;
+    journalctl -u $unit --since "2 hours ago" --no-pager 2>&1 | tail -30;
+done
+
+================================================================================
+C) NGINX TRUTH
+================================================================================
+nginx -t
+ls -lah /etc/nginx/sites-enabled/
+grep -Rn "proxy_pass\|listen\|server_name" /etc/nginx/sites-enabled/ 2>/dev/null | grep -v "#" | head -100
+journalctl -u nginx --since "2 hours ago" --no-pager | tail -50
+
+================================================================================
+D) PORTS TRUTH
+================================================================================
+ss -lntp | grep LISTEN | sort
+
+# Specific ports of interest:
+ss -lntp | grep -E "(:80 |:443 |:6379|:8001|:8006|:3000|:3002|:8026|:8888|:8000|:8002|:8007|:8010|:8011|:8012)" || true
+
+================================================================================
+E) REDIS TRUTH (NO WRITES)
+================================================================================
+redis-cli ping
+redis-cli INFO server | grep -E "redis_version|uptime_in_seconds|uptime_in_days"
+redis-cli INFO clients | grep -E "connected_clients|blocked_clients"
+redis-cli DBSIZE
+
+# Discover actual stream keys (actual namespace from 2026-03-03: quantum:stream:*)
+redis-cli KEYS "quantum:stream:*" | sort
+redis-cli KEYS "*trade*" | sort
+redis-cli KEYS "*signal*" | sort
+redis-cli KEYS "*panic*"
+redis-cli KEYS "*heartbeat*"
+
+# For each discovered stream:
+#   redis-cli TYPE <key>
+#   redis-cli XLEN <key>
+#   redis-cli XREVRANGE <key> + - COUNT 2
+
+# Minimum streams to check:
+for stream in \
+  "quantum:stream:market.klines" \
+  "quantum:stream:trade.intent" \
+  "quantum:stream:trade.execution.res" \
+  "quantum:stream:trade.closed" \
+  "quantum:stream:portfolio.state" \
+  "system:panic_close"; do
+    echo "--- $stream ---"
+    redis-cli TYPE "$stream"
+    redis-cli XLEN "$stream" 2>/dev/null || echo NOT_STREAM
+    redis-cli XREVRANGE "$stream" + - COUNT 1 2>/dev/null
+done
+
+# Consumer group lag (CRITICAL for execution):
+redis-cli XINFO GROUPS quantum:stream:trade.intent
+redis-cli XINFO GROUPS quantum:stream:trade.execution.res 2>/dev/null || true
+
+# State keys:
+redis-cli EXISTS quantum:governance:policy
+redis-cli GET quantum:governance:policy
+redis-cli KEYS "quantum:rl:policy:*" | head -10
+redis-cli KEYS "quantum:regime:*" | head -10
+
+================================================================================
+F) REPO / SOURCE-OF-TRUTH PATHS
+================================================================================
+ls -lah /home/qt/quantum_trader 2>/dev/null | head -20 || true
+ls -lah /opt/quantum 2>/dev/null | head -10 || true
+ls -lah /etc/quantum/ 2>/dev/null | sed 's/=.*$/=[REDACTED]/' || true
+
+# Count unit files
+find /etc/systemd/system -maxdepth 1 -name "quantum-*.service" | wc -l
+
+# For critical unit files, show structure (NOT env values):
+for svc in quantum-ai-engine quantum-execution quantum-exitbrain-v35 quantum-exit-monitor quantum-autonomous-trader; do
+    echo "=== /etc/systemd/system/$svc.service ===";
+    grep -E "ExecStart|WorkingDirectory|User=|EnvironmentFile" /etc/systemd/system/$svc.service 2>/dev/null;
+    ls /etc/systemd/system/$svc.service.d/ 2>/dev/null || true;
+done
+
+# Drop-in files (show structure but REDACT env values):
+find /etc/systemd/system -name "*.conf" -path "*/quantum-*" 2>/dev/null | while read f; do
+    echo "=== $f ===";
+    cat "$f" | sed 's/=.*$/=[REDACTED]/';
+done
+
+================================================================================
+G) FINAL DELIVERABLE
+================================================================================
+
+Build a table: Layer L0–L8, services found, ports, streams consumed/produced,
+current status (active/inactive), evidence pointers.
+
+Explicitly list anything that differs from expected design:
+- Docker still used anywhere?
+- Multiple repos or working directories?
+- Missing streams (key not found)?
+- Dead consumer groups (lag growing)?
+- Stale data (stream timestamps old)?
+- Any service running as root that shouldn't be?
+- Any public port that should be localhost-only?
+
+================================================================================
+
+LAYER DEFINITIONS (for your reference):
+L0 = Edge / NGINX
+L1 = UI & API (frontend, dashboard backend)
+L2 = Data Ingestion (market data)
+L3 = AI Engine & Models (signal generation)
+L4 = Strategy & Decision
+L5 = Risk & Governance (gates)
+L6 = Execution & Exits (CRITICAL PATH)
+L7 = Analytics (PnL, portfolio intelligence)
+L8 = Reinforcement Learning
+
+KNOWN ACTUAL STREAM NAMESPACE (discovered 2026-03-03):
+All streams use prefix: quantum:stream:
+Examples:
+  quantum:stream:market.klines       (was: market:data)
+  quantum:stream:trade.intent        (was: trade:intent)
+  quantum:stream:trade.execution.res
+  quantum:stream:portfolio.state     (was: portfolio:state)
+  system:panic_close                 (no prefix — remains as-is)
+
+KNOWN ISSUES AS OF 2026-03-03 (verify if fixed or still present):
+1. SL/TP SELL-side math bug in ai-engine
+2. Execution consumer group quantum:group:execution:trade.intent stuck since ~Feb 16
+3. ExitBrain v3.5 disabled + broken drop-in shadow.conf
+4. position-state-brain crash-loop (missing Binance creds)
+5. Redis restarted recently (check uptime vs VPS uptime)
+6. exposure_balancer + bsc dead since Feb 21
+7. NGINX backup files in sites-enabled causing server_name conflicts
+8. RL gated out (rl_gate_pass=false)
+9. Regime always "unknown"
+10. Undocumented processes on public ports 8042-8069

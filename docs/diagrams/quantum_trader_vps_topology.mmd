@@ -1,0 +1,194 @@
+%%{init: {'theme': 'dark', 'themeVariables': {'fontSize': '13px'}}}%%
+flowchart TB
+    %% ── External Sources ──────────────────────────────────────────────
+    subgraph EXT["🌐 External Sources"]
+        BNW["Binance WS\n(30 symbols)"]
+        BNREST["Binance REST API\n(orders)"]
+        BYBIT["Bybit WS"]
+        OKX["OKX WS"]
+        CGK["CoinGecko /\nFunding Rates"]
+    end
+
+    %% ── L0: Edge ──────────────────────────────────────────────────────
+    subgraph L0["L0 — Edge (NGINX :80/:443)"]
+        NGX["NGINX\nTLS · RateLimit · Proxy\napp.quantumfond.com"]
+    end
+
+    %% ── L1: UI & API ──────────────────────────────────────────────────
+    subgraph L1["L1 — UI & API"]
+        FE["Frontend HTML\n(static)"]
+        BE["Backend API\nrun.py :8000"]
+        GF["Grafana :3000\n(via /grafana/)"]
+    end
+
+    %% ── L2: Data Ingestion ────────────────────────────────────────────
+    subgraph L2["L2 — Data Ingestion"]
+        MP["market-publisher\nBinance WS → klines"]
+        CX["cross-exchange-aggregator\nBybit + OKX normalize"]
+        MSF["multi-source-feed\nCoinGecko · Funding · F&G"]
+        UNI["universe-service\n:8006 dyn symbols"]
+    end
+
+    %% ── Redis Bus ─────────────────────────────────────────────────────
+    subgraph REDIS["⚡ Redis Event Bus :6379 (127.0.0.1 only)"]
+        direction LR
+        SK["Streams: quantum:stream:*\nmarket.klines · trade.intent\ntrade.execution.res · portfolio.state\nrl_rewards · sizing.decided\nsystem:panic_close"]
+        KV["Keys: quantum:governance:policy\nquantum:rl:policy:*\nquantum:regime:*\nquantum:rl:state:*"]
+    end
+
+    %% ── L3: AI Engine ─────────────────────────────────────────────────
+    subgraph L3["L3 — AI Engine & Models"]
+        AI["ai-engine\nuvicorn :8001\nXGBoost · LightGBM\nN-HiTS · PatchTST"]
+        CEO["ceo-brain :8010\norchestration"]
+        STB["strategy-brain :8011\nper-symbol eval"]
+        RKB["risk-brain :8012\nposition sizing"]
+        MR["meta-regime\nregime classification"]
+        MF["model-federation\nconsensus · voting"]
+        MS["model-supervisor :8007\ndrift · governance"]
+    end
+
+    %% ── L4: Strategy & Decision ───────────────────────────────────────
+    subgraph L4["L4 — Strategy & Decision"]
+        DI["decision-intelligence\nP3.5"]
+        AT["autonomous-trader\nfull RL mode"]
+        CA["capital-allocation\nKelly / RL"]
+        SM["strategic-memory\nevolution"]
+        HB["harvest-brain\nprofit harvesting"]
+    end
+
+    %% ── L5: Risk & Governance ─────────────────────────────────────────
+    subgraph L5["L5 — Risk & Governance (GATES)"]
+        RS["risk-safety\n10x · $5k · $25k"]
+        PG["portfolio-governance\npolicy key"]
+        EB["exposure-balancer\n≤85% margin ⚠️DEAD"]
+        RK["risk-kernel\nVaR · drawdown"]
+        PPH["portfolio-heat-gate\nheat limit"]
+        DAGS["dag3/4/5/8\nguardians"]
+    end
+
+    %% ── L6: Execution & Exits ─────────────────────────────────────────
+    subgraph L6["L6 — Execution & Exits (CRITICAL PATH)"]
+        EX["execution-service :8002\norder gateway"]
+        IB["intent-bridge\ntrade.intent → apply.plan"]
+        IE["intent-executor P3.3\nBinance order placement"]
+        XBV35["exitbrain-v3.5\nTP/SL/trailing ❌DISABLED"]
+        XMN["exit-monitor\nwatchdog → panic_close"]
+        EEW["emergency-exit-worker\nconsumes panic_close"]
+        RCN["reconcile-engine P3.4\nposition sync"]
+    end
+
+    %% ── L7: Analytics ─────────────────────────────────────────────────
+    subgraph L7["L7 — Analytics"]
+        PI["portfolio-intelligence :8004\nPnL · exposure"]
+        PNLR["pnl-reconciler\nBinance reward bridge"]
+        PERF["performance-attribution\nPnL → strategies"]
+        TRK["performance-tracker\nbalance-tracker"]
+    end
+
+    %% ── L8: Reinforcement Learning ────────────────────────────────────
+    subgraph L8["L8 — Reinforcement Learning"]
+        RLA["rl-agent\ncontinuous learning"]
+        RLT["rl-trainer\npolicy training"]
+        RLS["rl-sizer\nsizing model"]
+        RLFB["rl-feedback-v2\nweight adjustment"]
+        RLMON["rl-monitor\nDiscord alerts"]
+    end
+
+    %% ── Observability ─────────────────────────────────────────────────
+    subgraph OBS["📊 Observability"]
+        PROM["Prometheus :9091"]
+        LOKI["Loki :3100"]
+        NE["NodeExporter :9100"]
+        RE["RedisExporter :9121"]
+    end
+
+    %% ── Connections ───────────────────────────────────────────────────
+
+    %% External → L2
+    BNW -->|"klines WS"| MP
+    BYBIT -->|"WS"| CX
+    OKX -->|"WS"| CX
+    CGK -->|"REST"| MSF
+
+    %% L2 → Redis
+    MP -->|"XADD market.klines"| REDIS
+    CX -->|"XADD exchange.normalized"| REDIS
+    MSF -->|"XADD market_events"| REDIS
+
+    %% Redis → L3
+    REDIS -->|"XREAD market.klines"| AI
+    AI -->|"XADD trade.intent"| REDIS
+    CEO <-->|"state keys"| REDIS
+    MR -->|"SET regime:*"| REDIS
+
+    %% L3 → L4
+    REDIS -->|"XREAD trade.intent"| DI
+    REDIS -->|"XREAD trade.intent"| AT
+
+    %% L4 → Redis
+    DI -->|"refined intents"| REDIS
+    AT -->|"XADD trade.intent"| REDIS
+    CA -->|"XADD sizing.decided"| REDIS
+    HB -->|"XADD harvest.intent"| REDIS
+
+    %% Redis → L5 (governance reads)
+    REDIS -->|"reads"| PG
+    REDIS -->|"reads"| RS
+    REDIS -->|"reads"| EB
+    PG -->|"SET governance:policy"| REDIS
+
+    %% Redis → L6
+    REDIS -->|"XREAD trade.intent"| EX
+    REDIS -->|"XREAD trade.intent"| IB
+    REDIS -->|"XREAD panic_close"| EEW
+
+    %% L6 → Exchange
+    EX -->|"REST orders"| BNREST
+    IE -->|"REST orders"| BNREST
+
+    %% L6 → Redis (results)
+    EX -->|"XADD trade.execution.res"| REDIS
+    EX -->|"XADD trade.closed"| REDIS
+    XMN -->|"XADD panic_close"| REDIS
+
+    %% Redis → L7
+    REDIS -->|"XREAD trade.closed"| PI
+    REDIS -->|"XREAD trade.closed"| PNLR
+    PI -->|"XADD portfolio.state"| REDIS
+    PNLR -->|"XADD rl_rewards"| REDIS
+
+    %% Redis → L8
+    REDIS -->|"XREAD rl_rewards"| RLT
+    RLT -->|"SET rl:policy:*"| REDIS
+    RLS -->|"XADD sizing.decided"| REDIS
+    RLA <-->|"state keys"| REDIS
+
+    %% NGINX routing
+    NGX -->|"/"| FE
+    NGX -->|"/api/"| BE
+    NGX -->|"/grafana/"| GF
+    BE <-->|"Redis r/w"| REDIS
+
+    %% Observability
+    PROM --- NE
+    PROM --- RE
+    PROM --- REDIS
+    LOKI -->|"logs"| GF
+    PROM -->|"metrics"| GF
+
+    %% ── Styles ────────────────────────────────────────────────────────
+    style L0 fill:#1a1a2e,stroke:#e94560
+    style L1 fill:#16213e,stroke:#0f3460
+    style L2 fill:#0f3460,stroke:#533483
+    style L3 fill:#533483,stroke:#e94560
+    style L4 fill:#1a1a2e,stroke:#533483
+    style L5 fill:#2d1b0e,stroke:#e94560
+    style L6 fill:#1b0e0e,stroke:#e94560
+    style L7 fill:#0e1b1b,stroke:#0f3460
+    style L8 fill:#0e1b0e,stroke:#0f3460
+    style REDIS fill:#1c1c00,stroke:#ffcc00,color:#ffcc00
+    style EXT fill:#111111,stroke:#444444
+    style OBS fill:#0d0d1a,stroke:#333366
+
+    style XBV35 fill:#5c0000,stroke:#ff0000,color:#ff6666
+    style EB fill:#5c0000,stroke:#ff0000,color:#ff6666
