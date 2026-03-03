@@ -2604,7 +2604,45 @@ class ApplyLayer:
                                     'close_pct': str(close_pct),
                                     'timestamp': str(int(time.time()))
                                 })
-                                
+
+                                # Publish trade.closed for Layer 2 gate accumulation
+                                # Layer 2 research sandbox matches this with harvest.v2.shadow
+                                # exit signals to compute accuracy and open the sandbox gate.
+                                try:
+                                    def _pos_str(d, k):
+                                        v = d.get(k.encode(), d.get(k, b'0'))
+                                        return v.decode() if isinstance(v, bytes) else str(v or '0')
+                                    _entry_px = float(_pos_str(existing_pos, 'entry_price') or 0)
+                                    _avg_px   = float(order_result.get('avgPrice') or order_result.get('price') or 0)
+                                    _exit_px  = _avg_px if _avg_px > 0 else _entry_px
+                                    _pnl_pct  = 0.0
+                                    _pnl_usd  = 0.0
+                                    if _entry_px > 0 and _exit_px > 0:
+                                        _pnl_pct = (_exit_px - _entry_px) / _entry_px * 100.0
+                                        if position_side.upper() == 'SHORT':
+                                            _pnl_pct = -_pnl_pct
+                                        _pnl_usd = round(_pnl_pct / 100.0 * _entry_px * filled_qty, 4)
+                                        _pnl_pct = round(_pnl_pct, 3)
+                                    self.redis.xadd('quantum:stream:trade.closed', {
+                                        'event_type': 'trade.closed',
+                                        'symbol':      symbol,
+                                        'side':        position_side,
+                                        'entry_price': str(_entry_px),
+                                        'exit_price':  str(_exit_px),
+                                        'pnl_percent': str(_pnl_pct),
+                                        'pnl_usd':     str(_pnl_usd),
+                                        'R_net':       plan_data.get('R_net', '0'),
+                                        'reason':      action,
+                                        'order_id':    str(order_id),
+                                        'confidence':  '0.7',
+                                        'model_id':    'apply_layer_close',
+                                        'source':      'apply_layer',
+                                        'timestamp':   datetime.utcnow().isoformat() + 'Z',
+                                    }, maxlen=2000)
+                                    logger.info(f"[TRADE_CLOSED] {symbol} {position_side} pnl={_pnl_usd:+.4f} R={plan_data.get('R_net','?')}")
+                                except Exception as _tce:
+                                    logger.warning(f"[TRADE_CLOSED] Publish failed: {_tce}")
+
                             except Exception as e:
                                 logger.error(f"[CLOSE] {symbol}: Failed to execute close: {e}", exc_info=True)
                                 # Set dedupe marker (prevent retry storm)
