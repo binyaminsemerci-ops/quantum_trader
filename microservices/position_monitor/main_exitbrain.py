@@ -10,7 +10,10 @@ from pathlib import Path
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
-sys.path.insert(0, '/app/microservices')  # For ExitBrain v3.5
+# Add microservices dir for exitbrain_v3_5 module (was /app/microservices in Docker)
+_ms_dir = str(Path(__file__).parent.parent)
+if _ms_dir not in sys.path:
+    sys.path.insert(0, _ms_dir)
 
 from backend.services.monitoring.position_monitor import PositionMonitor
 from backend.core.event_bus import EventBus

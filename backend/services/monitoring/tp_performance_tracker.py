@@ -6,6 +6,7 @@ Tracks take-profit performance metrics for continuous improvement.
 """
 
 import logging
+import os
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -71,7 +72,9 @@ class TPPerformanceTracker:
         """
         self.logger = logging.getLogger(__name__)
         
-        self.storage_path = storage_path or Path("/app/tmp/tp_metrics.json")
+        self.storage_path = storage_path or Path(
+            os.getenv("TP_METRICS_PATH", "/opt/quantum/tmp/tp_metrics.json")
+        )
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Metrics storage: {(strategy_id, symbol): TPMetrics}
