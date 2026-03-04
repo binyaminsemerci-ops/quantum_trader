@@ -801,7 +801,19 @@ class IntentBridge:
         
         message_fields[b"action"] = action.encode()
         logger.info(f"📋 Mapped {intent['symbol']} {intent['side']} reduceOnly={intent['reduceOnly']} → action={action}")
-        
+
+        # LOCKDOWN GATE: Block new entries when system is in LOCKDOWN.
+        # Closes (FULL_CLOSE_PROPOSED) always pass through so open positions can exit.
+        if action == "ENTRY_PROPOSED":
+            sys_mode = self.redis.get("quantum:system:mode")
+            sys_mode_str = sys_mode.decode() if isinstance(sys_mode, bytes) else sys_mode
+            if sys_mode_str == "LOCKDOWN":
+                logger.warning(
+                    f"🔒 LOCKDOWN_BLOCKED: {intent['symbol']} {intent['side']} "
+                    f"ENTRY_PROPOSED suppressed (system:mode=LOCKDOWN)"
+                )
+                return
+
         # DEBUG: Log what we're trying to add
         leverage = intent.get("leverage")
         stop_loss = intent.get("stop_loss")
