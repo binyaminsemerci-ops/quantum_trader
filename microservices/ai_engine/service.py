@@ -58,6 +58,7 @@ from backend.services.ai.reinforcement_signal_manager import ReinforcementSignal
 from backend.services.risk.funding_rate_filter import FundingRateFilter
 from backend.services.continuous_learning import ContinuousLearningManager, ShadowEvaluator, RetrainingConfig, ModelVersion, ModelStage
 from backend.services.ai.volatility_structure_engine import VolatilityStructureEngine
+from backend.services.ai.regime_detector import MarketContext as RegimeMarketContext
 from backend.services.ai.orderbook_imbalance_module import OrderbookImbalanceModule
 from backend.services.ai.risk_mode_predictor import RiskModePredictor
 from backend.services.ai.strategy_selector import StrategySelector, TradingStrategy
@@ -2484,19 +2485,40 @@ class AIEngineService:
             strategy_name = "default"
             regime = MarketRegime.UNKNOWN
             
-            # TEMPORARY: Bypass Meta-Strategy and RegimeDetector to test basic signal flow
-            # TODO: Fix RegimeDetector.detect_regime() API signature mismatch
+            # Regime detection — runs independently of meta_strategy_selector
+            # FIX 2025-02: was gated behind `if False` + wrong API (symbol=symbol).
+            # detect_regime() requires a MarketContext object built from live features.
+            if self.regime_detector:
+                try:
+                    _regime_ctx = RegimeMarketContext(
+                        symbol=symbol,
+                        current_price=float(features.get('price', current_price)),
+                        atr=float(features.get('atr', 0.0)),
+                        atr_pct=float(features.get('atr_pct', 0.02)),
+                        adx=float(features.get('adx_14', features.get('adx', 25.0))),
+                        trend_strength=float(features.get('trend_strength', 0.0)),
+                        volume_24h=float(features.get('volume', features.get('volume_24h', 1_000_000))),
+                        sma_20=float(features.get('sma_20', current_price)),
+                        sma_50=float(features.get('sma_50', current_price)),
+                    )
+                    _regime_result = await asyncio.to_thread(
+                        self.regime_detector.detect_regime,
+                        _regime_ctx
+                    )
+                    regime = _regime_result.regime
+                    logger.info(
+                        f"[AI-ENGINE] 🌍 Regime: {symbol} → {regime.value} "
+                        f"(conf={_regime_result.confidence:.2f}) | {_regime_result.reasoning[:80]}"
+                    )
+                except Exception as _re:
+                    logger.warning(f"[AI-ENGINE] Regime detection failed for {symbol}: {_re}")
+                    regime = MarketRegime.UNKNOWN
+
+            # TEMPORARY: Bypass Meta-Strategy — kept disabled pending strategy tuning
             if False and self.meta_strategy_selector:  # Disabled temporarily
                 logger.debug(f"[AI-ENGINE] Selecting strategy for {symbol}...")
-                
-                # Detect regime
-                if self.regime_detector:
-                    regime = await asyncio.to_thread(
-                        self.regime_detector.detect_regime,
-                        symbol=symbol
-                    )
-                
-                # Select strategy
+
+                # Select strategy (regime already detected in dedicated block above)
                 strategy_decision = await asyncio.to_thread(
                     self.meta_strategy_selector.select_strategy,
                     symbol=symbol,
