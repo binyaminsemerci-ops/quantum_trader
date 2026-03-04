@@ -103,7 +103,7 @@ STREAM_MONITORS: List[Tuple[str, str, int]] = [
 # Uses XREVRANGE COUNT 1 on quantum:stream:{suffix} to get last message timestamp.
 # alarm_level: "CRITICAL" triggers RED + webhook, "WARN" triggers YELLOW only.
 FRESHNESS_CHECKS: Dict[str, Tuple[float, str]] = {
-    "market.klines":       (8.0,    "CRITICAL"),  # klines must always flow
+    "market.klines":       (90.0,   "CRITICAL"),  # 1m candles update ~every 60s; 90s allows 1 miss
     "ai.signal_generated": (60.0,   "WARN"),      # AI generates signals ~30s
     "trade.intent":        (120.0,  "WARN"),       # event-driven, allow 2min quiet
     "trade.execution.res": (300.0,  "CRITICAL"),  # if stale >5min while positions exist → broken
