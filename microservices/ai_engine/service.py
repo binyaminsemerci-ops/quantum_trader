@@ -2232,8 +2232,14 @@ class AIEngineService:
             # FALLBACK: If ML models return HOLD (regardless of confidence), use rule-based signals for exploration
             # EXPANDED THRESHOLD: Changed from 0.65 to 0.98 to enable trades during high-confidence HOLD periods
             # This allows CLM data collection even when ensemble is conservative
+            #
+            # ⚠️ DISABLED 2025-02: This fallback was the primary cause of 30% win rate.
+            # With equal model weights (0.20 each), 3x HOLD > 1x BUY weighted sum → HOLD wins,
+            # but then fallback randomly generates BUY/SELL via RSI thresholds or symbol hash.
+            # Result: ~66% of all "BUY/SELL" signals were actually overriding a HOLD consensus.
+            # Re-enable via env ENABLE_HOLD_FALLBACK=true ONLY for intentional data-collection runs.
             fallback_triggered = False
-            if action == "HOLD" and 0.50 <= ensemble_confidence <= 0.98:
+            if os.getenv("ENABLE_HOLD_FALLBACK", "false").lower() == "true" and action == "HOLD" and 0.50 <= ensemble_confidence <= 0.98:
                 rsi = features.get('rsi_14', 50)
                 macd = features.get('macd', 0)
                 
@@ -2758,7 +2764,7 @@ class AIEngineService:
                 "meta_strategy": strategy_id.value,
                 # 🔥 CONSENSUS DETAILS for Dashboard filtering
                 "consensus_count": consensus_count,
-                "total_models": 4,  # XGB, LGBM, N-HiTS, PatchTST
+                "total_models": 5,  # XGB, LGBM, N-HiTS, PatchTST, TFT
                 "model_breakdown": model_breakdown,
                 # 🔥 METADATA FOR EXITBRAIN v3.5 (ILF + AdaptiveLeverageEngine)
                 "atr_value": features.get("atr", 0.02),
