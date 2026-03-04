@@ -2534,8 +2534,15 @@ class AIEngineService:
                 logger.debug(f"[AI-ENGINE] Calculating position size for {symbol}...")
                 
                 # Get ATR from features (for volatility-based sizing)
-                atr_value = features.get("atr", 0.02)  # Default 2% if not available
-                atr_pct = atr_value  # Already in percentage format
+                # 🔥 BUG FIX: volatility_structure_engine returns ABSOLUTE ATR (e.g. $40 for ETH).
+                # Must divide by current price to get fraction (e.g. 40/1970 = 0.0203 = 2.03%).
+                # Without this fix: sl_percent=60 → SL = $120,000 (never hits!), TP = negative.
+                atr_value = features.get("atr", 0.02)
+                if atr_value > 0.5:
+                    # Absolute ATR in price units — normalize to fraction of price
+                    _ref_price = float(features.get("price") or 1.0)
+                    atr_value = atr_value / _ref_price if _ref_price > 0 else 0.02
+                atr_pct = max(0.005, min(0.15, atr_value))  # Clamp to [0.5%, 15%]
                 
                 # TODO: Get real portfolio state from execution-service
                 portfolio_exposure = 0.0
