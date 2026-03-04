@@ -347,7 +347,7 @@ def build_snapshot(r: redis.Redis) -> Dict[str, Any]:
 
     # ── 3b. Execution result freshness — only matters with live positions ──
     exec_age = freshness.get("trade.execution.res", -1.0)
-    _, exec_max_age = FRESHNESS_CHECKS["trade.execution.res"]
+    exec_max_age, _ = FRESHNESS_CHECKS["trade.execution.res"]
     if exec_age > exec_max_age and position_count > 0:
         alarms.append(f"CRITICAL:STALE_STREAM:trade.execution.res:{exec_age:.0f}s>{exec_max_age:.0f}s")
 
