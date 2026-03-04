@@ -9,10 +9,11 @@ This is NOT logging. This is runtime truth.
 
 Stream: quantum:health:truth
 Hash:   quantum:health:truth:latest  (for instant reads)
+Key:    quantum:health:os_health     (simple GREEN/YELLOW/RED string, TTL=5x interval)
 
 Fields published:
   ts                       ISO timestamp
-  version                  Schema version
+  version                  Schema version (3)
   services_ok              Comma-separated list of healthy critical services
   services_dead            Comma-separated list of dead/failed critical services
   exit_monitor_alive       true/false
@@ -24,6 +25,11 @@ Fields published:
   apply_result_lag         Consumer lag on apply.result (harvest_brain group)
   exchange_norm_ai_lag     Consumer lag on exchange.normalized (ai-engine group)
   market_tick_lag          Consumer lag on market.tick (ai-engine group)
+  freshness_market_klines  Age of last market.klines message in seconds (-1=empty)
+  freshness_ai_signal      Age of last ai.signal_generated message in seconds
+  freshness_trade_intent   Age of last trade.intent message in seconds
+  freshness_exec_result    Age of last trade.execution.res message in seconds
+  exit_heartbeat_age_sec   Seconds since last quantum:exit:heartbeat key update
   redis_position_count     Number of live quantum:position:* keys
   orphan_position_count    Positions with no recent price update (stale > 120s)
   position_mismatch        true/false (Redis vs reconcile engine disagreement)
@@ -36,11 +42,18 @@ import json
 import logging
 import os
 import subprocess
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import redis
+
+try:
+    import requests as _requests
+    _REQUESTS_AVAILABLE = True
+except ImportError:
+    _REQUESTS_AVAILABLE = False
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Configuration
@@ -52,7 +65,11 @@ INTERVAL = float(os.getenv("TRUTH_INTERVAL_SEC", "10"))
 STREAM_OUT = "quantum:health:truth"
 HASH_OUT = "quantum:health:truth:latest"
 STREAM_MAXLEN = 500  # Keep last 500 snapshots (~83 minutes at 10s interval)
-VERSION = 2
+VERSION = 3
+
+# Webhook alerting (set ALERT_WEBHOOK_URL in /etc/quantum/alert.env or env)
+ALERT_WEBHOOK_URL = os.getenv("ALERT_WEBHOOK_URL", "")
+ALERT_COOLDOWN_SEC = int(os.getenv("ALERT_COOLDOWN_SEC", "300"))  # 5 minutes between same alarm
 
 # Critical services and their importance tier
 CRITICAL_SERVICES = {
@@ -81,6 +98,16 @@ STREAM_MONITORS: List[Tuple[str, str, int]] = [
     ("exchange.normalized",   "ai-engine",               50000),
     ("market.tick",           "ai-engine",               50000),
 ]
+
+# Stream freshness checks: stream_suffix → (max_age_sec, alarm_level)
+# Uses XREVRANGE COUNT 1 on quantum:stream:{suffix} to get last message timestamp.
+# alarm_level: "CRITICAL" triggers RED + webhook, "WARN" triggers YELLOW only.
+FRESHNESS_CHECKS: Dict[str, Tuple[float, str]] = {
+    "market.klines":       (8.0,    "CRITICAL"),  # klines must always flow
+    "ai.signal_generated": (60.0,   "WARN"),      # AI generates signals ~30s
+    "trade.intent":        (120.0,  "WARN"),       # event-driven, allow 2min quiet
+    "trade.execution.res": (300.0,  "CRITICAL"),  # if stale >5min while positions exist → broken
+}
 
 # Position staleness threshold (seconds before flagging as orphan)
 ORPHAN_THRESHOLD_SEC = 120
@@ -173,6 +200,74 @@ def check_position_mismatch(r: redis.Redis) -> bool:
         return False
 
 
+def get_stream_age_secs(r: redis.Redis, stream_suffix: str) -> float:
+    """
+    Return seconds since the last message on quantum:stream:{stream_suffix}.
+    Returns -1.0 if the stream is empty or missing.
+    Redis stream IDs are <ms_timestamp>-<seq>; we parse the ms part.
+    """
+    try:
+        entries = r.xrevrange(f"quantum:stream:{stream_suffix}", count=1)
+        if not entries:
+            return -1.0
+        entry_id, _ = entries[0]
+        if isinstance(entry_id, bytes):
+            entry_id = entry_id.decode()
+        ms = int(entry_id.split("-")[0])
+        age = time.time() - (ms / 1000.0)
+        return round(age, 1)
+    except Exception as e:
+        logger.debug(f"get_stream_age_secs({stream_suffix}) error: {e}")
+        return -1.0
+
+
+def get_exit_heartbeat_age(r: redis.Redis) -> float:
+    """
+    Return seconds since quantum:exit:heartbeat was last written.
+    Returns -1.0 if key missing.
+    """
+    try:
+        # Some exit monitors write a Unix timestamp as value
+        val = r.get("quantum:exit:heartbeat")
+        if val is None:
+            return -1.0
+        ts = float(val.decode() if isinstance(val, bytes) else val)
+        age = time.time() - ts
+        return round(age, 1)
+    except Exception:
+        return -1.0
+
+
+def send_webhook_alert(url: str, title: str, message: str, color: int = 0xFF0000) -> None:
+    """
+    Fire-and-forget webhook POST (Discord embeds format).
+    Runs in a daemon thread so it never blocks the main snapshot loop.
+    Also supports plain Slack/generic webhooks (falls back to {text: ...}).
+    """
+    if not url or not _REQUESTS_AVAILABLE:
+        return
+
+    def _post():
+        try:
+            payload = {
+                "embeds": [{
+                    "title": title,
+                    "description": message,
+                    "color": color,
+                    "footer": {"text": f"quantum-runtime-truth | {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}"},
+                }]
+            }
+            resp = _requests.post(url, json=payload, timeout=5)
+            if resp.status_code not in (200, 204):
+                # Try generic Slack format as fallback
+                _requests.post(url, json={"text": f"*{title}*\n{message}"}, timeout=5)
+        except Exception as ex:
+            logger.warning(f"Webhook send failed: {ex}")
+
+    t = threading.Thread(target=_post, daemon=True)
+    t.start()
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Main snapshot builder
 # ─────────────────────────────────────────────────────────────────────────────
@@ -216,6 +311,31 @@ def build_snapshot(r: redis.Redis) -> Dict[str, Any]:
         if lag is not None and lag > threshold:
             alarms.append(f"HIGH_LAG:{stream}:{group}:{lag}")
 
+    # ── 2b. Stream freshness (last-message age) ───────────────────────────
+    freshness: Dict[str, float] = {}
+    for suffix, (max_age, alarm_level) in FRESHNESS_CHECKS.items():
+        age = get_stream_age_secs(r, suffix)
+        freshness[suffix] = age
+        # Skip alarm for event-driven streams (trade.intent / execution.res)
+        # when there are no active positions — quiet is expected
+        if age == -1.0:
+            continue  # empty stream — service not yet running, skip
+        # For execution.result: only alarm if there are live positions
+        if suffix == "trade.execution.res" and alarm_level == "CRITICAL":
+            # Defer until position_count is known — checked in step 3b below
+            continue
+        if age > max_age:
+            alarm_tag = f"STALE_STREAM:{suffix}:{age:.0f}s>{max_age:.0f}s"
+            if alarm_level == "CRITICAL":
+                alarms.append(f"CRITICAL:{alarm_tag}")
+            else:
+                alarms.append(alarm_tag)
+
+    # ── 2c. Exit heartbeat age ────────────────────────────────────────────
+    exit_heartbeat_age = get_exit_heartbeat_age(r)
+    if exit_heartbeat_age > 60:
+        alarms.append(f"STALE_EXIT_HEARTBEAT:{exit_heartbeat_age:.0f}s")
+
     # ── 3. Position health ─────────────────────────────────────────────────
     position_count, orphan_count = get_position_stats(r)
     position_mismatch = check_position_mismatch(r)
@@ -224,6 +344,12 @@ def build_snapshot(r: redis.Redis) -> Dict[str, Any]:
         alarms.append(f"ORPHAN_POSITIONS:{orphan_count}")
     if position_mismatch:
         alarms.append("POSITION_MISMATCH:redis_vs_binance")
+
+    # ── 3b. Execution result freshness — only matters with live positions ──
+    exec_age = freshness.get("trade.execution.res", -1.0)
+    _, exec_max_age = FRESHNESS_CHECKS["trade.execution.res"]
+    if exec_age > exec_max_age and position_count > 0:
+        alarms.append(f"CRITICAL:STALE_STREAM:trade.execution.res:{exec_age:.0f}s>{exec_max_age:.0f}s")
 
     # ── 4. System flags ────────────────────────────────────────────────────
     system_mode = "UNKNOWN"
@@ -269,6 +395,11 @@ def build_snapshot(r: redis.Redis) -> Dict[str, Any]:
         "apply_result_lag": str(stream_lags.get("apply_result_lag", -1)),
         "exchange_norm_ai_lag": str(stream_lags.get("exchange_normalized_lag", -1)),
         "market_tick_lag": str(stream_lags.get("market_tick_lag", -1)),
+        "freshness_market_klines": str(freshness.get("market.klines", -1)),
+        "freshness_ai_signal": str(freshness.get("ai.signal_generated", -1)),
+        "freshness_trade_intent": str(freshness.get("trade.intent", -1)),
+        "freshness_exec_result": str(freshness.get("trade.execution.res", -1)),
+        "exit_heartbeat_age_sec": str(exit_heartbeat_age),
         "redis_position_count": str(position_count),
         "orphan_position_count": str(orphan_count),
         "position_mismatch": str(position_mismatch).lower(),
@@ -285,10 +416,12 @@ def build_snapshot(r: redis.Redis) -> Dict[str, Any]:
 
 async def main():
     logger.info("=" * 60)
-    logger.info("Quantum Runtime Truth Engine v2 starting")
-    logger.info(f"  Interval  : {INTERVAL}s")
-    logger.info(f"  Stream out: {STREAM_OUT}")
-    logger.info(f"  Hash out  : {HASH_OUT}")
+    logger.info(f"Quantum Runtime Truth Engine v{VERSION} starting")
+    logger.info(f"  Interval    : {INTERVAL}s")
+    logger.info(f"  Stream out  : {STREAM_OUT}")
+    logger.info(f"  Hash out    : {HASH_OUT}")
+    logger.info(f"  Webhook     : {'SET' if ALERT_WEBHOOK_URL else 'NOT SET (configure ALERT_WEBHOOK_URL)'}")
+    logger.info(f"  Alert cooldown: {ALERT_COOLDOWN_SEC}s")
     logger.info("=" * 60)
 
     r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=False)
@@ -300,6 +433,8 @@ async def main():
         raise
 
     consecutive_errors = 0
+    # Cooldown tracker: alarm_key → last_sent_unix_ts
+    last_alert_ts: Dict[str, float] = {}
 
     while True:
         cycle_start = time.time()
@@ -309,27 +444,55 @@ async def main():
             # Publish to stream (trimmed)
             r.xadd(STREAM_OUT, snapshot, maxlen=STREAM_MAXLEN, approximate=True)
 
-            # Also write to hash for instant O(1) reads
+            # Write to hash for instant O(1) reads (TTL = 5 intervals)
             r.hset(HASH_OUT, mapping=snapshot)
-            r.expire(HASH_OUT, int(INTERVAL * 5))  # TTL = 5 intervals
+            r.expire(HASH_OUT, int(INTERVAL * 5))
+
+            # Write simple OS_HEALTH string for fast external reads
+            r.set("quantum:health:os_health", snapshot["overall_health"], ex=int(INTERVAL * 5))
 
             health = snapshot["overall_health"]
             dead = snapshot["services_dead"]
             alarms = json.loads(snapshot["alarms"])
             pos_count = snapshot["redis_position_count"]
             mode = snapshot["system_mode"]
+            f_klines = snapshot["freshness_market_klines"]
+            f_exec   = snapshot["freshness_exec_result"]
 
             if health == "GREEN":
                 logger.info(
                     f"[{health}] positions={pos_count} mode={mode} "
                     f"plan_lag={snapshot['apply_plan_lag']} "
-                    f"ai_lag={snapshot['exchange_norm_ai_lag']}"
+                    f"klines={f_klines}s exec_res={f_exec}s"
                 )
             else:
                 logger.warning(
                     f"[{health}] positions={pos_count} mode={mode} "
-                    f"dead=[{dead}] alarms={alarms}"
+                    f"dead=[{dead}] klines={f_klines}s exec_res={f_exec}s "
+                    f"alarms={alarms}"
                 )
+
+            # ── Webhook alerts (with per-alarm cooldown) ──────────────────
+            if ALERT_WEBHOOK_URL:
+                now = time.time()
+                critical = [a for a in alarms if a.startswith("CRITICAL") or a.startswith("T1_SERVICE")]
+                for alarm in critical:
+                    last = last_alert_ts.get(alarm, 0)
+                    if now - last >= ALERT_COOLDOWN_SEC:
+                        last_alert_ts[alarm] = now
+                        send_webhook_alert(
+                            ALERT_WEBHOOK_URL,
+                            title=f"🚨 Quantum Runtime CRITICAL — {alarm.split(':')[1] if ':' in alarm else alarm}",
+                            message=(
+                                f"**Alarm**: `{alarm}`\n"
+                                f"**Health**: {health}\n"
+                                f"**Positions**: {pos_count} | Mode: `{mode}`\n"
+                                f"**Dead services**: {dead or 'none'}\n"
+                                f"**klines age**: {f_klines}s | exec_res age: {f_exec}s"
+                            ),
+                            color=0xFF0000,
+                        )
+                        logger.warning(f"WEBHOOK_SENT alarm={alarm}")
 
             consecutive_errors = 0
 
