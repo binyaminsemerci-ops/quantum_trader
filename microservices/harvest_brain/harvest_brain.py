@@ -892,6 +892,17 @@ class StreamPublisher:
     
     def _publish_live(self, intent: HarvestIntent) -> bool:
         """Publish reduce-only plan directly to apply.plan stream (live mode)"""
+        # PATCH-3: HarvestBrain live write ownership demoted.
+        # apply.plan writes are blocked unless HARVEST_LIVE_WRITES_ENABLED=true.
+        # Default (absent or any other value) = demoted → route to shadow stream.
+        # Rollback: set HARVEST_LIVE_WRITES_ENABLED=true in env file and restart.
+        if os.getenv("HARVEST_LIVE_WRITES_ENABLED", "").lower() != "true":
+            logger.warning(
+                "[HarvestBrain] HARVEST_LIVE_WRITE_BLOCKED patch=PATCH-3 "
+                f"symbol={intent.symbol} type={intent.intent_type} — "
+                "apply.plan write suppressed; routing to shadow stream instead"
+            )
+            return self._publish_shadow(intent)
         try:
             # Generate plan_id from correlation_id
             import hashlib
