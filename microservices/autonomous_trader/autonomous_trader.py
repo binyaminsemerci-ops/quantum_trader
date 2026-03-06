@@ -307,14 +307,44 @@ class AutonomousTrader:
                 logger.error(f"[AutonomousTrader] Cycle error: {e}", exc_info=True)
                 await asyncio.sleep(self.scan_interval_sec)
     
+    async def _is_exit_ownership_suspended(self) -> bool:
+        """PATCH-2 kill-switch reader.
+
+        Returns True  if ``quantum:exit_agent:active_flag`` exists in Redis
+                      (any non-None value), meaning exit_management_agent has
+                      taken ownership and AutonomousTrader must stand down.
+        Returns False if the key is absent OR if the Redis read raises.
+                      Fail-open: preserve existing exit behaviour on Redis failure.
+        """
+        try:
+            value = await self.redis.get("quantum:exit_agent:active_flag")
+            return value is not None
+        except Exception as exc:
+            logger.warning(
+                "[AutonomousTrader] KILL_SWITCH_READ_ERROR patch=PATCH-2 — "
+                f"fail-open, continuing normal exit ownership: {exc}"
+            )
+            return False
+
     async def _monitor_positions(self):
         """Monitor active positions and execute exits"""
         positions = self.position_tracker.get_all_positions()
-        
+
         if not positions:
             logger.info("[Monitor] No active positions")
             return
-        
+
+        # PATCH-2: exit-ownership kill-switch.
+        # If quantum:exit_agent:active_flag exists, exit_management_agent owns
+        # exit decisions — stand down and skip normal evaluation entirely.
+        if await self._is_exit_ownership_suspended():
+            logger.warning(
+                "[AutonomousTrader] EXIT_OWNERSHIP_SUSPENDED "
+                "patch=PATCH-2 flag=quantum:exit_agent:active_flag — "
+                "skipping normal exit evaluation this cycle"
+            )
+            return
+
         logger.info(f"[Monitor] Checking {len(positions)} positions...")
         
         for position in positions:
