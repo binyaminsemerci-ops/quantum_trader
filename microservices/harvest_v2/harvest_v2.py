@@ -230,13 +230,25 @@ def main():
 
             # --- Emit to live apply.plan stream if configured ----------------
             if cfg.stream_live:
-                live_payload = _build_live_payload(pos, result, decision)
-                redis.xadd(cfg.stream_live, live_payload)
-                logger.warning(
-                    "[HV2_LIVE] EMITTED symbol=%s decision=%s R=%.3f qty=%s → %s",
-                    pos.symbol, decision, result.R_net,
-                    live_payload["close_qty"], cfg.stream_live,
-                )
+                # PATCH-4: harvest_v2 live write ownership demoted.
+                # apply.plan writes are blocked unless HV2_LIVE_WRITES_ENABLED=true.
+                # Default (absent or any other value) = demoted → skip live write.
+                # Rollback: add Environment=HV2_LIVE_WRITES_ENABLED=true to
+                # /etc/systemd/system/quantum-harvest-v2.service, daemon-reload, restart.
+                if os.getenv("HV2_LIVE_WRITES_ENABLED", "").lower() != "true":
+                    logger.warning(
+                        "[HV2] HV2_LIVE_WRITE_BLOCKED patch=PATCH-4 "
+                        "symbol=%s decision=%s — apply.plan write suppressed",
+                        pos.symbol, decision,
+                    )
+                else:
+                    live_payload = _build_live_payload(pos, result, decision)
+                    redis.xadd(cfg.stream_live, live_payload)
+                    logger.warning(
+                        "[HV2_LIVE] EMITTED symbol=%s decision=%s R=%.3f qty=%s → %s",
+                        pos.symbol, decision, result.R_net,
+                        live_payload["close_qty"], cfg.stream_live,
+                    )
 
             n_emitted += 1
 
