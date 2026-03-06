@@ -1,0 +1,61 @@
+[Unit]
+Description=Quantum Exit Management Agent — shadow evaluation v0.1.0 (PATCH-1)
+Documentation=https://github.com/your-org/quantum_trader/blob/main/microservices/exit_management_agent/README.md
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+
+# ── Redis ──────────────────────────────────────────────────────────────────────
+Environment=REDIS_HOST=127.0.0.1
+Environment=REDIS_PORT=6379
+
+# ── Agent behaviour ────────────────────────────────────────────────────────────
+Environment=EXIT_AGENT_ENABLED=true
+# DRY_RUN is hard-coded True in PATCH-1 code regardless of this value.
+# Leave it set so operators see intent clearly in systemctl show output.
+Environment=EXIT_AGENT_DRY_RUN=true
+Environment=EXIT_AGENT_LOOP_SEC=5
+Environment=EXIT_AGENT_MAX_POSITIONS_PER_LOOP=50
+Environment=EXIT_AGENT_MAX_HOLD_SEC=14400
+
+# ── Redis keys / streams ───────────────────────────────────────────────────────
+Environment=EXIT_AGENT_HEARTBEAT_KEY=quantum:exit_agent:heartbeat
+Environment=EXIT_AGENT_HEARTBEAT_TTL_SEC=60
+Environment=EXIT_AGENT_AUDIT_STREAM=quantum:stream:exit.audit
+Environment=EXIT_AGENT_METRICS_STREAM=quantum:stream:exit.metrics
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+Environment=EXIT_AGENT_LOG_LEVEL=INFO
+
+# ── Symbol filter (optional) ───────────────────────────────────────────────────
+# Comma-separated uppercase symbols, e.g. BTCUSDT,ETHUSDT
+# Leave empty to observe ALL open positions (default for shadow mode).
+Environment=EXIT_AGENT_SYMBOL_ALLOWLIST=
+
+# ── Process ────────────────────────────────────────────────────────────────────
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python \
+    -m microservices.exit_management_agent.main
+
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+# ── Stdio ──────────────────────────────────────────────────────────────────────
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-exit-agent
+
+# ── Hardening ─────────────────────────────────────────────────────────────────
+# Deny new privileges escalation.
+NoNewPrivileges=true
+# Allow writing only to /tmp (logs go to journald, not disk).
+ReadWritePaths=/tmp
+
+[Install]
+WantedBy=multi-user.target
