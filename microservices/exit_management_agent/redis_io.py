@@ -42,6 +42,10 @@ _LIVE_INTENT_STREAM: str = "quantum:stream:exit.intent"
 # Always writable — it is a learning/audit stream, not an execution stream.
 _OUTCOMES_STREAM: str = "quantum:stream:exit.outcomes"
 
+# ── REPLAY STREAM (PATCH-8C) ──────────────────────────────────────────────────
+# Always writable — append-only learning feed; never read by execution path.
+_REPLAY_STREAM: str = "quantum:stream:exit.replay"
+
 # Only keys with this prefix may be SET.
 _ALLOWED_SET_KEYS_PREFIX: str = "quantum:exit_agent:"
 
@@ -92,19 +96,20 @@ class RedisClient:
         self._live_writes_enabled = live_writes_enabled
 
         # Build the effective allowed set once at construction time.
-        # exit.outcomes is always writeable (PATCH-8B learning stream).
+        # exit.outcomes and exit.replay are always writeable (PATCH-8B/8C learning streams).
+        _LEARNING_STREAMS: frozenset = frozenset({_OUTCOMES_STREAM, _REPLAY_STREAM})
         if live_writes_enabled:
             self._allowed_write_streams: frozenset = _AUDIT_STREAMS | frozenset(
-                {_LIVE_INTENT_STREAM, _OUTCOMES_STREAM}
-            )
+                {_LIVE_INTENT_STREAM}
+            ) | _LEARNING_STREAMS
             _log.info(
                 "RedisClient: live_writes_enabled=True — "
                 "%s added to allowed write streams",
                 _LIVE_INTENT_STREAM,
             )
         else:
-            # Shadow mode: exit.intent is effectively forbidden; outcomes always allowed.
-            self._allowed_write_streams = _AUDIT_STREAMS | frozenset({_OUTCOMES_STREAM})
+            # Shadow mode: exit.intent is effectively forbidden; learning streams always allowed.
+            self._allowed_write_streams = _AUDIT_STREAMS | _LEARNING_STREAMS
 
     async def connect(self) -> None:
         self._client = aioredis.Redis(

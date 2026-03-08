@@ -9,19 +9,26 @@ For each closed symbol the tracker:
   2. For each id, reads the snapshot hash at quantum:hash:exit.decision:{id}
   3. Writes one outcome event per id to quantum:stream:exit.outcomes
   4. Removes the processed id from the pending set (only on successful write)
+  5. [PATCH-8C] Computes reward via RewardEngine and writes a replay record via
+     ReplayWriter — best-effort; failure here never blocks outcome or cleanup.
 
 Writes NEVER go to execution streams.  If any data is missing or a Redis
 call fails, the best-effort outcome is written with null placeholders and
 processing continues without raising.
 
 PATCH-8B scope: detection + outcome event capture.
-NOT in scope: reward/regret calculation, replay, MAE/MFE tracking.
+PATCH-8C scope: reward computation + replay record writing.
+NOT in scope: online learning, MAE/MFE tracking.
 """
 from __future__ import annotations
 
 import logging
 import time
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .reward_engine import RewardEngine
+    from .replay_writer import ReplayWriter
 
 _log = logging.getLogger("exit_management_agent.outcome_tracker")
 
@@ -48,10 +55,14 @@ class OutcomeTracker:
         redis,
         outcomes_stream: str = _OUTCOMES_STREAM_DEFAULT,
         enabled: bool = True,
+        reward_engine: Optional["RewardEngine"] = None,  # PATCH-8C
+        replay_writer: Optional["ReplayWriter"] = None,   # PATCH-8C
     ) -> None:
         self._redis = redis
         self._outcomes_stream = outcomes_stream
         self._enabled = enabled
+        self._reward_engine = reward_engine
+        self._replay_writer = replay_writer
         self._prev_symbols: set = set()
         self._initialized: bool = False
 
@@ -214,3 +225,23 @@ class OutcomeTracker:
                 symbol,
                 exc,
             )
+
+        # [PATCH-8C] Compute reward and write replay record (best-effort).
+        # Failure here does NOT affect the already-committed outcome or srem.
+        if self._reward_engine is not None and self._replay_writer is not None:
+            try:
+                result = self._reward_engine.compute(snapshot, event)
+                await self._replay_writer.write(
+                    decision_id=decision_id,
+                    symbol=symbol,
+                    snapshot=snapshot,
+                    outcome=event,
+                    result=result,
+                )
+            except Exception as exc:
+                _log.error(
+                    "PATCH-8C: Failed to compute/write replay for %s id=%s: %s",
+                    symbol,
+                    decision_id,
+                    exc,
+                )

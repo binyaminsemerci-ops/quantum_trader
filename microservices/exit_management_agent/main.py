@@ -36,6 +36,7 @@ import logging
 import signal
 import time
 import uuid
+from typing import Optional
 
 from .audit import AuditWriter
 from .config import AgentConfig
@@ -49,6 +50,8 @@ from .ownership_flag import OwnershipFlagWriter
 from .perception import PerceptionEngine
 from .position_source import PositionSource
 from .redis_io import RedisClient
+from .replay_writer import ReplayWriter
+from .reward_engine import RewardEngine
 from .qwen3_layer import Qwen3Layer
 from .scoring_engine import FORMULA_QTY_MAP, ScoringEngine
 from .scoring_guards import HardGuards
@@ -113,10 +116,25 @@ class ExitManagementAgent:
         )
         # PATCH-8B: outcome tracker — detects position closures and writes outcome
         # events to quantum:stream:exit.outcomes.  No-op when disabled.
+        # PATCH-8C: inject RewardEngine + ReplayWriter for learning record generation.
+        _reward_engine: Optional[RewardEngine] = None
+        _replay_writer: Optional[ReplayWriter] = None
+        if config.reward_engine_enabled:
+            _reward_engine = RewardEngine(
+                late_hold_threshold_sec=config.reward_late_hold_threshold_sec,
+                premature_close_threshold_sec=config.reward_premature_close_threshold_sec,
+            )
+            _replay_writer = ReplayWriter(
+                redis=self._redis,
+                replay_stream=config.replay_stream,
+                enabled=True,
+            )
         self._outcome_tracker = OutcomeTracker(
             redis=self._redis,
             outcomes_stream=config.outcomes_stream,
             enabled=config.outcome_tracker_enabled,
+            reward_engine=_reward_engine,
+            replay_writer=_replay_writer,
         )
         # Per-symbol first-observation clock (lower-bound age tracker).
         # Cleared when a symbol disappears from active positions.

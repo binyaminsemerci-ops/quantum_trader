@@ -29,6 +29,10 @@ EXIT_AGENT_QWEN3_API_KEY                  default: "" (PATCH-7B-ext: bearer toke
 EXIT_AGENT_DECISION_TTL_SEC               default: 14400 (PATCH-8A: TTL in seconds for quantum:hash:exit.decision:{id})
 EXIT_AGENT_OUTCOMES_STREAM                default: quantum:stream:exit.outcomes (PATCH-8B: stream for outcome events)
 EXIT_AGENT_OUTCOME_TRACKER_ENABLED       default: true  (PATCH-8B: false disables OutcomeTracker)
+EXIT_AGENT_REPLAY_STREAM                  default: quantum:stream:exit.replay (PATCH-8C: stream for replay/training records)
+EXIT_AGENT_REWARD_ENGINE_ENABLED          default: true  (PATCH-8C: false disables RewardEngine + ReplayWriter)
+EXIT_AGENT_REWARD_LATE_HOLD_THRESHOLD_SEC default: 3600  (PATCH-8C: hold >= this → full late_hold regret; seconds)
+EXIT_AGENT_REWARD_PREMATURE_CLOSE_THRESHOLD_SEC default: 300 (PATCH-8C: EMA close < this → premature_close regret; seconds)
 
 NOTE: EXIT_AGENT_ACTIVE_FLAG_KEY is intentionally NOT a configurable env var.
       The key "quantum:exit_agent:active_flag" is a binary protocol constant
@@ -107,6 +111,11 @@ class AgentConfig:
     # PATCH-8B: outcome tracker config.
     outcomes_stream: str = "quantum:stream:exit.outcomes"  # see EXIT_AGENT_OUTCOMES_STREAM
     outcome_tracker_enabled: bool = True               # see EXIT_AGENT_OUTCOME_TRACKER_ENABLED
+    # PATCH-8C: reward engine + replay writer config.
+    replay_stream: str = "quantum:stream:exit.replay"  # see EXIT_AGENT_REPLAY_STREAM
+    reward_engine_enabled: bool = True                 # see EXIT_AGENT_REWARD_ENGINE_ENABLED
+    reward_late_hold_threshold_sec: int = 3600         # see EXIT_AGENT_REWARD_LATE_HOLD_THRESHOLD_SEC
+    reward_premature_close_threshold_sec: int = 300    # see EXIT_AGENT_REWARD_PREMATURE_CLOSE_THRESHOLD_SEC
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
@@ -250,6 +259,23 @@ class AgentConfig:
         outcome_tracker_enabled = (
             os.getenv("EXIT_AGENT_OUTCOME_TRACKER_ENABLED", "true").lower() == "true"
         )
+        # PATCH-8C: reward engine + replay writer config.
+        replay_stream = os.getenv(
+            "EXIT_AGENT_REPLAY_STREAM", "quantum:stream:exit.replay"
+        )
+        reward_engine_enabled = (
+            os.getenv("EXIT_AGENT_REWARD_ENGINE_ENABLED", "true").lower() == "true"
+        )
+        reward_late_hold_threshold_sec = int(
+            os.getenv("EXIT_AGENT_REWARD_LATE_HOLD_THRESHOLD_SEC", "3600")
+        )
+        if reward_late_hold_threshold_sec < 1:
+            reward_late_hold_threshold_sec = 1
+        reward_premature_close_threshold_sec = int(
+            os.getenv("EXIT_AGENT_REWARD_PREMATURE_CLOSE_THRESHOLD_SEC", "300")
+        )
+        if reward_premature_close_threshold_sec < 0:
+            reward_premature_close_threshold_sec = 0
 
         if scoring_mode == "ai":
             _log.warning(
@@ -299,6 +325,10 @@ class AgentConfig:
             decision_ttl_sec=decision_ttl_sec,
             outcomes_stream=outcomes_stream,
             outcome_tracker_enabled=outcome_tracker_enabled,
+            replay_stream=replay_stream,
+            reward_engine_enabled=reward_engine_enabled,
+            reward_late_hold_threshold_sec=reward_late_hold_threshold_sec,
+            reward_premature_close_threshold_sec=reward_premature_close_threshold_sec,
         )
 
     def is_symbol_allowed(self, symbol: str) -> bool:
