@@ -32,22 +32,36 @@ from microservices.exit_management_agent.models import ExitDecision, PositionSna
 class _RecordingFake:
     """
     Duck-typed fake Redis client for audit tests.
-    Implements ONLY xadd() — no write-guard, no network.
-    Any method other than xadd() would raise AttributeError, which would
-    immediately fail the test (useful implicit contract).
+    Implements xadd(), hset_snapshot(), and sadd_pending_decision() — no
+    write-guard, no network.  Any other method would raise AttributeError,
+    which would immediately fail the test (useful implicit contract).
     """
 
     def __init__(self) -> None:
         self.xadd_calls: list = []
+        self.hset_calls: list = []        # [(key, mapping, ttl_sec)]
+        self.sadd_calls: list = []        # [(key, decision_id)]
 
     async def xadd(self, stream: str, fields: dict) -> None:
         self.xadd_calls.append((stream, dict(fields)))
+
+    async def hset_snapshot(self, key: str, mapping: dict, ttl_sec: int) -> None:
+        self.hset_calls.append((key, dict(mapping), ttl_sec))
+
+    async def sadd_pending_decision(self, key: str, decision_id: str) -> None:
+        self.sadd_calls.append((key, decision_id))
 
 
 class _RaisingFake:
     """Fake that always raises on xadd(); tests error-swallowing paths."""
 
     async def xadd(self, stream: str, fields: dict) -> None:
+        raise ConnectionError("Redis unavailable")
+
+    async def hset_snapshot(self, key: str, mapping: dict, ttl_sec: int) -> None:
+        raise ConnectionError("Redis unavailable")
+
+    async def sadd_pending_decision(self, key: str, decision_id: str) -> None:
         raise ConnectionError("Redis unavailable")
 
 

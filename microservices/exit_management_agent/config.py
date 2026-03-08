@@ -26,6 +26,7 @@ EXIT_AGENT_QWEN3_TIMEOUT_MS               default: 2000   (PATCH-7B: clamped [20
 EXIT_AGENT_QWEN3_SHADOW                   default: true   (PATCH-7B: true=audit-only; false=Qwen3 drives live)
 EXIT_AGENT_QWEN3_MODEL                    default: qwen3:8b (PATCH-7B: model tag passed to Ollama)
 EXIT_AGENT_QWEN3_API_KEY                  default: "" (PATCH-7B-ext: bearer token for external endpoints; never logged)
+EXIT_AGENT_DECISION_TTL_SEC               default: 14400 (PATCH-8A: TTL in seconds for quantum:hash:exit.decision:{id})
 
 NOTE: EXIT_AGENT_ACTIVE_FLAG_KEY is intentionally NOT a configurable env var.
       The key "quantum:exit_agent:active_flag" is a binary protocol constant
@@ -98,6 +99,9 @@ class AgentConfig:
     # Default 3.0 ≈ 20 RPM — safely under Groq free-tier ~30 RPM.
     # Set to 0.0 to disable throttle (e.g. local Ollama).
     qwen3_min_interval_sec: float = 3.0              # see EXIT_AGENT_QWEN3_MIN_INTERVAL_SEC
+    # PATCH-8A: TTL applied to quantum:hash:exit.decision:{decision_id} snapshots.
+    # Default 14400s = 4 h, matching max_hold_sec (positions rarely survive longer).
+    decision_ttl_sec: int = 14400                    # see EXIT_AGENT_DECISION_TTL_SEC
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
@@ -226,6 +230,14 @@ class AgentConfig:
         qwen3_min_interval_sec = float(os.getenv("EXIT_AGENT_QWEN3_MIN_INTERVAL_SEC", "3.0"))
         if qwen3_min_interval_sec < 0.0:
             qwen3_min_interval_sec = 0.0
+        # PATCH-8A: TTL for decision snapshot hashes.
+        decision_ttl_sec = int(os.getenv("EXIT_AGENT_DECISION_TTL_SEC", "14400"))
+        if decision_ttl_sec < 1:
+            _log.warning(
+                "EXIT_AGENT_DECISION_TTL_SEC=%d is below minimum 1 — clamping to 1.",
+                decision_ttl_sec,
+            )
+            decision_ttl_sec = 1
 
         if scoring_mode == "ai":
             _log.warning(
@@ -272,6 +284,7 @@ class AgentConfig:
             qwen3_model=qwen3_model,
             qwen3_api_key=qwen3_api_key,
             qwen3_min_interval_sec=qwen3_min_interval_sec,
+            decision_ttl_sec=decision_ttl_sec,
         )
 
     def is_symbol_allowed(self, symbol: str) -> bool:

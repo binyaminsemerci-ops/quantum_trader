@@ -88,7 +88,8 @@ class ExitManagementAgent:
             min_interval_sec=config.qwen3_min_interval_sec,
         )
         self._audit = AuditWriter(
-            self._redis, config.audit_stream, config.metrics_stream
+            self._redis, config.audit_stream, config.metrics_stream,
+            decision_ttl_sec=config.decision_ttl_sec,
         )
         self._heartbeat = HeartbeatWriter(
             self._redis, config.heartbeat_key, config.heartbeat_ttl_sec

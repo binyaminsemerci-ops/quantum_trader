@@ -18,9 +18,10 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
 from typing import Optional
 
-from .models import ExitDecision
+from .models import DecisionSnapshot, ExitDecision
 from .redis_io import RedisClient, _FORBIDDEN_STREAMS
 
 _log = logging.getLogger("exit_management_agent.audit")
@@ -40,10 +41,12 @@ class AuditWriter:
         redis: RedisClient,
         audit_stream: str,
         metrics_stream: str,
+        decision_ttl_sec: int = 14400,
     ) -> None:
         self._redis = redis
         self._audit_stream = audit_stream
         self._metrics_stream = metrics_stream
+        self._decision_ttl_sec = decision_ttl_sec
         self._validate_streams()
 
     def _validate_streams(self) -> None:
@@ -128,11 +131,18 @@ class AuditWriter:
             fields["qwen3_latency_ms"] = f"{qr.latency_ms:.1f}"
             fields["patch"] = "PATCH-7B"
 
+        # PATCH-8A: generate decision_id and include in stream record.
+        decision_id = str(uuid.uuid4())
+        fields["decision_id"] = decision_id
+
         try:
             await self._redis.xadd(self._audit_stream, fields)
         except Exception as exc:
             _log.error("Failed to write audit for %s: %s", snap.symbol, exc)
             return
+
+        # PATCH-8A: persist decision snapshot hash + symbol pending set.
+        await self._write_decision_snapshot(decision_id, dec, ts_now=int(fields["ts"]))
 
         if dec.is_actionable:
             _log.info(
@@ -149,6 +159,93 @@ class AuditWriter:
                 snap.symbol,
                 dec.R_net,
                 loop_id,
+            )
+
+    async def _write_decision_snapshot(
+        self,
+        decision_id: str,
+        dec: ExitDecision,
+        ts_now: int,
+    ) -> None:
+        """
+        [PATCH-8A] Persist a DecisionSnapshot for the learning loop.
+
+        Writes:
+          HSET  quantum:hash:exit.decision:{decision_id}  <snapshot fields>
+          EXPIRE quantum:hash:exit.decision:{decision_id}  {decision_ttl_sec}
+          SADD  quantum:set:exit.pending_decisions:{symbol}  {decision_id}
+
+        Errors are logged and swallowed — snapshot failure must never block
+        the audit stream write that already succeeded.
+        """
+        snap = dec.snapshot
+        ss = dec.score_state
+        qr = dec.qwen3_result
+
+        formula_action = ss.formula_action if ss is not None else dec.action
+        formula_conf = ss.formula_confidence if ss is not None else dec.confidence
+        exit_score = ss.exit_score if ss is not None else 0.0
+
+        qwen3_action = qr.action if qr is not None else ""
+        qwen3_conf = qr.confidence if qr is not None else 0.0
+        qwen3_reason = qr.reason if qr is not None else ""
+        qwen3_fallback = qr.fallback if qr is not None else False
+
+        diverged = (
+            qwen3_action != "" and formula_action != qwen3_action
+        )
+
+        snapshot = DecisionSnapshot(
+            decision_id=decision_id,
+            ts_epoch=ts_now,
+            symbol=snap.symbol,
+            side=snap.side,
+            entry_price=snap.entry_price,
+            mark_price=snap.mark_price,
+            quantity=snap.quantity,
+            unrealized_pnl=snap.unrealized_pnl,
+            formula_action=formula_action,
+            formula_conf=formula_conf,
+            qwen3_action=qwen3_action,
+            qwen3_conf=qwen3_conf,
+            qwen3_reason=qwen3_reason,
+            qwen3_fallback=qwen3_fallback,
+            live_action=dec.action,
+            live_conf=dec.confidence,
+            diverged=diverged,
+            exit_score=exit_score,
+        )
+
+        mapping = {
+            "decision_id": snapshot.decision_id,
+            "ts_epoch": str(snapshot.ts_epoch),
+            "symbol": snapshot.symbol,
+            "side": snapshot.side,
+            "entry_price": f"{snapshot.entry_price:.8f}",
+            "mark_price": f"{snapshot.mark_price:.8f}",
+            "quantity": f"{snapshot.quantity:.8f}",
+            "unrealized_pnl": f"{snapshot.unrealized_pnl:.4f}",
+            "formula_action": snapshot.formula_action,
+            "formula_conf": f"{snapshot.formula_conf:.4f}",
+            "qwen3_action": snapshot.qwen3_action,
+            "qwen3_conf": f"{snapshot.qwen3_conf:.4f}",
+            "qwen3_reason": snapshot.qwen3_reason,
+            "qwen3_fallback": "true" if snapshot.qwen3_fallback else "false",
+            "live_action": snapshot.live_action,
+            "live_conf": f"{snapshot.live_conf:.4f}",
+            "diverged": "true" if snapshot.diverged else "false",
+            "exit_score": f"{snapshot.exit_score:.4f}",
+        }
+
+        hash_key = f"quantum:hash:exit.decision:{decision_id}"
+        set_key = f"quantum:set:exit.pending_decisions:{snap.symbol}"
+        try:
+            await self._redis.hset_snapshot(hash_key, mapping, self._decision_ttl_sec)
+            await self._redis.sadd_pending_decision(set_key, decision_id)
+        except Exception as exc:
+            _log.error(
+                "PATCH-8A: Failed to write decision snapshot for %s id=%s: %s",
+                snap.symbol, decision_id, exc,
             )
 
     async def write_metrics(

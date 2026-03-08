@@ -176,3 +176,43 @@ class Qwen3LayerResult:
     fallback: bool
     latency_ms: float
     raw: str
+
+
+@dataclass(frozen=True)
+class DecisionSnapshot:
+    """
+    [PATCH-8A] Complete point-in-time snapshot of every signal present at the
+    moment a decision was written to the audit stream.
+
+    Persisted to quantum:hash:exit.decision:{decision_id} with a configurable
+    TTL.  The decision_id is also added to
+    quantum:set:exit.pending_decisions:{symbol} so outcome labelling jobs can
+    find all open (not-yet-resolved) decisions for a symbol in O(1).
+
+    All float fields are left as float (not pre-formatted strings) so readers
+    can do arithmetic without parsing.  The audit stream record still stores
+    them as formatted strings to preserve existing behaviour.
+    """
+
+    decision_id: str        # uuid4 string — unique per audit write
+    ts_epoch: int           # unix timestamp at time of write
+    # ── position context ────────────────────────────────────────────────────
+    symbol: str
+    side: str               # "LONG" | "SHORT"
+    entry_price: float
+    mark_price: float
+    quantity: float
+    unrealized_pnl: float
+    # ── formula engine output ────────────────────────────────────────────────
+    formula_action: str     # HOLD | PARTIAL_CLOSE_25 | FULL_CLOSE | …
+    formula_conf: float     # formula_confidence from ExitScoreState
+    # ── Qwen3 layer output ───────────────────────────────────────────────────
+    qwen3_action: str       # "" when Qwen3 was not called
+    qwen3_conf: float       # 0.0 when Qwen3 was not called
+    qwen3_reason: str       # "" when Qwen3 was not called
+    qwen3_fallback: bool    # True when Qwen3 output rejected; False when not called
+    # ── live (final) decision ────────────────────────────────────────────────
+    live_action: str        # action that was acted upon
+    live_conf: float        # confidence of the live action
+    diverged: bool          # True when formula_action != qwen3_action (and both present)
+    exit_score: float       # composite score from ScoringEngine (0.0 if hard-guard)

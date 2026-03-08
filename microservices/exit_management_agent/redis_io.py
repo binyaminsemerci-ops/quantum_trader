@@ -208,3 +208,37 @@ class RedisClient:
                 f"Allowed prefix: {_ALLOWED_SET_KEYS_PREFIX!r}"
             )
         await self._client.set(key, value, ex=ttl_sec)
+
+    # ── PATCH-8A: decision snapshot writes ────────────────────────────────────
+
+    _SNAPSHOT_HASH_PREFIX: str = "quantum:hash:exit.decision:"
+    _SNAPSHOT_SET_PREFIX: str = "quantum:set:exit.pending_decisions:"
+
+    async def hset_snapshot(self, key: str, mapping: dict, ttl_sec: int) -> None:
+        """
+        HSET a decision snapshot hash and set its TTL.
+
+        Raises RuntimeError immediately if key does not start with
+        _SNAPSHOT_HASH_PREFIX ("quantum:hash:exit.decision:").
+        """
+        if not key.startswith(self._SNAPSHOT_HASH_PREFIX):
+            raise RuntimeError(
+                f"[WRITE_GUARD] HSET target outside allowed namespace: {key!r}. "
+                f"Allowed prefix: {self._SNAPSHOT_HASH_PREFIX!r}"
+            )
+        await self._client.hset(key, mapping=mapping)
+        await self._client.expire(key, ttl_sec)
+
+    async def sadd_pending_decision(self, key: str, decision_id: str) -> None:
+        """
+        SADD a decision_id to a symbol's pending-decision set.
+
+        Raises RuntimeError immediately if key does not start with
+        _SNAPSHOT_SET_PREFIX ("quantum:set:exit.pending_decisions:").
+        """
+        if not key.startswith(self._SNAPSHOT_SET_PREFIX):
+            raise RuntimeError(
+                f"[WRITE_GUARD] SADD target outside allowed namespace: {key!r}. "
+                f"Allowed prefix: {self._SNAPSHOT_SET_PREFIX!r}"
+            )
+        await self._client.sadd(key, decision_id)
