@@ -94,13 +94,39 @@ class AuditWriter:
             "entry_risk_usdt": f"{snap.entry_risk_usdt:.4f}",
             "dry_run": "true",
             "source": "exit_management_agent",
-            "patch": "PATCH-1",
+            "patch": "PATCH-7A",
         }
 
         if dec.suggested_sl is not None:
             fields["suggested_sl"] = f"{dec.suggested_sl:.8f}"
         if dec.suggested_qty_fraction is not None:
             fields["suggested_qty_fraction"] = f"{dec.suggested_qty_fraction:.4f}"
+
+        # PATCH-7A: include formula scoring fields when ScoringEngine ran.
+        # score_state is None for hard-guard decisions.
+        if dec.score_state is not None:
+            ss = dec.score_state
+            fields["exit_score"] = f"{ss.exit_score:.4f}"
+            fields["d_r_loss"] = f"{ss.d_r_loss:.4f}"
+            fields["d_r_gain"] = f"{ss.d_r_gain:.4f}"
+            fields["d_giveback"] = f"{ss.d_giveback:.4f}"
+            fields["d_time"] = f"{ss.d_time:.4f}"
+            fields["d_sl_proximity"] = f"{ss.d_sl_proximity:.4f}"
+            fields["formula_action"] = ss.formula_action
+            fields["formula_urgency"] = ss.formula_urgency
+            fields["formula_confidence"] = f"{ss.formula_confidence:.4f}"
+            fields["formula_reason"] = ss.formula_reason  # C-2 fix
+
+        # PATCH-7B: write Qwen3 layer fields when model was called.
+        # Present only in scoring_mode="ai" for non-skipped actions.
+        if dec.qwen3_result is not None:
+            qr = dec.qwen3_result
+            fields["qwen3_action"] = qr.action
+            fields["qwen3_confidence"] = f"{qr.confidence:.4f}"
+            fields["qwen3_reason"] = qr.reason
+            fields["qwen3_fallback"] = "true" if qr.fallback else "false"
+            fields["qwen3_latency_ms"] = f"{qr.latency_ms:.1f}"
+            fields["patch"] = "PATCH-7B"
 
         try:
             await self._redis.xadd(self._audit_stream, fields)

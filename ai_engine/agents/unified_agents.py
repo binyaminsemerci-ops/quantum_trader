@@ -226,11 +226,59 @@ if TORCH_AVAILABLE:
             
             return logits
 
+    class DLinearMovingAvg(nn.Module):
+        """Causal moving average for trend decomposition (no future leakage)."""
+        def __init__(self, kernel_size: int):
+            super().__init__()
+            self.kernel_size = kernel_size
+            self.avg = nn.AvgPool1d(kernel_size=kernel_size, stride=1, padding=0)
+
+        def forward(self, x):
+            # x: (batch, seq_len, features)
+            pad    = x[:, :self.kernel_size - 1, :]
+            x_pad  = torch.cat([pad, x], dim=1)
+            trend  = self.avg(x_pad.permute(0, 2, 1)).permute(0, 2, 1)
+            return trend
+
+    class DLinearModel(nn.Module):
+        """DLinear classifier: trend+residual decomposition → independent linear projections."""
+        def __init__(self, input_size=49, seq_len=60, hidden_size=256,
+                     num_classes=3, ma_kernel=25, dropout=0.2):
+            super().__init__()
+            self.input_size  = input_size
+            self.seq_len     = seq_len
+            self.hidden_size = hidden_size
+            self.ma_kernel   = ma_kernel
+            flat_dim = seq_len * input_size
+            self.moving_avg  = DLinearMovingAvg(kernel_size=ma_kernel)
+            self.trend_proj  = nn.Linear(flat_dim, hidden_size)
+            self.resid_proj  = nn.Linear(flat_dim, hidden_size)
+            self.classifier  = nn.Sequential(
+                nn.LayerNorm(hidden_size * 2),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_size * 2, hidden_size),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_size, num_classes),
+            )
+
+        def forward(self, x):
+            if x.dim() == 2:
+                x = x.unsqueeze(1).expand(-1, self.seq_len, -1)
+            trend     = self.moving_avg(x)
+            resid     = x - trend
+            t_proj    = self.trend_proj(trend.reshape(x.size(0), -1))
+            r_proj    = self.resid_proj(resid.reshape(x.size(0), -1))
+            combined  = torch.cat([t_proj, r_proj], dim=-1)
+            return self.classifier(combined)
+
 else:
     # Fallback if torch not available
     NHiTSModel = None
     PatchTSTModel = None
     TFTModel = None
+    DLinearModel = None
 
 # ---------- LOGGER ----------
 class Logger:
@@ -888,6 +936,124 @@ class TFTAgent(BaseAgent):
             "confidence_std": 0.1,
             "version": self.version
         }
+
+
+class DLinearAgent(BaseAgent):
+    """DLinear agent — trend/residual decomposition classifier (49 unified_features)."""
+
+    def __init__(self):
+        super().__init__("DLinear-Agent", "dlinear_v")
+        self.pytorch_model = None
+        self._load()
+
+    def _load_pytorch_model(self, state_dict, meta_path):
+        if not TORCH_AVAILABLE or DLinearModel is None:
+            self.logger.e("PyTorch not available, cannot reconstruct DLinear model")
+            return None
+        try:
+            if isinstance(state_dict, dict) and 'model_state_dict' in state_dict:
+                checkpoint        = state_dict
+                actual_state_dict = checkpoint['model_state_dict']
+                input_size  = checkpoint.get('input_size',  49)
+                seq_len     = checkpoint.get('seq_len',     60)
+                hidden_size = checkpoint.get('hidden_size', 256)
+                num_classes = checkpoint.get('num_classes', 3)
+                ma_kernel   = checkpoint.get('ma_kernel',   25)
+                dropout     = checkpoint.get('dropout',     0.2)
+                self.logger.i(f"Checkpoint params: input_size={input_size}, seq_len={seq_len}, hidden={hidden_size}")
+            else:
+                actual_state_dict = state_dict
+                input_size, seq_len, hidden_size, num_classes, ma_kernel, dropout = 49, 60, 256, 3, 25, 0.2
+                try:
+                    with open(meta_path) as f:
+                        meta = json.load(f)
+                    arch        = meta.get('architecture', {})
+                    input_size  = meta.get('num_features', input_size)
+                    seq_len     = arch.get('seq_len',     seq_len)
+                    hidden_size = arch.get('hidden_size', hidden_size)
+                    num_classes = arch.get('num_classes', num_classes)
+                    ma_kernel   = arch.get('ma_kernel',   ma_kernel)
+                    dropout     = arch.get('dropout',     dropout)
+                except Exception as e:
+                    self.logger.w(f"Could not read DLinear metadata, using defaults: {e}")
+
+            model = DLinearModel(
+                input_size=input_size,
+                seq_len=seq_len,
+                hidden_size=hidden_size,
+                num_classes=num_classes,
+                ma_kernel=ma_kernel,
+                dropout=dropout,
+            )
+            model.load_state_dict(actual_state_dict)
+            model.eval()
+
+            param_count = sum(p.numel() for p in model.parameters())
+            if param_count == 0:
+                self.logger.e("DLinear has zero parameters")
+                return None
+            self.logger.i(f"✅ DLinear state dict loaded ({param_count:,} parameters)")
+
+            # Validate non-constant output
+            with torch.no_grad():
+                x1 = torch.randn(1, seq_len, input_size)
+                x2 = torch.randn(1, seq_len, input_size)
+                if torch.allclose(model(x1), model(x2), atol=1e-6):
+                    self.logger.e("DLinear output is constant — reconstruction failed")
+                    return None
+
+            self.logger.i("✅ DLinear model validation passed")
+            return model
+        except Exception as e:
+            self.logger.e(f"Failed to load/validate DLinear model: {e}")
+            return None
+
+    def predict(self, sym, feat):
+        features = [
+            'returns', 'log_returns', 'price_range', 'body_size', 'upper_wick', 'lower_wick',
+            'is_doji', 'is_hammer', 'is_engulfing', 'gap_up', 'gap_down',
+            'rsi', 'macd', 'macd_signal', 'macd_hist', 'stoch_k', 'stoch_d', 'roc',
+            'ema_9', 'ema_9_dist', 'ema_21', 'ema_21_dist',
+            'ema_50', 'ema_50_dist', 'ema_200', 'ema_200_dist',
+            'sma_20', 'sma_50', 'adx', 'plus_di', 'minus_di',
+            'bb_middle', 'bb_upper', 'bb_lower', 'bb_width', 'bb_position',
+            'atr', 'atr_pct', 'volatility',
+            'volume_sma', 'volume_ratio', 'obv', 'obv_ema', 'vpt',
+            'momentum_5', 'momentum_10', 'momentum_20', 'acceleration', 'relative_spread',
+        ]
+
+        if self.pytorch_model is not None and TORCH_AVAILABLE:
+            try:
+                feature_values = [float(feat.get(f, 0.0)) for f in features]
+                seq_len    = self.pytorch_model.seq_len
+                input_size = self.pytorch_model.input_size
+
+                if self.scaler:
+                    scaled = self.scaler.transform([feature_values])
+                    fv     = scaled[0].tolist()
+                else:
+                    fv = feature_values
+
+                # Repeat single timestep across seq_len (same pattern as TFTAgent)
+                X_tensor = torch.FloatTensor(fv).unsqueeze(0).unsqueeze(0)  # (1,1,49)
+                X_tensor = X_tensor.expand(-1, seq_len, -1)                # (1,seq_len,49)
+
+                with torch.no_grad():
+                    logits     = self.pytorch_model(X_tensor)
+                    probs      = torch.softmax(logits, dim=1)
+                    class_pred = torch.argmax(probs, dim=1).item()
+                    confidence = probs[0, class_pred].item()
+
+                act = ["SELL", "HOLD", "BUY"][class_pred]
+                self.logger.i(f"{sym} → {act} (DLinear, conf={confidence:.3f})")
+                return {"symbol": sym, "action": act, "confidence": float(confidence),
+                        "confidence_std": 0.1, "version": self.version}
+            except Exception as e:
+                self.logger.e(f"DLinear prediction failed: {e}")
+
+        self.logger.w(f"{sym} → HOLD (DLinear dummy fallback)")
+        return {"symbol": sym, "action": "HOLD", "confidence": 0.5,
+                "confidence_std": 0.1, "version": self.version}
 
 
 # Backward compatibility

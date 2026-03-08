@@ -1,5 +1,5 @@
 [Unit]
-Description=Quantum Exit Management Agent — shadow evaluation v0.1.0 (PATCH-1)
+Description=Quantum Exit Management Agent v0.1.0 (PATCH-7B — Qwen3 shadow mode)
 Documentation=https://github.com/your-org/quantum_trader/blob/main/microservices/exit_management_agent/README.md
 After=network.target redis.service
 Wants=redis.service
@@ -32,10 +32,40 @@ Environment=EXIT_AGENT_METRICS_STREAM=quantum:stream:exit.metrics
 # ── Logging ────────────────────────────────────────────────────────────────────
 Environment=EXIT_AGENT_LOG_LEVEL=INFO
 
+# ── PATCH-5A: live write path to exit.intent ──────────────────────────────────
+# false  = shadow/inert mode (default pre-enable)
+# true   = EMA writes valid exit intents to quantum:stream:exit.intent
+Environment=EXIT_AGENT_LIVE_WRITES_ENABLED=true
+
+# ── PATCH-6: exit-ownership transfer (activates PATCH-2 kill-switch) ──────────
+# When true, EMA writes quantum:exit_agent:active_flag each tick with TTL.
+# AutonomousTrader reads this flag and skips _monitor_positions() while it exists.
+# EXIT_AGENT_TESTNET_MODE is a secondary safety guard — both must be "true".
+# Rollback: redis-cli DEL quantum:exit_agent:active_flag  (AT resumes within 5s)
+Environment=EXIT_AGENT_OWNERSHIP_TRANSFER_ENABLED=true
+Environment=EXIT_AGENT_ACTIVE_FLAG_TTL_SEC=30
+Environment=EXIT_AGENT_TESTNET_MODE=true
+
 # ── Symbol filter (optional) ───────────────────────────────────────────────────
 # Comma-separated uppercase symbols, e.g. BTCUSDT,ETHUSDT
 # Leave empty to observe ALL open positions (default for shadow mode).
 Environment=EXIT_AGENT_SYMBOL_ALLOWLIST=
+
+# ── PATCH-7A / PATCH-7B: scoring mode ────────────────────────────────────────
+# shadow  = ScoringEngine runs alongside DecisionEngine; only legacy drives live.
+# formula = ScoringEngine drives live path; DecisionEngine audited as backup.
+# ai      = PATCH-7B: formula engine runs first; Qwen3 refines within 4 allowed actions.
+Environment=EXIT_AGENT_SCORING_MODE=ai
+
+# ── PATCH-7B: Qwen3 inference config ──────────────────────────────────────────
+# SHADOW MODE: qwen3_shadow=true means Qwen3 decisions are written to audit only.
+# The formula engine still drives the live exit.intent path until shadow=false.
+# endpoint: Ollama base URL (or /v1 prefix for OpenAI-compat endpoints)
+# timeout_ms: max wait per inference call; fallback to formula if exceeded.
+Environment=EXIT_AGENT_QWEN3_ENDPOINT=http://localhost:11434
+Environment=EXIT_AGENT_QWEN3_TIMEOUT_MS=2000
+Environment=EXIT_AGENT_QWEN3_SHADOW=true
+Environment=EXIT_AGENT_QWEN3_MODEL=qwen3:8b
 
 # ── Process ────────────────────────────────────────────────────────────────────
 ExecStart=/opt/quantum/venvs/ai-client-base/bin/python \

@@ -30,14 +30,16 @@ class Settings(BaseSettings):
     RISK_SAFETY_SERVICE_URL: str = "http://localhost:8003"
     
     # Ensemble configuration
-    ENSEMBLE_MODELS: List[str] = ["xgb", "lgbm", "nhits", "patchtst"]
+    ENSEMBLE_MODELS: List[str] = ["xgb", "lgbm", "nhits", "patchtst", "tft", "dlinear"]
     ENSEMBLE_WEIGHTS: dict = {
-        "xgb": 0.25,
-        "lgbm": 0.25,
-        "nhits": 0.30,
-        "patchtst": 0.20
+        "xgb": 0.17,
+        "lgbm": 0.17,
+        "nhits": 0.17,
+        "patchtst": 0.17,
+        "tft": 0.16,
+        "dlinear": 0.16
     }
-    MIN_CONSENSUS: int = 3  # 3/4 models must agree
+    MIN_CONSENSUS: int = 4  # 4/6 models must agree
     
     # Model paths — Controlled Refactor 2026-02-21
     # READ (live AI engine) : /opt/quantum/model_registry/approved/

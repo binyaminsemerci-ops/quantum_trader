@@ -25,21 +25,32 @@ from pydantic import BaseModel, Field
 
 class ModelType(str, Enum):
     """Supported model types in CLM v3."""
-    
+
     # Classical ML
     XGBOOST = "xgboost"
     LIGHTGBM = "lightgbm"
-    
+
     # Deep Time Series
     NHITS = "nhits"
     PATCHTST = "patchtst"
-    
-    # Reinforcement Learning
+    TFT = "tft"
+
+    # Reinforcement Learning (no auto-retrain scripts — kept for registry queries)
     RL_V2 = "rl_v2"  # Legacy RL
     RL_V3 = "rl_v3"  # Current RL PPO
-    
+
     # Experimental
     OTHER = "other"
+
+
+# Model types that have actual training scripts and can be auto-retrained
+RETRAINABLE_MODEL_TYPES = {
+    ModelType.XGBOOST,
+    ModelType.LIGHTGBM,
+    ModelType.NHITS,
+    ModelType.PATCHTST,
+    ModelType.TFT,
+}
 
 
 class ModelStatus(str, Enum):

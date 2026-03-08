@@ -153,10 +153,9 @@ class TrainingScheduler:
         
         logger.debug(f"[CLM v3 Scheduler] 🔍 Checking for models needing periodic training...")
         
-        # Check each model type
-        for model_type in ModelType:
-            if model_type == ModelType.OTHER:
-                continue
+        # Check each model type — only those with actual training scripts
+        from backend.services.clm_v3.models import RETRAINABLE_MODEL_TYPES
+        for model_type in RETRAINABLE_MODEL_TYPES:
             
             # Get interval for this model type
             interval_key = f"{model_type.value}_interval_hours"
@@ -337,13 +336,11 @@ class TrainingScheduler:
         
         periodic_config = self.config["periodic_training"]
         
-        for model_type in ModelType:
-            if model_type == ModelType.OTHER:
-                continue
-            
+        from backend.services.clm_v3.models import RETRAINABLE_MODEL_TYPES
+        for model_type in RETRAINABLE_MODEL_TYPES:
             interval_key = f"{model_type.value}_interval_hours"
             interval_hours = periodic_config.get(interval_key, 168)
-            
+
             model_id = f"{model_type.value}_main"
             last_trained = self.last_training.get(model_id)
             

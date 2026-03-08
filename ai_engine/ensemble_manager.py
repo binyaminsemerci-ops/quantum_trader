@@ -32,7 +32,7 @@ except ImportError:
     EVENTBUS_AVAILABLE = False
 
 # Import unified agent system
-from ai_engine.agents.unified_agents import XGBoostAgent, LightGBMAgent, NHiTSAgent, PatchTSTAgent
+from ai_engine.agents.unified_agents import XGBoostAgent, LightGBMAgent, NHiTSAgent, PatchTSTAgent, DLinearAgent
 
 # Import TFT agent (dedicated implementation with real model support)
 try:
@@ -184,14 +184,15 @@ class EnsembleManager:
         self.weight_refresh_interval = 300  # Refresh every 5 minutes
         
         # Default weights (used if ModelSupervisor not available)
-        # 2026-02-15: Equal 20% weights for 5-model ensemble (TFT ADDED)
+        # Equal weights for 6-model ensemble (DLinear ADDED)
         if weights is None:
             self.default_weights = {
-                'xgb': 0.20,
-                'lgbm': 0.20,
-                'nhits': 0.20,      # ✅ ACTIVATED: Hierarchical time-series model
-                'patchtst': 0.20,   # ✅ ACTIVATED: Transformer-based forecasting
-                'tft': 0.20         # ✅ ACTIVATED: Temporal Fusion Transformer
+                'xgb': 0.17,
+                'lgbm': 0.17,
+                'nhits': 0.17,      # ✅ ACTIVATED: Hierarchical time-series model
+                'patchtst': 0.17,   # ✅ ACTIVATED: Transformer-based forecasting
+                'tft': 0.16,        # ✅ ACTIVATED: Temporal Fusion Transformer
+                'dlinear': 0.16     # ✅ ACTIVATED: DLinear decomposition model
             }
         else:
             self.default_weights = weights
@@ -207,7 +208,7 @@ class EnsembleManager:
         
         # Set default enabled_models if None (all models)
         if enabled_models is None:
-            enabled_models = ['xgb', 'lgbm', 'nhits', 'patchtst', 'tft']
+            enabled_models = ['xgb', 'lgbm', 'nhits', 'patchtst', 'tft', 'dlinear']
         
         # Initialize agents with unified system
         logger.info("=" * 60)
@@ -273,7 +274,21 @@ class EnsembleManager:
                 self.tft_agent = None
         else:
             logger.info("[⏭️  SKIP] TFT agent disabled (not in enabled_models)")
-        
+
+        # DLinear (trend/residual decomposition classifier)
+        self.dlinear_agent = None
+        if 'dlinear' in enabled_models:
+            try:
+                self.dlinear_agent = DLinearAgent()
+                dlinear_weight = self.weights.get('dlinear', self.default_weights.get('dlinear', 0.16))
+                logger.info(f"[✅ ACTIVATED] DLinear agent loaded (weight: {dlinear_weight*100:.0f}%)")
+            except Exception as e:
+                logger.warning(f"[⚠️  FALLBACK] DLinear loading failed: {e}")
+                logger.info("   └─ Will use consensus from other models")
+                self.dlinear_agent = None
+        else:
+            logger.info("[⏭️  SKIP] DLinear agent disabled (not in enabled_models)")
+
         # Meta Agent (5th agent - meta-learning layer)
         self.meta_agent = None
         if META_AVAILABLE and MetaAgent is not None:
@@ -652,7 +667,21 @@ class EnsembleManager:
             except Exception as e:
                 logger.error(f"PatchTST prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
                 # Don't add to predictions - let ensemble work with remaining models
-        
+
+        # TFT: Only predict if agent is loaded
+        if self.tft_agent is not None:
+            try:
+                predictions['tft'] = self.tft_agent.predict(symbol, features)
+            except Exception as e:
+                logger.error(f"TFT prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
+
+        # DLinear: Only predict if agent is loaded
+        if self.dlinear_agent is not None:
+            try:
+                predictions['dlinear'] = self.dlinear_agent.predict(symbol, features)
+            except Exception as e:
+                logger.error(f"DLinear prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
+
         # 🔍 QSC FAIL-CLOSED: Exclude degraded models from voting
         inactive_predictions = {}  # shadow, fallback, or error models
         active_predictions = {}
@@ -1358,7 +1387,8 @@ class EnsembleManager:
             'lgbm': self.lgbm_agent.predict(symbol, features),
             'nhits': self.nhits_agent.predict(symbol, features),
             'patchtst': self.patchtst_agent.predict(symbol, features),
-            'tft': self.tft_agent.predict(symbol, features)
+            'tft': self.tft_agent.predict(symbol, features) if self.tft_agent else {'action': 'HOLD', 'confidence': 0.5},
+            'dlinear': self.dlinear_agent.predict(symbol, features) if self.dlinear_agent else {'action': 'HOLD', 'confidence': 0.5}
         }
     
     async def scan_top_by_volume_from_api(

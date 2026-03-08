@@ -1,0 +1,72 @@
+[Unit]
+Description=Quantum Exit Intent Gateway — PATCH-5B testnet exit order forwarder
+Documentation=https://github.com/your-org/quantum_trader/blob/main/microservices/exit_intent_gateway/README.md
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+
+# ── Redis ────────────────────────────────────────────────────────────────────
+Environment=REDIS_HOST=127.0.0.1
+Environment=REDIS_PORT=6379
+
+# ── Gateway feature flag ─────────────────────────────────────────────────────
+# EXIT_GATEWAY_ENABLED=false  →  inert standby (messages consumed+ACK'd, nothing forwarded)
+# EXIT_GATEWAY_ENABLED=true   →  live mode (approved intents forwarded to trade.intent)
+# Default: false — must be explicitly enabled via env file or systemctl override.
+#
+# IMPORTANT: EnvironmentFile is declared BEFORE the testnet guards below.
+# Systemd applies directives in source order, so the Environment= lines that
+# follow this directive will override any conflicting value from the file.
+# This means /etc/quantum/exit-intent-gateway.env CANNOT override TESTNET_MODE.
+EnvironmentFile=/etc/quantum/exit-intent-gateway.env
+
+# ── Testnet safety (AFTER EnvironmentFile — cannot be overridden by the file) ─
+# These lines intentionally come after EnvironmentFile= so they win on conflict.
+# An operator editing the env file cannot disable the testnet guard.
+Environment=TESTNET_MODE=true
+Environment=BINANCE_TESTNET=true
+
+# ── Stream names ─────────────────────────────────────────────────────────────
+Environment=EXIT_GATEWAY_INTENT_STREAM=quantum:stream:exit.intent
+Environment=EXIT_GATEWAY_TRADE_STREAM=quantum:stream:trade.intent
+Environment=EXIT_GATEWAY_REJECTED_STREAM=quantum:stream:exit.intent.rejected
+
+# ── Consumer group settings ───────────────────────────────────────────────────
+Environment=EXIT_GATEWAY_GROUP=exit-intent-gateway
+Environment=EXIT_GATEWAY_CONSUMER=gateway-1
+
+# ── Validation thresholds ─────────────────────────────────────────────────────
+# Stale, dedup TTL, cooldown, and rate-limit are overrideable via the env file.
+Environment=EXIT_GATEWAY_STALE_SEC=60
+Environment=EXIT_GATEWAY_DEDUP_TTL_SEC=300
+Environment=EXIT_GATEWAY_COOLDOWN_SEC=90
+Environment=EXIT_GATEWAY_RATE_LIMIT=10
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+Environment=EXIT_GATEWAY_LOG_LEVEL=INFO
+
+# ── Process ───────────────────────────────────────────────────────────────────
+ExecStart=/opt/quantum/venvs/ai-client-base/bin/python \
+    -m microservices.exit_intent_gateway.main
+
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+# ── Stdio ─────────────────────────────────────────────────────────────────────
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-exit-gateway
+
+# ── Hardening ─────────────────────────────────────────────────────────────────
+NoNewPrivileges=true
+ReadWritePaths=/tmp
+
+[Install]
+WantedBy=multi-user.target

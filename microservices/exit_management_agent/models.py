@@ -1,4 +1,4 @@
-"""models: internal data models for exit_management_agent (PATCH-1).
+"""models: internal data models for exit_management_agent (PATCH-1 / PATCH-7A / PATCH-7B).
 
 All dataclasses in this module are pure value objects — no Redis I/O,
 no side effects.  Tests can construct them without any infrastructure.
@@ -96,8 +96,83 @@ class ExitDecision:
     suggested_sl: Optional[float]          # For SL-modifying actions; None for HOLD/FULL_CLOSE
     suggested_qty_fraction: Optional[float]  # For PARTIAL_CLOSE_25; None otherwise
     dry_run: bool              # Always True in PATCH-1
+    # PATCH-7A: formula scoring state attached when ScoringEngine ran.
+    # None when a hard guard (drawdown stop / SL breach / time stop) bypassed scoring.
+    score_state: Optional["ExitScoreState"] = None
+    # PATCH-7B: Qwen3 layer result — present only when scoring_mode="ai" and
+    # formula_action is in _ALLOWED_ACTIONS (TIGHTEN_TRAIL/MOVE_TO_BREAKEVEN skip).
+    # None on hard-guard decisions, formula/shadow mode, or skipped actions.
+    qwen3_result: Optional["Qwen3LayerResult"] = None
 
     @property
     def is_actionable(self) -> bool:
         """True if any action other than HOLD is recommended."""
         return self.action != "HOLD"
+
+
+@dataclass(frozen=True)
+class ExitScoreState:
+    """
+    [PATCH-7A] Output of ScoringEngine.score() for one position.
+
+    Contains all five dimension scores, the composite exit_score, and the
+    formula engine's recommended action/urgency/confidence/reason.
+
+    Attached to ExitDecision.score_state when scoring is active.
+    score_state=None means the decision came from a hard guard (emergency
+    drawdown, SL breach, time stop) that bypassed scoring entirely.
+
+    Dimension scores are all in [0.0, 1.0].  Higher = stronger exit pressure.
+    """
+
+    # ── Position context (pass-through for AI contract in PATCH-7B) ──────────
+    symbol: str
+    side: str
+    R_net: float
+    age_sec: float
+    age_fraction: float          # age_sec / max_hold_sec, clamped [0, 1]
+    giveback_pct: float
+    distance_to_sl_pct: float
+    peak_price: float
+    mark_price: float
+    entry_price: float
+    leverage: float
+    r_effective_t1: float
+    r_effective_lock: float
+
+    # ── Five dimension scores ─────────────────────────────────────────────────
+    d_r_loss: float       # D1: loss pressure relative to emergency threshold
+    d_r_gain: float       # D2: depth into profit target zone
+    d_giveback: float     # D3: giveback fraction, zero-gated below break-even
+    d_time: float         # D4: convex time-decay pressure
+    d_sl_proximity: float # D5: closeness to SL within 5% buffer window
+
+    # ── Composite score ───────────────────────────────────────────────────────
+    exit_score: float     # weighted sum in [0.0, 1.0]
+
+    # ── Formula recommendation ────────────────────────────────────────────────
+    formula_action: str
+    formula_urgency: str
+    formula_confidence: float
+    formula_reason: str
+
+
+@dataclass(frozen=True)
+class Qwen3LayerResult:
+    """
+    [PATCH-7B] Output of Qwen3Layer.evaluate() for one position.
+
+    action      — one of: HOLD | PARTIAL_CLOSE_25 | FULL_CLOSE | TIME_STOP_EXIT
+    confidence  — model-reported confidence, clamped to [0.0, 1.0]
+    reason      — model-reported reason string, truncated to 200 chars
+    fallback    — True when model output was rejected and formula_action was used
+    latency_ms  — wall-clock HTTP round-trip in milliseconds
+    raw         — first 500 chars of raw model response body (for audit/debug)
+    """
+
+    action: str
+    confidence: float
+    reason: str
+    fallback: bool
+    latency_ms: float
+    raw: str
