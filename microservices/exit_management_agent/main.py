@@ -85,6 +85,7 @@ class ExitManagementAgent:
             shadow=config.qwen3_shadow,
             model=config.qwen3_model,
             api_key=config.qwen3_api_key,
+            min_interval_sec=config.qwen3_min_interval_sec,
         )
         self._audit = AuditWriter(
             self._redis, config.audit_stream, config.metrics_stream

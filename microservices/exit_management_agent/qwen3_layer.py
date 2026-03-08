@@ -28,6 +28,7 @@ Output: Qwen3LayerResult (action, confidence, reason, fallback, latency_ms, raw)
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -169,6 +170,7 @@ class Qwen3Layer:
         shadow: bool,
         model: str = "qwen3:8b",
         api_key: str = "",
+        min_interval_sec: float = 3.0,
     ) -> None:
         self._endpoint = endpoint.rstrip("/")
         self._timeout_sec = max(0.2, timeout_ms / 1000.0)
@@ -177,6 +179,11 @@ class Qwen3Layer:
         # PATCH-7B-ext: bearer token; empty = no header (local Ollama default).
         # Never passed to _log or included in any result/error string.
         self._api_key = api_key
+        # PATCH-7B-rl: rate-throttle — min seconds between successive API calls.
+        # Prevents 429 on Groq free tier (~30 RPM).  Default 3.0 ≈ 20 RPM.
+        self._min_interval_sec: float = max(0.0, min_interval_sec)
+        self._last_call_ts: float = 0.0
+        self._call_lock: asyncio.Lock = asyncio.Lock()
 
         # Determine chat URL from endpoint.
         # Ollama default: POST /api/chat
@@ -209,6 +216,22 @@ class Qwen3Layer:
         from .models import Qwen3LayerResult
 
         fallback_action = score_state.formula_action
+
+        # PATCH-7B-rl: rate-throttle — skip this call if called too soon.
+        if self._min_interval_sec > 0.0:
+            async with self._call_lock:
+                now = time.monotonic()
+                if now - self._last_call_ts < self._min_interval_sec:
+                    return Qwen3LayerResult(
+                        action=fallback_action,
+                        confidence=0.0,
+                        reason="qwen3_rate_throttled",
+                        fallback=True,
+                        latency_ms=0.0,
+                        raw="",
+                    )
+                self._last_call_ts = now
+
         payload = _build_payload(score_state)
         user_content = json.dumps(payload, separators=(",", ":"))
 

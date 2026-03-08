@@ -94,6 +94,10 @@ class AgentConfig:
     # Empty string = no Authorization header (Ollama local default).
     # NEVER log this field — treat as a secret at the system boundary.
     qwen3_api_key: str = ""                          # never logged; see EXIT_AGENT_QWEN3_API_KEY
+    # PATCH-7B-rl: min seconds between successive Qwen3 API calls (rate-throttle).
+    # Default 3.0 ≈ 20 RPM — safely under Groq free-tier ~30 RPM.
+    # Set to 0.0 to disable throttle (e.g. local Ollama).
+    qwen3_min_interval_sec: float = 3.0              # see EXIT_AGENT_QWEN3_MIN_INTERVAL_SEC
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
@@ -218,6 +222,10 @@ class AgentConfig:
         qwen3_model = os.getenv("EXIT_AGENT_QWEN3_MODEL", "qwen3:8b")
         # PATCH-7B-ext: read api key but never log it.
         qwen3_api_key = os.getenv("EXIT_AGENT_QWEN3_API_KEY", "")
+        # PATCH-7B-rl: rate-throttle interval (0 = disabled).
+        qwen3_min_interval_sec = float(os.getenv("EXIT_AGENT_QWEN3_MIN_INTERVAL_SEC", "3.0"))
+        if qwen3_min_interval_sec < 0.0:
+            qwen3_min_interval_sec = 0.0
 
         if scoring_mode == "ai":
             _log.warning(
@@ -263,6 +271,7 @@ class AgentConfig:
             qwen3_shadow=qwen3_shadow,
             qwen3_model=qwen3_model,
             qwen3_api_key=qwen3_api_key,
+            qwen3_min_interval_sec=qwen3_min_interval_sec,
         )
 
     def is_symbol_allowed(self, symbol: str) -> bool:
