@@ -178,7 +178,7 @@ class TestWriteDecisionNominal:
         _, fields = fake.xadd_calls[0]
         assert fields["dry_run"] == "true"
         assert fields["source"] == "exit_management_agent"
-        assert fields["patch"] == "PATCH-1"
+        assert fields["patch"] == "PATCH-7A"
 
     @pytest.mark.asyncio
     async def test_payload_contains_position_fields(self):
