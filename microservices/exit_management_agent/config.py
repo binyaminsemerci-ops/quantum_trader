@@ -27,6 +27,8 @@ EXIT_AGENT_QWEN3_SHADOW                   default: true   (PATCH-7B: true=audit-
 EXIT_AGENT_QWEN3_MODEL                    default: qwen3:8b (PATCH-7B: model tag passed to Ollama)
 EXIT_AGENT_QWEN3_API_KEY                  default: "" (PATCH-7B-ext: bearer token for external endpoints; never logged)
 EXIT_AGENT_DECISION_TTL_SEC               default: 14400 (PATCH-8A: TTL in seconds for quantum:hash:exit.decision:{id})
+EXIT_AGENT_OUTCOMES_STREAM                default: quantum:stream:exit.outcomes (PATCH-8B: stream for outcome events)
+EXIT_AGENT_OUTCOME_TRACKER_ENABLED       default: true  (PATCH-8B: false disables OutcomeTracker)
 
 NOTE: EXIT_AGENT_ACTIVE_FLAG_KEY is intentionally NOT a configurable env var.
       The key "quantum:exit_agent:active_flag" is a binary protocol constant
@@ -102,6 +104,9 @@ class AgentConfig:
     # PATCH-8A: TTL applied to quantum:hash:exit.decision:{decision_id} snapshots.
     # Default 14400s = 4 h, matching max_hold_sec (positions rarely survive longer).
     decision_ttl_sec: int = 14400                    # see EXIT_AGENT_DECISION_TTL_SEC
+    # PATCH-8B: outcome tracker config.
+    outcomes_stream: str = "quantum:stream:exit.outcomes"  # see EXIT_AGENT_OUTCOMES_STREAM
+    outcome_tracker_enabled: bool = True               # see EXIT_AGENT_OUTCOME_TRACKER_ENABLED
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
@@ -238,6 +243,13 @@ class AgentConfig:
                 decision_ttl_sec,
             )
             decision_ttl_sec = 1
+        # PATCH-8B: outcome tracker config.
+        outcomes_stream = os.getenv(
+            "EXIT_AGENT_OUTCOMES_STREAM", "quantum:stream:exit.outcomes"
+        )
+        outcome_tracker_enabled = (
+            os.getenv("EXIT_AGENT_OUTCOME_TRACKER_ENABLED", "true").lower() == "true"
+        )
 
         if scoring_mode == "ai":
             _log.warning(
@@ -285,6 +297,8 @@ class AgentConfig:
             qwen3_api_key=qwen3_api_key,
             qwen3_min_interval_sec=qwen3_min_interval_sec,
             decision_ttl_sec=decision_ttl_sec,
+            outcomes_stream=outcomes_stream,
+            outcome_tracker_enabled=outcome_tracker_enabled,
         )
 
     def is_symbol_allowed(self, symbol: str) -> bool:

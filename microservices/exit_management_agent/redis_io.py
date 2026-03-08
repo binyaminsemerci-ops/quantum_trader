@@ -38,6 +38,10 @@ _AUDIT_STREAMS: frozenset = frozenset(
 # Allowed only when live_writes_enabled=True is passed to RedisClient.__init__.
 _LIVE_INTENT_STREAM: str = "quantum:stream:exit.intent"
 
+# ── OUTCOMES STREAM (PATCH-8B) ────────────────────────────────────────────────
+# Always writable — it is a learning/audit stream, not an execution stream.
+_OUTCOMES_STREAM: str = "quantum:stream:exit.outcomes"
+
 # Only keys with this prefix may be SET.
 _ALLOWED_SET_KEYS_PREFIX: str = "quantum:exit_agent:"
 
@@ -88,9 +92,10 @@ class RedisClient:
         self._live_writes_enabled = live_writes_enabled
 
         # Build the effective allowed set once at construction time.
+        # exit.outcomes is always writeable (PATCH-8B learning stream).
         if live_writes_enabled:
             self._allowed_write_streams: frozenset = _AUDIT_STREAMS | frozenset(
-                {_LIVE_INTENT_STREAM}
+                {_LIVE_INTENT_STREAM, _OUTCOMES_STREAM}
             )
             _log.info(
                 "RedisClient: live_writes_enabled=True — "
@@ -98,8 +103,8 @@ class RedisClient:
                 _LIVE_INTENT_STREAM,
             )
         else:
-            # Shadow mode: exit.intent is also effectively forbidden.
-            self._allowed_write_streams = _AUDIT_STREAMS
+            # Shadow mode: exit.intent is effectively forbidden; outcomes always allowed.
+            self._allowed_write_streams = _AUDIT_STREAMS | frozenset({_OUTCOMES_STREAM})
 
     async def connect(self) -> None:
         self._client = aioredis.Redis(
@@ -242,3 +247,35 @@ class RedisClient:
                 f"Allowed prefix: {self._SNAPSHOT_SET_PREFIX!r}"
             )
         await self._client.sadd(key, decision_id)
+
+    # ── PATCH-8B: outcome tracker reads + cleanup ──────────────────────────────
+
+    async def smembers_pending_decisions(self, key: str) -> set:
+        """
+        Return all decision_ids in a symbol's pending-decision set.
+        Returns an empty set if the key does not exist.
+        """
+        result = await self._client.smembers(key)
+        return set(result) if result else set()
+
+    async def hgetall_snapshot(self, key: str) -> dict:
+        """
+        Return all fields of a decision snapshot hash.
+        Returns an empty dict if the key does not exist or has expired.
+        """
+        result = await self._client.hgetall(key)
+        return dict(result) if result else {}
+
+    async def srem_pending_decision(self, key: str, decision_id: str) -> None:
+        """
+        Remove a processed decision_id from a symbol's pending-decision set.
+
+        Raises RuntimeError immediately if key does not start with
+        _SNAPSHOT_SET_PREFIX ("quantum:set:exit.pending_decisions:").
+        """
+        if not key.startswith(self._SNAPSHOT_SET_PREFIX):
+            raise RuntimeError(
+                f"[WRITE_GUARD] SREM target outside allowed namespace: {key!r}. "
+                f"Allowed prefix: {self._SNAPSHOT_SET_PREFIX!r}"
+            )
+        await self._client.srem(key, decision_id)

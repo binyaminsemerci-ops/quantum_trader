@@ -44,6 +44,7 @@ from .heartbeat import HeartbeatWriter
 from .intent_writer import IntentWriter
 from .logging_utils import setup_logging
 from .models import ExitDecision
+from .outcome_tracker import OutcomeTracker
 from .ownership_flag import OwnershipFlagWriter
 from .perception import PerceptionEngine
 from .position_source import PositionSource
@@ -109,6 +110,13 @@ class ExitManagementAgent:
             flag_key=config.active_flag_key,
             ttl_sec=config.active_flag_ttl_sec,
             testnet_mode=config.testnet_mode,
+        )
+        # PATCH-8B: outcome tracker — detects position closures and writes outcome
+        # events to quantum:stream:exit.outcomes.  No-op when disabled.
+        self._outcome_tracker = OutcomeTracker(
+            redis=self._redis,
+            outcomes_stream=config.outcomes_stream,
+            enabled=config.outcome_tracker_enabled,
         )
         # Per-symbol first-observation clock (lower-bound age tracker).
         # Cleared when a symbol disappears from active positions.
@@ -340,12 +348,15 @@ class ExitManagementAgent:
                 _log.error("Error evaluating %s: %s", sym, exc, exc_info=True)
                 errors += 1
 
-        # 4. Prune first_observed for symbols no longer present.
+        # 4. Prune first_observed and detect closed positions (PATCH-8B).
         active = {s.symbol for s in positions}
         stale = [s for s in list(self._first_observed) if s not in active]
         for sym in stale:
             del self._first_observed[sym]
             self._perception.forget(sym)
+
+        # 4b. [PATCH-8B] Detect closed symbols and emit outcome events.
+        await self._outcome_tracker.update(active)
 
         # 5. Write loop metrics.
         elapsed_ms = (time.monotonic() - tick_start) * 1000.0
