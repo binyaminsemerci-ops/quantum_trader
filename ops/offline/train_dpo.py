@@ -45,6 +45,36 @@ from transformers import (
 )
 from trl import DPOConfig, DPOTrainer
 
+# ── HuggingFace authentication ────────────────────────────────────────────────
+# Llama-3.2 / 3.1 are gated repos. You must:
+#   1. Accept the license at https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct
+#   2. Get a token at https://huggingface.co/settings/tokens
+#   3. Set the token one of two ways:
+#      PowerShell: $env:HF_TOKEN = "hf_xxx..."
+#      Once/permanent: huggingface-cli login
+def _hf_login() -> None:
+    token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_TOKEN") or os.getenv("HUGGINGFACE_HUB_TOKEN")
+    if token:
+        from huggingface_hub import login
+        login(token=token, add_to_git_credential=False)
+        print("[train_dpo] HF_TOKEN found — logged in to HuggingFace")
+    else:
+        # Check if already logged in (from huggingface-cli login)
+        try:
+            from huggingface_hub import whoami
+            user = whoami()
+            print(f"[train_dpo] Already authenticated as: {user['name']}")
+        except Exception:
+            print(
+                "\n[train_dpo] WARNING: Not authenticated with HuggingFace.\n"
+                "  Llama-3.2-3B-Instruct requires license acceptance + token.\n"
+                "  1. Accept license: https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct\n"
+                "  2. Create token:   https://huggingface.co/settings/tokens\n"
+                "  3. Set in shell:   $env:HF_TOKEN = 'hf_xxx...'\n"
+                "  Then re-run: python train_dpo.py\n"
+            )
+            raise SystemExit(1)
+
 # ── Paths ──────────────────────────────────────────────────────────────────────
 TRAIN_FILE   = pathlib.Path("dpo_formatted/dpo_train.jsonl")
 VAL_FILE     = pathlib.Path("dpo_formatted/dpo_val.jsonl")
@@ -114,6 +144,7 @@ def load_jsonl(path: pathlib.Path) -> Dataset:
 
 
 def main():
+    _hf_login()
     print(f"[train_dpo] Loading base model: {BASE_MODEL}")
     print(f"[train_dpo] LoRA rank={LORA_RANK}  beta={DPO_BETA}  epochs={NUM_EPOCHS}")
 
