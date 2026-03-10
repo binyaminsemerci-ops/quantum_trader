@@ -207,7 +207,6 @@ def main():
         weight_decay=WEIGHT_DECAY,
         beta=DPO_BETA,
         max_length=MAX_SEQ_LEN,
-        max_prompt_length=MAX_PROMPT_LEN,
         eval_strategy="steps",
         eval_steps=EVAL_STEPS,
         save_strategy="steps",
@@ -233,7 +232,7 @@ def main():
         args=dpo_args,
         train_dataset=train_ds,
         eval_dataset=val_ds,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         peft_config=lora_cfg,
     )
 
