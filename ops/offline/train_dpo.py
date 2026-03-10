@@ -65,15 +65,9 @@ def _hf_login() -> None:
             user = whoami()
             print(f"[train_dpo] Already authenticated as: {user['name']}")
         except Exception:
-            print(
-                "\n[train_dpo] WARNING: Not authenticated with HuggingFace.\n"
-                "  Llama-3.2-3B-Instruct requires license acceptance + token.\n"
-                "  1. Accept license: https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct\n"
-                "  2. Create token:   https://huggingface.co/settings/tokens\n"
-                "  3. Set in shell:   $env:HF_TOKEN = 'hf_xxx...'\n"
-                "  Then re-run: python train_dpo.py\n"
-            )
-            raise SystemExit(1)
+            # Qwen2.5 models are Apache 2.0 — no license gate required.
+            # HF token is optional but recommended to avoid rate limits.
+            print("[train_dpo] No HF token found — continuing without auth (Qwen2.5 is open)")
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 TRAIN_FILE   = pathlib.Path("dpo_formatted/dpo_train.jsonl")
@@ -87,10 +81,10 @@ LOG_DIR.mkdir(exist_ok=True)
 # The exit agent uses llama-3.3-70b-versatile via Groq API (not downloadable).
 # We train a local proxy model on the same DPO dataset to validate the pipeline.
 #
-#   < 8 GB VRAM  →  Llama-3.2-3B-Instruct  (fits in 6 GB with 4-bit QLoRA)
-#   ≥ 8 GB VRAM  →  Meta-Llama-3.1-8B-Instruct
+#   < 8 GB VRAM  →  Qwen/Qwen2.5-3B-Instruct   (Apache 2.0, no license gate)
+#   ≥ 8 GB VRAM  →  Qwen/Qwen2.5-7B-Instruct   (Apache 2.0, no license gate)
 #
-# Override with:  BASE_MODEL=meta-llama/... python train_dpo.py
+# Override with:  BASE_MODEL=Qwen/... python train_dpo.py
 def _auto_select_model() -> str:
     env = os.getenv("BASE_MODEL")
     if env:
@@ -99,11 +93,11 @@ def _auto_select_model() -> str:
         import torch
         vram_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
         if vram_gb < 8.0:
-            print(f"[train_dpo] VRAM={vram_gb:.1f}GB < 8 GB → using 3B proxy model")
-            return "meta-llama/Llama-3.2-3B-Instruct"
+            print(f"[train_dpo] VRAM={vram_gb:.1f}GB < 8 GB → using Qwen2.5-3B proxy model")
+            return "Qwen/Qwen2.5-3B-Instruct"
     except Exception:
         pass
-    return "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    return "Qwen/Qwen2.5-7B-Instruct"
 
 BASE_MODEL = _auto_select_model()
 
