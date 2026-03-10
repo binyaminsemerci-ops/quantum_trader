@@ -53,31 +53,59 @@ LOG_DIR      = OUTPUT_DIR / "logs"
 OUTPUT_DIR.mkdir(exist_ok=True)
 LOG_DIR.mkdir(exist_ok=True)
 
-# ── Model ──────────────────────────────────────────────────────────────────────
-# First run: 8B proxy model.
+# ── Model — auto-selected by available VRAM ───────────────────────────────────
 # The exit agent uses llama-3.3-70b-versatile via Groq API (not downloadable).
-# Training on the 8B instruct validates the pipeline and learns the three
-# correction patterns.  If results are good, promote to 70B via Together.ai API.
-BASE_MODEL = os.getenv("BASE_MODEL", "meta-llama/Meta-Llama-3.1-8B-Instruct")
+# We train a local proxy model on the same DPO dataset to validate the pipeline.
+#
+#   < 8 GB VRAM  →  Llama-3.2-3B-Instruct  (fits in 6 GB with 4-bit QLoRA)
+#   ≥ 8 GB VRAM  →  Meta-Llama-3.1-8B-Instruct
+#
+# Override with:  BASE_MODEL=meta-llama/... python train_dpo.py
+def _auto_select_model() -> str:
+    env = os.getenv("BASE_MODEL")
+    if env:
+        return env
+    try:
+        import torch
+        vram_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
+        if vram_gb < 8.0:
+            print(f"[train_dpo] VRAM={vram_gb:.1f}GB < 8 GB → using 3B proxy model")
+            return "meta-llama/Llama-3.2-3B-Instruct"
+    except Exception:
+        pass
+    return "meta-llama/Meta-Llama-3.1-8B-Instruct"
 
-# ── Hyperparameters ────────────────────────────────────────────────────────────
-LORA_RANK        = 8          # conservative — low forgetting risk
-LORA_ALPHA       = 16         # = 2 * rank  (standard scaling)
+BASE_MODEL = _auto_select_model()
+
+# ── Hyperparameters — auto-tuned by VRAM ──────────────────────────────────────
+def _auto_config() -> dict:
+    try:
+        import torch
+        vram_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
+    except Exception:
+        vram_gb = 99.0
+    if vram_gb < 8.0:          # 6 GB (RTX 3060 Laptop, etc.)
+        return dict(batch=1, accum=16, seq=768, prompt=512)
+    if vram_gb < 20.0:         # 8–16 GB (T4, RTX 3080, etc.)
+        return dict(batch=1, accum=16, seq=1024, prompt=700)
+    return dict(batch=4, accum=4, seq=1024, prompt=700)  # 24 GB+
+
+_cfg             = _auto_config()
+LORA_RANK        = 8
+LORA_ALPHA       = 16
 LORA_DROPOUT     = 0.05
-DPO_BETA         = 0.5        # KL penalty; 0.1 = aggressive, 0.5 = conservative
-LEARNING_RATE    = 5e-5       # lower than SFT default; DPO is sensitive
-BATCH_SIZE       = 4          # per-device
-GRAD_ACCUM       = 4          # effective batch = 16
-NUM_EPOCHS       = 2          # small dataset → 2 epochs max before overfit
-# System prompt alone is ~300 tokens; keep prompt budget at 700 to avoid
-# silent truncation that corrupts the action-constraint instructions.
-MAX_SEQ_LEN      = 1024       # full sequence (prompt + response)
-MAX_PROMPT_LEN   = 700        # must be > system_prompt tokens (~300)
+DPO_BETA         = 0.5
+LEARNING_RATE    = 5e-5
+BATCH_SIZE       = _cfg["batch"]
+GRAD_ACCUM       = _cfg["accum"]
+NUM_EPOCHS       = 2
+MAX_SEQ_LEN      = _cfg["seq"]
+MAX_PROMPT_LEN   = _cfg["prompt"]   # must be > system_prompt tokens (~300)
 WARMUP_RATIO     = 0.1
 WEIGHT_DECAY     = 0.01
-EVAL_STEPS       = 20         # evaluate every 20 steps (~every 12.5% of epoch)
+EVAL_STEPS       = 20
 LOGGING_STEPS    = 5
-SAVE_STEPS       = 40         # save checkpoint twice per epoch
+SAVE_STEPS       = 40
 
 
 def load_jsonl(path: pathlib.Path) -> Dataset:
@@ -120,6 +148,8 @@ def main():
     )
     model.config.use_cache = False
     model.enable_input_require_grads()
+    # Gradient checkpointing: required on <24 GB VRAM to trade compute for memory
+    model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
 
     # ── LoRA config ────────────────────────────────────────────────────────────
     lora_cfg = LoraConfig(
