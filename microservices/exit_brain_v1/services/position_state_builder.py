@@ -161,7 +161,7 @@ class PositionStateBuilder:
 
         regime_data = self._read_meta_regime()
         if regime_data:
-            regime_ts = float(regime_data.get("timestamp", regime_data.get("ts", 0)) or 0)
+            regime_ts = _parse_timestamp(regime_data.get("timestamp", regime_data.get("ts", 0)))
             if regime_ts > 0:
                 source_ts["meta_regime"] = regime_ts
                 if now - regime_ts > REGIME_STALE_SEC:
@@ -343,3 +343,27 @@ def _safe_float(val) -> Optional[float]:
         return float(val)
     except (ValueError, TypeError):
         return None
+
+
+def _parse_timestamp(val) -> float:
+    """Parse epoch float or ISO-8601 string to epoch seconds. Returns 0.0 on failure."""
+    if val is None or val == 0:
+        return 0.0
+    if isinstance(val, bytes):
+        val = val.decode("utf-8")
+    if isinstance(val, (int, float)):
+        return float(val)
+    val_str = str(val)
+    try:
+        return float(val_str)
+    except ValueError:
+        pass
+    # Try ISO-8601 parse
+    from datetime import datetime, timezone
+    for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            dt = datetime.strptime(val_str, fmt).replace(tzinfo=timezone.utc)
+            return dt.timestamp()
+        except ValueError:
+            continue
+    return 0.0
