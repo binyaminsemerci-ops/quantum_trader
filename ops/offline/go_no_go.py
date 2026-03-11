@@ -176,7 +176,7 @@ def check_shadow(se: dict) -> List[Check]:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--trainer-state",
-                    default="dpo_run_output/trainer_state.json")
+                    default="dpo_run_output/checkpoint-26/trainer_state.json")
     ap.add_argument("--shadow-eval",
                     default="shadow_eval_results.json")
     ap.add_argument("--strict", action="store_true",

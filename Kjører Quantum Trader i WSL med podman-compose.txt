@@ -14427,3 +14427,17 @@ API restrictions
 Enable Reading
 Enable Spot & Margin Trading
 Enable Futures
+
+
+Malazgirit1070
+
+
+oversette dette til microservices
+
+jd83901
+
+
+
+Goq api key: [REDACTED_GROQ_KEY]
+
+groq api exit agent: [REDACTED_GROQ_KEY]

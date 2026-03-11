@@ -489,6 +489,160 @@ class TestPreferredAction:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# TestPreferredActionCounterfactual  (PATCH-10A)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestPreferredActionCounterfactual:
+    """Rule 1: diverged+bad → formula_action; Rule 2: premature_close → HOLD."""
+
+    # ── Rule 1: diverged + negative reward ────────────────────────────────────
+
+    def test_diverged_negative_reward_returns_formula_action(self):
+        """BNBUSDT live case: Qwen3 chose HOLD but formula said PARTIAL_CLOSE_25;
+        position later closed with reward=-0.25 → preferred should be
+        formula_action=PARTIAL_CLOSE_25."""
+        eng = make_engine()
+        snap = make_snapshot(
+            live_action="HOLD",
+            formula_action="PARTIAL_CLOSE_25",
+            diverged="true",
+            exit_score="0.2500",  # exit_score<0.5 so no late_hold
+        )
+        # closed_by="unknown" but exit_score<0.5 → no late_hold, no premature;
+        # just divergence_regret → reward = -(0.25) = -0.25
+        out = make_outcome(hold_duration_sec="600", closed_by="unknown")
+        r = eng.compute(snap, out)
+        assert r.reward < 0.0
+        assert r.preferred_action == "PARTIAL_CLOSE_25"
+
+    def test_diverged_positive_reward_keeps_live_action(self):
+        """When Qwen3 diverged but the outcome was good (reward > 0),
+        Rule 1 must NOT fire; live_action is correct."""
+        eng = make_engine()
+        snap = make_snapshot(
+            live_action="FULL_CLOSE",
+            formula_action="HOLD",
+            diverged="true",
+            exit_score="0.8000",
+        )
+        out = make_outcome(hold_duration_sec="7200", closed_by="exit_management_agent")
+        r = eng.compute(snap, out)
+        assert r.reward > 0.0
+        assert r.preferred_action == "FULL_CLOSE"
+
+    def test_diverged_reward_zero_keeps_live_action(self):
+        """reward == 0.0 is not < 0 → Rule 1 does not apply."""
+        eng = make_engine()
+        snap = make_snapshot(
+            live_action="TIGHTEN_TRAIL",  # unknown action → reward=0
+            formula_action="HOLD",
+            diverged="true",
+            exit_score="0.5000",
+        )
+        out = make_outcome(closed_by="unknown")
+        r = eng.compute(snap, out)
+        assert r.reward == pytest.approx(0.0, abs=1e-5)
+        assert r.preferred_action == "TIGHTEN_TRAIL"
+
+    def test_diverged_negative_reward_empty_formula_action_falls_through(self):
+        """If formula_action is missing, Rule 1 guard (formula_action truthy)
+        prevents returning an empty string; falls through to existing logic."""
+        eng = make_engine()
+        snap = make_snapshot(
+            live_action="HOLD",
+            formula_action="",   # explicitly empty
+            diverged="true",
+            exit_score="0.2000",
+        )
+        out = make_outcome(hold_duration_sec="600", closed_by="unknown")
+        r = eng.compute(snap, out)
+        # exit_score<0.5 → no late_hold; reward=-0.2 (>-0.3) → Rule 3 won't fire
+        assert r.preferred_action == "HOLD"
+
+    # ── Rule 2: premature_close PARTIAL_CLOSE_25 ──────────────────────────────
+
+    def test_premature_close_partial_close_25_below_threshold_returns_hold(self):
+        """premature_close + live=PARTIAL_CLOSE_25 + reward < -0.05 → HOLD."""
+        eng = make_engine(premature_close_threshold_sec=300)
+        snap = make_snapshot(live_action="PARTIAL_CLOSE_25", exit_score="0.5000")
+        # hold=60 < 300 → premature_close; exit_score=0.5 → base reward=0.5,
+        # penalty = 0.4*(1-60/300) = 0.4*0.8 = 0.32 → reward ≈ 0.5-0.32 = 0.18
+        # That's positive, not < -0.05 → need a low exit_score to make reward negative
+        snap_low = make_snapshot(live_action="PARTIAL_CLOSE_25", exit_score="0.1000")
+        # reward = 0.1 - 0.4*(1-60/300) = 0.1 - 0.32 = -0.22 → < -0.05 ✓
+        out = make_outcome(hold_duration_sec="60", closed_by="exit_management_agent")
+        r = eng.compute(snap_low, out)
+        assert r.regret_label == "premature_close"
+        assert r.reward < -0.05
+        assert r.preferred_action == "HOLD"
+
+    def test_premature_close_above_reward_threshold_keeps_partial_close(self):
+        """reward is between 0 and -0.05 (shallow) → Rule 2 does NOT fire;
+        preferred_action stays PARTIAL_CLOSE_25."""
+        eng = make_engine(premature_close_threshold_sec=300)
+        # exit_score=0.5, hold=290 (just under threshold)
+        # penalty = 0.4*(1-290/300) = 0.4*(10/300) ≈ 0.0133
+        # reward ≈ 0.5 - 0.0133 = 0.487 → positive, NOT < -0.05
+        snap = make_snapshot(live_action="PARTIAL_CLOSE_25", exit_score="0.5000")
+        out = make_outcome(hold_duration_sec="290", closed_by="exit_management_agent")
+        r = eng.compute(snap, out)
+        assert r.regret_label == "premature_close"
+        assert r.reward > -0.05
+        assert r.preferred_action == "PARTIAL_CLOSE_25"
+
+    def test_premature_close_full_close_rule_2_does_not_apply(self):
+        """Rule 2 condition requires live_action == PARTIAL_CLOSE_25 specifically;
+        a premature FULL_CLOSE is unaffected and keeps its live_action."""
+        eng = make_engine(premature_close_threshold_sec=300)
+        snap = make_snapshot(live_action="FULL_CLOSE", exit_score="0.1000")
+        out = make_outcome(hold_duration_sec="60", closed_by="exit_management_agent")
+        r = eng.compute(snap, out)
+        assert r.regret_label == "premature_close"
+        # reward = 0.1 - 0.32 = -0.22 → < -0.05 but Rule 2 MUST NOT fire
+        assert r.preferred_action == "FULL_CLOSE"
+
+    # ── Interaction: Rule 1 takes priority over Rule 2 ────────────────────────
+
+    def test_rule1_fires_before_rule2_when_both_conditions_met(self):
+        """If both diverged+bad AND premature_close conditions are satisfied,
+        Rule 1 (formula_action) wins because it is evaluated first."""
+        eng = make_engine(premature_close_threshold_sec=300)
+        # premature_close: live=PARTIAL_CLOSE_25, hold=60s
+        # diverged: formula_action=HOLD (formula said hold, Qwen3 closed early)
+        snap = make_snapshot(
+            live_action="PARTIAL_CLOSE_25",
+            formula_action="HOLD",
+            diverged="true",
+            exit_score="0.1000",  # reward will be negative
+        )
+        out = make_outcome(hold_duration_sec="60", closed_by="exit_management_agent")
+        r = eng.compute(snap, out)
+        assert r.reward < 0.0
+        # Rule 1: formula_action="HOLD" → preferred="HOLD"
+        # Rule 2: would also give "HOLD" — they agree here, both produce HOLD
+        assert r.preferred_action == "HOLD"
+
+    # ── Neutral: neither rule should alter existing behaviour ──────────────────
+
+    def test_no_divergence_no_premature_neutral_hold(self):
+        """Standard HOLD with mild negative reward — no counterfactual rules fire."""
+        eng = make_engine()
+        snap = make_snapshot(live_action="HOLD", exit_score="0.1000", diverged="false")
+        out = make_outcome(hold_duration_sec="7200", closed_by="unknown")
+        r = eng.compute(snap, out)
+        # reward = -0.1 → > -0.3 so Rule 3 also doesn't fire
+        assert r.preferred_action == "HOLD"
+
+    def test_no_divergence_positive_reward_full_close_unchanged(self):
+        eng = make_engine()
+        snap = make_snapshot(live_action="FULL_CLOSE", exit_score="0.8000", diverged="false")
+        out = make_outcome(hold_duration_sec="7200", closed_by="exit_management_agent")
+        r = eng.compute(snap, out)
+        assert r.reward > 0.0
+        assert r.preferred_action == "FULL_CLOSE"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # TestMissingAndNullFields
 # ═══════════════════════════════════════════════════════════════════════════════
 

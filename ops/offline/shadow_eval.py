@@ -29,6 +29,8 @@ import pathlib
 from collections import Counter
 from typing import Optional
 
+import gc
+
 import torch
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
@@ -37,24 +39,42 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 def _load_model(base: str, adapter: Optional[str]):
     tok = AutoTokenizer.from_pretrained(base, use_fast=True)
     tok.pad_token = tok.eos_token
+    # Use GPU (RTX 3060 / 12 GB VRAM) — 3B float16 ≈ 6 GB, fits comfortably.
+    # device_map="auto" sends everything to CUDA if available, else falls back to CPU.
     model = AutoModelForCausalLM.from_pretrained(
-        base, torch_dtype=torch.bfloat16, device_map="auto"
+        base, torch_dtype=torch.float16, device_map="cuda:0",
+        low_cpu_mem_usage=True,
     )
     if adapter:
         model = PeftModel.from_pretrained(model, adapter)
+    model.eval()
     gen = pipeline("text-generation", model=model, tokenizer=tok,
-                   max_new_tokens=80, do_sample=False, temperature=1.0)
+                   max_new_tokens=60, do_sample=False,
+                   return_full_text=False)
     return gen
 
 
+def _free_model(gen) -> None:
+    """Explicitly del model and free GPU memory between passes."""
+    del gen
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
 def _infer(gen, prompt: str) -> str:
-    out = gen(prompt, return_full_text=False)
-    return (out[0]["generated_text"] or "").strip()
+    with torch.no_grad():
+        out = gen(prompt, return_full_text=False)
+    result = (out[0]["generated_text"] or "").strip()
+    gc.collect()          # per-sample cleanup to avoid memory creep
+    return result
 
 
 def _parse_action(raw: str) -> str:
+    # Model outputs valid JSON first, then may append <|...|> tokens — strip them.
+    clean = raw.split("<|")[0].strip()
     try:
-        return json.loads(raw.strip()).get("action", "PARSE_ERROR")
+        return json.loads(clean).get("action", "PARSE_ERROR")
     except (json.JSONDecodeError, ValueError):
         return "PARSE_ERROR"
 
@@ -63,35 +83,88 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--adapter", default="dpo_run_output")
     ap.add_argument("--val",     default="dpo_formatted/dpo_val.jsonl")
-    ap.add_argument("--base",    default="meta-llama/Meta-Llama-3.1-8B-Instruct")
+    ap.add_argument("--base",    default="Qwen/Qwen2.5-3B-Instruct")
     args = ap.parse_args()
 
     val_pairs = [json.loads(l) for l in pathlib.Path(args.val).open() if l.strip()]
     print(f"Loaded {len(val_pairs)} validation pairs")
 
-    print("Loading BASE model (no adapter) …")
-    base_gen  = _load_model(args.base, None)
-    print("Loading DPO-tuned model (with adapter) …")
-    tuned_gen = _load_model(args.base, args.adapter)
+    base_ckpt_path  = pathlib.Path("shadow_eval_base_checkpoint.json")
+    tuned_ckpt_path = pathlib.Path("shadow_eval_tuned_checkpoint.json")
 
+    # ── Pass 1: base model (no adapter) ──────────────────────────────────────
+    if base_ckpt_path.exists():
+        print("\n[Pass 1/2] Checkpoint found — skipping base inference …")
+        base_ckpt = json.loads(base_ckpt_path.read_text())
+        base_raw_outputs = base_ckpt["outputs"]
+        preferred_list   = base_ckpt["preferred"]
+        prompts          = base_ckpt["prompts"]
+    else:
+        print("\n[Pass 1/2] Loading BASE model (no adapter) …")
+        base_gen = _load_model(args.base, None)
+        base_raw_outputs = []
+        preferred_list   = []
+        prompts          = []
+        for i, row in enumerate(val_pairs):
+            preferred_list.append(json.loads(row["chosen"]).get("action", ""))
+            prompts.append(row["prompt"])
+            raw = _infer(base_gen, row["prompt"])
+            base_raw_outputs.append(raw)
+            if i % 10 == 0:
+                print(f"  base [{i:>3}/{len(val_pairs)}]")
+        print(f"  base [{len(val_pairs):>3}/{len(val_pairs)}]")
+        print("[Pass 1/2] Done — freeing memory …")
+        _free_model(base_gen)
+        # Save checkpoint so Pass 1 is never re-run if Pass 2 OOMs
+        base_ckpt_path.write_text(json.dumps({
+            "outputs":   base_raw_outputs,
+            "preferred": preferred_list,
+            "prompts":   prompts,
+        }))
+        print(f"[Pass 1/2] Checkpoint saved -> {base_ckpt_path}")
+
+    # ── Pass 2: DPO-tuned model (with adapter) ────────────────────────────────
+    # Resume from partial checkpoint if available
+    if tuned_ckpt_path.exists():
+        tuned_ckpt = json.loads(tuned_ckpt_path.read_text())
+        tuned_raw_outputs = tuned_ckpt["outputs"]
+        resume_from = len(tuned_raw_outputs)
+        print(f"\n[Pass 2/2] Partial checkpoint found — resuming from [{resume_from}/{len(val_pairs)}] …")
+    else:
+        tuned_raw_outputs = []
+        resume_from = 0
+
+    if resume_from < len(val_pairs):
+        print("\n[Pass 2/2] Loading DPO-tuned model (with adapter) …")
+        tuned_gen = _load_model(args.base, args.adapter)
+        for i, row in enumerate(val_pairs):
+            if i < resume_from:
+                continue
+            raw = _infer(tuned_gen, row["prompt"])
+            tuned_raw_outputs.append(raw)
+            if i % 10 == 0:
+                print(f"  tuned [{i:>3}/{len(val_pairs)}]")
+                # Checkpoint every 10 samples
+                tuned_ckpt_path.write_text(json.dumps({"outputs": tuned_raw_outputs}))
+        print(f"  tuned [{len(val_pairs):>3}/{len(val_pairs)}]")
+        print("[Pass 2/2] Done — freeing memory …")
+        _free_model(tuned_gen)
+        tuned_ckpt_path.write_text(json.dumps({"outputs": tuned_raw_outputs}))
+        print(f"[Pass 2/2] Checkpoint saved -> {tuned_ckpt_path}")
+    else:
+        print("\n[Pass 2/2] Checkpoint complete — skipping tuned inference …")
+
+    # ── Collate results ───────────────────────────────────────────────────────
     results = []
     base_correct = tuned_correct = 0
-
-    for i, row in enumerate(val_pairs):
-        preferred = json.loads(row["chosen"]).get("action", "")
-        prompt    = row["prompt"]
-
-        base_raw  = _infer(base_gen,  prompt)
-        tuned_raw = _infer(tuned_gen, prompt)
-
+    for i, (preferred, base_raw, tuned_raw) in enumerate(
+            zip(preferred_list, base_raw_outputs, tuned_raw_outputs)):
         base_action  = _parse_action(base_raw)
         tuned_action = _parse_action(tuned_raw)
-
         bc = base_action  == preferred
         tc = tuned_action == preferred
         base_correct  += int(bc)
         tuned_correct += int(tc)
-
         results.append({
             "idx":           i,
             "preferred":     preferred,
@@ -100,9 +173,6 @@ def main():
             "base_correct":  bc,
             "tuned_correct": tc,
         })
-
-        if i % 10 == 0:
-            print(f"  [{i:>3}/{len(val_pairs)}]  base={base_correct}  tuned={tuned_correct}")
 
     n  = len(val_pairs)
     ba = base_correct  / n
@@ -163,7 +233,7 @@ def main():
     }
     with pathlib.Path("shadow_eval_results.json").open("w") as f:
         json.dump(out, f, indent=2)
-    print("\n  Full results → shadow_eval_results.json")
+    print("\n  Full results -> shadow_eval_results.json")
 
 
 if __name__ == "__main__":

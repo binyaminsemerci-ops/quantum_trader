@@ -64,56 +64,28 @@ if TORCH_AVAILABLE:
             return self.output_layer(concatenated)
     
     class PatchTSTModel(nn.Module):
-        """PatchTST architecture matching model_training.py (uses patch_embedding, pos_encoding, output_proj)"""
-        def __init__(self, input_dim, hidden_dim, output_dim, patch_len=16, stride=8, n_heads=4, n_layers=3, dropout=0.1):
+        """Transformer classifier matching trained weights (input_proj + encoder + head)."""
+        def __init__(self, input_dim, hidden_dim, output_dim, n_heads=4, n_layers=2, dropout=0.1, **kwargs):
             super().__init__()
-            self.input_dim = input_dim
-            self.hidden_dim = hidden_dim
-            self.output_dim = output_dim
-            self.patch_len = patch_len
-            self.stride = stride
-            
-            # Patch embedding (uses 'patch_embedding' to match saved weights)
-            self.patch_embedding = nn.Linear(patch_len * input_dim, hidden_dim)
-            
-            # Positional encoding (uses 'pos_encoding' to match saved weights)
-            self.pos_encoding = nn.Parameter(torch.randn(1, 100, hidden_dim))
-            
-            # Transformer encoder
+            self.input_proj = nn.Linear(input_dim, hidden_dim)
             encoder_layer = nn.TransformerEncoderLayer(
-                d_model=hidden_dim, nhead=n_heads, dim_feedforward=hidden_dim * 4,
+                d_model=hidden_dim, nhead=n_heads, dim_feedforward=hidden_dim * 2,
                 dropout=dropout, batch_first=True
             )
-            self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
-            
-            # Output projection (uses 'output_proj' to match saved weights)
-            self.output_proj = nn.Linear(hidden_dim, output_dim)
-        
+            self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
+            self.head = nn.Sequential(
+                nn.LayerNorm(hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, output_dim)
+            )
+
         def forward(self, x):
             if x.dim() == 2:
-                # x: [batch, features] -> treat as single timestep, duplicate for patches
-                batch_size, features = x.size()
-                x = x.unsqueeze(1).expand(-1, self.patch_len, -1)  # [batch, patch_len, features]
-            
-            batch_size, seq_len, features = x.size()
-            
-            # Create patches
-            patches = []
-            for i in range(0, max(1, seq_len - self.patch_len + 1), self.stride):
-                patch = x[:, i:i + self.patch_len, :]
-                patch = patch.reshape(batch_size, -1)
-                patches.append(patch)
-            
-            if not patches:
-                patches = [x.reshape(batch_size, -1)]
-            
-            patches = torch.stack(patches, dim=1)
-            embedded = self.patch_embedding(patches)
-            n_patches = embedded.size(1)
-            embedded = embedded + self.pos_encoding[:, :n_patches, :]
-            transformed = self.transformer(embedded)
-            pooled = transformed.mean(dim=1)
-            return self.output_proj(pooled)
+                x = x.unsqueeze(1)       # [batch, 1, features]
+            x = self.input_proj(x)       # [batch, seq, hidden_dim]
+            x = self.encoder(x)          # [batch, seq, hidden_dim]
+            x = x[:, 0, :]              # take first position
+            return self.head(x)          # [batch, output_dim]
 
     class GatedResidualNetwork(nn.Module):
         """Gated Residual Network for TFT"""
@@ -325,12 +297,19 @@ class BaseAgent:
 
     def _find_latest(self):
         # Support both .pkl and .pth formats
-        f=[]
-        for ext in [".pkl", ".pth"]:
-            files = [os.path.join(self.model_dir,x) for x in os.listdir(self.model_dir)
-                    if x.startswith(self.prefix) and x.endswith(ext) and "_scaler" not in x and "_meta" not in x]
-            f.extend(files)
-        return max(f,key=os.path.getmtime) if f else None
+        # Search model_dir first, then /app/models as fallback (for retrained models)
+        f = []
+        search_dirs = [self.model_dir, "/app/models"]
+        for d in search_dirs:
+            if not os.path.isdir(d):
+                continue
+            for ext in [".pkl", ".pth"]:
+                files = [os.path.join(d, x) for x in os.listdir(d)
+                        if x.startswith(self.prefix) and x.endswith(ext)
+                        and "_scaler" not in x and "_meta" not in x
+                        and "_features" not in x]
+                f.extend(files)
+        return max(f, key=os.path.getmtime) if f else None
 
     def _load(self, model_path=None, scaler_path=None):
         model_path = model_path or self._find_latest()
@@ -430,7 +409,7 @@ class BaseAgent:
 
 # ---------- XGBOOST ----------
 class XGBoostAgent(BaseAgent):
-    def __init__(self): super().__init__("XGB-Agent","xgboost_v"); self._load()
+    def __init__(self): super().__init__("XGB-Agent", "xgb_v"); self._load()
     def predict(self,sym,feat):
         df=self._align(feat); X=self.scaler.transform(df)
         # Multi-class classification: classes = [0:SELL, 1:HOLD, 2:BUY]
@@ -480,67 +459,68 @@ class PatchTSTAgent(BaseAgent):
             self.logger.i("Detected checkpoint format, extracting model_state_dict")
             checkpoint = state_dict
             actual_state_dict = checkpoint['model_state_dict']
-            # Extract architecture params from checkpoint - map to new param names
-            hidden_dim = checkpoint.get('hidden_dim', checkpoint.get('d_model', checkpoint.get('hidden_size', 128)))
-            n_heads = checkpoint.get('n_heads', checkpoint.get('nhead', 4))
-            n_layers = checkpoint.get('n_layers', checkpoint.get('num_layers', 3))
-            dropout = checkpoint.get('dropout', 0.1)
-            input_dim = checkpoint.get('input_dim', checkpoint.get('num_features', checkpoint.get('input_size', 18)))
-            output_dim = checkpoint.get('output_dim', 3)  # 3 classes
-            patch_len = checkpoint.get('patch_len', 16)
-            stride = checkpoint.get('stride', 8)
+            # Extract architecture params — also check model_config sub-dict (v3/v7 checkpoint format)
+            mc = checkpoint.get('model_config', {}) or {}
+            hidden_dim = checkpoint.get('hidden_dim', mc.get('d_model', checkpoint.get('d_model', 128)))
+            n_heads = checkpoint.get('n_heads', mc.get('num_heads', checkpoint.get('nhead', 4)))
+            n_layers = checkpoint.get('n_layers', mc.get('num_layers', checkpoint.get('num_layers', 2)))
+            dropout = checkpoint.get('dropout', mc.get('dropout', 0.1))
+            input_dim = checkpoint.get('input_dim', mc.get('num_features', checkpoint.get('num_features', 49)))
+            output_dim = checkpoint.get('output_dim', mc.get('num_classes', 3))
             self.logger.i(f"Checkpoint params: hidden_dim={hidden_dim}, n_heads={n_heads}, n_layers={n_layers}")
         else:
             actual_state_dict = state_dict
-            hidden_dim, n_heads, n_layers, dropout, input_dim, output_dim = 128, 4, 3, 0.1, 18, 3
-            patch_len, stride = 16, 8
+            hidden_dim, n_heads, n_layers, dropout, input_dim, output_dim = 128, 4, 2, 0.1, 49, 3
             # Load architecture params from metadata file
             try:
                 with open(meta_path) as f:
                     meta = json.load(f)
-                arch = meta.get('architecture', {})
-                hidden_dim = arch.get('hidden_dim', arch.get('d_model', hidden_dim))
-                n_heads = arch.get('n_heads', arch.get('nhead', n_heads))
-                n_layers = arch.get('n_layers', arch.get('num_layers', n_layers))
-                dropout = arch.get('dropout', dropout)
-                input_dim = meta.get('input_dim', meta.get('num_features', input_dim))
-                output_dim = arch.get('output_dim', output_dim)
-                patch_len = arch.get('patch_len', patch_len)
-                stride = arch.get('stride', stride)
+                mc = meta.get('model_config', {}) or {}
+                hidden_dim = meta.get('hidden_dim', mc.get('d_model', hidden_dim))
+                n_heads = meta.get('n_heads', mc.get('num_heads', n_heads))
+                n_layers = meta.get('n_layers', mc.get('num_layers', n_layers))
+                dropout = meta.get('dropout', mc.get('dropout', dropout))
+                input_dim = meta.get('input_dim', mc.get('num_features', input_dim))
+                output_dim = meta.get('output_dim', mc.get('num_classes', output_dim))
                 self.logger.i(f"Metadata params: hidden_dim={hidden_dim}, n_heads={n_heads}")
             except Exception as e:
                 self.logger.w(f"Could not read metadata, using defaults: {e}")
         
-        # Infer params from state_dict if possible
+        # Infer params from state_dict (supports both new input_proj+encoder+head and legacy architectures)
         try:
-            # Get hidden_dim from patch_embedding
-            if 'patch_embedding.weight' in actual_state_dict:
+            # hidden_dim: prefer input_proj (new arch) over patch_embedding (legacy)
+            if 'input_proj.weight' in actual_state_dict:
+                hidden_dim = actual_state_dict['input_proj.weight'].shape[0]
+                input_dim = actual_state_dict['input_proj.weight'].shape[1]
+                self.logger.i(f"Inferred hidden_dim={hidden_dim}, input_dim={input_dim} from state_dict")
+            elif 'patch_embedding.weight' in actual_state_dict:
                 hidden_dim = actual_state_dict['patch_embedding.weight'].shape[0]
                 self.logger.i(f"Inferred hidden_dim={hidden_dim} from state_dict")
-            
-            # Get output_dim from output_proj
-            if 'output_proj.weight' in actual_state_dict:
+
+            # output_dim: prefer head.2 (new arch) over output_proj (legacy)
+            if 'head.2.weight' in actual_state_dict:
+                output_dim = actual_state_dict['head.2.weight'].shape[0]
+                self.logger.i(f"Inferred output_dim={output_dim} from state_dict")
+            elif 'output_proj.weight' in actual_state_dict:
                 output_dim = actual_state_dict['output_proj.weight'].shape[0]
                 self.logger.i(f"Inferred output_dim={output_dim} from state_dict")
-            
-            # Count transformer layers
-            layer_keys = [k for k in actual_state_dict.keys() if 'transformer.layers.' in k]
-            if layer_keys:
-                layer_indices = set(int(k.split('.')[2]) for k in layer_keys)
-                n_layers = len(layer_indices)
-                self.logger.i(f"Inferred n_layers={n_layers} from state_dict")
+
+            # n_layers: check encoder.layers (new) or transformer.layers (legacy)
+            for layer_prefix in ('encoder.layers.', 'transformer.layers.'):
+                lkeys = [k for k in actual_state_dict if layer_prefix in k]
+                if lkeys:
+                    n_layers = len(set(int(k.split('.')[2]) for k in lkeys))
+                    self.logger.i(f"Inferred n_layers={n_layers} from state_dict")
+                    break
         except Exception as e:
             self.logger.w(f"Could not infer params from state_dict: {e}")
         
         self.logger.i(f"Reconstructing PatchTST: hidden_dim={hidden_dim}, n_heads={n_heads}, n_layers={n_layers}")
         
-        # Instantiate model with correct params for model_training.py architecture
         model = PatchTSTModel(
             input_dim=input_dim,
             hidden_dim=hidden_dim,
             output_dim=output_dim,
-            patch_len=patch_len,
-            stride=stride,
             n_heads=n_heads,
             n_layers=n_layers,
             dropout=dropout
@@ -633,11 +613,12 @@ class NHiTSAgent(BaseAgent):
             checkpoint = state_dict
             actual_state_dict = checkpoint['model_state_dict']
             # Extract architecture params from checkpoint - map to new param names
-            hidden_dim = checkpoint.get('hidden_dim', checkpoint.get('hidden_size', 128))
+            hidden_dim = checkpoint.get('hidden_dim', checkpoint.get('hidden_size', 256))
             n_blocks = checkpoint.get('n_blocks', checkpoint.get('num_stacks', 3))
-            input_dim = checkpoint.get('input_dim', checkpoint.get('num_features', checkpoint.get('input_size', 18)))
+            input_dim = checkpoint.get('input_dim', checkpoint.get('num_features', checkpoint.get('input_size', 49)))
             output_dim = checkpoint.get('output_dim', 3)  # 3 classes: SELL, HOLD, BUY
             dropout = checkpoint.get('dropout', 0.1)
+            mlp_units = checkpoint.get('mlp_units', None)
             self.logger.i(f"Checkpoint params: input_dim={input_dim}, hidden_dim={hidden_dim}, n_blocks={n_blocks}")
         else:
             actual_state_dict = state_dict
@@ -674,18 +655,28 @@ class NHiTSAgent(BaseAgent):
             if 'output_layer.weight' in actual_state_dict:
                 output_dim = actual_state_dict['output_layer.weight'].shape[0]
                 self.logger.i(f"Inferred output_dim={output_dim} from state_dict")
+
+            # Infer mlp_units from block 0's linear layer sizes (every 3rd index: Linear, ReLU, Dropout)
+            if mlp_units is None and 'blocks.0.0.weight' in actual_state_dict:
+                hidden_units, i = [], 0
+                while f'blocks.0.{i}.weight' in actual_state_dict:
+                    hidden_units.append(actual_state_dict[f'blocks.0.{i}.weight'].shape[0])
+                    i += 3
+                mlp_units = hidden_units[:-1] if len(hidden_units) > 1 else hidden_units
+                self.logger.i(f"Inferred mlp_units={mlp_units} from state_dict")
         except Exception as e:
             self.logger.w(f"Could not infer params from state_dict: {e}")
         
-        self.logger.i(f"Reconstructing N-HiTS: input_dim={input_dim}, hidden_dim={hidden_dim}, output_dim={output_dim}, n_blocks={n_blocks}")
+        if mlp_units is None:
+            mlp_units = [256, 256]  # safe default matching latest trained models
+        self.logger.i(f"Reconstructing N-HiTS: input_dim={input_dim}, hidden_dim={hidden_dim}, output_dim={output_dim}, n_blocks={n_blocks}, mlp_units={mlp_units}")
         
-        # Instantiate model with correct params for model_training.py architecture
         model = NHiTSModel(
             input_dim=input_dim,
             hidden_dim=hidden_dim,
             output_dim=output_dim,
             n_blocks=n_blocks,
-            mlp_units=[512, 512],  # Default from model_training.py
+            mlp_units=mlp_units,
             dropout=dropout
         )
         

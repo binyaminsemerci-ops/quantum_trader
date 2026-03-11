@@ -20,7 +20,10 @@ import pathlib
 import random
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-SRC      = pathlib.Path("dpo_patch10a_v2_FROZEN.jsonl")
+# Use the augmented dataset produced by augment_dpo_dataset.py.
+# Falls back to the frozen source if the augmented file is absent.
+_AUGMENTED = pathlib.Path("dpo_augmented_v2.jsonl")
+SRC      = _AUGMENTED if _AUGMENTED.exists() else pathlib.Path("dpo_patch10a_v2_FROZEN.jsonl")
 OUT_DIR  = pathlib.Path("dpo_formatted")
 TRAIN_F  = OUT_DIR / "dpo_train.jsonl"
 VAL_F    = OUT_DIR / "dpo_val.jsonl"
@@ -51,11 +54,13 @@ _CHOSEN_REASONS = {
     ("premature_close",  "HOLD"):             "Position closed too early — insufficient hold time, wait for stronger signal",
     ("late_hold",        "FULL_CLOSE"):        "Exit score strong and hold overdue — close fully now to capture remaining profit",
     ("late_hold",        "PARTIAL_CLOSE_25"):  "Moderate exit signal with long hold — partial close to reduce exposure",
+    ("late_hold",        "TIME_STOP_EXIT"):    "Position held beyond time limit — trigger time-stop to free capital",
     ("divergence_regret","FULL_CLOSE"):        "Formula recommended full close; override reverses the divergence loss",
     ("divergence_regret","PARTIAL_CLOSE_25"):  "Formula recommended partial close; reversing Qwen3 override to follow formula",
     ("none",             "PARTIAL_CLOSE_25"):  "Reward negative and exit signal moderate — partial exit de-risks position",
     ("none",             "FULL_CLOSE"):        "Reward strongly negative — exit fully to protect capital",
     ("none",             "HOLD"):              "No strong signal; hold and continue monitoring",
+    ("none",             "TIME_STOP_EXIT"):    "Max hold time reached and formula neutral — exit by time stop",
 }
 _REJECTED_REASONS = {
     "HOLD":             "Formula says hold; deferring to formula recommendation",

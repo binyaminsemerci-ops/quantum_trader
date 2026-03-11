@@ -1,0 +1,85 @@
+{
+  "total_records": 46,
+  "records_with_reward": 46,
+  "divergence_count": 0,
+  "divergence_rate_pct": 0.0,
+  "qwen3_available": 46,
+  "qwen3_agrees_formula": 46,
+  "qwen3_overrode_formula": 0,
+  "qwen3_agrees_live": 46,
+  "preferred_matches_live": 46,
+  "preferred_differs": 0,
+  "overall_reward": {
+    "count": 46,
+    "mean": -0.064924,
+    "stdev": 0.022412,
+    "min": -0.1143,
+    "max": -0.0389,
+    "win_count": 0,
+    "loss_count": 46,
+    "neutral_count": 0,
+    "win_rate": 0.0,
+    "loss_rate": 100.0
+  },
+  "reward_by_action": {
+    "HOLD": {
+      "count": 46,
+      "mean": -0.064924,
+      "stdev": 0.022412,
+      "min": -0.1143,
+      "max": -0.0389,
+      "win_count": 0,
+      "loss_count": 46,
+      "neutral_count": 0,
+      "win_rate": 0.0,
+      "loss_rate": 100.0
+    }
+  },
+  "reward_by_symbol": {
+    "ETHUSDT": {
+      "count": 46,
+      "mean": -0.064924,
+      "stdev": 0.022412,
+      "min": -0.1143,
+      "max": -0.0389,
+      "win_count": 0,
+      "loss_count": 46,
+      "neutral_count": 0,
+      "win_rate": 0.0,
+      "loss_rate": 100.0
+    }
+  },
+  "reward_by_side": {
+    "LONG": {
+      "count": 46,
+      "mean": -0.064924,
+      "stdev": 0.022412,
+      "min": -0.1143,
+      "max": -0.0389,
+      "win_count": 0,
+      "loss_count": 46,
+      "neutral_count": 0,
+      "win_rate": 0.0,
+      "loss_rate": 100.0
+    }
+  },
+  "regret": {
+    "none": 46,
+    "late_hold": 0,
+    "premature_close": 0,
+    "divergence_regret": 0,
+    "total": 46,
+    "actionable_rate_pct": 0.0,
+    "weighted_severity": 0.0
+  },
+  "preferred_action_freq": {
+    "HOLD": 46
+  },
+  "hold_duration_bands": {
+    "<5m": 46
+  },
+  "signals": [
+    "No significant negative patterns detected in this batch."
+  ],
+  "generated_utc": "2026-03-09T00:27:35.345516+00:00"
+}

@@ -164,6 +164,7 @@ class RewardEngine:
         )
 
         diverged = (snapshot.get("diverged") or "false").lower() == "true"
+        formula_action = (snapshot.get("formula_action") or "").upper().strip()
 
         # ── Reward ────────────────────────────────────────────────────────────
         raw_reward = self._raw_reward(live_action, exit_score, hold_duration_sec)
@@ -179,7 +180,12 @@ class RewardEngine:
         )
 
         # ── Preferred action ──────────────────────────────────────────────────
-        preferred_action = self._preferred_action(live_action, reward, exit_score)
+        preferred_action = self._preferred_action(
+            live_action, reward, exit_score,
+            diverged=diverged,
+            formula_action=formula_action,
+            regret_label=regret_label,
+        )
 
         return RewardResult(
             reward=round(reward, 6),
@@ -269,14 +275,39 @@ class RewardEngine:
         live_action: str,
         reward: float,
         exit_score: float,
+        *,
+        diverged: bool = False,
+        formula_action: str = "",
+        regret_label: str = "none",
     ) -> str:
         """
         Infer the action the agent should have taken.
 
-        If the agent held with large negative reward (missed a strong exit),
-        suggest a close action based on exit_score magnitude.
-        Otherwise the live_action was the correct (or best-available) choice.
+        PATCH-10A rules (counterfactual, applied before existing rules):
+          1. diverged=True + reward < 0 + formula_action present
+             → formula was right, Qwen3 was wrong; DPO target = formula_action
+          2. regret_label == premature_close + live_action == PARTIAL_CLOSE_25
+             + reward < -0.05
+             → position was closed too early; DPO target = HOLD
+
+        Existing rule (unchanged):
+          3. HOLD + reward < -0.3 → prescribe a close based on exit_score
         """
+        # Rule 1 (PATCH-10A): Qwen3 diverged and the outcome was bad → formula
+        # was the correct call.
+        if diverged and reward < 0.0 and formula_action:
+            return formula_action
+
+        # Rule 2 (PATCH-10A): premature harvest — position should have been held.
+        if (
+            regret_label == "premature_close"
+            and live_action == "PARTIAL_CLOSE_25"
+            and reward < -0.05
+        ):
+            return "HOLD"
+
+        # Rule 3 (pre-existing): HOLD with large negative reward and strong exit
+        # signal → the agent missed a clear exit.
         if live_action == "HOLD" and reward < -0.3:
             # Strong exit signal was present but ignored — prescribe a close.
             if exit_score >= 0.7:

@@ -1,0 +1,267 @@
+{
+  "total_records": 10000,
+  "records_with_reward": 0,
+  "divergence_count": 3,
+  "divergence_rate_pct": 0.03,
+  "qwen3_available": 0,
+  "qwen3_agrees_formula": 0,
+  "qwen3_overrode_formula": 0,
+  "qwen3_agrees_live": 0,
+  "preferred_matches_live": 9997,
+  "preferred_differs": 3,
+  "overall_reward": {
+    "count": 10000,
+    "mean": null,
+    "stdev": null,
+    "min": null,
+    "max": null,
+    "win_count": 0,
+    "loss_count": 0,
+    "neutral_count": 10000,
+    "win_rate": 0.0,
+    "loss_rate": 0.0
+  },
+  "reward_by_action": {
+    "HOLD": {
+      "count": 9407,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 9407,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "MOVE_TO_BREAKEVEN": {
+      "count": 413,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 413,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "PARTIAL_CLOSE_25": {
+      "count": 177,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 177,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "FULL_CLOSE": {
+      "count": 3,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 3,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    }
+  },
+  "reward_by_symbol": {
+    "LINKUSDT": {
+      "count": 1300,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 1300,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "ETHUSDT": {
+      "count": 957,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 957,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "XRPUSDT": {
+      "count": 1183,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 1183,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "BTCUSDT": {
+      "count": 1299,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 1299,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "BNBUSDT": {
+      "count": 1299,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 1299,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "AVAXUSDT": {
+      "count": 883,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 883,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "LTCUSDT": {
+      "count": 720,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 720,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "DOTUSDT": {
+      "count": 364,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 364,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "SOLUSDT": {
+      "count": 647,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 647,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "SUIUSDT": {
+      "count": 610,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 610,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "ADAUSDT": {
+      "count": 646,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 646,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "NEARUSDT": {
+      "count": 92,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 92,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    }
+  },
+  "reward_by_side": {
+    "SHORT": {
+      "count": 6561,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 6561,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    },
+    "LONG": {
+      "count": 3439,
+      "mean": null,
+      "stdev": null,
+      "min": null,
+      "max": null,
+      "win_count": 0,
+      "loss_count": 0,
+      "neutral_count": 3439,
+      "win_rate": 0.0,
+      "loss_rate": 0.0
+    }
+  },
+  "regret": {
+    "none": 9997,
+    "late_hold": 0,
+    "premature_close": 0,
+    "divergence_regret": 3,
+    "total": 10000,
+    "actionable_rate_pct": 0.03,
+    "weighted_severity": 0.0
+  },
+  "preferred_action_freq": {
+    "HOLD": 9410,
+    "MOVE_TO_BREAKEVEN": 413,
+    "PARTIAL_CLOSE_25": 177
+  },
+  "hold_duration_bands": {
+    "unknown": 10000
+  },
+  "signals": [
+    "No significant negative patterns detected in this batch."
+  ],
+  "generated_utc": "2026-03-09T00:04:01.920768+00:00"
+}

@@ -92,12 +92,14 @@ def _auto_select_model() -> str:
     try:
         import torch
         vram_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
-        if vram_gb < 8.0:
-            print(f"[train_dpo] VRAM={vram_gb:.1f}GB < 8 GB → using Qwen2.5-3B proxy model")
-            return "Qwen/Qwen2.5-3B-Instruct"
+        if vram_gb >= 14.0:
+            # Only use 7B when we have ample VRAM (A100, 4090, etc.)
+            print(f"[train_dpo] VRAM={vram_gb:.1f}GB >= 14 GB → using Qwen2.5-7B proxy model")
+            return "Qwen/Qwen2.5-7B-Instruct"
+        print(f"[train_dpo] VRAM={vram_gb:.1f}GB < 14 GB → using Qwen2.5-3B proxy model")
     except Exception:
-        pass
-    return "Qwen/Qwen2.5-7B-Instruct"
+        print("[train_dpo] CUDA detection failed — defaulting to Qwen2.5-3B proxy model")
+    return "Qwen/Qwen2.5-3B-Instruct"  # safe default for ≤12 GB cards
 
 BASE_MODEL = _auto_select_model()
 
@@ -118,18 +120,18 @@ _cfg             = _auto_config()
 LORA_RANK        = 8
 LORA_ALPHA       = 16
 LORA_DROPOUT     = 0.05
-DPO_BETA         = 0.5
+DPO_BETA         = 0.1   # lowered from 0.5 — more aggressive preference learning
 LEARNING_RATE    = 5e-5
 BATCH_SIZE       = _cfg["batch"]
 GRAD_ACCUM       = _cfg["accum"]
-NUM_EPOCHS       = 2
+NUM_EPOCHS       = 4     # increased from 2 — more passes over expanded dataset
 MAX_SEQ_LEN      = _cfg["seq"]
 MAX_PROMPT_LEN   = _cfg["prompt"]   # must be > system_prompt tokens (~300)
 WARMUP_RATIO     = 0.1
 WEIGHT_DECAY     = 0.01
-EVAL_STEPS       = 20
+EVAL_STEPS       = 50    # adjusted for larger dataset (~500 pairs x 4 epochs)
 LOGGING_STEPS    = 5
-SAVE_STEPS       = 40
+SAVE_STEPS       = 100
 
 
 def load_jsonl(path: pathlib.Path) -> Dataset:
