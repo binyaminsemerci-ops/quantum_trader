@@ -66,10 +66,19 @@ def build_geometry(state) -> GeometryResult:
 
 def build_regime(state) -> RegimeState:
     """Compute Phase 1 regime analysis from position state."""
-    probs = state.regime_probs or {"TREND": 0.33, "MR": 0.33, "CHOP": 0.34}
+    # PositionExitState doesn't carry regime_probs; use defaults based on regime_label
+    label = state.regime_label or "UNKNOWN"
+    default_probs = {"TREND": 0.33, "MR": 0.33, "CHOP": 0.34}
+    if label in ("BULL", "BEAR"):
+        default_probs = {"TREND": 0.70, "MR": 0.15, "CHOP": 0.15}
+    elif label == "RANGE":
+        default_probs = {"TREND": 0.15, "MR": 0.70, "CHOP": 0.15}
+    elif label == "VOLATILE":
+        default_probs = {"TREND": 0.15, "MR": 0.15, "CHOP": 0.70}
+
     return RegimeDriftEngine.summarize_regime_state(
         side=state.side,
-        regime_probs=probs,
+        regime_probs=default_probs,
         mu=state.trend_signal or 0.0,
         sigma=state.volatility_short or 0.0,
         ts=state.regime_confidence,
