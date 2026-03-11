@@ -1,0 +1,27 @@
+[Unit]
+Description=Quantum Trader - Exit Brain v1 (SHADOW MODE)
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+User=qt
+Group=qt
+WorkingDirectory=/home/qt/quantum_trader
+Environment="PYTHONPATH=/home/qt/quantum_trader"
+Environment="EXIT_BRAIN_INTERVAL=30"
+Environment="REDIS_HOST=127.0.0.1"
+Environment="REDIS_PORT=6379"
+Environment="REDIS_DB=0"
+ExecStart=/home/qt/quantum_trader_venv/bin/python3 -m microservices.exit_brain_v1.run_exit_brain
+Restart=always
+RestartSec=10
+TimeoutStopSec=15
+KillMode=mixed
+KillSignal=SIGTERM
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quantum-exit-brain-shadow
+
+[Install]
+WantedBy=multi-user.target
