@@ -19,6 +19,18 @@ from dataclasses import asdict
 from typing import Any, Dict, Optional
 
 from ..models.position_exit_state import PositionExitState
+from ..models.belief_state import BeliefState
+from ..models.hazard_assessment import HazardAssessment
+from ..models.action_candidate import ActionCandidate
+from ..models.policy_decision import PolicyDecision
+from ..models.exit_intent_candidate import ExitIntentCandidate
+from ..models.exit_intent_validation_result import ExitIntentValidationResult
+from ..models.decision_trace import DecisionTrace
+from ..models.trade_exit_obituary import TradeExitObituary
+from ..models.replay_evaluation_record import ReplayEvaluationRecord
+from ..models.offline_evaluation_summary import OfflineEvaluationSummary
+from ..models.tuning_recommendation import TuningRecommendation
+from ..models.calibration_artifact import CalibrationArtifact
 from ..engines.geometry_engine import GeometryResult
 from ..engines.regime_drift_engine import RegimeState
 
@@ -49,6 +61,28 @@ class ShadowPublisher:
     STREAM_STATE = "quantum:stream:exit.state.shadow"
     STREAM_GEOMETRY = "quantum:stream:exit.geometry.shadow"
     STREAM_REGIME = "quantum:stream:exit.regime.shadow"
+
+    # Phase 2 ensemble streams
+    STREAM_ENSEMBLE_RAW = "quantum:stream:exit.ensemble.raw.shadow"
+    STREAM_ENSEMBLE_AGG = "quantum:stream:exit.ensemble.agg.shadow"
+    STREAM_ENSEMBLE_DIAG = "quantum:stream:exit.ensemble.diag.shadow"
+
+    # Phase 3 reasoning streams
+    STREAM_BELIEF = "quantum:stream:exit.belief.shadow"
+    STREAM_HAZARD = "quantum:stream:exit.hazard.shadow"
+    STREAM_UTILITY = "quantum:stream:exit.utility.shadow"
+
+    # Phase 4 policy/orchestrator/validator streams
+    STREAM_POLICY = "quantum:stream:exit.policy.shadow"
+    STREAM_INTENT_CANDIDATE = "quantum:stream:exit.intent.candidate.shadow"
+    STREAM_INTENT_VALIDATION = "quantum:stream:exit.intent.validation.shadow"
+    STREAM_DECISION_TRACE = "quantum:stream:exit.decision.trace.shadow"
+
+    # Phase 5 replay/evaluation/tuning streams
+    STREAM_OBITUARY = "quantum:stream:exit.obituary.shadow"
+    STREAM_REPLAY_EVAL = "quantum:stream:exit.replay.eval.shadow"
+    STREAM_EVAL_SUMMARY = "quantum:stream:exit.eval.summary.shadow"
+    STREAM_TUNING_RECOMMENDATION = "quantum:stream:exit.tuning.recommendation.shadow"
 
     def __init__(self, redis_client) -> None:
         """
@@ -132,6 +166,193 @@ class ShadowPublisher:
             data["drift_transition"] = regime_state.drift.transition
 
         return self._xadd(self.STREAM_REGIME, data)
+
+    def publish_belief(self, belief: BeliefState) -> Optional[str]:
+        """
+        Publish a BeliefState to the shadow belief stream.
+
+        Args:
+            belief: Fused belief from belief_engine.
+
+        Returns:
+            Stream entry ID, or None on failure.
+        """
+        data = belief.to_dict()
+        flat = {k: ("" if v is None else str(v)) for k, v in data.items()}
+        return self._xadd(self.STREAM_BELIEF, flat)
+
+    def publish_hazard(self, hazard: HazardAssessment) -> Optional[str]:
+        """
+        Publish a HazardAssessment to the shadow hazard stream.
+
+        Args:
+            hazard: Multi-dimensional risk from hazard_engine.
+
+        Returns:
+            Stream entry ID, or None on failure.
+        """
+        data = hazard.to_dict()
+        flat = {k: ("" if v is None else str(v)) for k, v in data.items()}
+        return self._xadd(self.STREAM_HAZARD, flat)
+
+    def publish_utility(
+        self,
+        candidates: list,
+        position_id: str,
+        symbol: str,
+    ) -> Optional[str]:
+        """
+        Publish scored ActionCandidate list to the shadow utility stream.
+
+        Serialises the ranked list as a single stream entry with
+        the top action highlighted and full breakdown in JSON.
+
+        Args:
+            candidates: Sorted list of ActionCandidate from action_utility_engine.
+            position_id: Position identity.
+            symbol: Trading pair.
+
+        Returns:
+            Stream entry ID, or None on failure.
+        """
+        if not candidates:
+            return None
+
+        top = candidates[0]
+        data: Dict[str, str] = {
+            "position_id": position_id,
+            "symbol": symbol,
+            "top_action": top.action,
+            "top_net_utility": str(top.net_utility),
+            "top_rank": str(top.rank),
+            "top_rationale": top.rationale,
+            "candidate_count": str(len(candidates)),
+            "all_candidates": json.dumps([c.to_dict() for c in candidates]),
+            "ts": str(time.time()),
+        }
+        return self._xadd(self.STREAM_UTILITY, data)
+
+    def publish_policy_decision(self, decision: PolicyDecision) -> Optional[str]:
+        """
+        Publish a PolicyDecision to the shadow policy stream.
+
+        Args:
+            decision: Policy-evaluated exit decision.
+
+        Returns:
+            Stream entry ID, or None on failure.
+        """
+        data = decision.to_dict()
+        flat = {k: ("" if v is None else str(v)) for k, v in data.items()}
+        return self._xadd(self.STREAM_POLICY, flat)
+
+    def publish_intent_candidate(self, intent: ExitIntentCandidate) -> Optional[str]:
+        """
+        Publish an ExitIntentCandidate to the shadow intent candidate stream.
+
+        Args:
+            intent: Shadow exit intent candidate.
+
+        Returns:
+            Stream entry ID, or None on failure.
+        """
+        data = intent.to_dict()
+        flat = {k: ("" if v is None else str(v)) for k, v in data.items()}
+        return self._xadd(self.STREAM_INTENT_CANDIDATE, flat)
+
+    def publish_intent_validation(
+        self, result: ExitIntentValidationResult
+    ) -> Optional[str]:
+        """
+        Publish an ExitIntentValidationResult to the shadow validation stream.
+
+        Args:
+            result: Gateway validation result.
+
+        Returns:
+            Stream entry ID, or None on failure.
+        """
+        data = result.to_dict()
+        flat = {k: ("" if v is None else str(v)) for k, v in data.items()}
+        return self._xadd(self.STREAM_INTENT_VALIDATION, flat)
+
+    def publish_decision_trace(self, trace: DecisionTrace) -> Optional[str]:
+        """
+        Publish a DecisionTrace to the shadow decision trace stream.
+
+        Args:
+            trace: Full audit trail for one decision cycle.
+
+        Returns:
+            Stream entry ID, or None on failure.
+        """
+        data = trace.to_dict()
+        flat = {k: ("" if v is None else str(v)) for k, v in data.items()}
+        return self._xadd(self.STREAM_DECISION_TRACE, flat)
+
+    # ── Phase 5: Replay / Evaluation / Tuning ────────────────────────────
+
+    def publish_obituary(self, obituary: TradeExitObituary) -> Optional[str]:
+        """
+        Publish a TradeExitObituary to the shadow obituary stream.
+
+        Args:
+            obituary: Complete post-mortem of a position lifecycle.
+
+        Returns:
+            Stream entry ID, or None on failure.
+        """
+        data = obituary.to_dict()
+        flat = {k: ("" if v is None else str(v)) for k, v in data.items()}
+        return self._xadd(self.STREAM_OBITUARY, flat)
+
+    def publish_replay_evaluation(
+        self, record: ReplayEvaluationRecord
+    ) -> Optional[str]:
+        """
+        Publish a ReplayEvaluationRecord to the shadow replay eval stream.
+
+        Args:
+            record: Per-decision replay evaluation.
+
+        Returns:
+            Stream entry ID, or None on failure.
+        """
+        data = record.to_dict()
+        flat = {k: ("" if v is None else str(v)) for k, v in data.items()}
+        return self._xadd(self.STREAM_REPLAY_EVAL, flat)
+
+    def publish_evaluation_summary(
+        self, summary: OfflineEvaluationSummary
+    ) -> Optional[str]:
+        """
+        Publish an OfflineEvaluationSummary to the shadow eval summary stream.
+
+        Args:
+            summary: Aggregated evaluation metrics for one run.
+
+        Returns:
+            Stream entry ID, or None on failure.
+        """
+        data = summary.to_dict()
+        flat = {k: ("" if v is None else str(v)) for k, v in data.items()}
+        return self._xadd(self.STREAM_EVAL_SUMMARY, flat)
+
+    def publish_tuning_recommendation(
+        self, recommendation: TuningRecommendation
+    ) -> Optional[str]:
+        """
+        Publish a TuningRecommendation to the shadow tuning stream.
+
+        Args:
+            recommendation: Proposed parameter change.
+
+        Returns:
+            Stream entry ID, or None on failure.
+        """
+        data = recommendation.to_dict()
+        flat = {k: ("" if v is None else str(v)) for k, v in data.items()}
+        return self._xadd(self.STREAM_TUNING_RECOMMENDATION, flat)
 
     # ── Private ──────────────────────────────────────────────────────────
 
