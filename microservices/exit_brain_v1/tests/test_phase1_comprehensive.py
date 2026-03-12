@@ -442,7 +442,8 @@ class TestPositionStateBuilderExtended:
         redis.set_hash("quantum:marketstate:BTCUSDT", {
             "sigma": "0.02",
             "mu": "0.001",
-            "ts": str(time.time() - 200),  # older than 120s threshold
+            "ts": "0.023",
+            "ts_timestamp": str(time.time() - 200),  # older than 120s threshold
         })
 
         builder = PositionStateBuilder(redis)

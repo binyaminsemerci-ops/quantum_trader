@@ -133,7 +133,7 @@ class PositionStateBuilder:
         regime_probs: Optional[Dict[str, float]] = None
 
         if ms:
-            ms_ts = float(ms.get("ts", now))
+            ms_ts = float(ms.get("ts_timestamp", now))
             source_ts["market_state"] = ms_ts
             if now - ms_ts > MARKETSTATE_STALE_SEC:
                 flags.append("STALE_MARKETSTATE")
