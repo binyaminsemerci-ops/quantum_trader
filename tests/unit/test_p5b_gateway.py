@@ -518,8 +518,9 @@ class TestGatewayValidator:
         assert result.rule == "V7_ACTION"
 
     def test_v7_passes_all_whitelisted_actions(self):
-        """V7: FULL_CLOSE, PARTIAL_CLOSE_25, TIME_STOP_EXIT all pass."""
-        for action in ("FULL_CLOSE", "PARTIAL_CLOSE_25", "TIME_STOP_EXIT"):
+        """V7: all 7 whitelisted actions pass (incl. PATCH-11 LLM judge actions)."""
+        for action in ("FULL_CLOSE", "PARTIAL_CLOSE_25", "TIME_STOP_EXIT",
+                        "REDUCE_25", "REDUCE_50", "HARVEST_70_KEEP_30", "TOXICITY_UNWIND"):
             mock_redis = _make_mock_redis()
             validator = self._make_validator(mock_redis=mock_redis)
             msg = self._make_msg(action=action)

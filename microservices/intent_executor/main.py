@@ -59,8 +59,8 @@ BINANCE_BASE_URL = "https://testnet.binancefuture.com"
 # P2 Universe integration: ALLOWLIST now loaded dynamically in __init__
 # Legacy INTENT_EXECUTOR_ALLOWLIST used as fallback
 
-# Source allowlist (audit-safe: default only allows intent_bridge)
-SOURCE_ALLOWLIST_STR = os.getenv("INTENT_EXECUTOR_SOURCE_ALLOWLIST", "intent_bridge,apply_layer")
+# Source allowlist (audit-safe: default allows intent_bridge + exit_management_agent)
+SOURCE_ALLOWLIST_STR = os.getenv("INTENT_EXECUTOR_SOURCE_ALLOWLIST", "intent_bridge,apply_layer,exit_management_agent")
 SOURCE_ALLOWLIST = set([s.strip() for s in SOURCE_ALLOWLIST_STR.split(",") if s.strip()])
 
 # Manual lane configuration (separate stream, TTL-guarded)

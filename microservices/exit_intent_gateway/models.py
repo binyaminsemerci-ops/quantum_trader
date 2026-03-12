@@ -12,8 +12,17 @@ from typing import Optional
 
 # ── Action whitelist ─────────────────────────────────────────────────────────
 # Only these actions from exit_management_agent may be forwarded by the gateway.
+# Includes PATCH-11 LLM judge actions (REDUCE_25, REDUCE_50, HARVEST_70_KEEP_30, TOXICITY_UNWIND).
 GATEWAY_ACTION_WHITELIST: frozenset = frozenset(
-    {"FULL_CLOSE", "PARTIAL_CLOSE_25", "TIME_STOP_EXIT"}
+    {
+        "FULL_CLOSE",
+        "PARTIAL_CLOSE_25",
+        "TIME_STOP_EXIT",
+        "REDUCE_25",
+        "REDUCE_50",
+        "HARVEST_70_KEEP_30",
+        "TOXICITY_UNWIND",
+    }
 )
 
 # Required source field value in every exit.intent message.
