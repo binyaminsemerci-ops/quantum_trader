@@ -300,9 +300,11 @@ class ExitManagementAgent:
                 symbols = [s for s in symbols if s in allowlist]
             n_positions = len(symbols)
 
+            llm_budget = self._cfg.patch11_max_llm_per_cycle
+            llm_used = 0
             for symbol in symbols:
                 try:
-                    if self._cfg.patch11_mode != "off" and self._judge is not None:
+                    if self._cfg.patch11_mode != "off" and self._judge is not None and llm_used < llm_budget:
                         # PATCH-11: LLM judge pipeline on top of ensemble
                         pipeline_result = await self._ensemble.evaluate_for_judge(symbol)
                         if pipeline_result is None:
@@ -310,6 +312,7 @@ class ExitManagementAgent:
                             continue
                         bridge_result, pipeline_ctx = pipeline_result
                         judge_result = await self._judge.evaluate(ctx=pipeline_ctx)
+                        llm_used += 1
 
                         if self._cfg.patch11_mode == "shadow":
                             # Ensemble drives live; LLM logged as audit-only
