@@ -92,6 +92,7 @@ class GroqModelClient:
             "model": self._model,
             "temperature": self._temperature,
             "response_format": {"type": "json_object"},
+            "reasoning_effort": "none",
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content},

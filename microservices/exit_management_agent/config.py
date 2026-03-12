@@ -132,6 +132,7 @@ class AgentConfig:
     groq_conflict_threshold: float = 0.40                  # uncertainty above triggers second opinion
     groq_large_position_usdt: float = 5000.0               # second opinion on aggressive actions
     patch11_max_llm_per_cycle: int = 2                     # max positions evaluated by LLM per tick (TPM budget)
+    patch11_llm_every_n_cycles: int = 1                    # only run LLM every Nth cycle (1=every cycle)
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
@@ -345,6 +346,9 @@ class AgentConfig:
         patch11_max_llm_per_cycle = int(
             os.getenv("EXIT_AGENT_PATCH11_MAX_LLM_PER_CYCLE", "2")
         )
+        patch11_llm_every_n_cycles = max(1, int(
+            os.getenv("EXIT_AGENT_PATCH11_LLM_EVERY_N_CYCLES", "1")
+        ))
         if patch11_mode != "off":
             _log.warning(
                 "PATCH-11 LLM judge: mode=%s primary=%s fallback=%s "
@@ -419,6 +423,7 @@ class AgentConfig:
             groq_conflict_threshold=groq_conflict_threshold,
             groq_large_position_usdt=groq_large_position_usdt,
             patch11_max_llm_per_cycle=patch11_max_llm_per_cycle,
+            patch11_llm_every_n_cycles=patch11_llm_every_n_cycles,
         )
 
     def is_symbol_allowed(self, symbol: str) -> bool:

@@ -73,6 +73,7 @@ class ExitManagementAgent:
 
     def __init__(self, config: AgentConfig) -> None:
         self._cfg = config
+        self._cycle_count = 0  # PATCH-12e: LLM budget counter
         self._redis = RedisClient(
             config.redis_host,
             config.redis_port,
@@ -278,6 +279,7 @@ class ExitManagementAgent:
     async def _tick(self) -> None:
         loop_id = uuid.uuid4().hex[:12]
         tick_start = time.monotonic()
+        self._cycle_count += 1
 
         # 0. [PATCH-6] Refresh exit-ownership flag (no-op when disabled).
         await self._ownership_flag.write()
@@ -301,10 +303,11 @@ class ExitManagementAgent:
             n_positions = len(symbols)
 
             llm_budget = self._cfg.patch11_max_llm_per_cycle
+            llm_this_cycle = self._cycle_count % self._cfg.patch11_llm_every_n_cycles == 0
             llm_used = 0
             for symbol in symbols:
                 try:
-                    if self._cfg.patch11_mode != "off" and self._judge is not None and llm_used < llm_budget:
+                    if self._cfg.patch11_mode != "off" and self._judge is not None and llm_this_cycle and llm_used < llm_budget:
                         # PATCH-11: LLM judge pipeline on top of ensemble
                         pipeline_result = await self._ensemble.evaluate_for_judge(symbol)
                         if pipeline_result is None:
