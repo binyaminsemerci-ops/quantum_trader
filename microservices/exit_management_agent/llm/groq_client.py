@@ -81,10 +81,12 @@ class GroqModelClient:
                 now = time.monotonic()
                 wait = self._min_interval_sec - (now - self._last_call_ts)
                 if wait > 0.0:
-                    raise ThrottleSkipError(
-                        f"throttle: {wait:.2f}s remaining for model={self._model}"
+                    _log.debug(
+                        "[GroqClient] throttle wait %.2fs for model=%s",
+                        wait, self._model,
                     )
-                self._last_call_ts = now
+                    await asyncio.sleep(wait)
+                self._last_call_ts = time.monotonic()
 
         request_body = {
             "model": self._model,

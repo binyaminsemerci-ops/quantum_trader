@@ -126,8 +126,8 @@ class AgentConfig:
     groq_evaluator_model: str = "llama-3.3-70b-versatile"   # see EXIT_AGENT_GROQ_EVALUATOR_MODEL
     groq_primary_timeout_ms: int = 5000                    # clamped [200, 30000]
     groq_fallback_timeout_ms: int = 5000                   # clamped [200, 30000]
-    groq_primary_min_interval_sec: float = 3.0             # rate throttle
-    groq_fallback_min_interval_sec: float = 3.0            # rate throttle
+    groq_primary_min_interval_sec: float = 1.0             # rate throttle (sleep, not skip)
+    groq_fallback_min_interval_sec: float = 1.0            # rate throttle (sleep, not skip)
     groq_confidence_threshold: float = 0.60                # below triggers soft failure
     groq_conflict_threshold: float = 0.40                  # uncertainty above triggers second opinion
     groq_large_position_usdt: float = 5000.0               # second opinion on aggressive actions
@@ -327,10 +327,10 @@ class AgentConfig:
             200, min(30000, int(os.getenv("EXIT_AGENT_GROQ_FALLBACK_TIMEOUT_MS", "5000")))
         )
         groq_primary_min_interval_sec = max(
-            0.0, float(os.getenv("EXIT_AGENT_GROQ_PRIMARY_MIN_INTERVAL_SEC", "3.0"))
+            0.0, float(os.getenv("EXIT_AGENT_GROQ_PRIMARY_MIN_INTERVAL_SEC", "1.0"))
         )
         groq_fallback_min_interval_sec = max(
-            0.0, float(os.getenv("EXIT_AGENT_GROQ_FALLBACK_MIN_INTERVAL_SEC", "3.0"))
+            0.0, float(os.getenv("EXIT_AGENT_GROQ_FALLBACK_MIN_INTERVAL_SEC", "1.0"))
         )
         groq_confidence_threshold = float(
             os.getenv("EXIT_AGENT_GROQ_CONFIDENCE_THRESHOLD", "0.60")
