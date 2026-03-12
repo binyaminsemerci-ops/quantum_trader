@@ -59,7 +59,7 @@ from .scoring_guards import HardGuards
 # PATCH-11: LLM judge layer.
 from .llm.groq_client import GroqModelClient
 from .llm.judge_orchestrator import JudgeOrchestrator
-from .patch11_actions import PATCH11_QTY_MAP
+from .patch11_actions import EBV1_TO_PATCH11, PATCH11_QTY_MAP
 
 _log = logging.getLogger("exit_management_agent.main")
 
@@ -319,15 +319,16 @@ class ExitManagementAgent:
 
                         if self._cfg.patch11_mode == "shadow":
                             # Ensemble drives live; LLM logged as audit-only
+                            _p11_action = EBV1_TO_PATCH11.get(bridge_result.action, bridge_result.action)
                             dec = ExitDecision(
                                 snapshot=bridge_result.snap,
-                                action=bridge_result.action,
+                                action=_p11_action,
                                 reason=bridge_result.reason,
                                 urgency=bridge_result.urgency,
                                 R_net=bridge_result.snap.unrealized_pnl,
                                 confidence=bridge_result.confidence,
                                 suggested_sl=None,
-                                suggested_qty_fraction=ENSEMBLE_QTY_MAP.get(bridge_result.action),
+                                suggested_qty_fraction=PATCH11_QTY_MAP.get(_p11_action),
                                 dry_run=self._cfg.dry_run,
                                 score_state=None,
                             )
@@ -341,6 +342,7 @@ class ExitManagementAgent:
                             # LLM influences soft actions only
                             _HYBRID_SOFT = frozenset({"HOLD", "DEFENSIVE_HOLD", "REDUCE_25"})
                             if judge_result.action in _HYBRID_SOFT:
+                                _hybrid_driver = "llm"
                                 dec = ExitDecision(
                                     snapshot=bridge_result.snap,
                                     action=judge_result.action,
@@ -354,18 +356,26 @@ class ExitManagementAgent:
                                     score_state=None,
                                 )
                             else:
+                                _hybrid_driver = "ensemble"
+                                _p11_action = EBV1_TO_PATCH11.get(bridge_result.action, bridge_result.action)
                                 dec = ExitDecision(
                                     snapshot=bridge_result.snap,
-                                    action=bridge_result.action,
+                                    action=_p11_action,
                                     reason=bridge_result.reason,
                                     urgency=bridge_result.urgency,
                                     R_net=bridge_result.snap.unrealized_pnl,
                                     confidence=bridge_result.confidence,
                                     suggested_sl=None,
-                                    suggested_qty_fraction=ENSEMBLE_QTY_MAP.get(bridge_result.action),
+                                    suggested_qty_fraction=PATCH11_QTY_MAP.get(_p11_action),
                                     dry_run=self._cfg.dry_run,
                                     score_state=None,
                                 )
+                            _log.info(
+                                "PATCH11_HYBRID %s driver=%s ensemble=%s llm=%s(%s) final=%s conf=%.2f",
+                                symbol, _hybrid_driver, bridge_result.action,
+                                judge_result.action, judge_result.source,
+                                dec.action, dec.confidence,
+                            )
                         else:  # live
                             if bridge_result.urgency == "EMERGENCY":
                                 _urgency = "EMERGENCY"
@@ -393,15 +403,16 @@ class ExitManagementAgent:
                             n_hold += 1
                             continue
 
+                        _p11_action = EBV1_TO_PATCH11.get(result.action, result.action)
                         dec = ExitDecision(
                             snapshot=result.snap,
-                            action=result.action,
+                            action=_p11_action,
                             reason=result.reason,
                             urgency=result.urgency,
                             R_net=result.snap.unrealized_pnl,
                             confidence=result.confidence,
                             suggested_sl=None,
-                            suggested_qty_fraction=ENSEMBLE_QTY_MAP.get(result.action),
+                            suggested_qty_fraction=PATCH11_QTY_MAP.get(_p11_action),
                             dry_run=self._cfg.dry_run,
                             score_state=None,
                         )
