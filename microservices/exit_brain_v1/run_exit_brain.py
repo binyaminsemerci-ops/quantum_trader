@@ -4,6 +4,8 @@ run_exit_brain.py — Shadow-mode runner for Exit Brain v1.
 
 Connects to Redis, discovers open positions, and runs the full
 Phase 1→2→3→4 pipeline per position on a configurable loop interval.
+Phase 5 ReplayObituaryWriter runs periodically to build obituaries
+from completed decision traces.
 
 All output goes to shadow streams only. No execution writes.
 No apply.plan. No trade.intent. Fail-closed throughout.
@@ -34,6 +36,7 @@ from microservices.exit_brain_v1.engines.hazard_engine import HazardEngine
 from microservices.exit_brain_v1.engines.action_utility_engine import ActionUtilityEngine
 from microservices.exit_brain_v1.orchestrators.exit_agent_orchestrator import ExitAgentOrchestrator
 from microservices.exit_brain_v1.publishers.shadow_publisher import ShadowPublisher
+from microservices.exit_brain_v1.replay.replay_obituary_writer import ReplayObituaryWriter
 
 logging.basicConfig(
     level=logging.INFO,
@@ -46,6 +49,7 @@ LOOP_INTERVAL_SEC = int(os.environ.get("EXIT_BRAIN_INTERVAL", "30"))
 REDIS_HOST = os.environ.get("REDIS_HOST", "127.0.0.1")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
 REDIS_DB = int(os.environ.get("REDIS_DB", "0"))
+OBITUARY_INTERVAL_CYCLES = int(os.environ.get("EXIT_BRAIN_OBITUARY_INTERVAL", "10"))  # Run obituary writer every N cycles
 
 
 def build_geometry(state) -> GeometryResult:
@@ -197,6 +201,7 @@ def main() -> None:
     publisher = ShadowPublisher(r)
     adapter = EnsembleExitAdapter()
     aggregator = EnsembleAggregator()
+    obituary_writer = ReplayObituaryWriter(r, publisher)
 
     cycle_count = 0
     while True:
@@ -207,6 +212,16 @@ def main() -> None:
         n = run_cycle(r, builder, adapter, aggregator, publisher)
         elapsed = time.time() - t0
         logger.info("── Cycle %d done: %d positions in %.2fs ──", cycle_count, n, elapsed)
+
+        # ── Phase 5: Periodic obituary building ────────────────
+        if cycle_count % OBITUARY_INTERVAL_CYCLES == 0:
+            try:
+                window_end = time.time()
+                window_start = window_end - (OBITUARY_INTERVAL_CYCLES * LOOP_INTERVAL_SEC)
+                obits = obituary_writer.build_obituaries_for_window(window_start, window_end)
+                logger.info("[Phase5] Built %d obituaries for window", len(obits))
+            except Exception:
+                logger.exception("[Phase5] Obituary writer error — continuing")
 
         if args.once:
             logger.info("Single-shot mode — exiting")
