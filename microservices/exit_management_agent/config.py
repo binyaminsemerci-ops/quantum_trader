@@ -20,7 +20,7 @@ EXIT_AGENT_MAX_HOLD_SEC                   default: 14400 (4 hours)
 EXIT_AGENT_OWNERSHIP_TRANSFER_ENABLED     default: false (PATCH-6: gates active_flag writes)
 EXIT_AGENT_ACTIVE_FLAG_TTL_SEC            default: 30   (PATCH-6: ~6× tick interval; clamped [10,120])
 EXIT_AGENT_TESTNET_MODE                   default: false (PATCH-6: testnet guard)
-EXIT_AGENT_SCORING_MODE                   default: shadow (PATCH-7A: shadow|formula|ai)
+EXIT_AGENT_SCORING_MODE                   default: shadow (PATCH-7A: shadow|formula|ai|ensemble)
 EXIT_AGENT_QWEN3_ENDPOINT                 default: http://localhost:11434  (PATCH-7B: Ollama/OpenAI-compat)
 EXIT_AGENT_QWEN3_TIMEOUT_MS               default: 2000   (PATCH-7B: clamped [200, 10000])
 EXIT_AGENT_QWEN3_SHADOW                   default: true   (PATCH-7B: true=audit-only; false=Qwen3 drives live)
@@ -91,7 +91,7 @@ class AgentConfig:
     # "shadow"  — ScoringEngine runs alongside DecisionEngine; only legacy drives live path.
     # "formula" — ScoringEngine drives live path; DecisionEngine audited as comparison.
     # "ai"      — PATCH-7B: formula engine runs first, Qwen3 refines within allowed actions.
-    scoring_mode: str            # "shadow" | "formula" | "ai"
+    scoring_mode: str            # "shadow" | "formula" | "ai" | "ensemble"
     # PATCH-7B: Qwen3 inference config (defaults keep PATCH-7A tests buildable without changes).
     qwen3_endpoint: str = "http://localhost:11434"   # Ollama or OpenAI-compat base URL
     qwen3_timeout_ms: int = 2000                     # clamped [200, 10000]
@@ -154,10 +154,10 @@ class AgentConfig:
         testnet_mode = os.getenv("EXIT_AGENT_TESTNET_MODE", "false").lower().strip()
         # PATCH-7A: scoring_mode controls which exit engine drives live decisions.
         scoring_mode = os.getenv("EXIT_AGENT_SCORING_MODE", "shadow").lower().strip()
-        if scoring_mode not in ("shadow", "formula", "ai"):
+        if scoring_mode not in ("shadow", "formula", "ai", "ensemble"):
             _log.warning(
                 "EXIT_AGENT_SCORING_MODE=%r is not a recognised value — "
-                "defaulting to 'shadow'. Valid values: shadow | formula | ai",
+                "defaulting to 'shadow'. Valid values: shadow | formula | ai | ensemble",
                 scoring_mode,
             )
             scoring_mode = "shadow"
@@ -173,6 +173,12 @@ class AgentConfig:
                 "EXIT_AGENT_SCORING_MODE=ai — PATCH-7B active. "
                 "Formula engine runs first; Qwen3 refines within allowed actions. "
                 "qwen3_shadow will be logged at startup."
+            )
+        elif scoring_mode == "ensemble":
+            _log.warning(
+                "EXIT_AGENT_SCORING_MODE=ensemble — Exit Brain v1 ensemble active. "
+                "6 ML models + belief/hazard/utility/policy pipeline drives decisions. "
+                "Hard guards still fire first. Shadow streams published."
             )
 
         if ownership_transfer_enabled:

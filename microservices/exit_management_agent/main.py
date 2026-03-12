@@ -41,6 +41,7 @@ from typing import Optional
 from .audit import AuditWriter
 from .config import AgentConfig
 from .decision_engine import DecisionEngine
+from .ensemble_bridge import EnsembleBridge, ENSEMBLE_QTY_MAP
 from .heartbeat import HeartbeatWriter
 from .intent_writer import IntentWriter
 from .logging_utils import setup_logging
@@ -91,6 +92,11 @@ class ExitManagementAgent:
             api_key=config.qwen3_api_key,
             min_interval_sec=config.qwen3_min_interval_sec,
         )
+        # Ensemble bridge: wraps Exit Brain v1 pipeline (6 ML models + policy).
+        # Instantiated always but only called when scoring_mode="ensemble".
+        self._ensemble: Optional[EnsembleBridge] = None
+        if config.scoring_mode == "ensemble":
+            self._ensemble = EnsembleBridge(config.redis_host, config.redis_port)
         self._audit = AuditWriter(
             self._redis, config.audit_stream, config.metrics_stream,
             decision_ttl_sec=config.decision_ttl_sec,
@@ -152,7 +158,22 @@ class ExitManagementAgent:
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, self._handle_shutdown)
 
-        if self._cfg.scoring_mode == "ai":
+        if self._cfg.scoring_mode == "ensemble":
+            models_n = self._ensemble.n_models_loaded if self._ensemble else 0
+            _log.warning(
+                "EXIT_AGENT_START version=0.2.0 scoring_mode=ensemble "
+                "models_loaded=%d dry_run=%s live_writes=%s loop_sec=%.1f "
+                "audit_stream=%s metrics_stream=%s intent_stream=%s heartbeat_key=%s",
+                models_n,
+                self._cfg.dry_run,
+                self._cfg.live_writes_enabled,
+                self._cfg.loop_sec,
+                self._cfg.audit_stream,
+                self._cfg.metrics_stream,
+                self._cfg.intent_stream,
+                self._cfg.heartbeat_key,
+            )
+        elif self._cfg.scoring_mode == "ai":
             _log.warning(
                 "EXIT_AGENT_START version=0.1.0 patch=PATCH-7B "
                 "dry_run=%s live_writes=%s ownership_transfer=%s scoring_mode=%s "
@@ -238,45 +259,133 @@ class ExitManagementAgent:
 
         # 2. Fetch open positions.
         allowlist = self._cfg.symbol_allowlist if self._cfg.symbol_allowlist else None
-        positions = await self._position_source.get_open_positions(allowlist=allowlist)
 
         n_actionable = 0
         n_hold = 0
         errors = 0
+        n_positions = 0
 
-        # 3. Evaluate each position.
-        for snap in positions:
-            sym = snap.symbol
-            try:
-                # Track lower-bound age since first observation in this process.
-                if sym not in self._first_observed:
-                    self._first_observed[sym] = time.time()
-                age_sec = time.time() - self._first_observed[sym]
+        # ── Ensemble mode: use Exit Brain v1 pipeline ────────────────────────
+        if self._cfg.scoring_mode == "ensemble" and self._ensemble is not None:
+            symbols = await self._ensemble.discover_positions()
+            if allowlist:
+                symbols = [s for s in symbols if s in allowlist]
+            n_positions = len(symbols)
 
-                # a. Perceive.
-                p = await self._perception.compute(snap, age_sec)
+            for symbol in symbols:
+                try:
+                    result = await self._ensemble.evaluate(symbol)
+                    if result is None:
+                        n_hold += 1
+                        continue
 
-                # b. [PATCH-7A] Hard guards first — bypass scoring on emergency.
-                dec = HardGuards.evaluate(
-                    p,
-                    max_hold_sec=self._cfg.max_hold_sec,
-                    dry_run=self._cfg.dry_run,
-                )
+                    dec = ExitDecision(
+                        snapshot=result.snap,
+                        action=result.action,
+                        reason=result.reason,
+                        urgency=result.urgency,
+                        R_net=result.snap.unrealized_pnl,
+                        confidence=result.confidence,
+                        suggested_sl=None,
+                        suggested_qty_fraction=ENSEMBLE_QTY_MAP.get(result.action),
+                        dry_run=self._cfg.dry_run,
+                        score_state=None,
+                    )
 
-                if dec is None:
-                    # No hard guard fired — run scoring engine for audit data.
-                    score_state = self._scoring_engine.score(p)
+                    await self._audit.write_decision(dec, loop_id)
 
-                    if self._cfg.scoring_mode == "ai":
-                        # PATCH-7B: formula engine always runs first; Qwen3
-                        # refines only within the 4 allowed actions.
-                        # TIGHTEN_TRAIL and MOVE_TO_BREAKEVEN bypass Qwen3 —
-                        # those actions require exact SL price computation.
-                        _skip_qwen3 = score_state.formula_action in (
-                            "TIGHTEN_TRAIL", "MOVE_TO_BREAKEVEN"
-                        )
-                        if _skip_qwen3:
-                            # Use formula action directly; no model call.
+                    if self._cfg.live_writes_enabled and dec.is_actionable:
+                        await self._intent_writer.maybe_publish(dec, loop_id)
+
+                    if dec.is_actionable:
+                        n_actionable += 1
+                    else:
+                        n_hold += 1
+
+                except Exception as exc:
+                    _log.error("Error evaluating %s: %s", symbol, exc, exc_info=True)
+                    errors += 1
+
+            active = set(symbols)
+
+        # ── Standard modes: shadow / formula / ai ────────────────────────────
+        else:
+            positions = await self._position_source.get_open_positions(
+                allowlist=allowlist,
+            )
+            n_positions = len(positions)
+
+            # 3. Evaluate each position.
+            for snap in positions:
+                sym = snap.symbol
+                try:
+                    # Track lower-bound age since first observation in this process.
+                    if sym not in self._first_observed:
+                        self._first_observed[sym] = time.time()
+                    age_sec = time.time() - self._first_observed[sym]
+
+                    # a. Perceive.
+                    p = await self._perception.compute(snap, age_sec)
+
+                    # b. [PATCH-7A] Hard guards first — bypass scoring on emergency.
+                    dec = HardGuards.evaluate(
+                        p,
+                        max_hold_sec=self._cfg.max_hold_sec,
+                        dry_run=self._cfg.dry_run,
+                    )
+
+                    if dec is None:
+                        # No hard guard fired — run scoring engine for audit data.
+                        score_state = self._scoring_engine.score(p)
+
+                        if self._cfg.scoring_mode == "ai":
+                            # PATCH-7B: formula engine always runs first; Qwen3
+                            # refines only within the 4 allowed actions.
+                            _skip_qwen3 = score_state.formula_action in (
+                                "TIGHTEN_TRAIL", "MOVE_TO_BREAKEVEN"
+                            )
+                            if _skip_qwen3:
+                                dec = ExitDecision(
+                                    snapshot=snap,
+                                    action=score_state.formula_action,
+                                    reason=score_state.formula_reason,
+                                    urgency=score_state.formula_urgency,
+                                    R_net=p.R_net,
+                                    confidence=score_state.formula_confidence,
+                                    suggested_sl=None,
+                                    suggested_qty_fraction=FORMULA_QTY_MAP.get(
+                                        score_state.formula_action
+                                    ),
+                                    dry_run=self._cfg.dry_run,
+                                    score_state=score_state,
+                                    qwen3_result=None,
+                                )
+                            else:
+                                qr = await self._qwen3.evaluate(score_state)
+                                if self._cfg.qwen3_shadow or qr.fallback:
+                                    live_action = score_state.formula_action
+                                    live_confidence = score_state.formula_confidence
+                                    live_reason = score_state.formula_reason
+                                    live_urgency = score_state.formula_urgency
+                                else:
+                                    live_action = qr.action
+                                    live_confidence = qr.confidence
+                                    live_reason = qr.reason
+                                    live_urgency = score_state.formula_urgency
+                                dec = ExitDecision(
+                                    snapshot=snap,
+                                    action=live_action,
+                                    reason=live_reason,
+                                    urgency=live_urgency,
+                                    R_net=p.R_net,
+                                    confidence=live_confidence,
+                                    suggested_sl=None,
+                                    suggested_qty_fraction=FORMULA_QTY_MAP.get(live_action),
+                                    dry_run=self._cfg.dry_run,
+                                    score_state=score_state,
+                                    qwen3_result=qr,
+                                )
+                        elif self._cfg.scoring_mode == "formula":
                             dec = ExitDecision(
                                 snapshot=snap,
                                 action=score_state.formula_action,
@@ -290,88 +399,34 @@ class ExitManagementAgent:
                                 ),
                                 dry_run=self._cfg.dry_run,
                                 score_state=score_state,
-                                qwen3_result=None,
                             )
                         else:
-                            qr = await self._qwen3.evaluate(score_state)
-                            # shadow=True → formula drives the live path;
-                            # qwen3 output is audit-only.
-                            # shadow=False (or fallback) → qwen3 action drives live.
-                            # Fallback (qr.fallback=True) always uses formula regardless.
-                            if self._cfg.qwen3_shadow or qr.fallback:
-                                live_action = score_state.formula_action
-                                live_confidence = score_state.formula_confidence
-                                live_reason = score_state.formula_reason
-                                live_urgency = score_state.formula_urgency
-                            else:
-                                live_action = qr.action
-                                live_confidence = qr.confidence
-                                live_reason = qr.reason
-                                # urgency stays formula-derived (Qwen3 does not score urgency)
-                                live_urgency = score_state.formula_urgency
-                            dec = ExitDecision(
-                                snapshot=snap,
-                                action=live_action,
-                                reason=live_reason,
-                                urgency=live_urgency,
-                                R_net=p.R_net,
-                                confidence=live_confidence,
-                                suggested_sl=None,
-                                suggested_qty_fraction=FORMULA_QTY_MAP.get(live_action),
-                                dry_run=self._cfg.dry_run,
-                                score_state=score_state,
-                                qwen3_result=qr,
-                            )
-                    elif self._cfg.scoring_mode == "formula":
-                        # PATCH-7A formula mode: scoring engine drives live path.
-                        # [C-1 fix] qty_fraction and suggested_sl are derived from
-                        # FORMULA_QTY_MAP keyed on the formula action — they are
-                        # NOT inherited from the legacy DecisionEngine.  This
-                        # prevents FULL_CLOSE inheriting qty_fraction=0.25 from a
-                        # legacy PARTIAL_CLOSE_25, or PARTIAL_CLOSE_25 inheriting
-                        # qty_fraction=None from a legacy HOLD.
-                        dec = ExitDecision(
-                            snapshot=snap,
-                            action=score_state.formula_action,
-                            reason=score_state.formula_reason,
-                            urgency=score_state.formula_urgency,
-                            R_net=p.R_net,
-                            confidence=score_state.formula_confidence,
-                            suggested_sl=None,
-                            suggested_qty_fraction=FORMULA_QTY_MAP.get(
-                                score_state.formula_action
-                            ),
-                            dry_run=self._cfg.dry_run,
-                            score_state=score_state,
-                        )
+                            # Shadow mode (default).
+                            dec = self._decision.decide(p, dry_run=self._cfg.dry_run)
+                            dec.score_state = score_state
+
+                    # c. Audit (shadow write — always).
+                    await self._audit.write_decision(dec, loop_id)
+
+                    # d. [PATCH-5A] Publish to exit.intent if live writes enabled.
+                    if self._cfg.live_writes_enabled and dec.is_actionable:
+                        await self._intent_writer.maybe_publish(dec, loop_id)
+
+                    if dec.is_actionable:
+                        n_actionable += 1
                     else:
-                        # Shadow mode (default): legacy decision drives live path;
-                        # score_state is attached for audit comparison only.
-                        dec = self._decision.decide(p, dry_run=self._cfg.dry_run)
-                        dec.score_state = score_state
+                        n_hold += 1
 
-                # c. Audit (shadow write — always).
-                await self._audit.write_decision(dec, loop_id)
+                except Exception as exc:
+                    _log.error("Error evaluating %s: %s", sym, exc, exc_info=True)
+                    errors += 1
 
-                # d. [PATCH-5A] Publish to exit.intent if live writes enabled.
-                if self._cfg.live_writes_enabled and dec.is_actionable:
-                    await self._intent_writer.maybe_publish(dec, loop_id)
-
-                if dec.is_actionable:
-                    n_actionable += 1
-                else:
-                    n_hold += 1
-
-            except Exception as exc:
-                _log.error("Error evaluating %s: %s", sym, exc, exc_info=True)
-                errors += 1
-
-        # 4. Prune first_observed and detect closed positions (PATCH-8B).
-        active = {s.symbol for s in positions}
-        stale = [s for s in list(self._first_observed) if s not in active]
-        for sym in stale:
-            del self._first_observed[sym]
-            self._perception.forget(sym)
+            # Prune first_observed for closed positions.
+            active = {s.symbol for s in positions}
+            stale = [s for s in list(self._first_observed) if s not in active]
+            for sym in stale:
+                del self._first_observed[sym]
+                self._perception.forget(sym)
 
         # 4b. [PATCH-8B] Detect closed symbols and emit outcome events.
         await self._outcome_tracker.update(active)
@@ -380,7 +435,7 @@ class ExitManagementAgent:
         elapsed_ms = (time.monotonic() - tick_start) * 1000.0
         await self._audit.write_metrics(
             loop_id=loop_id,
-            n_positions=len(positions),
+            n_positions=n_positions,
             n_actionable=n_actionable,
             n_hold=n_hold,
             loop_ms=elapsed_ms,
@@ -390,7 +445,7 @@ class ExitManagementAgent:
         _log.info(
             "TICK loop=%s positions=%d actionable=%d hold=%d errors=%d ms=%.0f",
             loop_id,
-            len(positions),
+            n_positions,
             n_actionable,
             n_hold,
             errors,
