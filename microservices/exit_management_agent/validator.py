@@ -36,6 +36,11 @@ LIVE_ACTION_WHITELIST: frozenset = frozenset(
         "FULL_CLOSE",
         "PARTIAL_CLOSE_25",
         "TIME_STOP_EXIT",
+        # PATCH-11 LLM judge actions
+        "REDUCE_25",
+        "REDUCE_50",
+        "HARVEST_70_KEEP_30",
+        "TOXICITY_UNWIND",
     }
 )
 

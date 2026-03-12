@@ -69,6 +69,19 @@ class EnsembleBridgeResult:
     policy_blocks: list
 
 
+@dataclass(frozen=True)
+class EnsemblePipelineContext:
+    """Rich intermediate state for PATCH-11 LLM consumption."""
+    state: object          # PositionExitState
+    geometry: object       # GeometryResult
+    regime: object         # RegimeState
+    belief: object         # BeliefState
+    hazard: object         # HazardAssessment
+    candidates: list       # List[ActionCandidate]
+    decision: object       # PolicyDecision
+    agg_signal: object     # AggregatedExitSignal
+
+
 def _build_geometry(state) -> GeometryResult:
     """Compute Phase 1 geometry from position state."""
     peak_price = state.current_price
@@ -182,8 +195,20 @@ class EnsembleBridge:
         """
         return await asyncio.to_thread(self._evaluate_sync, symbol)
 
+    async def evaluate_for_judge(self, symbol: str) -> Optional[tuple]:
+        """Run pipeline and return (EnsembleBridgeResult, EnsemblePipelineContext) for PATCH-11.
+
+        Returns None on fail-closed.
+        """
+        return await asyncio.to_thread(self._run_pipeline, symbol)
+
     def _evaluate_sync(self, symbol: str) -> Optional[EnsembleBridgeResult]:
         """Synchronous pipeline — called from thread executor."""
+        pair = self._run_pipeline(symbol)
+        return pair[0] if pair is not None else None
+
+    def _run_pipeline(self, symbol: str) -> Optional[tuple]:
+        """Run full Phase 1→4 pipeline, return (EnsembleBridgeResult, EnsemblePipelineContext) or None."""
         t0 = time.monotonic()
 
         try:
@@ -256,7 +281,7 @@ class EnsembleBridge:
             hazard_emergency = hazard.composite_hazard >= 0.8
             urgency = _action_to_urgency(action, hazard_emergency)
 
-            return EnsembleBridgeResult(
+            bridge_result = EnsembleBridgeResult(
                 symbol=symbol,
                 action=action,
                 reason="; ".join(decision.explanation_tags) if decision.explanation_tags else action,
@@ -268,6 +293,17 @@ class EnsembleBridge:
                 n_models_loaded=len(self._adapter.loaded_models),
                 policy_blocks=list(decision.policy_blocks),
             )
+            ctx = EnsemblePipelineContext(
+                state=state,
+                geometry=geometry,
+                regime=regime,
+                belief=belief,
+                hazard=hazard,
+                candidates=candidates,
+                decision=decision,
+                agg_signal=agg_signal,
+            )
+            return (bridge_result, ctx)
 
         except Exception:
             _log.exception("[EnsembleBridge] %s: unhandled error — fail-closed", symbol)

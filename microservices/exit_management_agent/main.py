@@ -56,6 +56,10 @@ from .reward_engine import RewardEngine
 from .qwen3_layer import Qwen3Layer
 from .scoring_engine import FORMULA_QTY_MAP, ScoringEngine
 from .scoring_guards import HardGuards
+# PATCH-11: LLM judge layer.
+from .llm.groq_client import GroqModelClient
+from .llm.judge_orchestrator import JudgeOrchestrator
+from .patch11_actions import PATCH11_QTY_MAP
 
 _log = logging.getLogger("exit_management_agent.main")
 
@@ -97,6 +101,30 @@ class ExitManagementAgent:
         self._ensemble: Optional[EnsembleBridge] = None
         if config.scoring_mode == "ensemble":
             self._ensemble = EnsembleBridge(config.redis_host, config.redis_port)
+        # PATCH-11: LLM judge orchestrator — only when mode != "off" and ensemble active.
+        self._judge: Optional[JudgeOrchestrator] = None
+        if config.patch11_mode != "off" and self._ensemble is not None:
+            _primary_client = GroqModelClient(
+                model=config.groq_primary_model,
+                endpoint=config.groq_endpoint,
+                api_key=config.groq_api_key,
+                timeout_ms=config.groq_primary_timeout_ms,
+                min_interval_sec=config.groq_primary_min_interval_sec,
+            )
+            _fallback_client = GroqModelClient(
+                model=config.groq_fallback_model,
+                endpoint=config.groq_endpoint,
+                api_key=config.groq_api_key,
+                timeout_ms=config.groq_fallback_timeout_ms,
+                min_interval_sec=config.groq_fallback_min_interval_sec,
+            )
+            self._judge = JudgeOrchestrator(
+                primary=_primary_client,
+                fallback=_fallback_client,
+                confidence_threshold=config.groq_confidence_threshold,
+                conflict_threshold=config.groq_conflict_threshold,
+                large_position_usdt=config.groq_large_position_usdt,
+            )
         self._audit = AuditWriter(
             self._redis, config.audit_stream, config.metrics_stream,
             decision_ttl_sec=config.decision_ttl_sec,
@@ -274,23 +302,103 @@ class ExitManagementAgent:
 
             for symbol in symbols:
                 try:
-                    result = await self._ensemble.evaluate(symbol)
-                    if result is None:
-                        n_hold += 1
-                        continue
+                    if self._cfg.patch11_mode != "off" and self._judge is not None:
+                        # PATCH-11: LLM judge pipeline on top of ensemble
+                        pipeline_result = await self._ensemble.evaluate_for_judge(symbol)
+                        if pipeline_result is None:
+                            n_hold += 1
+                            continue
+                        bridge_result, pipeline_ctx = pipeline_result
+                        judge_result = await self._judge.evaluate(ctx=pipeline_ctx)
 
-                    dec = ExitDecision(
-                        snapshot=result.snap,
-                        action=result.action,
-                        reason=result.reason,
-                        urgency=result.urgency,
-                        R_net=result.snap.unrealized_pnl,
-                        confidence=result.confidence,
-                        suggested_sl=None,
-                        suggested_qty_fraction=ENSEMBLE_QTY_MAP.get(result.action),
-                        dry_run=self._cfg.dry_run,
-                        score_state=None,
-                    )
+                        if self._cfg.patch11_mode == "shadow":
+                            # Ensemble drives live; LLM logged as audit-only
+                            dec = ExitDecision(
+                                snapshot=bridge_result.snap,
+                                action=bridge_result.action,
+                                reason=bridge_result.reason,
+                                urgency=bridge_result.urgency,
+                                R_net=bridge_result.snap.unrealized_pnl,
+                                confidence=bridge_result.confidence,
+                                suggested_sl=None,
+                                suggested_qty_fraction=ENSEMBLE_QTY_MAP.get(bridge_result.action),
+                                dry_run=self._cfg.dry_run,
+                                score_state=None,
+                            )
+                            _log.info(
+                                "PATCH11_SHADOW %s ensemble=%s llm=%s(%s) conf=%.2f",
+                                symbol, bridge_result.action,
+                                judge_result.action, judge_result.source,
+                                judge_result.confidence,
+                            )
+                        elif self._cfg.patch11_mode == "hybrid":
+                            # LLM influences soft actions only
+                            _HYBRID_SOFT = frozenset({"HOLD", "DEFENSIVE_HOLD", "REDUCE_25"})
+                            if judge_result.action in _HYBRID_SOFT:
+                                dec = ExitDecision(
+                                    snapshot=bridge_result.snap,
+                                    action=judge_result.action,
+                                    reason=f"LLM:{judge_result.source}",
+                                    urgency=bridge_result.urgency,
+                                    R_net=bridge_result.snap.unrealized_pnl,
+                                    confidence=judge_result.confidence,
+                                    suggested_sl=None,
+                                    suggested_qty_fraction=PATCH11_QTY_MAP.get(judge_result.action),
+                                    dry_run=self._cfg.dry_run,
+                                    score_state=None,
+                                )
+                            else:
+                                dec = ExitDecision(
+                                    snapshot=bridge_result.snap,
+                                    action=bridge_result.action,
+                                    reason=bridge_result.reason,
+                                    urgency=bridge_result.urgency,
+                                    R_net=bridge_result.snap.unrealized_pnl,
+                                    confidence=bridge_result.confidence,
+                                    suggested_sl=None,
+                                    suggested_qty_fraction=ENSEMBLE_QTY_MAP.get(bridge_result.action),
+                                    dry_run=self._cfg.dry_run,
+                                    score_state=None,
+                                )
+                        else:  # live
+                            if bridge_result.urgency == "EMERGENCY":
+                                _urgency = "EMERGENCY"
+                            elif judge_result.action in ("FULL_CLOSE", "TOXICITY_UNWIND"):
+                                _urgency = "HIGH"
+                            elif judge_result.action in ("REDUCE_50", "HARVEST_70_KEEP_30"):
+                                _urgency = "MEDIUM"
+                            else:
+                                _urgency = "LOW"
+                            dec = ExitDecision(
+                                snapshot=bridge_result.snap,
+                                action=judge_result.action,
+                                reason=f"LLM:{judge_result.source}",
+                                urgency=_urgency,
+                                R_net=bridge_result.snap.unrealized_pnl,
+                                confidence=judge_result.confidence,
+                                suggested_sl=None,
+                                suggested_qty_fraction=judge_result.qty_fraction,
+                                dry_run=self._cfg.dry_run,
+                                score_state=None,
+                            )
+                    else:
+                        result = await self._ensemble.evaluate(symbol)
+                        if result is None:
+                            n_hold += 1
+                            continue
+
+                        dec = ExitDecision(
+                            snapshot=result.snap,
+                            action=result.action,
+                            reason=result.reason,
+                            urgency=result.urgency,
+                            R_net=result.snap.unrealized_pnl,
+                            confidence=result.confidence,
+                            suggested_sl=None,
+                            suggested_qty_fraction=ENSEMBLE_QTY_MAP.get(result.action),
+                            dry_run=self._cfg.dry_run,
+                            score_state=None,
+                        )
 
                     await self._audit.write_decision(dec, loop_id)
 

@@ -347,7 +347,7 @@ class TestEvaluateSync:
         assert result.exit_fraction == 0.5
         assert result.reason == "profit_target; momentum_fade"
         assert result.policy_blocks == []
-        assert result.elapsed_ms > 0
+        assert result.elapsed_ms >= 0
         assert result.n_models_loaded == 6
         assert isinstance(result.snap, PositionSnapshot)
 

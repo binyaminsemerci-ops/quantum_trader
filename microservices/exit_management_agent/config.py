@@ -116,6 +116,21 @@ class AgentConfig:
     reward_engine_enabled: bool = True                 # see EXIT_AGENT_REWARD_ENGINE_ENABLED
     reward_late_hold_threshold_sec: int = 3600         # see EXIT_AGENT_REWARD_LATE_HOLD_THRESHOLD_SEC
     reward_premature_close_threshold_sec: int = 300    # see EXIT_AGENT_REWARD_PREMATURE_CLOSE_THRESHOLD_SEC
+    # PATCH-11: Groq-backed LLM judge layer config.
+    # off=no LLM, shadow=audit-only, hybrid=soft actions, live=LLM drives decision.
+    patch11_mode: str = "off"                              # see EXIT_AGENT_PATCH11_MODE
+    groq_endpoint: str = "https://api.groq.com/openai/v1" # see EXIT_AGENT_GROQ_ENDPOINT
+    groq_api_key: str = ""                                 # NEVER logged; see EXIT_AGENT_GROQ_API_KEY
+    groq_primary_model: str = "qwen/qwen3-32b"             # see EXIT_AGENT_GROQ_PRIMARY_MODEL
+    groq_fallback_model: str = "openai/gpt-oss-20b"        # see EXIT_AGENT_GROQ_FALLBACK_MODEL
+    groq_evaluator_model: str = "llama-3.3-70b-versatile"   # see EXIT_AGENT_GROQ_EVALUATOR_MODEL
+    groq_primary_timeout_ms: int = 5000                    # clamped [200, 30000]
+    groq_fallback_timeout_ms: int = 5000                   # clamped [200, 30000]
+    groq_primary_min_interval_sec: float = 3.0             # rate throttle
+    groq_fallback_min_interval_sec: float = 3.0            # rate throttle
+    groq_confidence_threshold: float = 0.60                # below triggers soft failure
+    groq_conflict_threshold: float = 0.40                  # uncertainty above triggers second opinion
+    groq_large_position_usdt: float = 5000.0               # second opinion on aggressive actions
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
@@ -283,6 +298,57 @@ class AgentConfig:
         if reward_premature_close_threshold_sec < 0:
             reward_premature_close_threshold_sec = 0
 
+        # PATCH-11: LLM judge config.
+        patch11_mode = os.getenv("EXIT_AGENT_PATCH11_MODE", "off").lower().strip()
+        if patch11_mode not in ("off", "shadow", "hybrid", "live"):
+            _log.warning(
+                "EXIT_AGENT_PATCH11_MODE=%r invalid — defaulting to 'off'. "
+                "Valid: off | shadow | hybrid | live",
+                patch11_mode,
+            )
+            patch11_mode = "off"
+        groq_endpoint = os.getenv(
+            "EXIT_AGENT_GROQ_ENDPOINT", "https://api.groq.com/openai/v1"
+        )
+        groq_api_key = os.getenv("EXIT_AGENT_GROQ_API_KEY", "")
+        groq_primary_model = os.getenv(
+            "EXIT_AGENT_GROQ_PRIMARY_MODEL", "qwen/qwen3-32b"
+        )
+        groq_fallback_model = os.getenv(
+            "EXIT_AGENT_GROQ_FALLBACK_MODEL", "openai/gpt-oss-20b"
+        )
+        groq_evaluator_model = os.getenv(
+            "EXIT_AGENT_GROQ_EVALUATOR_MODEL", "llama-3.3-70b-versatile"
+        )
+        groq_primary_timeout_ms = max(
+            200, min(30000, int(os.getenv("EXIT_AGENT_GROQ_PRIMARY_TIMEOUT_MS", "5000")))
+        )
+        groq_fallback_timeout_ms = max(
+            200, min(30000, int(os.getenv("EXIT_AGENT_GROQ_FALLBACK_TIMEOUT_MS", "5000")))
+        )
+        groq_primary_min_interval_sec = max(
+            0.0, float(os.getenv("EXIT_AGENT_GROQ_PRIMARY_MIN_INTERVAL_SEC", "3.0"))
+        )
+        groq_fallback_min_interval_sec = max(
+            0.0, float(os.getenv("EXIT_AGENT_GROQ_FALLBACK_MIN_INTERVAL_SEC", "3.0"))
+        )
+        groq_confidence_threshold = float(
+            os.getenv("EXIT_AGENT_GROQ_CONFIDENCE_THRESHOLD", "0.60")
+        )
+        groq_conflict_threshold = float(
+            os.getenv("EXIT_AGENT_GROQ_CONFLICT_THRESHOLD", "0.40")
+        )
+        groq_large_position_usdt = float(
+            os.getenv("EXIT_AGENT_GROQ_LARGE_POSITION_USDT", "5000.0")
+        )
+        if patch11_mode != "off":
+            _log.warning(
+                "PATCH-11 LLM judge: mode=%s primary=%s fallback=%s "
+                "primary_timeout=%dms fallback_timeout=%dms",
+                patch11_mode, groq_primary_model, groq_fallback_model,
+                groq_primary_timeout_ms, groq_fallback_timeout_ms,
+            )
+
         if scoring_mode == "ai":
             _log.warning(
                 "PATCH-7B Qwen3 config: endpoint=%s model=%s timeout_ms=%d shadow=%s",
@@ -335,6 +401,19 @@ class AgentConfig:
             reward_engine_enabled=reward_engine_enabled,
             reward_late_hold_threshold_sec=reward_late_hold_threshold_sec,
             reward_premature_close_threshold_sec=reward_premature_close_threshold_sec,
+            patch11_mode=patch11_mode,
+            groq_endpoint=groq_endpoint,
+            groq_api_key=groq_api_key,
+            groq_primary_model=groq_primary_model,
+            groq_fallback_model=groq_fallback_model,
+            groq_evaluator_model=groq_evaluator_model,
+            groq_primary_timeout_ms=groq_primary_timeout_ms,
+            groq_fallback_timeout_ms=groq_fallback_timeout_ms,
+            groq_primary_min_interval_sec=groq_primary_min_interval_sec,
+            groq_fallback_min_interval_sec=groq_fallback_min_interval_sec,
+            groq_confidence_threshold=groq_confidence_threshold,
+            groq_conflict_threshold=groq_conflict_threshold,
+            groq_large_position_usdt=groq_large_position_usdt,
         )
 
     def is_symbol_allowed(self, symbol: str) -> bool:
