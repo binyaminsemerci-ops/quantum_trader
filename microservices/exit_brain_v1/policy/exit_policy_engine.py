@@ -254,7 +254,7 @@ class ExitPolicyEngine:
     ) -> List[str]:
         """Check if upstream data is fresh enough."""
         blocks: List[str] = []
-        if state.feature_freshness_seconds > PC.MAX_UPSTREAM_AGE_SEC:
+        if state.realtime_freshness_seconds > PC.MAX_UPSTREAM_AGE_SEC:
             blocks.append(RC.STALE_UPSTREAM_DATA)
         return blocks
 

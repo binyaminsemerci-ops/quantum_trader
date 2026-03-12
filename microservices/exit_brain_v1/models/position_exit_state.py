@@ -102,6 +102,10 @@ class PositionExitState:
         """Seconds since position opened."""
         return max(0.0, time.time() - self.open_timestamp)
 
+    # Sources whose freshness gates the policy decision.
+    # Batch sources (p33_snapshot) are tracked via data_quality_flags instead.
+    REALTIME_FRESHNESS_KEYS: frozenset = frozenset({"market_state", "meta_regime"})
+
     @property
     def feature_freshness_seconds(self) -> float:
         """Age of the oldest source timestamp (worst-case staleness)."""
@@ -109,6 +113,16 @@ class PositionExitState:
             return float("inf")
         now = time.time()
         return max(now - ts for ts in self.source_timestamps.values())
+
+    @property
+    def realtime_freshness_seconds(self) -> float:
+        """Age of the oldest real-time source (excludes batch sources like p33_snapshot)."""
+        now = time.time()
+        rt = {k: v for k, v in self.source_timestamps.items()
+              if k in self.REALTIME_FRESHNESS_KEYS}
+        if not rt:
+            return float("inf")
+        return max(now - ts for ts in rt.values())
 
     # ── Validation ───────────────────────────────────────────────────────
 

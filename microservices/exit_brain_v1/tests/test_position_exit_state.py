@@ -172,6 +172,23 @@ class TestComputedProperties:
         state = _make_valid_state(source_timestamps={})
         assert state.feature_freshness_seconds == float("inf")
 
+    def test_realtime_freshness_excludes_p33(self):
+        """p33_snapshot should not affect realtime_freshness_seconds."""
+        now = time.time()
+        state = _make_valid_state(source_timestamps={
+            "p33_snapshot": now - 5000,
+            "market_state": now - 20,
+            "meta_regime": now - 30,
+        })
+        # realtime should only see market_state and meta_regime
+        assert state.realtime_freshness_seconds < 40
+        # feature_freshness (worst-case) should still see p33
+        assert state.feature_freshness_seconds >= 4999
+
+    def test_realtime_freshness_no_realtime_sources(self):
+        state = _make_valid_state(source_timestamps={"p33_snapshot": time.time() - 10})
+        assert state.realtime_freshness_seconds == float("inf")
+
 
 class TestSerialization:
     """to_dict round-trip."""

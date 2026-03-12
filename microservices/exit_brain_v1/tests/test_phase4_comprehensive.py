@@ -91,7 +91,7 @@ def _make_state(**overrides) -> PositionExitState:
         unrealized_pnl=100.0,
         unrealized_pnl_pct=0.02,
         open_timestamp=now - 3600,
-        source_timestamps={"p33_snapshot": now - 5},
+        source_timestamps={"p33_snapshot": now - 5, "market_state": now - 5, "meta_regime": now - 5},
         data_quality_flags=[],
         shadow_only=True,
         peak_unrealized_pnl=120.0,
@@ -711,7 +711,7 @@ class TestPolicyEngineStaleness:
     def test_stale_data_forces_hold(self):
         engine = ExitPolicyEngine()
         state = _make_state(
-            source_timestamps={"p33_snapshot": time.time() - 200},
+            source_timestamps={"market_state": time.time() - 200},
         )
         pd = engine.evaluate(
             _make_candidates(), _make_belief(), _make_hazard(), state,
@@ -723,7 +723,22 @@ class TestPolicyEngineStaleness:
     def test_fresh_data_does_not_block(self):
         engine = ExitPolicyEngine()
         state = _make_state(
-            source_timestamps={"p33_snapshot": time.time() - 10},
+            source_timestamps={"market_state": time.time() - 10},
+        )
+        pd = engine.evaluate(
+            _make_candidates(), _make_belief(), _make_hazard(), state,
+        )
+        assert RC.STALE_UPSTREAM_DATA not in pd.policy_blocks
+
+    def test_stale_p33_alone_does_not_block(self):
+        """p33_snapshot is a batch source — staleness should NOT trigger policy block."""
+        engine = ExitPolicyEngine()
+        state = _make_state(
+            source_timestamps={
+                "p33_snapshot": time.time() - 5000,
+                "market_state": time.time() - 10,
+                "meta_regime": time.time() - 15,
+            },
         )
         pd = engine.evaluate(
             _make_candidates(), _make_belief(), _make_hazard(), state,
