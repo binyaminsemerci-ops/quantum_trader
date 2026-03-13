@@ -761,6 +761,16 @@ class IntentExecutor:
                 entry_price = 0.0
                 unrealized_pnl = 0.0
                 filled_qty = 0.0
+                # Clean up stale snapshot/position keys to unblock intent-bridge
+                try:
+                    snap_key = f"quantum:position:snapshot:{symbol}"
+                    pos_key = f"quantum:position:{symbol}"
+                    d_snap = self.redis.delete(snap_key)
+                    d_pos = self.redis.delete(pos_key)
+                    if d_snap or d_pos:
+                        logger.info(f"🧹 FLAT CLEANUP: {symbol} deleted snapshot={d_snap} position={d_pos}")
+                except Exception as ce:
+                    logger.error(f"❌ Flat cleanup failed for {symbol}: {ce}")
             elif position_amt > 0:
                 ledger_side = "LONG"
             else:
@@ -1317,7 +1327,18 @@ class IntentExecutor:
                 final_filled = order_result.get("filled_qty", close_qty)
                 logger.info(f"✅ HARVEST SUCCESS: {symbol} closed {final_filled:.4f} orderId={order_id}")
                 self._inc_redis_counter("harvest_executed")
-                
+
+                # Clean up stale position keys to unblock intent-bridge
+                try:
+                    _hc_snap = f"quantum:position:snapshot:{symbol}"
+                    _hc_pos = f"quantum:position:{symbol}"
+                    _hc_ds = self.redis.delete(_hc_snap)
+                    _hc_dp = self.redis.delete(_hc_pos)
+                    if _hc_ds or _hc_dp:
+                        logger.info(f"HARVEST CLEANUP: {symbol} deleted snapshot={_hc_ds} position={_hc_dp}")
+                except Exception as _hc_e:
+                    logger.error(f"Harvest cleanup failed for {symbol}: {_hc_e}")
+
                 # 📤 Publish trade.closed event for SimpleCLM/calibration pipeline
                 try:
                     close_event = {
