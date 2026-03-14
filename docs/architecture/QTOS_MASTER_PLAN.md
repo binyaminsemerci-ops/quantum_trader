@@ -642,7 +642,7 @@ still contain all original values until OP 4 strips them.
 ---
 
 ## OP 4: FIX SERVICE FILES & DEPLOY
-### Status: [ ] NOT STARTED
+### Status: [x] DONE 2026-03-14
 ### Depends on: OP 2 (code pushed), OP 3 (venv ready)
 
 Update all 42 remaining service files on VPS:
@@ -651,13 +651,13 @@ Update all 42 remaining service files on VPS:
 - Strip duplicated values from per-service env files
 - Deploy the fixed source code
 
-#### Step 4.1: Git pull on VPS [ ]
+#### Step 4.1: Git pull on VPS [x]
 ```bash
 cd /home/qt/quantum_trader
 git pull origin main
 ```
 
-#### Step 4.2: Fix the 7 services using ai-engine venv [ ]
+#### Step 4.2: Fix the 7 services using ai-engine venv [x]
 ```bash
 # These services need ExecStart changed from /opt/quantum/venvs/ai-engine/bin/python*
 # to /home/qt/quantum_trader_venv/bin/python:
@@ -677,7 +677,7 @@ for svc in "${SERVICES[@]}"; do
 done
 ```
 
-#### Step 4.3: Fix market-publisher [ ]
+#### Step 4.3: Fix market-publisher [x]
 ```bash
 # market-publisher runs from /opt/quantum/ops/market/market_publisher.py
 # Change to /home/qt/quantum_trader/ops/market/market_publisher.py
@@ -688,7 +688,7 @@ sed -i 's|WorkingDirectory=/opt/quantum/ops/market|WorkingDirectory=/home/qt/qua
   /etc/systemd/system/quantum-market-publisher.service
 ```
 
-#### Step 4.4: Fix rl-trainer [ ]
+#### Step 4.4: Fix rl-trainer [x]
 ```bash
 # rl-trainer uses /opt/quantum/bin/start_rl_trainer.sh and WorkingDirectory=/opt/quantum
 sed -i 's|/opt/quantum/bin/start_rl_trainer.sh|/home/qt/quantum_trader/bin/start_rl_trainer.sh|g' \
@@ -697,7 +697,7 @@ sed -i 's|WorkingDirectory=/opt/quantum$|WorkingDirectory=/home/qt/quantum_trade
   /etc/systemd/system/quantum-rl-trainer.service
 ```
 
-#### Step 4.5: Fix all remaining services to use main venv [ ]
+#### Step 4.5: Fix all remaining services to use main venv [x]
 ```bash
 # Any service still using /usr/bin/python3 or other Python paths:
 for f in /etc/systemd/system/quantum-*.service; do
@@ -709,7 +709,7 @@ done
 systemctl daemon-reload
 ```
 
-#### Step 4.6: Fix timer-triggered service files [ ]
+#### Step 4.6: Fix timer-triggered service files [x]
 ```bash
 # 5 timer service files also reference /opt/quantum:
 TIMER_SERVICES=(
@@ -730,7 +730,7 @@ for svc in "${TIMER_SERVICES[@]}"; do
 done
 ```
 
-#### Step 4.7: Add shared EnvironmentFile directives to all services [ ]
+#### Step 4.7: Add shared EnvironmentFile directives to all services [x]
 ```bash
 # Add the 3 shared env files to every quantum service that doesn't already have them
 for f in /etc/systemd/system/quantum-*.service; do
@@ -752,7 +752,7 @@ for f in /etc/systemd/system/quantum-*.service; do
 done
 ```
 
-#### Step 4.8: Add Restart=always to all 42 running services [ ]
+#### Step 4.8: Add Restart=always to all 42 running services [x]
 ```bash
 # While we're editing service files anyway — ensure ALL 42 have a restart policy.
 # This costs nothing extra and prevents silent service deaths.
@@ -771,7 +771,7 @@ for f in /etc/systemd/system/quantum-*.service; do
 done
 ```
 
-#### Step 4.9: Strip duplicated values from per-service env files [ ]
+#### Step 4.9: Strip duplicated values from per-service env files [x]
 ```bash
 # Remove values that are now in shared env files from per-service env files
 # This makes per-service files contain ONLY service-specific config
@@ -798,7 +798,7 @@ done
 echo "Per-service env files now contain only service-specific config."
 ```
 
-#### Step 4.10: Reload and restart services in groups (verify between each) [ ]
+#### Step 4.10: Reload and restart services in groups (verify between each) [x]
 
 ```bash
 systemctl daemon-reload
@@ -844,7 +844,7 @@ sleep 5
 systemctl is-active quantum-intent-bridge quantum-intent-executor
 ```
 
-#### Step 4.11: Full verification [ ]
+#### Step 4.11: Full verification [x]
 ```bash
 # All 42 running?
 systemctl list-units quantum-*.service --no-pager | grep -c running
@@ -883,12 +883,12 @@ systemctl daemon-reload
 ---
 
 ## OP 5: BURY /opt/quantum
-### Status: [ ] NOT STARTED
+### Status: [x] DONE 2026-03-14
 ### Depends on: OP 4 verified and stable (wait 24h if possible)
 
 The ghost directory is no longer needed. Move it away.
 
-#### Step 5.1: Final check — nothing references /opt/quantum [ ]
+#### Step 5.1: Final check — nothing references /opt/quantum [x]
 ```bash
 # Check no service file references it
 grep -rl /opt/quantum /etc/systemd/system/quantum-*.service
@@ -900,13 +900,13 @@ for pid in $(pgrep -f quantum); do
 done
 ```
 
-#### Step 5.2: Move /opt/quantum to backup [ ]
+#### Step 5.2: Move /opt/quantum to backup [x]
 ```bash
 mv /opt/quantum /opt/backups/opt-quantum-2026-03-14
 echo "BURIED: $(date)" > /opt/backups/opt-quantum-buried.txt
 ```
 
-#### Step 5.3: Verify nothing broke [ ]
+#### Step 5.3: Verify nothing broke [x]
 ```bash
 systemctl list-units quantum-*.service --no-pager | grep -c running
 # EXPECTED: 42
@@ -920,13 +920,13 @@ journalctl -u 'quantum-*' --since "2 min ago" --priority err --no-pager
 ---
 
 ## OP 6: CLEAN THE REPO
-### Status: [ ] NOT STARTED
+### Status: [x] DONE 2026-03-14
 ### Depends on: OP 5
 
 Now that /opt/quantum is dead and all services run from one codebase,
 clean the actual repository.
 
-#### Step 6.1: Archive root-level junk files [ ]
+#### Step 6.1: Archive root-level junk files [x]
 ```bash
 # In local git repo:
 mkdir -p archive/{scripts,docs,fixes,tmp}
@@ -946,7 +946,7 @@ git mv *_COMPLETE*.md *_REPORT*.md *_STATUS*.md archive/docs/ 2>/dev/null
 git mv *_DEPLOYMENT*.md *_IMPLEMENTATION*.md archive/docs/ 2>/dev/null
 ```
 
-#### Step 6.2: Check if backend/ is imported by any running service [ ]
+#### Step 6.2: Check if backend/ is imported by any running service [x]
 ```bash
 # From VPS:
 grep -r "from backend\." /home/qt/quantum_trader/microservices/ 2>/dev/null
@@ -954,20 +954,20 @@ grep -r "import backend" /home/qt/quantum_trader/microservices/ 2>/dev/null
 # If empty: backend/ is dead code for runtime
 ```
 
-#### Step 6.3: Archive unused code if confirmed dead [ ]
+#### Step 6.3: Archive unused code if confirmed dead [x]
 ```bash
 # If backend/ is dead:
 git mv backend/ archive/old_backend/
 # If specific backend/ modules ARE imported, keep those, archive the rest
 ```
 
-#### Step 6.4: Clean ops/offline junk [ ]
+#### Step 6.4: Clean ops/offline junk [x]
 ```bash
 git mv ops/offline/_*.py archive/scripts/ 2>/dev/null
 git mv ops/analysis/fix_*.py archive/fixes/ 2>/dev/null
 ```
 
-#### Step 6.5: Remove model files from git tracking [ ]
+#### Step 6.5: Remove model files from git tracking [x]
 ```bash
 # 2000+ .pkl files bloat the repo. Models are DATA, not code.
 # They should live on disk (VPS) but NOT in git history.
@@ -1004,7 +1004,7 @@ echo "Future model deployment: scp/rsync, NOT git."
 > or BFG Repo Cleaner). For now, just stop tracking new changes. History cleanup
 > is a separate OP 7+ task.
 
-#### Step 6.6: Consolidate requirements.txt [ ]
+#### Step 6.6: Consolidate requirements.txt [x]
 ```bash
 # After model cleanup, merge 31 requirements files into one pinned file:
 # (Use the reconciled output from OP 3 Step 3.4)
@@ -1021,13 +1021,13 @@ EOF
 echo "TODO: Copy pip freeze output from VPS after OP 3 venv merge"
 ```
 
-#### Step 6.7: Update .gitignore [ ]
+#### Step 6.7: Update .gitignore [x]
 ```
 # Don't track archive in future
 archive/
 ```
 
-#### Step 6.8: Commit and push [ ]
+#### Step 6.8: Commit and push [x]
 ```bash
 git add -A
 git commit -m "OP6: clean repo — archive 1500+ files, remove model tracking, consolidate deps
