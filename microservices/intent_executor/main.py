@@ -757,6 +757,11 @@ class IntentExecutor:
             eps = 1e-12
             if abs(position_amt) <= eps:
                 ledger_side = "FLAT"
+
+                # Capture pre-FLAT data for trade.closed before zeroing
+                pre_flat_entry_price = entry_price
+                pre_flat_side = "LONG" if current_position > 0 else "SHORT"
+
                 # Zero out all fields when FLAT (clean state)
                 entry_price = 0.0
                 unrealized_pnl = 0.0
@@ -771,6 +776,45 @@ class IntentExecutor:
                         logger.info(f"🧹 FLAT CLEANUP: {symbol} deleted snapshot={d_snap} position={d_pos}")
                 except Exception as ce:
                     logger.error(f"❌ Flat cleanup failed for {symbol}: {ce}")
+
+                # 📤 Publish trade.closed event for SimpleCLM/calibration pipeline
+                # Main lane closes must also feed CLM (same as harvest lane)
+                try:
+                    exit_price = self._get_mark_price(symbol)
+                    pnl_percent = 0.0
+                    if pre_flat_entry_price > 0 and exit_price > 0:
+                        if pre_flat_side == "LONG":
+                            pnl_percent = ((exit_price - pre_flat_entry_price) / pre_flat_entry_price) * 100
+                        else:
+                            pnl_percent = ((pre_flat_entry_price - exit_price) / pre_flat_entry_price) * 100
+
+                    close_event = {
+                        "event_type": "trade.closed",
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "symbol": symbol,
+                        "side": pre_flat_side,
+                        "entry_price": str(pre_flat_entry_price),
+                        "exit_price": str(exit_price),
+                        "pnl_percent": str(round(pnl_percent, 2)),
+                        "confidence": "0.5",
+                        "model_id": "main_lane_close",
+                        "R_net": "0.0",
+                        "pnl_usd": "0.0",
+                        "reason": "main_lane_flat",
+                        "order_id": str(order_id),
+                        "source": "intent_executor_main"
+                    }
+                    self.redis.xadd(
+                        "quantum:stream:trade.closed",
+                        close_event,
+                        maxlen=1000
+                    )
+                    logger.info(
+                        f"📤 MAIN LANE trade.closed: {symbol} {pre_flat_side} "
+                        f"entry={pre_flat_entry_price:.2f} exit={exit_price:.2f} PnL={pnl_percent:.1f}%"
+                    )
+                except Exception as tc_e:
+                    logger.error(f"❌ Failed to publish main lane trade.closed: {tc_e}")
             elif position_amt > 0:
                 ledger_side = "LONG"
             else:

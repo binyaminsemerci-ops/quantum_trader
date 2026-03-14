@@ -7,7 +7,7 @@ REDIS_PORT                         default: 6379
 TESTNET_MODE                       REQUIRED — must be "true"
 EXIT_GATEWAY_ENABLED               default: false
 EXIT_GATEWAY_INTENT_STREAM         default: quantum:stream:exit.intent
-EXIT_GATEWAY_TRADE_STREAM          default: quantum:stream:trade.intent
+EXIT_GATEWAY_TRADE_STREAM          default: quantum:stream:harvest.intent
 EXIT_GATEWAY_REJECTED_STREAM       default: quantum:stream:exit.intent.rejected
 EXIT_GATEWAY_GROUP                 default: exit-intent-gateway
 EXIT_GATEWAY_CONSUMER              default: gateway-1
@@ -35,7 +35,7 @@ from dataclasses import dataclass
 _log = logging.getLogger("exit_intent_gateway.config")
 
 _INTENT_STREAM_DEFAULT = "quantum:stream:exit.intent"
-_TRADE_STREAM_DEFAULT = "quantum:stream:trade.intent"
+_TRADE_STREAM_DEFAULT = "quantum:stream:harvest.intent"
 _REJECTED_STREAM_DEFAULT = "quantum:stream:exit.intent.rejected"
 
 
@@ -52,7 +52,7 @@ class GatewayConfig:
 
     # Stream names.
     intent_stream: str    # source: quantum:stream:exit.intent
-    trade_stream: str     # sink:   quantum:stream:trade.intent
+    trade_stream: str     # sink:   quantum:stream:harvest.intent
     rejected_stream: str  # audit:  quantum:stream:exit.intent.rejected
 
     # Consumer group settings.

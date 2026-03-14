@@ -1039,12 +1039,20 @@ Part of QTOS cleanup - see docs/architecture/QTOS_MASTER_PLAN.md"
 git push
 ```
 
-#### Step 6.9: Deploy to VPS [ ]
+#### Step 6.9: Deploy to VPS [x]
 ```bash
 cd /home/qt/quantum_trader && git pull
 systemctl list-units quantum-*.service --no-pager | grep -c running
 # EXPECTED: 42 (nothing should change — we only moved unused files)
+# RESULT: 42 ✅ — VPS synced to f108e74e, then a8e84f7f6, then 783b5bd5e
 ```
+
+#### BONUS: AI Engine Health Thread (discovered during 6.9)
+- /health/live on port 8001 was permanently unreachable due to event-loop starvation
+- Root cause: 5 concurrent Redis stream consumers + synchronous ML inference saturate asyncio event loop
+- Fix: Added background-thread health server on port 8002 (stdlib http.server)
+- Port 8002 /health/live responds in <1ms, independent of event loop
+- Commits: a8e84f7f6 (event_bus yield point), 783b5bd5e (health thread)
 
 ---
 
@@ -1058,9 +1066,27 @@ verified as [DONE].
 Already masked in OP 1. Verify they stay masked.
 Intent-executor is the ONLY order execution path.
 
-### 7B: Unify Execution Pipeline
-Merge intent-bridge + intent-executor into single `execution-engine`.
-Add close/exit handling. One service, all order lifecycle.
+### 7B: Unify Execution Pipeline [x] (analysis + critical fixes)
+**Original plan**: Merge intent-bridge + intent-executor into single `execution-engine`.
+
+**Analysis result**: Intent-bridge and intent-executor should remain separate services:
+- intent-bridge: stateless filter (7 safety gates), fast, CPU-light
+- intent-executor: stateful Binance interaction, slow (order polling), API-heavy
+- Different failure modes, different scaling needs
+
+**Architecture discovered**:
+- Entry: AI Engine → trade.intent → intent_bridge (7 gates) → apply.plan → intent_executor (main lane) → Binance
+- Exit: exit_management_agent → exit.intent → exit_intent_gateway (9 checks) → harvest.intent → intent_executor (harvest lane) → Binance
+- Manual: direct → apply.plan.manual → intent_executor (manual lane) → Binance
+
+**Critical bugs found and fixed**:
+1. exit_intent_gateway/config.py: Default trade_stream was `trade.intent` (entry pipeline).
+   Exits routed through entry gates = blocked. Fixed default → `harvest.intent`.
+   VPS already had correct override via env, but code default was dangerous.
+2. intent_executor/main.py: Main lane `_commit_ledger_exactly_once()` did NOT publish
+   `trade.closed` events when position went FLAT. Only harvest lane did.
+   CLM/calibration missed all main-lane closes. Fixed: added trade.closed publish
+   in FLAT case with mark_price as exit_price.
 
 ### 7C: Position Truth Source
 One service polls Binance, publishes to `quantum:state:positions`.
