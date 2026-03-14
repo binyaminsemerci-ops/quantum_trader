@@ -410,7 +410,8 @@ systemctl daemon-reload
 ---
 
 ## OP 2: FIX SOURCE CODE HARDCODES
-### Status: [ ] NOT STARTED
+### Status: [DONE] 2026-03-14 21:40 UTC — commit 845bc6e39
+### Verified: git grep "/opt/quantum" returns zero matches in core code (microservices/, backend/, bin/, systemd/)
 ### Depends on: Nothing (can be done locally in git, independently)
 
 Fix all `/opt/quantum` hardcodes in source code. Use environment variables
