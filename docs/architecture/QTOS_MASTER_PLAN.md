@@ -1,5 +1,6 @@
 # QTOS MASTER PLAN v2 — Untangle the Yarn Ball
-## Version: 2.0 | Created: 2026-03-14 | Last Updated: 2026-03-14
+## Version: 2.1 | Created: 2026-03-14 | Last Updated: 2026-03-14
+### v2.1: Added 3-layer env file consolidation strategy (OP 3 + OP 4)
 
 ---
 
@@ -31,7 +32,7 @@ operation easier.
 2. [OP 0: Snapshot Everything](#op-0-snapshot-everything)
 3. [OP 1: Clear the Dead](#op-1-clear-the-dead)
 4. [OP 2: Fix Source Code Hardcodes](#op-2-fix-source-code-hardcodes)
-5. [OP 3: Unify Python & Venvs](#op-3-unify-python--venvs)
+5. [OP 3: Unify Python, Venvs & Env Files](#op-3-unify-python-venvs--env-files)
 6. [OP 4: Fix Service Files & Deploy](#op-4-fix-service-files--deploy)
 7. [OP 5: Bury /opt/quantum](#op-5-bury-optquantum)
 8. [OP 6: Clean the Repo](#op-6-clean-the-repo)
@@ -54,6 +55,10 @@ operation easier.
 | Python venvs on disk | **10** | Should be 1 |
 | /opt/quantum size | **14 GB** | Ghost code tree |
 | Root-level junk files | **~1500** | Scripts, docs, fixes, diagnostics |
+| Env files in /etc/quantum/ | **84** | For 42 services — massive duplication |
+| REDIS_HOST duplicated across | **61** | Same `localhost` in 61 of 84 env files |
+| Binance API key copies | **5** | Same key in 5 different env files |
+| Binance testnet key copies | **10** | Same testnet keys in 10 env files |
 
 ### The 9 Running Services Touching /opt/quantum
 
@@ -135,6 +140,38 @@ quantum-rl-sizer                   quantum-rl-trainer
 quantum-stream-bridge              quantum-trade-logger
 quantum-universe-service           quantum-utf-publisher
 ```
+
+### Env File Sprawl (audited 2026-03-14)
+
+84 env files in `/etc/quantum/` for 42 services — nearly 2× duplication.
+
+| Duplicated Value | Copies | Appears In |
+|---|---|---|
+| REDIS_HOST=localhost | 61 | Nearly all env files |
+| BINANCE_API_KEY (same key) | 5 | binance-pnl-tracker, exitbrain-v35, intent-executor, portfolio-intelligence, testnet |
+| BINANCE_TESTNET_API_KEY/SECRET | 10 | balance-tracker, binance-pnl-tracker, exitbrain-v35, governor, harvest-brain, intent-bridge, intent-executor, position-monitor, reconcile-engine, testnet |
+| PYTHONPATH=/opt/quantum | 6 | Hardcoded wrong path in 6 env files |
+| POSTGRES credentials | 1 | exit-intelligence.env only |
+
+**Target**: 3-layer shared env architecture:
+```
+/etc/quantum/common.env    ← REDIS_HOST, REDIS_PORT, TZ, LOG_LEVEL (shared by ALL 42 services)
+/etc/quantum/secrets.env   ← BINANCE_API_KEY/SECRET, BINANCE_TESTNET_*, POSTGRES_* (chmod 600)
+/etc/quantum/python.env    ← VIRTUAL_ENV, PATH, PYTHONPATH, QT_BASE_DIR (eliminates all venv hardcodes)
+/etc/quantum/<service>.env ← ONLY service-specific config (ports, symbols, rate limits, feature flags)
+```
+
+Each service file will use:
+```ini
+[Service]
+EnvironmentFile=/etc/quantum/common.env
+EnvironmentFile=/etc/quantum/secrets.env
+EnvironmentFile=/etc/quantum/python.env
+EnvironmentFile=/etc/quantum/<service-name>.env
+```
+
+This eliminates: 61 REDIS_HOST dupes, 5–10 Binance key dupes, 6 PYTHONPATH hardcodes.
+Single point of change for secrets rotation, Redis relocation, or venv changes.
 
 ---
 
@@ -362,11 +399,13 @@ git grep "/opt/quantum" -- "microservices/**/*.py" "backend/**/*.py" "bin/*.sh" 
 
 ---
 
-## OP 3: UNIFY PYTHON & VENVS
+## OP 3: UNIFY PYTHON, VENVS & ENV FILES
 ### Status: [ ] NOT STARTED
 ### Depends on: OP 0 (backup done), OP 2 (code pushed)
 
-Merge everything into ONE venv: `/home/qt/quantum_trader_venv/`.
+Two goals:
+1. Merge 10 venvs into ONE: `/home/qt/quantum_trader_venv/`
+2. Create 3 shared env files to eliminate duplication across 84 env files
 
 #### Step 3.1: Compare packages [ ]
 ```bash
@@ -398,18 +437,89 @@ print('agents OK')
 
 **Rollback**: Packages only added, never removed. Safe.
 
+#### Step 3.4: Create shared common.env [ ]
+```bash
+cat > /etc/quantum/common.env << 'EOF'
+# === QTOS Common Environment ===
+# Shared by ALL 42 quantum services
+# Single source of truth for infrastructure config
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_URL=redis://localhost:6379
+TZ=UTC
+LOG_LEVEL=INFO
+QT_BASE_DIR=/home/qt/quantum_trader
+EOF
+echo "Created common.env"
+```
+
+#### Step 3.5: Create shared secrets.env [ ]
+```bash
+# Extract current keys from existing env files (verify values before writing!)
+BINANCE_KEY=$(grep -h BINANCE_API_KEY /etc/quantum/intent-executor.env | head -1 | cut -d= -f2-)
+BINANCE_SECRET=$(grep -h BINANCE_API_SECRET /etc/quantum/intent-executor.env | head -1 | cut -d= -f2-)
+TESTNET_KEY=$(grep -h BINANCE_TESTNET_API_KEY /etc/quantum/testnet.env | head -1 | cut -d= -f2-)
+TESTNET_SECRET=$(grep -h BINANCE_TESTNET_API_SECRET /etc/quantum/testnet.env | head -1 | cut -d= -f2-)
+POSTGRES_LINE=$(grep -h POSTGRES /etc/quantum/exit-intelligence.env | head -1)
+
+cat > /etc/quantum/secrets.env << EOF
+# === QTOS Secrets ===
+# chmod 600 — only root can read
+# Single source of truth for ALL API keys and credentials
+BINANCE_API_KEY=${BINANCE_KEY}
+BINANCE_API_SECRET=${BINANCE_SECRET}
+BINANCE_TESTNET_API_KEY=${TESTNET_KEY}
+BINANCE_TESTNET_API_SECRET=${TESTNET_SECRET}
+${POSTGRES_LINE}
+EOF
+
+chmod 600 /etc/quantum/secrets.env
+echo "Created secrets.env (chmod 600)"
+```
+
+#### Step 3.6: Create shared python.env [ ]
+```bash
+cat > /etc/quantum/python.env << 'EOF'
+# === QTOS Python Environment ===
+# Single source of truth for Python/venv config
+# All 42 services use the same venv after OP 3 venv merge
+VIRTUAL_ENV=/home/qt/quantum_trader_venv
+PATH=/home/qt/quantum_trader_venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+PYTHONPATH=/home/qt/quantum_trader
+EOF
+echo "Created python.env"
+```
+
+#### Step 3.7: Verify shared env files [ ]
+```bash
+echo "=== common.env ==="
+cat /etc/quantum/common.env
+echo ""
+echo "=== secrets.env ==="
+ls -la /etc/quantum/secrets.env  # Should show -rw------- root
+echo "(contents hidden — verify value count manually)"
+wc -l /etc/quantum/secrets.env
+echo ""
+echo "=== python.env ==="
+cat /etc/quantum/python.env
+echo ""
+echo "All 3 shared env files ready for OP 4."
+```
+
+**Rollback** (env files): Simply delete the 3 shared files — per-service env files
+still contain all original values until OP 4 strips them.
+
 ---
 
 ## OP 4: FIX SERVICE FILES & DEPLOY
 ### Status: [ ] NOT STARTED
 ### Depends on: OP 2 (code pushed), OP 3 (venv ready)
 
-Update all 42 remaining service files on VPS to use:
-- Python: `/home/qt/quantum_trader_venv/bin/python`
-- WorkingDirectory: `/home/qt/quantum_trader`
-- PYTHONPATH: `/home/qt/quantum_trader`
-
-Deploy the fixed source code.
+Update all 42 remaining service files on VPS:
+- Fix ExecStart paths (Python interpreter, script paths, WorkingDirectory)
+- Add shared EnvironmentFile directives (common.env, secrets.env, python.env)
+- Strip duplicated values from per-service env files
+- Deploy the fixed source code
 
 #### Step 4.1: Git pull on VPS [ ]
 ```bash
@@ -469,10 +579,59 @@ done
 systemctl daemon-reload
 ```
 
-#### Step 4.6: Restart services in groups (verify between each) [ ]
+#### Step 4.6: Add shared EnvironmentFile directives to all services [ ]
+```bash
+# Add the 3 shared env files to every quantum service that doesn't already have them
+for f in /etc/systemd/system/quantum-*.service; do
+  svc=$(basename "$f" .service)
+  svc_name=${svc#quantum-}  # strip "quantum-" prefix
+
+  # Add shared EnvironmentFile lines if not already present
+  if ! grep -q "common.env" "$f"; then
+    sed -i '/\[Service\]/a EnvironmentFile=/etc/quantum/common.env' "$f"
+  fi
+  if ! grep -q "secrets.env" "$f"; then
+    sed -i '/common.env/a EnvironmentFile=/etc/quantum/secrets.env' "$f"
+  fi
+  if ! grep -q "python.env" "$f"; then
+    sed -i '/secrets.env/a EnvironmentFile=/etc/quantum/python.env' "$f"
+  fi
+
+  echo "Added shared env directives: $svc"
+done
+```
+
+#### Step 4.7: Strip duplicated values from per-service env files [ ]
+```bash
+# Remove values that are now in shared env files from per-service env files
+# This makes per-service files contain ONLY service-specific config
+SHARED_KEYS="REDIS_HOST|REDIS_PORT|REDIS_URL|TZ|LOG_LEVEL|QT_BASE_DIR"
+SHARED_KEYS="${SHARED_KEYS}|BINANCE_API_KEY|BINANCE_API_SECRET"
+SHARED_KEYS="${SHARED_KEYS}|BINANCE_TESTNET_API_KEY|BINANCE_TESTNET_API_SECRET"
+SHARED_KEYS="${SHARED_KEYS}|VIRTUAL_ENV|PYTHONPATH"
+
+for f in /etc/quantum/*.env; do
+  name=$(basename "$f")
+  # Skip the 3 new shared files
+  case "$name" in
+    common.env|secrets.env|python.env) continue ;;
+  esac
+
+  # Count lines before
+  before=$(wc -l < "$f")
+  # Remove lines matching shared keys (but keep comments)
+  grep -vE "^(${SHARED_KEYS})=" "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+  after=$(wc -l < "$f")
+  echo "Cleaned $name: $before → $after lines"
+done
+
+echo "Per-service env files now contain only service-specific config."
+```
+
+#### Step 4.8: Reload and restart services in groups (verify between each) [ ]
 
 ```bash
-# Group A: Monitoring (safe, non-trade)
+systemctl daemon-reload
 systemctl restart quantum-performance-attribution quantum-performance-tracker \
   quantum-metricpack-builder quantum-p35-decision-intelligence quantum-trade-logger
 sleep 5
@@ -515,7 +674,7 @@ sleep 5
 systemctl is-active quantum-intent-bridge quantum-intent-executor
 ```
 
-#### Step 4.7: Full verification [ ]
+#### Step 4.9: Full verification [ ]
 ```bash
 # All 42 running?
 systemctl list-units quantum-*.service --no-pager | grep -c running
@@ -529,6 +688,14 @@ curl -s http://localhost:8001/health
 # No service uses /opt/quantum anymore?
 for svc in $(systemctl list-units quantum-*.service --no-pager --plain | grep running | awk '{print $1}'); do
   grep /opt/quantum /etc/systemd/system/$svc 2>/dev/null && echo "STILL BAD: $svc"
+done
+
+# All services have shared env file directives?
+for f in /etc/systemd/system/quantum-*.service; do
+  name=$(basename "$f")
+  if ! grep -q "common.env" "$f"; then echo "MISSING common.env: $name"; fi
+  if ! grep -q "secrets.env" "$f"; then echo "MISSING secrets.env: $name"; fi
+  if ! grep -q "python.env" "$f"; then echo "MISSING python.env: $name"; fi
 done
 
 # Redis streams flowing?
@@ -698,7 +865,7 @@ OP 0: Snapshot ──→ OP 1: Clear Dead ──→ OP 4: Fix Services & Deploy
                                               │
 OP 2: Fix Source Code (parallel) ─────────────┤
                                               │
-OP 3: Unify Venvs ───────────────────────────┘
+OP 3: Unify Venvs & Env Files ──────────────────┘
                                               │
                                               ▼
                                      OP 5: Bury /opt/quantum
