@@ -6,8 +6,8 @@ Deployed: 2026-02-21
 
 Enforces immutable load/write boundaries for the live AI engine:
 
-  LOAD  → /opt/quantum/model_registry/approved/   (read-only for live services)
-  WRITE → /opt/quantum/model_registry/staging/    (write-only for retrain workers)
+  LOAD  → <QT_BASE_DIR>/model_registry/approved/   (read-only for live services)
+  WRITE → <QT_BASE_DIR>/model_registry/staging/    (write-only for retrain workers)
 
 Any attempt to load a model from outside APPROVED_DIR raises a RuntimeError,
 intentionally crashing the service startup so the violation is immediately visible.
@@ -33,11 +33,15 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 APPROVED_DIR: Path = Path(
-    os.environ.get("QT_APPROVED_MODEL_DIR", "/opt/quantum/model_registry/approved")
+    os.environ.get("QT_APPROVED_MODEL_DIR",
+                   os.path.join(os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader"),
+                                "model_registry", "approved"))
 )
 
 STAGING_DIR: Path = Path(
-    os.environ.get("QT_STAGING_MODEL_DIR", "/opt/quantum/model_registry/staging")
+    os.environ.get("QT_STAGING_MODEL_DIR",
+                   os.path.join(os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader"),
+                                "model_registry", "staging"))
 )
 
 

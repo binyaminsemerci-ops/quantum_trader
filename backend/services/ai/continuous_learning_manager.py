@@ -431,7 +431,7 @@ class ContinuousLearningManager:
         # ---------------------------------------------------------------
         # Controlled Refactor 2026-02-21: auto-promotion is DISABLED by
         # default.  Set to True only via explicit operator action and with
-        # corresponding /opt/quantum/model_registry/staging → approved
+        # corresponding <QT_BASE_DIR>/model_registry/staging → approved
         # promotion workflow in place.
         # ---------------------------------------------------------------
         auto_promotion_enabled: bool = False,

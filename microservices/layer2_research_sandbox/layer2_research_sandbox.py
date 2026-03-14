@@ -8,7 +8,7 @@ This service does THREE things independently of the live execution path:
 
 A) SHADOW SIGNAL ARCHIVE
    Reads quantum:stream:harvest.v2.shadow continuously.
-   Persists all shadow signals to /opt/quantum/data/research/shadow_signals.parquet
+   Persists all shadow signals to <QT_DATA_DIR>/research/shadow_signals.parquet
    Never written by any live service — research-only namespace.
 
 B) SIGNAL ACCURACY TRACKER
@@ -32,7 +32,7 @@ KEY ISOLATION CONTRACT:
   ✅ Reads:  quantum:layer1:data_sink:latest (health check only)
   ❌ NEVER writes to: quantum:stream:apply.plan (live execution)
   ❌ NEVER writes to: quantum:system:mode or any live control key
-  ✅ Writes only to: quantum:sandbox:* and /opt/quantum/data/research/
+  ✅ Writes only to: quantum:sandbox:* and <QT_DATA_DIR>/research/
 
 Promotion workflow:
   1. View gate status: redis-cli HGETALL quantum:sandbox:gate:latest
@@ -62,7 +62,7 @@ logger = logging.getLogger("layer2")
 
 REDIS_HOST  = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT  = int(os.getenv("REDIS_PORT", "6379"))
-DATA_ROOT   = os.getenv("QUANTUM_DATA_ROOT", "/opt/quantum/data")
+DATA_ROOT   = os.getenv("QUANTUM_DATA_ROOT", "/home/qt/quantum_trader/data")
 RESEARCH_DIR = os.path.join(DATA_ROOT, "research")
 
 # Gate thresholds — override via env

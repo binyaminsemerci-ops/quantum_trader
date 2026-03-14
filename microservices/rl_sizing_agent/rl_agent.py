@@ -24,6 +24,7 @@ Policy:
 import numpy as np
 import logging
 import json
+import os
 import time
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
@@ -99,8 +100,8 @@ class RLPositionSizingAgent:
         # Controlled Refactor 2026-02-21:
         #   model_path      = where to LOAD the approved policy on startup
         #   model_save_path = where to WRITE policy updates (staging only)
-        model_path: str = "/opt/quantum/model_registry/approved/rl_sizing_agent_v3.pth",
-        model_save_path: str = "/opt/quantum/model_registry/staging/rl_sizing_agent_v3.pth",
+        model_path: str = os.path.join(os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader"), "model_registry", "approved", "rl_sizing_agent_v3.pth"),
+        model_save_path: str = os.path.join(os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader"), "model_registry", "staging", "rl_sizing_agent_v3.pth"),
         config: Optional[Dict] = None
     ):
         """
@@ -498,8 +499,8 @@ _rl_agent: Optional[RLPositionSizingAgent] = None
 
 
 def get_rl_agent(
-    model_path: str = "/opt/quantum/model_registry/approved/rl_sizing_agent_v3.pth",
-    model_save_path: str = "/opt/quantum/model_registry/staging/rl_sizing_agent_v3.pth",
+    model_path: str = os.path.join(os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader"), "model_registry", "approved", "rl_sizing_agent_v3.pth"),
+    model_save_path: str = os.path.join(os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader"), "model_registry", "staging", "rl_sizing_agent_v3.pth"),
     config: Optional[Dict] = None
 ) -> RLPositionSizingAgent:
     """Get or create global RL agent instance"""

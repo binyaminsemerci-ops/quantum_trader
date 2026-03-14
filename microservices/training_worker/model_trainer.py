@@ -4,8 +4,8 @@ Model Trainer - Actual Training Execution
 Executes model retraining with specified hyperparameters.
 
 Controlled Refactor 2026-02-21:
-  Trained models are written ONLY to /opt/quantum/model_registry/staging/
-  The live AI engine loads from /opt/quantum/model_registry/approved/ only.
+  Trained models are written ONLY to <QT_BASE_DIR>/model_registry/staging/
+  The live AI engine loads from <QT_BASE_DIR>/model_registry/approved/ only.
   Promotion from staging → approved requires explicit operator action.
 
 Supports:
@@ -30,13 +30,13 @@ class ModelTrainer:
     Handles actual model training execution.
     """
 
-    def __init__(self, models_dir: str = "/opt/quantum/model_registry/staging"):
+    def __init__(self, models_dir: str = os.path.join(os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader"), "model_registry", "staging")):
         """
         Initialize model trainer.
 
         Args:
             models_dir: Directory to save trained models.
-                        MUST be under /opt/quantum/model_registry/staging/.
+                        MUST be under <QT_BASE_DIR>/model_registry/staging/.
         """
         # Controlled Refactor 2026-02-21: enforce staging write boundary
         try:

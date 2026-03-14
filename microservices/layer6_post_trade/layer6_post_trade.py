@@ -22,7 +22,7 @@ NEVER writes to live control keys.
 Operator reads:
   redis-cli hgetall quantum:layer6:daily:latest
   redis-cli hgetall quantum:layer6:session:latest
-  cat /opt/quantum/data/reports/YYYY-MM-DD.json
+  cat <QT_DATA_DIR>/reports/YYYY-MM-DD.json
 """
 
 import asyncio
@@ -53,7 +53,7 @@ log = logging.getLogger("layer6")
 REDIS_HOST     = os.getenv("REDIS_HOST", "localhost")
 REDIS_DB       = 0
 REDIS_BT_DB    = 1
-DATA_ROOT      = Path(os.getenv("DATA_ROOT", "/opt/quantum/data"))
+DATA_ROOT      = Path(os.getenv("DATA_ROOT", "/home/qt/quantum_trader/data"))
 REPORTS_DIR    = DATA_ROOT / "reports"
 ROLLING_WINDOW = int(os.getenv("ROLLING_WINDOW", "300"))  # seconds for rolling summary
 PUBLISH_EVERY  = int(os.getenv("PUBLISH_EVERY",  "300"))  # 5 minutes

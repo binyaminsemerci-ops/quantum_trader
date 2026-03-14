@@ -2,17 +2,15 @@
 AI Engine Service - Configuration
 
 Controlled Refactor 2026-02-21:
-  All model LOAD paths → /opt/quantum/model_registry/approved/
-  All model WRITE paths → /opt/quantum/model_registry/staging/  (retrain worker only)
+  All model LOAD paths → <QT_BASE_DIR>/model_registry/approved/
+  All model WRITE paths → <QT_BASE_DIR>/model_registry/staging/  (retrain worker only)
 """
 from pydantic_settings import BaseSettings
 from typing import List
 import os
 import logging
 
-_guard_log = logging.getLogger(__name__)
-
-
+_QT_BASE = os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader")
 class Settings(BaseSettings):
     """AI Engine Service settings."""
     
@@ -42,18 +40,18 @@ class Settings(BaseSettings):
     MIN_CONSENSUS: int = 4  # 4/6 models must agree
     
     # Model paths — Controlled Refactor 2026-02-21
-    # READ (live AI engine) : /opt/quantum/model_registry/approved/
-    # WRITE (retrain worker): /opt/quantum/model_registry/staging/
+    # READ (live AI engine) : <QT_BASE_DIR>/model_registry/approved/
+    # WRITE (retrain worker): <QT_BASE_DIR>/model_registry/staging/
     # DO NOT change these defaults to point anywhere else without running
     # the CLM promotion workflow first.
-    APPROVED_MODEL_DIR: str = "/opt/quantum/model_registry/approved"
-    STAGING_MODEL_DIR:  str = "/opt/quantum/model_registry/staging"
-    MODELS_DIR: str = "/opt/quantum/model_registry/approved"
-    XGB_MODEL_PATH:     str = "/opt/quantum/model_registry/approved/xgb_model.pkl"
-    XGB_SCALER_PATH:    str = "/opt/quantum/model_registry/approved/scaler.pkl"
-    LGBM_MODEL_PATH:    str = "/opt/quantum/model_registry/approved/lgbm_model.txt"
-    NHITS_MODEL_PATH:   str = "/opt/quantum/model_registry/approved/nhits_model.pt"
-    PATCHTST_MODEL_PATH: str = "/opt/quantum/model_registry/approved/patchtst_model.pt"
+    APPROVED_MODEL_DIR: str = os.path.join(_QT_BASE, "model_registry", "approved")
+    STAGING_MODEL_DIR:  str = os.path.join(_QT_BASE, "model_registry", "staging")
+    MODELS_DIR: str = os.path.join(_QT_BASE, "model_registry", "approved")
+    XGB_MODEL_PATH:     str = os.path.join(_QT_BASE, "model_registry", "approved", "xgb_model.pkl")
+    XGB_SCALER_PATH:    str = os.path.join(_QT_BASE, "model_registry", "approved", "scaler.pkl")
+    LGBM_MODEL_PATH:    str = os.path.join(_QT_BASE, "model_registry", "approved", "lgbm_model.txt")
+    NHITS_MODEL_PATH:   str = os.path.join(_QT_BASE, "model_registry", "approved", "nhits_model.pt")
+    PATCHTST_MODEL_PATH: str = os.path.join(_QT_BASE, "model_registry", "approved", "patchtst_model.pt")
     
     # Meta-strategy configuration
     META_STRATEGY_ENABLED: bool = True

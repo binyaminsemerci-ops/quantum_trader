@@ -9,8 +9,8 @@ Subscribes to two Redis streams:
   quantum:stream:features        → Computed feature vectors (all symbols)
 
 Writes to disk (Parquet, daily-partitioned):
-  /opt/quantum/data/ohlcv/{SYMBOL}/1m/{YYYY-MM-DD}.parquet
-  /opt/quantum/data/features/{SYMBOL}/{YYYY-MM-DD}.parquet
+  <QT_DATA_DIR>/ohlcv/{SYMBOL}/1m/{YYYY-MM-DD}.parquet
+  <QT_DATA_DIR>/features/{SYMBOL}/{YYYY-MM-DD}.parquet
 
 Also maintains Redis fast-lookback ZSET (last N candles per symbol):
   quantum:history:ohlcv:{SYMBOL}:1m  (score=open_time_ms, value=JSON, capped at LOOKBACK_ROWS)
@@ -43,7 +43,7 @@ logger = logging.getLogger("layer1")
 
 REDIS_HOST  = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT  = int(os.getenv("REDIS_PORT", "6379"))
-DATA_ROOT   = os.getenv("QUANTUM_DATA_ROOT", "/opt/quantum/data")
+DATA_ROOT   = os.getenv("QUANTUM_DATA_ROOT", "/home/qt/quantum_trader/data")
 LOOKBACK_ROWS = int(os.getenv("OHLCV_LOOKBACK_ROWS", "500"))   # per symbol in Redis ZSET
 FLUSH_EVERY   = int(os.getenv("OHLCV_FLUSH_ROWS", "60"))        # write Parquet every N candles per symbol
 STATE_KEY = "quantum:layer1:data_sink:latest"

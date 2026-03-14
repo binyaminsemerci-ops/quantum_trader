@@ -73,7 +73,7 @@ class TPPerformanceTracker:
         self.logger = logging.getLogger(__name__)
         
         self.storage_path = storage_path or Path(
-            os.getenv("TP_METRICS_PATH", "/opt/quantum/tmp/tp_metrics.json")
+            os.getenv("TP_METRICS_PATH", os.path.join(os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader"), "tmp", "tp_metrics.json"))
         )
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
         

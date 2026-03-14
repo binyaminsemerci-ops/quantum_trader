@@ -45,7 +45,7 @@ logging.basicConfig(
 log = logging.getLogger("backfill")
 
 # ── Config ───────────────────────────────────────────────────────────────
-DATA_ROOT  = Path(os.getenv("DATA_ROOT", "/opt/quantum/data"))
+DATA_ROOT  = Path(os.getenv("DATA_ROOT", "/home/qt/quantum_trader/data"))
 DAYS_BACK  = int(os.getenv("DAYS_BACK", "7"))
 INTERVAL   = os.getenv("INTERVAL", "1m")
 LIMIT      = 1500          # max per Binance klines call

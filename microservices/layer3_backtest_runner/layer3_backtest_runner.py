@@ -10,7 +10,7 @@ ISOLATION CONTRACT:
 Architecture:
   1. On startup: auto-runs baseline backtest for TOP_SYMBOLS (last 7 days if data exists)
   2. Persistent: brpop quantum:backtest:queue (db=1) for on-demand backtests
-  3. Results: JSON to /opt/quantum/data/backtests/<job_id>.json
+  3. Results: JSON to <QT_DATA_DIR>/backtests/<job_id>.json
   4. Summary: redis hash quantum:backtest:results:<job_id> in db=1
   5. Status: quantum:layer3:backtest:status in db=1 every 30s
 """
@@ -41,7 +41,7 @@ logging.basicConfig(
 log = logging.getLogger("backtest")
 
 # ── Config ──────────────────────────────────────────────────────────────
-DATA_ROOT     = Path(os.getenv("DATA_ROOT", "/opt/quantum/data"))
+DATA_ROOT     = Path(os.getenv("DATA_ROOT", "/home/qt/quantum_trader/data"))
 BACKTEST_DIR  = DATA_ROOT / "backtests"
 OHLCV_DIR     = DATA_ROOT / "ohlcv"
 REDIS_HOST    = os.getenv("REDIS_HOST", "localhost")

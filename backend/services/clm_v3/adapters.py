@@ -129,21 +129,22 @@ class ModelTrainingAdapter:
     ) -> tuple:
         """
         Run the corresponding v7 training script via subprocess.
-        Saves model to /opt/quantum/ai_engine/models/ then restarts ai-engine.
+        Saves model to <QT_BASE_DIR>/ai_engine/models/ then restarts ai-engine.
         """
         import asyncio
         import os
         import re
 
+        _QT_BASE = os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader")
         _SCRIPT_MAP = {
-            "xgboost":  "/opt/quantum/ops/retrain/train_xgb_v6.py",
-            "lightgbm": "/opt/quantum/ops/retrain/train_lightgbm_v6.py",
-            "nhits":    "/opt/quantum/ops/retrain/train_nhits_v7.py",
-            "patchtst": "/opt/quantum/ops/retrain/train_patchtst_v7.py",
-            "tft":      "/opt/quantum/ops/retrain/train_tft_v10.py",
-            "dlinear":  "/opt/quantum/ops/retrain/train_dlinear_v1.py",
+            "xgboost":  os.path.join(_QT_BASE, "ops", "retrain", "train_xgb_v6.py"),
+            "lightgbm": os.path.join(_QT_BASE, "ops", "retrain", "train_lightgbm_v6.py"),
+            "nhits":    os.path.join(_QT_BASE, "ops", "retrain", "train_nhits_v7.py"),
+            "patchtst": os.path.join(_QT_BASE, "ops", "retrain", "train_patchtst_v7.py"),
+            "tft":      os.path.join(_QT_BASE, "ops", "retrain", "train_tft_v10.py"),
+            "dlinear":  os.path.join(_QT_BASE, "ops", "retrain", "train_dlinear_v1.py"),
         }
-        _PYTHON = "/opt/quantum/venvs/ai-engine/bin/python"
+        _PYTHON = os.path.join(os.environ.get("VIRTUAL_ENV", "/home/qt/quantum_trader_venv"), "bin", "python")
 
         model_type = job.model_type.value
         script = _SCRIPT_MAP.get(model_type)
@@ -167,7 +168,7 @@ class ModelTrainingAdapter:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             env=env,
-            cwd="/opt/quantum",
+            cwd=_QT_BASE,
         )
 
         try:

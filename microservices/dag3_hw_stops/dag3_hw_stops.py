@@ -32,8 +32,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 # ── Path fix ──────────────────────────────────────────────────────────────
-sys.path.insert(0, "/home/qt/quantum_trader")
-sys.path.insert(0, "/opt/quantum")
+sys.path.insert(0, os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader"))
 
 import redis as redis_lib
 

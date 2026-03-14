@@ -12,7 +12,7 @@ Produces a point-in-time snapshot of the running Quantum OS:
   6. Equity state — current equity / peak / drawdown
 
 Output:
-  /opt/quantum/snapshots/<TAG>/MANIFEST.json    (on VPS disk)
+  <QT_BASE_DIR>/snapshots/<TAG>/MANIFEST.json    (on VPS disk)
   quantum:dag7:snapshot:latest                  (Redis hash, no TTL)
   quantum:dag7:snapshot:history                 (Redis list, capped 10)
 
@@ -39,8 +39,8 @@ logger = logging.getLogger("dag7")
 
 REDIS_HOST   = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT   = int(os.getenv("REDIS_PORT", "6379"))
-SNAPSHOT_DIR = "/opt/quantum/snapshots"
-MICROSERVICE_ROOT = "/opt/quantum/microservices"
+SNAPSHOT_DIR = os.environ.get("QT_SNAPSHOT_DIR", os.path.join(os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader"), "snapshots"))
+MICROSERVICE_ROOT = os.path.join(os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader"), "microservices")
 
 STATE_KEY   = "quantum:dag7:snapshot:latest"
 HISTORY_KEY = "quantum:dag7:snapshot:history"
