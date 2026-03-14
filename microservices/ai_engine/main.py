@@ -15,7 +15,10 @@ Events IN: market.tick, market.klines, trade.closed, policy.updated
 Events OUT: ai.decision.made, ai.signal_generated, strategy.selected, sizing.decided, trade.intent
 """
 import asyncio
+import json
 import logging
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from logging.handlers import RotatingFileHandler
 import signal
 import sys
@@ -78,6 +81,48 @@ else:
 # Global service instance
 service: AIEngineService = None
 
+# --- Dedicated health server on background thread (immune to event-loop starvation) ---
+_HEALTH_PORT = int(settings.PORT) + 1  # 8002
+
+class _HealthHandler(BaseHTTPRequestHandler):
+    """Minimal HTTP handler that responds to /health/live on a background thread."""
+    def do_GET(self):
+        if self.path in ("/health/live", "/health/live/"):
+            body = json.dumps({
+                "status": "ok",
+                "service": settings.SERVICE_NAME,
+                "version": settings.VERSION,
+                "thread_health": True,
+            }).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, format, *args):
+        pass  # suppress per-request logging
+
+_health_server: HTTPServer = None
+
+def _start_health_thread():
+    """Start a background-thread HTTP server for reliable liveness checks."""
+    global _health_server
+    _health_server = HTTPServer(("127.0.0.1", _HEALTH_PORT), _HealthHandler)
+    t = threading.Thread(target=_health_server.serve_forever, daemon=True, name="health-thread")
+    t.start()
+    logger.info(f"✅ Background health thread started on port {_HEALTH_PORT}")
+
+def _stop_health_thread():
+    global _health_server
+    if _health_server:
+        _health_server.shutdown()
+        _health_server = None
+        logger.info("🛑 Background health thread stopped")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -105,6 +150,9 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     
     try:
+        # Start background health server FIRST (before heavy model loading)
+        _start_health_thread()
+
         service = AIEngineService()
         await service.start()
         logger.info("✅ AI Engine Service STARTED")
@@ -123,6 +171,7 @@ async def lifespan(app: FastAPI):
     finally:
         # Shutdown
         logger.info("🛑 AI ENGINE SERVICE SHUTTING DOWN...")
+        _stop_health_thread()
         if service:
             await service.stop()
         logger.info("✅ AI Engine Service STOPPED")
