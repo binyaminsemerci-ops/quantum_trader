@@ -288,7 +288,8 @@ ls -la /opt/backups/2026-03-14-pre-cleanup/
 ---
 
 ## OP 1: CLEAR THE DEAD
-### Status: [ ] NOT STARTED
+### Status: [DONE] 2026-03-14 21:33 UTC
+### Verified: 42 svc files + 2 masks, 42 running, 4 timers. 92 svc + 11 tmr + 12 dirs in graveyard.
 ### Depends on: OP 0
 
 Remove 92 zombie service files. Keep only the 42 running ones.
