@@ -2,7 +2,6 @@
 Description=Quantum Trader AI Engine Service
 Documentation=https://github.com/binyaminsemerci-ops/quantum_trader
 After=quantum-core.target
-PartOf=quantum-ai.target
 Requires=redis-server.service
 
 [Service]
