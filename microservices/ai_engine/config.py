@@ -10,6 +10,7 @@ from typing import List
 import os
 import logging
 
+_guard_log = logging.getLogger("ai_engine.config")
 _QT_BASE = os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader")
 class Settings(BaseSettings):
     """AI Engine Service settings."""

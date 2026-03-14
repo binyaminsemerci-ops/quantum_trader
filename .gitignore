@@ -72,3 +72,18 @@ ops/offline/train_dpo_stdout.log
 ops/offline/train_dpo_stderr.log
 ops/offline/shadow_eval_stdout.log
 ops/offline/shadow_eval_stderr.log
+
+# OP6: model artifacts should not be tracked in git
+models/*.pkl
+models/*.joblib
+models/*.pth
+models/*.pt
+models/*.onnx
+models/*.h5
+model_registry/**/*.pkl
+*.pkl
+*.joblib
+*.pth
+
+# OP6: archive is a sink for historical diagnostics/docs/scripts
+archive/

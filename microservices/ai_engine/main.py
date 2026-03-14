@@ -180,8 +180,18 @@ async def health_check():
     """
     if not service:
         return {"healthy": False, "error": "Service not initialized"}
-    
-    return await service.get_health()
+
+    # Keep legacy endpoint responsive even under heavy event-loop load.
+    # Strict dependency readiness remains on /health/ready.
+    try:
+        return await asyncio.wait_for(service.get_health(), timeout=5.0)
+    except asyncio.TimeoutError:
+        return {
+            "healthy": False,
+            "status": "degraded",
+            "error": "health_check_timeout",
+            "detail": "Use /health/live for liveness and /health/ready for strict readiness",
+        }
 
 
 @app.get("/health/live", tags=["health"])
