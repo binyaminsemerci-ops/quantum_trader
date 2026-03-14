@@ -1,5 +1,6 @@
 # QTOS MASTER PLAN v2 — Untangle the Yarn Ball
-## Version: 2.1 | Created: 2026-03-14 | Last Updated: 2026-03-14
+## Version: 2.2 | Created: 2026-03-14 | Last Updated: 2026-03-14
+### v2.2: Added timer handling, Restart policy, requirements merge, port map, model cleanup
 ### v2.1: Added 3-layer env file consolidation strategy (OP 3 + OP 4)
 
 ---
@@ -59,6 +60,12 @@ operation easier.
 | REDIS_HOST duplicated across | **61** | Same `localhost` in 61 of 84 env files |
 | Binance API key copies | **5** | Same key in 5 different env files |
 | Binance testnet key copies | **10** | Same testnet keys in 10 env files |
+| Systemd timers (.timer) | **15** | 4 active, 11 inactive |
+| Timer services with /opt/quantum | **4** | contract-check, core-health, diagnostic, training-worker |
+| Listening TCP ports (Python) | **15** | No port allocation map exists |
+| Services WITH Restart= policy | **113** | Of 134 total (includes dead services) |
+| requirements.txt files | **31** | Fragmented — no single source of truth |
+| Model files (.pkl) in git | **2000+** | Massive repo bloat — should be external |
 
 ### The 9 Running Services Touching /opt/quantum
 
@@ -104,6 +111,15 @@ bin/start_rl_trainer.sh                          ← cd /opt/quantum
 systemd/env-templates/ai-engine.env              ← PYTHONPATH=/opt/quantum
 systemd/env-templates/ai-client-base.env         ← PYTHONPATH=/opt/quantum
 systemd/env-templates/execution.env              ← PYTHONPATH=/opt/quantum
+```
+
+**Timer-triggered services (on VPS only, fix in OP 4):**
+```
+quantum-contract-check.service     ← 2 /opt/quantum refs
+quantum-core-health.service        ← 4 /opt/quantum refs
+quantum-diagnostic.service         ← 4 /opt/quantum refs
+quantum-rl-reward-publisher.service ← 2 /opt/quantum refs
+quantum-training-worker.service    ← 3 /opt/quantum refs
 ```
 
 ### Venvs on Disk
@@ -173,6 +189,53 @@ EnvironmentFile=/etc/quantum/<service-name>.env
 This eliminates: 61 REDIS_HOST dupes, 5–10 Binance key dupes, 6 PYTHONPATH hardcodes.
 Single point of change for secrets rotation, Redis relocation, or venv changes.
 
+### Port Allocation Map (audited 2026-03-14)
+
+| Port | Service | Purpose |
+|------|---------|----------|
+| 8005 | rl-trainer | RL training API |
+| 8042 | harvest-metrics-exporter | Harvest metrics |
+| 8044 | governor | Governance API |
+| 8046 | reconcile-engine | Reconciliation API |
+| 8047 | portfolio-gate | Portfolio gating |
+| 8048 | portfolio-clusters | Cluster analysis |
+| 8051 | metricpack-builder | Metric packs |
+| 8052 | harvest-optimizer | Harvest optimization |
+| 8056 | portfolio-heat-gate | Heat gating |
+| 8059 | capital-allocation | Capital allocation API |
+| 8061 | performance-attribution | Performance analysis |
+| 8068 | heat-gate | Heat gate (port 1) |
+| 8069 | heat-gate | Heat gate (port 2) |
+| 9092 | rl-shadow-metrics-exporter | RL shadow metrics |
+| 9109 | exit-intelligence | Exit intelligence API |
+| 6379 | Redis | Data store (not Python) |
+
+> **NOTE**: 27 of 42 services have NO listening port — they are pure Redis stream workers.
+> Port allocation is env-configurable after OP 4 env file consolidation.
+
+### Systemd Timers (audited 2026-03-14)
+
+15 timer files on VPS. 4 currently active, 11 inactive.
+
+**Active Timers:**
+```
+quantum-stream-recover.timer       every ~2 min
+quantum-exit-owner-watch.timer     every ~5 min
+quantum-rl-shadow-scorecard.timer  every ~15 min
+quantum-offline-evaluator.timer    every ~4 hours
+```
+
+**Timer Services with /opt/quantum References (MUST FIX in OP 2):**
+```
+quantum-contract-check.service     2 refs
+quantum-core-health.service        4 refs
+quantum-diagnostic.service         4 refs
+quantum-rl-reward-publisher.service 2 refs
+quantum-training-worker.service    3 refs
+```
+
+> Timers themselves do NOT reference /opt/quantum — only their corresponding service files do.
+
 ---
 
 ## OP 0: SNAPSHOT EVERYTHING
@@ -197,15 +260,27 @@ systemctl list-units quantum-*.service --all --no-pager > /opt/backups/2026-03-1
 # Running PIDs
 ps aux | grep quantum > /opt/backups/2026-03-14-pre-cleanup/processes.txt
 
+# Timer files
+cp -a /etc/systemd/system/quantum-*.timer /opt/backups/2026-03-14-pre-cleanup/ 2>/dev/null
+
+# Timer service files (the oneshot services triggered by timers)
+for t in /etc/systemd/system/quantum-*.timer; do
+  svc=$(basename "$t" .timer).service
+  cp -a /etc/systemd/system/$svc /opt/backups/2026-03-14-pre-cleanup/ 2>/dev/null
+done
+
 # Pip freeze from every venv
 /home/qt/quantum_trader_venv/bin/pip freeze > /opt/backups/2026-03-14-pre-cleanup/main-venv-packages.txt
 /opt/quantum/venvs/ai-engine/bin/pip freeze > /opt/backups/2026-03-14-pre-cleanup/ai-engine-venv-packages.txt 2>/dev/null
+
+# Port snapshot
+ss -tlnp | grep python > /opt/backups/2026-03-14-pre-cleanup/listening-ports.txt
 
 echo "SNAPSHOT DONE: $(date)"
 ls -la /opt/backups/2026-03-14-pre-cleanup/
 ```
 
-**Verify**: Backup dir contains service files, env files, package lists.
+**Verify**: Backup dir contains service files, timer files, env files, package lists, port list.
 
 **Rollback**: This IS the rollback. No rollback needed for a backup.
 
@@ -297,17 +372,36 @@ systemctl mask quantum-execution.service 2>/dev/null
 systemctl mask quantum-apply-layer.service 2>/dev/null
 ```
 
-#### Step 1.4: Verify [ ]
+#### Step 1.4: Move dead timers to graveyard [ ]
+```bash
+# Keep only active timers, move the rest
+ACTIVE_TIMERS="quantum-stream-recover.timer quantum-exit-owner-watch.timer quantum-rl-shadow-scorecard.timer quantum-offline-evaluator.timer"
+for t in /etc/systemd/system/quantum-*.timer; do
+  name=$(basename "$t")
+  if ! echo "$ACTIVE_TIMERS" | grep -q "$name"; then
+    systemctl stop "$name" 2>/dev/null
+    systemctl disable "$name" 2>/dev/null
+    mv "$t" /opt/backups/systemd-graveyard/
+    echo "REMOVED TIMER: $name"
+  fi
+done
+systemctl daemon-reload
+```
+
+#### Step 1.5: Verify [ ]
 ```bash
 ls /etc/systemd/system/quantum-*.service | wc -l
 # EXPECTED: 42
 systemctl list-units quantum-*.service --no-pager | grep running | wc -l
 # EXPECTED: 42
+ls /etc/systemd/system/quantum-*.timer | wc -l
+# EXPECTED: 4 (only active timers kept)
 ```
 
 **Rollback**:
 ```bash
 cp /opt/backups/systemd-graveyard/quantum-*.service /etc/systemd/system/
+cp /opt/backups/systemd-graveyard/quantum-*.timer /etc/systemd/system/ 2>/dev/null
 systemctl daemon-reload
 ```
 
@@ -437,7 +531,30 @@ print('agents OK')
 
 **Rollback**: Packages only added, never removed. Safe.
 
-#### Step 3.4: Create shared common.env [ ]
+#### Step 3.4: Reconcile requirements files into one [ ]
+```bash
+# On VPS — merge all 31 requirements files into a single deduplicated list:
+find /home/qt/quantum_trader -name "requirements*.txt" -type f \
+  -exec cat {} \; | grep -v '^#' | grep -v '^$' | \
+  sed 's/[>=<].*//' | sort -u > /tmp/all-packages.txt
+
+echo "Total unique packages across 31 requirements files:"
+wc -l /tmp/all-packages.txt
+
+# Compare with what's actually installed in main venv:
+/home/qt/quantum_trader_venv/bin/pip freeze | cut -d= -f1 | sort > /tmp/installed.txt
+
+echo "Packages referenced but NOT installed:"
+comm -23 /tmp/all-packages.txt /tmp/installed.txt
+
+# Install any genuinely missing packages:
+# /home/qt/quantum_trader_venv/bin/pip install <MISSING_FROM_OUTPUT>
+```
+
+> After OP 6 (repo clean), consolidate 31 files into ONE `requirements.txt`
+> at repo root with pinned versions from `pip freeze`.
+
+#### Step 3.5: Create shared common.env [ ]
 ```bash
 cat > /etc/quantum/common.env << 'EOF'
 # === QTOS Common Environment ===
@@ -453,7 +570,7 @@ EOF
 echo "Created common.env"
 ```
 
-#### Step 3.5: Create shared secrets.env [ ]
+#### Step 3.6: Create shared secrets.env [ ]
 ```bash
 # Extract current keys from existing env files (verify values before writing!)
 BINANCE_KEY=$(grep -h BINANCE_API_KEY /etc/quantum/intent-executor.env | head -1 | cut -d= -f2-)
@@ -477,7 +594,7 @@ chmod 600 /etc/quantum/secrets.env
 echo "Created secrets.env (chmod 600)"
 ```
 
-#### Step 3.6: Create shared python.env [ ]
+#### Step 3.7: Create shared python.env [ ]
 ```bash
 cat > /etc/quantum/python.env << 'EOF'
 # === QTOS Python Environment ===
@@ -490,7 +607,7 @@ EOF
 echo "Created python.env"
 ```
 
-#### Step 3.7: Verify shared env files [ ]
+#### Step 3.8: Verify shared env files [ ]
 ```bash
 echo "=== common.env ==="
 cat /etc/quantum/common.env
@@ -579,7 +696,28 @@ done
 systemctl daemon-reload
 ```
 
-#### Step 4.6: Add shared EnvironmentFile directives to all services [ ]
+#### Step 4.6: Fix timer-triggered service files [ ]
+```bash
+# 5 timer service files also reference /opt/quantum:
+TIMER_SERVICES=(
+  quantum-contract-check
+  quantum-core-health
+  quantum-diagnostic
+  quantum-rl-reward-publisher
+  quantum-training-worker
+)
+for svc in "${TIMER_SERVICES[@]}"; do
+  f="/etc/systemd/system/${svc}.service"
+  if [ -f "$f" ]; then
+    sed -i 's|/opt/quantum/venvs/[^/]*/bin/python[3]*|/home/qt/quantum_trader_venv/bin/python|g' "$f"
+    sed -i 's|WorkingDirectory=/opt/quantum\b|WorkingDirectory=/home/qt/quantum_trader|g' "$f"
+    sed -i 's|/opt/quantum/|/home/qt/quantum_trader/|g' "$f"
+    echo "Fixed timer service: $svc"
+  fi
+done
+```
+
+#### Step 4.7: Add shared EnvironmentFile directives to all services [ ]
 ```bash
 # Add the 3 shared env files to every quantum service that doesn't already have them
 for f in /etc/systemd/system/quantum-*.service; do
@@ -601,7 +739,26 @@ for f in /etc/systemd/system/quantum-*.service; do
 done
 ```
 
-#### Step 4.7: Strip duplicated values from per-service env files [ ]
+#### Step 4.8: Add Restart=always to all 42 running services [ ]
+```bash
+# While we're editing service files anyway — ensure ALL 42 have a restart policy.
+# This costs nothing extra and prevents silent service deaths.
+for f in /etc/systemd/system/quantum-*.service; do
+  name=$(basename "$f")
+  # Only touch the 42 we're keeping (skip if not in keep-list)
+  if grep -qx "$name" /tmp/keep-services.txt; then
+    if ! grep -q "Restart=" "$f"; then
+      sed -i '/\[Service\]/a Restart=always\nRestartSec=5' "$f"
+      echo "ADDED Restart=always: $name"
+    elif grep -q "Restart=on-failure" "$f"; then
+      sed -i 's/Restart=on-failure/Restart=always/' "$f"
+      echo "UPGRADED to Restart=always: $name"
+    fi
+  fi
+done
+```
+
+#### Step 4.9: Strip duplicated values from per-service env files [ ]
 ```bash
 # Remove values that are now in shared env files from per-service env files
 # This makes per-service files contain ONLY service-specific config
@@ -628,7 +785,7 @@ done
 echo "Per-service env files now contain only service-specific config."
 ```
 
-#### Step 4.8: Reload and restart services in groups (verify between each) [ ]
+#### Step 4.10: Reload and restart services in groups (verify between each) [ ]
 
 ```bash
 systemctl daemon-reload
@@ -674,7 +831,7 @@ sleep 5
 systemctl is-active quantum-intent-bridge quantum-intent-executor
 ```
 
-#### Step 4.9: Full verification [ ]
+#### Step 4.11: Full verification [ ]
 ```bash
 # All 42 running?
 systemctl list-units quantum-*.service --no-pager | grep -c running
@@ -797,23 +954,79 @@ git mv ops/offline/_*.py archive/scripts/ 2>/dev/null
 git mv ops/analysis/fix_*.py archive/fixes/ 2>/dev/null
 ```
 
-#### Step 6.5: Update .gitignore [ ]
+#### Step 6.5: Remove model files from git tracking [ ]
+```bash
+# 2000+ .pkl files bloat the repo. Models are DATA, not code.
+# They should live on disk (VPS) but NOT in git history.
+
+# Step A: Add model patterns to .gitignore
+cat >> .gitignore << 'EOF'
+
+# Model files — too large for git, deploy via VPS disk
+models/*.pkl
+models/*.joblib
+models/*.pth
+models/*.pt
+models/*.onnx
+models/*.h5
+model_registry/**/*.pkl
+ai_engine/models/*.pkl
+*.pkl
+*.joblib
+*.pth
+EOF
+
+# Step B: Remove from git tracking (keeps files on disk)
+git rm -r --cached models/*.pkl 2>/dev/null
+git rm -r --cached models/*.joblib 2>/dev/null
+git rm -r --cached models/*.pth 2>/dev/null
+git rm --cached *.pkl 2>/dev/null
+
+echo "Model files removed from git tracking (still on disk)."
+echo "VPS models live at /home/qt/quantum_trader/model_registry/"
+echo "Future model deployment: scp/rsync, NOT git."
+```
+
+> **NOTE**: This does NOT clean git HISTORY (that would require `git filter-branch`
+> or BFG Repo Cleaner). For now, just stop tracking new changes. History cleanup
+> is a separate OP 7+ task.
+
+#### Step 6.6: Consolidate requirements.txt [ ]
+```bash
+# After model cleanup, merge 31 requirements files into one pinned file:
+# (Use the reconciled output from OP 3 Step 3.4)
+cat > requirements.txt << 'EOF'
+# QTOS Unified Requirements
+# Generated from VPS main venv pip freeze
+# Source of truth: /home/qt/quantum_trader_venv/
+EOF
+
+# Append pinned versions from live venv
+# (Run on VPS first: pip freeze > /tmp/pinned.txt, then copy here)
+# scp root@46.224.116.254:/tmp/pinned.txt ./requirements-pinned.txt
+
+echo "TODO: Copy pip freeze output from VPS after OP 3 venv merge"
+```
+
+#### Step 6.7: Update .gitignore [ ]
 ```
 # Don't track archive in future
 archive/
 ```
 
-#### Step 6.6: Commit and push [ ]
+#### Step 6.8: Commit and push [ ]
 ```bash
 git add -A
-git commit -m "OP6: clean repo — archive 1500+ root-level files, dead code
+git commit -m "OP6: clean repo — archive 1500+ files, remove model tracking, consolidate deps
 
 Moved diagnostic scripts, fix scripts, tmp files, doc bloat to archive/.
+Removed 2000+ .pkl model files from git tracking (still on VPS disk).
+Consolidated 31 requirements files into one pinned requirements.txt.
 Part of QTOS cleanup - see docs/architecture/QTOS_MASTER_PLAN.md"
 git push
 ```
 
-#### Step 6.7: Deploy to VPS [ ]
+#### Step 6.9: Deploy to VPS [ ]
 ```bash
 cd /home/qt/quantum_trader && git pull
 systemctl list-units quantum-*.service --no-pager | grep -c running
