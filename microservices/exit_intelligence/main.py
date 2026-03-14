@@ -453,8 +453,10 @@ class StorageLayer:
         """Save to Redis as JSON"""
         try:
             key = f"quantum:metrics:exit:{trade.trade_id}"
+            if trade.trade_id is None or str(trade.trade_id).startswith("None"):
+                return  # skip garbage trades
             trade_data = asdict(trade)
-            self.redis.set(key, json.dumps(trade_data), ex=86400 * 30)  # 30 days TTL
+            self.redis.set(key, json.dumps(trade_data), ex=86400 * 3)  # 3 days TTL
         except Exception as e:
             logger.error(f"Redis save failed for {trade.trade_id}: {e}")
     

@@ -965,7 +965,7 @@ class EnsembleManager:
         # DEBUG: Log predictions with any signal (QSC: only log active predictions)
         if action != 'HOLD' or confidence > 0.50:
             pred_str = ""
-            for model_key in ['xgb', 'lgbm', 'nhits', 'patchtst', 'tft']:
+            for model_key in ['xgb', 'lgbm', 'nhits', 'patchtst', 'tft', 'dlinear']:
                 if model_key in active_predictions:
                     pred = active_predictions[model_key]
                     if isinstance(pred, dict):
@@ -973,13 +973,13 @@ class EnsembleManager:
                     else:
                         act, conf = pred[0], pred[1]
                     
-                    model_abbrev = {'xgb': 'XGB', 'lgbm': 'LGBM', 'nhits': 'NH', 'patchtst': 'PT', 'tft': 'TFT'}[model_key]
+                    model_abbrev = {'xgb': 'XGB', 'lgbm': 'LGBM', 'nhits': 'NH', 'patchtst': 'PT', 'tft': 'TFT', 'dlinear': 'DL'}[model_key]
                     pred_str += f"{model_abbrev}:{act}/{conf:.2f} "
             
             logger.info(f"[CHART] ENSEMBLE {symbol}: {action} {confidence:.2%} | {pred_str.strip()}")
         
         # TIER 1: Publish signal to EventBus (async, non-blocking)
-        if self.eventbus_enabled and (action == 'BUY' or action == 'SELL'):
+        if self.eventbus_enabled and os.getenv("ENSEMBLE_EVENTBUS_ENABLED", "false").lower() == "true" and (action == 'BUY' or action == 'SELL'):
             try:
                 # Use asyncio to publish without blocking
                 loop = asyncio.get_event_loop()
@@ -1113,8 +1113,32 @@ class EnsembleManager:
         if not model_actions:
             return ('HOLD', 0.50, {'consensus': 'no_valid_models', 'models': predictions})
         
-        # Get winning action
-        winning_action = max(votes, key=votes.get)
+        # ── Directional Override ──
+        # When 2+ models agree on BUY or SELL (without equal opposition),
+        # use that direction instead of HOLD majority vote.
+        import os as _os
+        min_dir = int(_os.getenv("MIN_DIRECTIONAL_CONSENSUS", "2"))
+        buy_count = model_actions.count('BUY')
+        sell_count = model_actions.count('SELL')
+        directional_override = False
+
+        if buy_count >= min_dir and buy_count > sell_count:
+            winning_action = 'BUY'
+            directional_override = True
+            logger.info(
+                f"[ENSEMBLE] Directional override → BUY "
+                f"({buy_count} BUY vs {sell_count} SELL, threshold={min_dir})"
+            )
+        elif sell_count >= min_dir and sell_count > buy_count:
+            winning_action = 'SELL'
+            directional_override = True
+            logger.info(
+                f"[ENSEMBLE] Directional override → SELL "
+                f"({sell_count} SELL vs {buy_count} BUY, threshold={min_dir})"
+            )
+        else:
+            # Standard majority vote (HOLD or conflicting directions)
+            winning_action = max(votes, key=votes.get)
         
         # Check consensus
         consensus_count = model_actions.count(winning_action)
@@ -1138,9 +1162,14 @@ class EnsembleManager:
         else:
             final_confidence = raw_confidence
         
-        # REMOVED: Don't force HOLD anymore - let the models decide!
-        # Old logic forced HOLD when consensus_count == 2 and confidence < 0.65
-        # Now we trust XGB+LightGBM consensus
+        # Directional override confidence floor: ensure 2+ model consensus
+        # signals pass downstream thresholds (governor min 0.65)
+        if directional_override and final_confidence < 0.72:
+            logger.info(
+                f"[ENSEMBLE] Confidence floor applied: {final_confidence:.3f} → 0.720 "
+                f"(directional override with {consensus_count} models)"
+            )
+            final_confidence = 0.72
         
         # Volatility adjustment - DISABLED for testnet debugging
         # volatility = features.get('volatility_20', 0.02)

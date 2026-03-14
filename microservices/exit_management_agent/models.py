@@ -40,6 +40,7 @@ class PositionSnapshot:
     unrealized_pnl: float
     entry_risk_usdt: float  # 0.0 = not yet computed
     sync_timestamp: float   # unix epoch
+    opened_at: Optional[float] = None  # unix epoch when position was opened
 
     @property
     def is_long(self) -> bool:

@@ -109,6 +109,8 @@ class AIEngineService:
         self.last_signal_by_symbol = defaultdict(float)  # symbol -> timestamp
         self.max_signals_per_min = int(os.getenv("MAX_SIGNALS_PER_MINUTE", "6"))
         self.symbol_cooldown_sec = int(os.getenv("SYMBOL_COOLDOWN_SECONDS", "120"))
+        self._tick_debounce_sec = int(os.getenv("TICK_DEBOUNCE_SEC", "45"))
+        self._last_tick_process: Dict[str, float] = {}
         self.meta_strategy_selector = None
         self.rl_sizing_agent = None
         self.regime_detector = None
@@ -1185,6 +1187,13 @@ class AIEngineService:
             logger.info(f"[AI-ENGINE] Processing tick: {symbol} @ ${price:.2f} "
                        f"(history: {len(self._price_history[symbol])} ticks)")
             
+            # Early debounce: skip expensive ensemble inference if recently processed
+            import time as _time
+            _now = _time.time()
+            if symbol in self._last_tick_process and (_now - self._last_tick_process[symbol]) < self._tick_debounce_sec:
+                return
+            self._last_tick_process[symbol] = _now
+
             # Generate full signal
             decision = await self.generate_signal(symbol, current_price=price)
             
@@ -2107,7 +2116,7 @@ class AIEngineService:
                         logger.warning(f"[PHASE 1] Funding rate feature extraction failed: {e}")
                 
                 # 🔥 PHASE 2D: Add Volatility Structure Features (5s timeout)
-                if self.volatility_structure_engine:
+                if self.volatility_structure_engine and os.getenv('VOLATILITY_ENGINE_ENABLED', 'false').lower() == 'true':
                     try:
                         vol_analysis = await asyncio.wait_for(
                             asyncio.to_thread(
@@ -2136,7 +2145,7 @@ class AIEngineService:
                         logger.warning(f"[PHASE 2D] Volatility feature extraction failed: {vol_error}")
                 
                 # 🔥 PHASE 2B: Add Orderbook Imbalance Features (5s timeout)
-                if self.orderbook_imbalance:
+                if self.orderbook_imbalance and os.getenv('ORDERBOOK_IMBALANCE_ENABLED', 'false').lower() == 'true':
                     try:
                         orderbook_metrics = await asyncio.wait_for(
                             asyncio.to_thread(
@@ -2170,7 +2179,7 @@ class AIEngineService:
                 # 🔥 PHASE 3A: Predict risk mode (5s timeout)
                 risk_signal = None
                 risk_multiplier = 1.0
-                if self.risk_mode_predictor:
+                if self.risk_mode_predictor and os.getenv('RISK_PREDICTOR_ENABLED', 'false').lower() == 'true':
                     try:
                         risk_signal = await asyncio.wait_for(
                             asyncio.to_thread(
@@ -2209,7 +2218,7 @@ class AIEngineService:
                 # 🔥 PHASE 3B: Select optimal trading strategy
                 strategy_selection = None
                 selected_strategy = "momentum_conservative"  # Default
-                if self.strategy_selector:
+                if self.strategy_selector and os.getenv('STRATEGY_SELECTOR_ENABLED', 'false').lower() == 'true':
                     try:
                         strategy_selection = await asyncio.to_thread(
                             self.strategy_selector.select_strategy,
@@ -2245,30 +2254,11 @@ class AIEngineService:
                 macd = features.get('macd', 0)
                 
                 # Log feature values for debugging
-                logger.info(f"[AI-ENGINE] 🔍 FALLBACK CHECK {symbol}: RSI={rsi:.1f}, MACD={macd:.4f}, price_history_len={len(self._price_history.get(symbol, []))}")
-                
-                # TEMPORARY: Very relaxed thresholds for immediate testing
-                # When history < 15 points, use extreme relaxed logic
                 history_len = len(self._price_history.get(symbol, []))
-                if history_len < 15:
-                    # Use simple alternating pattern for testing when no real RSI available
-                    import hashlib
-                    symbol_hash = int(hashlib.md5(symbol.encode()).hexdigest()[:8], 16)
-                    if symbol_hash % 3 == 0:  # ~33% BUY
-                        action = "BUY"
-                        ensemble_confidence = 0.68
-                        fallback_triggered = True
-                        logger.info(f"[AI-ENGINE] 🔥 FALLBACK BUY signal (testing mode): {symbol}")
-                    elif symbol_hash % 3 == 1:  # ~33% SELL
-                        action = "SELL"
-                        ensemble_confidence = 0.68
-                        fallback_triggered = True
-                        logger.info(f"[AI-ENGINE] 🔥 FALLBACK SELL signal (testing mode): {symbol}")
-                    # else: HOLD (~33%)
-                else:
-                    # EXPLORATION MODE: Relaxed RSI thresholds to enable data collection
-                    # RSI < 45 (was 35) + MACD > -0.002 (was -0.001) = BUY
-                    # RSI > 55 (was 65) + MACD < 0.002 (was 0.001) = SELL
+                logger.info(f"[AI-ENGINE] 🔍 FALLBACK CHECK {symbol}: RSI={rsi:.1f}, MACD={macd:.4f}, price_history_len={history_len}")
+                
+                # RSI/MACD-based fallback: Only when we have enough price data
+                if history_len >= 5:
                     if rsi < 45 and macd > -0.002:  # Moderately oversold + neutral/bullish momentum
                         action = "BUY"
                         ensemble_confidence = 0.72
@@ -2279,6 +2269,8 @@ class AIEngineService:
                         ensemble_confidence = 0.72
                         fallback_triggered = True
                         logger.info(f"[AI-ENGINE] 🔥 FALLBACK SELL signal: {symbol} RSI={rsi:.1f}, MACD={macd:.4f}")
+                else:
+                    logger.info(f"[AI-ENGINE] ⏳ Waiting for price history ({history_len}/5) before fallback for {symbol}")
             
             logger.info(f"[AI-ENGINE] 🔍 Action check: repr={repr(action)}, equals_HOLD={action == 'HOLD'}, fallback={fallback_triggered}")
             
@@ -2671,6 +2663,14 @@ class AIEngineService:
                 f"TP_CALC={tp_formula}={calculated_tp:.6f}"
             )
             
+            # Sanitize regime: detector uses different enum than AIDecisionMadeEvent
+            _valid_regimes = {r.value for r in MarketRegime}
+            if regime is not None:
+                _regime_val = regime.value if hasattr(regime, 'value') else str(regime)
+                if _regime_val not in _valid_regimes:
+                    logger.info(f"[REGIME-MAP] Mapping unsupported regime '{_regime_val}' → 'unknown'")
+                    regime = MarketRegime.UNKNOWN
+
             decision = AIDecisionMadeEvent(
                 symbol=symbol,
                 side=SignalAction(action.lower()),

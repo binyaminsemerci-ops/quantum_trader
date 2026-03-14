@@ -92,6 +92,7 @@ class ClmV3Service:
         
         self._running = False
         self._job_processor_task: Optional[asyncio.Task] = None
+        self._training_semaphore = asyncio.Semaphore(2)
         
         logger.info("[CLM v3] Service initialized successfully")
     
@@ -224,7 +225,7 @@ class ClmV3Service:
                     )
                     
                     # Start training in background (orchestrator will update job status)
-                    asyncio.create_task(self.orchestrator.handle_training_job(job))
+                    asyncio.create_task(self._run_training_with_limit(job))
                     
                     # Small delay to avoid race conditions
                     await asyncio.sleep(2)
@@ -239,7 +240,12 @@ class ClmV3Service:
             await asyncio.sleep(60)
         
         logger.info("[CLM v3 Job Processor] Job processor loop stopped")
-    
+
+    async def _run_training_with_limit(self, job):
+        """Run training job with concurrency semaphore."""
+        async with self._training_semaphore:
+            await self.orchestrator.handle_training_job(job)
+
     # ========================================================================
     # EventBus Integration
     # ========================================================================
@@ -362,7 +368,7 @@ class ClmV3Service:
         )
         
         # Start training in background
-        asyncio.create_task(self.orchestrator.handle_training_job(job))
+        asyncio.create_task(self._run_training_with_limit(job))
     
     async def handle_regime_change(self, event: Dict):
         """

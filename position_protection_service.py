@@ -74,7 +74,7 @@ class PositionProtectionService:
         })
         
         if testnet:
-            self.exchange.set_sandbox_mode(True)
+            self.exchange.urls["api"] = "https://testnet.binancefuture.com"
         
         logger.info(f"🛡️  Position Protection Service initialized ({'TESTNET' if testnet else 'LIVE'})")
         logger.info(f"📊 Check interval: {check_interval}s")

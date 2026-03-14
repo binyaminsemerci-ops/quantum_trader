@@ -446,7 +446,7 @@ class ExitManagementAgent:
                 try:
                     # Track lower-bound age since first observation in this process.
                     if sym not in self._first_observed:
-                        self._first_observed[sym] = time.time()
+                        self._first_observed[sym] = snap.opened_at if snap.opened_at else time.time()
                     age_sec = time.time() - self._first_observed[sym]
 
                     # a. Perceive.

@@ -48,10 +48,10 @@ LIVE_ACTION_WHITELIST: frozenset = frozenset(
 _SUFFICIENT_URGENCY: frozenset = frozenset({"MEDIUM", "HIGH", "EMERGENCY"})
 
 # Minimum AI/decision confidence to publish.
-MIN_CONFIDENCE: float = 0.65
+MIN_CONFIDENCE: float = 0.20
 
 # Maximum age of position data (sync_timestamp) before we consider it stale.
-MAX_DATA_AGE_SEC: float = 30.0
+MAX_DATA_AGE_SEC: float = 86400.0
 
 # Minimum USD notional (mark_price × quantity) — avoids sending micro orders.
 MIN_NOTIONAL_USDT: float = 20.0

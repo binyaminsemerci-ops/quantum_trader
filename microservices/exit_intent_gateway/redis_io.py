@@ -32,6 +32,7 @@ _log = logging.getLogger("exit_intent_gateway.redis_io")
 _ALLOWED_WRITE_STREAMS: frozenset = frozenset(
     {
         "quantum:stream:trade.intent",
+        "quantum:stream:harvest.intent",
         "quantum:stream:exit.intent.rejected",
     }
 )
@@ -44,7 +45,6 @@ _FORBIDDEN_STREAMS: frozenset = frozenset(
         "quantum:stream:apply.plan",
         "quantum:stream:exit.audit",
         "quantum:stream:exit.metrics",
-        "quantum:stream:harvest.intent",
         "quantum:stream:harvest.suggestions",
     }
 )

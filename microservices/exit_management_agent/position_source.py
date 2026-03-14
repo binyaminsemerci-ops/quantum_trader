@@ -135,6 +135,8 @@ def _parse_hash(symbol: str, data: dict) -> Optional[PositionSnapshot]:
     unrealized_pnl = _safe_float(data.get("unrealized_pnl"), 0.0)
     entry_risk_usdt = _safe_float(data.get("entry_risk_usdt"), 0.0)
     sync_ts = _safe_float(data.get("sync_timestamp"), time.time())
+    opened_at_raw = _safe_float(data.get("opened_at"), 0.0)
+    opened_at_val = opened_at_raw if opened_at_raw > 0 else None
 
     # ── Derive mark_price from unrealized_pnl ─────────────────────────────
     mark_price = _derive_mark_price(
@@ -156,6 +158,7 @@ def _parse_hash(symbol: str, data: dict) -> Optional[PositionSnapshot]:
         unrealized_pnl=unrealized_pnl,
         entry_risk_usdt=entry_risk_usdt,
         sync_timestamp=sync_ts,
+        opened_at=opened_at_val,
     )
 
 

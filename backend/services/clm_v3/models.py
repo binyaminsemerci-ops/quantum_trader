@@ -34,6 +34,7 @@ class ModelType(str, Enum):
     NHITS = "nhits"
     PATCHTST = "patchtst"
     TFT = "tft"
+    DLINEAR = "dlinear"
 
     # Reinforcement Learning (no auto-retrain scripts — kept for registry queries)
     RL_V2 = "rl_v2"  # Legacy RL
@@ -50,6 +51,7 @@ RETRAINABLE_MODEL_TYPES = {
     ModelType.NHITS,
     ModelType.PATCHTST,
     ModelType.TFT,
+    ModelType.DLINEAR,
 }
 
 

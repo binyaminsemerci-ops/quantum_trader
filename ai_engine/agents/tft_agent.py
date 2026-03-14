@@ -4,6 +4,8 @@ Replaces XGBoost agent with state-of-the-art transformer model
 Expected WIN rate: 60-75%
 """
 import numpy as np
+import redis
+import json
 import torch
 from typing import Dict, List, Optional, Tuple
 import json
@@ -50,7 +52,313 @@ class TFTAgent:
         self.feature_std = None
         
         logger.info(f"🤖 TFT Agent initialized (device: {self.device})")
+        self.warmup_from_redis()
+        self.warmup_from_redis()
     
+
+    def warmup_from_redis(self, symbols: list = None):
+        """Pre-fill history buffer from Redis OHLCV data so TFT can predict immediately after restart"""
+        try:
+            r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+            if symbols is None:
+                # Get all OHLCV keys
+                keys = r.keys("quantum:history:ohlcv:*:1m")
+                symbols = [k.split(":")[3] for k in keys]
+
+            for symbol in symbols:
+                key = f"quantum:history:ohlcv:{symbol}:1m"
+                # Get last 200 candles (need extra for indicator warmup)
+                raw = r.zrange(key, -200, -1)
+                if not raw or len(raw) < self.sequence_length + 50:
+                    continue
+
+                candles = [json.loads(c) for c in raw]
+                closes = [c['close'] for c in candles]
+                volumes = [c['volume'] for c in candles]
+                highs = [c['high'] for c in candles]
+                lows = [c['low'] for c in candles]
+
+                n = len(closes)
+                # Compute indicators
+                ema_10 = self._ema(closes, 10)
+                ema_50 = self._ema(closes, 50)
+                rsi = self._rsi(closes, 14)
+                macd, macd_signal = self._macd(closes)
+                bb_upper, bb_middle, bb_lower = self._bbands(closes, 20)
+                atr = self._atr(highs, lows, closes, 14)
+                vol_sma = self._sma(volumes, 20)
+
+                # Build feature vectors (skip first 50 for indicator warmup)
+                features_list = []
+                for i in range(50, n):
+                    price_change_pct = (closes[i] - closes[i-1]) / closes[i-1] if closes[i-1] != 0 else 0
+                    hl_range = (highs[i] - lows[i]) / closes[i] if closes[i] != 0 else 0
+                    feat = [
+                        closes[i], volumes[i], ema_10[i], ema_50[i],
+                        rsi[i], macd[i], macd_signal[i],
+                        bb_upper[i], bb_middle[i], bb_lower[i],
+                        atr[i], vol_sma[i], price_change_pct, hl_range
+                    ]
+                    features_list.append(feat)
+
+                # Store last sequence_length*2 entries
+                self.history_buffer[symbol] = features_list[-(self.sequence_length * 2):]
+                logger.info(f"[TFT-WARMUP] {symbol}: pre-filled {len(self.history_buffer[symbol])} samples from OHLCV")
+
+            warmed = [s for s in self.history_buffer if len(self.history_buffer[s]) >= self.sequence_length]
+            logger.info(f"[TFT-WARMUP] Complete: {len(warmed)}/{len(symbols)} symbols ready for prediction")
+        except Exception as e:
+            logger.warning(f"[TFT-WARMUP] Failed (non-fatal): {e}")
+
+    @staticmethod
+    def _ema(data, period):
+        result = [0.0] * len(data)
+        if len(data) < period:
+            return result
+        k = 2.0 / (period + 1)
+        result[period-1] = sum(data[:period]) / period
+        for i in range(period, len(data)):
+            result[i] = data[i] * k + result[i-1] * (1 - k)
+        return result
+
+    @staticmethod
+    def _sma(data, period):
+        result = [0.0] * len(data)
+        for i in range(period-1, len(data)):
+            result[i] = sum(data[i-period+1:i+1]) / period
+        return result
+
+    @staticmethod
+    def _rsi(closes, period=14):
+        result = [50.0] * len(closes)
+        if len(closes) < period + 1:
+            return result
+        gains, losses = [], []
+        for i in range(1, period + 1):
+            d = closes[i] - closes[i-1]
+            gains.append(max(d, 0))
+            losses.append(max(-d, 0))
+        avg_gain = sum(gains) / period
+        avg_loss = sum(losses) / period
+        for i in range(period, len(closes)):
+            d = closes[i] - closes[i-1]
+            avg_gain = (avg_gain * (period - 1) + max(d, 0)) / period
+            avg_loss = (avg_loss * (period - 1) + max(-d, 0)) / period
+            if avg_loss == 0:
+                result[i] = 100.0
+            else:
+                rs = avg_gain / avg_loss
+                result[i] = 100.0 - (100.0 / (1.0 + rs))
+        return result
+
+    @staticmethod
+    def _macd(closes, fast=12, slow=26, signal=9):
+        macd_line = [0.0] * len(closes)
+        signal_line = [0.0] * len(closes)
+        if len(closes) < slow + signal:
+            return macd_line, signal_line
+        k_fast = 2.0 / (fast + 1)
+        k_slow = 2.0 / (slow + 1)
+        ema_fast = sum(closes[:fast]) / fast
+        ema_slow = sum(closes[:slow]) / slow
+        for i in range(slow, len(closes)):
+            ema_fast = closes[i] * k_fast + ema_fast * (1 - k_fast)
+            ema_slow = closes[i] * k_slow + ema_slow * (1 - k_slow)
+            macd_line[i] = ema_fast - ema_slow
+        # Signal line
+        k_sig = 2.0 / (signal + 1)
+        start = slow + signal - 1
+        if start < len(closes):
+            signal_line[start] = sum(macd_line[slow:start+1]) / signal
+            for i in range(start + 1, len(closes)):
+                signal_line[i] = macd_line[i] * k_sig + signal_line[i-1] * (1 - k_sig)
+        return macd_line, signal_line
+
+    @staticmethod
+    def _bbands(closes, period=20, std_mult=2):
+        upper = [0.0] * len(closes)
+        middle = [0.0] * len(closes)
+        lower = [0.0] * len(closes)
+        for i in range(period-1, len(closes)):
+            window = closes[i-period+1:i+1]
+            m = sum(window) / period
+            std = (sum((x-m)**2 for x in window) / period) ** 0.5
+            middle[i] = m
+            upper[i] = m + std_mult * std
+            lower[i] = m - std_mult * std
+        return upper, middle, lower
+
+    @staticmethod
+    def _atr(highs, lows, closes, period=14):
+        result = [0.0] * len(closes)
+        if len(closes) < period + 1:
+            return result
+        trs = []
+        for i in range(1, len(closes)):
+            tr = max(highs[i] - lows[i], abs(highs[i] - closes[i-1]), abs(lows[i] - closes[i-1]))
+            trs.append(tr)
+        if len(trs) < period:
+            return result
+        atr_val = sum(trs[:period]) / period
+        result[period] = atr_val
+        for i in range(period, len(trs)):
+            atr_val = (atr_val * (period - 1) + trs[i]) / period
+            result[i+1] = atr_val
+        return result
+
+
+
+    def warmup_from_redis(self, symbols: list = None):
+        """Pre-fill history buffer from Redis OHLCV data so TFT can predict immediately after restart"""
+        try:
+            r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+            if symbols is None:
+                # Get all OHLCV keys
+                keys = r.keys("quantum:history:ohlcv:*:1m")
+                symbols = [k.split(":")[3] for k in keys]
+
+            for symbol in symbols:
+                key = f"quantum:history:ohlcv:{symbol}:1m"
+                # Get last 200 candles (need extra for indicator warmup)
+                raw = r.zrange(key, -200, -1)
+                if not raw or len(raw) < self.sequence_length + 50:
+                    continue
+
+                candles = [json.loads(c) for c in raw]
+                closes = [c['close'] for c in candles]
+                volumes = [c['volume'] for c in candles]
+                highs = [c['high'] for c in candles]
+                lows = [c['low'] for c in candles]
+
+                n = len(closes)
+                # Compute indicators
+                ema_10 = self._ema(closes, 10)
+                ema_50 = self._ema(closes, 50)
+                rsi = self._rsi(closes, 14)
+                macd, macd_signal = self._macd(closes)
+                bb_upper, bb_middle, bb_lower = self._bbands(closes, 20)
+                atr = self._atr(highs, lows, closes, 14)
+                vol_sma = self._sma(volumes, 20)
+
+                # Build feature vectors (skip first 50 for indicator warmup)
+                features_list = []
+                for i in range(50, n):
+                    price_change_pct = (closes[i] - closes[i-1]) / closes[i-1] if closes[i-1] != 0 else 0
+                    hl_range = (highs[i] - lows[i]) / closes[i] if closes[i] != 0 else 0
+                    feat = [
+                        closes[i], volumes[i], ema_10[i], ema_50[i],
+                        rsi[i], macd[i], macd_signal[i],
+                        bb_upper[i], bb_middle[i], bb_lower[i],
+                        atr[i], vol_sma[i], price_change_pct, hl_range
+                    ]
+                    features_list.append(feat)
+
+                # Store last sequence_length*2 entries
+                self.history_buffer[symbol] = features_list[-(self.sequence_length * 2):]
+                logger.info(f"[TFT-WARMUP] {symbol}: pre-filled {len(self.history_buffer[symbol])} samples from OHLCV")
+
+            warmed = [s for s in self.history_buffer if len(self.history_buffer[s]) >= self.sequence_length]
+            logger.info(f"[TFT-WARMUP] Complete: {len(warmed)}/{len(symbols)} symbols ready for prediction")
+        except Exception as e:
+            logger.warning(f"[TFT-WARMUP] Failed (non-fatal): {e}")
+
+    @staticmethod
+    def _ema(data, period):
+        result = [0.0] * len(data)
+        if len(data) < period:
+            return result
+        k = 2.0 / (period + 1)
+        result[period-1] = sum(data[:period]) / period
+        for i in range(period, len(data)):
+            result[i] = data[i] * k + result[i-1] * (1 - k)
+        return result
+
+    @staticmethod
+    def _sma(data, period):
+        result = [0.0] * len(data)
+        for i in range(period-1, len(data)):
+            result[i] = sum(data[i-period+1:i+1]) / period
+        return result
+
+    @staticmethod
+    def _rsi(closes, period=14):
+        result = [50.0] * len(closes)
+        if len(closes) < period + 1:
+            return result
+        gains, losses = [], []
+        for i in range(1, period + 1):
+            d = closes[i] - closes[i-1]
+            gains.append(max(d, 0))
+            losses.append(max(-d, 0))
+        avg_gain = sum(gains) / period
+        avg_loss = sum(losses) / period
+        for i in range(period, len(closes)):
+            d = closes[i] - closes[i-1]
+            avg_gain = (avg_gain * (period - 1) + max(d, 0)) / period
+            avg_loss = (avg_loss * (period - 1) + max(-d, 0)) / period
+            if avg_loss == 0:
+                result[i] = 100.0
+            else:
+                rs = avg_gain / avg_loss
+                result[i] = 100.0 - (100.0 / (1.0 + rs))
+        return result
+
+    @staticmethod
+    def _macd(closes, fast=12, slow=26, signal=9):
+        macd_line = [0.0] * len(closes)
+        signal_line = [0.0] * len(closes)
+        if len(closes) < slow + signal:
+            return macd_line, signal_line
+        k_fast = 2.0 / (fast + 1)
+        k_slow = 2.0 / (slow + 1)
+        ema_fast = sum(closes[:fast]) / fast
+        ema_slow = sum(closes[:slow]) / slow
+        for i in range(slow, len(closes)):
+            ema_fast = closes[i] * k_fast + ema_fast * (1 - k_fast)
+            ema_slow = closes[i] * k_slow + ema_slow * (1 - k_slow)
+            macd_line[i] = ema_fast - ema_slow
+        # Signal line
+        k_sig = 2.0 / (signal + 1)
+        start = slow + signal - 1
+        if start < len(closes):
+            signal_line[start] = sum(macd_line[slow:start+1]) / signal
+            for i in range(start + 1, len(closes)):
+                signal_line[i] = macd_line[i] * k_sig + signal_line[i-1] * (1 - k_sig)
+        return macd_line, signal_line
+
+    @staticmethod
+    def _bbands(closes, period=20, std_mult=2):
+        upper = [0.0] * len(closes)
+        middle = [0.0] * len(closes)
+        lower = [0.0] * len(closes)
+        for i in range(period-1, len(closes)):
+            window = closes[i-period+1:i+1]
+            m = sum(window) / period
+            std = (sum((x-m)**2 for x in window) / period) ** 0.5
+            middle[i] = m
+            upper[i] = m + std_mult * std
+            lower[i] = m - std_mult * std
+        return upper, middle, lower
+
+    @staticmethod
+    def _atr(highs, lows, closes, period=14):
+        result = [0.0] * len(closes)
+        if len(closes) < period + 1:
+            return result
+        trs = []
+        for i in range(1, len(closes)):
+            tr = max(highs[i] - lows[i], abs(highs[i] - closes[i-1]), abs(lows[i] - closes[i-1]))
+            trs.append(tr)
+        if len(trs) < period:
+            return result
+        atr_val = sum(trs[:period]) / period
+        result[period] = atr_val
+        for i in range(period, len(trs)):
+            atr_val = (atr_val * (period - 1) + trs[i]) / period
+            result[i+1] = atr_val
+        return result
+
+
     def load_model(self) -> bool:
         """Load TFT model from disk"""
         try:

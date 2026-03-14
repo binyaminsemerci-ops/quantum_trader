@@ -285,17 +285,18 @@ class ReconcileEngine:
             ledger_key = f"quantum:position:ledger:{symbol}"
             pos_key    = f"quantum:position:{symbol}"
 
-            # A) Bootstrap missing snapshot so P3.3 picks up the symbol
-            if not self.redis.exists(snap_key):
-                self.redis.hset(snap_key, mapping={
-                    "position_amt": b_amt,
-                    "side":         b_side,
-                    "entry_price":  b_entry,
-                    "mark_price":   b_mark,
-                    "leverage":     b_lev,
-                    "ts_epoch":     int(time.time()),
-                    "source":       "p34_bootstrap",
-                })
+            # A) Refresh snapshot every ghost-purge cycle (keeps exchange freshness < 120s)
+            _snap_is_new = not self.redis.exists(snap_key)
+            self.redis.hset(snap_key, mapping={
+                "position_amt": b_amt,
+                "side":         b_side,
+                "entry_price":  b_entry,
+                "mark_price":   b_mark,
+                "leverage":     b_lev,
+                "ts_epoch":     int(time.time()),
+                "source":       "p34_bootstrap",
+            })
+            if _snap_is_new:
                 logger.warning(
                     f"{symbol}: SNAPSHOT_BOOTSTRAP — wrote exchange snapshot directly "
                     f"(amt={b_amt:.4f} side={b_side} entry={b_entry})"

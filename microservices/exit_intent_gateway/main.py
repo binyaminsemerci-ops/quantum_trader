@@ -224,14 +224,25 @@ class ExitIntentGateway:
         _log.info("GATEWAY_PEL_DRAIN_DONE count=%d", drained)
 
     async def _forward_intent(self, msg: IntentMessage) -> None:
-        """Publish approved intent to trade.intent and log."""
-        payload_str = msg.to_trade_intent_payload(patch=BUILD_TAG)
-        trade_fields = {
-            "event_type": "trade.intent",
-            "payload": payload_str,
+        """Publish approved intent to harvest.intent stream (PATCH-5C)."""
+        _ACTION_MAP = {
+            "FULL_CLOSE": "CLOSE", "PARTIAL_CLOSE_25": "PARTIAL_CLOSE",
+            "TIME_STOP_EXIT": "CLOSE", "REDUCE_25": "PARTIAL_CLOSE",
+            "REDUCE_50": "PARTIAL_CLOSE", "HARVEST_70_KEEP_30": "PARTIAL_CLOSE",
+            "TOXICITY_UNWIND": "CLOSE",
         }
-        await self._redis.xadd(self._cfg.trade_stream, trade_fields)
-        self._total_forwarded += 1
+        harvest_action = _ACTION_MAP.get(msg.action, "CLOSE")
+        harvest_fields = {
+            "symbol": msg.symbol,
+            "action": harvest_action,
+            "percentage": str(msg.qty_fraction),
+            "reason": f"{msg.action} {msg.reason}",
+            "R_net": str(msg.R_net),
+            "pnl_usd": "0",
+            "entry_price": str(msg.entry_price),
+            "exit_price": str(msg.mark_price),
+        }
+        await self._redis.xadd(self._cfg.trade_stream, harvest_fields)
         _log.warning(
             "INTENT_FORWARDED intent_id=%s symbol=%s action=%s side=%s "
             "qty=%.8f confidence=%.4f patch=%s",

@@ -13,7 +13,7 @@ def main():
         'secret': os.getenv('BINANCE_SECRET_KEY'),
         'options': {'defaultType': 'future'}
     })
-    binance.set_sandbox_mode(True)
+    binance.urls["api"] = "https://testnet.binancefuture.com"
     
     # Get active positions
     positions = [p for p in binance.fetch_positions() if float(p.get('contracts', 0)) != 0]

@@ -30,6 +30,11 @@ logger = logging.getLogger(__name__)
 redis_client: Optional[redis.Redis] = None
 health_counters = {"ticks_published": 0, "klines_published": 0, "reconnects": 0, "last_tick_ts": 0.0, "last_kline_ts": 0.0}
 
+# Mark price fallback: publish synthetic ticks for symbols without recent trades
+MARK_PRICE_FALLBACK_INTERVAL = float(os.getenv("MARK_PRICE_FALLBACK_INTERVAL", "5"))
+MARK_PRICE_STALE_THRESHOLD = float(os.getenv("MARK_PRICE_STALE_THRESHOLD", "15"))
+last_real_trade: Dict[str, float] = {}
+
 def create_event_envelope(event_type: str, payload: Dict, source: str = "market-publisher") -> Dict:
     return {"event_type": event_type, "payload": json.dumps(payload), "correlation_id": str(uuid.uuid4()), 
             "timestamp": datetime.utcnow().isoformat(), "source": source, "trace_id": ""}
@@ -40,6 +45,7 @@ def publish_market_tick(symbol: str, price: float, qty: float, is_buyer_maker: b
         redis_client.xadd(STREAM_TICK, create_event_envelope("market.tick", payload), maxlen=10000, approximate=True)
         health_counters["ticks_published"] += 1
         health_counters["last_tick_ts"] = time.time()
+        last_real_trade[symbol] = time.time()
     except Exception as e:
         logger.error(f"Failed to publish market.tick for {symbol}: {e}")
 
@@ -101,6 +107,34 @@ async def handle_symbol_kline_stream(symbol: str, bsm: BinanceSocketManager, int
             await asyncio.sleep(wait_time)
             reconnect_delay = min(reconnect_delay * 2, RECONNECT_MAX)
 
+async def mark_price_fallback():
+    """Publish synthetic ticks from Price Feed mark prices for symbols without recent trades."""
+    logger.info(f"[FALLBACK] Mark price fallback enabled: interval={MARK_PRICE_FALLBACK_INTERVAL}s, stale_threshold={MARK_PRICE_STALE_THRESHOLD}s")
+    while True:
+        await asyncio.sleep(MARK_PRICE_FALLBACK_INTERVAL)
+        now = time.time()
+        fallback_count = 0
+        for symbol in SYMBOLS:
+            if now - last_real_trade.get(symbol, 0) < MARK_PRICE_STALE_THRESHOLD:
+                continue
+            try:
+                data = redis_client.hgetall(f"quantum:ticker:{symbol}")
+                if not data:
+                    continue
+                price_raw = data.get(b"price") or data.get(b"markPrice")
+                if price_raw:
+                    price = float(price_raw)
+                    if price > 0:
+                        payload = {"symbol": symbol, "price": price, "qty": 0.0, "is_buyer_maker": False, "timestamp": now, "source": "mark_price_fallback"}
+                        redis_client.xadd(STREAM_TICK, create_event_envelope("market.tick", payload), maxlen=10000, approximate=True)
+                        health_counters["ticks_published"] += 1
+                        health_counters["last_tick_ts"] = now
+                        fallback_count += 1
+            except Exception as e:
+                logger.warning(f"[FALLBACK] {symbol} error: {e}")
+        if fallback_count > 0:
+            logger.debug(f"[FALLBACK] Published {fallback_count} synthetic ticks")
+
 async def health_monitor():
     while True:
         await asyncio.sleep(HEALTH_INTERVAL)
@@ -126,6 +160,7 @@ async def start_market_streams():
     client = await AsyncClient.create()
     bsm = BinanceSocketManager(client)
     asyncio.create_task(health_monitor())
+    asyncio.create_task(mark_price_fallback())
     
     tasks = []
     for symbol in SYMBOLS:
