@@ -497,8 +497,18 @@ git grep "/opt/quantum" -- "microservices/**/*.py" "backend/**/*.py" "bin/*.sh" 
 ---
 
 ## OP 3: UNIFY PYTHON, VENVS & ENV FILES
-### Status: [ ] NOT STARTED
+### Status: [x] DONE — 2025-07-17
 ### Depends on: OP 0 (backup done), OP 2 (code pushed)
+
+**Completed**:
+- 3.1: Package comparison — 3 missing (httptools, pyyaml, watchfiles)
+- 3.2: Installed 3 missing pkgs → main venv now 161 pkgs (superset of ai-engine)
+- 3.3: Smoke test — AI engine imports work with main venv
+- 3.4: Requirements reconciled — 90 aspirational pkgs, deferred to OP 6
+- 3.5: Created `/etc/quantum/common.env` (6 keys: REDIS_*, TZ, LOG_LEVEL, QT_BASE_DIR)
+- 3.6: Created `/etc/quantum/secrets.env` (4 keys: BINANCE_*, chmod 600)
+- 3.7: Created `/etc/quantum/python.env` (3 keys: VIRTUAL_ENV, PATH, PYTHONPATH)
+- 3.8: Full verification — all checks PASS, 42 services running
 
 Two goals:
 1. Merge 10 venvs into ONE: `/home/qt/quantum_trader_venv/`
