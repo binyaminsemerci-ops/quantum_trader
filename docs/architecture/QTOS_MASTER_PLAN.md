@@ -1,5 +1,5 @@
-# QTOS MASTER PLAN — Single Source of Truth
-## Version: 1.0 | Created: 2026-03-14 | Last Updated: 2026-03-14
+# QTOS MASTER PLAN v2 — Untangle the Yarn Ball
+## Version: 2.0 | Created: 2026-03-14 | Last Updated: 2026-03-14
 
 ---
 
@@ -14,202 +14,176 @@
 
 ---
 
+## PHILOSOPHY
+
+Forget "critical" or "not critical". The system is a chaos yarn ball.
+We untangle it by pulling the LOOSE ENDS first, then working inward
+to the core knots. Every operation reduces noise and makes the next
+operation easier.
+
+**Sequence logic**: Remove dead things → Fix living things → Kill the ghost → Clean up → Build new
+
+---
+
 ## TABLE OF CONTENTS
 
-1. [Current System State](#1-current-system-state)
-2. [Operation 1: Kill the Two-Headed Monster](#operation-1-kill-the-two-headed-monster)
-3. [Operation 2: Remove the Zombie Army](#operation-2-remove-the-zombie-army)
-4. [Operation 3: One Python, One Path](#operation-3-one-python-one-path)
-5. [Operation 4: Clean the Coral Reef](#operation-4-clean-the-coral-reef)
-6. [Operation 5: Unify Execution Pipeline](#operation-5-unify-execution-pipeline)
-7. [Operation 6: Position Truth Source](#operation-6-position-truth-source)
-8. [Operation 7: Typed IPC Contracts](#operation-7-typed-ipc-contracts)
-9. [Operation 8: Risk Kernel](#operation-8-risk-kernel)
-10. [Operation 9: Plugin Architecture](#operation-9-plugin-architecture)
-11. [Operation 10: Shell Unification](#operation-10-shell-unification)
-12. [Quick Reference](#quick-reference)
+1. [Verified System State (2026-03-14)](#1-verified-system-state)
+2. [OP 0: Snapshot Everything](#op-0-snapshot-everything)
+3. [OP 1: Clear the Dead](#op-1-clear-the-dead)
+4. [OP 2: Fix Source Code Hardcodes](#op-2-fix-source-code-hardcodes)
+5. [OP 3: Unify Python & Venvs](#op-3-unify-python--venvs)
+6. [OP 4: Fix Service Files & Deploy](#op-4-fix-service-files--deploy)
+7. [OP 5: Bury /opt/quantum](#op-5-bury-optquantum)
+8. [OP 6: Clean the Repo](#op-6-clean-the-repo)
+9. [OP 7+: Architecture (Future)](#op-7-architecture-future)
+10. [Quick Reference](#quick-reference)
 
 ---
 
-## 1. CURRENT SYSTEM STATE
+## 1. VERIFIED SYSTEM STATE
 
-### As of 2026-03-14
+### VPS Snapshot — 2026-03-14
 
-| Metric | Value | Target |
-|--------|-------|--------|
-| Running services | 43 | 23 |
-| Systemd service files | 134 | 23 |
-| Redis streams | ~70 | ~25 |
-| Python interpreters | 3 | 1 |
-| Virtual environments | 10 | 1 |
-| Code trees | 3 (backend/, microservices/, ai_engine/) | 1 unified |
-| Root-level files | ~1500 | <10 |
-| Frontend projects | 6 | 1 |
-| Execution paths for entries | 2 (DANGER) | 1 |
-| Close paths | 2 | 1 |
-| Sources of position truth | 5+ | 1 |
+| What | Count | Notes |
+|------|-------|-------|
+| Running services | **42** | All use `/usr/bin/python3.12` as actual interpreter |
+| Total .service files | **134** | 92 are dead/zombie noise |
+| Services with /opt/quantum in ExecStart | **9** | Using wrong venv or wrong script path |
+| Services with /opt/quantum in WorkingDir | **2** | market-publisher, rl-trainer |
+| Source files hardcoding /opt/quantum | **~18** | In microservices/, backend/, bin/, systemd/ |
+| Python venvs on disk | **10** | Should be 1 |
+| /opt/quantum size | **14 GB** | Ghost code tree |
+| Root-level junk files | **~1500** | Scripts, docs, fixes, diagnostics |
 
-### Services currently RUNNING (43)
+### The 9 Running Services Touching /opt/quantum
 
+| Service | What Uses /opt/quantum | Problem |
+|---------|----------------------|---------|
+| ai-strategy-router | ExecStart: /opt/quantum/venvs/ai-engine/bin/python3 | Wrong venv |
+| ensemble-predictor | ExecStart: /opt/quantum/venvs/ai-engine/bin/python | Wrong venv |
+| harvest-metrics-exporter | ExecStart: /opt/quantum/venvs/ai-engine/bin/python3 | Wrong venv |
+| harvest-proposal | ExecStart: /opt/quantum/venvs/ai-engine/bin/python3 | Wrong venv |
+| marketstate | ExecStart: /opt/quantum/venvs/ai-engine/bin/python3 | Wrong venv |
+| portfolio-governance | ExecStart: /opt/quantum/venvs/ai-engine/bin/python | Wrong venv |
+| risk-proposal | ExecStart: /opt/quantum/venvs/ai-engine/bin/python3 | Wrong venv |
+| market-publisher | ExecStart runs /opt/quantum/ops/market/market_publisher.py | Wrong script path |
+| rl-trainer | ExecStart: /opt/quantum/bin/start_rl_trainer.sh + WorkingDir | Both wrong |
+
+### The 18 Source Files Hardcoding /opt/quantum
+
+**CORE runtime (must fix):**
 ```
-RING 0 (target: kernel):
-  governor, heat-gate, portfolio-gate, risk-proposal,
-  portfolio-heat-gate, portfolio-governance, capital-allocation
-
-RING 1 (target: drivers):
-  price-feed, market-publisher, balance-tracker,
-  stream-bridge, execution-result-bridge
-
-RING 2 (target: system services):
-  intent-bridge, intent-executor, reconcile-engine,
-  exit-management-agent, exit-brain-shadow, exit-intelligence,
-  exit-intent-gateway, harvest-optimizer, harvest-proposal,
-  harvest-metrics-exporter, portfolio-clusters,
-  portfolio-state-publisher, universe-service, utf-publisher,
-  performance-attribution, performance-tracker,
-  metricpack-builder, p35-decision-intelligence, trade-logger,
-  layer1-data-sink, layer1-historical-backfill (exited)
-
-RING 3 (target: user space):
-  ai-engine, ai-strategy-router, ensemble-predictor,
-  rl-agent, rl-sizer, rl-trainer, rl-policy-publisher,
-  rl-shadow-metrics-exporter, clm, marketstate
-
-RING 4 (target: shell):
-  (none running currently — backend/dashboard not active)
+microservices/ai_engine/config.py               ← model paths: /opt/quantum/model_registry/
+microservices/ai_engine/model_path_guard.py      ← fallback paths
+microservices/dag3_hw_stops/dag3_hw_stops.py     ← sys.path.insert
+microservices/dag7_snapshot/dag7_snapshot.py      ← snapshot dir
+microservices/layer1_data_sink/layer1_data_sink.py ← DATA_ROOT
+microservices/layer1_historical_backfill/layer1_historical_backfill.py ← DATA_ROOT
+microservices/layer2_research_sandbox/layer2_research_sandbox.py ← DATA_ROOT
+microservices/layer3_backtest_runner/layer3_backtest_runner.py ← DATA_ROOT
+microservices/layer6_post_trade/layer6_post_trade.py ← DATA_ROOT
+microservices/rl_sizing_agent/rl_agent.py        ← paths
+microservices/training_worker/model_trainer.py   ← staging dir
 ```
 
-### Services currently DEAD but have .service files (19 loaded)
-
+**Backend (may be unused by runtime):**
 ```
-bsc, core-health, diagnostic, ess-watch, execution,
-exit-owner-watch, health-gate, layer4-portfolio-optimizer,
-ledger-sync, offline-evaluator, p28a3-latency-proof,
-portfolio-intelligence, portfolio-risk-governor, redis (not-found),
-risk-brain, rl-monitor (not-found), rl-shadow-scorecard,
-strategy-brain, stream-recover, training-worker
+backend/services/clm_v3/adapters.py              ← retrain script paths
+backend/services/ai/continuous_learning_manager.py ← model paths
+backend/services/monitoring/tp_performance_tracker.py ← model paths
 ```
 
-### Service files that exist but are NOT EVEN LOADED (~72 more)
+**Infrastructure:**
+```
+bin/start_rl_trainer.sh                          ← cd /opt/quantum
+systemd/env-templates/ai-engine.env              ← PYTHONPATH=/opt/quantum
+systemd/env-templates/ai-client-base.env         ← PYTHONPATH=/opt/quantum
+systemd/env-templates/execution.env              ← PYTHONPATH=/opt/quantum
+```
+
+### Venvs on Disk
 
 ```
-(The difference between 134 total files and 62 loaded units)
-These are service files in /etc/systemd/system/ that systemd doesn't even track.
+MAIN (target):      /home/qt/quantum_trader_venv/
+SECONDARY (kill):   /opt/quantum/venvs/ai-engine/
+VOLUME (kill):      /mnt/HC_Volume_104287969/quantum-venvs/{ai-client-base,ai-engine,
+                    execution,rl-dashboard,rl-sizer,runtime,safety-telemetry,strategy-ops}
+```
+
+### The 42 Running Services (confirmed 2026-03-14)
+
+```
+quantum-ai-engine                  quantum-ai-strategy-router
+quantum-balance-tracker            quantum-capital-allocation
+quantum-clm                        quantum-ensemble-predictor
+quantum-execution-result-bridge    quantum-exit-brain-shadow
+quantum-exit-intelligence          quantum-exit-intent-gateway
+quantum-exit-management-agent      quantum-governor
+quantum-harvest-metrics-exporter   quantum-harvest-optimizer
+quantum-harvest-proposal           quantum-heat-gate
+quantum-intent-bridge              quantum-intent-executor
+quantum-layer1-data-sink           quantum-market-publisher
+quantum-marketstate                quantum-metricpack-builder
+quantum-p35-decision-intelligence  quantum-performance-attribution
+quantum-performance-tracker        quantum-portfolio-clusters
+quantum-portfolio-gate             quantum-portfolio-governance
+quantum-portfolio-heat-gate        quantum-portfolio-state-publisher
+quantum-price-feed                 quantum-reconcile-engine
+quantum-risk-proposal              quantum-rl-agent
+quantum-rl-policy-publisher        quantum-rl-shadow-metrics-exporter
+quantum-rl-sizer                   quantum-rl-trainer
+quantum-stream-bridge              quantum-trade-logger
+quantum-universe-service           quantum-utf-publisher
 ```
 
 ---
 
-## OPERATION 1: KILL THE TWO-HEADED MONSTER
-### Priority: CRITICAL | Risk: HIGH | Status: [ ] NOT STARTED
+## OP 0: SNAPSHOT EVERYTHING
+### Status: [ ] NOT STARTED
 
-**Problem**: Two services can execute trades against Binance:
-1. `intent-executor` (ACTIVE, running) — the correct one
-2. `execution` (INACTIVE, dead) — the dangerous legacy one
+Take a full backup before touching ANYTHING. This is our rollback point.
 
-Even though `execution` is currently dead, it can be accidentally started.
-Its code subscribes to `trade.intent` via EventBus, meaning if started it
-would execute trades IN PARALLEL with intent-executor.
-
-**The Plan**:
-
-#### Step 1.1: Verify execution service is dead [ ]
 ```bash
-systemctl status quantum-execution.service
-# EXPECTED: inactive (dead), disabled
+# On VPS:
+mkdir -p /opt/backups/2026-03-14-pre-cleanup
+
+# Service files
+cp -a /etc/systemd/system/quantum-*.service /opt/backups/2026-03-14-pre-cleanup/
+cp -a /etc/systemd/system/quantum-*.service.d /opt/backups/2026-03-14-pre-cleanup/ 2>/dev/null
+
+# Env files
+cp -a /etc/quantum/*.env /opt/backups/2026-03-14-pre-cleanup/ 2>/dev/null
+
+# Service list snapshot
+systemctl list-units quantum-*.service --all --no-pager > /opt/backups/2026-03-14-pre-cleanup/service-list.txt
+
+# Running PIDs
+ps aux | grep quantum > /opt/backups/2026-03-14-pre-cleanup/processes.txt
+
+# Pip freeze from every venv
+/home/qt/quantum_trader_venv/bin/pip freeze > /opt/backups/2026-03-14-pre-cleanup/main-venv-packages.txt
+/opt/quantum/venvs/ai-engine/bin/pip freeze > /opt/backups/2026-03-14-pre-cleanup/ai-engine-venv-packages.txt 2>/dev/null
+
+echo "SNAPSHOT DONE: $(date)"
+ls -la /opt/backups/2026-03-14-pre-cleanup/
 ```
 
-#### Step 1.2: Disable and mask the execution service [ ]
-```bash
-# disable prevents auto-start, mask prevents ANY start (even manual)
-systemctl disable quantum-execution.service
-systemctl mask quantum-execution.service
-# Verify:
-systemctl status quantum-execution.service
-# EXPECTED: masked
-```
+**Verify**: Backup dir contains service files, env files, package lists.
 
-#### Step 1.3: Rename service file to .KILLED [ ]
-```bash
-mv /etc/systemd/system/quantum-execution.service \
-   /etc/systemd/system/quantum-execution.service.KILLED
-systemctl daemon-reload
-```
-
-#### Step 1.4: Also disable apply-layer (entry disabled, but still has close code) [ ]
-```bash
-# apply-layer is already dead and disabled, but let's mask it too
-# Its close functionality will be absorbed by execution-engine later
-systemctl mask quantum-apply-layer.service
-mv /etc/systemd/system/quantum-apply-layer.service \
-   /etc/systemd/system/quantum-apply-layer.service.KILLED
-systemctl daemon-reload
-```
-
-#### Step 1.5: Verify ONLY intent-executor handles orders [ ]
-```bash
-# Check only one process connects to Binance for orders
-grep -r "create_order\|place_order\|futures_create_order" \
-  /home/qt/quantum_trader/microservices/intent_executor/ \
-  /home/qt/quantum_trader/microservices/intent_bridge/
-# Check no other running process has Binance order capability
-for pid in $(pgrep -f "quantum_trader"); do
-  cmdline=$(cat /proc/$pid/cmdline | tr '\0' ' ')
-  echo "$pid: $cmdline"
-done | grep -v intent_executor | grep -v intent_bridge
-```
-
-#### Step 1.6: Verify apply-layer close path is handled [ ]
-```bash
-# Harvest close proposals go to: quantum:stream:apply.plan
-# Intent-executor reads apply.plan → so it picks up close proposals
-# Also reads harvest.intent → so autonomous exits are handled
-# VERIFY: intent-executor consumer groups
-redis-cli xinfo groups quantum:stream:apply.plan
-redis-cli xinfo groups quantum:stream:harvest.intent
-# EXPECTED: intent_executor group exists in both
-```
-
-#### Rollback plan:
-```bash
-# If something breaks:
-mv /etc/systemd/system/quantum-execution.service.KILLED \
-   /etc/systemd/system/quantum-execution.service
-systemctl unmask quantum-execution.service
-systemctl daemon-reload
-# DO NOT START IT — investigate first
-```
-
-#### Verification checklist:
-- [ ] execution.service is masked and renamed .KILLED
-- [ ] apply-layer.service is masked and renamed .KILLED
-- [ ] intent-executor is running and handling both entries and closes
-- [ ] No duplicate trade execution possible
-- [ ] Trades still execute normally (check last trade in Redis)
+**Rollback**: This IS the rollback. No rollback needed for a backup.
 
 ---
 
-## OPERATION 2: REMOVE THE ZOMBIE ARMY
-### Priority: HIGH | Risk: LOW | Status: [ ] NOT STARTED
+## OP 1: CLEAR THE DEAD
+### Status: [ ] NOT STARTED
+### Depends on: OP 0
 
-**Problem**: 134 service files exist. Only 43 are running. 91 are zombies that:
-- Clutter systemd
-- Can be accidentally started
-- Create confusion about what's real
+Remove 92 zombie service files. Keep only the 42 running ones.
+Also mask the dangerous `execution` and `apply-layer` services.
 
-**The Plan**:
-
-#### Step 2.1: Create backup of all service files [ ]
+#### Step 1.1: Create keep-list [ ]
 ```bash
-mkdir -p /opt/backups/systemd-2026-03-14
-cp /etc/systemd/system/quantum-*.service /opt/backups/systemd-2026-03-14/
-ls /opt/backups/systemd-2026-03-14/ | wc -l
-# EXPECTED: 134
-```
-
-#### Step 2.2: List the 43 services that MUST stay [ ]
-```bash
-# These are the running services as of 2026-03-14:
-cat > /opt/backups/keep-services.txt << 'EOF'
+cat > /tmp/keep-services.txt << 'KEEPLIST'
 quantum-ai-engine.service
 quantum-ai-strategy-router.service
 quantum-balance-tracker.service
@@ -229,7 +203,6 @@ quantum-heat-gate.service
 quantum-intent-bridge.service
 quantum-intent-executor.service
 quantum-layer1-data-sink.service
-quantum-layer1-historical-backfill.service
 quantum-market-publisher.service
 quantum-marketstate.service
 quantum-metricpack-builder.service
@@ -253,45 +226,49 @@ quantum-stream-bridge.service
 quantum-trade-logger.service
 quantum-universe-service.service
 quantum-utf-publisher.service
-EOF
+KEEPLIST
 ```
 
-#### Step 2.3: Move ALL non-kept services to graveyard [ ]
+#### Step 1.2: Move dead services to graveyard [ ]
 ```bash
 mkdir -p /opt/backups/systemd-graveyard
 for f in /etc/systemd/system/quantum-*.service; do
-  basename=$(basename "$f")
-  if ! grep -q "$basename" /opt/backups/keep-services.txt; then
-    echo "REMOVING: $basename"
-    systemctl stop "$basename" 2>/dev/null
-    systemctl disable "$basename" 2>/dev/null
+  name=$(basename "$f")
+  if ! grep -qx "$name" /tmp/keep-services.txt; then
+    systemctl stop "$name" 2>/dev/null
+    systemctl disable "$name" 2>/dev/null
     mv "$f" /opt/backups/systemd-graveyard/
+    echo "REMOVED: $name"
   fi
 done
-systemctl daemon-reload
-```
-
-#### Step 2.4: Also move drop-in directories for removed services [ ]
-```bash
+# Also move orphan drop-in dirs
 for d in /etc/systemd/system/quantum-*.service.d; do
-  service_name=$(basename "$d" .d)
-  if ! grep -q "$service_name" /opt/backups/keep-services.txt; then
-    echo "REMOVING DROP-IN: $d"
+  svc=$(basename "$d" .d)
+  if ! grep -qx "$svc" /tmp/keep-services.txt; then
     mv "$d" /opt/backups/systemd-graveyard/
+    echo "REMOVED DIR: $d"
   fi
 done
 systemctl daemon-reload
 ```
 
-#### Step 2.5: Verify [ ]
+#### Step 1.3: Mask dangerous dead services [ ]
+```bash
+# execution can cause double trades if started
+systemctl mask quantum-execution.service 2>/dev/null
+# apply-layer has legacy close execution code
+systemctl mask quantum-apply-layer.service 2>/dev/null
+```
+
+#### Step 1.4: Verify [ ]
 ```bash
 ls /etc/systemd/system/quantum-*.service | wc -l
-# EXPECTED: 43
-systemctl list-units quantum-*.service --all | grep -c "running"
-# EXPECTED: 42 (layer1-historical-backfill is "exited")
+# EXPECTED: 42
+systemctl list-units quantum-*.service --no-pager | grep running | wc -l
+# EXPECTED: 42
 ```
 
-#### Rollback plan:
+**Rollback**:
 ```bash
 cp /opt/backups/systemd-graveyard/quantum-*.service /etc/systemd/system/
 systemctl daemon-reload
@@ -299,422 +276,442 @@ systemctl daemon-reload
 
 ---
 
-## OPERATION 3: ONE PYTHON, ONE PATH
-### Priority: HIGH | Risk: MEDIUM | Status: [ ] NOT STARTED
+## OP 2: FIX SOURCE CODE HARDCODES
+### Status: [ ] NOT STARTED
+### Depends on: Nothing (can be done locally in git, independently)
 
-**Problem**: 3 different Python interpreters running across 43 services:
-- `/home/qt/quantum_trader_venv/bin/python` (main — 12 services)
-- `/opt/quantum/venvs/ai-engine/bin/python3` (secondary — 7 services)
-- `/usr/bin/python3` (system — 24 services)
+Fix all `/opt/quantum` hardcodes in source code. Use environment variables
+with sensible defaults pointing to `/home/qt/quantum_trader`.
 
-**Target**: ALL services use `/home/qt/quantum_trader_venv/bin/python`
+This is ALL git-side work. No VPS changes yet.
 
-**The Plan**:
+#### Step 2.1: Fix microservices/ai_engine/config.py [ ]
 
-#### Step 3.1: Catalog packages in secondary venv [ ]
+Change all model paths from `/opt/quantum/model_registry/...` to use
+env var `QT_BASE_DIR` with default `/home/qt/quantum_trader`:
+
+```python
+import os
+QT_BASE = os.environ.get("QT_BASE_DIR", "/home/qt/quantum_trader")
+
+APPROVED_MODEL_DIR = os.path.join(QT_BASE, "model_registry", "approved")
+STAGING_MODEL_DIR = os.path.join(QT_BASE, "model_registry", "staging")
+MODELS_DIR = os.path.join(QT_BASE, "ai_engine", "models")
+# ... etc for XGB_MODEL_PATH, XGB_SCALER_PATH, LGBM_MODEL_PATH, etc.
+```
+
+#### Step 2.2: Fix microservices/ai_engine/model_path_guard.py [ ]
+
+Replace `/opt/quantum` fallback defaults with QT_BASE_DIR env var.
+
+#### Step 2.3: Fix layer services DATA_ROOT [ ]
+
+Files:
+- microservices/layer1_data_sink/layer1_data_sink.py
+- microservices/layer1_historical_backfill/layer1_historical_backfill.py
+- microservices/layer2_research_sandbox/layer2_research_sandbox.py
+- microservices/layer3_backtest_runner/layer3_backtest_runner.py
+- microservices/layer6_post_trade/layer6_post_trade.py
+
+All have: `DATA_ROOT = "/opt/quantum/data"` → change to:
+```python
+DATA_ROOT = os.environ.get("QT_DATA_DIR", "/home/qt/quantum_trader/data")
+```
+
+#### Step 2.4: Fix DAG services [ ]
+
+- microservices/dag3_hw_stops/dag3_hw_stops.py: `sys.path.insert(0, "/opt/quantum")` → remove or use QT_BASE
+- microservices/dag7_snapshot/dag7_snapshot.py: `SNAPSHOT_DIR = "/opt/quantum/snapshots"` → use QT_BASE
+
+#### Step 2.5: Fix remaining microservices [ ]
+
+- microservices/rl_sizing_agent/rl_agent.py
+- microservices/training_worker/model_trainer.py
+
+#### Step 2.6: Fix backend hardcodes [ ]
+
+- backend/services/clm_v3/adapters.py — retrain script paths + Python interpreter
+- backend/services/ai/continuous_learning_manager.py
+- backend/services/monitoring/tp_performance_tracker.py
+
+#### Step 2.7: Fix infrastructure files [ ]
+
+- bin/start_rl_trainer.sh — `cd /opt/quantum` → `cd /home/qt/quantum_trader`
+- systemd/env-templates/ai-engine.env — `PYTHONPATH=/opt/quantum` → `/home/qt/quantum_trader`
+- systemd/env-templates/ai-client-base.env — same
+- systemd/env-templates/execution.env — same
+
+#### Step 2.8: Commit and push [ ]
 ```bash
-/opt/quantum/venvs/ai-engine/bin/pip freeze > /tmp/secondary-venv-packages.txt
-cat /tmp/secondary-venv-packages.txt
+git add -A
+git commit -m "OP2: eliminate all /opt/quantum hardcodes from source code
+
+Replaced with QT_BASE_DIR env var (default: /home/qt/quantum_trader).
+Files changed: ~18 core files in microservices/, backend/, bin/, systemd/.
+Part of QTOS yarn ball untangling - see docs/architecture/QTOS_MASTER_PLAN.md"
+git push
 ```
 
-#### Step 3.2: Catalog packages in main venv [ ]
+#### Step 2.9: Verify no /opt/quantum left in core code [ ]
 ```bash
-/home/qt/quantum_trader_venv/bin/pip freeze > /tmp/main-venv-packages.txt
+git grep "/opt/quantum" -- "microservices/**/*.py" "backend/**/*.py" "bin/*.sh" "systemd/env-templates/*.env"
+# EXPECTED: zero matches
 ```
 
-#### Step 3.3: Find missing packages [ ]
-```bash
-# Compare: what does secondary have that main doesn't?
-comm -23 <(cut -d= -f1 /tmp/secondary-venv-packages.txt | sort) \
-         <(cut -d= -f1 /tmp/main-venv-packages.txt | sort)
-```
-
-#### Step 3.4: Install missing packages into main venv [ ]
-```bash
-# Install whatever is missing (command TBD based on Step 3.3 output)
-/home/qt/quantum_trader_venv/bin/pip install <missing-packages>
-```
-
-#### Step 3.5: Update the 7 services using secondary venv [ ]
-Services to update:
-```
-quantum-ai-strategy-router.service
-quantum-ensemble-predictor.service
-quantum-harvest-metrics-exporter.service
-quantum-harvest-proposal.service
-quantum-marketstate.service
-quantum-portfolio-governance.service
-quantum-risk-proposal.service
-```
-
-For each: change ExecStart from `/opt/quantum/venvs/ai-engine/bin/python3` to
-`/home/qt/quantum_trader_venv/bin/python` and update PATH environment.
-
-#### Step 3.6: Update the ~24 services using system Python [ ]
-Services to update:
-```
-quantum-balance-tracker.service
-quantum-capital-allocation.service
-quantum-governor.service
-quantum-heat-gate.service
-quantum-intent-bridge.service
-quantum-intent-executor.service
-quantum-p35-decision-intelligence.service
-quantum-performance-attribution.service
-quantum-performance-tracker.service
-quantum-portfolio-clusters.service
-quantum-portfolio-gate.service
-quantum-portfolio-heat-gate.service
-quantum-portfolio-state-publisher.service
-quantum-reconcile-engine.service
-quantum-rl-policy-publisher.service
-quantum-rl-shadow-metrics-exporter.service
-quantum-trade-logger.service
-quantum-universe-service.service
-quantum-utf-publisher.service
-```
-
-For each: change ExecStart from `/usr/bin/python3` to
-`/home/qt/quantum_trader_venv/bin/python` and update PATH.
-
-#### Step 3.7: Restart services in groups (5 at a time) [ ]
-```bash
-# Restart non-critical first, verify, then critical
-# Group 1 (monitoring): performance-*, metricpack-*, p35-*
-# Group 2 (portfolio): portfolio-*, capital-*
-# Group 3 (risk): governor, heat-gate, risk-proposal
-# Group 4 (execution): intent-bridge, intent-executor
-# Group 5 (AI): ai-engine, ensemble-predictor, marketstate
-# Between each group: verify no errors in journal
-```
-
-#### Step 3.8: Fix market-publisher WorkingDirectory [ ]
-```bash
-# market-publisher is the ONLY service still using /opt/quantum as WorkingDir
-# Change WorkingDirectory=/opt/quantum/ops/market → /home/qt/quantum_trader/ops/market
-# Then restart
-```
-
-#### Step 3.9: Verify [ ]
-```bash
-# All services should use same Python
-for svc in $(systemctl list-units quantum-*.service --no-pager --plain | grep running | awk '{print $1}'); do
-  pid=$(systemctl show $svc -p MainPID --value)
-  exe=$(readlink /proc/$pid/exe 2>/dev/null)
-  echo "$svc → $exe"
-done | sort -t→ -k2
-# EXPECTED: ALL show /home/qt/quantum_trader_venv/bin/python*
-```
-
-#### Step 3.10: Remove secondary venv and unused venvs [ ]
-```bash
-# Only after ALL services verified working on main venv
-mv /opt/quantum/venvs /opt/backups/venvs-2026-03-14
-# Volume venvs:
-mv /mnt/HC_Volume_104287969/quantum-venvs /opt/backups/volume-venvs-2026-03-14
-```
+**Rollback**: `git revert HEAD`
 
 ---
 
-## OPERATION 4: CLEAN THE CORAL REEF
-### Priority: MEDIUM | Risk: LOW | Status: [ ] NOT STARTED
+## OP 3: UNIFY PYTHON & VENVS
+### Status: [ ] NOT STARTED
+### Depends on: OP 0 (backup done), OP 2 (code pushed)
 
-**Problem**: The codebase has grown like a coral reef. 3 code trees overlap:
-- `backend/` — original monolith (70+ services, largely unused by runtime)
-- `microservices/` — where running services live (80+ dirs)
-- `ai_engine/` — AI models (used by microservices/ai_engine/)
+Merge everything into ONE venv: `/home/qt/quantum_trader_venv/`.
 
-Plus ~1500 diagnostic/fix/doc files at root level.
-
-**The Coral Reef Solution**: Don't destroy the reef. Map which parts are alive,
-mark the rest as dead coral, and build new structure around the living parts.
-
-**The Plan**:
-
-#### Step 4.1: Create archive directory structure [ ]
+#### Step 3.1: Compare packages [ ]
 ```bash
-mkdir -p archive/{scripts,docs,fixes,old_services,old_backend}
+# On VPS:
+/home/qt/quantum_trader_venv/bin/pip freeze | cut -d= -f1 | sort > /tmp/main-pkgs.txt
+/opt/quantum/venvs/ai-engine/bin/pip freeze | cut -d= -f1 | sort > /tmp/ai-pkgs.txt
+comm -23 /tmp/ai-pkgs.txt /tmp/main-pkgs.txt
+# Shows packages in ai-engine venv that are NOT in main venv
 ```
 
-#### Step 4.2: Move root-level scripts to archive [ ]
+#### Step 3.2: Install missing packages into main venv [ ]
 ```bash
-# Diagnostic scripts (prefix _)
-mv _*.py _*.sh archive/scripts/ 2>/dev/null
-
-# Fix scripts
-mv fix_*.py fix_*.sh archive/fixes/ 2>/dev/null
-
-# Check scripts
-mv check_*.py check_*.sh archive/scripts/ 2>/dev/null
-
-# Deploy scripts
-mv deploy_*.sh deploy_*.py archive/scripts/ 2>/dev/null
-
-# Diag scripts
-mv diag_*.py diag_*.sh archive/scripts/ 2>/dev/null
+# Based on Step 3.1 output:
+/home/qt/quantum_trader_venv/bin/pip install <MISSING_PACKAGES>
 ```
 
-#### Step 4.3: Move AI documentation to archive [ ]
+#### Step 3.3: Verify main venv works for ai-engine workload [ ]
 ```bash
-mv AI_*.md archive/docs/ 2>/dev/null
-mv *_COMPLETE*.md *_REPORT*.md *_STATUS*.md archive/docs/ 2>/dev/null
-mv *_IMPLEMENTATION*.md *_DEPLOYED*.md archive/docs/ 2>/dev/null
-mv FORENSIC_*.md PHASE_*.md ACTION_PLAN_*.md archive/docs/ 2>/dev/null
+# Quick smoke test — does the ai-engine code import without errors?
+cd /home/qt/quantum_trader
+/home/qt/quantum_trader_venv/bin/python -c "
+import sys; sys.path.insert(0, '.')
+from microservices.ai_engine.config import *
+print('config OK')
+from ai_engine.agents import *
+print('agents OK')
+"
 ```
 
-#### Step 4.4: Identify which backend/ code is actually imported by runtime [ ]
+**Rollback**: Packages only added, never removed. Safe.
+
+---
+
+## OP 4: FIX SERVICE FILES & DEPLOY
+### Status: [ ] NOT STARTED
+### Depends on: OP 2 (code pushed), OP 3 (venv ready)
+
+Update all 42 remaining service files on VPS to use:
+- Python: `/home/qt/quantum_trader_venv/bin/python`
+- WorkingDirectory: `/home/qt/quantum_trader`
+- PYTHONPATH: `/home/qt/quantum_trader`
+
+Deploy the fixed source code.
+
+#### Step 4.1: Git pull on VPS [ ]
 ```bash
-# Check if ANY running service imports from backend/
-grep -r "from backend\." /home/qt/quantum_trader/microservices/ 2>/dev/null | head -20
-grep -r "import backend" /home/qt/quantum_trader/microservices/ 2>/dev/null | head -20
-# If nothing: backend/ is dead code for runtime
+cd /home/qt/quantum_trader
+git pull origin main
 ```
 
-#### Step 4.5: Move unused backend/ code to archive [ ]
+#### Step 4.2: Fix the 7 services using ai-engine venv [ ]
 ```bash
-# If Step 4.4 confirms backend/ is not imported:
-mv backend/ archive/old_backend/
-# Keep a symlink if needed for any edge case:
-# ln -s archive/old_backend backend
+# These services need ExecStart changed from /opt/quantum/venvs/ai-engine/bin/python*
+# to /home/qt/quantum_trader_venv/bin/python:
+SERVICES=(
+  quantum-ai-strategy-router
+  quantum-ensemble-predictor
+  quantum-harvest-metrics-exporter
+  quantum-harvest-proposal
+  quantum-marketstate
+  quantum-portfolio-governance
+  quantum-risk-proposal
+)
+for svc in "${SERVICES[@]}"; do
+  sed -i 's|/opt/quantum/venvs/ai-engine/bin/python[3]*|/home/qt/quantum_trader_venv/bin/python|g' \
+    /etc/systemd/system/${svc}.service
+  echo "Fixed: ${svc}"
+done
 ```
 
-**CAUTION**: Do NOT move these yet:
-- `microservices/` — all running services live here
-- `ai_engine/` — imported by microservices/ai_engine/
-- `lib/` — may be imported by running services
-- `ops/` — market-publisher runs from ops/
-- `config/`, `configs/` — active configuration
-
-#### Step 4.6: Verify runtime still works after cleanup [ ]
+#### Step 4.3: Fix market-publisher [ ]
 ```bash
-# Check all 43 services still running
-systemctl list-units quantum-*.service | grep -c running
-# Check AI engine health
+# market-publisher runs from /opt/quantum/ops/market/market_publisher.py
+# Change to /home/qt/quantum_trader/ops/market/market_publisher.py
+sed -i 's|/opt/quantum/ops/market|/home/qt/quantum_trader/ops/market|g' \
+  /etc/systemd/system/quantum-market-publisher.service
+# Also fix WorkingDirectory
+sed -i 's|WorkingDirectory=/opt/quantum/ops/market|WorkingDirectory=/home/qt/quantum_trader/ops/market|g' \
+  /etc/systemd/system/quantum-market-publisher.service
+```
+
+#### Step 4.4: Fix rl-trainer [ ]
+```bash
+# rl-trainer uses /opt/quantum/bin/start_rl_trainer.sh and WorkingDirectory=/opt/quantum
+sed -i 's|/opt/quantum/bin/start_rl_trainer.sh|/home/qt/quantum_trader/bin/start_rl_trainer.sh|g' \
+  /etc/systemd/system/quantum-rl-trainer.service
+sed -i 's|WorkingDirectory=/opt/quantum$|WorkingDirectory=/home/qt/quantum_trader|g' \
+  /etc/systemd/system/quantum-rl-trainer.service
+```
+
+#### Step 4.5: Fix all remaining services to use main venv [ ]
+```bash
+# Any service still using /usr/bin/python3 or other Python paths:
+for f in /etc/systemd/system/quantum-*.service; do
+  # Replace any /opt/quantum/venvs/*/bin/python* references
+  sed -i 's|/opt/quantum/venvs/[^/]*/bin/python[3]*|/home/qt/quantum_trader_venv/bin/python|g' "$f"
+  # Replace any remaining /opt/quantum paths in WorkingDirectory or PYTHONPATH
+  sed -i 's|WorkingDirectory=/opt/quantum\b|WorkingDirectory=/home/qt/quantum_trader|g' "$f"
+done
+systemctl daemon-reload
+```
+
+#### Step 4.6: Restart services in groups (verify between each) [ ]
+
+```bash
+# Group A: Monitoring (safe, non-trade)
+systemctl restart quantum-performance-attribution quantum-performance-tracker \
+  quantum-metricpack-builder quantum-p35-decision-intelligence quantum-trade-logger
+sleep 5
+systemctl is-active quantum-performance-attribution quantum-performance-tracker \
+  quantum-metricpack-builder quantum-p35-decision-intelligence quantum-trade-logger
+
+# Group B: Portfolio / Risk (no trades)
+systemctl restart quantum-portfolio-clusters quantum-portfolio-gate \
+  quantum-portfolio-governance quantum-portfolio-heat-gate quantum-portfolio-state-publisher \
+  quantum-capital-allocation quantum-risk-proposal quantum-heat-gate quantum-governor
+sleep 5
+systemctl is-active quantum-portfolio-clusters quantum-portfolio-gate \
+  quantum-portfolio-governance quantum-portfolio-heat-gate quantum-portfolio-state-publisher
+
+# Group C: AI / RL (signal generation)
+systemctl restart quantum-ai-engine quantum-ai-strategy-router quantum-ensemble-predictor \
+  quantum-marketstate quantum-rl-agent quantum-rl-sizer quantum-rl-trainer \
+  quantum-rl-policy-publisher quantum-rl-shadow-metrics-exporter quantum-clm
+sleep 5
+systemctl is-active quantum-ai-engine quantum-ensemble-predictor quantum-rl-agent
+
+# Group D: Data feeds
+systemctl restart quantum-price-feed quantum-market-publisher quantum-balance-tracker \
+  quantum-stream-bridge quantum-execution-result-bridge quantum-layer1-data-sink \
+  quantum-universe-service quantum-utf-publisher
+sleep 5
+systemctl is-active quantum-price-feed quantum-market-publisher quantum-balance-tracker
+
+# Group E: Exit / Harvest
+systemctl restart quantum-exit-management-agent quantum-exit-brain-shadow \
+  quantum-exit-intelligence quantum-exit-intent-gateway \
+  quantum-harvest-optimizer quantum-harvest-proposal quantum-harvest-metrics-exporter \
+  quantum-reconcile-engine
+sleep 5
+systemctl is-active quantum-exit-management-agent quantum-harvest-optimizer
+
+# Group F: Execution (LAST — most sensitive)
+systemctl restart quantum-intent-bridge quantum-intent-executor
+sleep 5
+systemctl is-active quantum-intent-bridge quantum-intent-executor
+```
+
+#### Step 4.7: Full verification [ ]
+```bash
+# All 42 running?
+systemctl list-units quantum-*.service --no-pager | grep -c running
+
+# No errors in last 5 minutes?
+journalctl -u 'quantum-*' --since "5 min ago" --priority err --no-pager | head -20
+
+# AI engine healthy?
 curl -s http://localhost:8001/health
-# Check recent trade activity
+
+# No service uses /opt/quantum anymore?
+for svc in $(systemctl list-units quantum-*.service --no-pager --plain | grep running | awk '{print $1}'); do
+  grep /opt/quantum /etc/systemd/system/$svc 2>/dev/null && echo "STILL BAD: $svc"
+done
+
+# Redis streams flowing?
+redis-cli xlen quantum:stream:trade.intent
 redis-cli xlen quantum:stream:apply.result
 ```
 
-#### Step 4.7: Update .gitignore [ ]
+**Rollback**:
+```bash
+cp /opt/backups/2026-03-14-pre-cleanup/quantum-*.service /etc/systemd/system/
+systemctl daemon-reload
+# Restart all services — they'll use old paths which still exist
 ```
-# Add to .gitignore:
+
+---
+
+## OP 5: BURY /opt/quantum
+### Status: [ ] NOT STARTED
+### Depends on: OP 4 verified and stable (wait 24h if possible)
+
+The ghost directory is no longer needed. Move it away.
+
+#### Step 5.1: Final check — nothing references /opt/quantum [ ]
+```bash
+# Check no service file references it
+grep -rl /opt/quantum /etc/systemd/system/quantum-*.service
+# EXPECTED: empty
+
+# Check no running process has /opt/quantum in its open files
+for pid in $(pgrep -f quantum); do
+  ls -l /proc/$pid/fd 2>/dev/null | grep /opt/quantum && echo "PID $pid!!!"
+done
+```
+
+#### Step 5.2: Move /opt/quantum to backup [ ]
+```bash
+mv /opt/quantum /opt/backups/opt-quantum-2026-03-14
+echo "BURIED: $(date)" > /opt/backups/opt-quantum-buried.txt
+```
+
+#### Step 5.3: Verify nothing broke [ ]
+```bash
+systemctl list-units quantum-*.service --no-pager | grep -c running
+# EXPECTED: 42
+
+# Check for errors in last 2 minutes
+journalctl -u 'quantum-*' --since "2 min ago" --priority err --no-pager
+```
+
+**Rollback**: `mv /opt/backups/opt-quantum-2026-03-14 /opt/quantum`
+
+---
+
+## OP 6: CLEAN THE REPO
+### Status: [ ] NOT STARTED
+### Depends on: OP 5
+
+Now that /opt/quantum is dead and all services run from one codebase,
+clean the actual repository.
+
+#### Step 6.1: Archive root-level junk files [ ]
+```bash
+# In local git repo:
+mkdir -p archive/{scripts,docs,fixes,tmp}
+
+# Move prefixed diagnostic scripts
+git mv _*.py _*.sh archive/scripts/ 2>/dev/null
+git mv fix_*.py fix_*.sh archive/fixes/ 2>/dev/null
+git mv check_*.py check_*.sh archive/scripts/ 2>/dev/null
+git mv deploy_*.sh deploy_*.py archive/scripts/ 2>/dev/null
+git mv diag_*.py diag_*.sh archive/scripts/ 2>/dev/null
+git mv tmp_*.py tmp_*.sh archive/tmp/ 2>/dev/null
+git mv test_*.py archive/scripts/ 2>/dev/null  # root-level test scripts (not tests/)
+
+# Move documentation bloat
+git mv AI_*.md SPRINT*.md SYSTEM_*.md TESTNET_*.md archive/docs/ 2>/dev/null
+git mv *_COMPLETE*.md *_REPORT*.md *_STATUS*.md archive/docs/ 2>/dev/null
+git mv *_DEPLOYMENT*.md *_IMPLEMENTATION*.md archive/docs/ 2>/dev/null
+```
+
+#### Step 6.2: Check if backend/ is imported by any running service [ ]
+```bash
+# From VPS:
+grep -r "from backend\." /home/qt/quantum_trader/microservices/ 2>/dev/null
+grep -r "import backend" /home/qt/quantum_trader/microservices/ 2>/dev/null
+# If empty: backend/ is dead code for runtime
+```
+
+#### Step 6.3: Archive unused code if confirmed dead [ ]
+```bash
+# If backend/ is dead:
+git mv backend/ archive/old_backend/
+# If specific backend/ modules ARE imported, keep those, archive the rest
+```
+
+#### Step 6.4: Clean ops/offline junk [ ]
+```bash
+git mv ops/offline/_*.py archive/scripts/ 2>/dev/null
+git mv ops/analysis/fix_*.py archive/fixes/ 2>/dev/null
+```
+
+#### Step 6.5: Update .gitignore [ ]
+```
+# Don't track archive in future
 archive/
 ```
 
----
-
-## OPERATION 5: UNIFY EXECUTION PIPELINE
-### Priority: HIGH | Risk: HIGH | Status: [ ] NOT STARTED
-### Depends on: Operation 1 (two heads killed)
-
-**Problem**: Three services handle order execution:
-- `intent-bridge` — transforms trade.intent → apply.plan
-- `intent-executor` — reads apply.plan, checks permits, executes on Binance
-- `apply-layer` — handles harvest close proposals → Binance (DEAD but code exists)
-
-Also harvested closes go through a different path than entries.
-
-**Target**: ONE `execution-engine` that handles ALL order lifecycle.
-
-**The Plan**:
-
-#### Step 5.1: Map exact data flow for entries and closes [ ]
-```
-ENTRY: AI Engine → trade.intent → Intent Bridge → apply.plan
-       → Governor permit + P26 permit + P33 permit
-       → Intent Executor → Binance → apply.result
-
-CLOSE: Harvest Proposal → quantum:harvest:proposal:{symbol}
-       → (was: Apply Layer polls and executes directly)
-       → (now: needs to go through execution-engine)
-
-EXIT:  Exit Management Agent → exit.intent
-       → Intent Executor (reads harvest.intent) → Binance
-```
-
-#### Step 5.2: Create execution-engine that absorbs all three [ ]
-```
-NEW: microservices/execution_engine/
-├── main.py           ← Single entry point
-├── entry_handler.py  ← Handles trade.intent → validate → permit check → execute
-├── close_handler.py  ← Handles harvest/exit → validate → execute (reduceOnly)
-├── binance_client.py ← Single Binance connection (shared)
-├── permit_gate.py    ← Atomic 3-permit check (from intent-executor)
-└── config.py         ← Configuration
-```
-
-#### Step 5.3: Migrate entry path [ ]
-- Move intent-bridge transform logic into entry_handler.py
-- Move intent-executor permit check + execution into entry_handler.py
-- Single stream read: quantum:stream:trade.intent
-
-#### Step 5.4: Migrate close path [ ]
-- Move apply-layer harvest polling logic into close_handler.py
-- Move exit-intent handling into close_handler.py
-- Single stream read: quantum:stream:exit.intent + harvest polling
-
-#### Step 5.5: Deploy as new service, shadow mode first [ ]
+#### Step 6.6: Commit and push [ ]
 ```bash
-# Deploy execution-engine in shadow mode (reads but doesn't execute)
-# Compare its decisions with intent-executor for 24h
-# If 100% match: switch over
+git add -A
+git commit -m "OP6: clean repo — archive 1500+ root-level files, dead code
+
+Moved diagnostic scripts, fix scripts, tmp files, doc bloat to archive/.
+Part of QTOS cleanup - see docs/architecture/QTOS_MASTER_PLAN.md"
+git push
 ```
 
-#### Step 5.6: Cut over [ ]
+#### Step 6.7: Deploy to VPS [ ]
 ```bash
-systemctl stop quantum-intent-bridge quantum-intent-executor
-systemctl start quantum-execution-engine
-# Monitor for 1h
-# If OK: disable old services
+cd /home/qt/quantum_trader && git pull
+systemctl list-units quantum-*.service --no-pager | grep -c running
+# EXPECTED: 42 (nothing should change — we only moved unused files)
 ```
 
 ---
 
-## OPERATION 6: POSITION TRUTH SOURCE
-### Priority: HIGH | Risk: MEDIUM | Status: [ ] NOT STARTED
-### Depends on: Operation 5
+## OP 7+: ARCHITECTURE (FUTURE)
 
-**Problem**: Position information exists in 5+ places:
-- Binance API (the actual truth)
-- `quantum:position` (Redis hash)
-- `quantum:ledger:{symbol}` (per-symbol ledger)
-- `quantum:portfolio` (portfolio state)
-- `quantum:slots` (active trading slots)
-- `quantum:reconcile:state` (reconcile engine state)
+These are design improvements that only make sense AFTER the yarn ball
+is untangled (OP 0-6 done). They should NOT BE STARTED until OP 6 is
+verified as [DONE].
 
-**Target**: ONE authority: Position Driver polls Binance, writes to
-`quantum:state:positions`. Everything else reads from there.
+### 7A: Mask execution + apply-layer permanently
+Already masked in OP 1. Verify they stay masked.
+Intent-executor is the ONLY order execution path.
 
-#### Step 6.1: Create position-driver service [ ]
-```python
-# Polls Binance every 5 seconds
-# Writes canonical position state to quantum:state:positions
-# Publishes changes to qtos:position.truth stream
-# Replaces: balance-tracker + reconcile-engine position logic
-```
+### 7B: Unify Execution Pipeline
+Merge intent-bridge + intent-executor into single `execution-engine`.
+Add close/exit handling. One service, all order lifecycle.
 
-#### Step 6.2: Migrate consumers [ ]
-- Every service that reads position data → read from quantum:state:positions
-- Remove direct Binance position queries from other services
+### 7C: Position Truth Source
+One service polls Binance, publishes to `quantum:state:positions`.
+Everything else reads from there. Kill the 5-source fragmentation.
 
-#### Step 6.3: Deprecate old position keys [ ]
-- quantum:position → redirect to quantum:state:positions
-- quantum:ledger → keep for accounting, but NOT for position truth
-- quantum:slots → derived from quantum:state:positions
+### 7D: Typed IPC Contracts
+Pydantic schemas for all Redis streams. Validate on publish/subscribe.
+Start with trade.intent → apply.plan → apply.result chain.
 
----
+### 7E: Risk Kernel
+Consolidate 7 risk services into one process.
+Governor + heat-gate + portfolio-gate + risk-proposal + capital-allocation → risk-kernel.
 
-## OPERATION 7: TYPED IPC CONTRACTS
-### Priority: MEDIUM | Risk: LOW | Status: [ ] NOT STARTED
-### Depends on: Operation 5
+### 7F: Plugin Architecture
+AI strategies become plugins with standard interface.
+Only after 7B-7E are done.
 
-**Problem**: Redis streams carry flat dicts with no schema validation.
-Any service can publish anything. Silent failures when format changes.
-
-**Target**: Pydantic schemas for every stream. Publish/subscribe validates.
-
-#### Step 7.1: Create shared/schemas/ [ ]
-```python
-# shared/schemas/trade_intent.py
-class TradeIntent(BaseModel):
-    symbol: str
-    action: Literal["BUY", "SELL"]
-    confidence: float = Field(ge=0.0, le=1.0)
-    source: str
-    sizing: SizingDecision
-    regime: str
-    trace_id: UUID
-    timestamp: datetime
-```
-
-#### Step 7.2: Create IPC Bus wrapper [ ]
-```python
-# shared/ipc_bus.py
-class IPCBus:
-    STREAM_SCHEMAS = {
-        "qtos:signal.proposal": TradeIntent,
-        "qtos:order.plan": OrderPlan,
-        "qtos:order.result": OrderResult,
-        ...
-    }
-    
-    def publish(self, stream: str, msg: BaseModel) -> str:
-        schema = self.STREAM_SCHEMAS.get(stream)
-        if schema and not isinstance(msg, schema):
-            raise TypeError(f"Stream {stream} expects {schema}, got {type(msg)}")
-        return self.redis.xadd(stream, msg.model_dump())
-```
-
-#### Step 7.3: Migrate streams one at a time [ ]
-- Start with trade.intent (highest value)
-- Then apply.plan, apply.result
-- Then trade.closed
-- Keep old streams alive with bridge during migration
+### 7G: Frontend Unification
+6 frontends → 1. Unified API + dashboard.
+Last priority.
 
 ---
 
-## OPERATION 8: RISK KERNEL
-### Priority: MEDIUM | Risk: HIGH | Status: [ ] NOT STARTED
-### Depends on: Operations 5, 6, 7
+## OPERATION DEPENDENCY GRAPH
 
-**Problem**: Risk control is spread across 7 services:
-governor, heat-gate, portfolio-gate, risk-proposal, portfolio-heat-gate,
-portfolio-governance, capital-allocation.
-
-Three separate permit systems. No single point of authority.
-
-**Target**: ONE risk-kernel process that owns ALL kill/permit decisions.
-
-#### Step 8.1: Map all risk checks [ ]
-- Governor: rate limit (3/hr, 2/5m), slots (4-6), fund caps, margin (65%)
-- Heat-gate: portfolio heat, correlation exposure
-- Portfolio-gate: position limits, sector exposure
-- Risk-proposal: per-trade risk assessment
-- Capital-allocation: sizing based on Kelly/portfolio optimization
-
-#### Step 8.2: Create risk-kernel [ ]
 ```
-kernel/risk_kernel/
-├── main.py
-├── rate_limiter.py     ← from governor
-├── heat_monitor.py     ← from heat-gate
-├── portfolio_gate.py   ← from portfolio-gate
-├── risk_assessor.py    ← from risk-proposal
-├── capital_allocator.py ← from capital-allocation
-└── permit_manager.py   ← unified permit system
+OP 0: Snapshot ──→ OP 1: Clear Dead ──→ OP 4: Fix Services & Deploy
+                                              │
+OP 2: Fix Source Code (parallel) ─────────────┤
+                                              │
+OP 3: Unify Venvs ───────────────────────────┘
+                                              │
+                                              ▼
+                                     OP 5: Bury /opt/quantum
+                                              │
+                                              ▼
+                                     OP 6: Clean Repo
+                                              │
+                                              ▼
+                                     OP 7+: Architecture
 ```
 
-#### Step 8.3: Deploy in shadow mode [ ]
-- Run alongside existing services
-- Compare decisions for 48h
-- Cut over when 100% match
-
----
-
-## OPERATION 9: PLUGIN ARCHITECTURE
-### Priority: LOW | Risk: MEDIUM | Status: [ ] NOT STARTED
-### Depends on: Operations 5, 7, 8
-
-**Target**: AI strategies become plugins that implement a standard interface.
-
-```python
-class Strategy(Protocol):
-    def evaluate(self, market: MarketSnapshot) -> Optional[TradeIntent]: ...
-    def on_feedback(self, result: TradeResult) -> None: ...
-    def health_check(self) -> bool: ...
-```
-
-This operation is FUTURE — only after Operations 1-8 are complete.
-
----
-
-## OPERATION 10: SHELL UNIFICATION
-### Priority: LOW | Risk: LOW | Status: [ ] NOT STARTED
-### Depends on: All above
-
-**Target**: 6 frontends → 1. Unified API. Unified CLI.
-
-This operation is FUTURE — only after Operations 1-9 are complete.
+**Key insight**: OP 2 (fix source code) can be done locally in parallel
+with OP 0 and OP 1 (VPS work). Then OP 3 + OP 4 combine everything.
 
 ---
 
@@ -725,7 +722,7 @@ This operation is FUTURE — only after Operations 1-9 are complete.
 # Simple command:
 wsl sh -lc "ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 'COMMAND'"
 
-# Multi-line command:
+# Multi-line:
 $s = @'
 COMMANDS
 HERE
@@ -734,12 +731,12 @@ $b = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($s))
 wsl sh -lc "ssh -i ~/.ssh/hetzner_fresh root@46.224.116.254 'echo $b | base64 -d | bash'"
 ```
 
-### Key Paths (VPS)
+### Key Paths (VPS — TARGET state after OP 5)
 ```
-Code:     /home/qt/quantum_trader/
-Venv:     /home/qt/quantum_trader_venv/
-Services: /etc/systemd/system/quantum-*.service
-Logs:     /var/log/quantum/ + journalctl -u quantum-*
+Code:     /home/qt/quantum_trader/           (THE ONLY codebase)
+Venv:     /home/qt/quantum_trader_venv/      (THE ONLY venv)
+Services: /etc/systemd/system/quantum-*.service (42 files)
+Logs:     journalctl -u quantum-*
 Config:   /etc/quantum/*.env
 Backups:  /opt/backups/
 ```
@@ -757,58 +754,24 @@ quantum:stream:governor.events  ← Governor audit
 
 ### Health Checks
 ```bash
-# All services running?
-systemctl list-units quantum-*.service | grep -c running
-
-# AI Engine alive?
-curl -s http://localhost:8001/health
-
-# Recent trades?
-redis-cli xlen quantum:stream:apply.result
-
-# Recent signals?
-redis-cli xlen quantum:stream:trade.intent
-
-# Governor permits?
-redis-cli keys 'quantum:permit:*' | wc -l
+systemctl list-units quantum-*.service | grep -c running   # EXPECT: 42
+curl -s http://localhost:8001/health                         # AI Engine
+redis-cli xlen quantum:stream:apply.result                   # Trades
+redis-cli xlen quantum:stream:trade.intent                   # Signals
 ```
 
-### Emergency Rollback
+### Emergency Rollback (any OP)
 ```bash
 # Restore ALL service files:
-cp /opt/backups/systemd-2026-03-14/quantum-*.service /etc/systemd/system/
+cp /opt/backups/2026-03-14-pre-cleanup/quantum-*.service /etc/systemd/system/
 systemctl daemon-reload
 
-# Restore venvs:
-mv /opt/backups/venvs-2026-03-14 /opt/quantum/venvs
+# Restore /opt/quantum:
+mv /opt/backups/opt-quantum-2026-03-14 /opt/quantum
 
-# Restore backend:
-mv archive/old_backend backend/
+# Restart all:
+systemctl restart quantum-*.service
 ```
-
----
-
-## OPERATION DEPENDENCY GRAPH
-
-```
-Op 1: Kill Two Heads ─────┐
-                           ├──→ Op 5: Unify Execution ──→ Op 6: Position Truth
-Op 2: Remove Zombies ─────┤                                      │
-                           │                                      ▼
-Op 3: One Python ──────────┤                              Op 7: Typed IPC
-                           │                                      │
-Op 4: Clean Coral Reef ───┘                                      ▼
-                                                          Op 8: Risk Kernel
-                                                                  │
-                                                                  ▼
-                                                          Op 9: Plugin Arch
-                                                                  │
-                                                                  ▼
-                                                          Op 10: Shell
-```
-
-**Critical Path**: Op 1 → Op 5 → Op 6 → Op 7 → Op 8
-**Parallel Track**: Op 2, Op 3, Op 4 can run alongside Op 1
 
 ---
 
@@ -816,10 +779,10 @@ Op 4: Clean Coral Reef ───┘                                      ▼
 
 | Date | Operation | Step | Status | Notes |
 |------|-----------|------|--------|-------|
-| 2026-03-14 | — | — | Plan created | Full system mapped. 134 services, 70 streams, 3 code trees |
+| 2026-03-14 | — | — | v2 plan created | Full VPS re-audit: 42 running, 134 total, 9 touching /opt/quantum |
 | | | | | |
 
 ---
 
-*This document is the SINGLE SOURCE OF TRUTH for the QTOS migration.*
+*This document is the SINGLE SOURCE OF TRUTH for untangling the yarn ball.*
 *Every session: read this first, update progress, continue where left off.*
