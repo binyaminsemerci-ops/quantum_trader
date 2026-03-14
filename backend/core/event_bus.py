@@ -422,9 +422,10 @@ class EventBus:
                 if not messages:
                     continue
                 
-                # Process messages
+                # Process messages — yield between each to prevent event-loop starvation
                 for stream, msg_list in messages:
                     for message_id, message_data in msg_list:
+                        await asyncio.sleep(0)  # yield so HTTP/health can be served
                         await self._process_message(
                             stream_name,
                             group_name,
