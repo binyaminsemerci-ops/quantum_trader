@@ -1222,6 +1222,24 @@ AI strategies become plugins with standard interface.
 
 ### BFG Git History Cleanup [DONE] 2026-03-15
 
+### 7H: Fix Production Runtime Errors [DONE] 2026-03-15
+
+Full audit of systemd journal across all 40 services. Identified and fixed 7 bugs:
+
+| # | Bug | Service(s) | Root Cause | Fix |
+|---|-----|-----------|------------|-----|
+| 1 | Permission denied on cache/data | ai-engine | Relative path `backend/data/cache` resolves wrong from WorkingDirectory | Absolute paths via `__file__` in top_coins_fetcher.py + universe_manager.py |
+| 2 | XGBoost DMatrix in unified_agents | exit-brain-shadow, ai-engine | XGBoost 3.x raw Booster needs DMatrix, not numpy | `hasattr(model, "predict_proba")` guard + DMatrix fallback |
+| 3 | XGBoost DMatrix in xgb_agent | ai-engine | Same API change, second predict code path | DMatrix wrapper in `_predict_internal()` fallback path |
+| 4 | torch.load WeightsUnpickler | rl-agent, rl-sizer + 4 other files | PyTorch 2.10 defaults `weights_only=True`, numpy scalar blocked | `weights_only=False` in 6 files |
+| 5 | float() on ISO timestamp | rl-sizer, exit-intelligence, metricpack-builder | Stream timestamps can be ISO strings, not epoch floats | try float() / except fromisoformat() in 4 files |
+| 6 | WebSocket queue overflow | market-publisher | BinanceSocketManager default `max_queue_size=100` too small for 30+ symbols × 2 streams | Increased to 1000 |
+| 7 | Missing +x on systemd scripts | rl-trainer | `bin/start_rl_trainer.sh` had 644, systemd 203/EXEC | `git update-index --chmod=+x` on 2 scripts |
+
+**Commit:** `9004e90ea` — 19 files changed, +57/-18
+**Result:** 40/40 services running, 6/6 exit‑brain models producing signals (was 5/6), zero application errors in logs.
+
+
 Repo was bloated with binary artifacts accumulated over months:
 - Pack size before: **1.58 GiB**
 - .pkl objects in history: 1,278 (all removed from HEAD in OP 6)
