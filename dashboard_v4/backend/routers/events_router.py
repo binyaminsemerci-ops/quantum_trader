@@ -14,7 +14,7 @@ def generate_event():
     severity = random.choice(SEVERITY)
     msg = {
         "anomaly": "Sharp drop in model accuracy detected",
-        "heal": "Container restarted successfully",
+        "heal": "Service restarted successfully",
         "trade": "Position closed at +1.8% PnL",
         "mode_switch": "CEO Brain changed mode → OPTIMIZE"
     }[event_type]

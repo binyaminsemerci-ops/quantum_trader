@@ -30,7 +30,7 @@ interface OverviewData {
   system: { 
     cpu: number; 
     ram: number; 
-    containers: number;
+    services: number;
     uptime_hours: number;
     status: string;
   };
@@ -122,7 +122,7 @@ export default function Overview() {
           system: {
             cpu: system?.metrics?.cpu ?? 0,
             ram: system?.metrics?.ram ?? 0,
-            containers: system?.container_count ?? 0,
+            services: system?.service_count ?? 0,
             uptime_hours: system?.metrics?.uptime_hours ?? 0,
             status: system?.status ?? 'unknown'
           }
@@ -217,7 +217,7 @@ export default function Overview() {
         <InsightCard 
           title="CPU Usage" 
           value={`${(data.system?.cpu ?? 0).toFixed(1)}%`} 
-          subtitle={`${data.system?.containers ?? 0} containers • Uptime: ${(data.system?.uptime_hours ?? 0).toFixed(1)}h`}
+          subtitle={`${data.system?.services ?? 0} services • Uptime: ${(data.system?.uptime_hours ?? 0).toFixed(1)}h`}
           color="text-yellow-400"
         />
         <InsightCard 
@@ -304,8 +304,8 @@ export default function Overview() {
                 </span>
               </div>
               <div className="flex justify-between border-b border-gray-700 pb-2">
-                <span className="text-gray-400">Containers:</span>
-                <span className="text-white font-bold">{data.system?.containers ?? 0}</span>
+                <span className="text-gray-400">Services:</span>
+                <span className="text-white font-bold">{data.system?.services ?? 0}</span>
               </div>
               <div className="flex justify-between border-b border-gray-700 pb-2">
                 <span className="text-gray-400">AI Symbols:</span>

@@ -68,7 +68,7 @@ class SystemEvent(Base):
     __tablename__ = "system_events"
     
     id = Column(Integer, primary_key=True, index=True)
-    event = Column(String, nullable=False, index=True)  # health_check, container_restart, high_cpu, etc.
+    event = Column(String, nullable=False, index=True)  # health_check, service_restart, high_cpu, etc.
     cpu = Column(Float)
     ram = Column(Float)
     disk = Column(Float, nullable=True)

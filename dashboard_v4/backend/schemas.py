@@ -50,7 +50,7 @@ class SystemHealth(BaseModel):
     cpu: float
     ram: float
     uptime: int
-    containers: int
+    services: int
 
 # Trade schemas (for future database integration)
 class TradeBase(BaseModel):

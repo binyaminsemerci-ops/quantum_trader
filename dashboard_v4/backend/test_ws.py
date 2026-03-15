@@ -30,7 +30,7 @@ async def test_websocket():
                 data = json.loads(message)
                 
                 print(f"\n📦 Update #{i+1} - {datetime.fromtimestamp(data['timestamp']).strftime('%H:%M:%S')}")
-                print(f"   🖥️  System:  CPU {data['cpu']}% | RAM {data['ram']}% | {data['containers']} containers")
+                print(f"   🖥️  System:  CPU {data['cpu']}% | RAM {data['ram']}% | {data['services']} services")
                 print(f"   🤖 AI:      Accuracy {data['accuracy']*100:.1f}% | Latency {data['latency']}ms | Sharpe {data['sharpe']}")
                 print(f"   💼 Portfolio: PnL ${data['pnl']:,.2f} | {data['positions']} positions | {data['exposure']*100:.1f}% exposure")
             

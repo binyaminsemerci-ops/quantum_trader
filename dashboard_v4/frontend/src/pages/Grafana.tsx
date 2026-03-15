@@ -106,11 +106,11 @@ export default function Grafana() {
                 </ul>
               </div>
               <div>
-                <div className="text-blue-400 font-bold mb-2">Containers</div>
+                <div className="text-blue-400 font-bold mb-2">Services</div>
                 <ul className="text-gray-300 text-sm space-y-1">
                   <li>• Running Count</li>
-                  <li>• CPU per Container</li>
-                  <li>• Memory per Container</li>
+                  <li>• CPU per Service</li>
+                  <li>• Memory per Service</li>
                 </ul>
               </div>
               <div>
@@ -200,7 +200,7 @@ export default function Grafana() {
                 <ul className="text-gray-300 text-sm space-y-1">
                   <li>• AI Engine Logs</li>
                   <li>• Auto Executor Logs</li>
-                  <li>• All Container Logs</li>
+                  <li>• All Service Logs</li>
                 </ul>
               </div>
               <div>

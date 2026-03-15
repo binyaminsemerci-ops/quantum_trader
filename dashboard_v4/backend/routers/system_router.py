@@ -136,8 +136,8 @@ def system_health(db: Session = Depends(get_db)):
     return {
         "status": health_status,
         "metrics": metrics,
-        "services": services,  # Changed from "containers"
-        "service_count": service_count,  # Changed from "container_count"
+        "services": services,
+        "service_count": service_count,
         "timestamp": datetime.utcnow().isoformat()
     }
 
