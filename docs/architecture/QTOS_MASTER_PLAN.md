@@ -1176,9 +1176,34 @@ AI strategies become plugins with standard interface.
 - [x] Deployed to VPS — all 6 plugins registered, predict flow verified live
 - Commits: 7e610de43, d83f95da2
 
-### 7G: Frontend Unification
+### 7G: Frontend Unification [IN PROGRESS] 2026-03-15
 6 frontends → 1. Unified API + dashboard.
-Last priority.
+
+**Audit completed 2026-03-15:**
+
+| # | Directory | Tech | Status | Action |
+|---|-----------|------|--------|--------|
+| 1 | dashboard_v4/ | React 18+Vite+Tailwind | **PRODUCTION** (app.quantumfond.com:443) | ✅ KEEP — canonical |
+| 2 | quantumfond_frontend/ | React 18+Vite+Tailwind | Dead/superseded | 🗑 DELETE — predecessor of #1 |
+| 3 | frontend/ | Next.js 14+Zustand | Dead (Docker-era) | 🗑 DELETE — oldest, has test infra worth noting |
+| 4 | frontend_investor/ | Next.js 14+Tailwind | Semi-active (investor portal) | ⏸ KEEP SEPARATE — different audience |
+| 5 | qt-agent-ui/ | React 18+Vite (mobile) | Prototype, never deployed | 🗑 DELETE |
+| 6 | microservices/rl_dashboard/ | Flask+SocketIO+Chart.js | Mostly dead, nginx proxied | 🗑 DELETE — absorbed into dashboard_v4 RL page |
+| 7 | backend/microservices/governance_dashboard/ | FastAPI+inline HTML | Dead (Docker-era) | 🗑 DELETE |
+
+**Backend APIs:**
+- KEEP: dashboard_v4/backend/ (port 8025) — production API
+- DELETE: quantumfond_backend/ — dead
+- REVIEW: backend/main.py (port 8080) — may have active endpoints used by other services
+
+**Unique features in dead frontends to backlog:**
+- quantumfond_frontend: Admin, Incident, Journal, Replay, Live pages
+- frontend/: Vitest + Cypress test infrastructure patterns
+- qt-agent-ui: iPhone-style mobile layout concept
+
+**Phase 1 (done):** Audit and document
+**Phase 2 (future):** Remove dead frontends from repo
+**Phase 3 (future):** Merge missing page concepts into dashboard_v4
 
 ---
 
