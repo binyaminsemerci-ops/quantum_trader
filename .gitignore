@@ -84,6 +84,7 @@ model_registry/**/*.pkl
 *.pkl
 *.joblib
 *.pth
+ai_engine/models/xgb_model.json
 
 # OP6: archive is a sink for historical diagnostics/docs/scripts
 archive/
@@ -106,6 +107,14 @@ backend/data/*.db.*
 *.exe
 *.dll
 *.zip
+
+# BFG Repo Cleaner artifacts
+*.REMOVED.git-id
+..bfg-report/
+bfg.jar
+
+# Log rotation files
+*.log.*
 
 # Vendored venvs (should never be committed)
 **/venv/

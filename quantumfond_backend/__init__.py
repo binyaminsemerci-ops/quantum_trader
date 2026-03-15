@@ -1,1 +1,0 @@
-"""QuantumFond Backend Package"""

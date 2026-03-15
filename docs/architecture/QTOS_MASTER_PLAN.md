@@ -1202,8 +1202,36 @@ AI strategies become plugins with standard interface.
 - qt-agent-ui: iPhone-style mobile layout concept
 
 **Phase 1 (done):** Audit and document
-**Phase 2 (future):** Remove dead frontends from repo
+**Phase 2 (in progress):** Remove dead frontends from repo
 **Phase 3 (future):** Merge missing page concepts into dashboard_v4
+
+### BFG Git History Cleanup [DONE] 2026-03-15
+
+Repo was bloated with binary artifacts accumulated over months:
+- Pack size before: **1.58 GiB**
+- .pkl objects in history: 1,278 (all removed from HEAD in OP 6)
+- 137 binary files still tracked in HEAD (CSVs, .db backups, venv, .tar.gz, .exe)
+
+**Executed:**
+1. Updated .gitignore with comprehensive patterns (*.csv, *.tar.gz, *.exe, *.dll, *.zip, **/venv/, data/market_data/, *.db-shm, *.db-wal, *.db.bak)
+2. `git rm --cached` 1,512 files (1,389 from quantumfond_backend/venv/ + 123 data/binary files)
+3. Committed cleanup as clean HEAD (e8a2a10fb)
+4. BFG Repo Cleaner: `--strip-blobs-bigger-than 1M --no-blob-protection`
+   - 4,142 object IDs changed across 2,098 commits
+   - 119 branch refs + 6 tags rewritten
+   - Top blobs removed: 965MB Docker layer, 83MB CSV, 50MB+ log files, 20MB+ model files
+5. `git reflog expire --expire=now --all && git gc --prune=now --aggressive`
+6. Force-pushed all branches and tags
+7. VPS: `git fetch --all --force && git reset --hard origin/main && git gc --prune=now --aggressive`
+
+**Results:**
+| Metric | Before | After | Reduction |
+|--------|--------|-------|-----------|
+| Local pack size | 1.58 GiB | 259 MiB | **84%** |
+| VPS .git size | 391 MiB | 286 MiB | **27%** |
+| Files tracked in HEAD | +1,512 binaries | 0 binaries | **100%** |
+
+**Post-BFG verification:** 37/37 services running, 0 failed, AI Engine producing live predictions, Risk Kernel healthy, all Redis streams active.
 
 ---
 
