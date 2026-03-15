@@ -106,7 +106,7 @@ def control_status():
     import requests
     
     # Connect to Redis to get actual system state
-    redis_host = os.getenv("REDIS_HOST", "redis")
+    redis_host = os.getenv("REDIS_HOST", "localhost")
     redis_port = int(os.getenv("REDIS_PORT", 6379))
     r = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
     
@@ -116,7 +116,7 @@ def control_status():
         governance_policy = r.get("quantum:governance:policy") or "BALANCED"
         
         # Check AI Engine health for feature status  
-        ai_health = requests.get("http://ai-engine:8001/health", timeout=10.0).json()
+        ai_health = requests.get("http://localhost:8001/health", timeout=10.0).json()
         
         return {
             "trading_enabled": True,

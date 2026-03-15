@@ -17,7 +17,7 @@ class QuantumServicesClient:
         self.timeout = aiohttp.ClientTimeout(total=timeout)
         
         # Redis connection for direct data access
-        redis_host = os.getenv('REDIS_HOST', 'redis')
+        redis_host = os.getenv('REDIS_HOST', 'localhost')
         redis_port = int(os.getenv('REDIS_PORT', '6379'))
         try:
             self.redis_client = redis.Redis(
@@ -42,7 +42,7 @@ class QuantumServicesClient:
             'portfolio': f'http://{service_host}:8004',
             'trading': f'http://{service_host}:8003',
             'ai_engine': f'http://{service_host}:8001',
-            'risk': f'http://{service_host}:8012',
+            'risk': f'http://{service_host}:8070',
             'strategy': f'http://{service_host}:8011',
             'ceo': f'http://{service_host}:8010',
             'model_supervisor': f'http://{service_host}:8007',

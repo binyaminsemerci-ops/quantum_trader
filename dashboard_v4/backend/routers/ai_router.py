@@ -21,7 +21,7 @@ def get_ai_status():
     logger = logging.getLogger(__name__)
     
     try:
-        redis_host = os.getenv('REDIS_HOST', 'redis')
+        redis_host = os.getenv('REDIS_HOST', 'localhost')
         r = redis.Redis(host=redis_host, port=6379, decode_responses=True)
         
         # Get last 50 AI signals to calculate average accuracy
@@ -71,7 +71,7 @@ def get_ai_health():
     
     try:
         # Call AI Engine health endpoint
-        response = requests.get('http://ai-engine:8001/health', timeout=10.0)
+        response = requests.get('http://localhost:8001/health', timeout=10.0)
         response.raise_for_status()
         health_data = response.json()
         
@@ -130,7 +130,7 @@ def get_ai_predictions():
     predictions = []
     
     try:
-        redis_host = os.getenv('REDIS_HOST', 'redis')
+        redis_host = os.getenv('REDIS_HOST', 'localhost')
         r = redis.Redis(host=redis_host, port=6379, decode_responses=True)
         
         # Get last 15 trade.intent events from Redis stream

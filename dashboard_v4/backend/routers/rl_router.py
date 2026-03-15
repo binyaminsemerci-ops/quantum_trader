@@ -16,7 +16,7 @@ def get_rl_dashboard():
     Returns RL agent performance metrics for tracked symbols.
     """
     try:
-        redis_host = os.getenv('REDIS_HOST', 'redis')
+        redis_host = os.getenv('REDIS_HOST', 'localhost')
         r = redis.Redis(host=redis_host, port=6379, decode_responses=True)
         
         # NEW: Read from quantum:stream:trade.intent (RL shadow intents)
@@ -130,7 +130,7 @@ def get_rl_dashboard():
 def get_rl_history(symbol: str, limit: int = 100):
     """Get RL reward history for a specific symbol"""
     try:
-        redis_host = os.getenv('REDIS_HOST', 'redis')
+        redis_host = os.getenv('REDIS_HOST', 'localhost')
         r = redis.Redis(host=redis_host, port=6379, decode_responses=True)
         
         # Get last N entries from sorted set
