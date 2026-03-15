@@ -28,25 +28,74 @@ def list_users(token: TokenData = Depends(_require_admin)):
 
 @router.get("/services")
 def list_services(token: TokenData = Depends(_require_admin)):
-    """List all quantum-* systemd services and their statuses"""
+    """List all quantum-* systemd services and their statuses.
+
+    Filters out ghost units (not-found, masked) and annotates
+    timer-triggered oneshot services so the UI can display them correctly.
+    """
     try:
+        # Get services
         result = subprocess.run(
             ["systemctl", "list-units", "quantum-*.service", "--no-legend", "--all"],
             capture_output=True, text=True, timeout=10
         )
+        # Get active timers to identify oneshot services
+        timer_result = subprocess.run(
+            ["systemctl", "list-units", "quantum-*.timer", "--no-legend", "--all"],
+            capture_output=True, text=True, timeout=5
+        )
+        # Build set of services that have an associated timer
+        timer_targets = set()
+        for line in timer_result.stdout.strip().split("\n"):
+            if not line.strip():
+                continue
+            parts = line.split()
+            if len(parts) >= 1 and parts[0].endswith(".timer"):
+                # Timer "quantum-foo.timer" activates "quantum-foo.service"
+                timer_targets.add(parts[0].replace(".timer", ".service"))
+
         services = []
         for line in result.stdout.strip().split("\n"):
             if not line.strip():
                 continue
             parts = line.split()
-            if len(parts) >= 4:
-                services.append({
-                    "name": parts[0],
-                    "load": parts[1],
-                    "active": parts[2],
-                    "sub": parts[3],
-                    "description": " ".join(parts[4:]) if len(parts) > 4 else "",
-                })
+            if len(parts) < 4:
+                continue
+            # Strip leading bullet from not-found/failed entries
+            name = parts[0].lstrip("\u25cf").strip() or (parts[1] if len(parts) > 1 else "")
+            load = parts[1] if parts[0] != "\u25cf" else parts[2]
+            active = parts[2] if parts[0] != "\u25cf" else parts[3]
+            sub = parts[3] if parts[0] != "\u25cf" else parts[4] if len(parts) > 4 else ""
+
+            # Re-parse more reliably
+            clean = line.lstrip("\u25cf").strip()
+            cparts = clean.split()
+            if len(cparts) < 4:
+                continue
+            name = cparts[0]
+            load = cparts[1]
+            active = cparts[2]
+            sub = cparts[3]
+            desc = " ".join(cparts[4:]) if len(cparts) > 4 else ""
+
+            # Skip ghost units: not-found means no unit file exists
+            if load == "not-found":
+                continue
+            # Skip masked units: deliberately disabled
+            if load == "masked":
+                continue
+
+            # Annotate timer-triggered oneshot services
+            svc_type = "timer" if name in timer_targets else "service"
+
+            services.append({
+                "name": name,
+                "load": load,
+                "active": active,
+                "sub": sub,
+                "description": desc,
+                "type": svc_type,
+            })
         return {"services": services, "count": len(services)}
     except Exception as e:
         return {"services": [], "error": str(e)}
