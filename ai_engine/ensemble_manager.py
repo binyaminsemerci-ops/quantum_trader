@@ -31,6 +31,13 @@ try:
 except ImportError:
     EVENTBUS_AVAILABLE = False
 
+# Import StrategyPlugin registry (OP 7F)
+try:
+    from shared.strategy_plugin import StrategyRegistry, StrategyPrediction
+    REGISTRY_AVAILABLE = True
+except ImportError:
+    REGISTRY_AVAILABLE = False
+
 # Import unified agent system
 from ai_engine.agents.unified_agents import XGBoostAgent, LightGBMAgent, NHiTSAgent, PatchTSTAgent, DLinearAgent
 
@@ -348,6 +355,25 @@ class EnsembleManager:
         else:
             logger.info("[SKIP] Governer agent not available")
         
+        # ====================================================================
+        # OP 7F: STRATEGY REGISTRY — wrap loaded agents into registry
+        # ====================================================================
+        self.registry = StrategyRegistry() if REGISTRY_AVAILABLE else None
+        if self.registry is not None:
+            agent_map = {
+                'xgb': self.xgb_agent,
+                'lgbm': self.lgbm_agent,
+                'nhits': self.nhits_agent,
+                'patchtst': self.patchtst_agent,
+                'tft': self.tft_agent,
+                'dlinear': self.dlinear_agent,
+            }
+            for key, agent in agent_map.items():
+                if agent is not None:
+                    w = self.weights.get(key, self.default_weights.get(key, 0.0))
+                    self.registry.register_instance(key, agent, weight=w)
+            logger.info(f"[REGISTRY] StrategyRegistry loaded: {self.registry}")
+        
         active_models = len([m for m in [self.xgb_agent, self.lgbm_agent, self.nhits_agent, self.patchtst_agent] if m is not None])
         logger.info("=" * 60)
         logger.info(f"[TARGET] Ensemble ready! Min consensus: {min_consensus}/{active_models} models")
@@ -597,6 +623,42 @@ class EnsembleManager:
                 )
             
             self.last_weight_update = now
+
+    # ------------------------------------------------------------------
+    # OP 7F: Plugin management API
+    # ------------------------------------------------------------------
+
+    def register_plugin(self, name: str, instance, weight: float = 0.0) -> bool:
+        """
+        Register a new strategy plugin at runtime.
+
+        The plugin must satisfy the StrategyPlugin protocol (predict, health_check,
+        get_required_features, get_metadata). Sets the corresponding self.<name>_agent
+        attribute for backward compatibility.
+
+        Returns True if registration succeeded.
+        """
+        if self.registry is None:
+            logger.warning("[REGISTRY] StrategyRegistry not available — cannot register plugin")
+            return False
+        self.registry.register_instance(name, instance, weight=weight)
+        # Also set the legacy attribute so hardcoded paths still work
+        setattr(self, f"{name}_agent", instance)
+        if weight > 0:
+            self.weights[name] = weight
+        logger.info(f"[REGISTRY] Plugin registered: {name} (weight={weight:.2f})")
+        return True
+
+    def registry_health(self) -> Dict[str, Any]:
+        """Return health status for all registered plugins."""
+        if self.registry is None:
+            return {"status": "unavailable", "reason": "StrategyRegistry not loaded"}
+        h = self.registry.health()
+        return {
+            "status": "ok" if all(h.values()) else "degraded",
+            "plugins": h,
+            "count": len(self.registry),
+        }
     
     async def get_signal(self, symbol: str) -> Optional[Dict[str, Any]]:
         """
@@ -636,51 +698,51 @@ class EnsembleManager:
         # [FIX #2] Refresh weights from ModelSupervisor if needed
         self._refresh_weights_if_needed()
         
-        # Get predictions from all models
+        # Get predictions from all models via StrategyRegistry (OP 7F)
         predictions = {}
         
-        # FAIL-CLOSED: If any model fails, exclude it from ensemble (don't use HOLD 0.5 fallback)
-        try:
-            predictions['xgb'] = self.xgb_agent.predict(symbol, features)
-        except Exception as e:
-            logger.error(f"XGBoost prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
-            # Don't add to predictions - let ensemble work with remaining models
-        
-        try:
-            predictions['lgbm'] = self.lgbm_agent.predict(symbol, features)
-        except Exception as e:
-            logger.error(f"LightGBM prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
-            # Don't add to predictions - let ensemble work with remaining models
-        
-        # N-HiTS: Only predict if agent is loaded
-        if self.nhits_agent is not None:
+        if self.registry is not None and len(self.registry) > 0:
+            # Registry-based iteration — FAIL-CLOSED per plugin
+            for name, agent in self.registry.get_all().items():
+                try:
+                    predictions[name] = agent.predict(symbol, features)
+                except Exception as e:
+                    logger.error(f"{name} prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
+        else:
+            # Legacy fallback — hardcoded per-agent calls
             try:
-                predictions['nhits'] = self.nhits_agent.predict(symbol, features)
+                predictions['xgb'] = self.xgb_agent.predict(symbol, features)
             except Exception as e:
-                logger.error(f"N-HiTS prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
-                # Don't add to predictions - let ensemble work with remaining models
-        
-        # PatchTST: Only predict if agent is loaded
-        if self.patchtst_agent is not None:
+                logger.error(f"XGBoost prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
+            
             try:
-                predictions['patchtst'] = self.patchtst_agent.predict(symbol, features)
+                predictions['lgbm'] = self.lgbm_agent.predict(symbol, features)
             except Exception as e:
-                logger.error(f"PatchTST prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
-                # Don't add to predictions - let ensemble work with remaining models
+                logger.error(f"LightGBM prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
+            
+            if self.nhits_agent is not None:
+                try:
+                    predictions['nhits'] = self.nhits_agent.predict(symbol, features)
+                except Exception as e:
+                    logger.error(f"N-HiTS prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
+            
+            if self.patchtst_agent is not None:
+                try:
+                    predictions['patchtst'] = self.patchtst_agent.predict(symbol, features)
+                except Exception as e:
+                    logger.error(f"PatchTST prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
 
-        # TFT: Only predict if agent is loaded
-        if self.tft_agent is not None:
-            try:
-                predictions['tft'] = self.tft_agent.predict(symbol, features)
-            except Exception as e:
-                logger.error(f"TFT prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
+            if self.tft_agent is not None:
+                try:
+                    predictions['tft'] = self.tft_agent.predict(symbol, features)
+                except Exception as e:
+                    logger.error(f"TFT prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
 
-        # DLinear: Only predict if agent is loaded
-        if self.dlinear_agent is not None:
-            try:
-                predictions['dlinear'] = self.dlinear_agent.predict(symbol, features)
-            except Exception as e:
-                logger.error(f"DLinear prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
+            if self.dlinear_agent is not None:
+                try:
+                    predictions['dlinear'] = self.dlinear_agent.predict(symbol, features)
+                except Exception as e:
+                    logger.error(f"DLinear prediction failed: {e} - excluding from ensemble (FAIL-CLOSED)")
 
         # 🔍 QSC FAIL-CLOSED: Exclude degraded models from voting
         inactive_predictions = {}  # shadow, fallback, or error models

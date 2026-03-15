@@ -271,6 +271,14 @@ class Logger:
 
 # ---------- BASE ----------
 class BaseAgent:
+    """
+    Base class for all ensemble model agents.
+    Conforms to shared.strategy_plugin.StrategyPlugin protocol.
+    """
+
+    # StrategyPlugin protocol attributes (overridden by subclasses)
+    model_type: str = "unknown"  # "tree", "neural", "rl", "rule"
+
     def __init__(self, name, prefix, model_dir=None):
         self.name, self.prefix = name, prefix
         self.logger = Logger(name)
@@ -407,8 +415,32 @@ class BaseAgent:
 
     def is_ready(self): return self.ready
 
+    # --- StrategyPlugin protocol methods ---
+
+    def get_required_features(self) -> list:
+        """Feature names this model was trained on."""
+        return list(self.features)
+
+    def health_check(self) -> bool:
+        """Return True when model is loaded and ready for inference."""
+        return self.ready
+
+    def get_metadata(self) -> dict:
+        """Return model introspection metadata."""
+        return {
+            "name": self.name,
+            "version": self.version,
+            "model_type": getattr(self, "model_type", "unknown"),
+            "prefix": self.prefix,
+            "model_dir": self.model_dir,
+            "n_features": len(self.features),
+            "ready": self.ready,
+        }
+
 # ---------- XGBOOST ----------
 class XGBoostAgent(BaseAgent):
+    model_type = "tree"
+    __strategy_plugin__ = True
     def __init__(self): super().__init__("XGB-Agent", "xgb_v"); self._load()
     def predict(self,sym,feat):
         df=self._align(feat); X=self.scaler.transform(df)
@@ -426,6 +458,8 @@ class XGBoostAgent(BaseAgent):
 
 # ---------- LIGHTGBM ----------
 class LightGBMAgent(BaseAgent):
+    model_type = "tree"
+    __strategy_plugin__ = True
     def __init__(self): super().__init__("LGBM-Agent","lightgbm_v"); self._load()
     def predict(self,sym,feat):
         df=self._align(feat); X=self.scaler.transform(df)
@@ -443,6 +477,8 @@ class LightGBMAgent(BaseAgent):
 
 # ---------- PATCHTST ----------
 class PatchTSTAgent(BaseAgent):
+    model_type = "neural"
+    __strategy_plugin__ = True
     def __init__(self): 
         super().__init__("PatchTST-Agent","patchtst_v")
         self.pytorch_model = None  # Will hold reconstructed nn.Module
@@ -596,6 +632,8 @@ class PatchTSTAgent(BaseAgent):
 
 # ---------- N-HiTS ----------
 class NHiTSAgent(BaseAgent):
+    model_type = "neural"
+    __strategy_plugin__ = True
     def __init__(self): 
         super().__init__("NHiTS-Agent","nhits_v")
         self.pytorch_model = None  # Will hold reconstructed nn.Module
@@ -755,6 +793,8 @@ class NHiTSAgent(BaseAgent):
 
 class TFTAgent(BaseAgent):
     """Temporal Fusion Transformer agent with 49-feature support (Feb 2026)"""
+    model_type = "neural"
+    __strategy_plugin__ = True
     def __init__(self):
         super().__init__("TFT-Agent", "tft_v")
         self.pytorch_model = None
@@ -931,6 +971,8 @@ class TFTAgent(BaseAgent):
 
 class DLinearAgent(BaseAgent):
     """DLinear agent — trend/residual decomposition classifier (49 unified_features)."""
+    model_type = "neural"
+    __strategy_plugin__ = True
 
     def __init__(self):
         super().__init__("DLinear-Agent", "dlinear_v")
