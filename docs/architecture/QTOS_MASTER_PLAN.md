@@ -1161,9 +1161,20 @@ Exit:  exit_mgmt_agent → exit.intent → exit_intent_gateway → harvest.inten
 - [x] Created + enabled `quantum-risk-kernel.service`
 - Net result: 7 services → 1 (service count: 43 → 37)
 
-### 7F: Plugin Architecture
+### 7F: Plugin Architecture [DONE] 2026-03-15
 AI strategies become plugins with standard interface.
-Only after 7B-7E are done.
+
+**Completed:**
+- [x] `shared/strategy_plugin.py` — StrategyPlugin Protocol (runtime_checkable) + StrategyPrediction dataclass + StrategyRegistry
+- [x] `BaseAgent` (unified_agents.py) conforms to StrategyPlugin: model_type, get_required_features(), health_check(), get_metadata()
+- [x] All 6 ensemble agents marked `__strategy_plugin__ = True` with model_type ("tree"/"neural")
+- [x] Standalone TFTAgent (tft_agent.py) also conforms to protocol
+- [x] EnsembleManager.__init__ populates StrategyRegistry with all loaded agents + weights
+- [x] EnsembleManager.predict() uses registry iteration (falls back to legacy hardcoded path)
+- [x] New API: register_plugin(), registry_health()
+- [x] Package discovery: StrategyRegistry.discover() for auto-registration via __strategy_plugin__ marker
+- [x] Deployed to VPS — all 6 plugins registered, predict flow verified live
+- Commits: 7e610de43, d83f95da2
 
 ### 7G: Frontend Unification
 6 frontends → 1. Unified API + dashboard.
