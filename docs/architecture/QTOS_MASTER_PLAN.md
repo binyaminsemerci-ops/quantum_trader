@@ -1118,9 +1118,28 @@ intent_executor, governor, and apply_layer — make them read from P3.3's canoni
 | quantum:position:ledger:{symbol} | intent_executor | Execution ledger (keep) |
 | quantum:position:claim:{symbol} | apply_layer | Transient lock (keep) |
 
-### 7D: Typed IPC Contracts
-Pydantic schemas for all Redis streams. Validate on publish/subscribe.
-Start with trade.intent → apply.plan → apply.result chain.
+### 7D: Typed IPC Contracts ✅
+
+- [x] Comprehensive analysis of all 6 core Redis streams (trade.intent, apply.plan, apply.result, exit.intent, harvest.intent, trade.closed)
+- [x] Discovered two incompatible wire formats on trade.intent (EventBus wrapper vs direct XADD)
+- [x] Discovered two distinct apply.plan schemas (Intent Bridge vs Apply Layer)
+- [x] Created `shared/contracts/` Pydantic v2 module with 8 files:
+  - `base.py` — `StreamEvent` base class with `to_redis()` / `from_redis()` serialization
+  - `trade_intent.py` — TradeIntentEvent (entry chain start)
+  - `apply_plan.py` — ApplyPlanEvent (Intent Bridge variant)
+  - `apply_result.py` — ApplyResultEvent (execution acknowledgment)
+  - `exit_intent.py` — ExitIntentEvent (exit chain start, all fields required per gateway parser)
+  - `harvest_intent.py` — HarvestIntentEvent (validated exit forwarded to executor)
+  - `trade_closed.py` — TradeClosedEvent (position fully closed event)
+  - `__init__.py` — Package init with all exports
+- Phase 1: Schemas as documentation + import-ready contracts
+- Phase 2 (future): Runtime validation at XADD/XREAD boundaries
+
+**Stream Chain Map:**
+```
+Entry: AI Engine → trade.intent → intent_bridge → apply.plan → intent_executor → apply.result
+Exit:  exit_mgmt_agent → exit.intent → exit_intent_gateway → harvest.intent → intent_executor → trade.closed
+```
 
 ### 7E: Risk Kernel
 Consolidate 7 risk services into one process.
