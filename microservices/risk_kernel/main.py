@@ -54,7 +54,9 @@ REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
 ENABLE_GOVERNOR = os.getenv('RK_ENABLE_GOVERNOR', 'true').lower() == 'true'
 ENABLE_HEAT_GATE = os.getenv('RK_ENABLE_HEAT_GATE', 'true').lower() == 'true'
 ENABLE_PORTFOLIO_GATE = os.getenv('RK_ENABLE_PORTFOLIO_GATE', 'true').lower() == 'true'
-ENABLE_PORTFOLIO_HEAT_GATE = os.getenv('RK_ENABLE_PORTFOLIO_HEAT_GATE', 'true').lower() == 'true'
+# Portfolio Heat Gate disabled by default — overlaps 90% with Heat Gate + Portfolio Gate
+# and conflicts on prometheus metric names (p26_*). Enable only if the other two are off.
+ENABLE_PORTFOLIO_HEAT_GATE = os.getenv('RK_ENABLE_PORTFOLIO_HEAT_GATE', 'false').lower() == 'true'
 ENABLE_RISK_PROPOSAL = os.getenv('RK_ENABLE_RISK_PROPOSAL', 'true').lower() == 'true'
 ENABLE_CAPITAL_ALLOCATION = os.getenv('RK_ENABLE_CAPITAL_ALLOCATION', 'true').lower() == 'true'
 ENABLE_PORTFOLIO_GOVERNANCE = os.getenv('RK_ENABLE_PORTFOLIO_GOVERNANCE', 'true').lower() == 'true'
