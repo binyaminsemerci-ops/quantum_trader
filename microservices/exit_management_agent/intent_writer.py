@@ -30,9 +30,14 @@ Downstream consumer: exit_intent_gateway (PATCH-5B, not yet implemented).
 from __future__ import annotations
 
 import logging
+import os
+import sys
 import time
 import uuid
 from typing import Optional
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from shared.contracts.validation import validate_xadd
 
 from .models import ExitDecision
 from .redis_io import RedisClient
@@ -113,7 +118,11 @@ class IntentWriter:
         fields = self._serialise(dec, loop_id)
 
         try:
-            await self._redis.xadd(self._intent_stream, fields)
+            _v = validate_xadd("exit.intent", fields, _log)
+            if _v is None:
+                _log.error("INTENT_VALIDATION_BLOCKED symbol=%s", dec.snapshot.symbol)
+                return False
+            await self._redis.xadd(self._intent_stream, _v)
             _log.info(
                 "INTENT_PUBLISHED loop=%s symbol=%s action=%s urgency=%s "
                 "confidence=%.3f R_net=%.4f intent_id=%s",

@@ -27,6 +27,8 @@ from prometheus_client import Counter, Gauge, start_http_server
 
 # Risk Guard integration
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from shared.contracts.validation import validate_xadd, validate_xread
 try:
     from risk_guard import RiskGuard, RiskGuardConfig
     RISK_GUARD_AVAILABLE = True
@@ -335,6 +337,8 @@ class Governor:
                 
                 for stream_name, stream_messages in messages:
                     for message_id, data in stream_messages:
+                        validate_xread("apply.plan", data, logger)
+                        
                         # Evaluate plan
                         self._evaluate_plan(message_id, data)
                         
@@ -536,6 +540,7 @@ class Governor:
                             'qty': '0',  # Apply Layer will compute
                             'reduceOnly': 'true',
                             'decision': 'EXECUTE',
+                            'source': 'governor',
                             'kill_score': '0',
                             'rotation_trigger': 'true',
                             'new_symbol': symbol,
@@ -543,7 +548,9 @@ class Governor:
                             'timestamp': str(time.time())
                         }
                         
-                        self.redis.xadd(self.config.STREAM_PLANS, close_plan)
+                        _v = validate_xadd("apply.plan", close_plan, logger)
+                        if _v is not None:
+                            self.redis.xadd(self.config.STREAM_PLANS, _v)
                         logger.info(f"{symbol}: ROTATION CLOSE emitted for {weakest['symbol']} (plan_id={close_plan_id[:8]})")
                         
                         # Create rotation lock with TTL
@@ -1951,6 +1958,8 @@ class Governor:
                     
                     for stream_name, stream_messages in messages:
                         for message_id, data in stream_messages:
+                            validate_xread("apply.result", data, logger)
+                            
                             # Check if this is a successful CLOSE execution
                             executed = data.get('executed', '').lower() == 'true'
                             reduce_only =data.get('reduceOnly', '').lower() == 'true'

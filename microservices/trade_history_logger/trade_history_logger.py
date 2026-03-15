@@ -24,6 +24,10 @@ import logging
 from typing import Dict, Optional
 from datetime import datetime
 
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+from shared.contracts.validation import validate_xread
+
 try:
     import redis
 except ImportError:
@@ -260,6 +264,8 @@ class TradeHistoryLogger:
     def process_result(self, msg_id: bytes, result: Dict):
         """Process one apply.result message"""
         try:
+            validate_xread("apply.result", result, logger)
+            
             # Check if this is a trade closure
             if not self.is_trade_closure(result):
                 return

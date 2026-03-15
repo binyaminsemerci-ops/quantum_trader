@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from typing import Dict
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class StreamEvent(BaseModel):
@@ -12,6 +12,8 @@ class StreamEvent(BaseModel):
     Subclasses define the schema; to_redis()/from_redis()
     handle serialization.
     """
+
+    model_config = ConfigDict(extra="allow")
 
     def to_redis(self) -> Dict[str, str]:
         """Convert to Dict[str, str] suitable for redis.xadd()."""

@@ -27,6 +27,7 @@ import redis
 
 # Import P2 risk_kernel_harvest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from shared.contracts.validation import validate_xadd, validate_xread
 from ai_engine.risk_kernel_harvest import (
     compute_harvest_proposal,
     HarvestTheta,
@@ -927,10 +928,14 @@ class StreamPublisher:
             }
             
             # Publish directly to apply.plan stream
-            entry_id = self.redis.xadd(
-                self.config.stream_apply_plan,
-                message_fields
-            )
+            _v = validate_xadd("apply.plan", message_fields, logger)
+            if _v is not None:
+                entry_id = self.redis.xadd(
+                    self.config.stream_apply_plan,
+                    _v
+                )
+            else:
+                entry_id = None
             
             # Auto-create permit (bypass Governor P3.3)
             permit_key = f"quantum:permit:p33:{plan_id}"
@@ -1206,6 +1211,8 @@ class HarvestBrainService:
     async def process_apply_result(self, msg_id: str, msg_data: dict) -> None:
         """Process single apply.result event (P3 Harvest Restore)"""
         try:
+            validate_xread("apply.result", msg_data, logger)
+            
             # Parse apply.result payload
             if 'payload' in msg_data:
                 payload_str = msg_data.get('payload', '{}')

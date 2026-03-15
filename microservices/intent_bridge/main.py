@@ -30,6 +30,7 @@ from datetime import datetime
 # Add parent to path
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from shared.contracts.validation import validate_xadd, validate_xread
 
 try:
     import redis
@@ -868,9 +869,13 @@ class IntentBridge:
             logger.debug(f"✓ RL state: regime={_regime} forwarded to {intent['symbol']}")
         
         # Publish to quantum:stream:apply.plan with FLAT structure
+        _v = validate_xadd("apply.plan", message_fields, logger)
+        if _v is None:
+            logger.error(f"XADD blocked for plan {plan_id[:8]} — validation failed")
+            return
         message_id = self.redis.xadd(
             PLAN_STREAM,
-            message_fields
+            _v
         )
         
         logger.info(
@@ -900,6 +905,8 @@ class IntentBridge:
             logger.debug(f"Already processed: {stream_id_str}")
             self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
             return
+        
+        validate_xread("trade.intent", event_data, logger)
         
         # Parse intent
         intent = self._parse_intent(event_data)

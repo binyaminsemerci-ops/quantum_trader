@@ -23,6 +23,10 @@ from prometheus_client import Counter, Gauge, Histogram, generate_latest, CONTEN
 from starlette.responses import Response
 import uvicorn
 
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+from shared.contracts.validation import validate_xread
+
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
@@ -604,6 +608,8 @@ class MetricPackBuilder:
                 
                 for stream, stream_messages in messages:
                     for msg_id, msg_data in stream_messages:
+                        validate_xread("apply.result", msg_data, logger)
+                        
                         # Decode message
                         decoded = {}
                         for k, v in msg_data.items():

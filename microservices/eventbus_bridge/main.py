@@ -1,9 +1,12 @@
 import asyncio
 import json
+import os
 import redis.asyncio as redis
 import logging
 import sys
 sys.path.append("/app")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+from shared.contracts.validation import validate_xread
 from backend.infrastructure.redis_manager import RedisConnectionManager
 
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +35,8 @@ async def main():
             for stream_name, messages in result:
                 for message_id, data in messages:
                     stream_id = message_id
+                    
+                    validate_xread("trade.intent", data, logger)
                     
                     # Parse signal from payload field
                     payload = data.get(b'payload', b'{}')

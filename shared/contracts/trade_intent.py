@@ -45,3 +45,9 @@ class TradeIntentEvent(StreamEvent):
     exchange_divergence: Optional[str] = None
     funding_rate: Optional[str] = None
     regime: Optional[str] = None                # Market regime
+
+    # --- Autonomous trader extras ---
+    intent_type: Optional[str] = None           # "AUTONOMOUS_ENTRY"
+    action: Optional[str] = None                # "BUY" | "SELL"
+    reason: Optional[str] = None                # Entry reason text
+    reduceOnly: Optional[str] = None            # "true" | "false"

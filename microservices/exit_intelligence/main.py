@@ -22,6 +22,10 @@ from prometheus_client import start_http_server, Gauge, Counter, Histogram
 import pandas as pd
 import ta
 
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+from shared.contracts.validation import validate_xread
+
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
@@ -839,6 +843,8 @@ class ExitIntelligenceService:
                 
                 for stream, stream_messages in messages:
                     for msg_id, msg_data in stream_messages:
+                        validate_xread("apply.result", msg_data, logger)
+                        
                         # Decode message (same pattern as metricpack_builder)
                         decoded = {}
                         for k, v in msg_data.items():

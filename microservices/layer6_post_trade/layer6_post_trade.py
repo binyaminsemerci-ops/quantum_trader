@@ -37,6 +37,10 @@ from typing import Dict, List
 
 import redis.asyncio as aioredis
 
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+from shared.contracts.validation import validate_xread
+
 try:
     import pandas as pd
     HAS_PANDAS = True
@@ -93,6 +97,8 @@ async def backfill_session(r: aioredis.Redis):
 
 
 def ingest_trade(msg_id: str, fields: dict):
+    validate_xread("trade.closed", fields, log)
+    
     sym      = fields.get("symbol", fields.get("Symbol", "UNKNOWN"))
     side     = fields.get("side", "LONG")
     pnl_pct  = float(fields.get("pnl_pct",          0.0))

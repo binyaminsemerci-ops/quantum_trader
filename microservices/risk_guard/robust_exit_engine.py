@@ -29,6 +29,9 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import redis
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from shared.contracts.validation import validate_xadd
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s | %(levelname)-8s | %(message)s'
@@ -240,7 +243,9 @@ class RobustExitEngine:
                 plan[k] = str(v)
         
         # Emit to stream
-        self.redis.xadd(self.config.STREAM_APPLY_PLAN, plan)
+        _v = validate_xadd("apply.plan", plan, logger)
+        if _v is not None:
+            self.redis.xadd(self.config.STREAM_APPLY_PLAN, _v)
         
         # Track emission
         self.emitted_plans.add(plan_id)

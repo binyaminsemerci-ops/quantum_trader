@@ -36,6 +36,10 @@ from typing import Dict, List, Set
 
 import redis.asyncio as aioredis
 
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+from shared.contracts.validation import validate_xread
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s churn_guard %(message)s",
@@ -132,6 +136,8 @@ async def unblacklist_expired(r: aioredis.Redis):
 # ── Trade Event Processor ─────────────────────────────────────────────────
 async def process_trade(r: aioredis.Redis, msg_id: str, fields: dict,
                          equity: float):
+    validate_xread("trade.closed", fields, log)
+    
     _check_day_reset()
     _stats["trades_scanned"] += 1
 

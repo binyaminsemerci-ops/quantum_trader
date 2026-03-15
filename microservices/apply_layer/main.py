@@ -31,6 +31,7 @@ from datetime import datetime
 from enum import Enum
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from shared.contracts.validation import validate_xadd, validate_xread
 
 # Exit ownership enforcement (single exit controller)
 try:
@@ -1516,12 +1517,16 @@ class ApplyLayer:
                 "decision": plan.decision,
                 "reason_codes": ",".join(plan.reason_codes),
                 "steps": json.dumps(plan.steps),
-                "close_qty": str(plan.close_qty),
+                "qty": str(plan.close_qty),
+                "side": getattr(plan, 'side', 'CLOSE'),
+                "source": "apply_layer",
                 "price": str(plan.price) if plan.price else "",
                 "reduceOnly": "true",  # Harvest plans are always reduce-only
                 "timestamp": str(plan.timestamp)
             }
-            self.redis.xadd(stream_key, fields, maxlen=10000)
+            _v = validate_xadd("apply.plan", fields, logger)
+            if _v is not None:
+                self.redis.xadd(stream_key, _v, maxlen=10000)
             
             # Mark as published to stream (5 min TTL - same as apply cycle)
             self.redis.setex(stream_published_key, 300, "1")
@@ -2406,7 +2411,9 @@ class ApplyLayer:
                 "error": result.error or "",
                 "timestamp": str(result.timestamp)
             }
-            self.redis.xadd(stream_key, fields, maxlen=10000)
+            _v = validate_xadd("apply.result", fields, logger)
+            if _v is not None:
+                self.redis.xadd(stream_key, _v, maxlen=10000)
             
             logger.info(f"{result.symbol}: Result published (executed={result.executed}, error={result.error})")
             
@@ -2443,6 +2450,8 @@ class ApplyLayer:
             for stream_name, stream_messages in messages:
                 for msg_id, fields in stream_messages:
                     try:
+                        validate_xread("apply.plan", fields, logger)
+                        
                         # Convert fields to plain dict
                         plan_data = {}
                         for k, v in fields.items():
@@ -2465,14 +2474,17 @@ class ApplyLayer:
                                 logger.warning(f"[CLOSE] {symbol}: SKIP_DUPLICATE plan_id={plan_id[:8]} (already executed)")
                                 self.redis.xack(stream_key, consumer_group, msg_id)
                                 # Publish skip result
-                                self.redis.xadd('quantum:stream:apply.result', {
+                                _skip_fields = {
                                     'plan_id': plan_id,
                                     'symbol': symbol,
                                     'action': action,
                                     'executed': 'False',
                                     'error': 'duplicate_plan',
                                     'timestamp': str(int(time.time()))
-                                })
+                                }
+                                _v = validate_xadd("apply.result", _skip_fields, logger)
+                                if _v is not None:
+                                    self.redis.xadd('quantum:stream:apply.result', _v)
                                 continue
                             
                             # Get current position — check canonical key, fallback to ledger key
@@ -2493,14 +2505,17 @@ class ApplyLayer:
                                 # Set dedupe marker
                                 self.redis.setex(dedupe_key, 600, "1")  # 10 min TTL
                                 # Publish skip result
-                                self.redis.xadd('quantum:stream:apply.result', {
+                                _skip_fields = {
                                     'plan_id': plan_id,
                                     'symbol': symbol,
                                     'action': action,
                                     'executed': 'False',
                                     'error': 'no_position',
                                     'timestamp': str(int(time.time()))
-                                })
+                                }
+                                _v = validate_xadd("apply.result", _skip_fields, logger)
+                                if _v is not None:
+                                    self.redis.xadd('quantum:stream:apply.result', _v)
                                 continue
                             
                             # Parse position data
@@ -2534,7 +2549,7 @@ class ApplyLayer:
                                 # Set dedupe marker
                                 self.redis.setex(dedupe_key, 600, "1")
                                 # Publish skip result
-                                self.redis.xadd('quantum:stream:apply.result', {
+                                _skip_fields = {
                                     'plan_id': plan_id,
                                     'symbol': symbol,
                                     'action': action,
@@ -2542,7 +2557,10 @@ class ApplyLayer:
                                     'error': 'close_qty_zero',
                                     'close_qty': '0.0',
                                     'timestamp': str(int(time.time()))
-                                })
+                                }
+                                _v = validate_xadd("apply.result", _skip_fields, logger)
+                                if _v is not None:
+                                    self.redis.xadd('quantum:stream:apply.result', _v)
                                 continue
                             
                             # Determine close side (opposite of position)
@@ -2604,7 +2622,7 @@ class ApplyLayer:
                                 logger.info(f"[CLOSE] {symbol}: Post-exit cooldown ({_exit_cd}s)")
                                 
                                 # Publish success result
-                                self.redis.xadd('quantum:stream:apply.result', {
+                                _success_fields = {
                                     'plan_id': plan_id,
                                     'symbol': symbol,
                                     'action': action,
@@ -2613,11 +2631,14 @@ class ApplyLayer:
                                     'close_qty': str(close_qty),
                                     'filled_qty': str(filled_qty),
                                     'order_id': str(order_id),
-                                    'status': status,
+                                    'order_status': status,
                                     'side': close_side,
                                     'close_pct': str(close_pct),
                                     'timestamp': str(int(time.time()))
-                                })
+                                }
+                                _v = validate_xadd("apply.result", _success_fields, logger)
+                                if _v is not None:
+                                    self.redis.xadd('quantum:stream:apply.result', _v)
 
                                 # Publish trade.closed for Layer 2 gate accumulation
                                 # Layer 2 research sandbox matches this with harvest.v2.shadow
@@ -2637,7 +2658,7 @@ class ApplyLayer:
                                             _pnl_pct = -_pnl_pct
                                         _pnl_usd = round(_pnl_pct / 100.0 * _entry_px * filled_qty, 4)
                                         _pnl_pct = round(_pnl_pct, 3)
-                                    self.redis.xadd('quantum:stream:trade.closed', {
+                                    _tc_fields = {
                                         'event_type': 'trade.closed',
                                         'symbol':      symbol,
                                         'side':        position_side,
@@ -2652,7 +2673,10 @@ class ApplyLayer:
                                         'model_id':    'apply_layer_close',
                                         'source':      'apply_layer',
                                         'timestamp':   datetime.utcnow().isoformat() + 'Z',
-                                    }, maxlen=2000)
+                                    }
+                                    _v = validate_xadd("trade.closed", _tc_fields, logger)
+                                    if _v is not None:
+                                        self.redis.xadd('quantum:stream:trade.closed', _v, maxlen=2000)
                                     logger.info(f"[TRADE_CLOSED] {symbol} {position_side} pnl={_pnl_usd:+.4f} R={plan_data.get('R_net','?')}")
                                 except Exception as _tce:
                                     logger.warning(f"[TRADE_CLOSED] Publish failed: {_tce}")
@@ -2662,14 +2686,17 @@ class ApplyLayer:
                                 # Set dedupe marker (prevent retry storm)
                                 self.redis.setex(dedupe_key, 600, "1")
                                 # Publish error result
-                                self.redis.xadd('quantum:stream:apply.result', {
+                                _err_fields = {
                                     'plan_id': plan_id,
                                     'symbol': symbol,
                                     'action': action,
                                     'executed': 'False',
                                     'error': f"execution_failed: {str(e)[:200]}",
                                     'timestamp': str(int(time.time()))
-                                })
+                                }
+                                _v = validate_xadd("apply.result", _err_fields, logger)
+                                if _v is not None:
+                                    self.redis.xadd('quantum:stream:apply.result', _v)
                             
                             # ACK the message
                             self.redis.xack(stream_key, consumer_group, msg_id)
@@ -2738,14 +2765,17 @@ class ApplyLayer:
                             logger.warning(f"[ENTRY] {symbol}: Order REJECTED - position limit reached ({len(all_positions)}/10 active positions)")
                             self.redis.xack(stream_key, consumer_group, msg_id)
                             # Publish rejection to apply.result
-                            self.redis.xadd('quantum:stream:apply.result', {
+                            _limit_fields = {
                                 'plan_id': plan_id,
                                 'symbol': symbol,
                                 'action': 'ENTRY',
                                 'executed': 'False',
                                 'error': f'position_limit_reached_{len(all_positions)}/10',
                                 'timestamp': str(int(time.time()))
-                            })
+                            }
+                            _v = validate_xadd("apply.result", _limit_fields, logger)
+                            if _v is not None:
+                                self.redis.xadd('quantum:stream:apply.result', _v)
                             continue
                         
                         # 🔥 HARD GATE: Check symbol is in policy universe (fail-closed)

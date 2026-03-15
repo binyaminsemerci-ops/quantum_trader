@@ -43,3 +43,24 @@ class ApplyPlanEvent(StreamEvent):
     volatility_factor: Optional[str] = None
     confidence: Optional[str] = None
     regime: Optional[str] = None
+
+    # --- Apply Layer harvest plan fields ---
+    kill_score: Optional[str] = None            # Composite kill score
+    R_net: Optional[str] = None                 # Risk-adjusted PnL
+    reason_codes: Optional[str] = None          # Comma-separated reasons
+    steps: Optional[str] = None                 # JSON array of step details
+    close_qty: Optional[str] = None             # Alias for qty in harvest path
+    price: Optional[str] = None                 # Current market price
+    new_sl_proposed: Optional[str] = None       # Proposed new stop loss
+    k_regime_flip: Optional[str] = None         # Kill component: regime flip
+    k_sigma_spike: Optional[str] = None         # Kill component: sigma spike
+    k_ts_drop: Optional[str] = None             # Kill component: trailing stop drop
+    k_age_penalty: Optional[str] = None         # Kill component: age penalty
+
+    # --- Governor rotation fields ---
+    rotation_trigger: Optional[str] = None      # "true" if rotation-based close
+    new_symbol: Optional[str] = None            # Symbol to rotate into
+    new_plan_id: Optional[str] = None           # Plan ID for the new entry
+
+    # --- Risk guard / general ---
+    reason: Optional[str] = None                # Human-readable reason

@@ -16,6 +16,7 @@ from shared.contracts.apply_result import ApplyResultEvent
 from shared.contracts.exit_intent import ExitIntentEvent
 from shared.contracts.harvest_intent import HarvestIntentEvent
 from shared.contracts.trade_closed import TradeClosedEvent
+from shared.contracts.validation import validate_xadd, validate_xread
 
 __all__ = [
     "TradeIntentEvent",
@@ -24,4 +25,6 @@ __all__ = [
     "ExitIntentEvent",
     "HarvestIntentEvent",
     "TradeClosedEvent",
+    "validate_xadd",
+    "validate_xread",
 ]

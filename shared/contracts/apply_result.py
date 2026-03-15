@@ -34,3 +34,11 @@ class ApplyResultEvent(StreamEvent):
 
     # --- Rich result (JSON blob) ---
     details: Optional[str] = None               # JSON with full result data
+
+    # --- Apply Layer inline result extras ---
+    action: Optional[str] = None                # "PARTIAL_CLOSE" | "FULL_CLOSE" etc.
+    would_execute: Optional[str] = None         # Formal publish: what would have run
+    steps_results: Optional[str] = None         # JSON array of step results
+    reduceOnly: Optional[str] = None            # "True" | "true"
+    close_qty: Optional[str] = None             # Quantity closed
+    close_pct: Optional[str] = None             # Percentage of position closed

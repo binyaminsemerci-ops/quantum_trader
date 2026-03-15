@@ -24,6 +24,8 @@ import uuid
 
 # ── Path fix so sub-packages resolve ──────────────────────────────────────
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+from shared.contracts.validation import validate_xadd as _validate_xadd
 
 from utils.redis_client import RedisClient
 from engine.config import ConfigLoader
@@ -243,7 +245,9 @@ def main():
                     )
                 else:
                     live_payload = _build_live_payload(pos, result, decision)
-                    redis.xadd(cfg.stream_live, live_payload)
+                    _v = _validate_xadd("apply.plan", live_payload, logger)
+                    if _v is not None:
+                        redis.xadd(cfg.stream_live, _v)
                     logger.warning(
                         "[HV2_LIVE] EMITTED symbol=%s decision=%s R=%.3f qty=%s → %s",
                         pos.symbol, decision, result.R_net,

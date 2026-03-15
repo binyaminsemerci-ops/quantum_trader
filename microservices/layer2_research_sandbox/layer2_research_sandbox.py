@@ -53,6 +53,9 @@ from datetime import datetime, timezone
 import pandas as pd
 import redis as redis_lib
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+from shared.contracts.validation import validate_xread
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s sandbox %(message)s",
@@ -369,6 +372,9 @@ def main():
                 for msg_id, fields in messages:
                     ids_to_ack[stream].append(msg_id)
                     flds = {_decode(k): _decode(v) for k, v in fields.items()}
+
+                    if stream == TRADE_CLOSE_STREAM:
+                        validate_xread("trade.closed", flds, logger)
 
                     if stream == SHADOW_STREAM:
                         # Archive all shadow signals

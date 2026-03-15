@@ -28,6 +28,7 @@ from datetime import datetime
 # Add parent to path
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from shared.contracts.validation import validate_xadd, validate_xread
 
 import redis
 
@@ -791,11 +792,13 @@ class IntentExecutor:
                         "order_id": str(order_id),
                         "source": "intent_executor_main"
                     }
-                    self.redis.xadd(
-                        "quantum:stream:trade.closed",
-                        close_event,
-                        maxlen=1000
-                    )
+                    _v = validate_xadd("trade.closed", close_event, logger)
+                    if _v is not None:
+                        self.redis.xadd(
+                            "quantum:stream:trade.closed",
+                            _v,
+                            maxlen=1000
+                        )
                     logger.info(
                         f"📤 MAIN LANE trade.closed: {symbol} {pre_flat_side} "
                         f"entry={pre_flat_entry_price:.2f} exit={exit_price:.2f} PnL={pnl_percent:.1f}%"
@@ -863,9 +866,7 @@ class IntentExecutor:
         result.update(kwargs)
         
         # Write to Redis stream
-        self.redis.xadd(
-            APPLY_RESULT_STREAM,
-            {
+        _result_fields = {
                 b"event_type": b"apply.result",
                 b"plan_id": plan_id.encode(),
                 b"symbol": symbol.encode(),
@@ -873,8 +874,10 @@ class IntentExecutor:
                 b"source": b"intent_executor",
                 b"details": json.dumps(result).encode(),
                 b"timestamp": str(result["timestamp"]).encode()
-            }
-        )
+        }
+        _v = validate_xadd("apply.result", _result_fields, logger)
+        if _v is not None:
+            self.redis.xadd(APPLY_RESULT_STREAM, _v)
         
         logger.info(f"📝 Result written: plan={plan_id[:8]} executed={executed}")
     
@@ -892,6 +895,8 @@ class IntentExecutor:
         
         # Parse event
         try:
+            validate_xread("apply.plan", event_data, logger)
+            
             # Skip old nested payload format (has 'payload' field instead of flat fields)
             if b"payload" in event_data and b"plan_id" not in event_data:
                 logger.debug(f"Skip old nested payload format: {stream_id_str}")
@@ -1271,6 +1276,8 @@ class IntentExecutor:
         stream_id_str = stream_id.decode()
         
         try:
+            validate_xread("harvest.intent", event_data, logger)
+            
             # Parse harvest intent
             symbol = event_data.get(b"symbol", b"").decode().upper()
             action = event_data.get(b"action", b"").decode().upper()
@@ -1370,11 +1377,13 @@ class IntentExecutor:
                         "order_id": str(order_id),
                         "source": "autonomous_trader"
                     }
-                    self.redis.xadd(
-                        "quantum:stream:trade.closed",
-                        close_event,
-                        maxlen=1000  # Keep last 1000
-                    )
+                    _v = validate_xadd("trade.closed", close_event, logger)
+                    if _v is not None:
+                        self.redis.xadd(
+                            "quantum:stream:trade.closed",
+                            _v,
+                            maxlen=1000  # Keep last 1000
+                        )
                     logger.info(f"📤 Published trade.closed: {symbol} PnL={pnl_percent:.1f}% R={R_net:.2f}")
                 except Exception as e:
                     logger.error(f"❌ Failed to publish trade.closed: {e}")

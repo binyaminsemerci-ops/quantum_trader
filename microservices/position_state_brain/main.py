@@ -32,6 +32,7 @@ from datetime import datetime
 from dataclasses import dataclass
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from shared.contracts.validation import validate_xread
 
 try:
     import redis
@@ -894,6 +895,8 @@ class PositionStateBrain:
             
             for stream_name, stream_messages in messages:
                 for msg_id, fields in stream_messages:
+                    validate_xread("apply.plan", fields, logger)
+                    
                     # Parse plan_id (REQUIRED - no fallback)
                     plan_id = fields.get('plan_id')
                     if not plan_id:

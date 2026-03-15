@@ -46,6 +46,9 @@ import signal
 import json
 import redis as redis_lib
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from shared.contracts.validation import validate_xadd
+
 # ── Logging ───────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
@@ -201,15 +204,19 @@ def activate_lockdown(r: redis_lib.Redis, reason: str):
     # Rate-limit: only if not sent in last 60s
     last_signal_key = "quantum:dag5:last_lockdown_signal"
     if not r.exists(last_signal_key):
-        r.xadd("quantum:stream:apply.plan", {
+        _halt_fields = {
             "plan_id":      "dag5_lockdown_halt",
             "symbol":       "ALL",
+            "side":         "CLOSE",
             "action":       "LOCKDOWN_HALT",
             "decision":     "HALT",
             "reason_codes": reason,
             "source":       "dag5_lockdown_guard",
             "timestamp":    str(int(time.time())),
-        })
+        }
+        _v = validate_xadd("apply.plan", _halt_fields, logger)
+        if _v is not None:
+            r.xadd("quantum:stream:apply.plan", _v)
         r.setex(last_signal_key, 60, "1")
         logger.info("[DAG5] Emergency LOCKDOWN_HALT signal sent to apply.plan")
 

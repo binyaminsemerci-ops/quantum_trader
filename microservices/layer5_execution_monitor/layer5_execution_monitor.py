@@ -32,6 +32,10 @@ from typing import Dict, List, Optional
 
 import redis.asyncio as aioredis
 
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+from shared.contracts.validation import validate_xread
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s exec_qual %(message)s",
@@ -144,6 +148,8 @@ def rolling_metrics(trades: deque) -> dict:
 async def process_trade_event(r: aioredis.Redis, msg_id: str, fields: dict):
     """Process a quantum:stream:trade.closed event."""
     try:
+        validate_xread("trade.closed", fields, log)
+        
         sym     = fields.get("symbol", fields.get("Symbol", "UNKNOWN"))
         side    = fields.get("side", "LONG")
         entry   = float(fields.get("entry_price", fields.get("entryPrice", 0)))
@@ -239,6 +245,8 @@ async def process_trade_event(r: aioredis.Redis, msg_id: str, fields: dict):
 async def process_plan_event(r: aioredis.Redis, msg_id: str, fields: dict):
     """Track apply.plan signals for fill-rate computation."""
     try:
+        validate_xread("apply.plan", fields, log)
+        
         sym = fields.get("symbol", "UNKNOWN")
         _symbol_plans[sym].append({
             "msg_id": msg_id,

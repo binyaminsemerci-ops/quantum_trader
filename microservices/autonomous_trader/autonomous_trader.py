@@ -24,6 +24,7 @@ from microservices.autonomous_trader.entry_scanner import EntryScanner, EntryOpp
 from microservices.autonomous_trader.exit_manager import ExitManager, ExitDecision
 from microservices.autonomous_trader.funding_rate_filter import get_filtered_symbols
 from microservices.rl_sizing_agent.rl_agent import RLPositionSizingAgent
+from shared.contracts.validation import validate_xadd
 import json
 
 logging.basicConfig(
@@ -499,10 +500,10 @@ class AutonomousTrader:
                 "symbol": opportunity.symbol,
                 "action": "BUY" if opportunity.side == "LONG" else "SELL",
                 "side": opportunity.side,
-                "position_usd": str(sizing["position_usd"]),
+                "position_size_usd": str(sizing["position_usd"]),
                 "leverage": str(sizing["leverage"]),
-                "tp_pct": str(sizing["tp_pct"]),
-                "sl_pct": str(sizing["sl_pct"]),
+                "take_profit": str(sizing["tp_pct"]),
+                "stop_loss": str(sizing["sl_pct"]),
                 "confidence": str(opportunity.confidence),
                 "regime": opportunity.regime,
                 "reason": opportunity.reason,
@@ -510,7 +511,9 @@ class AutonomousTrader:
                 "timestamp": str(int(time.time()))
             }
             
-            await self.redis.xadd(self.stream_entry_intent, intent)
+            _v = validate_xadd("trade.intent", intent, logger)
+            if _v is not None:
+                await self.redis.xadd(self.stream_entry_intent, _v)
 
             self.entries_executed += 1
             logger.info(f"✅ Entry intent published: {opportunity.symbol} → {self.stream_entry_intent}")
@@ -540,7 +543,9 @@ class AutonomousTrader:
                 "timestamp": str(int(time.time()))
             }
             
-            await self.redis.xadd("quantum:stream:harvest.intent", intent)
+            _v = validate_xadd("harvest.intent", intent, logger)
+            if _v is not None:
+                await self.redis.xadd("quantum:stream:harvest.intent", _v)
             
             self.exits_executed += 1
             logger.info(f"✅ Exit intent published: {position.symbol} {decision.action}")

@@ -1088,7 +1088,7 @@ Intent-executor is the ONLY order execution path.
    CLM/calibration missed all main-lane closes. Fixed: added trade.closed publish
    in FLAT case with mark_price as exit_price.
 
-### 7C: Position Truth Source [x] (Phase 1 — single writer + backward compat)
+### 7C: Position Truth Source [DONE] (Phase 1 + Phase 2 complete)
 **Original plan**: One service polls Binance, publishes to `quantum:state:positions`.
 Everything else reads from there. Kill the 5-source fragmentation.
 
@@ -1105,11 +1105,16 @@ Everything else reads from there. Kill the 5-source fragmentation.
    `quantum:state:positions:{symbol}` which was previously empty.
 4. Fixed dead code bug in P3.3 (duplicate `return False` after `return False, latency_ms`).
 
-**Phase 2 (future)**: Migrate all 18+ readers to use `quantum:state:positions:{symbol}`
-and remove the legacy key writes. Also remove Binance API calls from reconcile_engine,
-intent_executor, governor, and apply_layer — make them read from P3.3's canonical key.
+**Phase 2 (DONE — 2026-03-15)**: Migrated ALL 62 files (35+ microservices, 20+ ops/scripts):
+- All readers use `quantum:state:positions:{symbol}` exclusively
+- P3.3 writes ONLY to canonical key (legacy writes removed)
+- Binance API position-read calls replaced with Redis reads in intent_executor + apply_layer
+- reconcile_engine.py autocorrect write/delete migrated to canonical
+- All delete operations clean up canonical + legacy keys for safe transition
+- Test files, docstrings, shell scripts all updated
+- VPS deployed: 39/39 services running, 54 canonical keys active, schema verified
 
-**Redis key ownership after Phase 1**:
+**Redis key ownership after Phase 2**:
 | Key Pattern | Writer | Status |
 |---|---|---|
 | quantum:state:positions:{symbol} | P3.3 | CANONICAL (new) |

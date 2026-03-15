@@ -26,9 +26,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import signal
 import sys
 import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from shared.contracts.validation import validate_xadd, validate_xread
 
 from .config import GatewayConfig
 from .models import IntentMessage
@@ -162,6 +166,8 @@ class ExitIntentGateway:
     async def _process_message(self, msg_id: str, fields: dict) -> None:
         self._total_received += 1
 
+        validate_xread("exit.intent", fields, _log)
+
         # Always ACK even if parse fails — malformed messages must not block.
         try:
             msg = IntentMessage.from_redis_fields(msg_id, fields)
@@ -242,7 +248,11 @@ class ExitIntentGateway:
             "entry_price": str(msg.entry_price),
             "exit_price": str(msg.mark_price),
         }
-        await self._redis.xadd(self._cfg.trade_stream, harvest_fields)
+        _v = validate_xadd("harvest.intent", harvest_fields, _log)
+        if _v is None:
+            _log.error("HARVEST_VALIDATION_BLOCKED intent_id=%s", msg.intent_id)
+            return
+        await self._redis.xadd(self._cfg.trade_stream, _v)
         _log.warning(
             "INTENT_FORWARDED intent_id=%s symbol=%s action=%s side=%s "
             "qty=%.8f confidence=%.4f patch=%s",

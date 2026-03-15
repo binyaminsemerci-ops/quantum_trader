@@ -34,3 +34,9 @@ class HarvestIntentEvent(StreamEvent):
     quantity: Optional[str] = None              # Position quantity
     intent_id: Optional[str] = None             # Correlated to exit.intent UUID
     ts_epoch: Optional[str] = None              # Unix epoch
+
+    # --- Autonomous trader extras ---
+    intent_type: Optional[str] = None           # "AUTONOMOUS_EXIT"
+    hold_score: Optional[str] = None            # Hold-vs-exit score
+    exit_score: Optional[str] = None            # Exit urgency score
+    timestamp: Optional[str] = None             # Unix epoch (int as string)

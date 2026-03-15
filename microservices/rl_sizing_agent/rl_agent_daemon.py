@@ -32,6 +32,7 @@ except ImportError as e:
 
 # Import RL Agent
 from microservices.rl_sizing_agent.rl_agent import get_rl_agent, RLPositionSizingAgent
+from shared.contracts.validation import validate_xread
 
 logging.basicConfig(
     level=logging.INFO,
@@ -164,6 +165,8 @@ class RLAgentDaemon:
                     self.last_closed_id = msg_id
                     
                     try:
+                        validate_xread("trade.closed", fields, logger)
+                        
                         symbol = fields.get("symbol", "")
                         pnl = float(fields.get("pnl_usd", 0))
                         entry_price = float(fields.get("entry_price", 0))

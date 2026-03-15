@@ -27,6 +27,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 # P1-B: JSON logging with correlation_id
 from shared.logging_config import setup_json_logging, set_correlation_id, get_correlation_id
+from shared.contracts.validation import validate_xread
 
 # Standard library imports
 import os  # Added for environment variables
@@ -3128,6 +3129,8 @@ class AIEngineService:
         import json
         
         try:
+            validate_xread("trade.closed", data, logger)
+            
             # Parse event data
             symbol = data.get(b'symbol', b'').decode('utf-8') if isinstance(data.get(b'symbol'), bytes) else data.get('symbol', '')
             pnl = float(data.get(b'pnl', 0) if isinstance(data.get(b'pnl'), bytes) else data.get('pnl', 0))

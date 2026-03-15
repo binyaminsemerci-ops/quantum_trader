@@ -24,6 +24,9 @@ from typing import Dict, List, Tuple, Optional
 import signal
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+from shared.contracts.validation import validate_xread
+
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
@@ -232,6 +235,8 @@ class DecisionIntelligenceService:
             True if processed successfully, False otherwise
         """
         try:
+            validate_xread("apply.result", data, logger)
+            
             # Extract and normalize fields
             decision = self._normalize_decision(data)
             reason = self._normalize_reason(data)
