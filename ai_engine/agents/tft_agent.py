@@ -28,6 +28,12 @@ class TFTAgent:
     - Interpretable predictions
     """
     
+    # StrategyPlugin protocol attributes
+    name = "TFT-Agent"
+    version = "unknown"
+    model_type = "neural"
+    __strategy_plugin__ = True
+    
     def __init__(
         self,
         model_path: str = "ai_engine/models/tft_model.pth",
@@ -746,3 +752,22 @@ class TFTAgent:
                 del self.history_buffer[symbol]
         else:
             self.history_buffer = {}
+
+    # --- StrategyPlugin protocol methods ---
+
+    def get_required_features(self) -> list:
+        return []  # TFT maintains its own history buffer
+
+    def health_check(self) -> bool:
+        return self.model is not None
+
+    def get_metadata(self) -> dict:
+        return {
+            "name": self.name,
+            "version": self.version,
+            "model_type": self.model_type,
+            "model_path": self.model_path,
+            "device": self.device,
+            "sequence_length": self.sequence_length,
+            "ready": self.model is not None,
+        }
