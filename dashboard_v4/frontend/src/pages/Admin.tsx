@@ -28,7 +28,7 @@ interface UserInfo {
   role: string;
 }
 
-export default function Admin({ token }: { token: string | null }) {
+export default function Admin({ token, role }: { token: string | null; role: string | null }) {
   const [services, setServices] = useState<Service[]>([]);
   const [system, setSystem] = useState<SystemInfo | null>(null);
   const [users, setUsers] = useState<UserInfo[]>([]);
@@ -36,8 +36,16 @@ export default function Admin({ token }: { token: string | null }) {
   const [logs, setLogs] = useState<{ service: string; lines: string[] } | null>(null);
   const [restartStatus, setRestartStatus] = useState<Record<string, string>>({});
 
-  const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (!token || role !== 'admin') {
+    return (
+      <div className="text-center py-20">
+        <h2 className="text-2xl font-bold text-red-400 mb-4">Access Denied</h2>
+        <p className="text-gray-400">Admin role required to access this page.</p>
+      </div>
+    );
+  }
+
+  const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
 
   const fetchData = async () => {
     if (!token) { setLoading(false); return; }

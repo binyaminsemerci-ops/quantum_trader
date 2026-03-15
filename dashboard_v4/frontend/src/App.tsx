@@ -119,7 +119,7 @@ function App() {
             <Route path="/incidents" element={<Incidents token={token} />} />
             <Route path="/replay" element={<Replay />} />
             <Route path="/system" element={<SystemHealth />} />
-            <Route path="/admin" element={<Admin token={token} />} />
+            <Route path="/admin" element={<Admin token={token} role={role} />} />
             <Route path="/grafana" element={<Grafana />} />
             <Route path="/login" element={
               token ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />
