@@ -7,7 +7,7 @@ print("CURRENT POSITIONS - UNREALIZED PNL ANALYSIS")
 print("="*80)
 
 positions = []
-for key in r.keys("quantum:position:*"):
+for key in r.keys("quantum:state:positions:*"):
     data = r.hgetall(key)
     upnl = float(data.get("unrealized_pnl", 0))
     positions.append({

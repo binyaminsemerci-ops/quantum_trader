@@ -1,21 +1,17 @@
-"""position_source: parse open positions from quantum:position:* Redis hashes.
+"""position_source: parse open positions from quantum:state:positions:* Redis hashes.
 
-Hash field map (written by harvest_brain and harvest_brain startup sync):
-    symbol          — not stored as field; extracted from key name
-    side            — "LONG" | "SHORT"
-    quantity        — float str   ← NOTE: field is "quantity", NOT "position_qty"
+Hash field map (written by position_state_brain P3.3 from Binance polling):
+    symbol          — string
+    side            — "LONG" | "SHORT" | "FLAT"
+    quantity        — float str (abs)
+    position_amt    — float str (signed)
     entry_price     — float str
-    unrealized_pnl  — float str   (may be 0.0 if harvest_brain hasn't run)
+    mark_price      — float str
+    current_price   — float str (alias for mark_price)
+    unrealized_pnl  — float str
     leverage        — float str
-    stop_loss       — float str   (optional)
-    take_profit     — float str   (optional)
-    entry_risk_usdt — float str   (optional; computed by _enrich_position_from_redis)
-    sync_timestamp  — int str     (unix epoch; rolling last-sync time)
-    risk_missing    — "0"|"1"     (informational; checked by harvest_brain)
-    source          — string      (informational)
-
-mark_price is NOT stored directly; it is derived from unrealized_pnl, or
-fetched from quantum:ticker:{symbol}.markPrice by the caller (PerceptionEngine).
+    ts_epoch        — int str (unix epoch)
+    source          — string ("position_state_brain")
 """
 from __future__ import annotations
 
@@ -31,7 +27,7 @@ _log = logging.getLogger("exit_management_agent.position_source")
 
 class PositionSource:
     """
-    Read open positions from quantum:position:{symbol} Redis hashes.
+    Read open positions from quantum:state:positions:{symbol} Redis hashes.
 
     Each call to get_open_positions() issues a fresh SCAN + HGETALL.
     No caching; positions change every few seconds.
@@ -58,12 +54,12 @@ class PositionSource:
         try:
             keys = await self._redis.scan_position_keys()
         except Exception as exc:
-            _log.error("SCAN quantum:position:* failed: %s", exc)
+            _log.error("SCAN quantum:state:positions:* failed: %s", exc)
             return []
 
         snapshots = []
         for key in keys[: self._max_positions]:
-            symbol = key.removeprefix("quantum:position:")
+            symbol = key.removeprefix("quantum:state:positions:")
 
             if allowlist and symbol.upper() not in allowlist:
                 continue

@@ -85,17 +85,6 @@ class PositionSourceAdapter:
                 else:
                     positions[symbol] = None
             
-            # If no individual keys, try single hash
-            if all(v is None for v in positions.values()):
-                data = self.redis.hgetall("quantum:state:positions")
-                if data:
-                    for symbol in symbols:
-                        if symbol.encode() in data or symbol in data:
-                            raw = data.get(symbol.encode()) or data.get(symbol)
-                            if isinstance(raw, bytes):
-                                raw = raw.decode()
-                            pos_data = json.loads(raw) if isinstance(raw, str) else raw
-                            positions[symbol] = self._parse_position_data(symbol, pos_data)
         except Exception as e:
             logger.debug(f"Error reading from redis_hash: {e}")
         

@@ -51,11 +51,10 @@ except Exception as e:
 
 # Position count
 print("\n=== POSITION COUNT ===")
-positions = [k.decode() for k in r.keys("quantum:position:*")
-             if not any(x in k.decode() for x in ["ledger","snapshot","cooldown","dedupe","hold","lock","stream"])]
+positions = [k.decode() for k in r.keys("quantum:state:positions:*")]
 print(f"  Active: {len(positions)}/10")
 for p in positions:
-    sym = p.replace("quantum:position:", "")
+    sym = p.replace("quantum:state:positions:", "")
     data = r.hgetall(p)
     side = (data.get(b'side') or b'?').decode()
     qty = (data.get(b'quantity') or data.get(b'qty') or b'0').decode()

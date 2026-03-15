@@ -22,12 +22,10 @@ else:
     print("No ENTRY_PROPOSED plan found in last 500 messages")
 
 # Check position limit count
-all_pos = r.keys("quantum:position:*")
-pos_active = [k for k in all_pos if 'snapshot' not in k and 'ledger' not in k]
+all_pos = r.keys("quantum:state:positions:*")
 print(f"\n=== Position counts ===")
-print(f"  All quantum:position:* keys: {len(all_pos)}")
-print(f"  Active (no snapshot/ledger): {len(pos_active)}")
-print(f"  Active keys: {sorted(pos_active)}")
+print(f"  Canonical quantum:state:positions:* keys: {len(all_pos)}")
+print(f"  Active keys: {sorted([k.decode() if isinstance(k, bytes) else k for k in all_pos])}")
 
 # Check recent apply.action intent from trade.intent
 print("\n=== Recent trade.intent (last 3) ===")

@@ -143,7 +143,7 @@ class TradeHistoryLogger:
     def get_position_snapshot(self, symbol: str) -> Optional[Dict]:
         """Get current position snapshot to calculate P&L"""
         try:
-            snapshot_key = f"quantum:position:snapshot:{symbol}"
+            snapshot_key = f"quantum:state:positions:{symbol}"
             data = self.redis.hgetall(snapshot_key)
             
             if not data:

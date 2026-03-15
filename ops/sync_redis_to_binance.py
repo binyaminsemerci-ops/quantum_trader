@@ -24,9 +24,7 @@ def binance_positions():
     return {p["symbol"]: p for p in raw if abs(float(p.get("positionAmt", 0))) > 0}
 
 def get_redis_positions():
-    keys = [k.decode() for k in r.keys("quantum:position:*")
-            if not any(x in k.decode() for x in
-                       ["ledger","snapshot","cooldown","dedupe","hold","lock","stream"])]
+    keys = [k.decode() for k in r.keys("quantum:state:positions:*")]
     return {k.split(":")[-1]: {kk.decode(): vv.decode() for kk, vv in r.hgetall(k).items()}
             for k in keys}
 
@@ -41,7 +39,7 @@ print(f"\nBinance open: {list(bnb.keys())}")
 print(f"Redis  open: {list(rds.keys())}\n")
 
 for sym, bp in bnb.items():
-    rkey = f"quantum:position:{sym}"
+    rkey = f"quantum:state:positions:{sym}"
     rp   = rds.get(sym)
 
     b_qty  = abs(float(bp["positionAmt"]))
@@ -82,22 +80,23 @@ for sym, bp in bnb.items():
         r.hset(rkey, mapping={
             "symbol":       sym,
             "side":         b_side,
+            "position_amt": str(float(bp["positionAmt"])),
             "quantity":     str(b_qty),
             "entry_price":  str(b_entry),
             "leverage":     str(b_lev),
             "unrealized_pnl": str(b_pnl),
             "mark_price":   str(b_mark),
+            "current_price": str(b_mark),
             "liquidation_price": str(b_liq),
-            "pnl_updated_at": str(int(time.time())),
+            "ts_epoch":     str(int(time.time())),
             "source":       "sync_script",
-            "created_at":   str(int(time.time())),
         })
         print(f"  {sym}: ✅ created  qty={b_qty}  lev={b_lev}x  pnl={b_pnl:+.4f}")
 
 # Remove Redis positions not on Binance
 for sym in list(rds.keys()):
     if sym not in bnb:
-        rkey = f"quantum:position:{sym}"
+        rkey = f"quantum:state:positions:{sym}"
         r.delete(rkey)
         print(f"\n  {sym}: ❌ in Redis but NOT on Binance — DELETED from Redis (phantom)")
 

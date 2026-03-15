@@ -55,7 +55,7 @@ echo -e "${YELLOW}[STEP 2] Current open positions from Redis...${NC}"
 echo ""
 
 # Get all position snapshot keys using SCAN (safe for large keyspaces)
-POSITION_KEYS=$($REDIS_CLI --scan --pattern "quantum:position:snapshot:*")
+POSITION_KEYS=$($REDIS_CLI --scan --pattern "quantum:state:positions:*")
 
 if [ -z "$POSITION_KEYS" ]; then
     echo -e "${GREEN}No position snapshot keys found${NC}"
@@ -82,7 +82,7 @@ else
         
         # Display each active position
         for key in $ACTIVE_POSITIONS; do
-            symbol=$(echo "$key" | sed 's/quantum:position:snapshot://')
+            symbol=$(echo "$key" | sed 's/quantum:state:positions://')
             echo -e "${BLUE}=== $symbol ===${NC}"
             $REDIS_CLI HGETALL "$key" | paste - - | while read field value; do
                 echo "  $field: $value"
@@ -115,7 +115,7 @@ if [ $POSITION_COUNT -gt 0 ]; then
     
     while true; do
         # Check current position count (only active positions with qty != 0)
-        CURRENT_KEYS=$($REDIS_CLI --scan --pattern "quantum:position:snapshot:*" 2>/dev/null || echo "")
+        CURRENT_KEYS=$($REDIS_CLI --scan --pattern "quantum:state:positions:*" 2>/dev/null || echo "")
         CURRENT_COUNT=0
         
         if [ -n "$CURRENT_KEYS" ]; then
@@ -143,7 +143,7 @@ if [ $POSITION_COUNT -gt 0 ]; then
             for key in $CURRENT_KEYS; do
                 qty=$($REDIS_CLI HGET "$key" qty 2>/dev/null || echo "0")
                 if [ -n "$qty" ] && [ "$qty" != "0" ] && [ "$qty" != "0.0" ]; then
-                    symbol=$(echo "$key" | sed 's/quantum:position:snapshot://')
+                    symbol=$(echo "$key" | sed 's/quantum:state:positions://')
                     echo "  - $symbol (qty=$qty)"
                 fi
             done

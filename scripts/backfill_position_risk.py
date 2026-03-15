@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Backfill script: Populate risk fields for positions missing them.
-Scans quantum:position:* for missing entry_risk_usdt and backfills from
+Scans quantum:state:positions:* for missing entry_risk_usdt and backfills from
 quantum:stream:trade.intent history (last ENTRY intent per symbol).
 """
 
@@ -71,7 +71,7 @@ def find_last_entry_intent(r: redis.Redis, symbol: str) -> Optional[Dict[str, An
 
 def backfill_position(r: redis.Redis, symbol: str) -> bool:
     """Backfill risk fields for a single position. Returns True if updated."""
-    pos_key = f"quantum:position:{symbol}"
+    pos_key = f"quantum:state:positions:{symbol}"
     
     try:
         # Get position data
@@ -145,16 +145,12 @@ def main():
     print()
     
     # Scan all position keys
-    print("Scanning quantum:position:* keys...")
+    print("Scanning quantum:state:positions:* keys...")
     position_keys = []
     cursor = 0
     while True:
-        cursor, keys = r.scan(cursor=cursor, match='quantum:position:*', count=100)
-        # Filter out ledger/snapshot
-        position_keys.extend([
-            k for k in keys 
-            if ':ledger:' not in k and ':snapshot:' not in k
-        ])
+        cursor, keys = r.scan(cursor=cursor, match='quantum:state:positions:*', count=100)
+        position_keys.extend(keys)
         if cursor == 0:
             break
     
@@ -167,7 +163,7 @@ def main():
     failed_count = 0
     
     for pos_key in sorted(position_keys):
-        symbol = pos_key.replace('quantum:position:', '')
+        symbol = pos_key.replace('quantum:state:positions:', '')
         if backfill_position(r, symbol):
             updated_count += 1
         else:

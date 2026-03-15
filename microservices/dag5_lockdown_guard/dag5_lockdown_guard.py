@@ -96,7 +96,7 @@ MODE_KEY         = "quantum:system:mode"
 GOVERNOR_HALT    = "quantum:governor:halt"
 LEARNING_FROZEN  = "quantum:learning:frozen"
 LOCKDOWN_ACTIVE  = "quantum:dag5:lockdown_active"
-POSITION_PREFIX  = "quantum:position:"
+POSITION_PREFIX  = "quantum:state:positions:"
 STATE_KEY        = "quantum:dag5:lockdown_guard:latest"
 STATE_TTL        = 120
 

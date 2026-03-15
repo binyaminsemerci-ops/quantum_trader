@@ -22,14 +22,12 @@ for e in entries:
 "
 
 echo ""
-echo "=== Active position count (correct filter) ==="
-redis-cli keys "quantum:position:*" 2>/dev/null | python3 -c "
+echo "=== Active position count (canonical keys) ==="
+redis-cli keys "quantum:state:positions:*" 2>/dev/null | python3 -c "
 import sys
 keys = [l.strip() for l in sys.stdin if l.strip()]
-active = [k for k in keys if 'snapshot' not in k and 'ledger' not in k and 'cooldown' not in k]
-print(f'Total keys: {len(keys)}')
-print(f'Active (no snapshot/ledger/cooldown): {len(active)}')
-for k in sorted(active):
+print(f'Canonical position keys: {len(keys)}')
+for k in sorted(keys):
     print(f'  {k}')
 "
 

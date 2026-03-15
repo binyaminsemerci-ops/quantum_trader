@@ -65,7 +65,7 @@ TOP_SYMBOLS = [
 KEY_EQUITY    = "quantum:equity:current"
 KEY_HEALTH    = "quantum:health:truth:latest"
 KEY_STATUS    = "quantum:layer4:portfolio:latest"
-KEY_POSITIONS = "quantum:position:{sym}"        # live positions (read-only)
+KEY_POSITIONS = "quantum:state:positions:{sym}"        # live positions (read-only)
 
 
 # ── Kelly Calculator ─────────────────────────────────────────────────────
@@ -247,7 +247,7 @@ async def compute_sizing(
         return result
 
     # ATR-based sizing guard
-    atr_data = await r.hgetall(f"quantum:position:{symbol}")
+    atr_data = await r.hgetall(f"quantum:state:positions:{symbol}")
     atr_val  = float(atr_data.get("atr_value", 0)) if atr_data else 0.0
     live     = await r.hgetall(f"quantum:market:{symbol}:bybit")
     price    = float(live.get("price", 1)) if live else 1.0

@@ -36,10 +36,9 @@ logger = logging.getLogger(__name__)
 async def get_authoritative_open_positions(redis_client) -> int:
     """
     Returns the count of currently open positions by scanning
-    quantum:position:{SYMBOL} keys directly from Redis.
+    quantum:state:positions:{SYMBOL} keys directly from Redis.
 
     Rules:
-    - Skips :snapshot: and :ledger: sub-namespaces (different schemas).
     - Only counts keys where abs(float(quantity)) > 0.
     - Uses non-blocking SCAN with COUNT 200 per batch.
     - Hard-limits total key inspection to 10k to prevent runaway scans.
@@ -58,13 +57,9 @@ async def get_authoritative_open_positions(redis_client) -> int:
     try:
         while True:
             cursor, keys = await redis_client.scan(
-                cursor, match="quantum:position:*", count=SCAN_COUNT
+                cursor, match="quantum:state:positions:*", count=SCAN_COUNT
             )
             for key in keys:
-                # Skip sub-namespaces — snapshot/ledger carry different schemas
-                if ":snapshot:" in key or ":ledger:" in key:
-                    continue
-
                 keys_scanned += 1
                 if keys_scanned > MAX_KEYS:
                     truncated = True

@@ -498,7 +498,7 @@ async def budget_compute_loop():
             await asyncio.sleep(BUDGET_COMPUTE_INTERVAL_SEC)
             
             # Get active symbols from quantum:position:snapshot hash keys
-            keys = await redis_client.keys("quantum:position:snapshot:*")
+            keys = await redis_client.keys("quantum:state:positions:*")
             symbols = set()
             for key in keys:
                 key_str = key.decode()

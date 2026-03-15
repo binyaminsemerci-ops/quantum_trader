@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "=== 1INCHUSDT position ==="
-redis-cli hgetall quantum:position:1INCHUSDT 2>/dev/null
+redis-cli hgetall quantum:state:positions:1INCHUSDT 2>/dev/null
 
 echo ""
 echo "=== apply.result - søk etter AAVEUSDT, ACEUSDT, 1INCH ==="

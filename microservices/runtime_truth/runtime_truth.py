@@ -30,7 +30,7 @@ Fields published:
   freshness_trade_intent   Age of last trade.intent message in seconds
   freshness_exec_result    Age of last trade.execution.res message in seconds
   exit_heartbeat_age_sec   Seconds since last quantum:exit:heartbeat key update
-  redis_position_count     Number of live quantum:position:* keys
+  redis_position_count     Number of live quantum:state:positions:* keys
   orphan_position_count    Positions with no recent price update (stale > 120s)
   position_mismatch        true/false (Redis vs reconcile engine disagreement)
   alarms                   JSON list of active alarm strings
@@ -163,12 +163,10 @@ def get_position_stats(r: redis.Redis) -> Tuple[int, int]:
     try:
         cursor = 0
         while True:
-            cursor, keys = r.scan(cursor=cursor, match="quantum:position:*", count=100)
+            cursor, keys = r.scan(cursor=cursor, match="quantum:state:positions:*", count=100)
             for key in keys:
                 if isinstance(key, bytes):
                     key = key.decode()
-                if ":ledger:" in key or ":snapshot:" in key:
-                    continue
                 pos = r.hgetall(key)
                 qty = float(pos.get(b"quantity", pos.get("quantity", 0)) or 0)
                 if qty == 0:

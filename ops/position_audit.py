@@ -13,9 +13,7 @@ r = redis.Redis()
 print("=" * 60)
 print("REDIS POSITIONS")
 print("=" * 60)
-pos_keys = [k.decode() for k in r.keys("quantum:position:*")
-            if not any(x in k.decode() for x in
-                       ["ledger","snapshot","cooldown","dedupe","hold","lock","stream","claim"])]
+pos_keys = [k.decode() for k in r.keys("quantum:state:positions:*")]
 print(f"Active: {len(pos_keys)}/10\n")
 for key in sorted(pos_keys):
     data = {k.decode(): v.decode() for k, v in r.hgetall(key).items()}
@@ -82,7 +80,7 @@ try:
         print(f"  {sym}: {side} qty={abs(amt):.4f}  entry={entry:.6f}  mark={mark:.6f}")
         print(f"         lev={lev}x  PnL={pnl:+.4f} USDT ({pnl_pct:+.2f}%)  liq={liq:.6f}")
 
-        redis_key = f"quantum:position:{sym}"
+        redis_key = f"quantum:state:positions:{sym}"
         redis_pos = r.hgetall(redis_key)
         if redis_pos:
             rqty   = float((redis_pos.get(b"quantity") or b"0").decode())
@@ -93,7 +91,7 @@ try:
             print(f"         Sync : {'✅ qty match' if qty_ok else '⚠️ QTY MISMATCH'}  "
                   f"live_pnl={pnl:+.4f}  redis_pnl={rpnl}")
         else:
-            print(f"         Redis: ⚠️  NO quantum:position:{sym} — phantom on exchange!")
+            print(f"         Redis: ⚠️  NO quantum:state:positions:{sym} — phantom on exchange!")
         print()
 
 except Exception as e:

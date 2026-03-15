@@ -32,9 +32,9 @@ def get_symbol_metrics(r: redis.Redis, symbol: str) -> Dict:
         ts = float(r.hget(ms_key, "ts") or "0")
         p_trend = float(r.hget(ms_key, "p_trend") or "0")
         
-        # Position snapshot (if exists)
-        snap_key = f"quantum:position:snapshot:{symbol}"
-        has_position = r.exists(snap_key)
+        # Position check (canonical key)
+        can_key = f"quantum:state:positions:{symbol}"
+        has_position = r.exists(can_key)
         
         # TODO: Get 24h volume from Binance API or cache
         # For now, use placeholder

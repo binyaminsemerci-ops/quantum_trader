@@ -21,6 +21,6 @@ for sym in ("BTCUSDT", "LINKUSDT"):
     last = r.hgetall(f"quantum:execution:last_order:{sym}")
     if last:
         print(f"last_order {sym}: {last}")
-    pos = r.hgetall(f"quantum:position:{sym}")
+    pos = r.hgetall(f"quantum:state:positions:{sym}")
     if pos:
         print(f"position {sym}: qty={pos.get('quantity')} entry={pos.get('entry_price')} upnl={pos.get('unrealized_pnl')}")

@@ -1,7 +1,7 @@
 """exit_management_agent — shadow-only position evaluation service (PATCH-1).
 
 Contract:
-  - Reads:  quantum:position:* (SCAN + HGETALL)
+  - Reads:  quantum:state:positions:* (SCAN + HGETALL)
   - Writes: quantum:stream:exit.audit
             quantum:stream:exit.metrics
             quantum:exit_agent:heartbeat  (SET with TTL)

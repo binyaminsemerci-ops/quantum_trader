@@ -1154,13 +1154,10 @@ class HarvestBrainService:
             logger.info(f"✅ STARTUP: Found {synced_count} active positions on Binance testnet")
             
             # Remove any ghost positions that don't exist on Binance
-            all_pos_keys = self.redis.keys("quantum:position:*")
+            all_pos_keys = self.redis.keys("quantum:state:positions:*")
             ghost_count = 0
             for key in all_pos_keys:
-                symbol = key.replace("quantum:position:", "")
-                # Skip sub-keys (snapshot:, ledger:, claim:)
-                if ":" in symbol:
-                    continue
+                symbol = key.replace("quantum:state:positions:", "")
                 if symbol not in active_symbols:
                     self.redis.delete(key)
                     ghost_count += 1
@@ -1276,14 +1273,10 @@ class HarvestBrainService:
             while True:
                 cursor, keys = self.redis.scan(
                     cursor=cursor,
-                    match='quantum:position:*',
+                    match='quantum:state:positions:*',
                     count=100
                 )
-                # Filter out ledger/snapshot keys
-                position_keys.extend([
-                    k for k in keys 
-                    if ':ledger:' not in k and ':snapshot:' not in k
-                ])
+                position_keys.extend(keys)
                 if cursor == 0:
                     break
                 if len(position_keys) >= self.config.harvest_scan_batch:
@@ -1301,7 +1294,7 @@ class HarvestBrainService:
             for pos_key in position_keys[:self.config.harvest_scan_batch]:
                 try:
                     # Parse symbol from key
-                    symbol = pos_key.replace('quantum:position:', '')
+                    symbol = pos_key.replace('quantum:state:positions:', '')
                     if not symbol or len(symbol) < 3:
                         continue
                     
@@ -1499,7 +1492,7 @@ class HarvestBrainService:
     async def _enrich_position_from_redis(self, symbol: str) -> None:
         """Enrich position data with computed fields (fail-open compute)"""
         try:
-            pos_key = f"quantum:position:{symbol}"
+            pos_key = f"quantum:state:positions:{symbol}"
             pos_data = self.redis.hgetall(pos_key)
             
             if not pos_data:
@@ -1685,9 +1678,9 @@ class HarvestBrainService:
             return 0.0
 
     async def _sync_position_to_redis(self, position: Position) -> None:
-        """Sync position to quantum:position:{symbol} Redis key"""
+        """Sync position to quantum:state:positions:{symbol} Redis key (dead code — P3.3 owns writes)"""
         try:
-            key = f"quantum:position:{position.symbol}"
+            key = f"quantum:state:positions:{position.symbol}"
             
             position_data = {
                 'symbol': position.symbol,

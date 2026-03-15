@@ -15,7 +15,7 @@ Gate requirements fed to Layer 2:
 
 This controller NEVER writes to:
   - quantum:stream:apply.plan
-  - quantum:position:*
+  - quantum:state:positions:*
   - quantum:equity:current
   - Any live order/position key
 

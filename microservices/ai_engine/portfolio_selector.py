@@ -394,8 +394,8 @@ class PortfolioSelector:
         """
         try:
             # Get all position snapshot keys
-            # Pattern: quantum:position:snapshot:*
-            pattern = "quantum:position:snapshot:*"
+            # Pattern: quantum:state:positions:*
+            pattern = "quantum:state:positions:*"
             
             cursor = 0
             symbols = set()
@@ -410,7 +410,7 @@ class PortfolioSelector:
                 
                 for key in keys:
                     # Extract symbol from key
-                    # Format: quantum:position:snapshot:<symbol>
+                    # Format: quantum:state:positions:<symbol>
                     parts = key.decode('utf-8').split(':')
                     if len(parts) >= 4:
                         symbol = parts[3]

@@ -11,7 +11,7 @@ def backfill_atr():
     r = redis.Redis(host='localhost', port=6379, decode_responses=True)
     
     # Get all positions
-    positions = r.keys("quantum:position:*")
+    positions = r.keys("quantum:state:positions:*")
     print(f"Found {len(positions)} positions\n")
     
     updated = 0

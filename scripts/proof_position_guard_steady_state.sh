@@ -98,12 +98,12 @@ echo "Checking Redis position data..."
 echo ""
 
 echo "  BTCUSDT position:"
-btc_pos=$(redis-cli HGET quantum:position:snapshot:BTCUSDT position_amt || echo "missing")
+btc_pos=$(redis-cli HGET quantum:state:positions:BTCUSDT position_amt || echo "missing")
 btc_pos=$(echo "$btc_pos" | tr -d '\n')
 echo "    position_amt: $btc_pos (expected: 0.0 or empty)"
 
 echo "  ZECUSDT position:"
-zec_pos=$(redis-cli HGET quantum:position:snapshot:ZECUSDT position_amt || echo "missing")
+zec_pos=$(redis-cli HGET quantum:state:positions:ZECUSDT position_amt || echo "missing")
 zec_pos=$(echo "$zec_pos" | tr -d '\n')
 echo "    position_amt: $zec_pos (expected: > 0)"
 

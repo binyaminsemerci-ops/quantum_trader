@@ -235,15 +235,13 @@ class ReconcileEngine:
             return  # API error — skip, be safe
         open_symbols = set(open_positions.keys())
 
-        # 2. Scan all Redis position keys
+        # 2. Scan all canonical position keys
         cursor = 0
         while True:
-            cursor, keys = self.redis.scan(cursor, match=b"quantum:position:*", count=200)
+            cursor, keys = self.redis.scan(cursor, match=b"quantum:state:positions:*", count=200)
             for raw_key in keys:
                 key = raw_key.decode() if isinstance(raw_key, bytes) else raw_key
-                if ":snapshot:" in key or ":ledger:" in key or ":claim:" in key:
-                    continue
-                symbol = key.replace("quantum:position:", "")
+                symbol = key.replace("quantum:state:positions:", "")
 
                 if symbol in open_symbols:
                     continue  # Binance confirms open — leave it
@@ -251,12 +249,14 @@ class ReconcileEngine:
                 # Not in Binance open positions → ghost → purge
                 ledger_key = f"quantum:position:ledger:{symbol}"
                 snap_key   = f"quantum:position:snapshot:{symbol}"
-                d_pos    = self.redis.delete(key)
+                pos_key    = f"quantum:position:{symbol}"
+                d_can    = self.redis.delete(key)  # canonical key
                 d_ledger = self.redis.delete(ledger_key)
                 d_snap   = self.redis.delete(snap_key)
+                d_pos    = self.redis.delete(pos_key)
                 logger.warning(
                     f"{symbol}: GHOST_PURGE — not in Binance positionRisk (confirmed FLAT). "
-                    f"Deleted: position={d_pos} ledger={d_ledger} snapshot={d_snap}"
+                    f"Deleted: canonical={d_can} ledger={d_ledger} snapshot={d_snap} position={d_pos}"
                 )
                 self._emit_event("GHOST_PURGE", symbol, {
                     "reason": "not_in_binance_position_risk",
@@ -268,12 +268,11 @@ class ReconcileEngine:
 
         # --- BOOTSTRAP + LEDGER REPAIR ---
         # For every symbol confirmed open on Binance:
-        #   A) If no quantum:position:snapshot:{sym} exists, write one directly
+        #   A) If no canonical position key exists, write one directly
         #      from Binance data.  This breaks the chicken-and-egg loop where
         #      P3.3 only snapshots symbols with ledger keys and LEDGER_REPAIR
         #      only creates ledgers for symbols with snapshots.
         #   B) If ledger is missing or zero/FLAT, initialize it.
-        #   C) If quantum:position:{sym} is missing, bootstrap it.
         for symbol, bpos in open_positions.items():
             b_amt   = float(bpos.get("positionAmt", 0))
             b_entry = float(bpos.get("entryPrice", 0))
@@ -281,24 +280,27 @@ class ReconcileEngine:
             b_lev   = int(float(bpos.get("leverage", 1)))
             b_side  = "LONG" if b_amt > 0 else "SHORT"
 
-            snap_key   = f"quantum:position:snapshot:{symbol}"
+            canonical_key = f"quantum:state:positions:{symbol}"
             ledger_key = f"quantum:position:ledger:{symbol}"
-            pos_key    = f"quantum:position:{symbol}"
 
-            # A) Refresh snapshot every ghost-purge cycle (keeps exchange freshness < 120s)
-            _snap_is_new = not self.redis.exists(snap_key)
-            self.redis.hset(snap_key, mapping={
-                "position_amt": b_amt,
+            # A) Refresh canonical position every ghost-purge cycle (keeps exchange freshness < 120s)
+            _snap_is_new = not self.redis.exists(canonical_key)
+            self.redis.hset(canonical_key, mapping={
+                "symbol":       symbol,
+                "position_amt": str(b_amt),
                 "side":         b_side,
-                "entry_price":  b_entry,
-                "mark_price":   b_mark,
-                "leverage":     b_lev,
-                "ts_epoch":     int(time.time()),
+                "quantity":     str(abs(b_amt)),
+                "entry_price":  str(b_entry),
+                "mark_price":   str(b_mark),
+                "current_price": str(b_mark),
+                "leverage":     str(b_lev),
+                "unrealized_pnl": str(float(bpos.get("unRealizedProfit", 0))),
+                "ts_epoch":     str(int(time.time())),
                 "source":       "p34_bootstrap",
             })
             if _snap_is_new:
                 logger.warning(
-                    f"{symbol}: SNAPSHOT_BOOTSTRAP — wrote exchange snapshot directly "
+                    f"{symbol}: CANONICAL_BOOTSTRAP — wrote canonical position directly "
                     f"(amt={b_amt:.4f} side={b_side} entry={b_entry})"
                 )
 
@@ -329,30 +331,13 @@ class ReconcileEngine:
                             f"exchange snapshot amt={exchange.position_amt:.4f} side={exchange.side}"
                         )
 
-            # C) Bootstrap missing quantum:position:{sym} key
-            if not self.redis.exists(pos_key) and abs(b_amt) > 0.0001:
-                self.redis.hset(pos_key, mapping={
-                    "symbol":       symbol,
-                    "side":         b_side,
-                    "quantity":     abs(b_amt),
-                    "entry_price":  b_entry,
-                    "leverage":     b_lev,
-                    "opened_at":    int(time.time()),
-                    "source":       "p34_position_bootstrap",
-                    "risk_missing": 1,
-                })
-                logger.warning(
-                    f"{symbol}: POSITION_BOOTSTRAP — created Redis position key "
-                    f"(side={b_side} qty={abs(b_amt):.4f})"
-                )
-
     def reconcile_symbol(self, symbol: str):
         """Reconcile single symbol (drift correction — allowlist only)"""
         try:
             # Quick exit: no Redis position key means symbol is flat — nothing to reconcile.
             # P3.3 only writes exchange snapshots for open positions, so a missing snapshot
             # for a flat allowlist symbol would otherwise spam HOLD_SET every loop tick.
-            pos_key = f"quantum:position:{symbol}"
+            pos_key = f"quantum:state:positions:{symbol}"
             if not self.redis.exists(pos_key):
                 self._clear_hold(symbol)
                 return
@@ -408,8 +393,8 @@ class ReconcileEngine:
             logger.error(f"{symbol}: Reconcile error: {e}", exc_info=True)
     
     def _read_exchange_snapshot(self, symbol: str) -> Optional[ExchangeSnapshot]:
-        """Read exchange snapshot from P3.3"""
-        key = f"quantum:position:snapshot:{symbol}"
+        """Read exchange snapshot from P3.3 canonical key"""
+        key = f"quantum:state:positions:{symbol}"
         data = self.redis.hgetall(key)
         return ExchangeSnapshot.from_redis_hash(data)
     
@@ -517,15 +502,17 @@ class ReconcileEngine:
 
         # ── Ghost detection: exchange says flat → position closed on Binance ──
         if abs(exchange.position_amt) < 0.0001:
+            canonical_key = f"quantum:state:positions:{symbol}"
             pos_key     = f"quantum:position:{symbol}"
             ledger_key  = f"quantum:position:ledger:{symbol}"
             snap_key    = f"quantum:position:snapshot:{symbol}"
+            deleted_can    = self.redis.delete(canonical_key)
             deleted_pos    = self.redis.delete(pos_key)
             deleted_ledger = self.redis.delete(ledger_key)
             deleted_snap   = self.redis.delete(snap_key)
             logger.warning(
                 f"{symbol}: GHOST_PURGE — exchange=FLAT, Redis position closed on exchange. "
-                f"Deleted: position={deleted_pos} ledger={deleted_ledger} snapshot={deleted_snap}"
+                f"Deleted: canonical={deleted_can} position={deleted_pos} ledger={deleted_ledger} snapshot={deleted_snap}"
             )
             self._emit_event("GHOST_PURGE", symbol, {
                 "reason": "exchange_flat_side_mismatch",

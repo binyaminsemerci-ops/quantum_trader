@@ -46,7 +46,7 @@ echo ""
 # Proof 3: Exchange Snapshots
 echo "[PROOF 3/8] Exchange Position Snapshots"
 echo "----------------------------------------"
-SNAPSHOT_KEYS=$($REDIS_CLI KEYS "quantum:position:snapshot:*" 2>/dev/null || echo "")
+SNAPSHOT_KEYS=$($REDIS_CLI KEYS "quantum:state:positions:*" 2>/dev/null || echo "")
 if [ -z "${SNAPSHOT_KEYS}" ]; then
     echo "⚠ No snapshot keys found (may need time to populate)"
 else
@@ -127,7 +127,7 @@ echo "  - Governor: $(systemctl is-active quantum-governor)"
 echo ""
 
 echo "Redis Keys:"
-SNAPSHOT_COUNT=$($REDIS_CLI KEYS "quantum:position:snapshot:*" 2>/dev/null | wc -l || echo "0")
+SNAPSHOT_COUNT=$($REDIS_CLI KEYS "quantum:state:positions:*" 2>/dev/null | wc -l || echo "0")
 LEDGER_COUNT=$($REDIS_CLI KEYS "quantum:position:ledger:*" 2>/dev/null | wc -l || echo "0")
 PERMIT_COUNT=$($REDIS_CLI KEYS "quantum:permit:p33:*" 2>/dev/null | wc -l || echo "0")
 echo "  - Snapshots: ${SNAPSHOT_COUNT}"

@@ -4,7 +4,7 @@ P2.7 Portfolio Clusters - Correlation Matrix + Capital Clustering
 
 ROLE: Computes real correlation clusters and cluster stress for portfolio-aware exits.
 
-INPUT:  quantum:position:snapshot:* (mark_price time series)
+INPUT:  quantum:state:positions:* (mark_price time series)
 OUTPUT: quantum:portfolio:cluster_state (cluster metrics, ClusterStress)
         quantum:portfolio:clusters (cluster_id → [symbols])
         quantum:stream:portfolio.cluster_state (audit trail)
@@ -119,7 +119,7 @@ class PortfolioClusters:
         """Fetch position snapshots for all symbols"""
         snapshots = {}
         for symbol in ALLOWLIST:
-            key = f"quantum:position:snapshot:{symbol}"
+            key = f"quantum:state:positions:{symbol}"
             data = self.redis.hgetall(key)
             if data:
                 snapshots[symbol] = data

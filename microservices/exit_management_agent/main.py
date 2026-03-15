@@ -5,7 +5,7 @@ Per-tick flow
 0.  [PATCH-6] Write ownership flag (quantum:exit_agent:active_flag) — no-op
     when EXIT_AGENT_OWNERSHIP_TRANSFER_ENABLED=false (default).
 1.  Write heartbeat (quantum:exit_agent:heartbeat)
-2.  SCAN quantum:position:*  →  parse PositionSnapshot list
+2.  SCAN quantum:state:positions:*  →  parse PositionSnapshot list
 3.  For each snapshot:
         a. compute PerceptionResult  (mark price, peak, R_net, giveback …)
         b. [PATCH-7A] HardGuards.evaluate() — emergency drawdown / SL breach /

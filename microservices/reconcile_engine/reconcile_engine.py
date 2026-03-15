@@ -83,23 +83,21 @@ def fetch_exchange_positions() -> Dict[str, Dict]:
 
 def fetch_redis_positions(r: redis.Redis) -> Dict[str, Dict]:
     """
-    Scan quantum:position:* (direct hashes only).
+    Scan quantum:state:positions:* (canonical position keys).
     Returns {symbol: hash_data} for abs(quantity) > 0.
     """
     result = {}
     cursor = 0
     while True:
-        cursor, keys = r.scan(cursor, match="quantum:position:*", count=200)
+        cursor, keys = r.scan(cursor, match="quantum:state:positions:*", count=200)
         for k in keys:
-            if ":snapshot:" in k or ":ledger:" in k:
-                continue
             data = r.hgetall(k)
             try:
-                qty = float(data.get("quantity", 0))
+                qty = float(data.get("quantity", data.get("position_amt", 0)))
             except (ValueError, TypeError):
                 qty = 0.0
             if qty != 0:
-                symbol = k.replace("quantum:position:", "")
+                symbol = k.replace("quantum:state:positions:", "")
                 result[symbol] = data
         if cursor == 0:
             break
@@ -274,18 +272,19 @@ def reconcile_once(r: redis.Redis, cumulative_mismatch_count: int) -> int:
             ep = exchange_positions[symbol]
             try:
                 amt = float(ep.get("positionAmt", 0))
-                key = f"quantum:position:{symbol}"
+                key = f"quantum:state:positions:{symbol}"
                 r.hset(
                     key,
                     mapping={
                         "symbol":         symbol,
+                        "position_amt":   str(amt),
                         "side":           "LONG" if amt > 0 else "SHORT",
                         "quantity":       str(abs(amt)),
                         "entry_price":    str(ep.get("entryPrice", "0")),
                         "unrealized_pnl": str(ep.get("unRealizedProfit", "0")),
                         "leverage":       str(ep.get("leverage", "1")),
                         "source":         "reconcile_engine_autocorrect",
-                        "sync_ts":        str(run_ts),
+                        "ts_epoch":       str(run_ts),
                     },
                 )
                 logger.info(f"[RECONCILE] AUTOCORRECT_ADD {symbol} (missing in Redis)")
@@ -309,8 +308,10 @@ def reconcile_once(r: redis.Redis, cumulative_mismatch_count: int) -> int:
                 )
                 continue
             try:
-                key = f"quantum:position:{symbol}"
-                r.delete(key)
+                canonical_key = f"quantum:state:positions:{symbol}"
+                legacy_key = f"quantum:position:{symbol}"
+                r.delete(canonical_key)
+                r.delete(legacy_key)
                 logger.info(f"[RECONCILE] AUTOCORRECT_DEL {symbol} (ghost in Redis)")
                 emit_reconcile_alert(r, symbol, "DELETE", {"reason": "ghost_in_redis"})
                 emit_alert(

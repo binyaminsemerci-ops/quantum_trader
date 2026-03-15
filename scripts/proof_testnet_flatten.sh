@@ -79,8 +79,8 @@ echo ""
 # ============================================================================
 echo -e "${YELLOW}[STEP 4] Current positions before flatten...${NC}"
 
-POSITION_COUNT=$($REDIS_CLI --scan --pattern "quantum:position:snapshot:*" | wc -l)
-echo -e "${BLUE}Position snapshot keys: $POSITION_COUNT${NC}"
+POSITION_COUNT=$($REDIS_CLI --scan --pattern "quantum:state:positions:*" | wc -l)
+echo -e "${BLUE}Canonical position keys: $POSITION_COUNT${NC}"
 echo ""
 
 # ============================================================================

@@ -212,7 +212,7 @@ class BalanceTracker:
                 _sl = "0"
                 _tp = "0"
                 try:
-                    _pos_hash = await self.redis.hgetall(f"quantum:position:{_sym}") or {}
+                    _pos_hash = await self.redis.hgetall(f"quantum:state:positions:{_sym}") or {}
                     if not _pos_hash:
                         _pos_hash = await self.redis.hgetall(f"quantum:position:ledger:{_sym}") or {}
 

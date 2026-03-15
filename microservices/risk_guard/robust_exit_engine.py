@@ -169,7 +169,7 @@ class RobustExitEngine:
     def _load_open_positions(self):
         """Load open positions from Redis"""
         # Check for position keys
-        position_keys = self.redis.keys("quantum:position:*")
+        position_keys = self.redis.keys("quantum:state:positions:*")
         
         for key in position_keys:
             symbol = key.split(':')[-1]
@@ -178,7 +178,7 @@ class RobustExitEngine:
             if not data:
                 continue
             
-            qty = float(data.get('qty', '0'))
+            qty = float(data.get('quantity', data.get('qty', '0')))
             if abs(qty) < 1e-8:
                 continue  # Empty position
             
@@ -377,7 +377,7 @@ class RobustExitEngine:
         
         # Cleanup closed positions (check if still in Redis)
         for symbol in list(self.positions.keys()):
-            pos_key = f"quantum:position:{symbol}"
+            pos_key = f"quantum:state:positions:{symbol}"
             if not self.redis.exists(pos_key):
                 logger.info(f"{symbol}: Position closed - removing from tracker")
                 del self.positions[symbol]

@@ -25,7 +25,7 @@ MIN_PRICE_SAMPLES = 10
 # ASSUMPTION: Price path is reconstructed from Redis position snapshots
 # that are written periodically by the existing position state builder.
 # If kline data is available, it provides better granularity.
-SNAPSHOT_KEY_PATTERN = "quantum:position:snapshot:{symbol}"
+SNAPSHOT_KEY_PATTERN = "quantum:state:positions:{symbol}"
 
 
 @dataclass(frozen=True)

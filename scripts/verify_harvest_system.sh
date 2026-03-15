@@ -40,9 +40,9 @@ echo
 
 # (3) Current open positions
 echo "=== (3) CURRENT OPEN POSITIONS ==="
-redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" KEYS "quantum:position:*" | while read -r key; do
+redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" KEYS "quantum:state:positions:*" | while read -r key; do
     if [ -n "$key" ]; then
-        symbol=$(echo "$key" | sed 's/quantum:position://')
+        symbol=$(echo "$key" | sed 's/quantum:state:positions://')
         side=$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" HGET "$key" side)
         qty=$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" HGET "$key" quantity)
         echo "  $symbol: $side qty=$qty"

@@ -8,15 +8,15 @@ redis-cli xrevrange quantum:stream:apply.result + - COUNT 50 2>/dev/null | grep 
 
 echo ""
 echo "=== AAVEUSDT position current state ==="
-redis-cli hgetall quantum:position:AAVEUSDT 2>/dev/null
+redis-cli hgetall quantum:state:positions:AAVEUSDT 2>/dev/null
 
 echo ""
 echo "=== ACEUSDT position current state ==="
-redis-cli hgetall quantum:position:ACEUSDT 2>/dev/null
+redis-cli hgetall quantum:state:positions:ACEUSDT 2>/dev/null
 
 echo ""
-echo "=== Active position count (no snapshot/ledger) ==="
-redis-cli keys "quantum:position:*" 2>/dev/null | grep -v snapshot | grep -v ledger | grep -v cooldown | wc -l
+echo "=== Active position count (canonical keys) ==="
+redis-cli keys "quantum:state:positions:*" 2>/dev/null | wc -l
 
 echo ""
 echo "=== Last 5 apply.result entries ==="

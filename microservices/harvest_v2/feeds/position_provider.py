@@ -1,6 +1,6 @@
 """
 feeds/position_provider.py
-Reads all quantum:position:* keys from Redis.
+Reads all quantum:state:positions:* keys from Redis.
 Validates each position per Phase 0 spec validity rules.
 
 Shadow mode note:
@@ -18,7 +18,7 @@ from utils.redis_client import RedisClient
 
 logger = logging.getLogger("hv2.feeds.position")
 
-POSITION_KEY_PREFIX = "quantum:position:"
+POSITION_KEY_PREFIX = "quantum:state:positions:"
 
 
 def _safe_float(val, default: float = 0.0) -> float:

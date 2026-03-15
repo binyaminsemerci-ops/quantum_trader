@@ -65,10 +65,10 @@ class PriceFeedService:
                     logger.info(f"📡 Loaded {len(self.active_symbols)} symbols from AI Engine")
                 else:
                     # Fallback 2: load from open positions
-                    position_keys = self.redis.keys("quantum:position:*")
+                    position_keys = self.redis.keys("quantum:state:positions:*")
                     if position_keys:
                         self.active_symbols = {
-                            key.replace("quantum:position:", "") 
+                            key.replace("quantum:state:positions:", "") 
                             for key in position_keys
                         }
                         logger.info(f"📡 Loaded {len(self.active_symbols)} symbols from open positions")

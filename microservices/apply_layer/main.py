@@ -1144,7 +1144,7 @@ class ApplyLayer:
         """
         Check if symbol has an active position (fail-soft UPDATE_SL guard)
         
-        Checks Redis position snapshot (quantum:position:snapshot:<symbol>)
+        Checks Redis canonical position key (quantum:state:positions:<symbol>)
         Returns: True if position exists with abs(position_amt) > POSITION_EPSILON
         
         Handles:
@@ -1153,7 +1153,7 @@ class ApplyLayer:
         - Redis errors (fail-soft to False)
         """
         try:
-            key = f"quantum:position:snapshot:{symbol}"
+            key = f"quantum:state:positions:{symbol}"
             data = self.redis.hgetall(key)
             if not data:
                 return False
@@ -1843,8 +1843,20 @@ class ApplyLayer:
             
             logger.info(f"{plan.symbol}: Binance testnet connected")
             
-            # Get current position
-            position = client.get_position(plan.symbol)
+            # Get current position from canonical Redis key (P3.3 writes)
+            _can_key = f"quantum:state:positions:{plan.symbol}"
+            _can_data = self.redis.hgetall(_can_key)
+            if _can_data:
+                _cd = {k.decode() if isinstance(k, bytes) else k:
+                       v.decode() if isinstance(v, bytes) else v
+                       for k, v in _can_data.items()}
+                position = {
+                    'positionAmt': float(_cd.get('position_amt', 0)),
+                    'side': _cd.get('side', 'FLAT'),
+                }
+            else:
+                position = None
+
             if not position or abs(position['positionAmt']) < 0.001:
                 logger.warning(f"{plan.symbol}: No position found, skipping execution")
                 return ApplyResult(
@@ -2463,8 +2475,8 @@ class ApplyLayer:
                                 })
                                 continue
                             
-                            # Get current position — check primary key, fallback to ledger key
-                            pos_key = f"quantum:position:{symbol}"
+                            # Get current position — check canonical key, fallback to ledger key
+                            pos_key = f"quantum:state:positions:{symbol}"
                             existing_pos = self.redis.hgetall(pos_key)
                             _used_ledger_fallback = False
                             if not existing_pos:
@@ -2574,8 +2586,10 @@ class ApplyLayer:
                                 # Update Redis position
                                 new_qty = position_qty - filled_qty
                                 if abs(new_qty) < 0.0001 or close_pct >= 100.0:
-                                    # Full close: delete position
+                                    # Full close: delete position (canonical + legacy keys)
                                     self.redis.delete(pos_key)
+                                    self.redis.delete(f"quantum:position:snapshot:{symbol}")
+                                    self.redis.delete(f"quantum:position:{symbol}")
                                     logger.info(f"[CLOSE] {symbol}: Position deleted (full close)")
                                 else:
                                     # Partial close: update quantity
@@ -2718,19 +2732,10 @@ class ApplyLayer:
                         logger.info(f"[ENTRY] {symbol}: Processing {side} intent (→{position_side}, leverage={leverage}, qty={qty}, plan_id={plan_id[:8]})")
                         
                         # 🔥 HARD GATE: Check total position limit (MAX 10 SYMBOLS)
-                        # FIX: Only count ACTIVE positions — exclude snapshot:, ledger:,
-                        # cooldown: and claim: keys (claim keys are 30s race-guards that
-                        # would otherwise falsely inflate the count by 1 per in-flight order).
-                        _all_raw = self.redis.keys("quantum:position:*")
-                        all_positions = [
-                            k for k in _all_raw
-                            if b'snapshot' not in (k if isinstance(k, bytes) else k.encode())
-                            and b'ledger' not in (k if isinstance(k, bytes) else k.encode())
-                            and b'cooldown' not in (k if isinstance(k, bytes) else k.encode())
-                            and b'claim' not in (k if isinstance(k, bytes) else k.encode())
-                        ]
+                        # OP 7C Phase 2: Use canonical position keys directly (no filtering needed)
+                        all_positions = self.redis.keys("quantum:state:positions:*")
                         if len(all_positions) >= 10:
-                            logger.warning(f"[ENTRY] {symbol}: Order REJECTED - position limit reached ({len(all_positions)}/10 active positions, total_keys={len(_all_raw)})")
+                            logger.warning(f"[ENTRY] {symbol}: Order REJECTED - position limit reached ({len(all_positions)}/10 active positions)")
                             self.redis.xack(stream_key, consumer_group, msg_id)
                             # Publish rejection to apply.result
                             self.redis.xadd('quantum:stream:apply.result', {
@@ -2750,7 +2755,7 @@ class ApplyLayer:
                             continue
                         
                         # 🔥 STRICT ANTI-DUPLICATE GATE: Check if position already exists
-                        pos_key = f"quantum:position:{symbol}"
+                        pos_key = f"quantum:state:positions:{symbol}"
                         existing_pos = self.redis.hgetall(pos_key)
                         if existing_pos:
                             existing_side = existing_pos.get(b'side', existing_pos.get('side', b'')).decode() if isinstance(existing_pos.get(b'side', existing_pos.get('side', b'')), bytes) else existing_pos.get(b'side', existing_pos.get('side', ''))
@@ -2810,8 +2815,8 @@ class ApplyLayer:
                             
                             logger.info(f"[ENTRY] {symbol}: {side} order placed: {order_result}")
                             
-                            # Store position reference
-                            pos_key = f"quantum:position:{symbol}"
+                            # Store position reference (canonical key — P3.3 will overwrite with full data)
+                            pos_key = f"quantum:state:positions:{symbol}"
                             
                             # Compute entry_risk using ATR (dynamic, no hardcoded %)
                             # risk_price = atr_value * volatility_factor

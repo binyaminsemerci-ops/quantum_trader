@@ -57,7 +57,7 @@ def get_position_snapshots(r: redis.Redis) -> Dict[str, Dict]:
     
     try:
         # Get all position snapshot keys
-        keys = r.keys("quantum:position:snapshot:*")
+        keys = r.keys("quantum:state:positions:*")
         
         for key in keys:
             try:

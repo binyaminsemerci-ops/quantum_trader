@@ -5,7 +5,7 @@ P2.6 Portfolio Gate - Intelligent Harvesting Portfolio-Level Controls
 ROLE: Prevents panic FULL_CLOSE when portfolio is cold, accelerates risk-off when hot.
 
 INPUT:  quantum:stream:harvest.proposal
-STATE:  quantum:position:snapshot:* (from P3.3)
+STATE:  quantum:state:positions:* (from P3.3)
 OUTPUT: quantum:stream:portfolio.gate (decision per plan_id)
 PERMIT: quantum:permit:p26:{plan_id} = "1" TTL
 
@@ -210,7 +210,7 @@ class PortfolioGate:
         stale_threshold = 300  # 5 minutes
         
         for symbol in ALLOWLIST:
-            key = f"quantum:position:snapshot:{symbol}"
+            key = f"quantum:state:positions:{symbol}"
             data = self.redis.hgetall(key)
             
             if not data:

@@ -51,7 +51,7 @@ def sync_to_redis(r, positions):
         leverage = int(pos.get('leverage', 20))
         
         exchange_symbols.add(symbol)
-        pos_key = f"quantum:position:{symbol}"
+        pos_key = f"quantum:state:positions:{symbol}"
         
         # Skip if no position on exchange
         if position_amt == 0:
@@ -88,12 +88,13 @@ def sync_to_redis(r, positions):
             position_data = {
                 'symbol': symbol,
                 'side': side,
+                'position_amt': str(position_amt),
                 'quantity': str(abs(position_amt)),
                 'entry_price': str(entry_price),
                 'unrealized_pnl': str(unrealized_pnl),
                 'leverage': str(leverage),
-                'created_at': str(int(time.time())),
-                'risk_missing': '1'  # Will be backfilled later
+                'ts_epoch': str(int(time.time())),
+                'source': 'sync_from_exchange',
             }
             
             r.hset(pos_key, mapping=position_data)
@@ -105,12 +106,9 @@ def sync_to_redis(r, positions):
     # Mark closed positions in Redis
     cursor = 0
     while True:
-        cursor, keys = r.scan(cursor=cursor, match='quantum:position:*', count=100)
+        cursor, keys = r.scan(cursor=cursor, match='quantum:state:positions:*', count=100)
         for key in keys:
-            if ':ledger:' in key or ':snapshot:' in key:
-                continue
-            
-            symbol = key.replace('quantum:position:', '')
+            symbol = key.replace('quantum:state:positions:', '')
             if symbol not in exchange_symbols:
                 # Position not on exchange - mark as closed
                 qty = float(r.hget(key, 'quantity') or 0)

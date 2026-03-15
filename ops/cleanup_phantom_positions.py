@@ -10,14 +10,10 @@ r = redis.Redis(host='localhost', port=6379, decode_responses=True)
 
 print("=== Phantom Position Cleanup ===\n")
 
-# All symbols to check
+# All symbols to check — scan canonical position keys
 all_syms = set()
-for k in r.keys("quantum:position:*"):
-    if "snapshot" in k or "cooldown" in k:
-        continue
-    # Extract symbol from key like quantum:position:SOLUSDT or quantum:position:ledger:SOLUSDT
-    parts = k.split(":")
-    sym = parts[-1]
+for k in r.keys("quantum:state:positions:*"):
+    sym = k.replace("quantum:state:positions:", "")
     all_syms.add(sym)
 
 print(f"Symbols with position data in Redis: {sorted(all_syms)}\n")
@@ -26,32 +22,32 @@ deleted = []
 kept = []
 
 for sym in sorted(all_syms):
-    snap_amt = r.hget(f"quantum:position:snapshot:{sym}", "position_amt")
-    snap_side = r.hget(f"quantum:position:snapshot:{sym}", "side")
-    pos_qty_str = r.hget(f"quantum:position:{sym}", "quantity")
-    pos_src = r.hget(f"quantum:position:{sym}", "source")
+    can_amt = r.hget(f"quantum:state:positions:{sym}", "position_amt")
+    can_side = r.hget(f"quantum:state:positions:{sym}", "side")
+    can_src = r.hget(f"quantum:state:positions:{sym}", "source")
+    can_qty = r.hget(f"quantum:state:positions:{sym}", "quantity")
     ledger_qty = r.hget(f"quantum:position:ledger:{sym}", "qty")
 
     print(f"{sym}:")
-    print(f"  snapshot: amt={snap_amt} side={snap_side}")
-    print(f"  position: qty={pos_qty_str} source={pos_src}")
-    print(f"  ledger:   qty={ledger_qty}")
+    print(f"  canonical: amt={can_amt} side={can_side} qty={can_qty} source={can_src}")
+    print(f"  ledger:    qty={ledger_qty}")
 
-    # Determine if phantom: snapshot shows 0 or no snapshot
-    snap_is_zero = snap_amt is None or float(snap_amt or 0) == 0.0
+    # Determine if phantom: canonical shows 0 or FLAT
+    is_flat = can_amt is None or float(can_amt or 0) == 0.0
 
-    if snap_is_zero:
-        # Delete stale ledger key (reconcile-engine phantom)
+    if is_flat:
+        # Delete stale canonical + ledger + legacy keys
+        cdel = r.delete(f"quantum:state:positions:{sym}")
         ldel = r.delete(f"quantum:position:ledger:{sym}")
-        # Delete stale position key (harvest_brain_startup_sync phantom)
         pdel = r.delete(f"quantum:position:{sym}")
-        if ldel or pdel:
-            print(f"  -> DELETED (phantom: ledger={ldel}, position={pdel})")
+        sdel = r.delete(f"quantum:position:snapshot:{sym}")
+        if cdel or ldel or pdel or sdel:
+            print(f"  -> DELETED (phantom: canonical={cdel} ledger={ldel} position={pdel} snapshot={sdel})")
             deleted.append(sym)
         else:
             print(f"  -> Already clean (no keys to delete)")
     else:
-        print(f"  -> KEPT (snapshot shows real position: amt={snap_amt} side={snap_side})")
+        print(f"  -> KEPT (canonical shows real position: amt={can_amt} side={can_side})")
         kept.append(sym)
     print()
 

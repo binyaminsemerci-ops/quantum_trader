@@ -41,7 +41,7 @@ class FakeRedis:
         return (0, matching)
 
     def _match(self, key, pattern):
-        # Simple glob for quantum:position:snapshot:*
+        # Simple glob for quantum:state:positions:*
         if pattern.endswith("*"):
             prefix = pattern[:-1]
             return key.startswith(prefix)
@@ -82,7 +82,7 @@ class TestBuildHappyPath:
 
     def test_builds_state_from_snapshot(self):
         redis = FakeRedis()
-        redis.set_hash("quantum:position:snapshot:BTCUSDT", _make_snapshot())
+        redis.set_hash("quantum:state:positions:BTCUSDT", _make_snapshot())
 
         builder = PositionStateBuilder(redis)
         state = builder.build("BTCUSDT")
@@ -97,7 +97,7 @@ class TestBuildHappyPath:
 
     def test_unrealized_pnl_pct_long(self):
         redis = FakeRedis()
-        redis.set_hash("quantum:position:snapshot:BTCUSDT",
+        redis.set_hash("quantum:state:positions:BTCUSDT",
                         _make_snapshot(entry_price=50000.0, mark_price=51000.0))
 
         builder = PositionStateBuilder(redis)
@@ -108,7 +108,7 @@ class TestBuildHappyPath:
 
     def test_unrealized_pnl_pct_short(self):
         redis = FakeRedis()
-        redis.set_hash("quantum:position:snapshot:ETHUSDT",
+        redis.set_hash("quantum:state:positions:ETHUSDT",
                         _make_snapshot(symbol="ETHUSDT", amt=-0.1, side="SHORT",
                                        entry_price=3000.0, mark_price=2900.0))
 
@@ -129,21 +129,21 @@ class TestFailClosed:
 
     def test_zero_position_amt_returns_none(self):
         redis = FakeRedis()
-        redis.set_hash("quantum:position:snapshot:BTCUSDT",
+        redis.set_hash("quantum:state:positions:BTCUSDT",
                         _make_snapshot(amt=0.0))
         builder = PositionStateBuilder(redis)
         assert builder.build("BTCUSDT") is None
 
     def test_invalid_side_returns_none(self):
         redis = FakeRedis()
-        redis.set_hash("quantum:position:snapshot:BTCUSDT",
+        redis.set_hash("quantum:state:positions:BTCUSDT",
                         _make_snapshot(side="NONE"))
         builder = PositionStateBuilder(redis)
         assert builder.build("BTCUSDT") is None
 
     def test_zero_entry_price_returns_none(self):
         redis = FakeRedis()
-        redis.set_hash("quantum:position:snapshot:BTCUSDT",
+        redis.set_hash("quantum:state:positions:BTCUSDT",
                         _make_snapshot(entry_price=0.0))
         builder = PositionStateBuilder(redis)
         assert builder.build("BTCUSDT") is None
@@ -155,7 +155,7 @@ class TestDataQualityFlags:
     def test_stale_snapshot_flagged(self):
         redis = FakeRedis()
         old_ts = int(time.time()) - 60  # 60 seconds ago
-        redis.set_hash("quantum:position:snapshot:BTCUSDT",
+        redis.set_hash("quantum:state:positions:BTCUSDT",
                         _make_snapshot(ts_epoch=old_ts))
 
         builder = PositionStateBuilder(redis)
@@ -166,7 +166,7 @@ class TestDataQualityFlags:
 
     def test_missing_marketstate_flagged(self):
         redis = FakeRedis()
-        redis.set_hash("quantum:position:snapshot:BTCUSDT", _make_snapshot())
+        redis.set_hash("quantum:state:positions:BTCUSDT", _make_snapshot())
 
         builder = PositionStateBuilder(redis)
         state = builder.build("BTCUSDT")
@@ -175,7 +175,7 @@ class TestDataQualityFlags:
 
     def test_missing_regime_flagged(self):
         redis = FakeRedis()
-        redis.set_hash("quantum:position:snapshot:BTCUSDT", _make_snapshot())
+        redis.set_hash("quantum:state:positions:BTCUSDT", _make_snapshot())
 
         builder = PositionStateBuilder(redis)
         state = builder.build("BTCUSDT")
@@ -184,7 +184,7 @@ class TestDataQualityFlags:
 
     def test_missing_atr_flagged(self):
         redis = FakeRedis()
-        redis.set_hash("quantum:position:snapshot:BTCUSDT", _make_snapshot())
+        redis.set_hash("quantum:state:positions:BTCUSDT", _make_snapshot())
 
         builder = PositionStateBuilder(redis)
         state = builder.build("BTCUSDT")
@@ -193,7 +193,7 @@ class TestDataQualityFlags:
 
     def test_mark_price_fallback_flagged(self):
         redis = FakeRedis()
-        redis.set_hash("quantum:position:snapshot:BTCUSDT",
+        redis.set_hash("quantum:state:positions:BTCUSDT",
                         _make_snapshot(mark_price=0.0))
 
         builder = PositionStateBuilder(redis)
@@ -208,7 +208,7 @@ class TestWithMarketState:
 
     def test_reads_marketstate_hash(self):
         redis = FakeRedis()
-        redis.set_hash("quantum:position:snapshot:BTCUSDT", _make_snapshot())
+        redis.set_hash("quantum:state:positions:BTCUSDT", _make_snapshot())
         redis.set_hash("quantum:marketstate:BTCUSDT", {
             "sigma": "0.025",
             "mu": "0.001",
@@ -229,7 +229,7 @@ class TestWithMetaRegime:
 
     def test_reads_meta_regime_stream(self):
         redis = FakeRedis()
-        redis.set_hash("quantum:position:snapshot:BTCUSDT", _make_snapshot())
+        redis.set_hash("quantum:state:positions:BTCUSDT", _make_snapshot())
         redis.set_stream("quantum:stream:meta.regime", [
             ("1-0", {
                 "regime": "BULL",
@@ -251,11 +251,11 @@ class TestDiscoverOpenPositions:
 
     def test_finds_non_zero_positions(self):
         redis = FakeRedis()
-        redis.set_hash("quantum:position:snapshot:BTCUSDT",
+        redis.set_hash("quantum:state:positions:BTCUSDT",
                         {"position_amt": "0.01"})
-        redis.set_hash("quantum:position:snapshot:ETHUSDT",
+        redis.set_hash("quantum:state:positions:ETHUSDT",
                         {"position_amt": "0.0"})
-        redis.set_hash("quantum:position:snapshot:SOLUSDT",
+        redis.set_hash("quantum:state:positions:SOLUSDT",
                         {"position_amt": "-0.5"})
 
         builder = PositionStateBuilder(redis)
@@ -271,7 +271,7 @@ class TestBuildAll:
 
     def test_builds_multiple_skips_failures(self):
         redis = FakeRedis()
-        redis.set_hash("quantum:position:snapshot:BTCUSDT", _make_snapshot())
+        redis.set_hash("quantum:state:positions:BTCUSDT", _make_snapshot())
         # ETHUSDT has no snapshot → will fail
 
         builder = PositionStateBuilder(redis)

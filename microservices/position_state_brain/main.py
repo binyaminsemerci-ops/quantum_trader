@@ -8,7 +8,7 @@ Reconciles 3 sources of truth before allowing Apply Layer to execute:
 3. Internal ledger (shadow ledger from executed orders)
 
 Outputs:
-- Position snapshots: quantum:position:snapshot:<symbol>
+- Canonical positions: quantum:state:positions:<symbol>
 - Ledger state: quantum:position:ledger:<symbol>
 - Execution permits: quantum:permit:p33:<plan_id> (60s TTL)
 
@@ -492,13 +492,10 @@ class PositionStateBrain:
         return candidates
     
     def update_exchange_snapshot(self, symbol: str, ttl_sec: int = 3600) -> tuple[bool, float]:
-        """Fetch and store exchange position snapshot
-        
-        Writes to THREE Redis keys (OP 7C position truth source):
-        1. quantum:position:snapshot:{symbol} — legacy snapshot, used by portfolio/gate services
-        2. quantum:state:positions:{symbol} — CANONICAL truth (superset schema)
-        3. quantum:position:{symbol} — backward-compat for harvest/exit readers
-        
+        """Fetch and store exchange position in canonical Redis key.
+
+        Writes to quantum:state:positions:{symbol} — CANONICAL truth (superset schema).
+
         Returns:
             (success: bool, latency_ms: float)
         """
@@ -515,23 +512,7 @@ class PositionStateBrain:
         side = "LONG" if pos_amt > 0 else ("SHORT" if pos_amt < 0 else "FLAT")
         now_epoch = int(time.time())
         
-        # --- 1. Legacy snapshot key (existing) ---
-        snapshot_key = f"quantum:position:snapshot:{symbol}"
-        snapshot_data = {
-            'position_amt': position['positionAmt'],
-            'side': side,
-            'entry_price': position['entryPrice'],
-            'mark_price': position['markPrice'],
-            'unrealized_pnl': position['unRealizedProfit'],
-            'leverage': position['leverage'],
-            'ts_epoch': now_epoch,
-            'source': 'binance_testnet'
-        }
-        
-        self.redis.hset(snapshot_key, mapping=snapshot_data)
-        self.redis.expire(snapshot_key, ttl_sec)
-        
-        # --- 2. Canonical truth key (OP 7C) ---
+        # Canonical truth key (OP 7C)
         canonical_key = f"quantum:state:positions:{symbol}"
         canonical_data = {
             'symbol': symbol,
@@ -549,22 +530,6 @@ class PositionStateBrain:
         self.redis.hset(canonical_key, mapping=canonical_data)
         self.redis.expire(canonical_key, ttl_sec)
         
-        # --- 3. Backward-compat position key (replaces harvest_brain writes) ---
-        if abs_qty > 0:
-            compat_key = f"quantum:position:{symbol}"
-            compat_data = {
-                'symbol': symbol,
-                'side': side,
-                'quantity': str(abs_qty),
-                'entry_price': position['entryPrice'],
-                'unrealized_pnl': position['unRealizedProfit'],
-                'leverage': position['leverage'],
-                'source': 'position_state_brain',
-                'sync_timestamp': str(now_epoch),
-            }
-            self.redis.hset(compat_key, mapping=compat_data)
-            self.redis.expire(compat_key, 86400)  # 24h TTL (same as harvest_brain)
-        
         if PROMETHEUS_AVAILABLE:
             self.metric_exchange_amt.labels(symbol=symbol).set(position['positionAmt'])
         
@@ -572,7 +537,7 @@ class PositionStateBrain:
         return True, latency_ms
     
     def get_exchange_snapshot(self, symbol: str, on_demand: bool = False) -> Optional[Dict]:
-        """Get cached exchange snapshot (with optional on-demand fetch)
+        """Get cached exchange snapshot from canonical key (with optional on-demand fetch)
         
         Args:
             symbol: Symbol to get snapshot for
@@ -581,8 +546,8 @@ class PositionStateBrain:
         Returns:
             Snapshot dict or None
         """
-        snapshot_key = f"quantum:position:snapshot:{symbol}"
-        data = self.redis.hgetall(snapshot_key)
+        canonical_key = f"quantum:state:positions:{symbol}"
+        data = self.redis.hgetall(canonical_key)
         
         if not data and on_demand and self.config.ONDEMAND_ENABLED:
             # On-demand snapshot: fetch immediately for this symbol
@@ -593,7 +558,7 @@ class PositionStateBrain:
                 if success:
                     if PROMETHEUS_AVAILABLE:
                         self.metric_ondemand_snapshots.inc()
-                    data = self.redis.hgetall(snapshot_key)
+                    data = self.redis.hgetall(canonical_key)
                 else:
                     logger.warning(f"{symbol}: On-demand snapshot failed")
                     return None

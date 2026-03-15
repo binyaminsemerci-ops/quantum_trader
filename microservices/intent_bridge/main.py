@@ -964,8 +964,8 @@ class IntentBridge:
             if SKIP_FLAT_SELL:
                 ledger_amt = _ledger_last_known_amt(self.redis, intent["symbol"])
                 if math.isnan(ledger_amt):
-                    # Prefer snapshot truth over ledger, but if both missing, block
-                    # TODO: Check quantum:position:snapshot:{symbol} as fallback
+                    # Prefer canonical position truth over ledger, but if both missing, block
+                    # TODO: Check quantum:state:positions:{symbol} as fallback
                     logger.info(f"Skip publish: {intent['symbol']} SELL but ledger unknown (plan_id={plan_id[:8]})")
                     self._mark_seen(stream_id_str)
                     self.redis.xack(INTENT_STREAM, CONSUMER_GROUP, stream_id)
@@ -991,7 +991,7 @@ class IntentBridge:
         
         # Gate: skip if same symbol already has an open position (2026-02-25)
         # intent_bridge was publishing SELL entries for already-open SHORTs -> spam
-        _bridge_snap_key = f"quantum:position:snapshot:{intent['symbol']}"
+        _bridge_snap_key = f"quantum:state:positions:{intent['symbol']}"
         try:
             _bridge_snap_raw = self.redis.hget(_bridge_snap_key, "position_amt")
             _bridge_snap_amt = float(_bridge_snap_raw) if _bridge_snap_raw else 0.0

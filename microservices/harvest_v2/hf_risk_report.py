@@ -2,7 +2,7 @@ import redis
 
 r = redis.Redis(host="localhost", decode_responses=True)
 
-keys = r.keys("quantum:position:*")
+keys = r.keys("quantum:state:positions:*")
 
 portfolio = []
 total_entry_risk = 0

@@ -19,7 +19,8 @@ def count_and_delete(pattern, label):
 print("=== REDIS POSITION RESET ===\n")
 
 total = 0
-total += count_and_delete("quantum:position:*",             "all position keys")
+total += count_and_delete("quantum:state:positions:*",       "canonical position keys")
+total += count_and_delete("quantum:position:*",             "legacy position keys")
 total += count_and_delete("quantum:harvest:proposal:*",     "stale proposals")
 total += count_and_delete("quantum:hold:*",                 "HOLD locks")
 total += count_and_delete("quantum:cooldown:*",             "cooldown keys")
@@ -31,7 +32,8 @@ total += count_and_delete("quantum:position:dedupe:*",      "position dedupe")
 
 print(f"\n  TOTAL DELETED: {total} keys")
 print("\n=== VERIFY ===")
-remaining = [k.decode() for k in r.keys("quantum:position:*")]
+remaining = [k.decode() for k in r.keys("quantum:state:positions:*")] + \
+            [k.decode() for k in r.keys("quantum:position:*")]
 print(f"  Remaining position/* keys: {len(remaining)}")
 for k in remaining:
     print(f"    {k}")

@@ -50,7 +50,7 @@ fi
 # Gate B: Snapshot Coverage (expect >= allowlist count)
 log ""
 log "📊 Gate B: Snapshot Coverage"
-SNAPSHOT_COUNT=$($REDIS_CLI --scan --pattern "quantum:position:snapshot:*" 2>/dev/null | wc -l || echo "0")
+SNAPSHOT_COUNT=$($REDIS_CLI --scan --pattern "quantum:state:positions:*" 2>/dev/null | wc -l || echo "0")
 log "   Snapshots available: $SNAPSHOT_COUNT"
 
 # Get P3.3 allowlist count from env
@@ -107,7 +107,7 @@ log "   Ledger entries: $LEDGER_KEYS"
 
 if [ "$LEDGER_KEYS" -eq 0 ]; then
     log "   ⚠️  INFO: No ledger entries (may be first trades or lag)"
-    log "   Check: quantum:position:snapshot:* for exchange truth"
+    log "   Check: quantum:state:positions:* for exchange truth"
 else
     log "   ✅ INFO: Ledger active ($LEDGER_KEYS symbols)"
 fi

@@ -129,12 +129,11 @@ class RedisClient:
 
     async def scan_position_keys(
         self,
-        match: str = "quantum:position:*",
+        match: str = "quantum:state:positions:*",
         batch: int = 200,
     ) -> list:
         """
-        SCAN for position hash keys.
-        Excludes :snapshot: and :ledger: sub-keys (used by other services).
+        SCAN for canonical position hash keys.
         Returns at most `batch` keys.
         """
         keys: list = []
@@ -143,11 +142,7 @@ class RedisClient:
             cursor, batch_keys = await self._client.scan(
                 cursor=cursor, match=match, count=batch
             )
-            keys.extend(
-                k
-                for k in batch_keys
-                if ":snapshot:" not in k and ":ledger:" not in k
-            )
+            keys.extend(batch_keys)
             if cursor == 0 or len(keys) >= batch:
                 break
         return keys

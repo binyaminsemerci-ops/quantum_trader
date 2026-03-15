@@ -17,7 +17,7 @@ previous_positions: Dict[str, Dict] = {}
 
 def get_active_positions():
     """Get all active positions"""
-    keys = r.keys("quantum:position:snapshot:*")
+    keys = r.keys("quantum:state:positions:*")
     positions = {}
     
     for key in keys:

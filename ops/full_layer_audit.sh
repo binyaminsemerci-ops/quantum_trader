@@ -132,7 +132,7 @@ svc_ok quantum-intent-executor
 # Last fill event
 last_entry "quantum:stream:execution.fills" "execution fills"
 # Open positions in local ledger
-pos_count=$(redis-cli keys "quantum:position:*" 2>/dev/null | grep -v "snapshot\|last_close\|hardware" | wc -l)
+pos_count=$(redis-cli keys "quantum:state:positions:*" 2>/dev/null | wc -l)
 echo "      open position keys: $pos_count"
 # Ledger
 led_count=$(redis-cli keys "quantum:ledger:*" 2>/dev/null | wc -l)

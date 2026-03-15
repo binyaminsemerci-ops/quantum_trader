@@ -16,9 +16,9 @@ echo "Symbol: $SYMBOL"
 echo ""
 
 # Snapshot truth (exchange reality)
-echo "1) SNAPSHOT (exchange truth):"
-SNAP_AMT=$(redis-cli HGET quantum:position:snapshot:$SYMBOL position_amt)
-SNAP_SIDE=$(redis-cli HGET quantum:position:snapshot:$SYMBOL side)
+echo "1) CANONICAL POSITION (exchange truth):"
+SNAP_AMT=$(redis-cli HGET quantum:state:positions:$SYMBOL position_amt)
+SNAP_SIDE=$(redis-cli HGET quantum:state:positions:$SYMBOL side)
 echo "   position_amt: $SNAP_AMT"
 echo "   side: $SNAP_SIDE"
 echo ""

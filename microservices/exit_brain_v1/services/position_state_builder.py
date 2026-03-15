@@ -5,7 +5,7 @@ This is the ONLY module in exit_brain_v1 that performs Redis reads.
 It does NOT write to any execution stream.
 
 Data sources:
-  [FACT]       quantum:position:snapshot:<symbol>  — P3.3 exchange snapshots
+  [FACT]       quantum:state:positions:<symbol>    — P3.3 canonical position state
   [FACT]       quantum:position:ledger:<symbol>    — P3.3 ledger metadata
   [FACT]       quantum:stream:meta.regime          — MetaRegimeService latest
   [ASSUMPTION] quantum:marketstate:<symbol>        — MarketState publisher (key format TBD)
@@ -224,7 +224,7 @@ class PositionStateBuilder:
         """
         Discover symbols with open positions from P3.3 snapshots.
 
-        Scans quantum:position:snapshot:* and returns symbols where
+        Scans quantum:state:positions:* and returns symbols where
         position_amt != 0.
         """
         symbols = []
@@ -232,7 +232,7 @@ class PositionStateBuilder:
         while True:
             cursor, keys = self._r.scan(
                 cursor=cursor,
-                match="quantum:position:snapshot:*",
+                match="quantum:state:positions:*",
                 count=100,
             )
             for key in keys:
@@ -255,7 +255,7 @@ class PositionStateBuilder:
 
     def _read_snapshot(self, symbol: str) -> Optional[Dict]:
         """Read P3.3 exchange snapshot."""
-        key = f"quantum:position:snapshot:{symbol}"
+        key = f"quantum:state:positions:{symbol}"
         data = self._r.hgetall(key)
         if not data:
             return None

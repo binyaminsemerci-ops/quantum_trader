@@ -643,44 +643,29 @@ class IntentExecutor:
         return {"status": "UNKNOWN", "filled_qty": 0.0, "attempts": max_attempts}
     
     def _update_ledger(self, symbol: str):
-        """Update ledger after order execution by fetching fresh positionRisk"""
+        """Update ledger after order execution from canonical Redis key (P3.3 writes)"""
         try:
-            params = {"timestamp": int(time.time() * 1000)}
-            query_string = urllib.parse.urlencode(params)
-            signature = hmac.new(
-                BINANCE_API_SECRET.encode(),
-                query_string.encode(),
-                hashlib.sha256
-            ).hexdigest()
-            params["signature"] = signature
-            
-            url = f"{BINANCE_BASE_URL}/fapi/v2/positionRisk?{urllib.parse.urlencode(params)}"
-            req = urllib.request.Request(url, method="GET")
-            req.add_header("X-MBX-APIKEY", BINANCE_API_KEY)
-            
-            with urllib.request.urlopen(req, timeout=10) as response:
-                positions = json.loads(response.read().decode())
-                pos = next((p for p in positions if p["symbol"] == symbol), None)
-                
-                if pos:
-                    amt = float(pos.get("positionAmt", 0))
-                    side = "LONG" if amt > 0 else ("SHORT" if amt < 0 else "FLAT")
-                    abs_amt = abs(amt)
-                    
-                    ledger_key = f"quantum:position:ledger:{symbol}"
-                    self.redis.hset(ledger_key, mapping={
-                        # reconcile_engine fields
-                        "ledger_amt":     str(amt),   # SIGNED (neg=SHORT)
-                        "ledger_side":    side,
-                        # P3.3 fields (last_known_amt must be signed)
-                        "last_known_amt": str(amt),   # SIGNED (neg=SHORT)
-                        "last_side":      side,
-                        "position_amt":   str(amt),
-                        "updated_at":     str(int(time.time())),
-                    })
-                    logger.info(f"📊 Ledger updated: {symbol} {side} {amt:.4f}")
-                else:
-                    logger.warning(f"Position not found for {symbol} in positionRisk")
+            key = f"quantum:state:positions:{symbol}"
+            data = self.redis.hgetall(key)
+            if data:
+                data = {k.decode() if isinstance(k, bytes) else k:
+                        v.decode() if isinstance(v, bytes) else v
+                        for k, v in data.items()}
+                amt = float(data.get("position_amt", 0))
+                side = data.get("side", "FLAT")
+
+                ledger_key = f"quantum:position:ledger:{symbol}"
+                self.redis.hset(ledger_key, mapping={
+                    "ledger_amt":     str(amt),
+                    "ledger_side":    side,
+                    "last_known_amt": str(amt),
+                    "last_side":      side,
+                    "position_amt":   str(amt),
+                    "updated_at":     str(int(time.time())),
+                })
+                logger.info(f"📊 Ledger updated: {symbol} {side} {amt:.4f}")
+            else:
+                logger.warning(f"Position not found for {symbol} in canonical key")
         except Exception as e:
             logger.error(f"Failed to update ledger for {symbol}: {e}")
     
@@ -731,7 +716,7 @@ class IntentExecutor:
             )
             
             # Get snapshot for price/pnl data (best-effort, may be stale)
-            snapshot_key = f"quantum:position:snapshot:{symbol}"
+            snapshot_key = f"quantum:state:positions:{symbol}"
             snapshot = self.redis.hgetall(snapshot_key)
             
             # Use snapshot price data if available, otherwise keep ledger values
@@ -766,14 +751,16 @@ class IntentExecutor:
                 entry_price = 0.0
                 unrealized_pnl = 0.0
                 filled_qty = 0.0
-                # Clean up stale snapshot/position keys to unblock intent-bridge
+                # Clean up stale position keys to unblock intent-bridge
                 try:
+                    canonical_key = f"quantum:state:positions:{symbol}"
                     snap_key = f"quantum:position:snapshot:{symbol}"
                     pos_key = f"quantum:position:{symbol}"
+                    d_can = self.redis.delete(canonical_key)
                     d_snap = self.redis.delete(snap_key)
                     d_pos = self.redis.delete(pos_key)
-                    if d_snap or d_pos:
-                        logger.info(f"🧹 FLAT CLEANUP: {symbol} deleted snapshot={d_snap} position={d_pos}")
+                    if d_can or d_snap or d_pos:
+                        logger.info(f"🧹 FLAT CLEANUP: {symbol} deleted canonical={d_can} snapshot={d_snap} position={d_pos}")
                 except Exception as ce:
                     logger.error(f"❌ Flat cleanup failed for {symbol}: {ce}")
 
@@ -1254,41 +1241,21 @@ class IntentExecutor:
             return True  # ACK to avoid blocking stream
     
     def _get_position_info(self, symbol: str) -> dict:
-        """Get current position information from Binance for harvest processing"""
+        """Get current position information from canonical Redis key (P3.3 writes)"""
         try:
-            timestamp = int(time.time() * 1000)
-            query_params = {
-                "symbol": symbol,
-                "timestamp": timestamp
-            }
-            query_string = urllib.parse.urlencode(query_params)
-            
-            # Sign the request
-            signature = hmac.new(
-                BINANCE_API_SECRET.encode(),
-                query_string.encode(),
-                hashlib.sha256
-            ).hexdigest()
-            query_params["signature"] = signature
-            
-            url = f"{BINANCE_BASE_URL}/fapi/v2/positionRisk?{urllib.parse.urlencode(query_params)}"
-            req = urllib.request.Request(url, method="GET")
-            req.add_header("X-MBX-APIKEY", BINANCE_API_KEY)
-            
-            with urllib.request.urlopen(req, timeout=10) as response:
-                positions = json.loads(response.read().decode())
-                pos = next((p for p in positions if p["symbol"] == symbol), None)
-                
-                if pos:
-                    return {
-                        "position_amt": float(pos.get("positionAmt", 0)),
-                        "entry_price": float(pos.get("entryPrice", 0)),
-                        "mark_price": float(pos.get("markPrice", 0)),
-                        "unrealized_pnl": float(pos.get("unRealizedProfit", 0))
-                    }
-                else:
-                    return {"position_amt": 0}
-                    
+            key = f"quantum:state:positions:{symbol}"
+            data = self.redis.hgetall(key)
+            if data:
+                data = {k.decode() if isinstance(k, bytes) else k:
+                        v.decode() if isinstance(v, bytes) else v
+                        for k, v in data.items()}
+                return {
+                    "position_amt": float(data.get("position_amt", 0)),
+                    "entry_price": float(data.get("entry_price", 0)),
+                    "mark_price": float(data.get("mark_price", 0)),
+                    "unrealized_pnl": float(data.get("unrealized_pnl", 0)),
+                }
+            return {"position_amt": 0}
         except Exception as e:
             logger.error(f"Failed to get position info for {symbol}: {e}")
             return {"position_amt": 0}
@@ -1374,12 +1341,14 @@ class IntentExecutor:
 
                 # Clean up stale position keys to unblock intent-bridge
                 try:
+                    _hc_can = f"quantum:state:positions:{symbol}"
                     _hc_snap = f"quantum:position:snapshot:{symbol}"
                     _hc_pos = f"quantum:position:{symbol}"
+                    _hc_dc = self.redis.delete(_hc_can)
                     _hc_ds = self.redis.delete(_hc_snap)
                     _hc_dp = self.redis.delete(_hc_pos)
-                    if _hc_ds or _hc_dp:
-                        logger.info(f"HARVEST CLEANUP: {symbol} deleted snapshot={_hc_ds} position={_hc_dp}")
+                    if _hc_dc or _hc_ds or _hc_dp:
+                        logger.info(f"HARVEST CLEANUP: {symbol} deleted canonical={_hc_dc} snapshot={_hc_ds} position={_hc_dp}")
                 except Exception as _hc_e:
                     logger.error(f"Harvest cleanup failed for {symbol}: {_hc_e}")
 

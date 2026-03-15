@@ -114,7 +114,7 @@ echo ""
 echo "8. Ledger Reconciliation Status"
 echo "--------------------------------"
 for SYMBOL in BTCUSDT ETHUSDT; do
-    SNAPSHOT_AMT=$(redis-cli -h $REDIS_HOST -p $REDIS_PORT HGET quantum:position:snapshot:$SYMBOL position_amt 2>/dev/null || echo "N/A")
+    SNAPSHOT_AMT=$(redis-cli -h $REDIS_HOST -p $REDIS_PORT HGET quantum:state:positions:$SYMBOL position_amt 2>/dev/null || echo "N/A")
     LEDGER_AMT=$(redis-cli -h $REDIS_HOST -p $REDIS_PORT HGET quantum:position:ledger:$SYMBOL last_known_amt 2>/dev/null || echo "N/A")
     
     if [ "$SNAPSHOT_AMT" != "N/A" ] && [ "$LEDGER_AMT" != "N/A" ]; then

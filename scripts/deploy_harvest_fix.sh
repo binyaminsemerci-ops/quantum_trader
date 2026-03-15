@@ -79,4 +79,4 @@ echo "  # Check apply-layer CLOSE logs"
 echo "  journalctl -u quantum-apply-layer --since '5 minutes ago' | grep CLOSE"
 echo
 echo "  # Check position changes"
-echo "  redis-cli KEYS 'quantum:position:*' | xargs -I {} redis-cli HGETALL {}"
+echo "  redis-cli KEYS 'quantum:state:positions:*' | xargs -I {} redis-cli HGETALL {}"
