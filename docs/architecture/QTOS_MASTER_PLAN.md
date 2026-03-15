@@ -1137,8 +1137,12 @@ Everything else reads from there. Kill the 5-source fragmentation.
   - `harvest_intent.py` — HarvestIntentEvent (validated exit forwarded to executor)
   - `trade_closed.py` — TradeClosedEvent (position fully closed event)
   - `__init__.py` — Package init with all exports
-- Phase 1: Schemas as documentation + import-ready contracts
-- Phase 2 (future): Runtime validation at XADD/XREAD boundaries
+- Phase 1: Schemas as documentation + import-ready contracts ✅ DONE
+- Phase 2: Runtime Pydantic validation at XADD/XREAD boundaries ✅ DONE (commit 6e25aee60)
+  - validate_xadd (strict) wired into 21 writer sites across 11 files
+  - validate_xread (fail-open) wired into 18 consumer sites across 18 files
+  - 8 writer bugs fixed, 4 contracts updated with Optional fields
+  - ConfigDict(extra="allow") on StreamEvent base class
 
 **Stream Chain Map:**
 ```
