@@ -99,7 +99,10 @@ class HealthHandler(BaseHTTPRequestHandler):
                     "ts_epoch": int(time.time()),
                     "components": dict(component_health),
                 }
-            all_ok = all(c["status"] == "ok" for c in data["components"].values())
+            all_ok = all(
+                c["status"] in ("ok", "disabled")
+                for c in data["components"].values()
+            )
             data["status"] = "ok" if all_ok else "degraded"
 
             self.send_response(200)
