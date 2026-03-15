@@ -1202,8 +1202,8 @@ AI strategies become plugins with standard interface.
 - qt-agent-ui: iPhone-style mobile layout concept
 
 **Phase 1 (done):** Audit and document
-**Phase 2 (in progress):** Remove dead frontends from repo
-**Phase 3 (future):** Merge missing page concepts into dashboard_v4
+**Phase 2 (done):** Remove dead frontends from repo — committed 85fe17c96, deployed to VPS, 37/37 services verified
+**Phase 3 (next):** Merge missing page concepts into dashboard_v4
 
 ### BFG Git History Cleanup [DONE] 2026-03-15
 

@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import Overview from './pages/Overview';
 import AIEngine from './pages/AIEngine';
 import Portfolio from './pages/Portfolio';
@@ -6,8 +7,13 @@ import Risk from './pages/Risk';
 import SystemHealth from './pages/SystemHealth';
 import RLIntelligence from './pages/RLIntelligence';
 import Grafana from './pages/Grafana';
+import Journal from './pages/Journal';
+import Incidents from './pages/Incidents';
+import Replay from './pages/Replay';
+import Admin from './pages/Admin';
+import Login from './pages/Login';
 
-function Navigation() {
+function Navigation({ username, onLogout }: { username: string | null; onLogout: () => void }) {
   const location = useLocation();
   
   const navItems = [
@@ -16,8 +22,12 @@ function Navigation() {
     { path: '/rl', label: 'RL Intelligence', icon: '🧠' },
     { path: '/portfolio', label: 'Portfolio', icon: '💼' },
     { path: '/risk', label: 'Risk', icon: '⚠️' },
+    { path: '/journal', label: 'Journal', icon: '📓' },
+    { path: '/incidents', label: 'Incidents', icon: '🚨' },
+    { path: '/replay', label: 'Replay', icon: '⏪' },
     { path: '/system', label: 'System', icon: '⚙️' },
-    { path: '/grafana', label: 'Grafana', icon: '📊' }
+    { path: '/admin', label: 'Admin', icon: '🔒' },
+    { path: '/grafana', label: 'Grafana', icon: '📊' },
   ];
 
   return (
@@ -33,6 +43,14 @@ function Navigation() {
               <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
               <span className="text-sm text-gray-400">Live</span>
             </div>
+            {username ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-400">{username}</span>
+                <button onClick={onLogout} className="text-xs text-gray-500 hover:text-red-400 transition">Logout</button>
+              </div>
+            ) : (
+              <Link to="/login" className="text-sm text-gray-400 hover:text-green-400 transition">Sign In</Link>
+            )}
           </div>
         </div>
         
@@ -63,10 +81,32 @@ function Navigation() {
 }
 
 function App() {
+  const [token, setToken] = useState<string | null>(localStorage.getItem('qt_token'));
+  const [role, setRole] = useState<string | null>(localStorage.getItem('qt_role'));
+  const [username, setUsername] = useState<string | null>(localStorage.getItem('qt_user'));
+
+  const handleLogin = (newToken: string, newRole: string, newUsername: string) => {
+    setToken(newToken);
+    setRole(newRole);
+    setUsername(newUsername);
+    localStorage.setItem('qt_token', newToken);
+    localStorage.setItem('qt_role', newRole);
+    localStorage.setItem('qt_user', newUsername);
+  };
+
+  const handleLogout = () => {
+    setToken(null);
+    setRole(null);
+    setUsername(null);
+    localStorage.removeItem('qt_token');
+    localStorage.removeItem('qt_role');
+    localStorage.removeItem('qt_user');
+  };
+
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-gray-900 text-white">
-        <Navigation />
+        <Navigation username={username} onLogout={handleLogout} />
         
         <main className="container mx-auto px-6 py-8">
           <Routes>
@@ -75,8 +115,15 @@ function App() {
             <Route path="/rl" element={<RLIntelligence />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/risk" element={<Risk />} />
+            <Route path="/journal" element={<Journal token={token} />} />
+            <Route path="/incidents" element={<Incidents token={token} />} />
+            <Route path="/replay" element={<Replay />} />
             <Route path="/system" element={<SystemHealth />} />
+            <Route path="/admin" element={<Admin token={token} />} />
             <Route path="/grafana" element={<Grafana />} />
+            <Route path="/login" element={
+              token ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />
+            } />
           </Routes>
         </main>
       </div>
