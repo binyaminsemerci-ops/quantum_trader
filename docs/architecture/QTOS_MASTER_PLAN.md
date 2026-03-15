@@ -1088,9 +1088,35 @@ Intent-executor is the ONLY order execution path.
    CLM/calibration missed all main-lane closes. Fixed: added trade.closed publish
    in FLAT case with mark_price as exit_price.
 
-### 7C: Position Truth Source
-One service polls Binance, publishes to `quantum:state:positions`.
+### 7C: Position Truth Source [x] (Phase 1 — single writer + backward compat)
+**Original plan**: One service polls Binance, publishes to `quantum:state:positions`.
 Everything else reads from there. Kill the 5-source fragmentation.
+
+**Fragmentation found**: 5 Redis key patterns, 7+ independent Binance API callers, 18+ readers.
+
+**Phase 1 fixes (implemented)**:
+1. position_state_brain (P3.3) now writes to THREE keys per poll cycle:
+   - `quantum:position:snapshot:{symbol}` (legacy — existing readers)
+   - `quantum:state:positions:{symbol}` (CANONICAL — new truth source)
+   - `quantum:position:{symbol}` (backward-compat — replaces harvest_brain writes)
+2. harvest_brain no longer writes to `quantum:position:{symbol}` — removed startup sync
+   and per-execution sync. Ghost cleanup logic preserved.
+3. risk_proposal_publisher and harvest_proposal_publisher can now read
+   `quantum:state:positions:{symbol}` which was previously empty.
+4. Fixed dead code bug in P3.3 (duplicate `return False` after `return False, latency_ms`).
+
+**Phase 2 (future)**: Migrate all 18+ readers to use `quantum:state:positions:{symbol}`
+and remove the legacy key writes. Also remove Binance API calls from reconcile_engine,
+intent_executor, governor, and apply_layer — make them read from P3.3's canonical key.
+
+**Redis key ownership after Phase 1**:
+| Key Pattern | Writer | Status |
+|---|---|---|
+| quantum:state:positions:{symbol} | P3.3 | CANONICAL (new) |
+| quantum:position:snapshot:{symbol} | P3.3 | Legacy, will deprecate |
+| quantum:position:{symbol} | P3.3 | Compat bridge, will deprecate |
+| quantum:position:ledger:{symbol} | intent_executor | Execution ledger (keep) |
+| quantum:position:claim:{symbol} | apply_layer | Transient lock (keep) |
 
 ### 7D: Typed IPC Contracts
 Pydantic schemas for all Redis streams. Validate on publish/subscribe.

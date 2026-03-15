@@ -494,6 +494,11 @@ class PositionStateBrain:
     def update_exchange_snapshot(self, symbol: str, ttl_sec: int = 3600) -> tuple[bool, float]:
         """Fetch and store exchange position snapshot
         
+        Writes to THREE Redis keys (OP 7C position truth source):
+        1. quantum:position:snapshot:{symbol} — legacy snapshot, used by portfolio/gate services
+        2. quantum:state:positions:{symbol} — CANONICAL truth (superset schema)
+        3. quantum:position:{symbol} — backward-compat for harvest/exit readers
+        
         Returns:
             (success: bool, latency_ms: float)
         """
@@ -504,22 +509,61 @@ class PositionStateBrain:
         if position is None:
             logger.warning(f"{symbol}: Failed to fetch exchange position")
             return False, latency_ms
-            return False
         
+        pos_amt = float(position['positionAmt'])
+        abs_qty = abs(pos_amt)
+        side = "LONG" if pos_amt > 0 else ("SHORT" if pos_amt < 0 else "FLAT")
+        now_epoch = int(time.time())
+        
+        # --- 1. Legacy snapshot key (existing) ---
         snapshot_key = f"quantum:position:snapshot:{symbol}"
         snapshot_data = {
             'position_amt': position['positionAmt'],
-            'side': position['side'],
+            'side': side,
             'entry_price': position['entryPrice'],
             'mark_price': position['markPrice'],
             'unrealized_pnl': position['unRealizedProfit'],
             'leverage': position['leverage'],
-            'ts_epoch': int(time.time()),
+            'ts_epoch': now_epoch,
             'source': 'binance_testnet'
         }
         
         self.redis.hset(snapshot_key, mapping=snapshot_data)
         self.redis.expire(snapshot_key, ttl_sec)
+        
+        # --- 2. Canonical truth key (OP 7C) ---
+        canonical_key = f"quantum:state:positions:{symbol}"
+        canonical_data = {
+            'symbol': symbol,
+            'position_amt': str(pos_amt),
+            'side': side,
+            'quantity': str(abs_qty),
+            'entry_price': position['entryPrice'],
+            'mark_price': position['markPrice'],
+            'current_price': position['markPrice'],  # alias for consumers expecting current_price
+            'unrealized_pnl': position['unRealizedProfit'],
+            'leverage': position['leverage'],
+            'ts_epoch': str(now_epoch),
+            'source': 'position_state_brain',
+        }
+        self.redis.hset(canonical_key, mapping=canonical_data)
+        self.redis.expire(canonical_key, ttl_sec)
+        
+        # --- 3. Backward-compat position key (replaces harvest_brain writes) ---
+        if abs_qty > 0:
+            compat_key = f"quantum:position:{symbol}"
+            compat_data = {
+                'symbol': symbol,
+                'side': side,
+                'quantity': str(abs_qty),
+                'entry_price': position['entryPrice'],
+                'unrealized_pnl': position['unRealizedProfit'],
+                'leverage': position['leverage'],
+                'source': 'position_state_brain',
+                'sync_timestamp': str(now_epoch),
+            }
+            self.redis.hset(compat_key, mapping=compat_data)
+            self.redis.expire(compat_key, 86400)  # 24h TTL (same as harvest_brain)
         
         if PROMETHEUS_AVAILABLE:
             self.metric_exchange_amt.labels(symbol=symbol).set(position['positionAmt'])

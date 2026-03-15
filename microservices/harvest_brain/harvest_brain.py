@@ -1137,51 +1137,34 @@ class HarvestBrainService:
                 positions_data = json_lib.loads(response.read().decode())
             
             # Sync ONLY positions that exist on Binance
+            # OP 7C: P3.3 now owns quantum:position:{symbol} writes.
+            # Harvest brain only reads positions for internal tracking, no Redis writes.
             synced_count = 0
+            active_symbols = set()
             for pos in positions_data:
                 amt = float(pos.get("positionAmt", 0))
                 if amt == 0:  # Skip zero positions
                     continue
                 
                 symbol = pos["symbol"]
-                side = "LONG" if amt > 0 else "SHORT"
-                qty = abs(amt)
-                entry_price = float(pos.get("entryPrice", 0))
-                unrealized_pnl = float(pos.get("unRealizedProfit", 0))
-                leverage = int(pos.get("leverage", 1))
-                
-                pos_key = f"quantum:position:{symbol}"
-                position_data = {
-                    "symbol": symbol,
-                    "side": side,
-                    "quantity": str(qty),
-                    "entry_price": str(entry_price),
-                    "unrealized_pnl": str(unrealized_pnl),
-                    "leverage": str(leverage),
-                    "source": "harvest_brain_startup_sync",
-                    "sync_timestamp": str(int(time.time()))
-                }
-                self.redis.hset(pos_key, mapping=position_data)
+                active_symbols.add(symbol)
                 synced_count += 1
-                logger.debug(f"  ✓ Synced {symbol}: {side} {qty:.2f} @ {entry_price:.6f}")
+                logger.debug(f"  ✓ Found active {symbol}: {'LONG' if amt > 0 else 'SHORT'} {abs(amt):.2f}")
             
-            logger.info(f"✅ STARTUP: Synced {synced_count} positions from Binance testnet")
+            logger.info(f"✅ STARTUP: Found {synced_count} active positions on Binance testnet")
             
             # Remove any ghost positions that don't exist on Binance
             all_pos_keys = self.redis.keys("quantum:position:*")
             ghost_count = 0
             for key in all_pos_keys:
                 symbol = key.replace("quantum:position:", "")
-                # Check if symbol exists in positions_data
-                symbol_exists = any(p["symbol"] == symbol for p in positions_data)
-                # If it doesn't exist AND the position amount is 0, delete it
-                if not symbol_exists:
-                    # Double-check by looking for it in actual positions
-                    actual_positions = [p for p in positions_data if float(p.get("positionAmt", 0)) != 0]
-                    if not any(p["symbol"] == symbol for p in actual_positions):
-                        self.redis.delete(key)
-                        ghost_count += 1
-                        logger.debug(f"  ✗ Removed ghost position: {symbol}")
+                # Skip sub-keys (snapshot:, ledger:, claim:)
+                if ":" in symbol:
+                    continue
+                if symbol not in active_symbols:
+                    self.redis.delete(key)
+                    ghost_count += 1
+                    logger.debug(f"  ✗ Removed ghost position: {symbol}")
             
             if ghost_count > 0:
                 logger.info(f"🧹 STARTUP: Cleaned {ghost_count} ghost positions from Redis")
@@ -1248,10 +1231,8 @@ class HarvestBrainService:
             if status in ['FILLED', 'PARTIAL_FILL']:
                 self.tracker.ingest_execution(event)
                 
-                # Sync to quantum:position:{symbol} Redis key
-                if symbol in self.tracker.positions:
-                    pos = self.tracker.positions[symbol]
-                    await self._sync_position_to_redis(pos)
+                # OP 7C: P3.3 now owns quantum:position:{symbol} writes.
+                # Harvest brain no longer syncs position keys to avoid 5-source fragmentation.
             
             # Evaluate positions for harvesting
             for symbol_key, position in list(self.tracker.positions.items()):
