@@ -1239,6 +1239,29 @@ Full audit of systemd journal across all 40 services. Identified and fixed 7 bug
 **Commit:** `9004e90ea` — 19 files changed, +57/-18
 **Result:** 40/40 services running, 6/6 exit‑brain models producing signals (was 5/6), zero application errors in logs.
 
+### 7I: Dashboard & Service Hardening [DONE] 2026-03-15
+
+Production audit revealed Docker-era hostname leftovers in dashboard, mixed service user ownership, and unconfigured subsystems generating log noise.
+
+**Bugs found and fixed:**
+
+| # | Issue | Files/Services | Fix |
+|---|-------|---------------|-----|
+| 1 | Dashboard hardcoded `http://ai-engine:8001` (Docker hostname, DNS fails) | ai_router.py, control_router.py | Changed to `http://localhost:8001` |
+| 2 | Dashboard Redis default `'redis'` (Docker hostname) | ai_router.py (×2), control_router.py, quantum_client.py, rl_router.py (×2) | Changed default to `'localhost'` |
+| 3 | Dashboard risk port 8012 (no service listens) | quantum_client.py | Changed to port 8070 (risk-kernel actual port) |
+| 4 | 14 services running as root, 37 as qt → file ownership conflicts | 6 systemd service files (clm, market-publisher, risk-kernel, rl-trainer, layer1-data-sink, stream-recover) | Changed all to `User=qt Group=qt` |
+| 5 | `/etc/quantum/secrets.env` permissions 600 root-only | secrets.env | `chown root:qt`, `chmod 640` (qt group-readable) |
+| 6 | Capital allocation "No budget symbols found" every 5s (no budget data configured) | quantum-risk-kernel.service | `RK_ENABLE_CAPITAL_ALLOCATION=false` until budget seeding implemented |
+
+**Code commit:** `7b656095e` — 4 files changed (10 Docker hostname replacements)
+**VPS changes:** secrets.env permissions, 6 service files User=qt, risk-kernel env toggle
+**Result:** 40/40 services running, 0 root services, zero errors in production logs.
+
+**Known remaining items (not bugs, for future OPs):**
+- AI engine `/health` endpoint slow/hanging (performance issue, not connectivity)
+- Capital allocation needs budget seeding implementation before re-enabling
+- Dashboard SERVICES port map has phantom ports (8003, 8004, 8006, 8010, 8011) — services don't exist yet, handled by fallback to mock data
 
 Repo was bloated with binary artifacts accumulated over months:
 - Pack size before: **1.58 GiB**
