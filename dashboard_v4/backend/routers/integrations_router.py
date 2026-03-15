@@ -80,18 +80,37 @@ async def get_strategy_performance():
         raise HTTPException(status_code=503, detail="Strategy Brain service unavailable")
     return data
 
+@router.get("/trades/signals")
+async def get_trade_signals():
+    """Get latest trade signals from AI"""
+    data = await quantum_client.get_trade_signals()
+    if data is None:
+        raise HTTPException(status_code=503, detail="Trade signals unavailable")
+    return data
+
+
 @router.get("/health/all")
 async def check_all_services():
     """Check health of all Quantum services"""
-    services = ['portfolio', 'trading', 'ai_engine', 'risk', 'strategy', 'ceo', 
-                'model_supervisor', 'universe', 'backend']
-    
+    # HTTP services (real ports)
+    http_services = ['ai_engine', 'risk', 'model_supervisor']
     health_status = {}
-    for service in services:
+    for service in http_services:
         is_healthy = await quantum_client.health_check(service)
         health_status[service] = {
             "status": "healthy" if is_healthy else "unavailable",
-            "url": quantum_client.SERVICES.get(service)
+            "url": quantum_client.SERVICES.get(service),
         }
-    
+    # Redis-backed data sources
+    redis_ok = False
+    if quantum_client.redis_client:
+        try:
+            redis_ok = quantum_client.redis_client.ping()
+        except Exception:
+            pass
+    for name in ['portfolio', 'trading', 'strategy', 'universe']:
+        health_status[name] = {
+            "status": "healthy" if redis_ok else "unavailable",
+            "source": "redis",
+        }
     return health_status

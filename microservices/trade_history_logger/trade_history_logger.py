@@ -34,10 +34,17 @@ except ImportError:
     print("ERROR: redis-py not installed")
     sys.exit(1)
 
+try:
+    import psycopg2
+    HAS_PG = True
+except ImportError:
+    HAS_PG = False
+
 # Configuration
 REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/quantumdb")
 
 STREAM_APPLY_RESULT = "quantum:stream:apply.result"
 CONSUMER_GROUP = "trade_history_logger"
@@ -62,6 +69,7 @@ class TradeHistoryLogger:
         )
         logger.info(f"Connected to Redis at {REDIS_HOST}:{REDIS_PORT}")
         self._ensure_consumer_group()
+        self._init_postgres()
         
     def _ensure_consumer_group(self):
         """Create consumer group if not exists"""
@@ -79,6 +87,55 @@ class TradeHistoryLogger:
             else:
                 raise
     
+    def _init_postgres(self):
+        """Initialize PostgreSQL connection for trade persistence"""
+        self.pg_conn = None
+        if not HAS_PG:
+            logger.warning("psycopg2 not installed — PostgreSQL persistence disabled")
+            return
+        try:
+            self.pg_conn = psycopg2.connect(DATABASE_URL)
+            self.pg_conn.autocommit = True
+            logger.info("Connected to PostgreSQL for trade persistence")
+        except Exception as e:
+            logger.warning(f"PostgreSQL connection failed (trades will only go to Redis): {e}")
+            self.pg_conn = None
+
+    def _write_trade_to_postgres(self, trade: Dict, pnl_usdt: float, pnl_pct: float, volume_usdt: float):
+        """Persist a completed trade to the PostgreSQL trades table"""
+        if not self.pg_conn:
+            return
+        try:
+            with self.pg_conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO trades (symbol, side, quantity, price, timestamp, status,
+                                          pnl_usdt, pnl_pct, volume_usdt, plan_id, source, order_id)
+                       VALUES (%s, %s, %s, %s, to_timestamp(%s), %s, %s, %s, %s, %s, %s, %s)""",
+                    (
+                        trade['symbol'],
+                        trade['side'],
+                        trade['executed_qty'],
+                        trade['avg_price'],
+                        trade['timestamp'],
+                        'FILLED',
+                        round(pnl_usdt, 2),
+                        round(pnl_pct, 4),
+                        round(volume_usdt, 2),
+                        trade.get('plan_id', ''),
+                        'trade_history_logger',
+                        trade.get('order_id', 0),
+                    )
+                )
+            logger.debug(f"PG: {trade['symbol']} trade persisted")
+        except Exception as e:
+            logger.warning(f"PostgreSQL write failed for {trade['symbol']}: {e}")
+            # Reconnect on next trade
+            try:
+                self.pg_conn = psycopg2.connect(DATABASE_URL)
+                self.pg_conn.autocommit = True
+            except Exception:
+                self.pg_conn = None
+
     def is_trade_closure(self, result: Dict) -> bool:
         """
         Determine if this result represents a completed trade (position closure)
@@ -250,6 +307,9 @@ class TradeHistoryLogger:
             }
             
             self.redis.hset(ledger_key, mapping=ledger_update)
+            
+            # Persist to PostgreSQL
+            self._write_trade_to_postgres(trade, pnl_usdt, pnl_pct, volume_usdt)
             
             logger.info(
                 f"✅ {symbol}: Trade logged | "

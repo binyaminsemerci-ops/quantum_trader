@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, BigInteger
 from datetime import datetime
 from .connection import Base
 
@@ -24,6 +24,12 @@ class Trade(Base):
     price = Column(Float, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
     status = Column(String, default="PENDING")  # PENDING, FILLED, CANCELLED
+    pnl_usdt = Column(Float, default=0)
+    pnl_pct = Column(Float, default=0)
+    volume_usdt = Column(Float, default=0)
+    plan_id = Column(String, nullable=True)
+    source = Column(String, default="system")
+    order_id = Column(BigInteger, nullable=True)
     
     def __repr__(self):
         return f"<Trade(id={self.id}, symbol={self.symbol}, side={self.side}, qty={self.quantity})>"

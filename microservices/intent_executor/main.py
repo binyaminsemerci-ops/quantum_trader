@@ -989,6 +989,29 @@ class IntentExecutor:
             reduce_only_str = event_data.get(b"reduceOnly", b"true").decode().lower()
             reduce_only = reduce_only_str in ("true", "1", "yes")
 
+            # Validate side is BUY or SELL — reject/map invalid values like "CLOSE"
+            if side not in ("BUY", "SELL"):
+                if side == "CLOSE" and reduce_only:
+                    # Map CLOSE to correct direction based on current position
+                    pos_key = f"quantum:position:ledger:{symbol}"
+                    pos_data = self.redis.hgetall(pos_key)
+                    pos_amt = float((pos_data.get(b"ledger_amt") or pos_data.get(b"position_amt") or b"0").decode())
+                    if pos_amt > 0:
+                        side = "SELL"
+                    elif pos_amt < 0:
+                        side = "BUY"
+                    else:
+                        logger.warning(f"❌ side=CLOSE but no position for {symbol}, rejecting plan {plan_id[:8]}")
+                        self._write_result(plan_id, symbol, executed=False, error="close_no_position", side="CLOSE", qty=0)
+                        self._mark_done(plan_id)
+                        return True
+                    logger.info(f"🔄 Mapped side=CLOSE → {side} for {symbol} (position_amt={pos_amt})")
+                else:
+                    logger.warning(f"❌ Invalid side={side} for {symbol}, rejecting plan {plan_id[:8]}")
+                    self._write_result(plan_id, symbol, executed=False, error=f"invalid_side:{side}", side=side, qty=float(qty_str or "0"))
+                    self._mark_done(plan_id)
+                    return True
+
 
             
             # Extract leverage from plan (LeverageEngine via intent-bridge)

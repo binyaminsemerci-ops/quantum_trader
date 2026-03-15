@@ -1380,7 +1380,68 @@ systemctl restart quantum-*.service
 | Date | Operation | Step | Status | Notes |
 |------|-----------|------|--------|-------|
 | 2026-03-14 | — | — | v2 plan created | Full VPS re-audit: 42 running, 134 total, 9 touching /opt/quantum |
-| | | | | |
+| 2026-03-15 | OP 8 | — | STARTED | Live Data Pipeline — Dashboard shows real trading data |
+
+---
+
+## OP 8: LIVE DATA PIPELINE
+### Status: [IN PROGRESS]
+### Depends on: OP 7I (Dashboard & Service Hardening) completed
+
+**Goal**: Make the dashboard show REAL, LIVE data from the 40-service trading system.
+All pages must display actual data — no phantom ports, no mock data, no empty tables.
+
+**System Audit (2026-03-15 05:50 UTC) revealed:**
+
+| # | Issue | Severity | Root Cause |
+|---|-------|----------|------------|
+| 1 | `trades` table empty — no trade history | HIGH | trade_history_logger writes to Redis only, not PostgreSQL |
+| 2 | quantum_client phantom ports (8003,8004,8006,8010,8011) | HIGH | SERVICES map has ports where no service listens |
+| 3 | `/integrations/trades/active` returns 503 | HIGH | quantum_client tries HTTP to port 8003 (nonexistent) |
+| 4 | DOGEUSDT `side=CLOSE` causes Binance -1117 error | MEDIUM | Plan published with side="CLOSE" instead of BUY/SELL |
+| 5 | 2 dead timers (exit-owner-watch, rl-shadow-scorecard) | MEDIUM | Became inactive after service restart |
+| 6 | trade-logger: User=root, /usr/bin/python3 | LOW | Service file not updated in OP 4 |
+| 7 | TFT model not loaded | LOW | Model file missing/not trained |
+| 8 | RL gate: no_rl_data | LOW | RL data pipeline not feeding signals |
+
+#### Step 8.1: Rewrite quantum_client.py — Redis-first data access [ ]
+
+The quantum_client tries HTTP calls to 9 service ports, but only 3 actually exist
+(8001 ai_engine, 8070 risk-kernel, 8007 model_supervisor). The other 6 return
+connection refused → 503 on integrations routes.
+
+**Fix**: Rewrite quantum_client to read directly from Redis (like all other routers do).
+All trading data is already in Redis streams and keys.
+
+#### Step 8.2: Rewrite integrations_router.py — use Redis data [ ]
+
+Update integration endpoints to return real data from Redis instead of proxying HTTP.
+
+#### Step 8.3: Add trade persistence — Redis → PostgreSQL [ ]
+
+The trade_history_logger writes only to `quantum:ledger:{symbol}`.
+Add PostgreSQL writes so the `trades` table has data for the dashboard.
+
+#### Step 8.4: Fix intent_executor — validate side field [ ]
+
+Main lane accepts `side=CLOSE` from plans and passes it to Binance API.
+Binance only accepts BUY/SELL. Add validation to reject or map CLOSE.
+
+#### Step 8.5: Revive dead timers [ ]
+
+```bash
+systemctl start quantum-exit-owner-watch.timer
+systemctl start quantum-rl-shadow-scorecard.timer
+```
+
+#### Step 8.6: Fix trade-logger service file [ ]
+
+```bash
+# Change User=root → User=qt Group=qt
+# Change /usr/bin/python3 → /home/qt/quantum_trader_venv/bin/python
+```
+
+#### Step 8.7: Commit, deploy, verify [ ]
 
 ---
 
