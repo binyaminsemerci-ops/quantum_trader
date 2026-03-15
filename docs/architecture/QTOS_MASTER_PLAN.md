@@ -1141,9 +1141,25 @@ Entry: AI Engine → trade.intent → intent_bridge → apply.plan → intent_ex
 Exit:  exit_mgmt_agent → exit.intent → exit_intent_gateway → harvest.intent → intent_executor → trade.closed
 ```
 
-### 7E: Risk Kernel
-Consolidate 7 risk services into one process.
-Governor + heat-gate + portfolio-gate + risk-proposal + capital-allocation → risk-kernel.
+### 7E: Risk Kernel ✅
+
+- [x] Analyzed all 7 risk services (~5,430 lines across 12 files)
+- [x] Discovered TRIPLE duplication: heat-gate, portfolio-gate, portfolio-heat-gate all consume harvest.proposal
+- [x] Created `microservices/risk_kernel/main.py` — thread-per-component orchestrator
+- [x] Components (6 active, 1 disabled):
+  - Governor (stream: apply.plan) — entry gate ✅
+  - Heat Gate (stream: harvest.proposal) — exit heat moderator ✅
+  - Portfolio Gate (stream: harvest.proposal) — exit portfolio safety ✅
+  - Portfolio Heat Gate — **DISABLED** (90% overlap with above two, prometheus p26_* conflict)
+  - Risk Proposal Publisher (poll: 10s) — SL/TP calculator ✅
+  - Capital Allocation (poll: 5s) — per-symbol budget allocator ✅
+  - Portfolio Governance (poll: 30s) — macro policy controller ✅
+- [x] Unified health endpoint on port 8070
+- [x] Per-component toggle via RK_ENABLE_* env vars
+- [x] Watchdog thread monitors component health every 30s
+- [x] Stopped + disabled 7 individual systemd services
+- [x] Created + enabled `quantum-risk-kernel.service`
+- Net result: 7 services → 1 (service count: 43 → 37)
 
 ### 7F: Plugin Architecture
 AI strategies become plugins with standard interface.
