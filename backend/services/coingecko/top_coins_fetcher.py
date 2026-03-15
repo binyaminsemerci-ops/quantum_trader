@@ -42,7 +42,11 @@ class TopCoinsFetcher:
         "optimism-ecosystem", "polygon-ecosystem", "zksync-ecosystem"
     ]
     
-    def __init__(self, cache_dir: str = "backend/data/cache"):
+    def __init__(self, cache_dir: str = None):
+        if cache_dir is None:
+            # Absolute path: <project>/backend/data/cache
+            _project_root = Path(__file__).resolve().parent.parent.parent.parent
+            cache_dir = str(_project_root / "backend" / "data" / "cache")
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_file = self.cache_dir / "top_coins_cache.json"

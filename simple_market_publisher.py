@@ -79,7 +79,7 @@ async def start_market_streams():
     
     # Initialize Binance Async Client
     client = await AsyncClient.create()
-    bsm = BinanceSocketManager(client)
+    bsm = BinanceSocketManager(client, max_queue_size=1000)
     
     logger.info(f"[BINANCE] Starting individual streams for {len(SYMBOLS)} symbols")
     

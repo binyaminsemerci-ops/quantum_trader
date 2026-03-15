@@ -172,7 +172,11 @@ class PnLFeedbackListener:
         """Process a single PnL message (async)"""
         try:
             # Parse message data
-            timestamp = float(data.get("timestamp", time.time()))
+            raw_ts = data.get("timestamp", time.time())
+            try:
+                timestamp = float(raw_ts)
+            except (ValueError, TypeError):
+                timestamp = datetime.fromisoformat(str(raw_ts)).timestamp()
             symbol = data.get("symbol", "UNKNOWN")
             confidence = float(data.get("confidence", 0.5))
             leverage = float(data.get("dynamic_leverage", 20.0))
@@ -217,7 +221,11 @@ class PnLFeedbackListener:
         """Process a single PnL message (sync)"""
         try:
             # Parse message data
-            timestamp = float(data.get("timestamp", time.time()))
+            raw_ts = data.get("timestamp", time.time())
+            try:
+                timestamp = float(raw_ts)
+            except (ValueError, TypeError):
+                timestamp = datetime.fromisoformat(str(raw_ts)).timestamp()
             symbol = data.get("symbol", "UNKNOWN")
             confidence = float(data.get("confidence", 0.5))
             leverage = float(data.get("dynamic_leverage", 20.0))

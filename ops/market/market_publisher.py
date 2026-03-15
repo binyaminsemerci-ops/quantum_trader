@@ -158,7 +158,7 @@ async def start_market_streams():
         sys.exit(1)
     
     client = await AsyncClient.create()
-    bsm = BinanceSocketManager(client)
+    bsm = BinanceSocketManager(client, max_queue_size=1000)
     asyncio.create_task(health_monitor())
     asyncio.create_task(mark_price_fallback())
     

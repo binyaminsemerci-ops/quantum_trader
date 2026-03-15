@@ -445,8 +445,17 @@ class XGBoostAgent(BaseAgent):
     def predict(self,sym,feat):
         df=self._align(feat); X=self.scaler.transform(df)
         # Multi-class classification: classes = [0:SELL, 1:HOLD, 2:BUY]
-        class_pred = self.model.predict(X)[0]  # Returns class index (0, 1, or 2)
-        proba = self.model.predict_proba(X)[0]  # Returns [p_SELL, p_HOLD, p_BUY]
+        # Support both sklearn API and raw Booster (XGBoost 3.x)
+        if hasattr(self.model, "predict_proba"):
+            class_pred = self.model.predict(X)[0]
+            proba = self.model.predict_proba(X)[0]
+        else:
+            import xgboost as xgb
+            dmat = xgb.DMatrix(X)
+            proba = self.model.predict(dmat)
+            if hasattr(proba, "ndim") and proba.ndim == 2:
+                proba = proba[0]
+            class_pred = int(np.argmax(proba))
         
         # Map class to action
         actions = ["SELL", "HOLD", "BUY"]

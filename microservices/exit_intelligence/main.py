@@ -697,7 +697,11 @@ class ExitIntelligenceService:
             price = float(data.get('price', 0))
             qty = float(data.get('qty', 0))
             fees = float(data.get('fees', 0))
-            timestamp = float(data.get('timestamp', time.time()))
+            raw_ts = data.get('timestamp', time.time())
+            try:
+                timestamp = float(raw_ts)
+            except (ValueError, TypeError):
+                timestamp = datetime.fromisoformat(str(raw_ts)).timestamp()
             
             # Detect exit type from metadata
             metadata = data.get('metadata', {})

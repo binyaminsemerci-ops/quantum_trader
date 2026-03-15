@@ -508,7 +508,7 @@ class ModelRegistry:
             try:
                 import torch
                 # Load state dict only - model structure must be recreated by caller
-                model_state = torch.load(path, map_location='cpu')
+                model_state = torch.load(path, map_location='cpu', weights_only=False)
                 logger.info(f"Loaded PyTorch model state dict from: {path}")
                 return model_state
             except Exception as e:

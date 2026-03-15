@@ -464,7 +464,7 @@ class RLPositionSizingAgent:
                     "load path assertion skipped."
                 )
 
-            checkpoint = torch.load(self.model_path)
+            checkpoint = torch.load(self.model_path, weights_only=False)
 
             self.policy.load_state_dict(checkpoint['policy_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])

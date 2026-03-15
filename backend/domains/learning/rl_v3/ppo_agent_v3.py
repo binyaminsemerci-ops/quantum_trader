@@ -116,7 +116,7 @@ class PPOAgent:
     
     def load(self, path: Path):
         """Load agent networks."""
-        checkpoint = torch.load(path, map_location=self.device)
+        checkpoint = torch.load(path, map_location=self.device, weights_only=False)
         self.policy_net.load_state_dict(checkpoint['policy_state_dict'])
         self.value_net.load_state_dict(checkpoint['value_state_dict'])
         self.policy_optimizer.load_state_dict(checkpoint['policy_optimizer_state_dict'])

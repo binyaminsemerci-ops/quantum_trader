@@ -96,7 +96,7 @@ class MetaPredictorAgent:
             
             # Load model
             self.model = MetaNet(input_dim=8, hidden=32, output_dim=3)
-            self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+            self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=False))
             self.model.eval()
             
             # Load scaler

@@ -1185,7 +1185,7 @@ AI strategies become plugins with standard interface.
 - [x] Deployed to VPS — all 6 plugins registered, predict flow verified live
 - Commits: 7e610de43, d83f95da2
 
-### 7G: Frontend Unification [IN PROGRESS] 2026-03-15
+### 7G: Frontend Unification [DONE] 2026-03-15
 6 frontends → 1. Unified API + dashboard.
 
 **Audit completed 2026-03-15:**

@@ -776,7 +776,10 @@ class XGBAgent:
                     "features": feat_any.to_dict('records')[0] if hasattr(feat_any, 'to_dict') else {}
                 }
 
-            preds = self.model.predict(Xs)
+            # Raw Booster fallback: wrap with DMatrix (XGBoost 3.x)
+            import xgboost as _xgb
+            _dmat = _xgb.DMatrix(Xs)
+            preds = self.model.predict(_dmat)
             v = float(preds[0])
             confidence = min(0.99, abs(v))  # Use prediction magnitude as confidence
 

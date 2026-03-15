@@ -114,7 +114,7 @@ class ModelValidationLayer:
             if not os.path.exists(old_model_path):
                 logger.warning(f"[Validator] No production model found at {old_model_path}")
                 return False
-            old_model.load_state_dict(torch.load(old_model_path))
+            old_model.load_state_dict(torch.load(old_model_path, weights_only=False))
             
             # Load adaptive (retrained) model
             new_path = old_model_path.replace(".pth", "_adaptive.pth")
@@ -122,7 +122,7 @@ class ModelValidationLayer:
                 logger.warning(f"[Validator] No adaptive model found for {name} at {new_path}")
                 return False
             new_model = cls()
-            new_model.load_state_dict(torch.load(new_path))
+            new_model.load_state_dict(torch.load(new_path, weights_only=False))
             
             # Evaluate both models
             logger.info(f"[Validator] Evaluating production {name} model...")

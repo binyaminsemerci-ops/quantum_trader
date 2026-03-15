@@ -31,6 +31,10 @@ class UniverseManager:
     ):
         self.max_symbols = max_symbols
         self.refresh_interval_hours = refresh_interval_hours
+        if data_dir == "backend/data":
+            # Absolute path: <project>/backend/data
+            _project_root = Path(__file__).resolve().parent.parent.parent
+            data_dir = str(_project_root / "backend" / "data")
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         

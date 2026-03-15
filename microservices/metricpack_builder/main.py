@@ -390,7 +390,11 @@ class MetricPackBuilder:
             qty = float(data.get("qty", 0))
             filled_qty = float(data.get("filled_qty", 0))
             price = float(data.get("price", 0))
-            timestamp = float(data.get("timestamp", time.time()))
+            raw_ts = data.get("timestamp", time.time())
+            try:
+                timestamp = float(raw_ts)
+            except (ValueError, TypeError):
+                timestamp = datetime.fromisoformat(str(raw_ts)).timestamp()
             
             metadata = data.get("metadata", {})
             action = metadata.get("action", "UNKNOWN")
