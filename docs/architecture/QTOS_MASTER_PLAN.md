@@ -1203,7 +1203,13 @@ AI strategies become plugins with standard interface.
 
 **Phase 1 (done):** Audit and document
 **Phase 2 (done):** Remove dead frontends from repo — committed 85fe17c96, deployed to VPS, 37/37 services verified
-**Phase 3 (next):** Merge missing page concepts into dashboard_v4
+**Phase 3 (done):** Merge missing page concepts into dashboard_v4 — committed a3afea04f
+- Added 5 new pages: Journal, Incidents, Replay, Admin, Login
+- Added 4 new backend routers: journal_router, incident_router, replay_router, admin_router
+- Added 2 new DB models: JournalEntry, Incident (7 tables total in quantumdb)
+- Fixed nginx root path (/root/ → /home/qt/), cleaned backup configs
+- Created quantum-dashboard-api.service (port 8000), installed PostgreSQL 16
+- 38 running services, all 11 SPA routes return HTTP 200 via https://app.quantumfond.com
 
 ### BFG Git History Cleanup [DONE] 2026-03-15
 
